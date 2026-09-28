@@ -38,10 +38,10 @@ export function formatFeedback(entry: FeedbackEntry): string {
   return lines.join("\n");
 }
 
-/** URL of GitHub's "new issue" form with the feedback prefilled. */
+/** URL of GitHub's "new issue" form with the feedback prefilled (the title prefix is what to filter on). */
 export function githubIssueUrl(repo: string, entry: FeedbackEntry): string {
   const title = `[${entry.category}] Feedback from ${SITE_NAME}`;
-  const params = new URLSearchParams({ title, body: formatFeedback(entry), labels: "feedback" });
+  const params = new URLSearchParams({ title, body: formatFeedback(entry) });
   return `https://github.com/${repo}/issues/new?${params.toString()}`;
 }
 
@@ -49,6 +49,24 @@ export function githubIssueUrl(repo: string, entry: FeedbackEntry): string {
 export function mailtoUrl(email: string, entry: FeedbackEntry): string {
   const subject = `[${SITE_NAME}] ${entry.category} feedback`;
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(formatFeedback(entry))}`;
+}
+
+/** Longest URL the email and GitHub channels can carry (mail clients and GitHub reject longer ones). */
+export const URL_LIMITS = { email: 1800, github: 7000 } as const;
+
+/**
+ * The email and GitHub channels carry the whole message in a URL, where non-ASCII text grows
+ * several times when percent-encoded. Shortens the message until the URL fits the limit.
+ */
+export function fitUrl(build: (entry: FeedbackEntry) => string, entry: FeedbackEntry, limit: number): { url: string; shortened: boolean } {
+  let url = build(entry);
+  if (url.length <= limit) return { url, shortened: false };
+  let message = entry.message;
+  while (url.length > limit && message.length > 40) {
+    message = message.slice(0, Math.floor(message.length * 0.8)).trimEnd();
+    url = build({ ...entry, message: `${message}… [message shortened]` });
+  }
+  return { url, shortened: true };
 }
 
 export default function FeedbackForm() {
@@ -60,6 +78,8 @@ export default function FeedbackForm() {
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  // Link shown on the success screen for the email/GitHub channels, in case nothing opened.
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,13 +95,17 @@ export default function FeedbackForm() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } else if (FEEDBACK_CHANNEL === "email") {
-        window.location.href = mailtoUrl(EMAIL, entry);
+        const { url } = fitUrl((e) => mailtoUrl(EMAIL, e), entry, URL_LIMITS.email);
+        setManualUrl(url);
+        window.location.href = url;
       } else if (FEEDBACK_CHANNEL === "github") {
-        const popup = window.open(githubIssueUrl(GITHUB_REPO, entry), "_blank", "noopener,noreferrer");
-        if (popup === null && typeof window.open === "function") {
-          // Pop-up blocked: navigate in place instead so the feedback is not lost.
-          window.location.href = githubIssueUrl(GITHUB_REPO, entry);
-        }
+        const { url } = fitUrl((e) => githubIssueUrl(GITHUB_REPO, e), entry, URL_LIMITS.github);
+        setManualUrl(url);
+        // No "noopener" in the feature string: with it window.open always returns null, which
+        // would look like a blocked pop-up. The opener is severed by hand instead, and the
+        // success screen offers the link for the case where the pop-up really was blocked.
+        const popup = window.open(url, "_blank");
+        if (popup) popup.opener = null;
       } else {
         throw new Error("No feedback channel configured");
       }
@@ -103,12 +127,20 @@ export default function FeedbackForm() {
         </div>
         <h2 className="text-2xl font-bold text-white">{t("successTitle")}</h2>
         <p className="text-zinc-400 max-w-md mx-auto">{successText}</p>
+        {manualUrl && (
+          <p>
+            <a href={manualUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline text-sm font-medium">
+              {t("openManually")}
+            </a>
+          </p>
+        )}
         <button
           type="button"
           onClick={() => {
             setStatus("idle");
             setMessage("");
             setRating(0);
+            setManualUrl(null);
           }}
           className="mt-2 px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors cursor-pointer"
         >

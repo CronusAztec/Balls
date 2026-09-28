@@ -556,6 +556,7 @@
     "successEmail": "Twój program pocztowy powinien się teraz otworzyć z wypełnioną wiadomością. Jeśli nic się nie stało, przeglądarka może blokować linki mailto.",
     "successGithub": "W nowej karcie otworzył się formularz zgłoszenia na GitHubie z Twoją wiadomością. Wyślij go tam, aby zakończyć.",
     "notConfigured": "Ta strona nie ma jeszcze skonfigurowanego kanału opinii. Jeśli ją prowadzisz, ustaw NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL lub NEXT_PUBLIC_GITHUB_REPO przed budowaniem.",
+    "openManually": "Jeśli nic się nie otworzyło, użyj tego linku.",
     "cta": "Czegoś brakuje? Chcesz zgłosić błąd? Daj nam znać!"
   },
   "TikTokBallVideos": {

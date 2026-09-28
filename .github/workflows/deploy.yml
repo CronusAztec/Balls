@@ -12,17 +12,16 @@ permissions:
   pages: write
   id-token: write
 
-# One deployment at a time; a queued run waits instead of cancelling a deployment in progress.
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 env:
   DEPLOY: ${{ github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # A newer push to the same branch supersedes a build that is still running.
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -49,30 +48,39 @@ jobs:
         id: site
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
-          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
-          repo_lc="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
-          if [ -s public/CNAME ]; then
-            url="https://$(tr -d '[:space:]' < public/CNAME)"; base=""
-          elif [ "$repo_lc" = "$owner.github.io" ]; then
-            url="https://$owner.github.io"; base=""
+          # Prefer the URL GitHub has configured for this repository's Pages site (this is how a
+          # custom domain set under Settings → Pages is picked up); fall back to the conventional
+          # project-site URL while Pages is not enabled yet.
+          if url="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url' 2>/dev/null)" && [ -n "$url" ]; then
+            source="the Pages settings"
           else
-            url="https://$owner.github.io/$REPO"; base="/$REPO"
+            owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+            if [ "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then
+              url="https://$owner.github.io"
+            else
+              url="https://$owner.github.io/$REPO"
+            fi
+            source="the repository name (Pages is not enabled yet)"
           fi
+          url="${url%/}"
+          base="$(printf '%s' "$url" | sed -E 's#^https?://[^/]*##')"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "base=$base" >> "$GITHUB_OUTPUT"
-          echo "Site URL: $url (base path: '$base')"
+          echo "Site URL: $url (base path: '$base', from $source)"
 
       - name: Build static site
         run: npm run build
         env:
           NEXT_PUBLIC_SITE_URL: ${{ steps.site.outputs.url }}
           NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}
-          # Feedback form: issues on this repository unless a repository variable overrides it
-          # (Settings → Secrets and variables → Actions → Variables).
-          NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+          # Feedback form: by default it opens issues on this repository, but only where visitors
+          # can (public repository with Issues on). Repository variables (Settings → Secrets and
+          # variables → Actions → Variables) take precedence and are the way to go for a private site.
+          NEXT_PUBLIC_GITHUB_REPO: ${{ (github.event.repository.private == false && github.event.repository.has_issues == true) && github.repository || '' }}
           NEXT_PUBLIC_FEEDBACK_ENDPOINT: ${{ vars.FEEDBACK_ENDPOINT }}
           NEXT_PUBLIC_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: ${{ vars.ANALYTICS_SCRIPT_URL }}
@@ -88,6 +96,10 @@ jobs:
     needs: build
     if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
+    # One deployment at a time; a queued run waits instead of cancelling one in progress.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

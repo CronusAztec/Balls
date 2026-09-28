@@ -29,17 +29,21 @@ static host – no server required.
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000 → redirects to /en
+npm run dev        # http://localhost:3000 (plus the base path, if set) → redirects to your browser's language, /en by default
 npm run build      # static export into ./out (+ 404.html and .nojekyll for GitHub Pages)
 npm start          # serves ./out the way GitHub Pages does (base path, 404 page, trailing slashes)
 ```
 
 Copy `.env.example` to `.env.local` to configure the build. Everything is optional for local development:
 
-- `NEXT_PUBLIC_SITE_URL` – public URL used for canonical links, hreflang, sitemap and Open Graph (include the base path).
 - `NEXT_PUBLIC_BASE_PATH` – sub-folder the site is served from (`/Balls` on `https://user.github.io/Balls`, empty for a root deployment).
-- Feedback channel, first one set wins: `NEXT_PUBLIC_FEEDBACK_ENDPOINT` (any JSON POST endpoint such as Formspree or your own worker), `NEXT_PUBLIC_FEEDBACK_EMAIL` (opens the visitor's email app) or `NEXT_PUBLIC_GITHUB_REPO` (opens a prefilled GitHub issue).
+- `NEXT_PUBLIC_SITE_URL` – public URL used for canonical links, hreflang, sitemap and Open Graph, including the base path. Defaults to `http://localhost:3000` plus the base path.
+- Feedback channel, first one set wins: `NEXT_PUBLIC_FEEDBACK_ENDPOINT` (an endpoint that accepts a cross-origin JSON POST, e.g. Formspree, Basin or your own worker with CORS enabled), `NEXT_PUBLIC_FEEDBACK_EMAIL` (opens the visitor's email app) or `NEXT_PUBLIC_GITHUB_REPO` (opens a prefilled GitHub issue; needs a public repository with Issues on, and visitors need a GitHub account).
 - `NEXT_PUBLIC_ANALYTICS_SCRIPT_URL` / `NEXT_PUBLIC_ANALYTICS_SITE_ID` – load a privacy-friendly analytics script (Plausible, Umami, Rybbit…).
+
+`next build` reads `.env.local`; so do `npm start`, `npm run smoke` and `npm run previews` (for `NEXT_PUBLIC_BASE_PATH`),
+so a base-path build previews correctly at `http://localhost:3000/<base path>/`. You can also pass it explicitly:
+`npm start -- --base /Balls` and `BASE_URL=http://localhost:3000/Balls npm run smoke`.
 
 Other scripts:
 
@@ -47,8 +51,8 @@ Other scripts:
 npm run typecheck                          # tsc --noEmit
 npm run lint                               # eslint
 npm test                                   # vitest unit tests (engine, MIDI parser, settings)
-npm run smoke                              # headless-browser end-to-end checks against the served export (see scripts/smoke-test.mjs)
-npm run previews                           # regenerate public/modes/*.webp from the real simulator
+npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
+npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first)
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
 python3 scripts/generate-sounds.py         # regenerate the wall-break sound effects
 ```
@@ -64,14 +68,19 @@ The repository ships with `.github/workflows/deploy.yml`:
 2. **Push to the default branch** (or run the workflow manually from the *Actions* tab). Every push is linted,
    type-checked, unit-tested and built; pushes to the default branch are then published.
 3. The site appears at `https://<user>.github.io/<repo>/` – for this repository
-   `https://cronusaztec.github.io/Balls/`. The workflow works out the URL and base path by itself, and it sets
-   the feedback form to open issues on the same repository.
+   `https://cronusaztec.github.io/Balls/`. The workflow reads the site URL from the repository's Pages settings
+   on every run (falling back to that conventional URL while Pages is off) and builds with the matching base path.
 
-Optional repository *Variables* (Settings → Secrets and variables → Actions → Variables) are passed to the
-build: `FEEDBACK_ENDPOINT`, `FEEDBACK_EMAIL`, `ANALYTICS_SCRIPT_URL`, `ANALYTICS_SITE_ID`.
+**Feedback form**: on a public repository with Issues enabled the deployed form opens a prefilled GitHub issue
+(visitors need a GitHub account). On a private repository, or to use another channel, set a repository
+*Variable* (Settings → Secrets and variables → Actions → Variables): `FEEDBACK_ENDPOINT` (a form endpoint that
+accepts a cross-origin JSON POST, e.g. Formspree) or `FEEDBACK_EMAIL`. Until one of these applies the form
+tells visitors that no channel is configured. `ANALYTICS_SCRIPT_URL` and `ANALYTICS_SITE_ID` variables are passed
+to the build the same way.
 
-**Custom domain**: add `public/CNAME` containing the domain (e.g. `viralballs.example.com`) and point its DNS at
-GitHub Pages. The workflow detects the file and builds for the domain root (no base path).
+**Custom domain**: set it under *Settings → Pages → Custom domain* and point its DNS at GitHub Pages. For
+Actions-based deployments GitHub ignores a `CNAME` file; the workflow picks the domain up from the Pages settings
+and builds for the domain root (no base path) on the next run.
 
 **Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
 set and upload `out/`. Point the host's "not found" page at `404.html`.
@@ -133,13 +142,13 @@ src/
 4. Add the card order in `src/lib/modes.ts`, names/descriptions in `messages/*.json` (`Modes`, `Controls.mode<Name>`, `Editorial.mode<Name>`), and a preview image in `public/modes/<name>.webp` (run the preview script).
 
 ### Add a language
-Add the code to `locales` and `LOCALE_OPTIONS` in `src/i18n/routing.ts`, create `messages/<code>.json` (copy `en.json`), and optionally add translated posts in `src/content/blog.<code>.ts`.
+Add the code to `locales` and `LOCALE_OPTIONS` in `src/i18n/routing.ts`, create `messages/<code>.json` (copy `en.json`), import it in the `MESSAGES` map of `src/components/site/NotFoundStatic.tsx` (the static 404 page), add the code to the locale list in `scripts/smoke-test.mjs`, and optionally add translated posts in `src/content/blog.<code>.ts`.
 
 ### Add a blog post
 Append an object to `src/content/blog.en.ts` (and translations in `blog.pl.ts` / `blog.es.ts`, same slug). Content is Markdown rendered by `src/lib/markdown.tsx`.
 
 ### Add a melody or sound
-Drop a `.mid` file into `public/notes` and list it in `src/lib/audio/songs.ts` (`SONGS`); drop an audio file into `public/wallBreak` and list it in `WALL_BREAK_SOUNDS`.
+Drop a `.mid` file into `public/notes` and list it in `src/lib/audio/songs.ts` (`SONGS`); drop an audio file into `public/wallBreak` and list it in `WALL_BREAK_SOUNDS`. Wrap the paths in `assetPath()` (as the existing entries do) so they resolve under a base path.
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.

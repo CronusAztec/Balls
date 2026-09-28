@@ -11,7 +11,9 @@
 import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
+import { loadDotEnv } from "./dotenv.mjs";
 
+loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
 const MODES = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow"];
 const outDir = process.env.OUT_DIR || path.join(process.cwd(), "smoke-output");

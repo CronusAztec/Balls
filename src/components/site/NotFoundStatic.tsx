@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { locales, routing, type Locale } from "@/i18n/routing";
-import { BASE_PATH } from "@/lib/site";
+import { BASE_PATH, SITE_NAME } from "@/lib/site";
 import NotFoundContent from "@/components/site/NotFoundContent";
 import en from "../../../messages/en.json";
 import pl from "../../../messages/pl.json";
@@ -30,6 +30,7 @@ export default function NotFoundStatic() {
     const detected = localeFromLocation();
     setLocale(detected);
     document.documentElement.lang = detected;
+    document.title = `${MESSAGES[detected].NotFound.title} – ${SITE_NAME}`;
   }, []);
   return (
     <NextIntlClientProvider key={locale} locale={locale} messages={MESSAGES[locale]} timeZone="UTC">

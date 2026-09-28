@@ -556,6 +556,7 @@
     "successEmail": "Tu aplicación de correo debería abrirse ahora con el mensaje ya redactado. Si no ha pasado nada, puede que tu navegador bloquee los enlaces mailto.",
     "successGithub": "Se ha abierto en una pestaña nueva un formulario de issue de GitHub con tu mensaje. Envíalo allí para terminar.",
     "notConfigured": "Este sitio aún no tiene configurado un canal de comentarios. Si lo administras, define NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL o NEXT_PUBLIC_GITHUB_REPO antes de compilar.",
+    "openManually": "Si no se ha abierto nada, usa este enlace.",
     "cta": "¿Falta algo? ¿Quieres informar de un error? ¡Cuéntanoslo!"
   },
   "TikTokBallVideos": {

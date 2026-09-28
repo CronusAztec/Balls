@@ -4,7 +4,9 @@ import { defineRouting } from "next-intl/routing";
  * All supported locales. To add a language:
  *  1. add its code here,
  *  2. create messages/<code>.json (copy messages/en.json and translate),
- *  3. add an entry to LOCALE_OPTIONS below (label + flag for the switcher).
+ *  3. add an entry to LOCALE_OPTIONS below (label + flag for the switcher),
+ *  4. import the new messages file in src/components/site/NotFoundStatic.tsx (MESSAGES map),
+ *  5. add the code to the locale list in scripts/smoke-test.mjs.
  */
 export const locales = ["en", "pl", "es"] as const;
 export type Locale = (typeof locales)[number];

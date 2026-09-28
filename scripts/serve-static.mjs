@@ -6,12 +6,14 @@
  *  - answers unknown URLs with out/404.html and status 404.
  *
  * Usage: node scripts/serve-static.mjs [--dir out] [--port 3000] [--base /Balls]
- * (defaults: PORT env or 3000, NEXT_PUBLIC_BASE_PATH env or "")
+ * (defaults: PORT env or 3000; NEXT_PUBLIC_BASE_PATH from the shell, .env.local or .env, else "")
  */
 import http from "http";
 import fs from "fs";
 import path from "path";
+import { loadDotEnv } from "./dotenv.mjs";
 
+loadDotEnv();
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);

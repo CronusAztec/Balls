@@ -776,6 +776,7 @@
     "successEmail": "Your email app should now open with the message prefilled. If nothing happened, your browser may be blocking mailto links.",
     "successGithub": "A GitHub issue form with your message opened in a new tab. Submit it there to finish.",
     "notConfigured": "This site has no feedback channel configured yet. If you run it, set NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL or NEXT_PUBLIC_GITHUB_REPO before building.",
+    "openManually": "If nothing opened, use this link.",
     "cta": "Missing something? Want to report a bug? Let us know!"
   },
   "TikTokBallVideos": {

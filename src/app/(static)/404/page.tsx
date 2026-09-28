@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
 import NotFoundStatic from "@/components/site/NotFoundStatic";
 
-export const metadata: Metadata = { title: "404" };
-
-/** Exported to out/404/index.html and copied to out/404.html by scripts/postexport.mjs. */
+/**
+ * Exported to out/404/index.html and copied to out/404.html by scripts/postexport.mjs.
+ * Next.js treats the "/404" path specially and ignores metadata exported here, so the
+ * document title is set by NotFoundStatic in the browser.
+ */
 export default function NotFoundPage() {
   return <NotFoundStatic />;
 }
