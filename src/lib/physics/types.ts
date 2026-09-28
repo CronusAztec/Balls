@@ -44,9 +44,13 @@ export interface Ball {
   /** Remaining life in ms for temporary balls (e.g. escaped balls in Multiply mode). */
   lifetime?: number;
   frozen?: boolean;
+  /** Angular velocity in rad/s (only non-zero with the "spin" physics extra; see extras.ts). */
+  spin: number;
+  /** Rotation of the ball's sprite in radians, integrated from `spin`; the canvas rotates images / emoji by it. */
+  angle: number;
 }
 
-export type NewBall = Omit<Ball, "id" | "trail" | "trailIndex">;
+export type NewBall = Omit<Ball, "id" | "trail" | "trailIndex" | "spin" | "angle">;
 
 export interface Gap {
   startAngle: number;
@@ -58,7 +62,29 @@ export interface CircularWall {
   gaps: Gap[];
 }
 
-export interface PhysicsConfig {
+/**
+ * Optional physics extras (all off by default, so a seed behaves identically without them).
+ * Resolved with defaults by `resolvePhysicsExtras()` in extras.ts, which also documents the units.
+ */
+export interface PhysicsExtras {
+  /** Fraction of the velocity lost per 60 Hz step (0–0.05). */
+  airDrag: number;
+  /** Constant sideways / vertical acceleration as a fraction of the ball speed per second (−0.5…0.5). */
+  windX: number;
+  windY: number;
+  /** 0–1: how much wall contact spins the ball and how strongly the spin curves its flight (Magnus effect). */
+  spinStrength: number;
+  /** Restitution applied to the rebound speed at every wall hit (0.5–1.2; 1 = unchanged). */
+  wallBounciness: number;
+  /** Wall radii pulse sinusoidally by ±this fraction of their base radius (0–0.3); gaps follow. */
+  breathingAmplitude: number;
+  /** Breathing pulses per second (0.1–3). */
+  breathingSpeed: number;
+  /** Degrees per second the gravity vector rotates (0–180; 0 = gravity stays downward). */
+  rotatingGravity: number;
+}
+
+export interface PhysicsConfig extends Partial<PhysicsExtras> {
   width: number;
   height: number;
   gravity: number;

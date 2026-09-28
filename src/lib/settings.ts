@@ -3,6 +3,7 @@ import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSo
 import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
 import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
+import { DEFAULT_PHYSICS_EXTRAS, PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "@/lib/physics/extras";
 import { isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
 
@@ -28,6 +29,21 @@ export interface SimulatorSettings {
   twoBalls: boolean;
   ballColor2: string;
   bouncierEnabled: boolean;
+  // Physics extras (lib/physics/extras.ts): all off by default so existing seeds replay identically
+  /** Fraction of the velocity lost per 60 Hz step (URL `drag`). */
+  airDrag: number;
+  /** Constant sideways / vertical push as a fraction of the ball speed per second (URL `wx`, `wy`). */
+  windX: number;
+  windY: number;
+  /** 0–1: wall contact spins the ball and the spin curves its flight, Magnus-style (URL `spin`). */
+  spinStrength: number;
+  /** Restitution at wall hits, 0.5–1.2 (URL `wb`). */
+  wallBounciness: number;
+  /** Walls pulse by ±this fraction of their radius (URL `bw`) at `breathingSpeed` pulses per second (URL `bws`). */
+  breathingAmplitude: number;
+  breathingSpeed: number;
+  /** Degrees per second the gravity vector turns (URL `rg`). */
+  rotatingGravity: number;
   // Walls
   wallCount: number;
   wallThickness: number;
@@ -120,6 +136,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     twoBalls: false,
     ballColor2: "#FF3366",
     bouncierEnabled: false,
+    ...DEFAULT_PHYSICS_EXTRAS,
     wallCount: mode === "shatter" ? 10 : 7,
     wallThickness: 2,
     gapSize: defaultGapSize(mode),
@@ -208,6 +225,7 @@ export const RANGES = {
   musicStartOffset: { min: 0, max: 600, step: 0.5 },
   rootNote: { min: ROOT_NOTE_MIN, max: ROOT_NOTE_MAX, step: 1 },
   bpm: { min: BPM_MIN, max: BPM_MAX, step: 1 },
+  ...PHYSICS_EXTRA_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -247,6 +265,15 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   mso: "musicStartOffset",
   root: "rootNote",
   bpm: "bpm",
+  // Physics extras
+  drag: "airDrag",
+  wx: "windX",
+  wy: "windY",
+  spin: "spinStrength",
+  wb: "wallBounciness",
+  bw: "breathingAmplitude",
+  bws: "breathingSpeed",
+  rg: "rotatingGravity",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -314,8 +341,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   return params;
 }
 
+/** Up to three decimals (air drag steps by 0.001), trailing zeros dropped, so slider values survive the URL. */
 function formatNumber(n: number) {
-  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 /** Reads settings from a URL; unknown or invalid values fall back to the defaults. */
@@ -352,6 +380,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (hs !== null) settings.hitSampleId = normalizeHitSampleId(hs);
   settings.hitSampleVolume = clampRange(settings.hitSampleVolume, RANGES.hitSampleVolume, defaultSettings(mode).hitSampleVolume);
   clampMusicBed(settings, defaultSettings(mode));
+  clampPhysicsExtras(settings, defaultSettings(mode));
   const inst = params.get("inst");
   if (isInstrumentId(inst)) settings.instrument = inst;
   const minst = params.get("minst");
@@ -379,6 +408,11 @@ function clampMusicBed(settings: SimulatorSettings, defaults: SimulatorSettings)
   settings.musicDucking = clampRange(Number(settings.musicDucking), RANGES.musicDucking, defaults.musicDucking);
   settings.musicDuckRelease = clampRange(Number(settings.musicDuckRelease), RANGES.musicDuckRelease, defaults.musicDuckRelease);
   settings.musicStartOffset = clampRange(Number(settings.musicStartOffset), RANGES.musicStartOffset, defaults.musicStartOffset);
+}
+
+/** Keeps the physics extras inside their slider ranges (URL parameters and presets alike); bad values fall back to "off". */
+function clampPhysicsExtras(settings: SimulatorSettings, defaults: SimulatorSettings) {
+  for (const key of PHYSICS_EXTRA_KEYS) settings[key] = clampRange(Number(settings[key]), PHYSICS_EXTRA_RANGES[key], defaults[key]);
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -432,6 +466,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.sliceFadeMs = clampRange(Number(merged.sliceFadeMs), RANGES.sliceFadeMs, defaults.sliceFadeMs);
   merged.musicLoop = typeof preset.musicLoop === "boolean" ? preset.musicLoop : defaults.musicLoop;
   clampMusicBed(merged, defaults);
+  clampPhysicsExtras(merged, defaults);
   return merged;
 }
 

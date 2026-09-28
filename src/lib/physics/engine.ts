@@ -1,4 +1,5 @@
 import { CinematicDirector } from "./director";
+import { MAGNUS_COEFFICIENT, breathingScale, contactSpin, gravityAngle, resolvePhysicsExtras, spinDecayFactor } from "./extras";
 import {
   AccumulationMode,
   ClassicMode,
@@ -20,6 +21,7 @@ import type {
   NewBall,
   Particle,
   PhysicsConfig,
+  PhysicsExtras,
   Shockwave,
   SoundEvent,
   WallBreakFlash,
@@ -36,10 +38,21 @@ import { TWO_PI } from "./types";
  * a seeded Mulberry32 generator. Given the same config, mode and seed, a run is reproducible,
  * which is what makes "Find Simulation" possible. Purely visual randomness (particles) uses
  * Math.random so it never disturbs the simulation.
+ *
+ * Physics extras (air drag, wind, spin, wall bounciness, breathing walls, rotating gravity)
+ * arrive inside the config (see extras.ts). They are all off by default and every one of them
+ * is skipped entirely at its default value, so a run without extras is identical to the plain
+ * engine. Breathing walls pulse `wall.radius` in place around the base radii kept in
+ * `wallBaseRadii`, so gaps, modes and the renderer follow the pulse without knowing about it.
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
   private _config: PhysicsConfig;
+  private extras: PhysicsExtras;
+  /** Unpulsed wall radii (breathing walls); kept in step with `circularWalls` by `syncWallBaseRadii()`. */
+  private wallBaseRadii: number[] = [];
+  /** The breathing multiplier currently applied to `circularWalls` (1 = base radii). */
+  private breathScale = 1;
   private nextId = 0;
   private destructionMode = false;
   private infiniteMode = false;
@@ -83,6 +96,7 @@ export class PhysicsEngine {
 
   constructor(config: PhysicsConfig) {
     this._config = config;
+    this.extras = resolvePhysicsExtras(config);
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -98,6 +112,7 @@ export class PhysicsEngine {
       getCircularWalls: () => this.circularWalls,
       setCircularWalls: (walls) => {
         this.circularWalls = walls;
+        this.syncWallBaseRadii();
       },
       getWallRotations: () => this.wallRotations,
       setWallRotations: (rotations) => {
@@ -182,6 +197,7 @@ export class PhysicsEngine {
       this.circularWalls = [{ radius: r, gaps: [] }];
       this.wallRotations = [0];
     }
+    this.syncWallBaseRadii();
     this.brokenWalls.clear();
     mode.init(this.ctx);
     if (this.balls.length === 0) {
@@ -228,6 +244,7 @@ export class PhysicsEngine {
     const start = 0.25 * Math.PI;
     this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
     this.wallRotations = [0];
+    this.syncWallBaseRadii();
     this.brokenWalls.clear();
     this.accumulationMode.init(this.ctx);
     this.lastWallLayer.set(this.nextId - 1, -1);
@@ -562,11 +579,19 @@ export class PhysicsEngine {
     this.pendingSoundEvents = [];
     return events;
   }
+  /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
+  getPhysicsExtras(): PhysicsExtras {
+    return this.extras;
+  }
+  /** Wall radii without the breathing pulse (equal to `wall.radius` while breathing is off). */
+  getWallBaseRadii() {
+    return this.wallBaseRadii;
+  }
 
   // ---------------------------------------------------------------- balls
 
   addBall(ball: NewBall) {
-    this.balls.push({ ...ball, id: this.nextId++, trail: [], trailIndex: 0 });
+    this.balls.push({ ...ball, id: this.nextId++, trail: [], trailIndex: 0, spin: 0, angle: 0 });
   }
   removeBall(id: number) {
     this.balls = this.balls.filter((b) => b.id !== id);
@@ -582,6 +607,7 @@ export class PhysicsEngine {
     this.wallBreakFlashes = [];
     this.wallHits = [];
     this.pendingSoundEvents = [];
+    this.breathScale = 1;
   }
 
   setConfig(patch: Partial<PhysicsConfig>) {
@@ -590,6 +616,7 @@ export class PhysicsEngine {
     const oldWallCount = this._config.wallCount;
     const oldGap = this._config.gapSize;
     this._config = { ...this._config, ...patch };
+    this.extras = resolvePhysicsExtras(this._config);
     if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius;
     const sizeChanged =
@@ -612,10 +639,47 @@ export class PhysicsEngine {
     const wallCountChanged = patch.wallCount !== undefined && patch.wallCount !== oldWallCount;
     const gapChanged = patch.gapSize !== undefined && patch.gapSize !== oldGap;
     if (sizeChanged || wallCountChanged || gapChanged) {
+      // Modes rebuild or rescale the walls from their base radii, never from a breathing pulse.
+      this.restoreWallRadii();
       const handled = this.currentMode?.onConfigChange(this.ctx, sizeChanged, wallCountChanged, gapChanged);
       if (!handled) this.initializeCircularWalls();
+      this.syncWallBaseRadii();
       this.brokenWalls.clear();
     }
+    // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off.
+    this.applyBreathing();
+  }
+
+  // ---------------------------------------------------------------- breathing walls
+
+  /** Records the unpulsed radius of every wall; call after every (re)assignment of `circularWalls`. */
+  private syncWallBaseRadii() {
+    const scale = this.breathScale;
+    this.wallBaseRadii = this.circularWalls.map((w) => w.radius / scale);
+  }
+
+  /** Sets every wall radius to base × the breathing multiplier for the current simulation time. */
+  private applyBreathing() {
+    const amplitude = this.extras.breathingAmplitude;
+    if (amplitude === 0 && this.breathScale === 1) return;
+    if (this.wallBaseRadii.length !== this.circularWalls.length) this.syncWallBaseRadii();
+    const scale = breathingScale(amplitude, this.extras.breathingSpeed, this._elapsedMs / 1000);
+    for (let i = 0; i < this.circularWalls.length; i++) this.circularWalls[i].radius = this.wallBaseRadii[i] * scale;
+    this.breathScale = scale;
+  }
+
+  /** Puts the walls back at their base radii (no-op while no pulse is applied). */
+  private restoreWallRadii() {
+    if (this.breathScale === 1) return;
+    const n = Math.min(this.circularWalls.length, this.wallBaseRadii.length);
+    for (let i = 0; i < n; i++) this.circularWalls[i].radius = this.wallBaseRadii[i];
+    this.breathScale = 1;
+  }
+
+  /** Angular speed of wall `index` in rad/s (even walls turn one way, odd walls the other). */
+  private wallRotationRate(index: number) {
+    const speed = (this._config.rotationSpeed ?? 1) * 0.8;
+    return index % 2 === 0 ? speed : -speed;
   }
 
   // ---------------------------------------------------------------- simulation step
@@ -628,6 +692,7 @@ export class PhysicsEngine {
   update(frameMs: number, audioIntensity = 0) {
     const dt = Math.min(frameMs, 128);
     this.timeAccumulator += dt;
+    const extras = this.extras;
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
       this.timeAccumulator -= this.FIXED_STEP_MS;
       this._elapsedMs += this.FIXED_STEP_MS;
@@ -635,10 +700,10 @@ export class PhysicsEngine {
       while (this.wallRotations.length < this.circularWalls.length) this.wallRotations.push(0);
       const stepSec = stepMs / 1000;
       for (let i = 0; i < this.circularWalls.length; i++) {
-        const speed = (this._config.rotationSpeed ?? 1) * 0.8;
-        this.wallRotations[i] += (i % 2 === 0 ? speed : -speed) * stepSec;
+        this.wallRotations[i] += this.wallRotationRate(i) * stepSec;
         if (Math.abs(this.wallRotations[i]) > TWO_PI) this.wallRotations[i] = this.wallRotations[i] % TWO_PI;
       }
+      this.applyBreathing();
       if (this.infiniteMode) {
         this.infiniteTimer += stepMs;
         if (this.infiniteTimer > 1000) {
@@ -660,16 +725,54 @@ export class PhysicsEngine {
       this.cinematicDirector.update(stepMs);
       this.currentMode?.onPreUpdate(this.ctx, stepMs);
 
+      // Physics extras: air drag acts once per 60 Hz step; the gravity direction, wind and spin
+      // terms are constant within the step and applied per sub-step below. Each is skipped at
+      // its default so a run without extras takes exactly the original code path.
+      if (extras.airDrag > 0) {
+        const keep = 1 - extras.airDrag;
+        for (const ball of this.balls) {
+          ball.vx *= keep;
+          ball.vy *= keep;
+        }
+      }
+      const rotatingGravity = extras.rotatingGravity !== 0;
+      const gAngle = rotatingGravity ? gravityAngle(extras.rotatingGravity, this._elapsedMs / 1000) : 0;
+      const gDirX = rotatingGravity ? Math.cos(gAngle) : 0;
+      const gDirY = rotatingGravity ? Math.sin(gAngle) : 1;
+      const wind = extras.windX !== 0 || extras.windY !== 0;
+      const spinning = extras.spinStrength > 0;
+      const magnus = extras.spinStrength * MAGNUS_COEFFICIENT;
+
       const subSteps =
         this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
       const subMs = stepMs / subSteps;
+      const subSec = subMs / 1000;
+      const spinDecay = spinning ? spinDecayFactor(subSec) : 1;
       for (let s = 0; s < subSteps; s++) {
-        const subSec = subMs / 1000;
         for (let i = this.balls.length - 1; i >= 0; i--) {
           const ball = this.balls[i];
           const baseSpeed = this._config.ballSpeed || 400;
           const gravityScale = (baseSpeed / 300) * (1 + 0.5 * audioIntensity);
-          ball.vy += this._config.gravity * subSec * gravityScale;
+          if (rotatingGravity) {
+            const g = this._config.gravity * subSec * gravityScale;
+            ball.vx += g * gDirX;
+            ball.vy += g * gDirY;
+          } else ball.vy += this._config.gravity * subSec * gravityScale;
+          if (wind) {
+            ball.vx += extras.windX * baseSpeed * subSec;
+            ball.vy += extras.windY * baseSpeed * subSec;
+          }
+          if (spinning && ball.spin !== 0) {
+            // Magnus effect: the spin curves the flight sideways, a = k · spin · (−vy, vx).
+            const k = magnus * ball.spin * subSec;
+            const dvx = -k * ball.vy;
+            const dvy = k * ball.vx;
+            ball.vx += dvx;
+            ball.vy += dvy;
+            ball.angle += ball.spin * subSec;
+            if (ball.angle > TWO_PI || ball.angle < -TWO_PI) ball.angle %= TWO_PI;
+            ball.spin *= spinDecay;
+          }
           const speed = Math.hypot(ball.vx, ball.vy);
           if (speed > 0 && speed < baseSpeed) {
             const boost = 1 + 0.5 * subSec;
@@ -816,6 +919,11 @@ export class PhysicsEngine {
           ball.x = cx + nx * (wall.radius + push);
           ball.y = cy + ny * (wall.radius + push);
         }
+        if (this.extras.spinStrength > 0) {
+          // Spin extra: the (rotating) wall grips the ball, which rolls against it at the contact point.
+          const target = contactSpin(ball.vx, ball.vy, nx, ny, inside, this.wallRotationRate(w) * wall.radius, ball.radius);
+          ball.spin += (target - ball.spin) * this.extras.spinStrength;
+        }
         const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
         this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
@@ -824,12 +932,17 @@ export class PhysicsEngine {
         }
         if (!result?.suppressBounce) {
           const baseSpeed = this._config.ballSpeed || 400;
-          const speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier();
+          // Wall bounciness (restitution) scales the rebound speed; it is 1 by default (an exact no-op).
+          const speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier() * this.extras.wallBounciness;
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
           ball.vx = Math.cos(outAngle) * speed;
           ball.vy = Math.sin(outAngle) * speed;
+        } else if (this.extras.wallBounciness !== 1) {
+          // The mode set the rebound itself (Grow, Portal teleports…): restitution still applies to it.
+          ball.vx *= this.extras.wallBounciness;
+          ball.vy *= this.extras.wallBounciness;
         }
         collided = true;
       }
@@ -849,6 +962,7 @@ export class PhysicsEngine {
       this.circularWalls.push({ radius, gaps: [{ startAngle: start, endAngle: start + gap }] });
       this.wallRotations.push(0);
     }
+    this.syncWallBaseRadii();
   }
 
   private handleBallCollision(a: Ball, b: Ball) {

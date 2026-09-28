@@ -6,6 +6,7 @@ import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
+import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
@@ -75,8 +76,8 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
-  wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
@@ -254,6 +255,7 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
+      {showAdvanced && <BallPhysicsExtras t={t} search={search} matches={matches} settings={s} update={update} />}
     </div>
   );
 
@@ -330,6 +332,7 @@ export default function Controls(props: ControlsProps) {
             )}
           </div>
         </Searchable>
+        {showAdvanced && <WallPhysicsExtras t={t} search={search} matches={matches} settings={s} update={update} />}
       </div>
     );
   };
@@ -1176,9 +1179,35 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
   const d = defaultSettings(mode);
   switch (section) {
     case "ball":
-      return { ballSpeed: d.ballSpeed, ballRadius: d.ballRadius, gravity: d.gravity, ballColor: d.ballColor, twoBalls: d.twoBalls, ballColor2: d.ballColor2, bouncierEnabled: d.bouncierEnabled, rainbowBall: d.rainbowBall };
+      return {
+        ballSpeed: d.ballSpeed,
+        ballRadius: d.ballRadius,
+        gravity: d.gravity,
+        ballColor: d.ballColor,
+        twoBalls: d.twoBalls,
+        ballColor2: d.ballColor2,
+        bouncierEnabled: d.bouncierEnabled,
+        rainbowBall: d.rainbowBall,
+        airDrag: d.airDrag,
+        windX: d.windX,
+        windY: d.windY,
+        spinStrength: d.spinStrength,
+        rotatingGravity: d.rotatingGravity,
+      };
     case "wall":
-      return { wallCount: d.wallCount, wallThickness: d.wallThickness, gapSize: d.gapSize, rotationEnabled: d.rotationEnabled, rotationSpeed: d.rotationSpeed, rainbowWalls: d.rainbowWalls, rainbowWallMode: d.rainbowWallMode, circleColor: d.circleColor };
+      return {
+        wallCount: d.wallCount,
+        wallThickness: d.wallThickness,
+        gapSize: d.gapSize,
+        rotationEnabled: d.rotationEnabled,
+        rotationSpeed: d.rotationSpeed,
+        rainbowWalls: d.rainbowWalls,
+        rainbowWallMode: d.rainbowWallMode,
+        circleColor: d.circleColor,
+        wallBounciness: d.wallBounciness,
+        breathingAmplitude: d.breathingAmplitude,
+        breathingSpeed: d.breathingSpeed,
+      };
     case "visual":
       return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
     case "sound":

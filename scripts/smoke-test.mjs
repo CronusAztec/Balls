@@ -5,8 +5,8 @@
  *   BASE_URL=http://localhost:3000/Balls npm run smoke
  *
  * It checks the root redirect, the 404 page, assets under the base path, opens every page in
- * every locale, starts the simulator in each mode, exercises the sound features (hit samples,
- * song slicer, instruments, background music bed), records a short clip with the music bed,
+ * every locale, starts the simulator in each mode, exercises the physics extras and the sound
+ * features (hit samples, song slicer, instruments, background music bed), records a short clip with the music bed,
  * runs the seed finder, submits the feedback form, switches language and reports console errors.
  */
 import { chromium } from "playwright";
@@ -263,6 +263,38 @@ await wm.click();
 await wm.press("Control+A");
 await wm.pressSequentially("hello world", { delay: 30 });
 check("typing keeps focus (watermark input)", (await wm.inputValue()) === "hello world", `(value="${await wm.inputValue()}")`);
+await page.getByLabel("Show Advanced Options").uncheck();
+
+// 4b'. Physics extras (the "Advanced physics" groups of the Ball and Wall sections): URL → sliders, slider → URL,
+// the search box finds them and the run plays with all of them on
+await page.goto(`${BASE}/en/simulator/?mode=classic&drag=0.01&wx=0.2&spin=0.5&wb=0.9&bw=0.1&bws=1.5&rg=30`, { waitUntil: "networkidle" });
+await page.getByLabel("Show Advanced Options").check();
+await page.getByRole("button", { name: /Ball & Physics/ }).click();
+const sliderValue = (label) => page.locator(`input[aria-label="${label}"]`).inputValue();
+{
+  const values = { drag: await sliderValue("Air Drag"), wx: await sliderValue("Wind (Horizontal)"), wy: await sliderValue("Wind (Vertical)"), spin: await sliderValue("Spin"), rg: await sliderValue("Rotating Gravity") };
+  check("physics extras load from URL (ball section)", values.drag === "0.01" && values.wx === "0.2" && values.wy === "0" && values.spin === "0.5" && values.rg === "30", `(${JSON.stringify(values)})`);
+}
+await page.locator('input[aria-label="Rotating Gravity"]').evaluate(setRangeValue, "45");
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  check("physics extras mirror into the URL", /(^|&)rg=45(&|$)/.test(query) && /(^|&)drag=0.01(&|$)/.test(query) && /(^|&)wx=0.2(&|$)/.test(query) && /(^|&)wb=0.9(&|$)/.test(query) && /(^|&)bws=1.5(&|$)/.test(query), `(${query})`);
+}
+await page.getByRole("button", { name: /Wall Settings/ }).click();
+{
+  const values = { wb: await sliderValue("Wall Bounciness"), bw: await sliderValue("Breathing Walls"), bws: await sliderValue("Breathing Speed") };
+  check("physics extras load from URL (wall section)", values.wb === "0.9" && values.bw === "0.1" && values.bws === "1.5", `(${JSON.stringify(values)})`);
+}
+await page.getByPlaceholder("Search settings...").fill("wind");
+check("search finds the wind controls", (await page.locator('input[aria-label="Wind (Horizontal)"]').isVisible()) && (await page.locator('input[aria-label="Wind (Vertical)"]').isVisible()) && !(await page.locator('input[aria-label="Air Drag"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(2500);
+{
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("simulator runs with the physics extras on", /\d/.test(time) && time !== "0.0s", `(elapsed ${time})`);
+}
 await page.getByLabel("Show Advanced Options").uncheck();
 
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays

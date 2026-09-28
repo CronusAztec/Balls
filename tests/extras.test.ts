@@ -1,0 +1,330 @@
+import { describe, expect, it } from "vitest";
+import { PhysicsEngine } from "@/lib/physics/engine";
+import {
+  DEFAULT_PHYSICS_EXTRAS,
+  PHYSICS_EXTRA_RANGES,
+  breathingScale,
+  contactSpin,
+  gravityAngle,
+  hasPhysicsExtras,
+  physicsExtrasOf,
+  resolvePhysicsExtras,
+  spinDecayFactor,
+} from "@/lib/physics/extras";
+import { MODE_IDS, type ModeId, type PhysicsConfig, type PhysicsExtras } from "@/lib/physics/types";
+import { createEngineForSettings, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
+
+const config: PhysicsConfig = {
+  width: 800,
+  height: 600,
+  gravity: 300,
+  bounce: 1,
+  damping: 0,
+  ballSpeed: 400,
+  rotationSpeed: 1,
+  wallCount: 7,
+  gapSize: 0.4,
+  ballColor: "#ffffff",
+  ballRadius: 8,
+  audioIntensity: 0,
+};
+
+const modeSettings: ModeSettings = {
+  bouncierEnabled: false,
+  countdownTotal: 10,
+  countdownRandom: false,
+  colorMatchColorCount: 7,
+  accumulationTimerMax: 4000,
+  spikesEnabled: false,
+  spikeCount: 6,
+  multiplySpawnCount: 3,
+  shatterSegmentsPerWall: 18,
+  shatterHpPerSegment: 1,
+  growRate: 5,
+  portalCount: 3,
+  twoBalls: false,
+};
+
+const ALL_EXTRAS_ON: PhysicsExtras = {
+  airDrag: 0.01,
+  windX: 0.2,
+  windY: -0.1,
+  spinStrength: 0.8,
+  wallBounciness: 0.9,
+  breathingAmplitude: 0.15,
+  breathingSpeed: 1.5,
+  rotatingGravity: 45,
+};
+
+interface Fingerprint {
+  /** [x, y] × 1000 of the first two balls every 150 frames. */
+  samples: number[][];
+  broken: number[];
+  /** Wall radii × 1000 after the run. */
+  walls: number[];
+}
+
+/**
+ * Recorded from the engine *before* the physics extras existed (seed 12345, 600 frames of 1/60 s,
+ * the config above): with every extra at its default the engine must still reproduce these exactly.
+ */
+const BASELINE: Record<ModeId, Fingerprint> = {
+  classic: { samples: [[468595,245253],[395319,386187],[373847,209412],[496385,423388]], broken: [0, 1], walls: [123857,145714,167571,189429,211286,233143,255000] },
+  accumulation: { samples: [[330900,428501],[419511,164077],[993221,788584],[1959462,3781567]], broken: [0], walls: [225000] },
+  multiply: { samples: [[330900,428501],[575324,279065],[479292,306947],[569372,410448]], broken: [], walls: [225000] },
+  lines: { samples: [[483187,287638],[221848,370489],[406473,492103],[385775,504614]], broken: [], walls: [225000] },
+  paint: { samples: [[483187,287638],[221848,370489],[406473,492103],[385775,504614]], broken: [], walls: [225000] },
+  target: { samples: [[483187,287638],[221848,370489],[406473,492103],[385775,504614]], broken: [], walls: [225000] },
+  portal: { samples: [[240955,409218],[332979,471847],[563286,397283],[335122,277545]], broken: [], walls: [225000] },
+  shatter: { samples: [[394180,350193],[391982,373187],[308416,175087],[271269,179878]], broken: [], walls: [80143,109286,138429,167571,196714,225857,255000] },
+  colorMatch: { samples: [[543609,300177],[596383,347033],[600656,287224],[285153,381609]], broken: [], walls: [225000] },
+  grow: { samples: [[384329,184131],[334553,260481],[250197,392467],[321890,452798]], broken: [], walls: [225000] },
+};
+
+function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {
+  const samples: number[][] = [];
+  for (let i = 1; i <= frames; i++) {
+    engine.update(1000 / 60, 0);
+    if (i % 150 === 0) samples.push(...engine.getBalls().slice(0, 2).map((b) => [Math.round(b.x * 1000), Math.round(b.y * 1000)]));
+  }
+  return {
+    samples,
+    broken: [...engine.getBrokenWalls()].sort((a, b) => a - b),
+    walls: engine.getCircularWalls().map((w) => Math.round(w.radius * 1000)),
+  };
+}
+
+/** A single-ring classic engine with pure physics (no director, no rotation, no gravity) for focused hit tests. */
+function singleRing(extras: Partial<PhysicsExtras>) {
+  const engine = new PhysicsEngine({ ...config, gravity: 0, rotationSpeed: 0, wallCount: 1, gapSize: 0.1, ...extras });
+  engine.setCinematicEnabled(false);
+  engine.setSeed(1);
+  engine.initMode("classic");
+  return engine;
+}
+
+/** An engine whose walls are so far away that the ball flies freely for the whole test. */
+function openSpace(extras: Partial<PhysicsExtras>, gravity = 0) {
+  const engine = new PhysicsEngine({ ...config, width: 20000, height: 20000, gravity, ...extras });
+  engine.setCinematicEnabled(false);
+  engine.setSeed(1);
+  engine.initMode("classic");
+  return engine;
+}
+
+describe("physics extras helpers", () => {
+  it("resolve to the defaults when absent and clamp bad values", () => {
+    expect(resolvePhysicsExtras(undefined)).toEqual(DEFAULT_PHYSICS_EXTRAS);
+    expect(resolvePhysicsExtras({})).toEqual(DEFAULT_PHYSICS_EXTRAS);
+    expect(resolvePhysicsExtras(config)).toEqual(DEFAULT_PHYSICS_EXTRAS);
+    const clamped = resolvePhysicsExtras({ airDrag: 9, windX: Number.NaN, windY: -4, wallBounciness: 0.1, breathingAmplitude: 2, breathingSpeed: 0, rotatingGravity: 1e9 });
+    expect(clamped).toEqual({ ...DEFAULT_PHYSICS_EXTRAS, airDrag: PHYSICS_EXTRA_RANGES.airDrag.max, windX: 0, windY: -0.5, wallBounciness: 0.5, breathingAmplitude: 0.3, breathingSpeed: 0.1, rotatingGravity: 180 });
+    expect(hasPhysicsExtras(DEFAULT_PHYSICS_EXTRAS)).toBe(false);
+    expect(hasPhysicsExtras({ ...DEFAULT_PHYSICS_EXTRAS, windY: 0.01 })).toBe(true);
+    expect(physicsExtrasOf({ ...ALL_EXTRAS_ON, extra: "ignored" } as PhysicsExtras)).toEqual(ALL_EXTRAS_ON);
+  });
+
+  it("rotates the gravity direction from straight down", () => {
+    expect(gravityAngle(0, 12.5)).toBe(Math.PI / 2);
+    expect(gravityAngle(90, 1)).toBeCloseTo(Math.PI, 12);
+    expect(gravityAngle(180, 0.5)).toBeCloseTo(Math.PI, 12);
+    expect(Math.cos(gravityAngle(45, 2))).toBeCloseTo(-1, 12);
+  });
+
+  it("breathes around the base radius, starting at 1", () => {
+    expect(breathingScale(0, 2, 0.3)).toBe(1);
+    expect(breathingScale(0.3, 1, 0)).toBe(1);
+    expect(breathingScale(0.3, 1, 0.25)).toBeCloseTo(1.3, 12);
+    expect(breathingScale(0.3, 1, 0.75)).toBeCloseTo(0.7, 12);
+    expect(breathingScale(0.1, 2, 0.125)).toBeCloseTo(1.1, 12);
+  });
+
+  it("derives the contact spin from the no-slip condition", () => {
+    // Ball on the left of the centre (normal (-1, 0)), moving along +y = towards decreasing angle: it rolls on the inside.
+    expect(contactSpin(0, 100, -1, 0, true, 0, 10)).toBeCloseTo(10, 12);
+    expect(contactSpin(0, 100, -1, 0, false, 0, 10)).toBeCloseTo(-10, 12);
+    // A wall surface moving with the ball leaves no relative motion and no spin.
+    expect(contactSpin(0, 100, -1, 0, true, -100, 10)).toBeCloseTo(0, 12);
+    // Purely radial motion never spins the ball.
+    expect(contactSpin(-300, 0, -1, 0, true, 0, 8)).toBeCloseTo(0, 12);
+    expect(spinDecayFactor(1)).toBeCloseTo(Math.exp(-0.5), 12);
+    expect(spinDecayFactor(0)).toBe(1);
+  });
+});
+
+describe("PhysicsEngine with physics extras", () => {
+  it("leaves every mode's trajectory exactly as it was before the extras existed", () => {
+    for (const mode of MODE_IDS) {
+      const engine = createEngineForSettings(config, mode, modeSettings, 12345);
+      expect(engine.getPhysicsExtras()).toEqual(DEFAULT_PHYSICS_EXTRAS);
+      expect(fingerprint(engine), mode).toEqual(BASELINE[mode]);
+    }
+  });
+
+  it("stays deterministic for a given seed with every extra on", () => {
+    for (const mode of ["classic", "shatter", "portal", "accumulation"] as const) {
+      const a = createEngineForSettings({ ...config, ...ALL_EXTRAS_ON }, mode, modeSettings, 777);
+      const b = createEngineForSettings({ ...config, ...ALL_EXTRAS_ON }, mode, modeSettings, 777);
+      expect(fingerprint(a), mode).toEqual(fingerprint(b));
+      for (const ball of a.getBalls()) {
+        expect(Number.isFinite(ball.x)).toBe(true);
+        expect(Number.isFinite(ball.y)).toBe(true);
+      }
+    }
+  });
+
+  it("changes the run as soon as any single extra leaves its default", () => {
+    const keys = (Object.keys(ALL_EXTRAS_ON) as (keyof PhysicsExtras)[]).filter((k) => k !== "breathingSpeed");
+    for (const key of keys) {
+      const engine = createEngineForSettings({ ...config, [key]: ALL_EXTRAS_ON[key] }, "classic", modeSettings, 12345);
+      expect(fingerprint(engine).samples, key).not.toEqual(BASELINE.classic.samples);
+    }
+    // The breathing speed only matters once the walls breathe.
+    const still = createEngineForSettings({ ...config, breathingSpeed: 2.5 }, "classic", modeSettings, 12345);
+    expect(fingerprint(still)).toEqual(BASELINE.classic);
+    const slow = createEngineForSettings({ ...config, breathingAmplitude: 0.2, breathingSpeed: 0.5 }, "classic", modeSettings, 12345);
+    const fast = createEngineForSettings({ ...config, breathingAmplitude: 0.2, breathingSpeed: 2.5 }, "classic", modeSettings, 12345);
+    expect(fingerprint(slow).samples).not.toEqual(fingerprint(fast).samples);
+  });
+
+  it("breathing walls pulse every radius around its base while the gaps stay put", () => {
+    const engine = createEngineForSettings({ ...config, breathingAmplitude: 0.2, breathingSpeed: 1 }, "classic", modeSettings, 3);
+    const base = [...engine.getWallBaseRadii()];
+    const gaps = engine.getCircularWalls().map((w) => w.gaps.map((g) => [g.startAngle, g.endAngle]));
+    expect(base).toEqual(engine.getCircularWalls().map((w) => w.radius));
+    expect(base.length).toBe(7);
+    const walls = engine.getCircularWalls();
+    for (let i = 0; i < 15; i++) engine.update(1000 / 60, 0); // 0.25 s: the peak of the first pulse
+    walls.forEach((w, i) => expect(w.radius).toBeCloseTo(1.2 * base[i], 6));
+    for (let i = 0; i < 30; i++) engine.update(1000 / 60, 0); // 0.75 s: the trough
+    walls.forEach((w, i) => expect(w.radius).toBeCloseTo(0.8 * base[i], 6));
+    expect(engine.getWallBaseRadii()).toEqual(base);
+    expect(engine.getCircularWalls().map((w) => w.gaps.map((g) => [g.startAngle, g.endAngle]))).toEqual(gaps);
+    // Switching the extra off puts the walls back at their base radii at once.
+    engine.setConfig({ breathingAmplitude: 0 });
+    expect(engine.getCircularWalls().map((w) => w.radius)).toEqual(base);
+    engine.update(1000 / 60, 0);
+    expect(engine.getCircularWalls().map((w) => w.radius)).toEqual(base);
+  });
+
+  it("breathing walls keep their base radii across wall rebuilds and mode-managed walls", () => {
+    // A resize while the walls are pulsed must rescale from the base radii, not from the pulse.
+    const engine = createEngineForSettings({ ...config, breathingAmplitude: 0.3, breathingSpeed: 1 }, "classic", modeSettings, 3);
+    for (let i = 0; i < 15; i++) engine.update(1000 / 60, 0);
+    engine.setConfig({ width: 1600, height: 1200 });
+    const expected = new PhysicsEngine({ ...config, width: 1600, height: 1200 });
+    expected.initMode("classic");
+    expect(engine.getWallBaseRadii()).toEqual(expected.getCircularWalls().map((w) => w.radius));
+    // Portal mode copies the live radius when it rebuilds its ring; the base must survive that too.
+    const portal = createEngineForSettings({ ...config, breathingAmplitude: 0.3, breathingSpeed: 2 }, "portal", modeSettings, 9);
+    const base = [...portal.getWallBaseRadii()];
+    for (let i = 0; i < 1800; i++) portal.update(1000 / 60, 0);
+    expect(portal.getWallBaseRadii()[0]).toBeCloseTo(base[0], 6);
+  });
+
+  it("wall bounciness scales the rebound speed (and 100% is an exact no-op)", () => {
+    const speedAfterHit = (wallBounciness: number) => {
+      const engine = singleRing({ wallBounciness });
+      const ball = engine.getBalls()[0];
+      const wall = engine.getCircularWalls()[0];
+      // Touching the ring on the left (far from the gap at angle 0), heading straight into it.
+      ball.x = config.width / 2 - (wall.radius - ball.radius);
+      ball.y = config.height / 2;
+      ball.vx = -400;
+      ball.vy = 0;
+      engine.update(1000 / 60, 0);
+      expect(engine.consumeSoundEvents().some((e) => e.type === "hit")).toBe(true);
+      return Math.hypot(ball.vx, ball.vy);
+    };
+    expect(speedAfterHit(1)).toBeCloseTo(400, 6);
+    expect(speedAfterHit(1.2)).toBeCloseTo(480, 6);
+    const half = speedAfterHit(0.5); // the slow-ball boost adds a fraction of a percent over the rest of the step
+    expect(half).toBeGreaterThan(199);
+    expect(half).toBeLessThan(203);
+  });
+
+  it("spin: wall contact spins the ball and the sprite angle follows; off by default", () => {
+    const hit = (spinStrength: number) => {
+      const engine = singleRing({ spinStrength });
+      const ball = engine.getBalls()[0];
+      const wall = engine.getCircularWalls()[0];
+      expect(ball.spin).toBe(0);
+      expect(ball.angle).toBe(0);
+      ball.x = config.width / 2 - (wall.radius - ball.radius);
+      ball.y = config.height / 2;
+      ball.vx = -300;
+      ball.vy = 200; // a tangential component: the ball rolls on the inside of the ring
+      engine.update(1000 / 60, 0);
+      return ball;
+    };
+    const plain = hit(0);
+    expect(plain.spin).toBe(0);
+    expect(plain.angle).toBe(0);
+    const spun = hit(1);
+    expect(spun.spin).toBeGreaterThan(20); // ~200 px/s of tangential speed on an 8 px ball, slightly decayed
+    expect(spun.spin).toBeLessThan(26);
+    expect(spun.angle).toBeGreaterThan(0.2);
+    const gentle = hit(0.5);
+    expect(gentle.spin).toBeGreaterThan(9);
+    expect(gentle.spin).toBeLessThan(13);
+  });
+
+  it("wind, rotating gravity and air drag act on a free-flying ball", () => {
+    // The start velocity is chosen so the force under test only ever speeds the ball up: below the base
+    // speed the engine's slow-ball boost would kick in and blur the numbers.
+    const fly = (extras: Partial<PhysicsExtras>, gravity: number, vx: number, vy: number) => {
+      const engine = openSpace(extras, gravity);
+      const ball = engine.getBalls()[0];
+      ball.vx = vx;
+      ball.vy = vy;
+      for (let i = 0; i < 60; i++) engine.update(1000 / 60, 0);
+      return { dvx: ball.vx - vx, dvy: ball.vy - vy, speed: Math.hypot(ball.vx, ball.vy) };
+    };
+    // Wind: half the ball speed (400 px/s) gained sideways per second.
+    const windy = fly({ windX: 0.5 }, 0, 0, 400);
+    expect(windy.dvx).toBeCloseTo(200, 6);
+    expect(windy.dvy).toBeCloseTo(0, 6);
+    const updraft = fly({ windY: -0.25 }, 0, 400, 0);
+    expect(updraft.dvy).toBeCloseTo(-100, 6);
+    expect(updraft.dvx).toBeCloseTo(0, 6);
+    // Gravity (300 × 400/300 = 400 px/s²) pulls straight down unless it rotates: a quarter turn in one second
+    // spreads the pull over "down" and "left" (2/π of it each, up to the step discretisation).
+    const plain = fly({}, 300, 400, 0);
+    expect(plain.dvx).toBe(0);
+    expect(plain.dvy).toBeCloseTo(400, 6);
+    const turning = fly({ rotatingGravity: 90 }, 300, -400, 0);
+    expect(turning.dvx).toBeLessThan(-240);
+    expect(turning.dvx).toBeGreaterThan(-270);
+    expect(turning.dvy).toBeGreaterThan(240);
+    expect(turning.dvy).toBeLessThan(270);
+    // Air drag bleeds speed every step (the slow-ball boost fights it a little).
+    expect(fly({}, 0, 400, 0).speed).toBeCloseTo(400, 6);
+    const dragged = fly({ airDrag: 0.05 }, 0, 400, 0);
+    expect(dragged.speed).toBeLessThan(80);
+    expect(dragged.speed).toBeGreaterThan(0);
+    // A light drag is balanced by the boost (which only acts below the base speed): the ball hovers at its base speed
+    // instead of sinking, so drag effectively caps how far gravity or wall kicks push it above that speed.
+    const light = fly({ airDrag: 0.005 }, 0, 400, 0);
+    expect(light.speed).toBeGreaterThan(395);
+    expect(light.speed).toBeLessThan(402);
+    expect(light.speed).toBeGreaterThan(dragged.speed);
+  });
+
+  it("the finder forwards the extras and simulates them deterministically", () => {
+    const engine = createEngineForSettings({ ...config, ...ALL_EXTRAS_ON }, "classic", modeSettings, 5);
+    expect(engine.getPhysicsExtras()).toEqual(ALL_EXTRAS_ON);
+    expect(createEngineForSettings({ ...config, airDrag: 5, wallBounciness: -1 }, "classic", modeSettings, 5).getPhysicsExtras()).toEqual({ ...DEFAULT_PHYSICS_EXTRAS, airDrag: 0.05, wallBounciness: 0.5 });
+    const request: FinderRequest = {
+      targetDurationSec: 30,
+      toleranceSec: 0.5,
+      maxSeeds: 1,
+      maxSimTimeSec: 60,
+      physicsConfig: { ...config, ...ALL_EXTRAS_ON },
+      mode: "classic",
+      modeSettings,
+    };
+    const first = simulateSeed(21, request, 60_000);
+    expect(Number.isFinite(first)).toBe(true);
+    expect(simulateSeed(21, request, 60_000)).toBe(first);
+  });
+});

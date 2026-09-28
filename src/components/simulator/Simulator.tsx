@@ -8,6 +8,7 @@ import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./C
 import type { MusicTrackInfo } from "./sections/MusicSection";
 import Tooltip from "./Tooltip";
 import { PhysicsEngine } from "@/lib/physics/engine";
+import { physicsExtrasOf } from "@/lib/physics/extras";
 import type { ModeId } from "@/lib/physics/types";
 import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from "@/lib/audio/sampler";
 import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
@@ -135,6 +136,7 @@ export default function Simulator() {
       ballRadius: s.ballRadius,
       twoBalls: s.twoBalls,
       ballColor2: s.ballColor2,
+      ...physicsExtrasOf(s),
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -179,6 +181,10 @@ export default function Simulator() {
       ballColor2: s.ballColor2,
     });
   }, [s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.wallCount, s.gapSize, s.ballColor, s.ballRadius, s.twoBalls, s.ballColor2]);
+  // Physics extras (drag, wind, spin, bounciness, breathing walls, rotating gravity) travel in the same config.
+  useEffect(() => {
+    engineRef.current?.setConfig(physicsExtrasOf(s));
+  }, [s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setAccumulationTimerMax(1000 * s.accumulationTime);
   }, [s.accumulationTime]);
@@ -279,7 +285,7 @@ export default function Simulator() {
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate]);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity]);
 
   // Live add/remove of the second ball.
   const prevTwoBallsRef = useRef(s.twoBalls);
@@ -352,6 +358,7 @@ export default function Simulator() {
           ballRadius: fresh.ballRadius,
           twoBalls: false,
           ballColor2: fresh.ballColor2,
+          ...physicsExtrasOf(fresh),
         });
         initEngineForMode(engine, fresh);
       }
@@ -733,6 +740,7 @@ export default function Simulator() {
           ballRadius: loaded.ballRadius,
           twoBalls: loaded.twoBalls,
           ballColor2: loaded.ballColor2,
+          ...physicsExtrasOf(loaded),
         });
         initEngineForMode(engine, loaded);
       }

@@ -1,4 +1,5 @@
 import { PhysicsEngine } from "@/lib/physics/engine";
+import { resolvePhysicsExtras } from "@/lib/physics/extras";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 
 /**
@@ -48,8 +49,14 @@ export interface FinderResult {
   seedsTested: number;
 }
 
+/**
+ * Builds a headless engine that mirrors the page's engine for one seed. The physics extras
+ * (drag, wind, spin, bounciness, breathing walls, rotating gravity) travel inside `config`
+ * and are resolved here exactly as `PhysicsEngine.setConfig()` does, so a found seed replays
+ * identically in the page with the same extras.
+ */
 export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, settings: ModeSettings, seed: number): PhysicsEngine {
-  const engine = new PhysicsEngine({ ...config, twoBalls: settings.twoBalls });
+  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), twoBalls: settings.twoBalls });
   engine.setBouncier(settings.bouncierEnabled);
   if (mode === "target") {
     engine.setCountdownTotal(settings.countdownTotal);

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
+import { MODE_IDS } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
 describe("settings serialisation", () => {
@@ -91,5 +93,48 @@ describe("settings serialisation", () => {
     expect(s.cinematicEnabled).toBe(true);
     expect(s.instrument).toBe("triangle");
     expect(s.bpm).toBe(120);
+  });
+});
+
+describe("physics extras settings", () => {
+  const EXTRA_URL_KEYS = ["drag", "wx", "wy", "spin", "wb", "bw", "bws", "rg"];
+
+  it("are off by default in every mode", () => {
+    for (const mode of MODE_IDS) expect(physicsExtrasOf(defaultSettings(mode))).toEqual(DEFAULT_PHYSICS_EXTRAS);
+    const params = settingsToSearchParams(defaultSettings("classic"));
+    for (const key of EXTRA_URL_KEYS) expect(params.has(key)).toBe(false);
+  });
+
+  it("round-trip through their short URL keys, including three-decimal drag values", () => {
+    const s = { ...defaultSettings("shatter"), airDrag: 0.005, windX: -0.25, windY: 0.1, spinStrength: 0.75, wallBounciness: 1.15, breathingAmplitude: 0.12, breathingSpeed: 2.5, rotatingGravity: 45 };
+    const params = settingsToSearchParams(s);
+    expect(params.get("drag")).toBe("0.005");
+    expect(params.get("wx")).toBe("-0.25");
+    expect(params.get("wy")).toBe("0.1");
+    expect(params.get("spin")).toBe("0.75");
+    expect(params.get("wb")).toBe("1.15");
+    expect(params.get("bw")).toBe("0.12");
+    expect(params.get("bws")).toBe("2.5");
+    expect(params.get("rg")).toBe("45");
+    expect(settingsFromSearchParams(params)).toEqual(s);
+    // Existing two-decimal values still serialise the same way
+    expect(settingsToSearchParams({ ...defaultSettings("classic"), gapSize: 0.35, trailThickness: 1.2 }).toString()).toBe("mode=classic&gap=0.35&tt=1.2");
+  });
+
+  it("are clamped to their ranges from URLs and presets, falling back to off", () => {
+    const s = settingsFromSearchParams(new URLSearchParams("drag=9&wx=-3&spin=abc&wb=0.1&bw=1&bws=0&rg=720"));
+    expect(s.airDrag).toBe(0.05);
+    expect(s.windX).toBe(-0.5);
+    expect(s.spinStrength).toBe(0);
+    expect(s.wallBounciness).toBe(0.5);
+    expect(s.breathingAmplitude).toBe(0.3);
+    expect(s.breathingSpeed).toBe(0.1);
+    expect(s.rotatingGravity).toBe(180);
+    const p = presetToSettings({ mode: "classic", airDrag: -1, windY: 2, rotatingGravity: "sideways" } as unknown as Partial<SimulatorSettings>);
+    expect(p.airDrag).toBe(0);
+    expect(p.windY).toBe(0.5);
+    expect(p.rotatingGravity).toBe(0);
+    expect(p.wallBounciness).toBe(1);
+    expect(presetToSettings({ mode: "portal", spinStrength: 0.4, breathingAmplitude: 0.2 })).toMatchObject({ spinStrength: 0.4, breathingAmplitude: 0.2, breathingSpeed: 1 });
   });
 });

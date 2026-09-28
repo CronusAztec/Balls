@@ -949,6 +949,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (emojiCanvasRef.current) {
           ctx.save();
           ctx.translate(ball.x, ball.y);
+          if (ball.angle !== 0) ctx.rotate(ball.angle); // the "spin" physics extra turns the sprite
           ctx.beginPath();
           ctx.arc(0, 0, ball.radius, 0, TWO_PI);
           ctx.closePath();
@@ -958,6 +959,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         } else if (imageLoadedRef.current && imageRef.current) {
           ctx.save();
           ctx.translate(ball.x, ball.y);
+          if (ball.angle !== 0) ctx.rotate(ball.angle); // the "spin" physics extra turns the sprite
           ctx.beginPath();
           ctx.arc(0, 0, ball.radius, 0, TWO_PI);
           ctx.closePath();

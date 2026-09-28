@@ -14,6 +14,7 @@ static host – no server required.
 | --- | --- |
 | **10 game modes** | Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow – each a small plugin class |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
+| **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Visuals** | Rainbow walls (gradient / pulse), ball & wall glow, colour trail, trail thickness, reactive background, camera follow, wall-break effects (confetti, shatter, shockwave, all, none), custom ball image or emoji, top/bottom text overlays, watermark |
 | **Drama director** | A hidden "cinematic" layer that nudges rebounds for near-misses and dramatic escapes (toggle in advanced options) |
 | **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom hit samples (3 built-in clips or your own upload on every bounce, optionally pitched per wall, included in recordings), song slicer (upload any MP3/OGG/WAV/M4A and every bounce plays the next slice of it, with a song progress bar in the HUD and in the recording), custom wall-break sound clips |
@@ -52,7 +53,7 @@ Other scripts:
 ```bash
 npm run typecheck                          # tsc --noEmit
 npm run lint                               # eslint
-npm test                                   # vitest unit tests (engine, MIDI parser, settings, hit samples, song slicer, scales, instruments, music bed)
+npm test                                   # vitest unit tests (engine, physics extras, MIDI parser, settings, hit samples, song slicer, scales, instruments, music bed)
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
 npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first)
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
@@ -121,7 +122,7 @@ src/
   components/simulator/ Simulator.tsx (page state) · Canvas.tsx (renderer) · Controls.tsx (panel) · ControlPrimitives.tsx (Slider/Toggle/… helpers) · sections/*.tsx (feature blocks of the panel)
   content/              blog posts (blog.en.ts, blog.pl.ts, blog.es.ts)
   i18n/                 next-intl routing + request config
-  lib/physics/          engine.ts · director.ts · types.ts · modes/*.ts
+  lib/physics/          engine.ts · director.ts · types.ts · extras.ts (drag, wind, spin, bounciness, breathing walls, rotating gravity) · modes/*.ts
   lib/audio/            toneGenerator.ts · instruments.ts (voices) · scales.ts (scale snap + beat grid) · sampler.ts (hit samples) · slicer.ts + slicePlayer.ts (song slicer) · musicBed.ts (background music + ducking) · midi.ts · songs.ts
   lib/recording/        recorder.ts (MediaRecorder wrapper)
   lib/simulation/       finder.ts (seed search)
@@ -143,6 +144,11 @@ src/
 2. Register it: add the id to `MODE_IDS` in `types.ts`, instantiate it in `engine.ts` and add a case to `initMode()`.
 3. Draw anything mode-specific in `Canvas.tsx` (segments, overlays, HUD counters).
 4. Add the card order in `src/lib/modes.ts`, names/descriptions in `messages/*.json` (`Modes`, `Controls.mode<Name>`, `Editorial.mode<Name>`), and a preview image in `public/modes/<name>.webp` (run the preview script).
+
+### Physics extras
+`src/lib/physics/extras.ts` holds the optional forces and wall behaviours: `airDrag` (fraction of the velocity lost per 60 Hz step), `windX` / `windY` (acceleration as a fraction of the ball speed per second), `spinStrength` (wall contact spins the ball by the no-slip condition against the – possibly rotating – wall, `contactSpin()`, and a Magnus-style force `spinStrength × MAGNUS_COEFFICIENT × spin × (−vy, vx)` curves the flight; the integrated angle rotates custom ball images and emoji in `Canvas.tsx`), `wallBounciness` (restitution multiplied into every rebound speed, also the ones a mode sets itself), `breathingAmplitude` / `breathingSpeed` (wall radii pulse as `base × (1 + amplitude · sin(2π · speed · t))`) and `rotatingGravity` (degrees per second the gravity vector turns, starting straight down). They are part of `PhysicsConfig` (`PhysicsExtras` in `types.ts`), so they reach the engine through `engine.setConfig()` and the finder through `createEngineForSettings()` like every other physics value; `resolvePhysicsExtras()` fills in the defaults and clamps to `PHYSICS_EXTRA_RANGES`, which `RANGES` in settings.ts spreads for the sliders and the URL/preset validation.
+
+The engine applies them in `update()`: drag once per fixed step, the gravity direction, wind and spin terms per sub-step, the contact spin and the restitution in `processWallCollisions()`. Each extra is skipped entirely at its default, so a run without extras takes the original code path and `tests/extras.test.ts` checks every mode against a trajectory recorded before the extras existed, plus determinism with all of them on. Breathing walls mutate `wall.radius` in place around the base radii the engine keeps in `wallBaseRadii` (`syncWallBaseRadii()` runs after every wall (re)assignment, including `ctx.setCircularWalls()`, and `setConfig()` restores the base radii before a mode rebuilds its walls), so gaps, modes and the renderer follow the pulse without knowing about it. To add another extra: add the field to `PhysicsExtras`, `DEFAULT_PHYSICS_EXTRAS` and `PHYSICS_EXTRA_RANGES`, apply it in the engine behind an "is it at its default?" check, give it a URL key in `NUMERIC_URL_KEYS`, a slider in `components/simulator/sections/PhysicsExtrasSection.tsx` (with its search key in `BALL_PHYSICS_EXTRA_KEYS` / `WALL_PHYSICS_EXTRA_KEYS` and the section defaults in `sectionDefaults()`), the label + tooltip in every `messages/*.json`, and add it to the finder-invalidation dependency list in `Simulator.tsx`.
 
 ### Add a language
 Add the code to `locales` and `LOCALE_OPTIONS` in `src/i18n/routing.ts`, create `messages/<code>.json` (copy `en.json`), import it in the `MESSAGES` map of `src/components/site/NotFoundStatic.tsx` (the static 404 page), add the code to the locale list in `scripts/smoke-test.mjs`, and optionally add translated posts in `src/content/blog.<code>.ts`.
