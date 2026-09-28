@@ -44,6 +44,9 @@ import { TWO_PI } from "./types";
  * is skipped entirely at its default value, so a run without extras is identical to the plain
  * engine. Breathing walls pulse `wall.radius` in place around the base radii kept in
  * `wallBaseRadii`, so gaps, modes and the renderer follow the pulse without knowing about it.
+ * The pulse is applied per sub-step and every wall remembers where it was before the move
+ * (`wallPrevRadii`), so the collision pass can sweep a wall over the distance it travelled:
+ * a fast, wide pulse never steps over a ball (see `processWallCollisions()`).
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
@@ -53,6 +56,10 @@ export class PhysicsEngine {
   private wallBaseRadii: number[] = [];
   /** The breathing multiplier currently applied to `circularWalls` (1 = base radii). */
   private breathScale = 1;
+  /** Radius of every wall before `applyBreathing()` last moved it (the start of the current sweep). */
+  private wallPrevRadii: number[] = [];
+  /** True while the walls breathe, i.e. while the collision pass has to sweep them. */
+  private breathing = false;
   private nextId = 0;
   private destructionMode = false;
   private infiniteMode = false;
@@ -97,6 +104,7 @@ export class PhysicsEngine {
   constructor(config: PhysicsConfig) {
     this._config = config;
     this.extras = resolvePhysicsExtras(config);
+    this.breathing = this.extras.breathingAmplitude > 0;
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -139,6 +147,8 @@ export class PhysicsEngine {
       },
       random: () => this.random(),
       getElapsedMs: () => this._elapsedMs,
+      getWallBaseRadii: () => this.wallBaseRadii,
+      getPhysicsExtras: () => this.extras,
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -617,6 +627,7 @@ export class PhysicsEngine {
     const oldGap = this._config.gapSize;
     this._config = { ...this._config, ...patch };
     this.extras = resolvePhysicsExtras(this._config);
+    this.breathing = this.extras.breathingAmplitude > 0;
     if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius;
     const sizeChanged =
@@ -652,19 +663,31 @@ export class PhysicsEngine {
 
   // ---------------------------------------------------------------- breathing walls
 
-  /** Records the unpulsed radius of every wall; call after every (re)assignment of `circularWalls`. */
+  /**
+   * Records the unpulsed radius of every wall; call after every (re)assignment of `circularWalls`.
+   * Freshly assigned walls have not swept anywhere yet, so their previous radius is their current one.
+   */
   private syncWallBaseRadii() {
     const scale = this.breathScale;
     this.wallBaseRadii = this.circularWalls.map((w) => w.radius / scale);
+    this.wallPrevRadii = this.circularWalls.map((w) => w.radius);
   }
 
-  /** Sets every wall radius to base × the breathing multiplier for the current simulation time. */
-  private applyBreathing() {
+  /**
+   * Sets every wall radius to base × the breathing multiplier at simulation time `tMs` (the current
+   * time by default) and remembers where each wall was, so the next collision pass can sweep it.
+   */
+  private applyBreathing(tMs = this._elapsedMs) {
     const amplitude = this.extras.breathingAmplitude;
     if (amplitude === 0 && this.breathScale === 1) return;
-    if (this.wallBaseRadii.length !== this.circularWalls.length) this.syncWallBaseRadii();
-    const scale = breathingScale(amplitude, this.extras.breathingSpeed, this._elapsedMs / 1000);
-    for (let i = 0; i < this.circularWalls.length; i++) this.circularWalls[i].radius = this.wallBaseRadii[i] * scale;
+    const walls = this.circularWalls;
+    if (this.wallBaseRadii.length !== walls.length) this.syncWallBaseRadii();
+    const scale = breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000);
+    const prev = this.wallPrevRadii;
+    for (let i = 0; i < walls.length; i++) {
+      prev[i] = walls[i].radius;
+      walls[i].radius = this.wallBaseRadii[i] * scale;
+    }
     this.breathScale = scale;
   }
 
@@ -672,7 +695,10 @@ export class PhysicsEngine {
   private restoreWallRadii() {
     if (this.breathScale === 1) return;
     const n = Math.min(this.circularWalls.length, this.wallBaseRadii.length);
-    for (let i = 0; i < n; i++) this.circularWalls[i].radius = this.wallBaseRadii[i];
+    for (let i = 0; i < n; i++) {
+      this.circularWalls[i].radius = this.wallBaseRadii[i];
+      this.wallPrevRadii[i] = this.wallBaseRadii[i];
+    }
     this.breathScale = 1;
   }
 
@@ -703,7 +729,6 @@ export class PhysicsEngine {
         this.wallRotations[i] += this.wallRotationRate(i) * stepSec;
         if (Math.abs(this.wallRotations[i]) > TWO_PI) this.wallRotations[i] = this.wallRotations[i] % TWO_PI;
       }
-      this.applyBreathing();
       if (this.infiniteMode) {
         this.infiniteTimer += stepMs;
         if (this.infiniteTimer > 1000) {
@@ -748,7 +773,13 @@ export class PhysicsEngine {
       const subMs = stepMs / subSteps;
       const subSec = subMs / 1000;
       const spinDecay = spinning ? spinDecayFactor(subSec) : 1;
+      const stepStartMs = this._elapsedMs - stepMs;
       for (let s = 0; s < subSteps; s++) {
+        // Breathing walls move once per sub-step (a quarter of the per-step jump or less) and the collision
+        // pass below sweeps each wall over that move, so even the fastest, widest pulse cannot step over a
+        // ball. The last sub-step lands exactly on the step's end time, so the radii a frame renders (and
+        // `setConfig()` recomputes) are the same values the per-step pulse produced.
+        if (this.breathing) this.applyBreathing(s === subSteps - 1 ? this._elapsedMs : stepStartMs + (s + 1) * subMs);
         for (let i = this.balls.length - 1; i >= 0; i--) {
           const ball = this.balls[i];
           const baseSpeed = this._config.ballSpeed || 400;
@@ -835,11 +866,21 @@ export class PhysicsEngine {
           ball.vy -= 2 * dot * ny;
         }
       }
-      if (!this.processWallCollisions(ball, cx, cy, dist, angle)) break;
+      // Only the first pass sweeps the walls over their last move: the later passes resolve what the
+      // push-outs of the first one (or a mode's teleport) left overlapping, against the current radii.
+      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.breathing && iter === 0)) break;
     }
   }
 
-  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number): boolean {
+  /**
+   * Resolves the ball against every intact wall. With `swept` the walls may have moved since the ball
+   * was last resolved against them (breathing walls; `wallPrevRadii` holds where each one was): the
+   * ball's side is then judged against that previous radius and the hit test covers the whole move,
+   * so a wall that jumped over the ball still hits it and pushes it back to the side it came from,
+   * and a gap that swept past the ball's centre counts as a pass. With `prev === radius` the swept
+   * test is exactly the plain one, so a run without breathing walls takes the original code path.
+   */
+  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false): boolean {
     const dx = ball.x - cx;
     const dy = ball.y - cy;
     let outermostBelow = -1;
@@ -855,7 +896,18 @@ export class PhysicsEngine {
       const rotation = this.wallRotations[w];
       const inner = dist - ball.radius - 2;
       const outer = dist + ball.radius + 2;
-      if (!(inner <= wall.radius && outer >= wall.radius)) continue;
+      let inside: boolean;
+      /** The wall (with its gap) moved past the ball's centre since the last pass: an inside ball is now outside it. */
+      let crossed = false;
+      if (swept) {
+        const prev = w < this.wallPrevRadii.length ? this.wallPrevRadii[w] : wall.radius;
+        inside = dist < prev;
+        if (inside ? outer < wall.radius : inner > wall.radius) continue;
+        crossed = inside && dist >= wall.radius;
+      } else {
+        if (!(inner <= wall.radius && outer >= wall.radius)) continue;
+        inside = dist < wall.radius;
+      }
 
       let inGap = false;
       const ballAngular = Math.atan2(ball.radius, wall.radius);
@@ -887,9 +939,8 @@ export class PhysicsEngine {
       const nx = dx / dist;
       const ny = dy / dist;
       if (inGap) {
-        const inside = dist < wall.radius;
         const movingOut = ball.vx * nx + ball.vy * ny > 0;
-        if (!inside || movingOut) {
+        if (!inside || movingOut || crossed) {
           const gap = wall.gaps.length > 0 ? wall.gaps[0] : null;
           if (gap) {
             const adj = this.cinematicDirector.adjustGapPass(ball, wall.radius, rotation, gap, cx, cy);
@@ -910,7 +961,6 @@ export class PhysicsEngine {
           }
         }
       } else {
-        const inside = dist < wall.radius;
         const push = isShatter ? ball.radius + 0.5 : ball.radius + 3;
         if (inside) {
           ball.x = cx + nx * (wall.radius - push);

@@ -76,7 +76,13 @@ export class GrowMode implements GameMode {
   onWallHit(ctx: ModeContext, ball: Ball, wallIndex: number): WallHitResult | void {
     const wall = ctx.getCircularWalls()[wallIndex];
     if (wall) {
-      const maxRadius = wall.radius - 2;
+      // The ball may only ever grow up to the smallest radius the ring reaches. With breathing walls the live
+      // radius pulses around its base by ±amplitude, so the cap is the trough of the pulse, not the current
+      // (possibly peaking) size – otherwise the ring would shrink under a ball that outgrew it.
+      const baseRadii = ctx.getWallBaseRadii();
+      const base = wallIndex < baseRadii.length ? baseRadii[wallIndex] : wall.radius;
+      const minWallRadius = Math.min(wall.radius, base * (1 - ctx.getPhysicsExtras().breathingAmplitude));
+      const maxRadius = minWallRadius - 2;
       if (ball.radius < maxRadius) {
         const rate = this.growRate / 100;
         ball.radius = Math.min(maxRadius, ball.radius + (maxRadius - ball.radius) * (rate * rate * 2.1));

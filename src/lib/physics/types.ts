@@ -182,6 +182,10 @@ export interface ModeContext {
   /** Deterministic random in [0, 1). Always use this instead of Math.random in modes. */
   random(): number;
   getElapsedMs(): number;
+  /** Wall radii without the breathing pulse (equal to the live `radius` while breathing is off). */
+  getWallBaseRadii(): number[];
+  /** The physics extras in effect (defaults filled in, clamped to their ranges). */
+  getPhysicsExtras(): PhysicsExtras;
 }
 
 export interface GameMode {

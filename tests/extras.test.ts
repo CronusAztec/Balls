@@ -103,6 +103,31 @@ function singleRing(extras: Partial<PhysicsExtras>) {
   return engine;
 }
 
+/**
+ * Runs `seeds` seeds of `mode` for `seconds` (cinematic off) and returns the first time a ball sat outside a wall
+ * that had not been passed (dist > radius + ballRadius + 2), or null when every ball stayed inside every intact wall.
+ */
+function firstEscapeThroughIntactWall(mode: ModeId, extras: Partial<PhysicsExtras>, seeds: number, seconds: number): { seed: number; atSec: number } | null {
+  const cx = config.width / 2;
+  const cy = config.height / 2;
+  for (let seed = 1; seed <= seeds; seed++) {
+    const engine = createEngineForSettings({ ...config, ...extras }, mode, modeSettings, seed);
+    engine.setCinematicEnabled(false);
+    for (let frame = 1; frame <= seconds * 60; frame++) {
+      engine.update(1000 / 60, 0);
+      const walls = engine.getCircularWalls();
+      const broken = engine.getBrokenWalls();
+      for (const ball of engine.getBalls()) {
+        const dist = Math.hypot(ball.x - cx, ball.y - cy);
+        for (let w = 0; w < walls.length; w++) {
+          if (!broken.has(w) && dist > walls[w].radius + ball.radius + 2) return { seed, atSec: frame / 60 };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /** An engine whose walls are so far away that the ball flies freely for the whole test. */
 function openSpace(extras: Partial<PhysicsExtras>, gravity = 0) {
   const engine = new PhysicsEngine({ ...config, width: 20000, height: 20000, gravity, ...extras });
@@ -220,6 +245,109 @@ describe("PhysicsEngine with physics extras", () => {
     const base = [...portal.getWallBaseRadii()];
     for (let i = 0; i < 1800; i++) portal.update(1000 / 60, 0);
     expect(portal.getWallBaseRadii()[0]).toBeCloseTo(base[0], 6);
+  });
+
+  it("breathing walls never step over a ball, even at the fastest and widest pulse", () => {
+    // The outer wall moves up to 24 px per 60 Hz step at amplitude 0.3 / 3 Hz (800×600 arena), more than the
+    // ±(ballRadius + 2) hit window of an 8 px ball: before the sweep, 30/30 of these runs put the ball outside
+    // the sealed Paint ring (first after ~0.5 s) and 30/30 Classic runs outside a wall that was never passed.
+    const fastest = { breathingAmplitude: PHYSICS_EXTRA_RANGES.breathingAmplitude.max, breathingSpeed: PHYSICS_EXTRA_RANGES.breathingSpeed.max };
+    expect(firstEscapeThroughIntactWall("paint", fastest, 30, 60)).toBeNull();
+    expect(firstEscapeThroughIntactWall("classic", fastest, 30, 60)).toBeNull();
+    expect(firstEscapeThroughIntactWall("classic", { breathingAmplitude: 0.3, breathingSpeed: 1.5 }, 30, 60)).toBeNull();
+    // The swept collision is as deterministic as the rest of the engine (the finder relies on it).
+    const a = createEngineForSettings({ ...config, ...fastest }, "paint", modeSettings, 4);
+    const b = createEngineForSettings({ ...config, ...fastest }, "paint", modeSettings, 4);
+    expect(fingerprint(a, 1200)).toEqual(fingerprint(b, 1200));
+  });
+
+  it("a wall that jumps across the ball in one step still hits it and keeps it on its side", () => {
+    // Single sealed-ish ring (base 255 px) pulsing at 0.3 / 3 Hz: between t = 0.15 s and t = 1/6 s the radius drops
+    // from ~278.6 to 255 px, a 23.6 px jump. `clearance` is the space between the ball and the ring before that step:
+    // at 4 px the wall lands more than the ±(ballRadius + 2) window below the ball, so the per-step hit test never saw
+    // it at all; at 12 px it saw it but judged the ball to be outside and pushed it out of the ring.
+    for (const clearance of [4, 12]) {
+      const engine = singleRing({ breathingAmplitude: 0.3, breathingSpeed: 3 });
+      const ball = engine.getBalls()[0];
+      const wall = engine.getCircularWalls()[0];
+      const cx = config.width / 2;
+      const cy = config.height / 2;
+      for (let i = 0; i < 9; i++) engine.update(1000 / 60, 0);
+      expect(wall.radius).toBeCloseTo(255 * (1 + 0.3 * Math.sin(2 * Math.PI * 3 * 0.15)), 6);
+      const before = wall.radius;
+      // On the left of the centre (far from the gap at angle 0), moving along the wall, not into it.
+      ball.x = cx - (before - ball.radius - clearance);
+      ball.y = cy;
+      ball.vx = 0;
+      ball.vy = 400;
+      engine.consumeSoundEvents();
+      engine.update(1000 / 60, 0);
+      expect(wall.radius).toBeCloseTo(255, 6);
+      expect(before - wall.radius).toBeGreaterThan(2 * (ball.radius + 2));
+      const dist = Math.hypot(ball.x - cx, ball.y - cy);
+      expect(dist + ball.radius, `clearance ${clearance}`).toBeLessThan(wall.radius);
+      expect(engine.consumeSoundEvents().some((e) => e.type === "hit")).toBe(true);
+      expect(engine.getBrokenWalls().size).toBe(0);
+    }
+  });
+
+  it("a gap that sweeps past a ball that is not moving out counts as a pass instead of leaving the ball outside", () => {
+    const engine = singleRing({ breathingAmplitude: 0.3, breathingSpeed: 3 });
+    const ball = engine.getBalls()[0];
+    const wall = engine.getCircularWalls()[0];
+    const cx = config.width / 2;
+    const cy = config.height / 2;
+    for (let i = 0; i < 9; i++) engine.update(1000 / 60, 0);
+    // Inside the ring under the gap (angles 0…0.1 rad, no rotation), 4 px clear of it, moving along the ring with a
+    // slight inward component (so it is never "moving out"): the ring's 23.6 px jump in this step passes the ball's
+    // centre, which the per-step hit test never noticed – the ball was then outside a wall that counted as intact.
+    const angle = 0.04;
+    const inward = (10 * Math.PI) / 180;
+    const dist0 = wall.radius - ball.radius - 4;
+    ball.x = cx + Math.cos(angle) * dist0;
+    ball.y = cy + Math.sin(angle) * dist0;
+    ball.vx = 400 * (-Math.sin(angle) * Math.cos(inward) - Math.cos(angle) * Math.sin(inward));
+    ball.vy = 400 * (Math.cos(angle) * Math.cos(inward) - Math.sin(angle) * Math.sin(inward));
+    expect(ball.vx * Math.cos(angle) + ball.vy * Math.sin(angle)).toBeLessThan(0);
+    engine.consumeSoundEvents();
+    engine.update(1000 / 60, 0);
+    expect(engine.getBrokenWalls().has(0)).toBe(true);
+    expect(engine.consumeSoundEvents().some((e) => e.type === "gap")).toBe(true);
+    expect(Math.hypot(ball.x - cx, ball.y - cy)).toBeGreaterThan(wall.radius);
+  });
+
+  it("grow mode caps the ball at the breathing trough so the ring never shrinks under it", () => {
+    const cx = config.width / 2;
+    const cy = config.height / 2;
+    const run = (extras: Partial<PhysicsExtras>) => {
+      const engine = createEngineForSettings({ ...config, ...extras }, "grow", { ...modeSettings, growRate: 10 }, 3);
+      engine.setCinematicEnabled(false);
+      const base = engine.getWallBaseRadii()[0];
+      let maxBallRadius = 0;
+      let maxOverlap = -Infinity;
+      for (let frame = 0; frame < 120 * 60; frame++) {
+        engine.update(1000 / 60, 0);
+        const wall = engine.getCircularWalls()[0];
+        const ball = engine.getBalls()[0];
+        maxBallRadius = Math.max(maxBallRadius, ball.radius);
+        maxOverlap = Math.max(maxOverlap, Math.hypot(ball.x - cx, ball.y - cy) + ball.radius - wall.radius);
+      }
+      return { base, maxBallRadius, maxOverlap };
+    };
+    // Before the fix the ball grew towards the peaking radius: 290 px in a ring whose trough is 157.5 px, and stuck
+    // out of the ring by up to 269 px. (A ball that fills the ring rattles against it, hence the 1 px allowance.)
+    const slow = run({ breathingAmplitude: 0.3, breathingSpeed: 0.5 });
+    expect(slow.maxBallRadius).toBeLessThan(slow.base * 0.7);
+    expect(slow.maxBallRadius).toBeGreaterThan(slow.base * 0.7 - 3);
+    expect(slow.maxOverlap).toBeLessThanOrEqual(1);
+    const fast = run({ breathingAmplitude: 0.15, breathingSpeed: 1 });
+    expect(fast.maxBallRadius).toBeLessThan(fast.base * 0.85);
+    expect(fast.maxOverlap).toBeLessThanOrEqual(1);
+    // Without breathing the cap is the ring itself, as before.
+    const still = run({});
+    expect(still.maxBallRadius).toBeLessThan(still.base - 2);
+    expect(still.maxBallRadius).toBeGreaterThan(still.base - 3);
+    expect(still.maxOverlap).toBeLessThanOrEqual(1);
   });
 
   it("wall bounciness scales the rebound speed (and 100% is an exact no-op)", () => {
