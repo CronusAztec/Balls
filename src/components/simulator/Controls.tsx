@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
+import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
@@ -52,6 +53,14 @@ export interface ControlsProps {
   sliceSongLoading: boolean;
   onSliceSongUpload: (file: File) => void;
   onSliceSongClear: () => void;
+  /** Background music bed: the track uploaded in this session, its decode state and whether it is sounding. */
+  musicTrack: MusicTrackInfo | null;
+  musicLoading: boolean;
+  musicPlaying: boolean;
+  /** Current duck gain of the bed (0–1) for the level meter. */
+  getMusicDuckGain: () => number;
+  onMusicUpload: (file: File) => void;
+  onMusicRemove: () => void;
   savedPresetNames: string[];
   onSavePreset: (name: string) => void;
   onLoadPreset: (name: string) => void;
@@ -69,7 +78,7 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
-  sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, "wallBreakSound", "importWallBreak"],
+  sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
 
@@ -665,6 +674,20 @@ export default function Controls(props: ControlsProps) {
           onUpload={props.onSliceSongUpload}
           onClear={props.onSliceSongClear}
         />
+        <MusicSection
+          t={t}
+          search={search}
+          matches={matches}
+          showAdvanced={showAdvanced}
+          settings={s}
+          update={update}
+          track={props.musicTrack}
+          loading={props.musicLoading}
+          playing={props.musicPlaying}
+          getDuckGain={props.getMusicDuckGain}
+          onUpload={props.onMusicUpload}
+          onRemove={props.onMusicRemove}
+        />
         <Searchable search={search} matches={matches} labelKey="wallBreakSound">
           <div className="space-y-2">
             <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
@@ -1159,7 +1182,29 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     case "visual":
       return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
     case "sound":
-      return { wallBreakSound: null, hitSoundMode: d.hitSoundMode, hitSampleId: d.hitSampleId, hitSamplePitchByWall: d.hitSamplePitchByWall, hitSampleVolume: d.hitSampleVolume, instrument: d.instrument, melodyInstrument: d.melodyInstrument, scale: d.scale, rootNote: d.rootNote, quantizeToBeat: d.quantizeToBeat, bpm: d.bpm, quantizeGrid: d.quantizeGrid, sliceSong: d.sliceSong, sliceMs: d.sliceMs, sliceLoop: d.sliceLoop, sliceFadeMs: d.sliceFadeMs };
+      return {
+        wallBreakSound: null,
+        hitSoundMode: d.hitSoundMode,
+        hitSampleId: d.hitSampleId,
+        hitSamplePitchByWall: d.hitSamplePitchByWall,
+        hitSampleVolume: d.hitSampleVolume,
+        instrument: d.instrument,
+        melodyInstrument: d.melodyInstrument,
+        scale: d.scale,
+        rootNote: d.rootNote,
+        quantizeToBeat: d.quantizeToBeat,
+        bpm: d.bpm,
+        quantizeGrid: d.quantizeGrid,
+        sliceSong: d.sliceSong,
+        sliceMs: d.sliceMs,
+        sliceLoop: d.sliceLoop,
+        sliceFadeMs: d.sliceFadeMs,
+        musicVolume: d.musicVolume,
+        musicDucking: d.musicDucking,
+        musicDuckRelease: d.musicDuckRelease,
+        musicLoop: d.musicLoop,
+        musicStartOffset: d.musicStartOffset,
+      };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
   }

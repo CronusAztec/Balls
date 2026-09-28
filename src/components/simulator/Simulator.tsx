@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
 import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
+import type { MusicTrackInfo } from "./sections/MusicSection";
 import Tooltip from "./Tooltip";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { ModeId } from "@/lib/physics/types";
@@ -52,6 +53,7 @@ export default function Simulator() {
   const wallBreakObjectUrlRef = useRef<string | null>(null);
   const hitSampleObjectUrlRef = useRef<string | null>(null);
   const sliceUploadIdRef = useRef(0);
+  const musicUploadIdRef = useRef(0);
 
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
   const [settings, setSettings] = useState<SimulatorSettings>(() => settingsFromSearchParams(new URLSearchParams(searchParams.toString())));
@@ -77,6 +79,10 @@ export default function Simulator() {
   // Song slicer: the decoded song lives in the ToneGenerator; this is what the panel shows about it.
   const [sliceSongInfo, setSliceSongInfo] = useState<{ name: string; duration: number } | null>(null);
   const [sliceSongLoading, setSliceSongLoading] = useState(false);
+  // Background music bed: the decoded track lives in the ToneGenerator's MusicBed; this is what the panel shows.
+  const [musicTrack, setMusicTrack] = useState<MusicTrackInfo | null>(null);
+  const [musicLoading, setMusicLoading] = useState(false);
+  const [musicPlaying, setMusicPlaying] = useState(false);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(30);
   const [findTolerance] = useState(0.5);
@@ -134,6 +140,7 @@ export default function Simulator() {
     engineRef.current = engine;
     audioRef.current = new ToneGenerator();
     audioRef.current.setHitSampleStatusListener(setHitSampleStatus);
+    audioRef.current.getMusicBed().setPlayingListener(setMusicPlaying);
     setPresets(loadPresets());
     setEngineReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,9 +155,13 @@ export default function Simulator() {
     audioRef.current?.resetCustomNoteIndex();
     audioRef.current?.getSlicer().reset();
     audioRef.current?.resetBeatGrid();
+    // The music bed starts over from its start offset with the run (the lifecycle effect below
+    // cannot tell a restart from "still running", so it is done here).
+    if (isStarted) audioRef.current?.getMusicBed().restart();
+    else audioRef.current?.getMusicBed().stop();
     engine.setConfig({ ballRadius: settings.ballRadius });
     initEngineForMode(engine, settings);
-  }, [settings, initEngineForMode]);
+  }, [settings, isStarted, initEngineForMode]);
 
   // Keep the engine in sync with the settings object.
   const s = settings;
@@ -249,6 +260,19 @@ export default function Simulator() {
     if (isPaused) audioRef.current?.getSlicer().stop();
   }, [isPaused]);
   useEffect(() => {
+    audioRef.current?.getMusicBed().setOptions({ volume: s.musicVolume, ducking: s.musicDucking, releaseMs: s.musicDuckRelease, loop: s.musicLoop, startOffset: s.musicStartOffset });
+  }, [s.musicVolume, s.musicDucking, s.musicDuckRelease, s.musicLoop, s.musicStartOffset]);
+  // The music bed follows the run: it plays while the simulation runs, pauses with it (keeping its
+  // position) and stops when the run ends or a mode / preset change resets it. A track uploaded
+  // mid-run starts right away. restart() handles the R key / Restart button.
+  useEffect(() => {
+    const bed = audioRef.current?.getMusicBed();
+    if (!bed) return;
+    if (!isStarted || finished) bed.stop();
+    else if (isPaused) bed.pause();
+    else bed.play();
+  }, [isStarted, isPaused, finished, musicTrack]);
+  useEffect(() => {
     audioRef.current?.setMusicSettings(musicSettingsOf(s));
   }, [s.instrument, s.melodyInstrument, s.scale, s.rootNote, s.quantizeToBeat, s.bpm, s.quantizeGrid]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -309,6 +333,11 @@ export default function Simulator() {
         sliceMs: settings.sliceMs,
         sliceLoop: settings.sliceLoop,
         sliceFadeMs: settings.sliceFadeMs,
+        musicVolume: settings.musicVolume,
+        musicDucking: settings.musicDucking,
+        musicDuckRelease: settings.musicDuckRelease,
+        musicLoop: settings.musicLoop,
+        musicStartOffset: settings.musicStartOffset,
       };
       setSettings(fresh);
       if (engine) {
@@ -328,7 +357,7 @@ export default function Simulator() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, settings.instrument, settings.melodyInstrument, settings.scale, settings.rootNote, settings.quantizeToBeat, settings.bpm, settings.quantizeGrid, initEngineForMode],
+    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, settings.musicVolume, settings.musicDucking, settings.musicDuckRelease, settings.musicLoop, settings.musicStartOffset, settings.instrument, settings.melodyInstrument, settings.scale, settings.rootNote, settings.quantizeToBeat, settings.bpm, settings.quantizeGrid, initEngineForMode],
   );
 
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
@@ -348,6 +377,7 @@ export default function Simulator() {
     if (!audioRef.current) {
       audioRef.current = new ToneGenerator();
       audioRef.current.setHitSampleStatusListener(setHitSampleStatus);
+      audioRef.current.getMusicBed().setPlayingListener(setMusicPlaying);
     }
     await audioRef.current.start();
     setIsStarted(true);
@@ -586,6 +616,37 @@ export default function Simulator() {
     setSliceSongLoading(false);
   }, []);
 
+  const onMusicUpload = useCallback(
+    async (file: File) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const uploadId = ++musicUploadIdRef.current;
+      setMusicLoading(true);
+      try {
+        const buffer = await audio.decodeAudio(await file.arrayBuffer());
+        if (uploadId !== musicUploadIdRef.current) return; // a newer upload replaced this one
+        audio.getMusicBed().setBuffer(buffer);
+        setMusicTrack({ name: file.name, duration: buffer.duration });
+      } catch (err) {
+        if (uploadId !== musicUploadIdRef.current) return;
+        console.error("Failed to decode the music track:", err);
+        alert(t("Controls.musicDecodeError"));
+      } finally {
+        if (uploadId === musicUploadIdRef.current) setMusicLoading(false);
+      }
+    },
+    [t],
+  );
+
+  const onMusicRemove = useCallback(() => {
+    musicUploadIdRef.current++;
+    audioRef.current?.getMusicBed().setBuffer(null);
+    setMusicTrack(null);
+    setMusicLoading(false);
+  }, []);
+
+  const getMusicDuckGain = useCallback(() => audioRef.current?.getMusicBed().getDuckGain() ?? 1, []);
+
   const onCustomSoundSelect = useCallback(async (id: string | null) => {
     if (!id) {
       audioRef.current?.clearCustomNotes();
@@ -703,9 +764,10 @@ export default function Simulator() {
       if (section === "sound") {
         void onCustomSoundSelect(null);
         onSliceSongClear();
+        onMusicRemove();
       }
     },
-    [settings.mode, update, onCustomSoundSelect, onSliceSongClear],
+    [settings.mode, update, onCustomSoundSelect, onSliceSongClear, onMusicRemove],
   );
 
   /* ------------------------------------------------------------ find simulation */
@@ -755,6 +817,7 @@ export default function Simulator() {
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
+      audioRef.current?.getMusicBed().stop(); // the found run starts over, so the bed does too
       update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
@@ -1072,6 +1135,12 @@ export default function Simulator() {
             sliceSongLoading={sliceSongLoading}
             onSliceSongUpload={onSliceSongUpload}
             onSliceSongClear={onSliceSongClear}
+            musicTrack={musicTrack}
+            musicLoading={musicLoading}
+            musicPlaying={musicPlaying}
+            getMusicDuckGain={getMusicDuckGain}
+            onMusicUpload={onMusicUpload}
+            onMusicRemove={onMusicRemove}
             savedPresetNames={Object.keys(presets)}
             onSavePreset={onSavePreset}
             onLoadPreset={onLoadPreset}

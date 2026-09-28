@@ -80,6 +80,15 @@ export interface SimulatorSettings {
   sliceMs: number;
   sliceLoop: boolean;
   sliceFadeMs: number;
+  // Background music bed under the bounce sounds (the track itself stays in memory; see lib/audio/musicBed.ts)
+  musicVolume: number;
+  /** 0–1: how far the bed dips on every bounce / wall-break sound. */
+  musicDucking: number;
+  /** Milliseconds the bed takes to swell back after a duck. */
+  musicDuckRelease: number;
+  musicLoop: boolean;
+  /** Seconds into the track at which the bed starts (and restarts). */
+  musicStartOffset: number;
   // Music: instrument voices, scale snapping and beat lock (see lib/audio/instruments.ts, scales.ts)
   /** Voice of the wall tones. */
   instrument: InstrumentId;
@@ -156,6 +165,11 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     sliceMs: 250,
     sliceLoop: true,
     sliceFadeMs: 8,
+    musicVolume: 0.5,
+    musicDucking: 0.6,
+    musicDuckRelease: 250,
+    musicLoop: true,
+    musicStartOffset: 0,
     instrument: "triangle",
     melodyInstrument: "sine",
     scale: "chromatic",
@@ -188,6 +202,10 @@ export const RANGES = {
   hitSampleVolume: { min: 0, max: 1, step: 0.05 },
   sliceMs: { min: 80, max: 1000, step: 10 },
   sliceFadeMs: { min: 0, max: 50, step: 1 },
+  musicVolume: { min: 0, max: 1, step: 0.05 },
+  musicDucking: { min: 0, max: 1, step: 0.05 },
+  musicDuckRelease: { min: 50, max: 1000, step: 10 },
+  musicStartOffset: { min: 0, max: 600, step: 0.5 },
   rootNote: { min: ROOT_NOTE_MIN, max: ROOT_NOTE_MAX, step: 1 },
   bpm: { min: BPM_MIN, max: BPM_MAX, step: 1 },
 } as const;
@@ -223,6 +241,10 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   hsv: "hitSampleVolume",
   slms: "sliceMs",
   slfade: "sliceFadeMs",
+  mv: "musicVolume",
+  md: "musicDucking",
+  mdr: "musicDuckRelease",
+  mso: "musicStartOffset",
   root: "rootNote",
   bpm: "bpm",
 };
@@ -250,6 +272,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   hspw: "hitSamplePitchByWall",
   slice: "sliceSong",
   sloop: "sliceLoop",
+  mloop: "musicLoop",
   qz: "quantizeToBeat",
 };
 
@@ -328,6 +351,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const hs = params.get("hs");
   if (hs !== null) settings.hitSampleId = normalizeHitSampleId(hs);
   settings.hitSampleVolume = clampRange(settings.hitSampleVolume, RANGES.hitSampleVolume, defaultSettings(mode).hitSampleVolume);
+  clampMusicBed(settings, defaultSettings(mode));
   const inst = params.get("inst");
   if (isInstrumentId(inst)) settings.instrument = inst;
   const minst = params.get("minst");
@@ -347,6 +371,14 @@ function clampRange(value: number, range: { min: number; max: number }, fallback
 
 function inRange(value: number, range: { min: number; max: number }) {
   return value >= range.min && value <= range.max;
+}
+
+/** Keeps the music-bed numbers inside their slider ranges (URL parameters and presets alike). */
+function clampMusicBed(settings: SimulatorSettings, defaults: SimulatorSettings) {
+  settings.musicVolume = clampRange(Number(settings.musicVolume), RANGES.musicVolume, defaults.musicVolume);
+  settings.musicDucking = clampRange(Number(settings.musicDucking), RANGES.musicDucking, defaults.musicDucking);
+  settings.musicDuckRelease = clampRange(Number(settings.musicDuckRelease), RANGES.musicDuckRelease, defaults.musicDuckRelease);
+  settings.musicStartOffset = clampRange(Number(settings.musicStartOffset), RANGES.musicStartOffset, defaults.musicStartOffset);
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -398,6 +430,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.bpm = clampRange(Number(merged.bpm), RANGES.bpm, defaults.bpm);
   merged.sliceMs = clampRange(Number(merged.sliceMs), RANGES.sliceMs, defaults.sliceMs);
   merged.sliceFadeMs = clampRange(Number(merged.sliceFadeMs), RANGES.sliceFadeMs, defaults.sliceFadeMs);
+  merged.musicLoop = typeof preset.musicLoop === "boolean" ? preset.musicLoop : defaults.musicLoop;
+  clampMusicBed(merged, defaults);
   return merged;
 }
 

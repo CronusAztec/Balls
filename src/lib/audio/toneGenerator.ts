@@ -1,5 +1,6 @@
 import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instruments";
 import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
+import { MusicBed } from "./musicBed";
 import { HitSampler, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
 
@@ -18,6 +19,10 @@ import { SlicePlayer } from "./slicePlayer";
  * the beat lock is on, the BPM grid the sound – voice or sample – is delayed onto
  * (scales.ts). With the defaults – triangle tones, sine melody, chromatic, lock off – the
  * output is exactly the classic bounce sound.
+ *
+ * Under all of that the background music bed (musicBed.ts) plays an uploaded track into the
+ * same master gain, and every bounce / wall-break sound scheduled here ducks it at the sound's
+ * own audio time, so the sidechain lines up with the beat-locked sounds as well.
  */
 export interface MusicSettings {
   /** Voice of the wall tones. */
@@ -61,6 +66,8 @@ export class ToneGenerator {
   private hitSampleStatusListener: ((status: HitSampleStatus) => void) | null = null;
   /** Song slicer: plays the next bit of an uploaded song on every bounce (see slicePlayer.ts). */
   private readonly slicer = new SlicePlayer();
+  /** Background music bed, ducked by every bounce sound (see musicBed.ts). */
+  private readonly musicBed = new MusicBed();
   private music: MusicSettings = { ...DEFAULT_MUSIC_SETTINGS };
   private readonly pluckCache = new PluckCache();
   /** AudioContext time the beat grid counts from (the moment the run started). */
@@ -119,6 +126,8 @@ export class ToneGenerator {
         this.mediaStreamDestination = this.audioContext.createMediaStreamDestination();
         this.masterGain.connect(this.mediaStreamDestination);
       }
+      // The music bed shares the master gain too, so it is heard and recorded like every other sound.
+      this.musicBed.attach(this.audioContext, this.masterGain);
       // A near-silent oscillator keeps the recorded audio track alive between hits.
       if (!this.silentOsc && this.mediaStreamDestination) {
         this.silentOsc = this.audioContext.createOscillator();
@@ -235,10 +244,15 @@ export class ToneGenerator {
     return this.customNotes.length;
   }
 
-  /* ------------------------------------------------------------ song slicer */
+  /* ------------------------------------------------------------ song slicer & music bed */
 
   getSlicer() {
     return this.slicer;
+  }
+
+  /** The background music bed (transport and options are driven by the Simulator). */
+  getMusicBed() {
+    return this.musicBed;
   }
 
   /** Decodes an uploaded audio file (MP3, OGG, WAV, M4A…) with the browser's audio decoder. */
@@ -266,15 +280,19 @@ export class ToneGenerator {
 
   private scheduleHit(wallIndex: number) {
     if (!this.audioContext || !this.masterGain) return;
-    // 1. The song slicer takes over the bounce sound while it has a song to play.
-    if (this.slicer.trigger(this.audioContext, this.masterGain)) return;
     const now = this.audioContext.currentTime;
+    // 1. The song slicer takes over the bounce sound while it has a song to play.
+    if (this.slicer.trigger(this.audioContext, this.masterGain)) {
+      this.musicBed.duck(now);
+      return;
+    }
     // 2. Sample mode: the clip, pitched per wall and placed on the beat grid like every other sound.
     if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
       this.lastSlotTime = time;
       this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall), time);
+      this.musicBed.duck(time);
       return;
     }
     // 3. A synthesised voice: the next melody note or the wall tone, snapped to the scale.
@@ -304,6 +322,7 @@ export class ToneGenerator {
       // Melody notes keep their own voice (sine by default), so a song sounds as it always did.
       const instrument = melody ? this.music.melodyInstrument : this.music.instrument;
       playVoice(this.audioContext, this.masterGain, instrument, { frequency: this.snap(frequency), time, duration, gain }, this.pluckCache);
+      this.musicBed.duck(time);
     } catch (err) {
       console.error("Error playing wall hit sound:", err);
     }
@@ -341,6 +360,7 @@ export class ToneGenerator {
         osc.start(t);
         osc.stop(t + 0.25);
       });
+      this.musicBed.duck(start);
     } catch (err) {
       console.error("Error playing gap pass sound:", err);
     }
@@ -386,7 +406,9 @@ export class ToneGenerator {
       const source = this.audioContext.createBufferSource();
       source.buffer = this.wallBreakBuffer;
       source.connect(this.masterGain);
-      source.start(this.scheduleTime(this.audioContext.currentTime));
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      source.start(time);
+      this.musicBed.duck(time);
     } catch (err) {
       console.error("Error playing wall-break sound:", err);
     }
@@ -398,6 +420,7 @@ export class ToneGenerator {
       this.sampler = null;
     }
     this.slicer.stop();
+    this.musicBed.detach();
     if (this.silentOsc) {
       this.silentOsc.stop();
       this.silentOsc.disconnect();

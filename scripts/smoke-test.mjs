@@ -5,8 +5,9 @@
  *   BASE_URL=http://localhost:3000/Balls npm run smoke
  *
  * It checks the root redirect, the 404 page, assets under the base path, opens every page in
- * every locale, starts the simulator in each mode, records a short clip, runs the seed
- * finder, submits the feedback form, switches language and reports console errors.
+ * every locale, starts the simulator in each mode, exercises the sound features (hit samples,
+ * song slicer, instruments, background music bed), records a short clip with the music bed,
+ * runs the seed finder, submits the feedback form, switches language and reports console errors.
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -30,7 +31,7 @@ page.on("console", (m) => {
   if (m.type() === "error") errors.push(`console: ${m.text()}`);
 });
 
-/** A short 16-bit mono PCM WAV (sine sweep) for the song-slicer upload check. */
+/** A short 16-bit mono PCM WAV (sine sweep) for the song-slicer and music-bed upload checks. */
 function makeWav(seconds = 2, sampleRate = 8000) {
   const frames = Math.round(seconds * sampleRate);
   const buf = Buffer.alloc(44 + 2 * frames);
@@ -58,6 +59,20 @@ const results = [];
 const check = (name, ok, extra = "") => {
   results.push({ name, ok, extra });
   console.log(`${ok ? "✅" : "❌"} ${name} ${extra}`);
+};
+
+/** Sets a React-controlled range input the way a user drag would (runs in the page). */
+const setRangeValue = (el, value) => {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+  setter.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+};
+
+/** Uploads the generated WAV as the background music track (the Sound section must be open) and waits for the panel to list it. */
+const uploadMusicBed = async (seconds) => {
+  await page.locator("#music-file-input").setInputFiles({ name: "smoke-bed.wav", mimeType: "audio/wav", buffer: makeWav(seconds) });
+  return page.getByTestId("music-track").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
 };
 
 // 0. Static hosting: root redirect, 404 page, assets and sitemap under the base path
@@ -309,8 +324,61 @@ await page.waitForTimeout(300);
 await page.waitForTimeout(1500); // a few melody notes play through the marimba voice
 await page.getByRole("button", { name: /Custom Sound/ }).click();
 
-// 5. Recording: 3-second clip downloads
+// 4e. Background music bed: upload a track in the Sound section, the panel lists it with its length, the mix controls
+// appear and the volume reaches the URL. AudioBufferSourceNode.start is instrumented: the bed is the only source
+// started as `start(0, offset)` (two arguments), so its starts show when it plays, from where, and whether it loops.
+// The bed waits for the run, starts with it, pauses with Space, resumes from the pause position, restarts with R
+// and the track can be removed.
+await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__bedLog = log;
+  const start = AudioBufferSourceNode.prototype.start;
+  AudioBufferSourceNode.prototype.start = function (when, offset) {
+    if (arguments.length === 2) log.push({ when, offset, loop: this.loop });
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+const musicTrack = page.getByTestId("music-track");
+const musicLoaded = await uploadMusicBed(4);
+const musicInfo = musicLoaded ? await musicTrack.innerText() : "";
+check("music bed decodes an uploaded track", musicLoaded && musicInfo.includes("smoke-bed.wav") && /0:04/.test(musicInfo), `(${musicInfo.replace(/\s+/g, " ").trim()})`);
+const musicVolume = page.locator('input[aria-label="Music Volume"]');
+check("music bed controls appear with a track", (await musicVolume.isVisible()) && (await page.locator('input[aria-label="Ducking"]').isVisible()) && (await page.getByTestId("music-duck-meter").isVisible()));
+await musicVolume.evaluate(setRangeValue, "0.3");
+await page.waitForTimeout(200);
+check("music volume mirrored into the URL", /(^|&)mv=0.3(&|$)/.test(page.url().split("?")[1] || ""), `(${page.url().split("?")[1]})`);
+check("music bed waits for the run", (await page.evaluate(() => window.__bedLog.length)) === 0 && (await page.getByTestId("music-playing").count()) === 0);
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+const musicPlaying = await page.getByTestId("music-playing").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+const bedFirstStart = await page.evaluate(() => window.__bedLog[0] ?? null);
+check("music bed starts with the run and loops", musicPlaying && !!bedFirstStart && bedFirstStart.offset === 0 && bedFirstStart.loop === true, `(${JSON.stringify(bedFirstStart)})`);
+await page.waitForTimeout(1200);
+await page.evaluate(() => document.activeElement?.blur());
+await page.keyboard.press("Space");
+await page.waitForTimeout(400);
+check("music bed pauses with the run", (await page.getByRole("button", { name: /Resume/ }).isVisible()) && (await page.getByTestId("music-playing").count()) === 0);
+await page.keyboard.press("Space");
+const bedResumed = await page.getByTestId("music-playing").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+const bedSecondStart = await page.evaluate(() => window.__bedLog[1] ?? null);
+check("music bed resumes from the pause position", bedResumed && !!bedSecondStart && bedSecondStart.offset > 0.8 && bedSecondStart.offset < 4, `(resumed at ${bedSecondStart ? bedSecondStart.offset.toFixed(2) : "?"}s)`);
+await page.keyboard.press("KeyR");
+await page.waitForTimeout(300);
+const bedThirdStart = await page.evaluate(() => window.__bedLog[2] ?? null);
+check("R restarts the music bed from the start offset", !!bedThirdStart && bedThirdStart.offset === 0 && (await page.getByTestId("music-playing").isVisible()), `(${JSON.stringify(bedThirdStart)})`);
+await page.getByRole("button", { name: "Remove music" }).click();
+await page.waitForTimeout(200);
+check("music bed removes the track", (await musicTrack.count()) === 0 && (await page.locator("#music-file-input").count()) === 1 && (await page.getByTestId("music-playing").count()) === 0);
+await page.getByPlaceholder("Search settings...").fill("ducking");
+check("search finds the ducking control without a track", await page.locator('input[aria-label="Ducking"]').isVisible());
+await page.getByPlaceholder("Search settings...").fill("");
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+
+// 5. Recording: 3-second clip downloads, with the music bed mixed into the audio track
 await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+const bedForRecording = await uploadMusicBed(2);
 await page.getByRole("button", { name: /Recording/ }).click();
 await page.locator("#resolution-select").selectOption("500x500");
 const durationSlider = page.locator('input[aria-label="Duration"]');
@@ -331,7 +399,7 @@ const [download] = await Promise.all([
 const dlPath = path.join(outDir, download.suggestedFilename());
 await download.saveAs(dlPath);
 const size = fs.statSync(dlPath).size;
-check("video recorded and downloaded", size > 10000, `(${download.suggestedFilename()}, ${size} bytes)`);
+check("video recorded and downloaded", size > 10000, `(${download.suggestedFilename()}, ${size} bytes, music bed ${bedForRecording ? "on" : "OFF"})`);
 
 // 6. Find Simulation
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
