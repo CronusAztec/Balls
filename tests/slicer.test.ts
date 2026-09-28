@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MIN_SLICE_SEC, formatSongTime, normalizeSliceOptions, planSlice, positionAt, sliceCount, sliceProgress, songEnded, type SliceOptions } from "@/lib/audio/slicer";
+import { SlicePlayer } from "@/lib/audio/slicePlayer";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 
 const opts: SliceOptions = { sliceSec: 0.25, fadeSec: 0.008, loop: true };
@@ -86,6 +87,122 @@ describe("positionAt", () => {
     const second = planSlice(cutAt, 10, opts)!;
     expect(second.start).toBeCloseTo(0.1);
     expect(second.cursorAfter).toBeCloseTo(0.35);
+  });
+
+  it("models a pause: the slice is cut at the pause time and the song resumes there, not at the slice end", () => {
+    const long = { ...opts, sliceSec: 1 };
+    const first = planSlice(0, 10, long)!;
+    const pausedAt = positionAt(first.start, first.duration, 50, 50.171);
+    expect(pausedAt).toBeCloseTo(0.171);
+    expect(pausedAt).toBeLessThan(first.cursorAfter);
+    const resumed = planSlice(pausedAt, 10, long)!;
+    expect(resumed.start).toBeCloseTo(0.171);
+    expect(resumed.cursorAfter).toBeCloseTo(1.171);
+  });
+});
+
+/** Minimal stand-in for the Web Audio objects SlicePlayer touches; logs every source start/stop. */
+function fakeAudio(time: number) {
+  const started: { when: number; offset: number; duration: number }[] = [];
+  const stopped: number[] = [];
+  const param = () => ({ value: 1, setValueAtTime: () => undefined, linearRampToValueAtTime: () => undefined, cancelScheduledValues: () => undefined });
+  interface FakeContext {
+    currentTime: number;
+    createGain(): unknown;
+    createBufferSource(): unknown;
+  }
+  const ctx: FakeContext = {
+    currentTime: time,
+    createGain: () => ({ gain: param(), connect: () => undefined, disconnect: () => undefined }),
+    createBufferSource: () => ({
+      buffer: null as unknown,
+      context: ctx,
+      onended: null as (() => void) | null,
+      connect: () => undefined,
+      start: (when: number, offset: number, duration: number) => {
+        started.push({ when, offset, duration });
+      },
+      stop: (when: number) => {
+        stopped.push(when);
+      },
+    }),
+  };
+  return {
+    ctx: ctx as unknown as AudioContext,
+    destination: {} as AudioNode,
+    started,
+    stopped,
+    /** Advances the audio clock. */
+    tick(t: number) {
+      ctx.currentTime = t;
+    },
+  };
+}
+
+describe("SlicePlayer", () => {
+  const song = { duration: 10 } as AudioBuffer;
+  const setup = () => {
+    const audio = fakeAudio(100);
+    const player = new SlicePlayer();
+    player.setBuffer(song);
+    player.setOptions({ sliceSec: 1, fadeSec: 0.008, loop: true });
+    player.setEnabled(true);
+    return { audio, player };
+  };
+
+  it("plays consecutive slices and cuts a sounding slice at the next bounce", () => {
+    const { audio, player } = setup();
+    expect(player.trigger(audio.ctx, audio.destination)).toBe(true);
+    expect(audio.started[0]).toEqual({ when: 100, offset: 0, duration: 1 });
+    expect(player.getPosition(100.25)).toBeCloseTo(0.25);
+    audio.tick(100.3);
+    expect(player.trigger(audio.ctx, audio.destination)).toBe(true);
+    expect(audio.stopped).toHaveLength(1);
+    expect(audio.stopped[0]).toBeGreaterThan(100.3); // the short cut fade
+    expect(audio.started[1].offset).toBeCloseTo(0.3);
+    expect(audio.started[1].duration).toBeCloseTo(1);
+  });
+
+  it("holds the position at the cut point while paused and resumes from there", () => {
+    const { audio, player } = setup();
+    player.trigger(audio.ctx, audio.destination);
+    audio.tick(100.171);
+    player.stop(); // what the Simulator's pause effect calls
+    expect(audio.stopped).toHaveLength(1);
+    expect(player.getPosition(100.171)).toBeCloseTo(0.171);
+    expect(player.getPosition(103)).toBeCloseTo(0.171); // the HUD bar must not jump to the slice end
+    expect(player.getProgress(103)).toBeCloseTo(0.0171);
+    audio.tick(103);
+    expect(player.trigger(audio.ctx, audio.destination)).toBe(true);
+    expect(audio.started[1].offset).toBeCloseTo(0.171);
+    expect(audio.started[1].duration).toBeCloseTo(1);
+  });
+
+  it("continues from the cut point after slicing is switched off and on again", () => {
+    const { audio, player } = setup();
+    player.trigger(audio.ctx, audio.destination);
+    audio.tick(100.4);
+    player.setEnabled(false);
+    expect(audio.stopped).toHaveLength(1);
+    expect(player.getPosition(100.4)).toBeCloseTo(0.4);
+    audio.tick(101);
+    expect(player.trigger(audio.ctx, audio.destination)).toBe(false); // off: the normal bounce sound plays
+    player.setEnabled(true);
+    expect(player.trigger(audio.ctx, audio.destination)).toBe(true);
+    expect(audio.started[1].offset).toBeCloseTo(0.4);
+  });
+
+  it("continues from the end of a slice that played out in full, and rewinds on reset", () => {
+    const { audio, player } = setup();
+    player.trigger(audio.ctx, audio.destination);
+    audio.tick(102); // the 1 s slice has long ended
+    player.stop();
+    expect(player.getPosition(102)).toBeCloseTo(1);
+    expect(player.trigger(audio.ctx, audio.destination)).toBe(true);
+    expect(audio.started[1].offset).toBeCloseTo(1);
+    player.reset();
+    expect(player.getPosition(102)).toBe(0);
+    expect(player.hasEnded()).toBe(false);
   });
 });
 

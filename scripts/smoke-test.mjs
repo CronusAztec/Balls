@@ -159,6 +159,67 @@ const sliceLoaded = await sliceFile.waitFor({ timeout: 15000 }).then(() => true)
 await page.waitForTimeout(1500); // a few bounces play slices through the audio graph
 const sliceInfo = sliceLoaded ? await sliceFile.innerText() : "";
 check("song slicer decodes an uploaded song", sliceLoaded && sliceInfo.includes("smoke-song.wav") && /0:02/.test(sliceInfo) && page.url().includes("slice=1"), `(${sliceInfo.replace(/\s+/g, " ").trim()} | ${page.url().split("?")[1]})`);
+
+// 4a'. Pausing cuts the slice that is sounding and the song resumes from the cut point, not from the end of that
+// slice. AudioBufferSourceNode.start/stop are instrumented: slices are the only sources started with an offset and
+// a duration. Slices are made 1 s long so the pause lands well inside one.
+await page.locator('input[aria-label="Slice Length"]').evaluate((el) => {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+  setter.call(el, "1000");
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+});
+await page.evaluate(() => {
+  const proto = AudioBufferSourceNode.prototype;
+  const log = { starts: [], stops: [] };
+  window.__sliceLog = log;
+  const start = proto.start;
+  const stop = proto.stop;
+  proto.start = function (when, offset, duration) {
+    if (typeof duration === "number") log.starts.push({ when, offset, duration });
+    return start.apply(this, arguments);
+  };
+  proto.stop = function (when) {
+    log.stops.push(when);
+    return stop.apply(this, arguments);
+  };
+});
+const nextSliceAfter = (count) =>
+  page
+    .waitForFunction((n) => window.__sliceLog.starts.length > n, count, { polling: 10, timeout: 8000 })
+    .then(() => true)
+    .catch(() => false);
+let pauseCase = null;
+for (let attempt = 0; attempt < 5 && !pauseCase; attempt++) {
+  const before = await page.evaluate(() => window.__sliceLog.starts.length);
+  if (!(await nextSliceAfter(before))) break;
+  await page.waitForTimeout(80); // pause clearly inside the slice
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(400);
+  const paused = await page.getByRole("button", { name: /Resume/ }).isVisible();
+  const log = await page.evaluate(() => window.__sliceLog);
+  const cut = log.starts[log.starts.length - 1];
+  const stopAt = log.stops[log.stops.length - 1] ?? -1;
+  // A usable capture: the pause faded out a slice that was still sounding (its stop is scheduled after its start and before its end).
+  if (paused && cut && stopAt > cut.when + 0.03 && stopAt < cut.when + cut.duration) {
+    const count = log.starts.length;
+    await page.keyboard.press("Space");
+    const resumed = await nextSliceAfter(count);
+    const starts = await page.evaluate(() => window.__sliceLog.starts);
+    pauseCase = { cut, stopAt, next: resumed ? starts[count] : null };
+  } else {
+    if (paused) await page.keyboard.press("Space"); // resume and try again with the next slice
+    await page.waitForTimeout(300);
+  }
+}
+const cutElapsed = pauseCase ? pauseCase.stopAt - pauseCase.cut.when : NaN; // includes the short cut fade
+const nextOffset = pauseCase?.next?.offset ?? NaN;
+check(
+  "song slicer resumes from the pause point",
+  !!pauseCase?.next && Math.abs(nextOffset - (pauseCase.cut.offset + cutElapsed)) < 0.03 && nextOffset < pauseCase.cut.offset + pauseCase.cut.duration - 0.05,
+  pauseCase ? `(slice ${pauseCase.cut.offset.toFixed(3)}s+${pauseCase.cut.duration.toFixed(3)}s paused after ${cutElapsed.toFixed(3)}s, resumed at ${nextOffset.toFixed(3)}s)` : "(no slice could be cut by a pause)",
+);
 await page.getByRole("button", { name: "Remove song" }).click();
 check("song slicer removes the song", (await sliceFile.count()) === 0 && (await page.locator("#slice-song-input").count()) === 1);
 await page.getByRole("button", { name: /Custom Sound/ }).click();

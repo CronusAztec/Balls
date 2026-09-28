@@ -5,8 +5,9 @@ import { normalizeSliceOptions, planSlice, positionAt, sliceProgress, songEnded,
  * and the slice that is currently sounding, and plays the next slice on demand through
  * whatever destination it is given (the ToneGenerator's master gain, so slices reach the
  * speakers and the recording track alike). Every slice gets a short linear fade in and
- * out, and a slice that is still playing when the next bounce arrives is faded out and the
- * cursor continues from the point where it was cut, so fast bouncing never skips music.
+ * out, and a slice that is still playing when it is cut short (the next bounce arrives, the
+ * simulation pauses, slicing is switched off) is faded out and the cursor moves to the point
+ * where it was cut, so neither fast bouncing nor pausing skips music.
  */
 export class SlicePlayer {
   private buffer: AudioBuffer | null = null;
@@ -88,9 +89,9 @@ export class SlicePlayer {
     if (!this.enabled || !buffer) return false;
     const now = ctx.currentTime;
     if (now - this.lastTriggerAt < SlicePlayer.RETRIGGER_SEC) return true;
-    // A slice still sounding is cut here; the song continues from where it actually got to.
-    if (this.voice) this.cursor = this.getPosition(now);
-    const plan = planSlice(this.cursor, buffer.duration, this.options);
+    // A slice still sounding is cut here (stop() moves the cursor to the cut point), so the
+    // song continues from where it actually got to rather than from the end of that slice.
+    const plan = planSlice(this.getPosition(now), buffer.duration, this.options);
     if (!plan) return false;
     this.stop(now);
     try {
@@ -124,13 +125,19 @@ export class SlicePlayer {
     }
   }
 
-  /** Fades out the slice that is still playing, if any (pause, restart, new song, next bounce). */
+  /**
+   * Fades out the slice that is still playing, if any (pause, slicing switched off, restart,
+   * new song, next bounce) and moves the cursor to the point where it was cut, so the song
+   * continues from there afterwards and the progress bar holds there instead of jumping to
+   * the end of the cut slice.
+   */
   stop(now?: number) {
     const v = this.voice;
     if (!v) return;
     this.voice = null;
+    const t = now ?? v.source.context.currentTime;
+    this.cursor = positionAt(v.start, v.duration, v.startedAt, t);
     try {
-      const t = now ?? v.source.context.currentTime;
       const g = v.gain.gain;
       g.cancelScheduledValues(t);
       g.setValueAtTime(g.value, t);
