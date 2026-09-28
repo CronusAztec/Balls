@@ -327,8 +327,9 @@ await page.getByRole("button", { name: /Custom Sound/ }).click();
 // 4e. Background music bed: upload a track in the Sound section, the panel lists it with its length, the mix controls
 // appear and the volume reaches the URL. AudioBufferSourceNode.start is instrumented: the bed is the only source
 // started as `start(0, offset)` (two arguments), so its starts show when it plays, from where, and whether it loops.
-// The bed waits for the run, starts with it, pauses with Space, resumes from the pause position, restarts with R
-// and the track can be removed.
+// The bed waits for the run, starts with it, pauses with Space, resumes from the pause position, restarts with R,
+// keeps pause/resume working after Loop is switched off on a track that has already wrapped, and the track can be
+// removed.
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.evaluate(() => {
   const log = [];
@@ -367,6 +368,30 @@ await page.keyboard.press("KeyR");
 await page.waitForTimeout(300);
 const bedThirdStart = await page.evaluate(() => window.__bedLog[2] ?? null);
 check("R restarts the music bed from the start offset", !!bedThirdStart && bedThirdStart.offset === 0 && (await page.getByTestId("music-playing").isVisible()), `(${JSON.stringify(bedThirdStart)})`);
+
+// 4e'. Switching Loop off on a track that has already wrapped must not break pause/resume: the looping source's
+// playhead is (start + elapsed) % duration, so the bed has to resume from that wrapped position (below the track
+// length) instead of treating the track as finished. The run restarted from 0 with R a moment ago.
+await page.waitForTimeout(4400); // the 4 s track wraps
+const loopToggle = page.locator('label:has-text("Loop Music") + button');
+await loopToggle.click();
+await page.waitForTimeout(300);
+const loopOff = (await loopToggle.getAttribute("aria-pressed")) === "false";
+const soundingAfterLoopOff = await page.getByTestId("music-playing").isVisible(); // the source had not ended
+await page.evaluate(() => document.activeElement?.blur());
+await page.keyboard.press("Space");
+await page.waitForTimeout(400);
+const pausedAfterLoopOff = (await page.getByRole("button", { name: /Resume/ }).isVisible()) && (await page.getByTestId("music-playing").count()) === 0;
+await page.keyboard.press("Space");
+const bedResumedUnlooped = await page.getByTestId("music-playing").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+const bedFourthStart = await page.evaluate(() => window.__bedLog[3] ?? null);
+check(
+  "music bed resumes from the wrapped position after Loop is switched off",
+  loopOff && soundingAfterLoopOff && pausedAfterLoopOff && bedResumedUnlooped && !!bedFourthStart && bedFourthStart.loop === false && bedFourthStart.offset > 0 && bedFourthStart.offset < 4,
+  `(loop off=${loopOff}, sounding=${soundingAfterLoopOff}, paused=${pausedAfterLoopOff}, resumed=${bedResumedUnlooped}, start=${JSON.stringify(bedFourthStart)})`,
+);
+await loopToggle.click(); // back to looping for the checks that follow
+await page.waitForTimeout(200);
 await page.getByRole("button", { name: "Remove music" }).click();
 await page.waitForTimeout(200);
 check("music bed removes the track", (await musicTrack.count()) === 0 && (await page.locator("#music-file-input").count()) === 1 && (await page.getByTestId("music-playing").count()) === 0);

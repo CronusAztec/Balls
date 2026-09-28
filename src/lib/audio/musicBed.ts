@@ -117,6 +117,13 @@ export function normalizeMusicOptions(patch: Partial<MusicBedOptions>, base: Mus
 interface Voice {
   source: AudioBufferSourceNode;
   fade: GainNode;
+  /**
+   * True once the source has ever been allowed to loop. A looping source keeps sounding past the
+   * buffer end (its playhead is `(start + elapsed) % duration`) and, when Loop is switched off
+   * mid-run, carries on from that wrapped playhead to the end of the buffer – so the position
+   * arithmetic must follow the loop state the source actually had, not the live option.
+   */
+  looped: boolean;
 }
 
 export class MusicBed {
@@ -210,7 +217,10 @@ export class MusicBed {
       // A short smoothing constant avoids zipper noise while the slider is dragged.
       this.volumeGain.gain.setTargetAtTime(this.options.volume, this.context.currentTime, 0.02);
     }
-    if (this.voice) this.voice.source.loop = this.options.loop;
+    if (this.voice) {
+      this.voice.source.loop = this.options.loop;
+      this.voice.looped ||= this.options.loop;
+    }
   }
 
   getOptions(): MusicBedOptions {
@@ -238,7 +248,7 @@ export class MusicBed {
       fade.gain.linearRampToValueAtTime(1, now + BED_FADE_SEC);
       source.connect(fade);
       fade.connect(this.duckGain);
-      const voice: Voice = { source, fade };
+      const voice: Voice = { source, fade, looped: source.loop };
       source.onended = () => {
         // Natural end of a non-looping track: stay silent until the simulation restarts.
         if (this.voice !== voice) return;
@@ -283,7 +293,10 @@ export class MusicBed {
   getPosition(): number {
     const buffer = this.buffer;
     if (!buffer) return 0;
-    if (this.playing && this.context) return playbackPosition(this.startPosition, this.context.currentTime - this.startedAt, buffer.duration, this.options.loop);
+    // Wrap with the loop state the sounding source actually had: a source that looped stays below the
+    // buffer end even after Loop is switched off, and a source that never looped cannot be past it
+    // (its natural end records `duration` in onended).
+    if (this.playing && this.context) return playbackPosition(this.startPosition, this.context.currentTime - this.startedAt, buffer.duration, this.voice?.looped ?? this.options.loop);
     return this.position ?? resolveOffset(this.options.startOffset, buffer.duration, this.options.loop) ?? 0;
   }
 

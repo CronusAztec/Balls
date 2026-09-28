@@ -269,6 +269,47 @@ describe("MusicBed", () => {
     expect(audio.sources[0].started?.offset).toBeCloseTo(2);
   });
 
+  it("keeps the wrapped position when Loop is switched off on a track that already wrapped, so pause/resume carries on", () => {
+    const { audio, bed } = setup();
+    bed.play(); // loop on, from 0
+    audio.tick(114); // 14 s into the 10 s track: the looping source wrapped and sounds at 4 s
+    expect(bed.getPosition()).toBeCloseTo(4);
+    bed.setOptions({ loop: false });
+    expect(audio.sources[0].loop).toBe(false);
+    expect(bed.getPosition()).toBeCloseTo(4); // the source carries on from its wrapped playhead, not from the end
+    audio.tick(115);
+    bed.pause();
+    expect(bed.getPosition()).toBeCloseTo(5);
+    expect(bed.play()).toBe(true); // resumes instead of treating the track as finished
+    expect(audio.sources).toHaveLength(2);
+    expect(audio.sources[1].started?.offset).toBeCloseTo(5);
+    expect(audio.sources[1].started?.loop).toBe(false);
+    audio.tick(120);
+    expect(bed.getPosition()).toBeCloseTo(10); // a source that never looped clamps at the end…
+    audio.sources[1].onended?.(); // …and ends there
+    expect(bed.isPlaying()).toBe(false);
+    expect(bed.play()).toBe(false);
+    bed.restart();
+    expect(audio.sources[2].started).toEqual({ when: 0, offset: 0, loop: false });
+  });
+
+  it("follows a source that starts without looping and is switched to loop mid-run", () => {
+    const { audio, bed } = setup();
+    bed.setOptions({ loop: false, startOffset: 3 });
+    bed.play();
+    audio.tick(104);
+    bed.setOptions({ loop: true }); // the sounding source loops from now on
+    expect(audio.sources[0].loop).toBe(true);
+    audio.tick(112); // 3 + 12 = 15 s of playback: wrapped once
+    expect(bed.getPosition()).toBeCloseTo(5);
+    bed.setOptions({ loop: false }); // once looped, the wrap is remembered even with Loop off again
+    bed.pause();
+    expect(bed.getPosition()).toBeCloseTo(5);
+    expect(bed.play()).toBe(true);
+    expect(audio.sources[1].started?.offset).toBeCloseTo(5);
+    expect(audio.sources[1].started?.loop).toBe(false);
+  });
+
   it("ducks the duck stage at the sound's time, once per time, only while playing", () => {
     const { audio, bed, duck } = setup();
     bed.setOptions({ ducking: 0.5, releaseMs: 200 });
