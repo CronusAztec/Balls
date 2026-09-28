@@ -5,7 +5,9 @@ import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, sliderStyle } from "./ControlPrimitives";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
-import { CUSTOM_HIT_SAMPLE_ID, HIT_SAMPLES, HIT_SOUND_MODES } from "@/lib/audio/sampler";
+import { CUSTOM_HIT_SAMPLE_ID, HIT_SAMPLES, HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
+import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
+import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
@@ -40,6 +42,8 @@ export interface ControlsProps {
   onWallBreakSoundUpload: (file: File) => void;
   /** Name of the hit sample uploaded in this session (selectable as "custom"), if any. */
   customHitSampleName: string | null;
+  /** Decode state of the selected hit sample ("error" is shown in the panel; the tones play meanwhile). */
+  hitSampleStatus: HitSampleStatus;
   onHitSampleUpload: (file: File) => void;
   /** Song slicer: the song decoded in this session (name + length in seconds), if any. */
   sliceSongName: string | null;
@@ -55,17 +59,21 @@ export interface ControlsProps {
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
 
+/** Translation keys for the instrument and scale pickers (Controls namespace). */
+const INSTRUMENT_LABELS: Record<InstrumentId, string> = { sine: "instSine", triangle: "instTriangle", square: "instSquare", saw: "instSaw", pluck: "instPluck", marimba: "instMarimba", chip: "instChip" };
+const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", major: "scaleMajor", minor: "scaleMinor", pentatonic: "scalePentatonic", blues: "scaleBlues", wholeTone: "scaleWholeTone" };
+
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
-  sound: ["hitSoundMode", "hitSample", "importHitSample", "hitSamplePitchByWall", "hitSampleVolume", "song", "importMidi", ...SONG_SLICER_KEYS, "wallBreakSound", "importWallBreak"],
+  sound: ["hitSoundMode", "instrument", "hitSample", "importHitSample", "hitSamplePitchByWall", "hitSampleVolume", "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
 
 /** Drop zone for an audio file (hit-sample upload). The shared Slider/Toggle/… helpers live in ControlPrimitives.tsx. */
-function AudioDropZone({ idleText, dragText, onFile }: { idleText: string; dragText: string; onFile: (file: File) => void }) {
+function AudioDropZone({ inputId, idleText, dragText, onFile }: { inputId?: string; idleText: string; dragText: string; onFile: (file: File) => void }) {
   const [drag, setDrag] = useState(false);
   return (
     <label
@@ -87,6 +95,7 @@ function AudioDropZone({ idleText, dragText, onFile }: { idleText: string; dragT
       <span className="text-lg">{drag ? "📥" : "📁"}</span>
       <span className="font-semibold">{drag ? dragText : idleText}</span>
       <input
+        id={inputId}
         type="file"
         accept=".mp3,.wav,.ogg,.aac,.m4a,.flac,.webm,audio/*"
         className="hidden"
@@ -451,222 +460,346 @@ export default function Controls(props: ControlsProps) {
     </div>
   );
 
-  const soundSection = () => (
-    <div className="space-y-4">
-      <ResetButton search={search} t={t} section="sound" onReset={props.onResetSection} />
-      <Searchable search={search} matches={matches} labelKey="hitSoundMode">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
-            {t("hitSoundMode")}
-            <Tooltip text={t("hitSoundModeTip")} />
-          </label>
-          <div className="flex gap-1" role="group" aria-label={t("hitSoundMode")}>
-            {HIT_SOUND_MODES.map((mode) => (
-              <button
-                type="button"
-                key={mode}
-                onClick={() => update({ hitSoundMode: mode })}
-                aria-pressed={s.hitSoundMode === mode}
-                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.hitSoundMode === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
-              >
-                {mode === "tones" ? `🎹 ${t("hitSoundModeTones")}` : `🎧 ${t("hitSoundModeSample")}`}
-              </button>
-            ))}
+  const soundSection = () => {
+    // Controls that only apply in one bounce-sound mode (or with a scale / the beat lock on) are still rendered while
+    // the search box is in use, so the search finds them whatever the current mode is.
+    const showToneControls = s.hitSoundMode === "tones" || !!search;
+    const showSampleControls = s.hitSoundMode === "sample" || !!search;
+    const selectClass = "w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none";
+    return (
+      <div className="space-y-4">
+        <ResetButton search={search} t={t} section="sound" onReset={props.onResetSection} />
+        <Searchable search={search} matches={matches} labelKey="hitSoundMode">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300">
+              {t("hitSoundMode")}
+              <Tooltip text={t("hitSoundModeTip")} />
+            </label>
+            <div className="flex gap-1" role="group" aria-label={t("hitSoundMode")}>
+              {HIT_SOUND_MODES.map((mode) => (
+                <button
+                  type="button"
+                  key={mode}
+                  onClick={() => update({ hitSoundMode: mode })}
+                  aria-pressed={s.hitSoundMode === mode}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.hitSoundMode === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                >
+                  {mode === "tones" ? `🎹 ${t("hitSoundModeTones")}` : `🎧 ${t("hitSoundModeSample")}`}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </Searchable>
-      {s.hitSoundMode === "sample" && (
-        <>
-          <Searchable search={search} matches={matches} labelKey="hitSample">
+        </Searchable>
+        {showToneControls && (
+          <Searchable search={search} matches={matches} labelKey="instrument">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300" htmlFor="hit-sample-select">
-                {t("hitSample")}
+              <label className="text-sm font-medium text-zinc-300" htmlFor="instrument-select">
+                {t("instrument")}
               </label>
-              <p className="text-xs text-zinc-500 leading-relaxed">{t("hitSampleDesc")}</p>
-              <select
-                id="hit-sample-select"
-                value={s.hitSampleId}
-                onChange={(e) => update({ hitSampleId: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none"
-              >
-                {HIT_SAMPLES.map((sample) => (
-                  <option key={sample.id} value={sample.id}>
-                    {t(sample.nameKey)}
+              <p className="text-xs text-zinc-500 leading-relaxed">{t("instrumentDesc")}</p>
+              <select id="instrument-select" value={s.instrument} onChange={(e) => update({ instrument: e.target.value as InstrumentId })} className={selectClass}>
+                {INSTRUMENT_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {t(INSTRUMENT_LABELS[id])}
                   </option>
                 ))}
-                {props.customHitSampleName && <option value={CUSTOM_HIT_SAMPLE_ID}>{t("hitSampleCustomOption", { name: props.customHitSampleName })}</option>}
               </select>
             </div>
           </Searchable>
-          <Searchable search={search} matches={matches} labelKey="importHitSample">
+        )}
+        {showSampleControls && (
+          <>
+            <Searchable search={search} matches={matches} labelKey="hitSample">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-300" htmlFor="hit-sample-select">
+                  {t("hitSample")}
+                </label>
+                <p className="text-xs text-zinc-500 leading-relaxed">{t("hitSampleDesc")}</p>
+                <select id="hit-sample-select" value={s.hitSampleId} onChange={(e) => update({ hitSampleId: e.target.value })} className={selectClass}>
+                  {HIT_SAMPLES.map((sample) => (
+                    <option key={sample.id} value={sample.id}>
+                      {t(sample.nameKey)}
+                    </option>
+                  ))}
+                  {props.customHitSampleName && <option value={CUSTOM_HIT_SAMPLE_ID}>{t("hitSampleCustomOption", { name: props.customHitSampleName })}</option>}
+                </select>
+                {props.hitSampleStatus === "loading" && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-400" role="status">
+                    <div className="w-3.5 h-3.5 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin" />
+                    {t("hitSampleLoading")}
+                  </div>
+                )}
+                {props.hitSampleStatus === "error" && (
+                  <p className="text-[11px] text-red-400 leading-relaxed" role="alert" data-testid="hit-sample-error">
+                    ⚠️ {t("hitSampleDecodeError")}
+                  </p>
+                )}
+              </div>
+            </Searchable>
+            <Searchable search={search} matches={matches} labelKey="importHitSample">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-300">{t("importHitSample")}</label>
+                <AudioDropZone inputId="hit-sample-input" idleText={t("chooseHitSampleFile")} dragText={t("dropHitSampleHere")} onFile={props.onHitSampleUpload} />
+              </div>
+            </Searchable>
+            <Searchable search={search} matches={matches} labelKey="hitSamplePitchByWall">
+              <Toggle t={t} labelKey="hitSamplePitchByWall" tipKey="hitSamplePitchByWallTip" value={s.hitSamplePitchByWall} onChange={(v) => update({ hitSamplePitchByWall: v })} caseStyle="title" />
+            </Searchable>
+            <Slider t={t} search={search} matches={matches} labelKey="hitSampleVolume" tipKey="hitSampleVolumeTip" value={s.hitSampleVolume} range={RANGES.hitSampleVolume} onChange={(v) => update({ hitSampleVolume: v })} display={`${Math.round(s.hitSampleVolume * 100)}%`} left="🔈" right="🔊" />
+          </>
+        )}
+        {showToneControls && (
+          <>
+            <Searchable search={search} matches={matches} labelKey="song">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-300" htmlFor="song-select">
+                  {t("song")}
+                </label>
+                <p className="text-xs text-zinc-500 leading-relaxed">{t("customSoundDesc")}</p>
+                <select
+                  id="song-select"
+                  value={props.customSoundId || ""}
+                  onChange={(e) => props.onCustomSoundSelect(e.target.value || null)}
+                  disabled={props.customSoundLoading}
+                  className={`${selectClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <option value="">{t("defaultSong")}</option>
+                  {props.customSoundId === "custom-upload" && (
+                    <option value="custom-upload">
+                      {props.customMidiName || "Uploaded MIDI"} ({props.customSoundNoteCount} {t("notesLoaded")})
+                    </option>
+                  )}
+                  {SONGS.map((song) => (
+                    <option key={song.id} value={song.id}>
+                      {song.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </Searchable>
+            {(props.customSoundId || search) && (
+              <Searchable search={search} matches={matches} labelKey="melodyInstrument">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-300" htmlFor="melody-instrument-select">
+                    {t("melodyInstrument")}
+                  </label>
+                  <p className="text-xs text-zinc-500 leading-relaxed">{t("melodyInstrumentDesc")}</p>
+                  <select id="melody-instrument-select" value={s.melodyInstrument} onChange={(e) => update({ melodyInstrument: e.target.value as InstrumentId })} className={selectClass}>
+                    {INSTRUMENT_IDS.map((id) => (
+                      <option key={id} value={id}>
+                        {t(INSTRUMENT_LABELS[id])}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </Searchable>
+            )}
+            {showAdvanced && (
+              <Searchable search={search} matches={matches} labelKey="importMidi">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-300">{t("importMidi")}</label>
+                  <label
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setMidiDrag(true);
+                    }}
+                    onDragLeave={() => setMidiDrag(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setMidiDrag(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) props.onCustomMidiUpload(file);
+                    }}
+                    className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
+                      midiDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                    }`}
+                  >
+                    <span className="text-lg">{midiDrag ? "📥" : "📁"}</span>
+                    <span className="font-semibold">{midiDrag ? t("dropMidiHere") : t("chooseMidiFile")}</span>
+                    <input
+                      type="file"
+                      accept=".mid,.midi,audio/midi,audio/x-midi"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          props.onCustomMidiUpload(file);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                  <p className="text-[11px] text-zinc-500 mt-1 flex items-start gap-1">
+                    <span className="leading-none mt-0.5">💡</span>
+                    <span>
+                      {t("midiSourceText")}{" "}
+                      <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className={`text-[#93d119] hover:text-[#7fb315] underline font-medium`}>
+                        bitmidi.com ↗
+                      </a>
+                    </span>
+                  </p>
+                </div>
+              </Searchable>
+            )}
+            {props.customSoundLoading && (
+              <div className="flex items-center gap-2 text-sm text-zinc-400">
+                <div className={`w-4 h-4 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin`} />
+                {t("loadingMidi")}
+              </div>
+            )}
+          </>
+        )}
+        <Searchable search={search} matches={matches} labelKey="scale">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300" htmlFor="scale-select">
+              {t("scale")}
+            </label>
+            <p className="text-xs text-zinc-500 leading-relaxed">{t("scaleDesc")}</p>
+            <select id="scale-select" value={s.scale} onChange={(e) => update({ scale: e.target.value as ScaleId })} className={selectClass}>
+              {SCALE_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {t(SCALE_LABELS[id])}
+                </option>
+              ))}
+            </select>
+          </div>
+        </Searchable>
+        {(s.scale !== "chromatic" || search) && (
+          <Searchable search={search} matches={matches} labelKey="rootNote">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">{t("importHitSample")}</label>
-              <AudioDropZone idleText={t("chooseHitSampleFile")} dragText={t("dropHitSampleHere")} onFile={props.onHitSampleUpload} />
+              <label className="text-sm font-medium text-zinc-300">{t("rootNote")}</label>
+              <div className="grid grid-cols-6 gap-1" role="group" aria-label={t("rootNote")}>
+                {NOTE_NAMES.map((name, index) => (
+                  <button
+                    type="button"
+                    key={name}
+                    onClick={() => update({ rootNote: index })}
+                    aria-pressed={s.rootNote === index}
+                    className={`px-1 py-1 rounded-md text-xs font-mono font-medium transition-all cursor-pointer ${s.rootNote === index ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
             </div>
           </Searchable>
-          <Searchable search={search} matches={matches} labelKey="hitSamplePitchByWall">
-            <Toggle t={t} labelKey="hitSamplePitchByWall" tipKey="hitSamplePitchByWallTip" value={s.hitSamplePitchByWall} onChange={(v) => update({ hitSamplePitchByWall: v })} caseStyle="title" />
-          </Searchable>
-          <Slider t={t} search={search} matches={matches} labelKey="hitSampleVolume" tipKey="hitSampleVolumeTip" value={s.hitSampleVolume} range={RANGES.hitSampleVolume} onChange={(v) => update({ hitSampleVolume: v })} display={`${Math.round(s.hitSampleVolume * 100)}%`} left="🔈" right="🔊" />
-        </>
-      )}
-      {s.hitSoundMode === "tones" && (
-      <Searchable search={search} matches={matches} labelKey="song">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="song-select">
-            {t("song")}
-          </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("customSoundDesc")}</p>
-          <select
-            id="song-select"
-            value={props.customSoundId || ""}
-            onChange={(e) => props.onCustomSoundSelect(e.target.value || null)}
-            disabled={props.customSoundLoading}
-            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <option value="">{t("defaultSong")}</option>
-            {props.customSoundId === "custom-upload" && (
-              <option value="custom-upload">
-                {props.customMidiName || "Uploaded MIDI"} ({props.customSoundNoteCount} {t("notesLoaded")})
-              </option>
+        )}
+        <Searchable search={search} matches={matches} labelKey="beatLock">
+          <div className="space-y-2">
+            <Toggle t={t} labelKey="beatLock" tipKey="beatLockTip" value={s.quantizeToBeat} onChange={(v) => update({ quantizeToBeat: v })} />
+            <p className="text-xs text-zinc-500 leading-relaxed">{t("beatLockDesc")}</p>
+            {s.quantizeToBeat && (
+              <>
+                <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
+                  <span>{t("bpm")}</span>
+                  <span className="text-zinc-500">{s.bpm}</span>
+                </label>
+                <input
+                  type="range"
+                  min={RANGES.bpm.min}
+                  max={RANGES.bpm.max}
+                  step={RANGES.bpm.step}
+                  value={s.bpm}
+                  onChange={(e) => update({ bpm: Number(e.target.value) })}
+                  className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                  style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
+                  aria-label={t("bpm")}
+                />
+              </>
             )}
-            {SONGS.map((song) => (
-              <option key={song.id} value={song.id}>
-                {song.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </Searchable>
-      )}
-      {s.hitSoundMode === "tones" && showAdvanced && (
-        <Searchable search={search} matches={matches} labelKey="importMidi">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">{t("importMidi")}</label>
-            <label
-              onDragOver={(e) => {
-                e.preventDefault();
-                setMidiDrag(true);
-              }}
-              onDragLeave={() => setMidiDrag(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setMidiDrag(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) props.onCustomMidiUpload(file);
-              }}
-              className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                midiDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
-              }`}
-            >
-              <span className="text-lg">{midiDrag ? "📥" : "📁"}</span>
-              <span className="font-semibold">{midiDrag ? t("dropMidiHere") : t("chooseMidiFile")}</span>
-              <input
-                type="file"
-                accept=".mid,.midi,audio/midi,audio/x-midi"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    props.onCustomMidiUpload(file);
-                    e.target.value = "";
-                  }
-                }}
-              />
-            </label>
-            <p className="text-[11px] text-zinc-500 mt-1 flex items-start gap-1">
-              <span className="leading-none mt-0.5">💡</span>
-              <span>
-                {t("midiSourceText")}{" "}
-                <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className={`text-[#93d119] hover:text-[#7fb315] underline font-medium`}>
-                  bitmidi.com ↗
-                </a>
-              </span>
-            </p>
           </div>
         </Searchable>
-      )}
-      {props.customSoundLoading && (
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          <div className={`w-4 h-4 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin`} />
-          {t("loadingMidi")}
-        </div>
-      )}
-      <SongSlicerSection
-        t={t}
-        search={search}
-        matches={matches}
-        showAdvanced={showAdvanced}
-        settings={s}
-        update={update}
-        songName={props.sliceSongName}
-        songDuration={props.sliceSongDuration}
-        loading={props.sliceSongLoading}
-        onUpload={props.onSliceSongUpload}
-        onClear={props.onSliceSongClear}
-      />
-      <Searchable search={search} matches={matches} labelKey="wallBreakSound">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
-            {t("wallBreakSound")}
-          </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("wallBreakSoundDesc")}</p>
-          <select
-            id="wallbreak-select"
-            value={s.wallBreakSound || ""}
-            onChange={(e) => update({ wallBreakSound: e.target.value || null })}
-            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none"
-          >
-            <option value="">{t("wallBreakSoundDefault")}</option>
-            {WALL_BREAK_SOUNDS.map((snd) => (
-              <option key={snd.id} value={snd.url}>
-                {snd.name}
-              </option>
-            ))}
-            {s.wallBreakSound?.startsWith("blob:") && <option value={s.wallBreakSound}>{props.customWallBreakName || "Custom"}</option>}
-          </select>
-        </div>
-      </Searchable>
-      {showAdvanced && (
-        <Searchable search={search} matches={matches} labelKey="importWallBreak">
+        {(s.quantizeToBeat || search) && (
+          <Searchable search={search} matches={matches} labelKey="quantizeGrid">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-medium text-zinc-300">{t("quantizeGrid")}</label>
+              <div className="flex gap-1" role="group" aria-label={t("quantizeGrid")}>
+                {QUANTIZE_GRIDS.map((grid) => (
+                  <button
+                    type="button"
+                    key={grid}
+                    onClick={() => update({ quantizeGrid: grid })}
+                    aria-pressed={s.quantizeGrid === grid}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer ${s.quantizeGrid === grid ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                  >
+                    {grid}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Searchable>
+        )}
+        <SongSlicerSection
+          t={t}
+          search={search}
+          matches={matches}
+          showAdvanced={showAdvanced}
+          settings={s}
+          update={update}
+          songName={props.sliceSongName}
+          songDuration={props.sliceSongDuration}
+          loading={props.sliceSongLoading}
+          onUpload={props.onSliceSongUpload}
+          onClear={props.onSliceSongClear}
+        />
+        <Searchable search={search} matches={matches} labelKey="wallBreakSound">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">{t("importWallBreak")}</label>
-            <label
-              onDragOver={(e) => {
-                e.preventDefault();
-                setWallBreakDrag(true);
-              }}
-              onDragLeave={() => setWallBreakDrag(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setWallBreakDrag(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) props.onWallBreakSoundUpload(file);
-              }}
-              className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                wallBreakDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
-              }`}
-            >
-              <span className="text-lg">📁</span>
-              <span className="font-semibold">{wallBreakDrag ? t("dropWallBreakHere") : t("chooseWallBreakFile")}</span>
-              <input
-                type="file"
-                accept=".mp3,.wav,.ogg,.aac,.m4a,audio/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    props.onWallBreakSoundUpload(file);
-                    e.target.value = "";
-                  }
-                }}
-              />
+            <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
+              {t("wallBreakSound")}
             </label>
+            <p className="text-xs text-zinc-500 leading-relaxed">{t("wallBreakSoundDesc")}</p>
+            <select id="wallbreak-select" value={s.wallBreakSound || ""} onChange={(e) => update({ wallBreakSound: e.target.value || null })} className={selectClass}>
+              <option value="">{t("wallBreakSoundDefault")}</option>
+              {WALL_BREAK_SOUNDS.map((snd) => (
+                <option key={snd.id} value={snd.url}>
+                  {snd.name}
+                </option>
+              ))}
+              {s.wallBreakSound?.startsWith("blob:") && <option value={s.wallBreakSound}>{props.customWallBreakName || "Custom"}</option>}
+            </select>
           </div>
         </Searchable>
-      )}
-    </div>
-  );
+        {showAdvanced && (
+          <Searchable search={search} matches={matches} labelKey="importWallBreak">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-300">{t("importWallBreak")}</label>
+              <label
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setWallBreakDrag(true);
+                }}
+                onDragLeave={() => setWallBreakDrag(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setWallBreakDrag(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) props.onWallBreakSoundUpload(file);
+                }}
+                className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
+                  wallBreakDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                }`}
+              >
+                <span className="text-lg">📁</span>
+                <span className="font-semibold">{wallBreakDrag ? t("dropWallBreakHere") : t("chooseWallBreakFile")}</span>
+                <input
+                  type="file"
+                  accept=".mp3,.wav,.ogg,.aac,.m4a,audio/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      props.onWallBreakSoundUpload(file);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </Searchable>
+        )}
+      </div>
+    );
+  };
 
   const recordingSection = () => (
     <div className="space-y-3">
@@ -1103,7 +1236,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     case "visual":
       return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
     case "sound":
-      return { wallBreakSound: null, hitSoundMode: d.hitSoundMode, hitSampleId: d.hitSampleId, hitSamplePitchByWall: d.hitSamplePitchByWall, hitSampleVolume: d.hitSampleVolume, sliceSong: d.sliceSong, sliceMs: d.sliceMs, sliceLoop: d.sliceLoop, sliceFadeMs: d.sliceFadeMs };
+      return { wallBreakSound: null, hitSoundMode: d.hitSoundMode, hitSampleId: d.hitSampleId, hitSamplePitchByWall: d.hitSamplePitchByWall, hitSampleVolume: d.hitSampleVolume, instrument: d.instrument, melodyInstrument: d.melodyInstrument, scale: d.scale, rootNote: d.rootNote, quantizeToBeat: d.quantizeToBeat, bpm: d.bpm, quantizeGrid: d.quantizeGrid, sliceSong: d.sliceSong, sliceMs: d.sliceMs, sliceLoop: d.sliceLoop, sliceFadeMs: d.sliceFadeMs };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
   }

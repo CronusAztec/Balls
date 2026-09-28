@@ -1,5 +1,7 @@
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
+import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
+import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -78,6 +80,17 @@ export interface SimulatorSettings {
   sliceMs: number;
   sliceLoop: boolean;
   sliceFadeMs: number;
+  // Music: instrument voices, scale snapping and beat lock (see lib/audio/instruments.ts, scales.ts)
+  /** Voice of the wall tones. */
+  instrument: InstrumentId;
+  /** Voice of the melody notes (a loaded song); sine is the classic melody sound. */
+  melodyInstrument: InstrumentId;
+  scale: ScaleId;
+  /** Root of the scale as semitones above C (0 = C … 11 = B). */
+  rootNote: number;
+  quantizeToBeat: boolean;
+  bpm: number;
+  quantizeGrid: QuantizeGrid;
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -143,6 +156,13 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     sliceMs: 250,
     sliceLoop: true,
     sliceFadeMs: 8,
+    instrument: "triangle",
+    melodyInstrument: "sine",
+    scale: "chromatic",
+    rootNote: 0,
+    quantizeToBeat: false,
+    bpm: 120,
+    quantizeGrid: "1/8",
   };
 }
 
@@ -168,6 +188,8 @@ export const RANGES = {
   hitSampleVolume: { min: 0, max: 1, step: 0.05 },
   sliceMs: { min: 80, max: 1000, step: 10 },
   sliceFadeMs: { min: 0, max: 50, step: 1 },
+  rootNote: { min: ROOT_NOTE_MIN, max: ROOT_NOTE_MAX, step: 1 },
+  bpm: { min: BPM_MIN, max: BPM_MAX, step: 1 },
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -201,6 +223,8 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   hsv: "hitSampleVolume",
   slms: "sliceMs",
   slfade: "sliceFadeMs",
+  root: "rootNote",
+  bpm: "bpm",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -226,6 +250,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   hspw: "hitSamplePitchByWall",
   slice: "sliceSong",
   sloop: "sliceLoop",
+  qz: "quantizeToBeat",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -259,6 +284,10 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
   // An uploaded clip cannot travel in a link, so "custom" is left out (the reader falls back to the default sample).
   if (settings.hitSampleId !== base.hitSampleId && settings.hitSampleId !== "custom") params.set("hs", settings.hitSampleId);
+  if (settings.instrument !== base.instrument) params.set("inst", settings.instrument);
+  if (settings.melodyInstrument !== base.melodyInstrument) params.set("minst", settings.melodyInstrument);
+  if (settings.scale !== base.scale) params.set("scale", settings.scale);
+  if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
   return params;
 }
 
@@ -299,11 +328,25 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const hs = params.get("hs");
   if (hs !== null) settings.hitSampleId = normalizeHitSampleId(hs);
   settings.hitSampleVolume = clampRange(settings.hitSampleVolume, RANGES.hitSampleVolume, defaultSettings(mode).hitSampleVolume);
+  const inst = params.get("inst");
+  if (isInstrumentId(inst)) settings.instrument = inst;
+  const minst = params.get("minst");
+  if (isInstrumentId(minst)) settings.melodyInstrument = minst;
+  const scale = params.get("scale");
+  if (isScaleId(scale)) settings.scale = scale;
+  const grid = params.get("grid");
+  if (isQuantizeGrid(grid)) settings.quantizeGrid = grid;
+  if (!inRange(settings.rootNote, RANGES.rootNote) || !Number.isInteger(settings.rootNote)) settings.rootNote = 0;
+  if (!inRange(settings.bpm, RANGES.bpm)) settings.bpm = defaultSettings(mode).bpm;
   return settings;
 }
 
 function clampRange(value: number, range: { min: number; max: number }, fallback: number) {
   return Number.isFinite(value) ? Math.max(range.min, Math.min(range.max, value)) : fallback;
+}
+
+function inRange(value: number, range: { min: number; max: number }) {
+  return value >= range.min && value <= range.max;
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -334,7 +377,9 @@ export function savePresets(store: PresetStore) {
 /**
  * Merges a stored preset over the defaults so presets saved by older versions still load.
  * Uploaded media does not survive a reload, so a preset's "custom" hit sample falls back
- * to the default built-in clip (like dead blob: wall-break URLs).
+ * to the default built-in clip (like dead blob: wall-break URLs). Enumerated sound fields
+ * (hit sound mode, instruments, scale, grid) fall back to their defaults when the stored
+ * value is unknown, and numeric ones are clamped to their ranges, like URL parameters.
  */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
@@ -343,6 +388,16 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.hitSoundMode = isHitSoundMode(preset.hitSoundMode) ? preset.hitSoundMode : defaults.hitSoundMode;
   merged.hitSampleId = normalizeHitSampleId(preset.hitSampleId);
   merged.hitSampleVolume = clampRange(Number(merged.hitSampleVolume), RANGES.hitSampleVolume, defaults.hitSampleVolume);
+  merged.instrument = isInstrumentId(preset.instrument) ? preset.instrument : defaults.instrument;
+  merged.melodyInstrument = isInstrumentId(preset.melodyInstrument) ? preset.melodyInstrument : defaults.melodyInstrument;
+  merged.scale = isScaleId(preset.scale) ? preset.scale : defaults.scale;
+  merged.quantizeGrid = isQuantizeGrid(preset.quantizeGrid) ? preset.quantizeGrid : defaults.quantizeGrid;
+  merged.quantizeToBeat = preset.quantizeToBeat === true;
+  const root = Number(merged.rootNote);
+  merged.rootNote = Number.isInteger(root) && inRange(root, RANGES.rootNote) ? root : defaults.rootNote;
+  merged.bpm = clampRange(Number(merged.bpm), RANGES.bpm, defaults.bpm);
+  merged.sliceMs = clampRange(Number(merged.sliceMs), RANGES.sliceMs, defaults.sliceMs);
+  merged.sliceFadeMs = clampRange(Number(merged.sliceFadeMs), RANGES.sliceFadeMs, defaults.sliceFadeMs);
   return merged;
 }
 

@@ -8,8 +8,8 @@ import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./C
 import Tooltip from "./Tooltip";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { ModeId } from "@/lib/physics/types";
-import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl } from "@/lib/audio/sampler";
-import { ToneGenerator } from "@/lib/audio/toneGenerator";
+import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from "@/lib/audio/sampler";
+import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
@@ -30,6 +30,11 @@ import {
 /** Modes where "Find Simulation" makes no sense because the run never "finishes". */
 const NO_FINDER_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
 const SPEEDS = [1, 2, 4, 8];
+
+/** Sound preferences that survive a mode change (like the wall-break clip does). */
+function musicSettingsOf(s: SimulatorSettings): MusicSettings {
+  return { instrument: s.instrument, melodyInstrument: s.melodyInstrument, scale: s.scale, rootNote: s.rootNote, quantizeToBeat: s.quantizeToBeat, bpm: s.bpm, quantizeGrid: s.quantizeGrid };
+}
 
 export default function Simulator() {
   const t = useTranslations();
@@ -67,6 +72,8 @@ export default function Simulator() {
   const [customWallBreakName, setCustomWallBreakName] = useState<string | null>(null);
   // The uploaded hit sample stays in memory (blob: URL); settings refer to it as "custom".
   const [customHitSample, setCustomHitSample] = useState<{ name: string; url: string } | null>(null);
+  // Decode state of the selected hit sample, shown in the panel (a failed decode is never silent).
+  const [hitSampleStatus, setHitSampleStatus] = useState<HitSampleStatus>("idle");
   // Song slicer: the decoded song lives in the ToneGenerator; this is what the panel shows about it.
   const [sliceSongInfo, setSliceSongInfo] = useState<{ name: string; duration: number } | null>(null);
   const [sliceSongLoading, setSliceSongLoading] = useState(false);
@@ -126,6 +133,7 @@ export default function Simulator() {
     initEngineForMode(engine, s);
     engineRef.current = engine;
     audioRef.current = new ToneGenerator();
+    audioRef.current.setHitSampleStatusListener(setHitSampleStatus);
     setPresets(loadPresets());
     setEngineReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,6 +147,7 @@ export default function Simulator() {
     setIsPaused(false);
     audioRef.current?.resetCustomNoteIndex();
     audioRef.current?.getSlicer().reset();
+    audioRef.current?.resetBeatGrid();
     engine.setConfig({ ballRadius: settings.ballRadius });
     initEngineForMode(engine, settings);
   }, [settings, initEngineForMode]);
@@ -239,6 +248,9 @@ export default function Simulator() {
   useEffect(() => {
     if (isPaused) audioRef.current?.getSlicer().stop();
   }, [isPaused]);
+  useEffect(() => {
+    audioRef.current?.setMusicSettings(musicSettingsOf(s));
+  }, [s.instrument, s.melodyInstrument, s.scale, s.rootNote, s.quantizeToBeat, s.bpm, s.quantizeGrid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
@@ -282,8 +294,10 @@ export default function Simulator() {
       setFinished(false);
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
       const fresh = {
         ...defaultSettings(mode),
+        ...musicSettingsOf(settings),
         recordingResolution: settings.recordingResolution,
         watermarkText: settings.watermarkText,
         wallBreakSound: settings.wallBreakSound,
@@ -313,7 +327,8 @@ export default function Simulator() {
         initEngineForMode(engine, fresh);
       }
     },
-    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, initEngineForMode],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, settings.instrument, settings.melodyInstrument, settings.scale, settings.rootNote, settings.quantizeToBeat, settings.bpm, settings.quantizeGrid, initEngineForMode],
   );
 
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
@@ -330,7 +345,10 @@ export default function Simulator() {
   /* ------------------------------------------------------------ start / pause / loop */
 
   const start = useCallback(async () => {
-    audioRef.current = audioRef.current || new ToneGenerator();
+    if (!audioRef.current) {
+      audioRef.current = new ToneGenerator();
+      audioRef.current.setHitSampleStatusListener(setHitSampleStatus);
+    }
     await audioRef.current.start();
     setIsStarted(true);
     setAudioEnabled(true);
@@ -736,6 +754,7 @@ export default function Simulator() {
       setIsPaused(true);
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
       update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
@@ -1046,6 +1065,7 @@ export default function Simulator() {
             customWallBreakName={customWallBreakName}
             onWallBreakSoundUpload={onWallBreakSoundUpload}
             customHitSampleName={customHitSample?.name ?? null}
+            hitSampleStatus={hitSampleStatus}
             onHitSampleUpload={onHitSampleUpload}
             sliceSongName={sliceSongInfo?.name ?? null}
             sliceSongDuration={sliceSongInfo?.duration ?? 0}

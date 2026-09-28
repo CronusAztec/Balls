@@ -17,6 +17,7 @@ static host – no server required.
 | **Visuals** | Rainbow walls (gradient / pulse), ball & wall glow, colour trail, trail thickness, reactive background, camera follow, wall-break effects (confetti, shatter, shockwave, all, none), custom ball image or emoji, top/bottom text overlays, watermark |
 | **Drama director** | A hidden "cinematic" layer that nudges rebounds for near-misses and dramatic escapes (toggle in advanced options) |
 | **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom hit samples (3 built-in clips or your own upload on every bounce, optionally pitched per wall, included in recordings), song slicer (upload any MP3/OGG/WAV/M4A and every bounce plays the next slice of it, with a song progress bar in the HUD and in the recording), custom wall-break sound clips |
+| **Instruments, scales & BPM lock** | Seven bounce voices (sine, triangle, square, saw, Karplus-Strong pluck, FM marimba, chip blip) for the wall tones and, separately, for melody notes; snap every wall tone and melody note to a scale (major, minor, pentatonic, blues, whole tone) on any root note; and a beat lock that schedules sounds (voices and hit samples alike) on a 60–200 BPM grid (1/4, 1/8, 1/16) so exports sit on the beat – all shareable via the URL (`inst`, `minst`, `scale`, `root`, `qz`, `bpm`, `grid`) |
 | **Recording** | MediaRecorder export in 500×500, 1280×720, 1920×1080 or 1080×1920, 10–120 s, with audio; MP4 where supported (Chrome, Safari), WebM elsewhere |
 | **Find Simulation** | Deterministic, seeded physics lets the finder search for a seed whose run lasts exactly N seconds |
 | **Presets & sharing** | Save/load presets in localStorage; every setting is mirrored into the URL for bookmarking and sharing |
@@ -50,7 +51,7 @@ Other scripts:
 ```bash
 npm run typecheck                          # tsc --noEmit
 npm run lint                               # eslint
-npm test                                   # vitest unit tests (engine, MIDI parser, settings)
+npm test                                   # vitest unit tests (engine, MIDI parser, settings, hit samples, song slicer, scales, instruments)
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
 npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first)
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
@@ -120,7 +121,7 @@ src/
   content/              blog posts (blog.en.ts, blog.pl.ts, blog.es.ts)
   i18n/                 next-intl routing + request config
   lib/physics/          engine.ts · director.ts · types.ts · modes/*.ts
-  lib/audio/            toneGenerator.ts · sampler.ts (hit samples) · slicer.ts + slicePlayer.ts (song slicer) · midi.ts · songs.ts
+  lib/audio/            toneGenerator.ts · instruments.ts (voices) · scales.ts (scale snap + beat grid) · sampler.ts (hit samples) · slicer.ts + slicePlayer.ts (song slicer) · midi.ts · songs.ts
   lib/recording/        recorder.ts (MediaRecorder wrapper)
   lib/simulation/       finder.ts (seed search)
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
@@ -151,10 +152,29 @@ Append an object to `src/content/blog.en.ts` (and translations in `blog.pl.ts` /
 ### Add a melody or sound
 Drop a `.mid` file into `public/notes` and list it in `src/lib/audio/songs.ts` (`SONGS`); drop an audio file into `public/wallBreak` and list it in `WALL_BREAK_SOUNDS`. Wrap the paths in `assetPath()` (as the existing entries do) so they resolve under a base path.
 
-Built-in **hit samples** (the clips that can replace the bounce tone) live in `public/hitSounds` and are listed in `HIT_SAMPLES` in `src/lib/audio/sampler.ts` with a `nameKey` under `Controls` in every `messages/*.json`. `scripts/generate-sounds.py` synthesises the shipped ones. At runtime the `HitSampler` decodes a clip once and plays it through the ToneGenerator's master gain (so recordings include it) with up to 8 voices, a 20 ms fade and a playback rate per wall from `hitSamplePlaybackRate()`; `resolveHitSoundSource()` decides between tones and sample. The settings are `hitSoundMode` (URL `hsm`), `hitSampleId` (`hs`, built-in id or `custom` for the in-session upload, which never travels in links or presets), `hitSamplePitchByWall` (`hspw`) and `hitSampleVolume` (`hsv`).
+Built-in **hit samples** (the clips that can replace the bounce tone) live in `public/hitSounds` and are listed in `HIT_SAMPLES` in `src/lib/audio/sampler.ts` with a `nameKey` under `Controls` in every `messages/*.json`. `scripts/generate-sounds.py` synthesises the shipped ones. At runtime the `HitSampler` decodes a clip once and plays it through the ToneGenerator's master gain (so recordings include it) with up to 8 voices, a 20 ms fade and a playback rate per wall from `hitSamplePlaybackRate()`; `resolveHitSoundSource()` decides between tones and sample, and the sampler reports its decode state (`idle` / `loading` / `ready` / `error`) through `ToneGenerator.setHitSampleStatusListener()`, which the panel shows under the clip picker – a clip that cannot be decoded is never a silent fallback to the tones. The settings are `hitSoundMode` (URL `hsm`), `hitSampleId` (`hs`, built-in id or `custom` for the in-session upload, which never travels in links or presets), `hitSamplePitchByWall` (`hspw`) and `hitSampleVolume` (`hsv`).
+
+### How a wall hit becomes sound
+`ToneGenerator.scheduleHit()` dispatches every bounce in this order: the **song slicer** while it has a song to play, then the **hit sample** in `sample` mode once the clip is decoded, otherwise a **synthesised voice** – the next melody note (played with `melodyInstrument`, sine by default) or the wall tone (played with `instrument`), snapped to the chosen scale. With the beat lock on, voices and hit samples alike are scheduled on the BPM grid and extra hits inside an occupied grid slot are dropped. The Sound section of the panel follows the same order (bounce sound: mode, instrument or sample; melody; scale, root note and beat lock; song slicer; wall-break sound), and controls that only apply in one mode – the sample picker, the melody instrument, the root note, the grid – are still rendered while the settings search is in use, so the search box finds them whatever the current mode is.
 
 ### Song slicer
 The "each bounce plays the next bit of a song" format. `src/lib/audio/slicer.ts` holds the pure cursor arithmetic (`planSlice` picks the next slice, shortens the last one, wraps or stops at the end; `positionAt`, `sliceProgress`, `sliceCount`, `formatSongTime`) and is covered by `tests/slicer.test.ts`, which also drives a `SlicePlayer` through a fake `AudioContext` (next-bounce cut, pause/resume, switching off, reset); the smoke test checks the pause/resume position in the served export. `slicePlayer.ts` is the Web Audio side: it keeps the decoded `AudioBuffer` and the cursor, plays each slice through an `AudioBufferSourceNode` + `GainNode` with linear fades into the ToneGenerator's master gain (so recordings include it), fades out a slice that is still sounding whenever it is cut short (`stop()`: the next bounce, a pause, slicing switched off, restart, new song) and moves the cursor to the point where it was cut, so the song always continues from there and the HUD bar never jumps to the end of the cut slice. `ToneGenerator.getSlicer()` / `decodeAudio()` expose it and `scheduleHit()` hands every wall hit to the slicer first (a bounce falls back to the hit sample, tone or melody note when the slicer has nothing to play, e.g. a finished non-looping song). `Simulator.tsx` decodes the upload, mirrors the settings into the player, rewinds it on restart / mode change / preset load and pushes the song position to the canvas each frame (`CanvasHandle.setSongProgress`), where `Canvas.tsx` draws the thin progress bar along the bottom edge. The panel block lives in `components/simulator/sections/SongSlicerSection.tsx`. Settings: `sliceSong` (URL `slice`), `sliceMs` (`slms`, 80–1000 ms), `sliceLoop` (`sloop`) and `sliceFadeMs` (`slfade`); the song itself stays in memory and is not part of links or presets.
+
+### Add an instrument or a scale
+- **Instrument**: add the id to `INSTRUMENT_IDS` in `src/lib/audio/instruments.ts`, give it a loudness in `LEVEL` and a
+  `play…()` recipe reached from `playVoice()` (one short Web Audio graph per note; keep per-note work small – a bounce can
+  fire several times a second). Add its label key to `INSTRUMENT_LABELS` in `Controls.tsx` and `Controls.inst<Name>` to
+  every `messages/*.json`. Pure DSP such as the pluck's `renderPluck()` belongs in a testable function (see
+  `tests/instruments.test.ts`).
+- **Scale**: add the id and its semitone intervals to `SCALE_IDS` / `SCALE_INTERVALS` in `src/lib/audio/scales.ts`, a
+  label key in `SCALE_LABELS` (`Controls.tsx`) and `Controls.scale<Name>` in every message file. `quantizeFrequency()`
+  picks up the new scale automatically; `tests/scales.test.ts` checks every scale only ever returns its own degrees.
+- The music settings (`instrument` for the wall tones, `melodyInstrument` for melody notes, `scale`, `rootNote`,
+  `quantizeToBeat`, `bpm`, `quantizeGrid`) live in `SimulatorSettings` like everything else and reach the audio through
+  `ToneGenerator.setMusicSettings()`. The beat lock uses `nextGridTime()` on `AudioContext.currentTime`, anchored when
+  the run starts (`resetBeatGrid()`), and drops extra hits that land in a grid slot that already has a sound. Presets and
+  URL parameters validate these fields (`presetToSettings()` / `settingsFromSearchParams()`): unknown instruments,
+  scales or grids fall back to the defaults, root note and BPM to their ranges.
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.

@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "fs";
 import path from "path";
 import {
   CUSTOM_HIT_SAMPLE_ID,
   DEFAULT_HIT_SAMPLE_ID,
   HIT_SAMPLES,
+  HitSampler,
+  type HitSampleStatus,
   builtInHitSampleUrl,
   hitSamplePlaybackRate,
   isHitSoundMode,
@@ -123,5 +125,77 @@ describe("hit sample settings", () => {
     const old = presetToSettings({ mode: "grow", gravity: 50 });
     expect(old.hitSoundMode).toBe("tones");
     expect(old.hitSampleId).toBe(DEFAULT_HIT_SAMPLE_ID);
+  });
+});
+
+/** Just enough of an AudioContext for HitSampler.load(): decoding is the only thing it touches. */
+function fakeContext(decode: (data: ArrayBuffer) => Promise<unknown>) {
+  return { currentTime: 0, decodeAudioData: decode } as unknown as AudioContext;
+}
+const okFetch = (bytes = 8) => async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(bytes) });
+
+describe("HitSampler decode status", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reports loading then ready for a clip that decodes", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    const sampler = new HitSampler(fakeContext(async () => ({ duration: 0.5 })), {} as AudioNode);
+    const seen: HitSampleStatus[] = [];
+    sampler.setStatusListener((s) => seen.push(s));
+    expect(sampler.getStatus()).toBe("idle");
+    await sampler.load("/hitSounds/click.wav");
+    expect(seen).toEqual(["loading", "ready"]);
+    expect(sampler.isReady()).toBe(true);
+    expect(sampler.getLoadedUrl()).toBe("/hitSounds/click.wav");
+  });
+
+  it("reports an error (never a silent fallback) when the clip cannot be decoded or fetched", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const broken = new HitSampler(
+      fakeContext(async () => {
+        throw new Error("EncodingError");
+      }),
+      {} as AudioNode,
+    );
+    const seen: HitSampleStatus[] = [];
+    broken.setStatusListener((s) => seen.push(s));
+    await broken.load("blob:bogus");
+    expect(seen).toEqual(["loading", "error"]);
+    expect(broken.getStatus()).toBe("error");
+    expect(broken.isReady()).toBe(false);
+    expect(broken.getLoadedUrl()).toBeNull();
+
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) }));
+    const missing = new HitSampler(fakeContext(async () => ({ duration: 1 })), {} as AudioNode);
+    await missing.load("/hitSounds/missing.wav");
+    expect(missing.getStatus()).toBe("error");
+    warn.mockRestore();
+  });
+
+  it("only reports the clip that was asked for last and serves repeats from the cache", async () => {
+    let resolveSlow!: (buffer: unknown) => void;
+    const slow = new Promise<unknown>((resolve) => (resolveSlow = resolve));
+    vi.stubGlobal("fetch", async (url: string) => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(url === "slow" ? 1 : 2) }));
+    const sampler = new HitSampler(
+      fakeContext((data) => (data.byteLength === 1 ? slow : Promise.resolve({ duration: 1 }))),
+      {} as AudioNode,
+    );
+    const seen: HitSampleStatus[] = [];
+    sampler.setStatusListener((s) => seen.push(s));
+    const first = sampler.load("slow");
+    const second = sampler.load("fast");
+    await second;
+    expect(sampler.getLoadedUrl()).toBe("fast");
+    resolveSlow({ duration: 2 });
+    await first;
+    expect(sampler.getLoadedUrl()).toBe("fast"); // the stale decode did not override the newer clip
+    expect(seen).toEqual(["loading", "ready"]);
+    await sampler.load(null);
+    expect(sampler.getStatus()).toBe("idle");
+    expect(sampler.isReady()).toBe(false);
+    await sampler.load("fast");
+    expect(seen.at(-1)).toBe("ready"); // straight from the cache, no "loading" in between
+    expect(seen.filter((s) => s === "loading")).toHaveLength(1);
   });
 });

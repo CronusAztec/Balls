@@ -73,6 +73,9 @@ export function hitSamplePlaybackRate(wallIndex: number, pitchByWall: boolean): 
 
 export type HitSoundSource = "tones" | "sample";
 
+/** Decode state of the active clip: "loading" while it decodes, "error" when the decode failed (the tones play meanwhile). */
+export type HitSampleStatus = "idle" | "loading" | "ready" | "error";
+
 /**
  * Which path a wall hit takes. Sample mode plays the clip once it is decoded; until then
  * (or when the decode failed) the tones keep playing so a bounce is never silent.
@@ -105,6 +108,8 @@ export class HitSampler {
   private readonly inflight = new Map<string, Promise<AudioBuffer | null>>();
   private voices: Voice[] = [];
   private volume = 1;
+  private status: HitSampleStatus = "idle";
+  private listener: ((status: HitSampleStatus) => void) | null = null;
 
   constructor(
     private readonly context: AudioContext,
@@ -125,6 +130,22 @@ export class HitSampler {
     this.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
   }
 
+  /** Decode state of the clip from the last `load()` call; a failed decode is reported as "error", never silently. */
+  getStatus(): HitSampleStatus {
+    return this.status;
+  }
+
+  /** Called whenever `getStatus()` changes (loading → ready / error), so the UI can show it. */
+  setStatusListener(listener: ((status: HitSampleStatus) => void) | null) {
+    this.listener = listener;
+  }
+
+  private setStatus(status: HitSampleStatus) {
+    if (this.status === status) return;
+    this.status = status;
+    this.listener?.(status);
+  }
+
   /**
    * Decodes the clip at `url` (an asset path or a blob: URL) once and makes it the active
    * sample. The previous clip keeps playing until the new one is ready. Passing null
@@ -135,14 +156,17 @@ export class HitSampler {
     if (!url) {
       this.buffer = null;
       this.loadedUrl = null;
+      this.setStatus("idle");
       return;
     }
     const cached = this.cache.get(url);
     if (cached) {
       this.buffer = cached;
       this.loadedUrl = url;
+      this.setStatus("ready");
       return;
     }
+    this.setStatus("loading");
     // Repeated calls for the same clip share one fetch + decode.
     let pending = this.inflight.get(url);
     if (!pending) {
@@ -153,6 +177,7 @@ export class HitSampler {
     if (this.wantedUrl !== url) return;
     this.buffer = decoded;
     this.loadedUrl = decoded ? url : null;
+    this.setStatus(decoded ? "ready" : "error");
   }
 
   private async decode(url: string): Promise<AudioBuffer | null> {
@@ -164,7 +189,8 @@ export class HitSampler {
       this.remember(url, decoded);
       return decoded;
     } catch (err) {
-      console.error("Failed to decode hit sample:", err);
+      // Reported through the status ("error") so the panel can show it; the tones keep playing meanwhile.
+      console.warn("Failed to decode hit sample:", err);
       return null;
     } finally {
       this.inflight.delete(url);
@@ -179,7 +205,7 @@ export class HitSampler {
     this.cache.set(url, buffer);
   }
 
-  /** Plays the active clip at `playbackRate`; returns false when nothing is loaded. */
+  /** Plays the active clip at `playbackRate` (at AudioContext time `when`, default now); returns false when nothing is loaded. */
   play(playbackRate = 1, when?: number): boolean {
     const buffer = this.buffer;
     if (!buffer || this.volume <= 0) return false;

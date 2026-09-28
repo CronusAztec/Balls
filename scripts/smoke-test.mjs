@@ -250,6 +250,65 @@ await wm.pressSequentially("hello world", { delay: 30 });
 check("typing keeps focus (watermark input)", (await wm.inputValue()) === "hello world", `(value="${await wm.inputValue()}")`);
 await page.getByLabel("Show Advanced Options").uncheck();
 
+// 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
+await page.goto(`${BASE}/en/simulator/?mode=classic&inst=marimba&scale=minor&root=9&qz=1&bpm=140&grid=1%2F16`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+{
+  const inst = await page.locator("#instrument-select").inputValue();
+  const scale = await page.locator("#scale-select").inputValue();
+  const bpm = await page.locator('input[aria-label="BPM"]').inputValue();
+  const rootPressed = await page.getByRole("group", { name: "Root note" }).getByRole("button", { name: "A", exact: true }).getAttribute("aria-pressed");
+  const gridPressed = await page.getByRole("group", { name: "Grid" }).getByRole("button", { name: "1/16", exact: true }).getAttribute("aria-pressed");
+  check("music settings load from URL", inst === "marimba" && scale === "minor" && bpm === "140" && rootPressed === "true" && gridPressed === "true", `(inst=${inst}, scale=${scale}, bpm=${bpm}, root A=${rootPressed}, grid 1/16=${gridPressed})`);
+}
+await page.locator("#instrument-select").selectOption("pluck");
+await page.locator("#scale-select").selectOption("pentatonic");
+await page.getByRole("group", { name: "Grid" }).getByRole("button", { name: "1/4", exact: true }).click();
+await page.waitForTimeout(300);
+check("music settings mirror into URL", /inst=pluck/.test(page.url()) && /scale=pentatonic/.test(page.url()) && /grid=1%2F4/.test(page.url()) && /qz=1/.test(page.url()), `(${page.url().split("?")[1]})`);
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(2500);
+{
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("simulator runs with pluck + pentatonic + beat lock", /\d/.test(time) && time !== "0.0s", `(elapsed ${time})`);
+}
+await page.getByPlaceholder("Search settings...").fill("beat");
+check("search finds the beat lock", (await page.getByText("Beat lock (BPM)").isVisible()) && (await page.locator('input[aria-label="BPM"]').isVisible()) && !(await page.locator("#instrument-select").isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+
+// 4d. The three sound features together: mode-only controls stay searchable whatever the current mode is, an
+// undecodable hit sample shows an error state instead of silently playing the tones, and a melody keeps its own voice
+await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+await page.getByPlaceholder("Search settings...").fill("hit sample");
+check("search finds the hit sample picker in tones mode", (await page.locator("#hit-sample-select").isVisible()) && !(await page.locator("#song-select").isVisible()));
+await page.getByPlaceholder("Search settings...").fill("root");
+check("search finds the root note with the chromatic scale", await page.getByRole("group", { name: "Root note" }).isVisible());
+await page.getByPlaceholder("Search settings...").fill("grid");
+check("search finds the beat grid with the lock off", await page.getByRole("group", { name: "Grid" }).isVisible());
+await page.getByPlaceholder("Search settings...").fill("");
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+await page.getByRole("button", { name: /Audio sample/ }).click();
+await page.locator("#hit-sample-input").setInputFiles({ name: "not-audio.wav", mimeType: "audio/wav", buffer: Buffer.from("definitely not audio data, just text") });
+const hitSampleError = page.getByTestId("hit-sample-error");
+const hitErrorShown = await hitSampleError.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+check("undecodable hit sample shows an error state", hitErrorShown && (await page.locator("#hit-sample-select").inputValue()) === "custom", `(${hitErrorShown ? (await hitSampleError.innerText()).slice(0, 60) : "no error shown"})`);
+await page.locator("#hit-sample-select").selectOption("click");
+check("built-in hit sample clears the error state", await hitSampleError.waitFor({ state: "detached", timeout: 10000 }).then(() => true).catch(() => false));
+await page.getByRole("button", { name: /Synth tones/ }).click();
+await page.locator("#song-select").selectOption({ index: 1 });
+const melodySelect = page.locator("#melody-instrument-select");
+const melodyShown = await melodySelect.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+check("melody gets its own instrument (sine by default)", melodyShown && (await melodySelect.inputValue()) === "sine" && (await page.locator("#instrument-select").inputValue()) === "triangle");
+await melodySelect.selectOption("marimba");
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  check("melody instrument mirrored into the URL", /(^|&)minst=marimba(&|$)/.test(query) && !/(^|&)inst=/.test(query), `(${query})`);
+}
+await page.waitForTimeout(1500); // a few melody notes play through the marimba voice
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+
 // 5. Recording: 3-second clip downloads
 await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Recording/ }).click();
