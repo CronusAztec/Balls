@@ -1,9 +1,11 @@
 import { HitSampler, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSoundMode } from "./sampler";
+import { SlicePlayer } from "./slicePlayer";
 
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
- * or the next note of a loaded melody) or, in "sample" mode, a custom audio clip through
- * the HitSampler; gap passes play a rising four-note arpeggio or a custom audio clip.
+ * or the next note of a loaded melody), a custom audio clip through the HitSampler in
+ * "sample" mode, or the next slice of an uploaded song when the song slicer is on; gap
+ * passes play a rising four-note arpeggio or a custom audio clip.
  * Everything is routed through a master gain and also into a MediaStreamDestination so
  * the recorder can capture the audio track.
  */
@@ -28,6 +30,8 @@ export class ToneGenerator {
   private hitSampleUrl: string | null = null;
   private hitSamplePitchByWall = true;
   private hitSampleVolume = 1;
+  /** Song slicer: plays the next bit of an uploaded song on every bounce (see slicePlayer.ts). */
+  private readonly slicer = new SlicePlayer();
 
   async start() {
     if (this.isPlaying) return;
@@ -154,6 +158,25 @@ export class ToneGenerator {
     return this.customNotes.length;
   }
 
+  /* ------------------------------------------------------------ song slicer */
+
+  getSlicer() {
+    return this.slicer;
+  }
+
+  /** Decodes an uploaded audio file (MP3, OGG, WAV, M4A…) with the browser's audio decoder. */
+  async decodeAudio(data: ArrayBuffer): Promise<AudioBuffer> {
+    this.initAudioGraph();
+    if (!this.audioContext) throw new Error("Web Audio is not available");
+    return this.audioContext.decodeAudioData(data);
+  }
+
+  /** Song position of the slicer as a 0–1 fraction, or null while the slicer is not in use. */
+  getSliceProgress(): number | null {
+    if (!this.slicer.isActive()) return null;
+    return this.slicer.getProgress(this.audioContext?.currentTime ?? 0);
+  }
+
   playWallHit(wallIndex = 0) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
@@ -166,6 +189,8 @@ export class ToneGenerator {
 
   private scheduleHit(wallIndex: number) {
     if (!this.audioContext || !this.masterGain) return;
+    // The song slicer takes over the bounce sound while it has a song to play.
+    if (this.slicer.trigger(this.audioContext, this.masterGain)) return;
     const now = this.audioContext.currentTime;
     if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
       this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall), now);
@@ -292,6 +317,7 @@ export class ToneGenerator {
       this.sampler.dispose();
       this.sampler = null;
     }
+    this.slicer.stop();
     if (this.silentOsc) {
       this.silentOsc.stop();
       this.silentOsc.disconnect();

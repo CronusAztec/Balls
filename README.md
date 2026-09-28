@@ -16,7 +16,7 @@ static host – no server required.
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Visuals** | Rainbow walls (gradient / pulse), ball & wall glow, colour trail, trail thickness, reactive background, camera follow, wall-break effects (confetti, shatter, shockwave, all, none), custom ball image or emoji, top/bottom text overlays, watermark |
 | **Drama director** | A hidden "cinematic" layer that nudges rebounds for near-misses and dramatic escapes (toggle in advanced options) |
-| **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom hit samples (3 built-in clips or your own upload on every bounce, optionally pitched per wall, included in recordings), custom wall-break sound clips |
+| **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom hit samples (3 built-in clips or your own upload on every bounce, optionally pitched per wall, included in recordings), song slicer (upload any MP3/OGG/WAV/M4A and every bounce plays the next slice of it, with a song progress bar in the HUD and in the recording), custom wall-break sound clips |
 | **Recording** | MediaRecorder export in 500×500, 1280×720, 1920×1080 or 1080×1920, 10–120 s, with audio; MP4 where supported (Chrome, Safari), WebM elsewhere |
 | **Find Simulation** | Deterministic, seeded physics lets the finder search for a seed whose run lasts exactly N seconds |
 | **Presets & sharing** | Save/load presets in localStorage; every setting is mirrored into the URL for bookmarking and sharing |
@@ -116,11 +116,11 @@ src/
   app/(static)/         locale-less pages of the static export: "/" (language redirect) and "/404"
   app/sitemap.ts, robots.ts
   components/site/      navbar, footer, language switcher, landing sections, forms
-  components/simulator/ Simulator.tsx (page state) · Canvas.tsx (renderer) · Controls.tsx (panel)
+  components/simulator/ Simulator.tsx (page state) · Canvas.tsx (renderer) · Controls.tsx (panel) · ControlPrimitives.tsx (Slider/Toggle/… helpers) · sections/*.tsx (feature blocks of the panel)
   content/              blog posts (blog.en.ts, blog.pl.ts, blog.es.ts)
   i18n/                 next-intl routing + request config
   lib/physics/          engine.ts · director.ts · types.ts · modes/*.ts
-  lib/audio/            toneGenerator.ts · sampler.ts (hit samples) · midi.ts · songs.ts
+  lib/audio/            toneGenerator.ts · sampler.ts (hit samples) · slicer.ts + slicePlayer.ts (song slicer) · midi.ts · songs.ts
   lib/recording/        recorder.ts (MediaRecorder wrapper)
   lib/simulation/       finder.ts (seed search)
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
@@ -132,7 +132,7 @@ src/
 ### Add a setting
 1. Add the field and its default to `SimulatorSettings` / `defaultSettings()` in `src/lib/settings.ts` (and a range in `RANGES` if it is numeric).
 2. Optionally give it a short URL key in the `*_URL_KEYS` maps so it is shareable.
-3. Render a control in `src/components/simulator/Controls.tsx` (use the `Slider`, `Toggle`, `ColorPicker` helpers and wrap it in `Searchable` with a label key so the search box finds it; add the key to `SECTION_KEYS`).
+3. Render a control in `src/components/simulator/Controls.tsx` (use the `Slider`, `Toggle`, `ColorPicker` helpers from `ControlPrimitives.tsx` and wrap it in `Searchable` with a label key so the search box finds it; add the key to `SECTION_KEYS`). A bigger feature gets its own component in `src/components/simulator/sections/` that Controls.tsx renders inside the right section (see `SongSlicerSection.tsx`, which also exports its search keys).
 4. Add the label + tooltip to every `messages/*.json` under `Controls`.
 5. Apply it: either read it in `Canvas.tsx` (visual) or forward it to the engine in an effect in `Simulator.tsx` (physics).
 
@@ -152,6 +152,9 @@ Append an object to `src/content/blog.en.ts` (and translations in `blog.pl.ts` /
 Drop a `.mid` file into `public/notes` and list it in `src/lib/audio/songs.ts` (`SONGS`); drop an audio file into `public/wallBreak` and list it in `WALL_BREAK_SOUNDS`. Wrap the paths in `assetPath()` (as the existing entries do) so they resolve under a base path.
 
 Built-in **hit samples** (the clips that can replace the bounce tone) live in `public/hitSounds` and are listed in `HIT_SAMPLES` in `src/lib/audio/sampler.ts` with a `nameKey` under `Controls` in every `messages/*.json`. `scripts/generate-sounds.py` synthesises the shipped ones. At runtime the `HitSampler` decodes a clip once and plays it through the ToneGenerator's master gain (so recordings include it) with up to 8 voices, a 20 ms fade and a playback rate per wall from `hitSamplePlaybackRate()`; `resolveHitSoundSource()` decides between tones and sample. The settings are `hitSoundMode` (URL `hsm`), `hitSampleId` (`hs`, built-in id or `custom` for the in-session upload, which never travels in links or presets), `hitSamplePitchByWall` (`hspw`) and `hitSampleVolume` (`hsv`).
+
+### Song slicer
+The "each bounce plays the next bit of a song" format. `src/lib/audio/slicer.ts` holds the pure cursor arithmetic (`planSlice` picks the next slice, shortens the last one, wraps or stops at the end; `positionAt`, `sliceProgress`, `sliceCount`, `formatSongTime`) and is covered by `tests/slicer.test.ts`, which also drives a `SlicePlayer` through a fake `AudioContext` (next-bounce cut, pause/resume, switching off, reset); the smoke test checks the pause/resume position in the served export. `slicePlayer.ts` is the Web Audio side: it keeps the decoded `AudioBuffer` and the cursor, plays each slice through an `AudioBufferSourceNode` + `GainNode` with linear fades into the ToneGenerator's master gain (so recordings include it), fades out a slice that is still sounding whenever it is cut short (`stop()`: the next bounce, a pause, slicing switched off, restart, new song) and moves the cursor to the point where it was cut, so the song always continues from there and the HUD bar never jumps to the end of the cut slice. `ToneGenerator.getSlicer()` / `decodeAudio()` expose it and `scheduleHit()` hands every wall hit to the slicer first (a bounce falls back to the hit sample, tone or melody note when the slicer has nothing to play, e.g. a finished non-looping song). `Simulator.tsx` decodes the upload, mirrors the settings into the player, rewinds it on restart / mode change / preset load and pushes the song position to the canvas each frame (`CanvasHandle.setSongProgress`), where `Canvas.tsx` draws the thin progress bar along the bottom edge. The panel block lives in `components/simulator/sections/SongSlicerSection.tsx`. Settings: `sliceSong` (URL `slice`), `sliceMs` (`slms`, 80–1000 ms), `sliceLoop` (`sloop`) and `sliceFadeMs` (`slfade`); the song itself stays in memory and is not part of links or presets.
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.
