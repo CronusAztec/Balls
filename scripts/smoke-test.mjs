@@ -5,7 +5,7 @@
  *   BASE_URL=http://localhost:3000/Balls npm run smoke
  *
  * It checks the root redirect, the 404 page, assets under the base path, opens every page in
- * every locale, starts the simulator in each mode, exercises the physics extras and the sound
+ * every locale, starts the simulator in each mode, exercises the physics extras, the ball interactions and the sound
  * features (hit samples, song slicer, instruments, background music bed), records a short clip with the music bed,
  * runs the seed finder, submits the feedback form, switches language and reports console errors.
  */
@@ -296,6 +296,35 @@ await page.waitForTimeout(2500);
   check("simulator runs with the physics extras on", /\d/.test(time) && time !== "0.0s", `(elapsed ${time})`);
 }
 await page.getByLabel("Show Advanced Options").uncheck();
+
+// 4b''. Merge & split balls (the "Ball Interaction" block of the Ball section): URL → controls, controls → URL, the split
+// limits only show in split mode (but the search box still finds them) and the run plays with splitting on
+await page.goto(`${BASE}/en/simulator/?mode=classic&bi=split&smr=6&mb=12`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Ball & Physics/ }).click();
+const interactionGroup = page.getByRole("group", { name: "Ball Interaction" });
+{
+  const pressed = await interactionGroup.getByRole("button", { name: "Split", exact: true }).getAttribute("aria-pressed");
+  const values = { smr: await sliderValue("Smallest Split Ball"), mb: await sliderValue("Ball Cap") };
+  check("ball interaction loads from URL", pressed === "true" && values.smr === "6" && values.mb === "12", `(split pressed=${pressed}, ${JSON.stringify(values)})`);
+}
+await interactionGroup.getByRole("button", { name: "Merge", exact: true }).click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  const splitSlidersHidden = (await page.locator('input[aria-label="Ball Cap"]').count()) === 0;
+  check("ball interaction mirrors into the URL", /(^|&)bi=merge(&|$)/.test(query) && /(^|&)smr=6(&|$)/.test(query) && /(^|&)mb=12(&|$)/.test(query) && splitSlidersHidden, `(${query}, split sliders hidden=${splitSlidersHidden})`);
+}
+await page.getByPlaceholder("Search settings...").fill("ball cap");
+check("search finds the split limits in merge mode", (await page.locator('input[aria-label="Ball Cap"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await interactionGroup.getByRole("button", { name: "Split", exact: true }).click();
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(3000);
+{
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  const query = page.url().split("?")[1] || "";
+  check("simulator runs with ball splitting on", /\d/.test(time) && time !== "0.0s" && /(^|&)bi=split(&|$)/.test(query), `(elapsed ${time}, ${query})`);
+}
 
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
 await page.goto(`${BASE}/en/simulator/?mode=classic&inst=marimba&scale=minor&root=9&qz=1&bpm=140&grid=1%2F16`, { waitUntil: "networkidle" });

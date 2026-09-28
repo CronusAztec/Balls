@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
+import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
@@ -76,7 +77,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
@@ -182,6 +183,7 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
+      {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
@@ -1187,6 +1189,9 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         twoBalls: d.twoBalls,
         ballColor2: d.ballColor2,
         bouncierEnabled: d.bouncierEnabled,
+        ballInteraction: d.ballInteraction,
+        splitMinRadius: d.splitMinRadius,
+        maxBalls: d.maxBalls,
         rainbowBall: d.rainbowBall,
         airDrag: d.airDrag,
         windX: d.windX,

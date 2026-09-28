@@ -1,5 +1,6 @@
 import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instruments";
 import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
+import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from "./interactionTones";
 import { MusicBed } from "./musicBed";
 import { HitSampler, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -8,7 +9,8 @@ import { SlicePlayer } from "./slicePlayer";
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
  * or the next note of a loaded melody), a custom audio clip through the HitSampler in
  * "sample" mode, or the next slice of an uploaded song when the song slicer is on; gap
- * passes play a rising four-note arpeggio or a custom audio clip. Everything is routed
+ * passes play a rising four-note arpeggio or a custom audio clip; a ball merge plays a low
+ * tone and a split a high one (interactionTones.ts). Everything is routed
  * through a master gain and also into a MediaStreamDestination so the recorder can
  * capture the audio track.
  *
@@ -363,6 +365,29 @@ export class ToneGenerator {
       this.musicBed.duck(start);
     } catch (err) {
       console.error("Error playing gap pass sound:", err);
+    }
+  }
+
+  /** Ball interaction sounds: a low tone when two balls merge, a high one when a ball splits (see interactionTones.ts). */
+  playInteraction(kind: InteractionKind) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleInteraction(kind));
+      return;
+    }
+    this.scheduleInteraction(kind);
+  }
+
+  private scheduleInteraction(kind: InteractionKind) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      // On the beat grid and snapped to the scale like every other sound, and it ducks the music bed too.
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      scheduleInteractionTone(this.audioContext, this.masterGain, INTERACTION_TONES[kind], time, (f) => this.snap(f));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error(`Error playing ${kind} sound:`, err);
     }
   }
 

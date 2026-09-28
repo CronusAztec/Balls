@@ -170,6 +170,24 @@ describe("ToneGenerator wall-hit dispatch", () => {
     expect(graph.sources.at(-1)?.startArgs).toEqual([1]); // the sample again
   });
 
+  it("plays a low sine for a merge and a high triangle for a split, placed on the beat grid like every other sound", () => {
+    graph.ctx.currentTime = 0;
+    tone.playInteraction("merge");
+    tone.playInteraction("split");
+    expect(graph.oscillators).toEqual([
+      { type: "sine", frequency: 130.81, startAt: 0 },
+      { type: "triangle", frequency: 1046.5, startAt: 0 },
+    ]);
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, quantizeToBeat: true, bpm: 120, quantizeGrid: "1/4" }); // 0.5 s steps from the run start
+    graph.ctx.currentTime = 0.1;
+    tone.playInteraction("split");
+    expect(graph.oscillators.at(-1)?.startAt).toBe(0.5);
+    // A scale snaps the tones like the wall tones: 130.81 Hz is C3, which the D major scale does not contain
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, scale: "major", rootNote: 2 });
+    tone.playInteraction("merge");
+    expect(graph.oscillators.at(-1)?.frequency).not.toBeCloseTo(130.81, 1);
+  });
+
   it("puts voices and samples on the beat grid and drops extra hits in an occupied slot", async () => {
     tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, quantizeToBeat: true, bpm: 120, quantizeGrid: "1/4" }); // 0.5 s steps from the run start
     hitAt(0.1);

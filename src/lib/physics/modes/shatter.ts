@@ -92,6 +92,7 @@ export class ShatterMode implements GameMode {
 
     this.rebuildWallGaps(ctx, wallIndex);
     ctx.addPendingSoundEvent({ type: "gap", wallIndex });
+    ctx.reportWallBreak(ball, wallIndex);
     const rotation = ctx.getWallRotations()[wallIndex] || 0;
     const mid = (segment.startAngle + segment.endAngle) / 2 + rotation;
     ctx.spawnWallBreakByStyle(wallIndex, cx + Math.cos(mid) * wall.radius, cy + Math.sin(mid) * wall.radius);

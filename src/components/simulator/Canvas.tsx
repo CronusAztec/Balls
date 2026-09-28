@@ -1082,6 +1082,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.beginPath();
           ctx.arc(0, 0, part.size, 0, TWO_PI);
           ctx.fill();
+        } else if (part.type === "burst") {
+          // Merge / split bursts: glowing dots in the ball's own colour
+          ctx.fillStyle = part.color;
+          ctx.shadowColor = part.color;
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.arc(0, 0, part.size, 0, TWO_PI);
+          ctx.fill();
         } else {
           ctx.fillStyle = part.color;
           ctx.fillRect(-part.size / 2, -part.size / 4, part.size, part.size / 2);

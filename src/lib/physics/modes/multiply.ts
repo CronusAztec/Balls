@@ -35,6 +35,7 @@ export class MultiplyMode implements GameMode {
         ball.lifetime = 2000 + 1000 * ctx.random();
         ctx.spawnConfetti(cx, cy);
         ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
+        ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
           const a = ctx.random() * Math.PI * 2;
           const speed = ctx.config.ballSpeed || 400;
@@ -66,6 +67,10 @@ export class MultiplyMode implements GameMode {
   }
   shouldSkipWallCollision(ball: Ball) {
     return this.escapedBalls.has(ball.id);
+  }
+  /** The half of an escaped ball is escaped too: it flies out with its parent instead of counting as a new escape. */
+  onBallSplit(_ctx: ModeContext, parent: Ball, half: Ball) {
+    if (this.escapedBalls.has(parent.id)) this.escapedBalls.add(half.id);
   }
   isFinished() {
     return false;

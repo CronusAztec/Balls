@@ -84,7 +84,31 @@ export interface PhysicsExtras {
   rotatingGravity: number;
 }
 
-export interface PhysicsConfig extends Partial<PhysicsExtras> {
+/**
+ * What balls do to each other (see interactions.ts): "bounce" is the classic elastic rebound, "merge"
+ * fuses two touching balls into one, "split" halves a ball every time it breaks through a wall and
+ * "pass" lets balls fly through each other.
+ */
+export const BALL_INTERACTIONS = ["bounce", "merge", "split", "pass"] as const;
+export type BallInteraction = (typeof BALL_INTERACTIONS)[number];
+
+export function isBallInteraction(value: unknown): value is BallInteraction {
+  return typeof value === "string" && (BALL_INTERACTIONS as readonly string[]).includes(value);
+}
+
+/**
+ * Ball interaction settings (bounce by default, so a seed behaves identically without them).
+ * Resolved with defaults by `resolveBallInteraction()` in interactions.ts.
+ */
+export interface BallInteractionConfig {
+  ballInteraction: BallInteraction;
+  /** Smallest ball (radius in px) a split may produce; a ball whose halves would be smaller stays whole (4–20). */
+  splitMinRadius: number;
+  /** Splitting stops once this many balls are in play (2–64). */
+  maxBalls: number;
+}
+
+export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig> {
   width: number;
   height: number;
   gravity: number;
@@ -102,11 +126,12 @@ export interface PhysicsConfig extends Partial<PhysicsExtras> {
 }
 
 export interface SoundEvent {
-  type: "hit" | "gap";
+  /** A wall bounce, a wall break / gap pass, two balls fusing ("merge" interaction) or a ball splitting in two ("split"). */
+  type: "hit" | "gap" | "merge" | "split";
   wallIndex: number;
 }
 
-export type ParticleType = "confetti" | "shard" | "spark";
+export type ParticleType = "confetti" | "shard" | "spark" | "burst";
 
 export interface Particle {
   x: number;
@@ -174,6 +199,12 @@ export interface ModeContext {
   addPendingSoundEvent(event: SoundEvent): void;
   spawnWallBreakByStyle(wallIndex: number, x: number, y: number): void;
   spawnConfetti(x: number, y: number): void;
+  /**
+   * Tells the engine that `ball` just broke through (or escaped) wall `wallIndex`. Modes that break walls
+   * themselves call this next to their "gap" sound event; with the "split" interaction the ball then splits
+   * in two at the end of the step (see interactions.ts).
+   */
+  reportWallBreak(ball: Ball, wallIndex: number): void;
   isBouncierEnabled(): boolean;
   getBounceSpeedMultiplier(): number;
   setBounceSpeedMultiplier(value: number): void;
@@ -209,6 +240,8 @@ export interface GameMode {
   isFinished(ctx: ModeContext): boolean;
   getState(): Record<string, unknown>;
   onBallCollision?(ctx: ModeContext, a: Ball, b: Ball): void;
+  /** A ball split in two (the "split" interaction): `parent` kept its id, `half` is the new ball. Copy per-ball state here. */
+  onBallSplit?(ctx: ModeContext, parent: Ball, half: Ball): void;
 }
 
 export interface PersonalityVisuals {

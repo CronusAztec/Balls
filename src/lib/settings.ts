@@ -1,10 +1,11 @@
-import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
+import type { BallInteraction, ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
 import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
 import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { DEFAULT_PHYSICS_EXTRAS, PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "@/lib/physics/extras";
-import { isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
+import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics/interactions";
+import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
 
 /**
@@ -44,6 +45,13 @@ export interface SimulatorSettings {
   breathingSpeed: number;
   /** Degrees per second the gravity vector turns (URL `rg`). */
   rotatingGravity: number;
+  // Ball interactions (lib/physics/interactions.ts): bounce by default, so existing seeds replay identically
+  /** What balls do to each other: bounce, merge into one, split at every wall break or pass through (URL `bi`). */
+  ballInteraction: BallInteraction;
+  /** Smallest ball a split may produce, in px (URL `smr`). */
+  splitMinRadius: number;
+  /** Splitting stops once this many balls are in play (URL `mb`). */
+  maxBalls: number;
   // Walls
   wallCount: number;
   wallThickness: number;
@@ -137,6 +145,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ballColor2: "#FF3366",
     bouncierEnabled: false,
     ...DEFAULT_PHYSICS_EXTRAS,
+    ...DEFAULT_BALL_INTERACTION,
     wallCount: mode === "shatter" ? 10 : 7,
     wallThickness: 2,
     gapSize: defaultGapSize(mode),
@@ -226,6 +235,7 @@ export const RANGES = {
   rootNote: { min: ROOT_NOTE_MIN, max: ROOT_NOTE_MAX, step: 1 },
   bpm: { min: BPM_MIN, max: BPM_MAX, step: 1 },
   ...PHYSICS_EXTRA_RANGES,
+  ...BALL_INTERACTION_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -274,6 +284,9 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   bw: "breathingAmplitude",
   bws: "breathingSpeed",
   rg: "rotatingGravity",
+  // Ball interactions
+  smr: "splitMinRadius",
+  mb: "maxBalls",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -329,6 +342,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   }
   if (settings.rainbowWallMode !== base.rainbowWallMode) params.set("rwmode", settings.rainbowWallMode);
   if (settings.wallBreakStyle !== base.wallBreakStyle) params.set("wbreak", settings.wallBreakStyle);
+  if (settings.ballInteraction !== base.ballInteraction) params.set("bi", settings.ballInteraction);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
@@ -381,6 +395,9 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   settings.hitSampleVolume = clampRange(settings.hitSampleVolume, RANGES.hitSampleVolume, defaultSettings(mode).hitSampleVolume);
   clampMusicBed(settings, defaultSettings(mode));
   clampPhysicsExtras(settings, defaultSettings(mode));
+  const bi = params.get("bi");
+  if (isBallInteraction(bi)) settings.ballInteraction = bi;
+  clampBallInteraction(settings, defaultSettings(mode));
   const inst = params.get("inst");
   if (isInstrumentId(inst)) settings.instrument = inst;
   const minst = params.get("minst");
@@ -415,6 +432,12 @@ function clampPhysicsExtras(settings: SimulatorSettings, defaults: SimulatorSett
   for (const key of PHYSICS_EXTRA_KEYS) settings[key] = clampRange(Number(settings[key]), PHYSICS_EXTRA_RANGES[key], defaults[key]);
 }
 
+/** Keeps the split limits of the ball interaction inside their slider ranges, as whole numbers (URL parameters and presets alike). */
+function clampBallInteraction(settings: SimulatorSettings, defaults: SimulatorSettings) {
+  settings.splitMinRadius = Math.round(clampRange(Number(settings.splitMinRadius), RANGES.splitMinRadius, defaults.splitMinRadius));
+  settings.maxBalls = Math.round(clampRange(Number(settings.maxBalls), RANGES.maxBalls, defaults.maxBalls));
+}
+
 /* ------------------------------------------------------------------ presets */
 
 export const PRESETS_STORAGE_KEY = "viralballs_saved_settings";
@@ -443,9 +466,9 @@ export function savePresets(store: PresetStore) {
 /**
  * Merges a stored preset over the defaults so presets saved by older versions still load.
  * Uploaded media does not survive a reload, so a preset's "custom" hit sample falls back
- * to the default built-in clip (like dead blob: wall-break URLs). Enumerated sound fields
- * (hit sound mode, instruments, scale, grid) fall back to their defaults when the stored
- * value is unknown, and numeric ones are clamped to their ranges, like URL parameters.
+ * to the default built-in clip (like dead blob: wall-break URLs). Enumerated fields (hit
+ * sound mode, instruments, scale, grid, ball interaction) fall back to their defaults when the
+ * stored value is unknown, and numeric ones are clamped to their ranges, like URL parameters.
  */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
@@ -467,6 +490,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.musicLoop = typeof preset.musicLoop === "boolean" ? preset.musicLoop : defaults.musicLoop;
   clampMusicBed(merged, defaults);
   clampPhysicsExtras(merged, defaults);
+  merged.ballInteraction = isBallInteraction(preset.ballInteraction) ? preset.ballInteraction : defaults.ballInteraction;
+  clampBallInteraction(merged, defaults);
   return merged;
 }
 

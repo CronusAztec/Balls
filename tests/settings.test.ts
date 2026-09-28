@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
+import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/interactions";
 import { MODE_IDS } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
@@ -136,5 +137,35 @@ describe("physics extras settings", () => {
     expect(p.rotatingGravity).toBe(0);
     expect(p.wallBounciness).toBe(1);
     expect(presetToSettings({ mode: "portal", spinStrength: 0.4, breathingAmplitude: 0.2 })).toMatchObject({ spinStrength: 0.4, breathingAmplitude: 0.2, breathingSpeed: 1 });
+  });
+});
+
+describe("ball interaction settings", () => {
+  it("default to bounce in every mode and stay out of the URL", () => {
+    for (const mode of MODE_IDS) expect(ballInteractionOf(defaultSettings(mode))).toEqual(DEFAULT_BALL_INTERACTION);
+    const params = settingsToSearchParams(defaultSettings("multiply"));
+    for (const key of ["bi", "smr", "mb"]) expect(params.has(key)).toBe(false);
+  });
+
+  it("round-trip through bi / smr / mb", () => {
+    const s = { ...defaultSettings("classic"), ballInteraction: "split" as const, splitMinRadius: 6, maxBalls: 12 };
+    const params = settingsToSearchParams(s);
+    expect(params.get("bi")).toBe("split");
+    expect(params.get("smr")).toBe("6");
+    expect(params.get("mb")).toBe("12");
+    expect(settingsFromSearchParams(params)).toEqual(s);
+    expect(settingsToSearchParams({ ...defaultSettings("classic"), ballInteraction: "merge" }).toString()).toBe("mode=classic&bi=merge");
+  });
+
+  it("reject unknown interactions and clamp the split limits to whole numbers in their ranges, from URLs and presets", () => {
+    const s = settingsFromSearchParams(new URLSearchParams("bi=explode&smr=99&mb=0"));
+    expect(s.ballInteraction).toBe("bounce");
+    expect(s.splitMinRadius).toBe(20);
+    expect(s.maxBalls).toBe(2);
+    expect(settingsFromSearchParams(new URLSearchParams("bi=pass&smr=abc&mb=7.6"))).toMatchObject({ ballInteraction: "pass", splitMinRadius: 4, maxBalls: 8 });
+    const p = presetToSettings({ mode: "multiply", ballInteraction: "merge", maxBalls: 100, splitMinRadius: -3 } as unknown as Partial<SimulatorSettings>);
+    expect(p).toMatchObject({ ballInteraction: "merge", maxBalls: 64, splitMinRadius: 4 });
+    expect(presetToSettings({ mode: "classic", ballInteraction: 3 } as unknown as Partial<SimulatorSettings>).ballInteraction).toBe("bounce");
+    expect(presetToSettings({ mode: "grow" })).toMatchObject(DEFAULT_BALL_INTERACTION);
   });
 });

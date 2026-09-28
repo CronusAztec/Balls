@@ -1,5 +1,6 @@
 import { CinematicDirector } from "./director";
 import { MAGNUS_COEFFICIENT, breathingScale, contactSpin, gravityAngle, resolvePhysicsExtras, spinDecayFactor } from "./extras";
+import { canSplit, mergeBalls, resolveBallInteraction, splitBall } from "./interactions";
 import {
   AccumulationMode,
   ClassicMode,
@@ -14,6 +15,7 @@ import {
 } from "./modes";
 import type {
   Ball,
+  BallInteractionConfig,
   CircularWall,
   GameMode,
   ModeContext,
@@ -47,6 +49,11 @@ import { TWO_PI } from "./types";
  * The pulse is applied per sub-step and every wall remembers where it was before the move
  * (`wallPrevRadii`), so the collision pass can sweep a wall over the distance it travelled:
  * a fast, wide pulse never steps over a ball (see `processWallCollisions()`).
+ *
+ * Ball interactions (interactions.ts) travel in the config as well: "bounce" (the default) keeps the
+ * classic pair rebound, "merge" fuses touching balls in `mergeBallPair()`, "pass" skips the pair loop
+ * and "split" halves a ball at the end of the step in which it broke a wall (`reportWallBreak()` →
+ * `flushSplits()`), whether the engine's own gap pass or a mode reported the break.
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
@@ -60,6 +67,10 @@ export class PhysicsEngine {
   private wallPrevRadii: number[] = [];
   /** True while the walls breathe, i.e. while the collision pass has to sweep them. */
   private breathing = false;
+  /** Ball interaction (bounce / merge / split / pass) and the split limits; see interactions.ts. */
+  private interaction: BallInteractionConfig;
+  /** Balls that broke a wall during the current step; with the "split" interaction they split at its end. */
+  private pendingSplits: { ball: Ball; wallIndex: number }[] = [];
   private nextId = 0;
   private destructionMode = false;
   private infiniteMode = false;
@@ -105,6 +116,7 @@ export class PhysicsEngine {
     this._config = config;
     this.extras = resolvePhysicsExtras(config);
     this.breathing = this.extras.breathingAmplitude > 0;
+    this.interaction = resolveBallInteraction(config);
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -134,6 +146,7 @@ export class PhysicsEngine {
       },
       spawnWallBreakByStyle: (wallIndex, x, y) => this.spawnWallBreakByStyle(wallIndex, x, y),
       spawnConfetti: (x, y) => this.spawnConfetti(x, y),
+      reportWallBreak: (ball, wallIndex) => this.reportWallBreak(ball, wallIndex),
       isBouncierEnabled: () => this.bouncierEnabled,
       getBounceSpeedMultiplier: () => this.bounceSpeedMultiplier,
       setBounceSpeedMultiplier: (value) => {
@@ -597,6 +610,10 @@ export class PhysicsEngine {
   getWallBaseRadii() {
     return this.wallBaseRadii;
   }
+  /** The ball interaction in effect (defaults filled in, split limits clamped to their ranges). */
+  getBallInteraction(): BallInteractionConfig {
+    return this.interaction;
+  }
 
   // ---------------------------------------------------------------- balls
 
@@ -617,6 +634,7 @@ export class PhysicsEngine {
     this.wallBreakFlashes = [];
     this.wallHits = [];
     this.pendingSoundEvents = [];
+    this.pendingSplits = [];
     this.breathScale = 1;
   }
 
@@ -628,6 +646,7 @@ export class PhysicsEngine {
     this._config = { ...this._config, ...patch };
     this.extras = resolvePhysicsExtras(this._config);
     this.breathing = this.extras.breathingAmplitude > 0;
+    this.interaction = resolveBallInteraction(this._config);
     if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius;
     const sizeChanged =
@@ -822,12 +841,11 @@ export class PhysicsEngine {
           }
           if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
         }
-        for (let a = 0; a < this.balls.length; a++) {
-          for (let b = a + 1; b < this.balls.length; b++) this.handleBallCollision(this.balls[a], this.balls[b]);
-        }
+        this.handleBallCollisions();
         this.currentMode?.onPostSubStep(this.ctx);
       }
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
+      if (this.pendingSplits.length > 0) this.flushSplits();
       for (const ball of this.balls) {
         if (ball.trail.length < 20) ball.trail.push({ x: ball.x, y: ball.y });
         else {
@@ -956,6 +974,7 @@ export class PhysicsEngine {
             if (!this.brokenWalls.has(w)) {
               this.spawnWallBreakByStyle(w, ball.x, ball.y);
               this.pendingSoundEvents.push({ type: "gap", wallIndex: w });
+              this.reportWallBreak(ball, w);
             }
             this.brokenWalls.add(w);
           }
@@ -1036,6 +1055,92 @@ export class PhysicsEngine {
     b.vx -= nx * impulse;
     b.vy -= ny * impulse;
     this.currentMode?.onBallCollision?.(this.ctx, a, b);
+  }
+
+  /**
+   * Resolves every pair of balls according to the ball interaction (interactions.ts): the classic elastic
+   * rebound in "bounce" and "split" mode (the halves of a split must not fly through each other), a fusion
+   * in "merge" mode, nothing at all in "pass" mode.
+   */
+  private handleBallCollisions() {
+    const interaction = this.interaction.ballInteraction;
+    if (interaction === "pass") return;
+    const merge = interaction === "merge";
+    for (let a = 0; a < this.balls.length; a++) {
+      for (let b = a + 1; b < this.balls.length; b++) {
+        if (!merge) this.handleBallCollision(this.balls[a], this.balls[b]);
+        else if (this.mergeBallPair(a, b)) b--; // ball b was absorbed into a and the next ball now sits at index b
+      }
+    }
+  }
+
+  /**
+   * "Merge" interaction: fuses the balls at indices `ia` < `ib` when they overlap while approaching each other
+   * (balls that merely drift apart – e.g. freshly spawned at the same point – are left alone, as a bounce would
+   * leave them). The first ball becomes the merged one and keeps its id, trail and lifetime; the second is
+   * removed. Returns true when the balls merged.
+   */
+  private mergeBallPair(ia: number, ib: number): boolean {
+    const a = this.balls[ia];
+    const b = this.balls[ib];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist >= a.radius + b.radius || dist === 0) return false;
+    if ((b.vx - a.vx) * dx + (b.vy - a.vy) * dy > 0) return false;
+    const merged = mergeBalls(a, b);
+    a.x = merged.x;
+    a.y = merged.y;
+    a.vx = merged.vx;
+    a.vy = merged.vy;
+    a.radius = merged.radius;
+    a.color = merged.color;
+    this.balls.splice(ib, 1);
+    this.lastWallLayer.delete(b.id);
+    this.pendingSoundEvents.push({ type: "merge", wallIndex: 0 });
+    this.spawnMergeBurst(a.x, a.y, a.color, a.radius);
+    return true;
+  }
+
+  /**
+   * A ball just broke through (or escaped) a wall – reported by the engine's own gap pass and by the modes
+   * that break walls themselves (`ctx.reportWallBreak()`). With the "split" interaction the ball is queued
+   * and splits at the end of the current step: after the rebound / escape bookkeeping that follows the break,
+   * outside every loop over the balls, and once per ball per step however many walls it broke.
+   */
+  private reportWallBreak(ball: Ball, wallIndex: number) {
+    if (this.interaction.ballInteraction !== "split") return;
+    for (const pending of this.pendingSplits) if (pending.ball === ball) return;
+    this.pendingSplits.push({ ball, wallIndex });
+  }
+
+  /**
+   * Splits every queued ball that still exists and may split (`canSplit()`: both halves at least
+   * `splitMinRadius`, fewer than `maxBalls` balls). The ball itself becomes one half – keeping its id, trail,
+   * lifetime and spin – and a new ball is added for the other; the mode copies per-ball state to it in
+   * `onBallSplit()` (Multiply marks the half of an escaped ball as escaped too).
+   */
+  private flushSplits() {
+    const { splitMinRadius, maxBalls } = this.interaction;
+    for (const { ball, wallIndex } of this.pendingSplits) {
+      if (!this.balls.includes(ball) || !canSplit(ball.radius, splitMinRadius, this.balls.length, maxBalls)) continue;
+      const x = ball.x;
+      const y = ball.y;
+      const [first, second] = splitBall(ball, this.ctx.random);
+      ball.x = first.x;
+      ball.y = first.y;
+      ball.vx = first.vx;
+      ball.vy = first.vy;
+      ball.radius = first.radius;
+      this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime });
+      const half = this.balls[this.balls.length - 1];
+      half.spin = ball.spin;
+      half.angle = ball.angle;
+      this.currentMode?.onBallSplit?.(this.ctx, ball, half);
+      this.pendingSoundEvents.push({ type: "split", wallIndex });
+      this.spawnSplitBurst(x, y, ball.color);
+    }
+    this.pendingSplits.length = 0;
   }
 
   private addWallHit(wallIndex: number, angle: number, radius: number) {
@@ -1215,6 +1320,48 @@ export class PhysicsEngine {
         rotation: Math.random() * TWO_PI,
         rotationSpeed: (Math.random() - 0.5) * 10,
         type: "confetti",
+      });
+    }
+  }
+
+  /** "Merge" interaction: a ring of glowing dots in the merged ball's colour. Visual only, so Math.random like the other effects. */
+  private spawnMergeBurst(x: number, y: number, color: string, radius: number) {
+    for (let i = 0; i < 14; i++) {
+      const a = (TWO_PI * i) / 14 + 0.3 * Math.random();
+      const speed = 60 + 120 * Math.random();
+      this.pushParticle({
+        x: x + Math.cos(a) * radius,
+        y: y + Math.sin(a) * radius,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        color,
+        size: 2 + 2.5 * Math.random(),
+        life: 0.4 + 0.3 * Math.random(),
+        maxLife: 0.7,
+        rotation: 0,
+        rotationSpeed: 0,
+        type: "burst",
+      });
+    }
+  }
+
+  /** "Split" interaction: a few sparks and coloured dots flying out of the point the ball split at. */
+  private spawnSplitBurst(x: number, y: number, color: string) {
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * TWO_PI;
+      const speed = 80 + 160 * Math.random();
+      this.pushParticle({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        color,
+        size: 1.5 + 2 * Math.random(),
+        life: 0.3 + 0.3 * Math.random(),
+        maxLife: 0.6,
+        rotation: 0,
+        rotationSpeed: 0,
+        type: i % 2 === 0 ? "spark" : "burst",
       });
     }
   }

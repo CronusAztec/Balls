@@ -9,6 +9,7 @@ import type { MusicTrackInfo } from "./sections/MusicSection";
 import Tooltip from "./Tooltip";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { physicsExtrasOf } from "@/lib/physics/extras";
+import { ballInteractionOf } from "@/lib/physics/interactions";
 import type { ModeId } from "@/lib/physics/types";
 import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from "@/lib/audio/sampler";
 import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
@@ -137,6 +138,7 @@ export default function Simulator() {
       twoBalls: s.twoBalls,
       ballColor2: s.ballColor2,
       ...physicsExtrasOf(s),
+      ...ballInteractionOf(s),
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -185,6 +187,10 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setConfig(physicsExtrasOf(s));
   }, [s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Ball interactions (bounce / merge / split / pass and the split limits) travel in the same config.
+  useEffect(() => {
+    engineRef.current?.setConfig(ballInteractionOf(s));
+  }, [s.ballInteraction, s.splitMinRadius, s.maxBalls]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setAccumulationTimerMax(1000 * s.accumulationTime);
   }, [s.accumulationTime]);
@@ -285,7 +291,7 @@ export default function Simulator() {
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity]);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls]);
 
   // Live add/remove of the second ball.
   const prevTwoBallsRef = useRef(s.twoBalls);
@@ -359,6 +365,7 @@ export default function Simulator() {
           twoBalls: false,
           ballColor2: fresh.ballColor2,
           ...physicsExtrasOf(fresh),
+          ...ballInteractionOf(fresh),
         });
         initEngineForMode(engine, fresh);
       }
@@ -403,7 +410,8 @@ export default function Simulator() {
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex);
-          else audio.playGapPass();
+          else if (ev.type === "gap") audio.playGapPass();
+          else audio.playInteraction(ev.type);
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
       }
@@ -741,6 +749,7 @@ export default function Simulator() {
           twoBalls: loaded.twoBalls,
           ballColor2: loaded.ballColor2,
           ...physicsExtrasOf(loaded),
+          ...ballInteractionOf(loaded),
         });
         initEngineForMode(engine, loaded);
       }
