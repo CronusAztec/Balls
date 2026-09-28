@@ -30,6 +30,30 @@ page.on("console", (m) => {
   if (m.type() === "error") errors.push(`console: ${m.text()}`);
 });
 
+/** A short 16-bit mono PCM WAV (sine sweep) for the song-slicer upload check. */
+function makeWav(seconds = 2, sampleRate = 8000) {
+  const frames = Math.round(seconds * sampleRate);
+  const buf = Buffer.alloc(44 + 2 * frames);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + 2 * frames, 4);
+  buf.write("WAVE", 8);
+  buf.write("fmt ", 12);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(2 * sampleRate, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(2 * frames, 40);
+  for (let i = 0; i < frames; i++) {
+    const t = i / sampleRate;
+    buf.writeInt16LE(Math.round(12000 * Math.sin(2 * Math.PI * (220 + 220 * t) * t)), 44 + 2 * i);
+  }
+  return buf;
+}
+
 const results = [];
 const check = (name, ok, extra = "") => {
   results.push({ name, ok, extra });
@@ -126,6 +150,18 @@ await page.getByRole("button", { name: "Save", exact: true }).click();
 check("preset saved", await page.getByText("smoke", { exact: true }).isVisible());
 const stored = await page.evaluate(() => localStorage.getItem("viralballs_saved_settings"));
 check("preset persisted to localStorage", !!stored && stored.includes("smoke"));
+
+// 4a. Song slicer: upload a generated WAV, the panel shows it, slicing switches on (mirrored into the URL) and it can be removed
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+await page.locator("#slice-song-input").setInputFiles({ name: "smoke-song.wav", mimeType: "audio/wav", buffer: makeWav() });
+const sliceFile = page.getByTestId("slice-song-file");
+const sliceLoaded = await sliceFile.waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+await page.waitForTimeout(1500); // a few bounces play slices through the audio graph
+const sliceInfo = sliceLoaded ? await sliceFile.innerText() : "";
+check("song slicer decodes an uploaded song", sliceLoaded && sliceInfo.includes("smoke-song.wav") && /0:02/.test(sliceInfo) && page.url().includes("slice=1"), `(${sliceInfo.replace(/\s+/g, " ").trim()} | ${page.url().split("?")[1]})`);
+await page.getByRole("button", { name: "Remove song" }).click();
+check("song slicer removes the song", (await sliceFile.count()) === 0 && (await page.locator("#slice-song-input").count()) === 1);
+await page.getByRole("button", { name: /Custom Sound/ }).click();
 
 // 4b. Text inputs keep focus while typing (helper components must not remount)
 await page.getByRole("button", { name: /Recording/ }).click();

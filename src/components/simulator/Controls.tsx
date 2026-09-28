@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
+import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, sliderStyle } from "./ControlPrimitives";
+import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
-import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
+import { ACCENT } from "@/lib/site";
+
+// The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
+export { sliderStyle };
 
 export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording";
 
@@ -32,6 +37,12 @@ export interface ControlsProps {
   onCustomMidiUpload: (file: File) => void;
   customWallBreakName: string | null;
   onWallBreakSoundUpload: (file: File) => void;
+  /** Song slicer: the song decoded in this session (name + length in seconds), if any. */
+  sliceSongName: string | null;
+  sliceSongDuration: number;
+  sliceSongLoading: boolean;
+  onSliceSongUpload: (file: File) => void;
+  onSliceSongClear: () => void;
   savedPresetNames: string[];
   onSavePreset: (name: string) => void;
   onLoadPreset: (name: string) => void;
@@ -45,156 +56,9 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
-  sound: ["song", "importMidi", "wallBreakSound", "importWallBreak"],
+  sound: ["song", "importMidi", "wallBreakSound", "importWallBreak", ...SONG_SLICER_KEYS],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
-
-export function sliderStyle(value: number, min: number, max: number) {
-  const pct = ((value - min) / (max - min)) * 100;
-  return {
-    background: `linear-gradient(to right, ${ACCENT_LIGHT} 0%, ${ACCENT} ${pct}%, #27272a ${pct}%, #27272a 100%)`,
-    accentColor: ACCENT,
-  };
-}
-
-const onBtn = `bg-[#93d119] text-slate-950`;
-const offBtn = "bg-zinc-800 text-zinc-300 hover:bg-zinc-700";
-const rainbowBtn = "bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 text-white";
-
-
-type Translate = ReturnType<typeof useTranslations>;
-type Matcher = (key: string) => boolean;
-
-/* ------------------------------------------------------------ building blocks
- * These are module-level components (not closures inside Controls) so React keeps their
- * DOM between renders: inputs keep focus while typing.
- */
-
-function Searchable({ search, matches, labelKey, children }: { search: string; matches: Matcher; labelKey: string; children: ReactNode }) {
-  if (!search) return <>{children}</>;
-  if (!matches(labelKey)) return null;
-  return <div className="p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/50 shadow-sm">{children}</div>;
-}
-
-function ResetButton({ search, t, section, onReset }: { search: string; t: Translate; section: ControlSection; onReset: (section: ControlSection) => void }) {
-  if (search) return null;
-  return (
-    <div className="flex justify-center border-b border-zinc-800/60 pb-2 mb-2">
-      <button
-        type="button"
-        onClick={() => onReset(section)}
-        className="text-xs text-[#93d119] hover:text-[#7fb315] transition-colors font-medium flex items-center gap-1 cursor-pointer bg-zinc-800/40 hover:bg-zinc-800/80 px-2 py-1 rounded-md"
-      >
-        🔄 {t("resetSection")}
-      </button>
-    </div>
-  );
-}
-
-function Slider({
-  t,
-  search,
-  matches,
-  labelKey,
-  tipKey,
-  value,
-  range,
-  onChange,
-  display,
-  left,
-  right,
-  disabled,
-}: {
-  t: Translate;
-  search: string;
-  matches: Matcher;
-  labelKey: string;
-  tipKey?: string;
-  value: number;
-  range: { min: number; max: number; step: number };
-  onChange: (v: number) => void;
-  display?: string;
-  left?: string;
-  right?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <Searchable search={search} matches={matches} labelKey={labelKey}>
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
-          <span>
-            {t(labelKey)}
-            {tipKey && <Tooltip text={t(tipKey)} />}
-          </span>
-          <span className="text-zinc-500">{display ?? value}</span>
-        </label>
-        <div className="flex items-center gap-2">
-          {left && <span className="text-sm">{left}</span>}
-          <input
-            type="range"
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            value={value}
-            disabled={disabled}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-            style={sliderStyle(value, range.min, range.max)}
-            aria-label={t(labelKey)}
-          />
-          {right && <span className="text-sm">{right}</span>}
-        </div>
-      </div>
-    </Searchable>
-  );
-}
-
-function Toggle({
-  t,
-  labelKey,
-  tipKey,
-  value,
-  onChange,
-  onClass = onBtn,
-  caseStyle = "upper",
-}: {
-  t: Translate;
-  labelKey: string;
-  tipKey?: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  onClass?: string;
-  caseStyle?: "upper" | "title";
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <label className="text-sm font-medium text-zinc-300">
-        {t(labelKey)}
-        {tipKey && <Tooltip text={t(tipKey)} />}
-      </label>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        aria-pressed={value}
-        className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${value ? onClass : offBtn}`}
-      >
-        {value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}
-      </button>
-    </div>
-  );
-}
-
-function ColorPicker({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
-  return (
-    <input
-      type="color"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className="w-full h-10 bg-zinc-800 rounded-lg cursor-pointer border border-zinc-700"
-    />
-  );
-}
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -688,6 +552,19 @@ export default function Controls(props: ControlsProps) {
           {t("loadingMidi")}
         </div>
       )}
+      <SongSlicerSection
+        t={t}
+        search={search}
+        matches={matches}
+        showAdvanced={showAdvanced}
+        settings={s}
+        update={update}
+        songName={props.sliceSongName}
+        songDuration={props.sliceSongDuration}
+        loading={props.sliceSongLoading}
+        onUpload={props.onSliceSongUpload}
+        onClear={props.onSliceSongClear}
+      />
     </div>
   );
 
@@ -1126,7 +1003,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     case "visual":
       return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
     case "sound":
-      return { wallBreakSound: null };
+      return { wallBreakSound: null, sliceSong: d.sliceSong, sliceMs: d.sliceMs, sliceLoop: d.sliceLoop, sliceFadeMs: d.sliceFadeMs };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
   }

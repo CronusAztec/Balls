@@ -66,6 +66,11 @@ export interface SimulatorSettings {
   recordingResolution: string;
   recordingDuration: number;
   wallBreakSound: string | null;
+  // Song slicer: every bounce plays the next slice of an uploaded song
+  sliceSong: boolean;
+  sliceMs: number;
+  sliceLoop: boolean;
+  sliceFadeMs: number;
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -123,6 +128,10 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     recordingResolution: "1080x1920",
     recordingDuration: 30,
     wallBreakSound: null,
+    sliceSong: false,
+    sliceMs: 250,
+    sliceLoop: true,
+    sliceFadeMs: 8,
   };
 }
 
@@ -145,6 +154,8 @@ export const RANGES = {
   colorMatchColorCount: { min: 2, max: 7, step: 1 },
   growRate: { min: 3, max: 10, step: 1 },
   findDuration: { min: 30, max: 120, step: 1 },
+  sliceMs: { min: 80, max: 1000, step: 10 },
+  sliceFadeMs: { min: 0, max: 50, step: 1 },
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -175,6 +186,8 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   sc: "spikeCount",
   msc: "multiplySpawnCount",
   ts: "textSize",
+  slms: "sliceMs",
+  slfade: "sliceFadeMs",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -197,6 +210,8 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   glines: "growLines",
   ldot: "linesCenterDot",
   cine: "cinematicEnabled",
+  slice: "sliceSong",
+  sloop: "sliceLoop",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {

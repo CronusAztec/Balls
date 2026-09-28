@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { RainbowWallMode } from "@/lib/settings";
+import { ACCENT } from "@/lib/site";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -27,6 +28,8 @@ export interface CanvasHandle {
   getCanvas: () => HTMLCanvasElement | null;
   setRecording: (recording: boolean) => void;
   setAudioIntensity: (v: number) => void;
+  /** Song slicer position (0–1) for the HUD progress bar; null hides the bar. */
+  setSongProgress: (v: number | null) => void;
   fpsRef: React.RefObject<number>;
 }
 
@@ -146,6 +149,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const camXRef = useRef(0);
   const camYRef = useRef(0);
   const audioRef = useRef(audioIntensity);
+  const songProgressRef = useRef<number | null>(null);
   labelsRef.current = labels;
 
   const propsRef = useRef({
@@ -238,6 +242,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     },
     setAudioIntensity: (v: number) => {
       audioRef.current = v;
+    },
+    setSongProgress: (v: number | null) => {
+      songProgressRef.current = v;
     },
     fpsRef,
   }));
@@ -1305,6 +1312,32 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.shadowBlur = 8;
         if (p.topText) ctx.fillText(p.topText, cx, cy - arena - pad);
         if (p.bottomText) ctx.fillText(p.bottomText, cx, cy + arena + pad);
+        ctx.restore();
+      }
+
+      // Song slicer: thin progress bar along the bottom edge (part of the recording too)
+      const songProgress = songProgressRef.current;
+      if (songProgress !== null) {
+        const barW = 2 * arena;
+        const x0 = cx - barW / 2;
+        const y0 = size.height - 6;
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x0 + barW, y0);
+        ctx.stroke();
+        if (songProgress > 0) {
+          ctx.strokeStyle = ACCENT;
+          ctx.shadowColor = ACCENT;
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x0 + barW * songProgress, y0);
+          ctx.stroke();
+        }
         ctx.restore();
       }
 

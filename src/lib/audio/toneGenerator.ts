@@ -1,8 +1,11 @@
+import { SlicePlayer } from "./slicePlayer";
+
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
- * or the next note of a loaded melody); gap passes play a rising four-note arpeggio or a
- * custom audio clip. Everything is routed through a master gain and also into a
- * MediaStreamDestination so the recorder can capture the audio track.
+ * or the next note of a loaded melody, or the next slice of an uploaded song when the
+ * song slicer is on); gap passes play a rising four-note arpeggio or a custom audio clip.
+ * Everything is routed through a master gain and also into a MediaStreamDestination so
+ * the recorder can capture the audio track.
  */
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
@@ -20,6 +23,8 @@ export class ToneGenerator {
   private wallBreakBuffer: AudioBuffer | null = null;
   private wallBreakDecoding = false;
   private volume = 1;
+  /** Song slicer: plays the next bit of an uploaded song on every bounce (see slicePlayer.ts). */
+  private readonly slicer = new SlicePlayer();
 
   async start() {
     if (this.isPlaying) return;
@@ -92,6 +97,25 @@ export class ToneGenerator {
     return this.customNotes.length;
   }
 
+  /* ------------------------------------------------------------ song slicer */
+
+  getSlicer() {
+    return this.slicer;
+  }
+
+  /** Decodes an uploaded audio file (MP3, OGG, WAV, M4A…) with the browser's audio decoder. */
+  async decodeAudio(data: ArrayBuffer): Promise<AudioBuffer> {
+    this.initAudioGraph();
+    if (!this.audioContext) throw new Error("Web Audio is not available");
+    return this.audioContext.decodeAudioData(data);
+  }
+
+  /** Song position of the slicer as a 0–1 fraction, or null while the slicer is not in use. */
+  getSliceProgress(): number | null {
+    if (!this.slicer.isActive()) return null;
+    return this.slicer.getProgress(this.audioContext?.currentTime ?? 0);
+  }
+
   playWallHit(wallIndex = 0) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
@@ -104,6 +128,8 @@ export class ToneGenerator {
 
   private scheduleHit(wallIndex: number) {
     if (!this.audioContext || !this.masterGain) return;
+    // The song slicer takes over the bounce sound while it has a song to play.
+    if (this.slicer.trigger(this.audioContext, this.masterGain)) return;
     const now = this.audioContext.currentTime;
     try {
       let frequency: number;
@@ -222,6 +248,7 @@ export class ToneGenerator {
   }
 
   stop() {
+    this.slicer.stop();
     if (this.silentOsc) {
       this.silentOsc.stop();
       this.silentOsc.disconnect();

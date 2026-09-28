@@ -44,6 +44,7 @@ export default function Simulator() {
   const finderAbortRef = useRef<AbortController | null>(null);
   const autoPausedRef = useRef(false);
   const wallBreakObjectUrlRef = useRef<string | null>(null);
+  const sliceUploadIdRef = useRef(0);
 
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
   const [settings, setSettings] = useState<SimulatorSettings>(() => settingsFromSearchParams(new URLSearchParams(searchParams.toString())));
@@ -62,6 +63,9 @@ export default function Simulator() {
   const [customSoundNoteCount, setCustomSoundNoteCount] = useState(0);
   const [customMidiName, setCustomMidiName] = useState<string | null>(null);
   const [customWallBreakName, setCustomWallBreakName] = useState<string | null>(null);
+  // Song slicer: the decoded song lives in the ToneGenerator; this is what the panel shows about it.
+  const [sliceSongInfo, setSliceSongInfo] = useState<{ name: string; duration: number } | null>(null);
+  const [sliceSongLoading, setSliceSongLoading] = useState(false);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(30);
   const [findTolerance] = useState(0.5);
@@ -130,6 +134,7 @@ export default function Simulator() {
     setFinished(false);
     setIsPaused(false);
     audioRef.current?.resetCustomNoteIndex();
+    audioRef.current?.getSlicer().reset();
     engine.setConfig({ ballRadius: settings.ballRadius });
     initEngineForMode(engine, settings);
   }, [settings, initEngineForMode]);
@@ -207,6 +212,16 @@ export default function Simulator() {
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
+  useEffect(() => {
+    const slicer = audioRef.current?.getSlicer();
+    if (!slicer) return;
+    slicer.setOptions({ sliceSec: s.sliceMs / 1000, fadeSec: s.sliceFadeMs / 1000, loop: s.sliceLoop });
+    slicer.setEnabled(s.sliceSong);
+  }, [s.sliceSong, s.sliceMs, s.sliceFadeMs, s.sliceLoop]);
+  // A slice that is still sounding stops with the simulation.
+  useEffect(() => {
+    if (isPaused) audioRef.current?.getSlicer().stop();
+  }, [isPaused]);
 
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
@@ -249,7 +264,17 @@ export default function Simulator() {
       setIsPaused(false);
       setFinished(false);
       audioRef.current?.resetCustomNoteIndex();
-      const fresh = { ...defaultSettings(mode), recordingResolution: settings.recordingResolution, watermarkText: settings.watermarkText, wallBreakSound: settings.wallBreakSound };
+      audioRef.current?.getSlicer().reset();
+      const fresh = {
+        ...defaultSettings(mode),
+        recordingResolution: settings.recordingResolution,
+        watermarkText: settings.watermarkText,
+        wallBreakSound: settings.wallBreakSound,
+        sliceSong: settings.sliceSong,
+        sliceMs: settings.sliceMs,
+        sliceLoop: settings.sliceLoop,
+        sliceFadeMs: settings.sliceFadeMs,
+      };
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -267,7 +292,7 @@ export default function Simulator() {
         initEngineForMode(engine, fresh);
       }
     },
-    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, initEngineForMode],
+    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, initEngineForMode],
   );
 
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
@@ -304,6 +329,7 @@ export default function Simulator() {
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex);
           else audio.playGapPass();
         }
+        canvasRef.current?.setSongProgress(audio.getSliceProgress());
       }
       if (isStarted && !isPaused && audioEnabled && audio) {
         const analyser = audio.getAnalyser();
@@ -480,6 +506,36 @@ export default function Simulator() {
     [update],
   );
 
+  const onSliceSongUpload = useCallback(
+    async (file: File) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const uploadId = ++sliceUploadIdRef.current;
+      setSliceSongLoading(true);
+      try {
+        const buffer = await audio.decodeAudio(await file.arrayBuffer());
+        if (uploadId !== sliceUploadIdRef.current) return; // a newer upload replaced this one
+        audio.getSlicer().setBuffer(buffer);
+        setSliceSongInfo({ name: file.name, duration: buffer.duration });
+        update({ sliceSong: true });
+      } catch (err) {
+        if (uploadId !== sliceUploadIdRef.current) return;
+        console.error("Failed to decode song for the slicer:", err);
+        alert(t("Controls.sliceDecodeError"));
+      } finally {
+        if (uploadId === sliceUploadIdRef.current) setSliceSongLoading(false);
+      }
+    },
+    [t, update],
+  );
+
+  const onSliceSongClear = useCallback(() => {
+    sliceUploadIdRef.current++;
+    audioRef.current?.getSlicer().setBuffer(null);
+    setSliceSongInfo(null);
+    setSliceSongLoading(false);
+  }, []);
+
   const onCustomSoundSelect = useCallback(async (id: string | null) => {
     if (!id) {
       audioRef.current?.clearCustomNotes();
@@ -567,6 +623,7 @@ export default function Simulator() {
         });
         initEngineForMode(engine, loaded);
       }
+      audioRef.current?.getSlicer().reset();
       setIsStarted(false);
       setIsPaused(false);
       setFinished(false);
@@ -591,9 +648,12 @@ export default function Simulator() {
         setBallImage(null);
         setBallEmoji(null);
       }
-      if (section === "sound") void onCustomSoundSelect(null);
+      if (section === "sound") {
+        void onCustomSoundSelect(null);
+        onSliceSongClear();
+      }
     },
-    [settings.mode, update, onCustomSoundSelect],
+    [settings.mode, update, onCustomSoundSelect, onSliceSongClear],
   );
 
   /* ------------------------------------------------------------ find simulation */
@@ -641,6 +701,7 @@ export default function Simulator() {
       setFinished(false);
       setIsPaused(true);
       audioRef.current?.resetCustomNoteIndex();
+      audioRef.current?.getSlicer().reset();
       update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
@@ -950,6 +1011,11 @@ export default function Simulator() {
             onCustomMidiUpload={onCustomMidiUpload}
             customWallBreakName={customWallBreakName}
             onWallBreakSoundUpload={onWallBreakSoundUpload}
+            sliceSongName={sliceSongInfo?.name ?? null}
+            sliceSongDuration={sliceSongInfo?.duration ?? 0}
+            sliceSongLoading={sliceSongLoading}
+            onSliceSongUpload={onSliceSongUpload}
+            onSliceSongClear={onSliceSongClear}
             savedPresetNames={Object.keys(presets)}
             onSavePreset={onSavePreset}
             onLoadPreset={onLoadPreset}

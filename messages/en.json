@@ -185,6 +185,24 @@
     "dropMidiHere": "Drop your MIDI file here!",
     "midiSourceText": "Not sure where to get MIDI files? Try",
     "midiParseError": "Failed to parse MIDI file. Make sure it is a valid format 0 or 1 MIDI file.",
+    "sliceSong": "Song Slicer",
+    "sliceSongTip": "The viral format: upload any song and every bounce plays the next little piece of it, so the ball \"plays\" the track.",
+    "sliceSongDesc": "Upload an MP3, OGG, WAV or M4A file. Each wall hit plays the next slice of the song, continuing from where the last one stopped. The song stays in your browser.",
+    "sliceEnabled": "Slice on bounce",
+    "sliceEnabledTip": "While on, slices of the uploaded song replace the bounce tones and melody notes.",
+    "sliceLength": "Slice Length",
+    "sliceLengthTip": "How much of the song each bounce plays. Short slices sound choppy and rhythmic; long ones let whole phrases through.",
+    "sliceLoop": "Loop Song",
+    "sliceLoopTip": "Start the song over when it reaches the end. When off, bounces go back to the default tones after the last slice.",
+    "sliceFade": "Slice Fade",
+    "sliceFadeTip": "Fade-in and fade-out at the edges of every slice so the cuts don't click.",
+    "chooseSongFile": "Choose song file",
+    "dropSongHere": "Drop your song here!",
+    "sliceLoadingSong": "Decoding song…",
+    "sliceDecodeError": "Could not decode this audio file. Try an MP3, OGG, WAV or M4A file.",
+    "sliceRemoveSong": "Remove song",
+    "sliceSongInfo": "{duration} · {slices, plural, one {# slice} other {# slices}}",
+    "sliceNoSong": "Upload a song to hear it – the default tones play until then.",
     "videoResolution": "Resolution",
     "videoDuration": "Duration",
     "durationTip": "The simulation will automatically stop and save after this many seconds.",
@@ -373,7 +391,7 @@
     },
     "customSound": {
       "name": "Custom Sound",
-      "description": "Pick a melody from the built-in library or import your own MIDI file. Every wall hit plays the next note of the song."
+      "description": "Pick a melody from the built-in library or import your own MIDI file, and every wall hit plays the next note. Or upload a whole song and let each bounce play its next slice."
     }
   },
   "FAQ": {
@@ -503,7 +521,7 @@
       "spikes": { "name": "Spikes", "what": "Adds hazards inside the ring for tension." },
       "customBall": { "name": "Custom ball", "what": "Puts your own image or an emoji on the ball." },
       "textOverlay": { "name": "Text overlay", "what": "Adds a top and bottom caption over the canvas." },
-      "customSound": { "name": "Custom sound", "what": "Use a built-in melody or import your own MIDI." },
+      "customSound": { "name": "Custom sound", "what": "Use a built-in melody, import your own MIDI, or slice an uploaded song bounce by bounce." },
       "watermark": { "name": "Watermark", "what": "Stamps your handle so reposts still credit you." },
       "speed": { "name": "Speed (1x to 8x)", "what": "Fast-forwards a long run while you preview." },
       "findSimulation": { "name": "Find simulation", "what": "Searches for a run that hits a target length." },
