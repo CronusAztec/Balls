@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_URL, absoluteUrl, pageUrl } from "@/lib/site";
 import Analytics from "@/components/site/Analytics";
 import "../globals.css";
 
@@ -14,8 +14,8 @@ export function generateStaticParams() {
 /** Builds hreflang alternates for a path (used by every page's metadata). */
 export function localeAlternates(path: string) {
   const languages: Record<string, string> = {};
-  for (const l of routing.locales) languages[l] = `${SITE_URL}/${l}${path}`;
-  languages["x-default"] = `${SITE_URL}/${routing.defaultLocale}${path}`;
+  for (const l of routing.locales) languages[l] = pageUrl(l, path);
+  languages["x-default"] = pageUrl(routing.defaultLocale, path);
   return languages;
 }
 
@@ -28,10 +28,11 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     metadataBase: new URL(SITE_URL),
     title,
     description,
-    icons: { icon: "/icon.svg" },
-    alternates: { canonical: `${SITE_URL}/${locale}`, languages: localeAlternates("") },
-    openGraph: { title, description, url: `${SITE_URL}/${locale}`, siteName: SITE_NAME, type: "website", images: ["/og.png"] },
-    twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
+    // Absolute URLs so they stay correct when the site lives in a sub-folder (GitHub Pages).
+    icons: { icon: absoluteUrl("/icon.svg") },
+    alternates: { canonical: pageUrl(locale), languages: localeAlternates("") },
+    openGraph: { title, description, url: pageUrl(locale), siteName: SITE_NAME, type: "website", images: [absoluteUrl("/og.png")] },
+    twitter: { card: "summary_large_image", title, description, images: [absoluteUrl("/og.png")] },
   };
 }
 

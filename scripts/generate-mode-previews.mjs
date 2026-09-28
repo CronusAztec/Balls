@@ -2,14 +2,15 @@
  * Renders a preview image for every game mode by running the real simulator in headless
  * Chromium and grabbing the canvas as WebP. Output: public/modes/<mode>.webp (640×360).
  *
- * Requires a running server (BASE_URL, default http://localhost:3000) and Playwright.
+ * Requires the exported site to be served (BASE_URL, default http://localhost:3000 plus
+ * NEXT_PUBLIC_BASE_PATH; see `npm start`) and Playwright.
  * Run: node scripts/generate-mode-previews.mjs
  */
 import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
 
-const BASE = process.env.BASE_URL || "http://localhost:3000";
+const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
 const MODES = {
   classic: { wait: 6000, query: "glow=1&wbreak=all" },
   accumulation: { wait: 9000, query: "spikes=1&at=3" },
@@ -31,7 +32,7 @@ const browser = await chromium.launch(launchOpts);
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
 
 for (const [mode, cfg] of Object.entries(MODES)) {
-  await page.goto(`${BASE}/en/simulator?mode=${mode}&wm=&${cfg.query}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=${mode}&wm=&${cfg.query}`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(cfg.wait);
   // Grab the canvas pixels directly (no HUD buttons) and crop to a 16:9 centre region.

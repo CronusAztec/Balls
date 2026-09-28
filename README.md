@@ -5,6 +5,8 @@ bouncing-ball physics simulator that exports vertical MP4 clips for TikTok, Reel
 
 Built with **Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · next-intl**.
 Everything runs client-side: physics, rendering, audio and video encoding happen in the visitor's browser.
+The site is exported as plain static files, so it deploys to **GitHub Pages** (workflow included) or any
+static host – no server required.
 
 ## Features
 
@@ -19,21 +21,24 @@ Everything runs client-side: physics, rendering, audio and video encoding happen
 | **Find Simulation** | Deterministic, seeded physics lets the finder search for a seed whose run lasts exactly N seconds |
 | **Presets & sharing** | Save/load presets in localStorage; every setting is mirrored into the URL for bookmarking and sharing |
 | **Controls UX** | Collapsible sections, setting search, advanced-options toggle, per-section reset, keyboard shortcuts (Space, R), 1×–8× playback speed, FPS counter, auto-pause when off-screen |
-| **Site** | Landing page (hero, mode cards, about, how-it-works, illustrated instructions, features, FAQ, blog preview), simulator page with editorial sections and troubleshooting, blog with 5 articles, About, TikTok page, Feedback form + API, Privacy, Terms, Disclaimer, 404 |
+| **Site** | Landing page (hero, mode cards, about, how-it-works, illustrated instructions, features, FAQ, blog preview), simulator page with editorial sections and troubleshooting, blog with 5 articles, About, TikTok page, Feedback form (GitHub issue / email / any form endpoint), Privacy, Terms, Disclaimer, localised 404 |
 | **i18n & SEO** | English, Polish and Spanish (`/en`, `/pl`, `/es`), hreflang alternates, sitemap, robots, Open Graph, JSON-LD (WebSite, WebApplication, FAQPage, BlogPosting) |
+| **Hosting** | Static export (`out/`) with base-path support, GitHub Actions workflow that lints, tests, builds and publishes to GitHub Pages, localised 404 page, root page that redirects to the visitor's language |
 
 ## Getting started
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000 → redirects to /en
-npm run build && npm start
+npm run build      # static export into ./out (+ 404.html and .nojekyll for GitHub Pages)
+npm start          # serves ./out the way GitHub Pages does (base path, 404 page, trailing slashes)
 ```
 
-Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SITE_URL` to your public URL (used for canonical
-links, sitemap and Open Graph). Optional variables:
+Copy `.env.example` to `.env.local` to configure the build. Everything is optional for local development:
 
-- `FEEDBACK_WEBHOOK_URL` – forward feedback submissions to Slack/Discord/Zapier/your API. Without it, feedback is appended to `data/feedback.jsonl`.
+- `NEXT_PUBLIC_SITE_URL` – public URL used for canonical links, hreflang, sitemap and Open Graph (include the base path).
+- `NEXT_PUBLIC_BASE_PATH` – sub-folder the site is served from (`/Balls` on `https://user.github.io/Balls`, empty for a root deployment).
+- Feedback channel, first one set wins: `NEXT_PUBLIC_FEEDBACK_ENDPOINT` (any JSON POST endpoint such as Formspree or your own worker), `NEXT_PUBLIC_FEEDBACK_EMAIL` (opens the visitor's email app) or `NEXT_PUBLIC_GITHUB_REPO` (opens a prefilled GitHub issue).
 - `NEXT_PUBLIC_ANALYTICS_SCRIPT_URL` / `NEXT_PUBLIC_ANALYTICS_SITE_ID` – load a privacy-friendly analytics script (Plausible, Umami, Rybbit…).
 
 Other scripts:
@@ -41,11 +46,49 @@ Other scripts:
 ```bash
 npm run typecheck                          # tsc --noEmit
 npm run lint                               # eslint
-node scripts/smoke-test.mjs                # headless-browser end-to-end checks (needs a running server + playwright)
-node scripts/generate-mode-previews.mjs    # regenerate public/modes/*.webp from the real simulator
+npm test                                   # vitest unit tests (engine, MIDI parser, settings)
+npm run smoke                              # headless-browser end-to-end checks against the served export (see scripts/smoke-test.mjs)
+npm run previews                           # regenerate public/modes/*.webp from the real simulator
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
 python3 scripts/generate-sounds.py         # regenerate the wall-break sound effects
 ```
+
+## Deploying to GitHub Pages
+
+The repository ships with `.github/workflows/deploy.yml`:
+
+1. **Enable Pages once**: repository *Settings → Pages → Build and deployment → Source: GitHub Actions*
+   (the workflow also tries to enable it on its first run). Private repositories need a paid GitHub plan for
+   Pages; public repositories work on the free plan.
+2. **Push to the default branch** (or run the workflow manually from the *Actions* tab). Every push is linted,
+   type-checked, unit-tested and built; pushes to the default branch are then published.
+3. The site appears at `https://<user>.github.io/<repo>/` – for this repository
+   `https://cronusaztec.github.io/Balls/`. The workflow works out the URL and base path by itself, and it sets
+   the feedback form to open issues on the same repository.
+
+Optional repository *Variables* (Settings → Secrets and variables → Actions → Variables) are passed to the
+build: `FEEDBACK_ENDPOINT`, `FEEDBACK_EMAIL`, `ANALYTICS_SCRIPT_URL`, `ANALYTICS_SITE_ID`.
+
+**Custom domain**: add `public/CNAME` containing the domain (e.g. `viralballs.example.com`) and point its DNS at
+GitHub Pages. The workflow detects the file and builds for the domain root (no base path).
+
+**Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
+set and upload `out/`. Point the host's "not found" page at `404.html`.
+
+`.github/workflows/smoke.yml` builds the site under a base path and runs the browser smoke test on pull
+requests and on demand.
+
+### How the static export works
+
+- `next.config.ts` sets `output: "export"`, `trailingSlash: true` (every page is `route/index.html`) and
+  `basePath` from `NEXT_PUBLIC_BASE_PATH`.
+- There is no middleware: `src/app/(static)/page.tsx` is the root page and redirects to the visitor's language
+  in the browser (with a `<meta refresh>` fallback), `src/app/(static)/404/` is the localised not-found page
+  and `scripts/postexport.mjs` copies it to `out/404.html`.
+- `src/lib/site.ts` exposes `assetPath()` for `/public` files referenced from plain `<img>`/`fetch()` calls (Next's
+  `Link`/`Image` add the base path on their own) and `pageUrl()`/`absoluteUrl()` for canonical, Open Graph and
+  sitemap URLs.
+- The feedback form talks to its channel directly from the browser (`src/components/site/FeedbackForm.tsx`).
 
 ## Project layout
 
@@ -55,10 +98,11 @@ public/
   modes/*.webp          mode preview images (generated)
   notes/*.mid           built-in melodies (generated, public domain)
   wallBreak/*.wav       built-in wall-break sounds (generated)
-scripts/                asset generators and the browser smoke test
+scripts/                asset generators, postexport.mjs (404.html/.nojekyll), serve-static.mjs (GitHub-Pages-like server), smoke test
+.github/workflows/      deploy.yml (lint · test · build · publish to GitHub Pages) · smoke.yml (browser test)
 src/
-  app/[locale]/         pages (landing, simulator, blog, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, 404)
-  app/api/feedback/     feedback endpoint
+  app/[locale]/         pages (landing, simulator, blog, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
+  app/(static)/         locale-less pages of the static export: "/" (language redirect) and "/404"
   app/sitemap.ts, robots.ts
   components/site/      navbar, footer, language switcher, landing sections, forms
   components/simulator/ Simulator.tsx (page state) · Canvas.tsx (renderer) · Controls.tsx (panel)
@@ -69,7 +113,7 @@ src/
   lib/recording/        recorder.ts (MediaRecorder wrapper)
   lib/simulation/       finder.ts (seed search)
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
-  lib/site.ts           site name/domain/accent – change these to rebrand
+  lib/site.ts           site name/domain/accent – change these to rebrand; base-path and URL helpers
 ```
 
 ## How to extend it

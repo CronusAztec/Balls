@@ -1,0 +1,103 @@
+name: Build and deploy to GitHub Pages
+
+# Every push is linted, type-checked, unit-tested and built. Pushes to the repository's default
+# branch (and manual runs from any branch) are then published to GitHub Pages.
+# One-time setup: Settings → Pages → "Build and deployment" → Source: "GitHub Actions".
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a queued run waits instead of cancelling a deployment in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  DEPLOY: ${{ github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Work out the public URL and base path
+        id: site
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          repo_lc="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+          if [ -s public/CNAME ]; then
+            url="https://$(tr -d '[:space:]' < public/CNAME)"; base=""
+          elif [ "$repo_lc" = "$owner.github.io" ]; then
+            url="https://$owner.github.io"; base=""
+          else
+            url="https://$owner.github.io/$REPO"; base="/$REPO"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "Site URL: $url (base path: '$base')"
+
+      - name: Build static site
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ steps.site.outputs.url }}
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}
+          # Feedback form: issues on this repository unless a repository variable overrides it
+          # (Settings → Secrets and variables → Actions → Variables).
+          NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+          NEXT_PUBLIC_FEEDBACK_ENDPOINT: ${{ vars.FEEDBACK_ENDPOINT }}
+          NEXT_PUBLIC_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
+          NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: ${{ vars.ANALYTICS_SCRIPT_URL }}
+          NEXT_PUBLIC_ANALYTICS_SITE_ID: ${{ vars.ANALYTICS_SITE_ID }}
+
+      - name: Upload site artifact
+        if: env.DEPLOY == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Turns Pages on for the repository on the first run when the token is allowed to.
+          enablement: true
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

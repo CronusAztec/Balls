@@ -5,7 +5,7 @@ import Footer from "@/components/site/Footer";
 import { Link } from "@/i18n/navigation";
 import { getPosts } from "@/content/blog";
 import { formatPostDate } from "@/lib/markdown";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "../layout";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: t("metaTitle", { siteName: SITE_NAME }),
     description: t("metaDescription"),
-    alternates: { canonical: `${SITE_URL}/${locale}/blog`, languages: localeAlternates("/blog") },
+    alternates: { canonical: pageUrl(locale, "/blog"), languages: localeAlternates("/blog") },
   };
 }
 

@@ -25,5 +25,5 @@ yarn-error.log*
 .env*
 !.env.example
 
-# local data written by the feedback API (see src/app/api/feedback/route.ts)
-/data/
+# browser smoke-test output (screenshots, recorded clip)
+/smoke-output/

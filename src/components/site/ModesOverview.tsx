@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { MODE_CARD_ORDER } from "@/lib/modes";
+import { assetPath } from "@/lib/site";
 
 const cardClass =
   "bg-slate-900/40 backdrop-blur-sm border border-slate-800 rounded-3xl overflow-hidden flex flex-col cursor-pointer hover:border-cyan-500/30 hover:bg-slate-900/60 transition-all duration-300 group shadow-sm hover:shadow-cyan-500/5 hover:-translate-y-1";
@@ -21,7 +22,7 @@ export default function ModesOverview({ interactive = false }: { interactive?: b
     <>
       <div className="relative w-full aspect-video bg-slate-800/50 flex items-center justify-center overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/modes/${id}.webp`} alt={`${t(`${id}.name`)} mode preview`} loading="lazy" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        <img src={assetPath(`/modes/${id}.webp`)} alt={`${t(`${id}.name`)} mode preview`} loading="lazy" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       </div>
       <div className="p-6 flex flex-col gap-2">
         <h3 className="text-xl font-black text-white group-hover:text-cyan-400 transition-colors tracking-tight">{t(`${id}.name`)}</h3>

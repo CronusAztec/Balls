@@ -4,7 +4,7 @@ import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import SectionHeading from "@/components/site/SectionHeading";
 import { Link } from "@/i18n/navigation";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "../layout";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: t("metaTitle", v),
     description: t("metaDescription", v),
-    alternates: { canonical: `${SITE_URL}/${locale}/about`, languages: localeAlternates("/about") },
+    alternates: { canonical: pageUrl(locale, "/about"), languages: localeAlternates("/about") },
     openGraph: { title: t("metaOgTitle", v), description: t("metaOgDescription", v) },
   };
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import LegalPage from "@/components/site/LegalPage";
 import { Link } from "@/i18n/navigation";
-import { SITE_DOMAIN, SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_DOMAIN, SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "../layout";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: t("metaTitle", { siteName: SITE_NAME }),
     description: t("metaDescription", { siteDomain: SITE_DOMAIN }),
-    alternates: { canonical: `${SITE_URL}/${locale}/privacy`, languages: localeAlternates("/privacy") },
+    alternates: { canonical: pageUrl(locale, "/privacy"), languages: localeAlternates("/privacy") },
   };
 }
 

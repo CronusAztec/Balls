@@ -7,7 +7,7 @@ import ModesOverview from "@/components/site/ModesOverview";
 import FeedbackCta from "@/components/site/FeedbackCta";
 import Simulator from "@/components/simulator/Simulator";
 import EditorialSections from "@/components/site/EditorialSections";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "../layout";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -18,8 +18,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title,
     description,
-    alternates: { canonical: `${SITE_URL}/${locale}/simulator`, languages: localeAlternates("/simulator") },
-    openGraph: { title, description, url: `${SITE_URL}/${locale}/simulator`, siteName: SITE_NAME, type: "website" },
+    alternates: { canonical: pageUrl(locale, "/simulator"), languages: localeAlternates("/simulator") },
+    openGraph: { title, description, url: pageUrl(locale, "/simulator"), siteName: SITE_NAME, type: "website" },
   };
 }
 

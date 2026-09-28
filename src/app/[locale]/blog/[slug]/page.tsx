@@ -8,7 +8,7 @@ import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { getAllSlugs, getPost } from "@/content/blog";
 import { formatPostDate, renderMarkdown } from "@/lib/markdown";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "../../layout";
 
 export function generateStaticParams() {
@@ -22,8 +22,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: `${post.title} – ${SITE_NAME}`,
     description: post.description,
-    alternates: { canonical: `${SITE_URL}/${locale}/blog/${slug}`, languages: localeAlternates(`/blog/${slug}`) },
-    openGraph: { title: post.title, description: post.description, type: "article", publishedTime: post.date, url: `${SITE_URL}/${locale}/blog/${slug}` },
+    alternates: { canonical: pageUrl(locale, `/blog/${slug}`), languages: localeAlternates(`/blog/${slug}`) },
+    openGraph: { title: post.title, description: post.description, type: "article", publishedTime: post.date, url: pageUrl(locale, `/blog/${slug}`) },
   };
 }
 
@@ -45,7 +45,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ local
           inLanguage: post.locale,
           author: { "@type": "Organization", name: SITE_NAME },
           publisher: { "@type": "Organization", name: SITE_NAME },
-          mainEntityOfPage: `${SITE_URL}/${locale}/blog/${slug}`,
+          mainEntityOfPage: pageUrl(locale, `/blog/${slug}`),
         }}
       />
       <Navbar backHref="/blog" backLabel={t("back")} />

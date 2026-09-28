@@ -12,7 +12,7 @@ import FAQ from "@/components/site/FAQ";
 import { FAQ_KEYS } from "@/lib/faq";
 import BlogPreview from "@/components/site/BlogPreview";
 import JsonLd from "@/components/site/JsonLd";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -34,7 +34,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: SITE_NAME,
-    url: SITE_URL,
+    url: pageUrl(locale),
     description: layout("metaDescription"),
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
@@ -45,7 +45,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30 font-sans">
-      <JsonLd data={{ "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url: SITE_URL }} />
+      <JsonLd data={{ "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url: `${SITE_URL}/` }} />
       <JsonLd data={appJsonLd} />
       <JsonLd data={faqJsonLd} />
       <Navbar />

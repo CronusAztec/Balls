@@ -551,6 +551,11 @@
     "successMessage": "Hemos recibido tus comentarios. Agradecemos mucho que dediques tiempo a ayudar a mejorar {siteName}.",
     "sendAnother": "Enviar otro",
     "errorMessage": "Algo salió mal. Inténtalo de nuevo más tarde.",
+    "submitEmail": "Enviar por correo",
+    "submitGithub": "Abrir un issue en GitHub",
+    "successEmail": "Tu aplicación de correo debería abrirse ahora con el mensaje ya redactado. Si no ha pasado nada, puede que tu navegador bloquee los enlaces mailto.",
+    "successGithub": "Se ha abierto en una pestaña nueva un formulario de issue de GitHub con tu mensaje. Envíalo allí para terminar.",
+    "notConfigured": "Este sitio aún no tiene configurado un canal de comentarios. Si lo administras, define NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL o NEXT_PUBLIC_GITHUB_REPO antes de compilar.",
     "cta": "¿Falta algo? ¿Quieres informar de un error? ¡Cuéntanoslo!"
   },
   "TikTokBallVideos": {

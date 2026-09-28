@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import FeedbackForm from "@/components/site/FeedbackForm";
-import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "../layout";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: t("metaTitle", { siteName: SITE_NAME }),
     description: t("metaDescription", { siteName: SITE_NAME }),
-    alternates: { canonical: `${SITE_URL}/${locale}/feedback`, languages: localeAlternates("/feedback") },
+    alternates: { canonical: pageUrl(locale, "/feedback"), languages: localeAlternates("/feedback") },
     robots: { index: false },
   };
 }

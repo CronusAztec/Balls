@@ -771,6 +771,11 @@
     "successMessage": "Your feedback has been received. We really appreciate you taking the time to help improve {siteName}.",
     "sendAnother": "Send another",
     "errorMessage": "Something went wrong. Please try again later.",
+    "submitEmail": "Send by email",
+    "submitGithub": "Open a GitHub issue",
+    "successEmail": "Your email app should now open with the message prefilled. If nothing happened, your browser may be blocking mailto links.",
+    "successGithub": "A GitHub issue form with your message opened in a new tab. Submit it there to finish.",
+    "notConfigured": "This site has no feedback channel configured yet. If you run it, set NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL or NEXT_PUBLIC_GITHUB_REPO before building.",
     "cta": "Missing something? Want to report a bug? Let us know!"
   },
   "TikTokBallVideos": {
