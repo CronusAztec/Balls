@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
+import { CUSTOM_HIT_SAMPLE_ID, HIT_SAMPLES, HIT_SOUND_MODES } from "@/lib/audio/sampler";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
@@ -32,6 +33,9 @@ export interface ControlsProps {
   onCustomMidiUpload: (file: File) => void;
   customWallBreakName: string | null;
   onWallBreakSoundUpload: (file: File) => void;
+  /** Name of the hit sample uploaded in this session (selectable as "custom"), if any. */
+  customHitSampleName: string | null;
+  onHitSampleUpload: (file: File) => void;
   savedPresetNames: string[];
   onSavePreset: (name: string) => void;
   onLoadPreset: (name: string) => void;
@@ -45,7 +49,7 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
-  sound: ["song", "importMidi", "wallBreakSound", "importWallBreak"],
+  sound: ["hitSoundMode", "hitSample", "importHitSample", "hitSamplePitchByWall", "hitSampleVolume", "song", "importMidi", "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
 
@@ -181,6 +185,43 @@ function Toggle({
         {value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}
       </button>
     </div>
+  );
+}
+
+function AudioDropZone({ idleText, dragText, onFile }: { idleText: string; dragText: string; onFile: (file: File) => void }) {
+  const [drag, setDrag] = useState(false);
+  return (
+    <label
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDrag(true);
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDrag(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) onFile(file);
+      }}
+      className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
+        drag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+      }`}
+    >
+      <span className="text-lg">{drag ? "📥" : "📁"}</span>
+      <span className="font-semibold">{drag ? dragText : idleText}</span>
+      <input
+        type="file"
+        accept=".mp3,.wav,.ogg,.aac,.m4a,.flac,.webm,audio/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            onFile(file);
+            e.target.value = "";
+          }
+        }}
+      />
+    </label>
   );
 }
 
@@ -548,6 +589,63 @@ export default function Controls(props: ControlsProps) {
   const soundSection = () => (
     <div className="space-y-4">
       <ResetButton search={search} t={t} section="sound" onReset={props.onResetSection} />
+      <Searchable search={search} matches={matches} labelKey="hitSoundMode">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300">
+            {t("hitSoundMode")}
+            <Tooltip text={t("hitSoundModeTip")} />
+          </label>
+          <div className="flex gap-1" role="group" aria-label={t("hitSoundMode")}>
+            {HIT_SOUND_MODES.map((mode) => (
+              <button
+                type="button"
+                key={mode}
+                onClick={() => update({ hitSoundMode: mode })}
+                aria-pressed={s.hitSoundMode === mode}
+                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.hitSoundMode === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+              >
+                {mode === "tones" ? `🎹 ${t("hitSoundModeTones")}` : `🎧 ${t("hitSoundModeSample")}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Searchable>
+      {s.hitSoundMode === "sample" && (
+        <>
+          <Searchable search={search} matches={matches} labelKey="hitSample">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-300" htmlFor="hit-sample-select">
+                {t("hitSample")}
+              </label>
+              <p className="text-xs text-zinc-500 leading-relaxed">{t("hitSampleDesc")}</p>
+              <select
+                id="hit-sample-select"
+                value={s.hitSampleId}
+                onChange={(e) => update({ hitSampleId: e.target.value })}
+                className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none"
+              >
+                {HIT_SAMPLES.map((sample) => (
+                  <option key={sample.id} value={sample.id}>
+                    {t(sample.nameKey)}
+                  </option>
+                ))}
+                {props.customHitSampleName && <option value={CUSTOM_HIT_SAMPLE_ID}>{t("hitSampleCustomOption", { name: props.customHitSampleName })}</option>}
+              </select>
+            </div>
+          </Searchable>
+          <Searchable search={search} matches={matches} labelKey="importHitSample">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-300">{t("importHitSample")}</label>
+              <AudioDropZone idleText={t("chooseHitSampleFile")} dragText={t("dropHitSampleHere")} onFile={props.onHitSampleUpload} />
+            </div>
+          </Searchable>
+          <Searchable search={search} matches={matches} labelKey="hitSamplePitchByWall">
+            <Toggle t={t} labelKey="hitSamplePitchByWall" tipKey="hitSamplePitchByWallTip" value={s.hitSamplePitchByWall} onChange={(v) => update({ hitSamplePitchByWall: v })} caseStyle="title" />
+          </Searchable>
+          <Slider t={t} search={search} matches={matches} labelKey="hitSampleVolume" tipKey="hitSampleVolumeTip" value={s.hitSampleVolume} range={RANGES.hitSampleVolume} onChange={(v) => update({ hitSampleVolume: v })} display={`${Math.round(s.hitSampleVolume * 100)}%`} left="🔈" right="🔊" />
+        </>
+      )}
+      {s.hitSoundMode === "tones" && (
       <Searchable search={search} matches={matches} labelKey="song">
         <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-300" htmlFor="song-select">
@@ -575,7 +673,8 @@ export default function Controls(props: ControlsProps) {
           </select>
         </div>
       </Searchable>
-      {showAdvanced && (
+      )}
+      {s.hitSoundMode === "tones" && showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="importMidi">
           <div className="space-y-2">
             <label className="text-sm font-medium text-zinc-300">{t("importMidi")}</label>
@@ -1126,7 +1225,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     case "visual":
       return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
     case "sound":
-      return { wallBreakSound: null };
+      return { wallBreakSound: null, hitSoundMode: d.hitSoundMode, hitSampleId: d.hitSampleId, hitSamplePitchByWall: d.hitSamplePitchByWall, hitSampleVolume: d.hitSampleVolume };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
   }

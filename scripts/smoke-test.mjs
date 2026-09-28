@@ -46,7 +46,7 @@ check("root redirects to a locale", /\/(en|pl|es)\/$/.test(page.url()), `(${page
   const h1 = await page.locator("h1").first().innerText().catch(() => "");
   check("unknown URL serves localised 404", res.status() === 404 && (await page.evaluate(() => document.documentElement.lang)) === "pl" && h1.length > 0, `(${res.status()}, lang=${await page.evaluate(() => document.documentElement.lang)}, h1="${h1}")`);
 }
-for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/modes/classic.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
+for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
   const res = await page.request.get(`${BASE}${asset}`);
   check(`asset ${asset}`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
 }
@@ -126,6 +126,23 @@ await page.getByRole("button", { name: "Save", exact: true }).click();
 check("preset saved", await page.getByText("smoke", { exact: true }).isVisible());
 const stored = await page.evaluate(() => localStorage.getItem("viralballs_saved_settings"));
 check("preset persisted to localStorage", !!stored && stored.includes("smoke"));
+
+// 4a. Custom hit sample: switch the bounce sound to a sample, pick a built-in clip, check the URL and that it decodes
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+await page.getByRole("button", { name: /Audio sample/ }).click();
+const hitSampleSelect = page.locator("#hit-sample-select");
+check("hit sample controls appear in sample mode", await hitSampleSelect.isVisible() && (await page.locator('input[aria-label="Sample Volume"]').isVisible()));
+await hitSampleSelect.selectOption("kick");
+await page.waitForTimeout(1500);
+check("hit sample settings mirrored into the URL", page.url().includes("hsm=sample") && page.url().includes("hs=kick"), `(${page.url().split("?")[1]})`);
+// The only toggle rendered in the open Sound section is "Pitch by Wall" (its button reads "On").
+await page.getByRole("button", { name: "On", exact: true }).click();
+await page.waitForTimeout(200);
+check("pitch-by-wall toggle mirrored into the URL", page.url().includes("hspw=0"), `(${page.url().split("?")[1]})`);
+await page.getByRole("button", { name: /Synth tones/ }).click();
+await page.waitForTimeout(200);
+check("song picker returns in tones mode", (await page.locator("#song-select").isVisible()) && !page.url().includes("hsm="));
+await page.getByRole("button", { name: /Custom Sound/ }).click();
 
 // 4b. Text inputs keep focus while typing (helper components must not remount)
 await page.getByRole("button", { name: /Recording/ }).click();

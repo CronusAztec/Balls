@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""Synthesises the built-in wall-break sound effects (public/wallBreak/*.wav).
+"""Synthesises the built-in sound effects:
+
+- public/wallBreak/*.wav  – wall-break sounds (pop, chime)
+- public/hitSounds/*.wav  – short hit samples played on every wall bounce (click, pluck, kick)
 
 Pure Python (no numpy). Run `python3 scripts/generate-sounds.py` to regenerate.
+The hit samples are pitched per wall at playback time (see src/lib/audio/sampler.ts), so
+they are rendered at their natural pitch and kept short.
 """
 from __future__ import annotations
 
 import math
+import random
 import struct
 import wave
 from pathlib import Path
@@ -51,12 +57,74 @@ def chime(duration: float = 0.9) -> list[float]:
     return out
 
 
+# ---------------------------------------------------------------- hit samples
+
+
+def click(duration: float = 0.07) -> list[float]:
+    """A crisp percussive tick: a short filtered-noise burst under a fast-decaying high sine."""
+    rng = random.Random(7)
+    out = []
+    n = int(RATE * duration)
+    prev = 0.0
+    for i in range(n):
+        t = i / RATE
+        # one-pole low-pass on white noise keeps the burst from sounding harsh
+        prev = prev * 0.6 + (rng.random() * 2 - 1) * 0.4
+        noise = prev * math.exp(-t * 180)
+        tone = math.sin(2 * math.pi * 2400 * t) * math.exp(-t * 90)
+        body = math.sin(2 * math.pi * 620 * t) * math.exp(-t * 60) * 0.5
+        out.append((noise * 0.7 + tone * 0.5 + body) * 0.8)
+    return out
+
+
+def pluck(duration: float = 0.35, freq: float = 440.0) -> list[float]:
+    """Karplus-Strong plucked string at A4."""
+    rng = random.Random(11)
+    period = int(RATE / freq)
+    ring = [rng.random() * 2 - 1 for _ in range(period)]
+    out = []
+    n = int(RATE * duration)
+    idx = 0
+    for i in range(n):
+        t = i / RATE
+        nxt = (idx + 1) % period
+        sample = ring[idx]
+        ring[idx] = (ring[idx] + ring[nxt]) * 0.5 * 0.996
+        idx = nxt
+        env = min(1.0, t * 400) * math.exp(-t * 6)
+        out.append(sample * env * 0.85)
+    return out
+
+
+def kick(duration: float = 0.28) -> list[float]:
+    """Electronic kick drum: a sine sweeping down from 160 Hz to 45 Hz plus a click transient."""
+    out = []
+    n = int(RATE * duration)
+    phase = 0.0
+    for i in range(n):
+        t = i / RATE
+        freq = 45 + 115 * math.exp(-t * 28)
+        phase += 2 * math.pi * freq / RATE
+        body = math.sin(phase) * math.exp(-t * 9)
+        transient = math.sin(2 * math.pi * 1800 * t) * math.exp(-t * 350) * 0.4
+        out.append(max(-1.0, min(1.0, (body + transient) * 1.1)) * 0.9)
+    return out
+
+
 def main() -> None:
-    out = Path(__file__).resolve().parent.parent / "public" / "wallBreak"
-    out.mkdir(parents=True, exist_ok=True)
-    write_wav(out / "pop.wav", pop())
-    write_wav(out / "chime.wav", chime())
-    print("wrote pop.wav and chime.wav")
+    root = Path(__file__).resolve().parent.parent / "public"
+    wall_break = root / "wallBreak"
+    wall_break.mkdir(parents=True, exist_ok=True)
+    write_wav(wall_break / "pop.wav", pop())
+    write_wav(wall_break / "chime.wav", chime())
+    print("wrote wallBreak/pop.wav and wallBreak/chime.wav")
+
+    hit = root / "hitSounds"
+    hit.mkdir(parents=True, exist_ok=True)
+    write_wav(hit / "click.wav", click())
+    write_wav(hit / "pluck.wav", pluck())
+    write_wav(hit / "kick.wav", kick())
+    print("wrote hitSounds/click.wav, hitSounds/pluck.wav and hitSounds/kick.wav")
 
 
 if __name__ == "__main__":

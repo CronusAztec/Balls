@@ -175,6 +175,23 @@
     "importWallBreak": "Import Custom Wall Break Sound",
     "chooseWallBreakFile": "Choose audio file",
     "dropWallBreakHere": "Drop your audio file here!",
+    "hitSoundMode": "Bounce Sound",
+    "hitSoundModeTip": "What plays when the ball bounces off a wall: the synthesised tones (or a melody) or an audio clip of your own.",
+    "hitSoundModeTones": "Synth tones",
+    "hitSoundModeSample": "Audio sample",
+    "hitSample": "Hit Sample",
+    "hitSampleDesc": "Pick a built-in clip or upload your own. It plays on every wall bounce and is included in recordings.",
+    "hitSampleClick": "Click",
+    "hitSamplePluck": "Pluck",
+    "hitSampleKick": "Kick",
+    "hitSampleCustomOption": "Uploaded: {name}",
+    "importHitSample": "Import Custom Hit Sound",
+    "chooseHitSampleFile": "Choose audio file",
+    "dropHitSampleHere": "Drop your audio file here!",
+    "hitSamplePitchByWall": "Pitch by Wall",
+    "hitSamplePitchByWallTip": "Inner walls play the clip at a higher pitch and outer walls lower, following the same curve as the default tones.",
+    "hitSampleVolume": "Sample Volume",
+    "hitSampleVolumeTip": "Loudness of the hit sample relative to the other sounds.",
     "customSoundDesc": "Choose a song to use its melody as bounce sounds. Each wall hit plays the next note from the song.",
     "song": "Song",
     "defaultSong": "Default tones",
@@ -373,7 +390,7 @@
     },
     "customSound": {
       "name": "Custom Sound",
-      "description": "Pick a melody from the built-in library or import your own MIDI file. Every wall hit plays the next note of the song."
+      "description": "Pick a melody from the built-in library, import your own MIDI file, or play an audio clip – built-in or uploaded – on every wall hit."
     }
   },
   "FAQ": {
@@ -411,7 +428,7 @@
     },
     "q9": {
       "question": "How does the custom sound feature work?",
-      "answer": "In the Custom Sound section, choose a song from the built-in library or import a MIDI file. The melody is extracted from the file and every wall hit plays its next note, turning the run into a musical performance."
+      "answer": "In the Custom Sound section, choose a song from the built-in library or import a MIDI file. The melody is extracted from the file and every wall hit plays its next note, turning the run into a musical performance. Prefer a sound effect? Switch Bounce Sound to Audio sample and pick a built-in click, pluck or kick, or upload your own clip – it is pitched per wall and included in the recording."
     },
     "q10": {
       "question": "What makes {siteName} a satisfying ball simulator?",
@@ -503,7 +520,7 @@
       "spikes": { "name": "Spikes", "what": "Adds hazards inside the ring for tension." },
       "customBall": { "name": "Custom ball", "what": "Puts your own image or an emoji on the ball." },
       "textOverlay": { "name": "Text overlay", "what": "Adds a top and bottom caption over the canvas." },
-      "customSound": { "name": "Custom sound", "what": "Use a built-in melody or import your own MIDI." },
+      "customSound": { "name": "Custom sound", "what": "Use a built-in melody, import your own MIDI, or play an audio clip on every bounce." },
       "watermark": { "name": "Watermark", "what": "Stamps your handle so reposts still credit you." },
       "speed": { "name": "Speed (1x to 8x)", "what": "Fast-forwards a long run while you preview." },
       "findSimulation": { "name": "Find simulation", "what": "Searches for a run that hits a target length." },

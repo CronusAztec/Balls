@@ -1,8 +1,11 @@
+import { HitSampler, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSoundMode } from "./sampler";
+
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
- * or the next note of a loaded melody); gap passes play a rising four-note arpeggio or a
- * custom audio clip. Everything is routed through a master gain and also into a
- * MediaStreamDestination so the recorder can capture the audio track.
+ * or the next note of a loaded melody) or, in "sample" mode, a custom audio clip through
+ * the HitSampler; gap passes play a rising four-note arpeggio or a custom audio clip.
+ * Everything is routed through a master gain and also into a MediaStreamDestination so
+ * the recorder can capture the audio track.
  */
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
@@ -20,6 +23,11 @@ export class ToneGenerator {
   private wallBreakBuffer: AudioBuffer | null = null;
   private wallBreakDecoding = false;
   private volume = 1;
+  private sampler: HitSampler | null = null;
+  private hitSoundMode: HitSoundMode = "tones";
+  private hitSampleUrl: string | null = null;
+  private hitSamplePitchByWall = true;
+  private hitSampleVolume = 1;
 
   async start() {
     if (this.isPlaying) return;
@@ -58,10 +66,64 @@ export class ToneGenerator {
         this.analyser.smoothingTimeConstant = 0.8;
         this.analyser.connect(this.masterGain);
       }
+      if (!this.sampler) {
+        // Hit samples share the master gain, so they reach the speakers and the recording.
+        this.sampler = new HitSampler(this.audioContext, this.masterGain);
+        this.sampler.setVolume(this.hitSampleVolume);
+      }
       this.isInitialized = true;
+      this.ensureHitSampleLoaded();
     } catch (err) {
       console.error("Failed to create audio context:", err);
     }
+  }
+
+  /* ------------------------------------------------------------ hit samples */
+
+  /** "tones" (synth / melody) or "sample" (the clip set with setHitSample). */
+  setHitSoundMode(mode: HitSoundMode) {
+    this.hitSoundMode = mode;
+    if (mode === "sample") this.ensureHitSampleLoaded();
+  }
+
+  /** Asset path or blob: URL of the clip to play on every wall hit (null clears it). */
+  setHitSample(url: string | null) {
+    if (this.hitSampleUrl === url) return;
+    this.hitSampleUrl = url;
+    if (!url) {
+      void this.sampler?.load(null);
+      return;
+    }
+    if (this.hitSoundMode === "sample") this.ensureHitSampleLoaded();
+  }
+
+  setHitSamplePitchByWall(enabled: boolean) {
+    this.hitSamplePitchByWall = enabled;
+  }
+
+  setHitSampleVolume(volume: number) {
+    this.hitSampleVolume = Math.max(0, Math.min(1, volume));
+    this.sampler?.setVolume(this.hitSampleVolume);
+  }
+
+  /**
+   * Decodes the selected clip once sample mode is on. Creates the audio graph if needed
+   * (initAudioGraph calls back here once the sampler exists); the sampler itself dedupes
+   * repeated loads of the same URL.
+   */
+  private ensureHitSampleLoaded() {
+    if (this.hitSoundMode !== "sample" || !this.hitSampleUrl) return;
+    if (!this.isInitialized) {
+      this.initAudioGraph();
+      return;
+    }
+    const sampler = this.sampler;
+    if (!sampler || sampler.getLoadedUrl() === this.hitSampleUrl) return;
+    void sampler.load(this.hitSampleUrl);
+  }
+
+  isHitSampleReady(): boolean {
+    return !!this.sampler?.isReady();
   }
 
   setVolume(v: number) {
@@ -105,6 +167,10 @@ export class ToneGenerator {
   private scheduleHit(wallIndex: number) {
     if (!this.audioContext || !this.masterGain) return;
     const now = this.audioContext.currentTime;
+    if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
+      this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall), now);
+      return;
+    }
     try {
       let frequency: number;
       let duration: number;
@@ -119,7 +185,7 @@ export class ToneGenerator {
         duration = 0.25;
         gain = 0.35;
       } else {
-        frequency = Math.max(300, 800 - 80 * wallIndex);
+        frequency = wallHitFrequency(wallIndex);
         type = "triangle";
         duration = 0.15;
         gain = 0.25;
@@ -222,6 +288,10 @@ export class ToneGenerator {
   }
 
   stop() {
+    if (this.sampler) {
+      this.sampler.dispose();
+      this.sampler = null;
+    }
     if (this.silentOsc) {
       this.silentOsc.stop();
       this.silentOsc.disconnect();
