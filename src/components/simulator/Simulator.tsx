@@ -8,6 +8,7 @@ import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./C
 import Tooltip from "./Tooltip";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { ModeId } from "@/lib/physics/types";
+import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl } from "@/lib/audio/sampler";
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
@@ -44,6 +45,7 @@ export default function Simulator() {
   const finderAbortRef = useRef<AbortController | null>(null);
   const autoPausedRef = useRef(false);
   const wallBreakObjectUrlRef = useRef<string | null>(null);
+  const hitSampleObjectUrlRef = useRef<string | null>(null);
 
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
   const [settings, setSettings] = useState<SimulatorSettings>(() => settingsFromSearchParams(new URLSearchParams(searchParams.toString())));
@@ -62,6 +64,8 @@ export default function Simulator() {
   const [customSoundNoteCount, setCustomSoundNoteCount] = useState(0);
   const [customMidiName, setCustomMidiName] = useState<string | null>(null);
   const [customWallBreakName, setCustomWallBreakName] = useState<string | null>(null);
+  // The uploaded hit sample stays in memory (blob: URL); settings refer to it as "custom".
+  const [customHitSample, setCustomHitSample] = useState<{ name: string; url: string } | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(30);
   const [findTolerance] = useState(0.5);
@@ -207,6 +211,19 @@ export default function Simulator() {
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
+  useEffect(() => {
+    audioRef.current?.setHitSoundMode(s.hitSoundMode);
+  }, [s.hitSoundMode]);
+  useEffect(() => {
+    const url = s.hitSampleId === CUSTOM_HIT_SAMPLE_ID ? (customHitSample?.url ?? null) : builtInHitSampleUrl(s.hitSampleId);
+    audioRef.current?.setHitSample(url);
+  }, [s.hitSampleId, customHitSample]);
+  useEffect(() => {
+    audioRef.current?.setHitSamplePitchByWall(s.hitSamplePitchByWall);
+  }, [s.hitSamplePitchByWall]);
+  useEffect(() => {
+    audioRef.current?.setHitSampleVolume(s.hitSampleVolume);
+  }, [s.hitSampleVolume]);
 
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
@@ -249,7 +266,16 @@ export default function Simulator() {
       setIsPaused(false);
       setFinished(false);
       audioRef.current?.resetCustomNoteIndex();
-      const fresh = { ...defaultSettings(mode), recordingResolution: settings.recordingResolution, watermarkText: settings.watermarkText, wallBreakSound: settings.wallBreakSound };
+      const fresh = {
+        ...defaultSettings(mode),
+        recordingResolution: settings.recordingResolution,
+        watermarkText: settings.watermarkText,
+        wallBreakSound: settings.wallBreakSound,
+        hitSoundMode: settings.hitSoundMode,
+        hitSampleId: settings.hitSampleId,
+        hitSamplePitchByWall: settings.hitSamplePitchByWall,
+        hitSampleVolume: settings.hitSampleVolume,
+      };
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -267,7 +293,7 @@ export default function Simulator() {
         initEngineForMode(engine, fresh);
       }
     },
-    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, initEngineForMode],
+    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, initEngineForMode],
   );
 
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
@@ -480,6 +506,17 @@ export default function Simulator() {
     [update],
   );
 
+  const onHitSampleUpload = useCallback(
+    (file: File) => {
+      if (hitSampleObjectUrlRef.current) URL.revokeObjectURL(hitSampleObjectUrlRef.current);
+      const url = URL.createObjectURL(file);
+      hitSampleObjectUrlRef.current = url;
+      setCustomHitSample({ name: file.name, url });
+      update({ hitSampleId: CUSTOM_HIT_SAMPLE_ID, hitSoundMode: "sample" });
+    },
+    [update],
+  );
+
   const onCustomSoundSelect = useCallback(async (id: string | null) => {
     if (!id) {
       audioRef.current?.clearCustomNotes();
@@ -550,6 +587,8 @@ export default function Simulator() {
       setIsSearching(false);
       setSearchResult(null);
       const loaded = presetToSettings(preset);
+      // A preset saved with an uploaded clip can only use it while that upload is still in memory.
+      if (preset.hitSampleId === CUSTOM_HIT_SAMPLE_ID && customHitSample) loaded.hitSampleId = CUSTOM_HIT_SAMPLE_ID;
       setSettings(loaded);
       const engine = engineRef.current;
       if (engine) {
@@ -571,7 +610,7 @@ export default function Simulator() {
       setIsPaused(false);
       setFinished(false);
     },
-    [presets, initEngineForMode],
+    [presets, customHitSample, initEngineForMode],
   );
 
   const onDeletePreset = useCallback(
@@ -950,6 +989,8 @@ export default function Simulator() {
             onCustomMidiUpload={onCustomMidiUpload}
             customWallBreakName={customWallBreakName}
             onWallBreakSoundUpload={onWallBreakSoundUpload}
+            customHitSampleName={customHitSample?.name ?? null}
+            onHitSampleUpload={onHitSampleUpload}
             savedPresetNames={Object.keys(presets)}
             onSavePreset={onSavePreset}
             onLoadPreset={onLoadPreset}

@@ -1,4 +1,5 @@
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
+import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -66,6 +67,12 @@ export interface SimulatorSettings {
   recordingResolution: string;
   recordingDuration: number;
   wallBreakSound: string | null;
+  // Hit sound: synthesised tones or an audio clip on every wall bounce
+  hitSoundMode: HitSoundMode;
+  /** Built-in sample id, or "custom" for the clip uploaded in this session. */
+  hitSampleId: string;
+  hitSamplePitchByWall: boolean;
+  hitSampleVolume: number;
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -123,6 +130,10 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     recordingResolution: "1080x1920",
     recordingDuration: 30,
     wallBreakSound: null,
+    hitSoundMode: "tones",
+    hitSampleId: DEFAULT_HIT_SAMPLE_ID,
+    hitSamplePitchByWall: true,
+    hitSampleVolume: 0.8,
   };
 }
 
@@ -145,6 +156,7 @@ export const RANGES = {
   colorMatchColorCount: { min: 2, max: 7, step: 1 },
   growRate: { min: 3, max: 10, step: 1 },
   findDuration: { min: 30, max: 120, step: 1 },
+  hitSampleVolume: { min: 0, max: 1, step: 0.05 },
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -175,6 +187,7 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   sc: "spikeCount",
   msc: "multiplySpawnCount",
   ts: "textSize",
+  hsv: "hitSampleVolume",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -197,6 +210,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   glines: "growLines",
   ldot: "linesCenterDot",
   cine: "cinematicEnabled",
+  hspw: "hitSamplePitchByWall",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -227,6 +241,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.wallBreakStyle !== base.wallBreakStyle) params.set("wbreak", settings.wallBreakStyle);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
+  if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
+  // An uploaded clip cannot travel in a link, so "custom" is left out (the reader falls back to the default sample).
+  if (settings.hitSampleId !== base.hitSampleId && settings.hitSampleId !== "custom") params.set("hs", settings.hitSampleId);
   return params;
 }
 
@@ -262,7 +279,16 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (res && (RESOLUTIONS as readonly string[]).includes(res)) settings.recordingResolution = res;
   const dur = Number(params.get("dur"));
   if (Number.isFinite(dur) && dur >= RANGES.recordingDuration.min && dur <= RANGES.recordingDuration.max) settings.recordingDuration = dur;
+  const hsm = params.get("hsm");
+  if (isHitSoundMode(hsm)) settings.hitSoundMode = hsm;
+  const hs = params.get("hs");
+  if (hs !== null) settings.hitSampleId = normalizeHitSampleId(hs);
+  settings.hitSampleVolume = clampRange(settings.hitSampleVolume, RANGES.hitSampleVolume, defaultSettings(mode).hitSampleVolume);
   return settings;
+}
+
+function clampRange(value: number, range: { min: number; max: number }, fallback: number) {
+  return Number.isFinite(value) ? Math.max(range.min, Math.min(range.max, value)) : fallback;
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -290,10 +316,19 @@ export function savePresets(store: PresetStore) {
   }
 }
 
-/** Merges a stored preset over the defaults so presets saved by older versions still load. */
+/**
+ * Merges a stored preset over the defaults so presets saved by older versions still load.
+ * Uploaded media does not survive a reload, so a preset's "custom" hit sample falls back
+ * to the default built-in clip (like dead blob: wall-break URLs).
+ */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
-  return { ...defaultSettings(mode), ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
+  const defaults = defaultSettings(mode);
+  const merged = { ...defaults, ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
+  merged.hitSoundMode = isHitSoundMode(preset.hitSoundMode) ? preset.hitSoundMode : defaults.hitSoundMode;
+  merged.hitSampleId = normalizeHitSampleId(preset.hitSampleId);
+  merged.hitSampleVolume = clampRange(Number(merged.hitSampleVolume), RANGES.hitSampleVolume, defaults.hitSampleVolume);
+  return merged;
 }
 
 export function resolutionToSize(resolution: string): { width: number; height: number } {

@@ -16,7 +16,7 @@ static host – no server required.
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Visuals** | Rainbow walls (gradient / pulse), ball & wall glow, colour trail, trail thickness, reactive background, camera follow, wall-break effects (confetti, shatter, shockwave, all, none), custom ball image or emoji, top/bottom text overlays, watermark |
 | **Drama director** | A hidden "cinematic" layer that nudges rebounds for near-misses and dramatic escapes (toggle in advanced options) |
-| **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom wall-break sound clips |
+| **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom hit samples (3 built-in clips or your own upload on every bounce, optionally pitched per wall, included in recordings), custom wall-break sound clips |
 | **Recording** | MediaRecorder export in 500×500, 1280×720, 1920×1080 or 1080×1920, 10–120 s, with audio; MP4 where supported (Chrome, Safari), WebM elsewhere |
 | **Find Simulation** | Deterministic, seeded physics lets the finder search for a seed whose run lasts exactly N seconds |
 | **Presets & sharing** | Save/load presets in localStorage; every setting is mirrored into the URL for bookmarking and sharing |
@@ -54,7 +54,7 @@ npm test                                   # vitest unit tests (engine, MIDI par
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
 npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first)
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
-python3 scripts/generate-sounds.py         # regenerate the wall-break sound effects
+python3 scripts/generate-sounds.py         # regenerate the wall-break and hit sound effects
 ```
 
 ## Deploying to GitHub Pages
@@ -108,6 +108,7 @@ public/
   modes/*.webp          mode preview images (generated)
   notes/*.mid           built-in melodies (generated, public domain)
   wallBreak/*.wav       built-in wall-break sounds (generated)
+  hitSounds/*.wav       built-in hit samples: click, pluck, kick (generated)
 scripts/                asset generators, postexport.mjs (404.html/.nojekyll), serve-static.mjs (GitHub-Pages-like server), smoke test
 .github/workflows/      deploy.yml (lint · test · build · publish to GitHub Pages) · smoke.yml (browser test)
 src/
@@ -119,7 +120,7 @@ src/
   content/              blog posts (blog.en.ts, blog.pl.ts, blog.es.ts)
   i18n/                 next-intl routing + request config
   lib/physics/          engine.ts · director.ts · types.ts · modes/*.ts
-  lib/audio/            toneGenerator.ts · midi.ts · songs.ts
+  lib/audio/            toneGenerator.ts · sampler.ts (hit samples) · midi.ts · songs.ts
   lib/recording/        recorder.ts (MediaRecorder wrapper)
   lib/simulation/       finder.ts (seed search)
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
@@ -149,6 +150,8 @@ Append an object to `src/content/blog.en.ts` (and translations in `blog.pl.ts` /
 
 ### Add a melody or sound
 Drop a `.mid` file into `public/notes` and list it in `src/lib/audio/songs.ts` (`SONGS`); drop an audio file into `public/wallBreak` and list it in `WALL_BREAK_SOUNDS`. Wrap the paths in `assetPath()` (as the existing entries do) so they resolve under a base path.
+
+Built-in **hit samples** (the clips that can replace the bounce tone) live in `public/hitSounds` and are listed in `HIT_SAMPLES` in `src/lib/audio/sampler.ts` with a `nameKey` under `Controls` in every `messages/*.json`. `scripts/generate-sounds.py` synthesises the shipped ones. At runtime the `HitSampler` decodes a clip once and plays it through the ToneGenerator's master gain (so recordings include it) with up to 8 voices, a 20 ms fade and a playback rate per wall from `hitSamplePlaybackRate()`; `resolveHitSoundSource()` decides between tones and sample. The settings are `hitSoundMode` (URL `hsm`), `hitSampleId` (`hs`, built-in id or `custom` for the in-session upload, which never travels in links or presets), `hitSamplePitchByWall` (`hspw`) and `hitSampleVolume` (`hsv`).
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.
