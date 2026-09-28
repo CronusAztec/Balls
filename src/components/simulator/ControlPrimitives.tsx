@@ -26,6 +26,8 @@ export function sliderStyle(value: number, min: number, max: number) {
 export const onBtn = `bg-[#93d119] text-slate-950`;
 export const offBtn = "bg-zinc-800 text-zinc-300 hover:bg-zinc-700";
 export const rainbowBtn = "bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 text-white";
+/** Styling of the <select> pickers in the panel. */
+export const selectClass = "w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none";
 
 /** Wraps a control so the search box can show it on its own (or hide it) by its label key. */
 export function Searchable({ search, matches, labelKey, children }: { search: string; matches: Matcher; labelKey: string; children: ReactNode }) {

@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
-import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, sliderStyle } from "./ControlPrimitives";
+import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
+import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
-import { CUSTOM_HIT_SAMPLE_ID, HIT_SAMPLES, HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
+import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
@@ -68,48 +69,9 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
-  sound: ["hitSoundMode", "instrument", "hitSample", "importHitSample", "hitSamplePitchByWall", "hitSampleVolume", "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, "wallBreakSound", "importWallBreak"],
+  sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
-
-/** Drop zone for an audio file (hit-sample upload). The shared Slider/Toggle/… helpers live in ControlPrimitives.tsx. */
-function AudioDropZone({ inputId, idleText, dragText, onFile }: { inputId?: string; idleText: string; dragText: string; onFile: (file: File) => void }) {
-  const [drag, setDrag] = useState(false);
-  return (
-    <label
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDrag(true);
-      }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDrag(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) onFile(file);
-      }}
-      className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-        drag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
-      }`}
-    >
-      <span className="text-lg">{drag ? "📥" : "📁"}</span>
-      <span className="font-semibold">{drag ? dragText : idleText}</span>
-      <input
-        id={inputId}
-        type="file"
-        accept=".mp3,.wav,.ogg,.aac,.m4a,.flac,.webm,audio/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            onFile(file);
-            e.target.value = "";
-          }
-        }}
-      />
-    </label>
-  );
-}
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -465,7 +427,6 @@ export default function Controls(props: ControlsProps) {
     // the search box is in use, so the search finds them whatever the current mode is.
     const showToneControls = s.hitSoundMode === "tones" || !!search;
     const showSampleControls = s.hitSoundMode === "sample" || !!search;
-    const selectClass = "w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none";
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="sound" onReset={props.onResetSection} />
@@ -508,45 +469,7 @@ export default function Controls(props: ControlsProps) {
           </Searchable>
         )}
         {showSampleControls && (
-          <>
-            <Searchable search={search} matches={matches} labelKey="hitSample">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300" htmlFor="hit-sample-select">
-                  {t("hitSample")}
-                </label>
-                <p className="text-xs text-zinc-500 leading-relaxed">{t("hitSampleDesc")}</p>
-                <select id="hit-sample-select" value={s.hitSampleId} onChange={(e) => update({ hitSampleId: e.target.value })} className={selectClass}>
-                  {HIT_SAMPLES.map((sample) => (
-                    <option key={sample.id} value={sample.id}>
-                      {t(sample.nameKey)}
-                    </option>
-                  ))}
-                  {props.customHitSampleName && <option value={CUSTOM_HIT_SAMPLE_ID}>{t("hitSampleCustomOption", { name: props.customHitSampleName })}</option>}
-                </select>
-                {props.hitSampleStatus === "loading" && (
-                  <div className="flex items-center gap-2 text-xs text-zinc-400" role="status">
-                    <div className="w-3.5 h-3.5 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin" />
-                    {t("hitSampleLoading")}
-                  </div>
-                )}
-                {props.hitSampleStatus === "error" && (
-                  <p className="text-[11px] text-red-400 leading-relaxed" role="alert" data-testid="hit-sample-error">
-                    ⚠️ {t("hitSampleDecodeError")}
-                  </p>
-                )}
-              </div>
-            </Searchable>
-            <Searchable search={search} matches={matches} labelKey="importHitSample">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300">{t("importHitSample")}</label>
-                <AudioDropZone inputId="hit-sample-input" idleText={t("chooseHitSampleFile")} dragText={t("dropHitSampleHere")} onFile={props.onHitSampleUpload} />
-              </div>
-            </Searchable>
-            <Searchable search={search} matches={matches} labelKey="hitSamplePitchByWall">
-              <Toggle t={t} labelKey="hitSamplePitchByWall" tipKey="hitSamplePitchByWallTip" value={s.hitSamplePitchByWall} onChange={(v) => update({ hitSamplePitchByWall: v })} caseStyle="title" />
-            </Searchable>
-            <Slider t={t} search={search} matches={matches} labelKey="hitSampleVolume" tipKey="hitSampleVolumeTip" value={s.hitSampleVolume} range={RANGES.hitSampleVolume} onChange={(v) => update({ hitSampleVolume: v })} display={`${Math.round(s.hitSampleVolume * 100)}%`} left="🔈" right="🔊" />
-          </>
+          <HitSampleSection t={t} search={search} matches={matches} settings={s} update={update} customHitSampleName={props.customHitSampleName} hitSampleStatus={props.hitSampleStatus} onUpload={props.onHitSampleUpload} />
         )}
         {showToneControls && (
           <>
