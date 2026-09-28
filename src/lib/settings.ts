@@ -1,4 +1,5 @@
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
+import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
 
@@ -292,7 +293,7 @@ export function savePresets(store: PresetStore) {
 /** Merges a stored preset over the defaults so presets saved by older versions still load. */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
-  return { ...defaultSettings(mode), ...preset, mode };
+  return { ...defaultSettings(mode), ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
 }
 
 export function resolutionToSize(resolution: string): { width: number; height: number } {

@@ -57,9 +57,10 @@ python3 scripts/generate-sounds.py         # regenerate the wall-break sound eff
 
 The repository ships with `.github/workflows/deploy.yml`:
 
-1. **Enable Pages once**: repository *Settings → Pages → Build and deployment → Source: GitHub Actions*
-   (the workflow also tries to enable it on its first run). Private repositories need a paid GitHub plan for
-   Pages; public repositories work on the free plan.
+1. **Enable Pages once**: repository *Settings → Pages → Build and deployment → Source: GitHub Actions*.
+   The workflow cannot do this for you; until it is done the *deploy* job stops with a message saying so.
+   Private repositories need a paid GitHub plan (Pro, Team or Enterprise) for Pages; public repositories work on
+   the free plan.
 2. **Push to the default branch** (or run the workflow manually from the *Actions* tab). Every push is linted,
    type-checked, unit-tested and built; pushes to the default branch are then published.
 3. The site appears at `https://<user>.github.io/<repo>/` – for this repository

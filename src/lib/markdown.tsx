@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import Link from "next/link";
 
 /**
  * A deliberately small Markdown renderer for blog posts: headings (##, ###), paragraphs,
@@ -19,6 +20,15 @@ export function renderInline(text: string): ReactNode[] {
     const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
     if (link) {
       const href = link[2];
+      if (href.startsWith("/")) {
+        // Site-internal link (written with its locale, e.g. /en/simulator): next/link adds the
+        // base path and trailing slash of the static export.
+        return (
+          <Link key={i} href={href}>
+            {link[1]}
+          </Link>
+        );
+      }
       const external = /^https?:\/\//.test(href);
       return (
         <a key={i} href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}>

@@ -92,11 +92,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # The workflow token cannot switch Pages on; a person has to do it once in the repository
+      # settings. Fail with instructions instead of the raw API error.
+      - name: Check that GitHub Pages is enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh api "repos/${GITHUB_REPOSITORY}/pages" --silent 2>/dev/null; then
+            echo "::error title=GitHub Pages is not enabled for this repository::Enable it once under Settings → Pages → Build and deployment → Source: \"GitHub Actions\", then re-run this workflow. Private repositories need GitHub Pro, Team or Enterprise for Pages; otherwise make the repository public."
+            exit 1
+          fi
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-        with:
-          # Turns Pages on for the repository on the first run when the token is allowed to.
-          enablement: true
 
       - name: Deploy
         id: deployment

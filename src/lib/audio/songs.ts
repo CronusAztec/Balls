@@ -32,3 +32,15 @@ export const WALL_BREAK_SOUNDS: { id: string; name: string; url: string }[] = [
   { id: "pop", name: "Pop", url: assetPath("/wallBreak/pop.wav") },
   { id: "chime", name: "Chime", url: assetPath("/wallBreak/chime.wav") },
 ];
+
+/**
+ * Presets and share links may carry a wall-break sound URL saved under another base path
+ * (or a dead blob: URL from a custom upload). Maps built-in sounds back to their current URL,
+ * drops dead uploads and leaves anything else untouched.
+ */
+export function normalizeWallBreakSound(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.startsWith("blob:")) return null;
+  const builtIn = WALL_BREAK_SOUNDS.find((snd) => value === snd.url || value.endsWith(`/wallBreak/${snd.id}.wav`));
+  return builtIn ? builtIn.url : value;
+}
