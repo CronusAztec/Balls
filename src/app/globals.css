@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/*
+ * Theme tokens.
+ * The original design maps Tailwind's cyan/blue/purple scales to a lime-green accent
+ * and uses a neutral, slightly warm dark palette. Overriding the tokens here means every
+ * `bg-cyan-600`, `text-blue-500`, `border-zinc-800` etc. in the components renders with
+ * the intended colours. Change the accent by editing --color-cyan-500 / -600 below.
+ */
+@theme {
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-bricolage), var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+
+  --color-cyan-300: #d8ff7a;
+  --color-cyan-400: #c6ff3d;
+  --color-cyan-500: #b0f02a;
+  --color-cyan-600: #93d119;
+
+  --color-blue-300: #d8ff7a;
+  --color-blue-400: #c6ff3d;
+  --color-blue-500: #b0f02a;
+  --color-blue-600: #93d119;
+  --color-blue-800: #2e3a0e;
+  --color-blue-900: #1e260a;
+
+  --color-indigo-500: #b0f02a;
+  --color-purple-300: #d8ff7a;
+  --color-purple-500: #b0f02a;
+  --color-purple-600: #93d119;
+
+  --color-slate-50: #f7f7f2;
+  --color-slate-300: #bfbfc6;
+  --color-slate-400: #9a9aa2;
+  --color-slate-500: #6e6e76;
+  --color-slate-700: #2f2f34;
+  --color-slate-800: #202024;
+  --color-slate-900: #141417;
+  --color-slate-950: #0b0b0d;
+
+  --color-zinc-200: #dddde0;
+  --color-zinc-300: #bfbfc6;
+  --color-zinc-400: #9a9aa2;
+  --color-zinc-500: #6e6e76;
+  --color-zinc-600: #45454b;
+  --color-zinc-700: #2f2f34;
+  --color-zinc-800: #202024;
+  --color-zinc-900: #141417;
+  --color-zinc-950: #0b0b0d;
+
+  --animate-fade-in: fadeIn 0.25s ease-out both;
+  --animate-accordion-in: accordionItemIn 0.2s ease-out both;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes accordionItemIn {
+    0% { opacity: 0; transform: translateY(6px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+}
+
+:root {
+  --font-bricolage: "Bricolage Grotesque";
+  --font-hanken: "Hanken Grotesk";
+  color-scheme: dark;
+}
+
+html {
+  background: #0b0b0d;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0b0b0d;
+  color: #f7f7f2;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+}
+
+/* Container utility (Tailwind v4 no longer centers by default). */
+.container {
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+/* Range inputs: a thin track with a round accent thumb, like the original. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #27272a;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 2px solid #93d119;
+  box-shadow: 0 0 0 2px rgba(147, 209, 25, 0.25);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 2px solid #93d119;
+  cursor: pointer;
+}
+input[type="range"]:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+
+input[type="color"] {
+  padding: 2px;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 0.375rem;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2f2f34;
+  border-radius: 9999px;
+}
+
+.animate-fadeIn {
+  animation: var(--animate-fade-in);
+}
+
+.btn-bounce {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-bounce:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 30px -10px rgba(147, 209, 25, 0.5);
+}
+.btn-bounce:active {
+  transform: scale(0.97);
+}
+
+/* Blog article typography (rendered from markdown by src/lib/markdown.tsx). */
+.prose-article h2 {
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #f7f7f2;
+}
+.prose-article h3 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f7f7f2;
+}
+.prose-article p {
+  margin-bottom: 1rem;
+  line-height: 1.75;
+  color: #bfbfc6;
+}
+.prose-article ul, .prose-article ol {
+  margin: 0 0 1.25rem 1.5rem;
+  color: #bfbfc6;
+  line-height: 1.7;
+}
+.prose-article ul { list-style: disc; }
+.prose-article ol { list-style: decimal; }
+.prose-article li { margin-bottom: 0.35rem; }
+.prose-article strong { color: #f7f7f2; font-weight: 700; }
+.prose-article a { color: #c6ff3d; text-decoration: underline; text-underline-offset: 3px; }
+.prose-article a:hover { color: #d8ff7a; }
+.prose-article hr { border-color: #202024; margin: 2rem 0; }
+.prose-article blockquote {
+  border-left: 3px solid #93d119;
+  padding-left: 1rem;
+  color: #9a9aa2;
+  margin: 1.25rem 0;
+}
+.prose-article code {
+  background: #202024;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.9em;
+}

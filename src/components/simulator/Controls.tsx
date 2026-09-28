@@ -1,0 +1,1133 @@
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
+import Tooltip from "./Tooltip";
+import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
+import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { TWO_BALL_MODES } from "@/lib/physics/engine";
+import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
+import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
+
+export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording";
+
+export interface ControlsProps {
+  settings: SimulatorSettings;
+  update: (patch: Partial<SimulatorSettings>) => void;
+  onResetSection: (section: ControlSection) => void;
+  isRecording: boolean;
+  recordingSupported: boolean;
+  simulationFound: boolean;
+  onRecordToggle: () => void;
+  ballImage: string | null;
+  onBallImageUpload: (file: File) => void;
+  onBallImageClear: () => void;
+  ballEmoji: string | null;
+  onBallEmojiChange: (emoji: string | null) => void;
+  customSoundId: string | null;
+  customSoundLoading: boolean;
+  customSoundNoteCount: number;
+  onCustomSoundSelect: (id: string | null) => void;
+  customMidiName: string | null;
+  onCustomMidiUpload: (file: File) => void;
+  customWallBreakName: string | null;
+  onWallBreakSoundUpload: (file: File) => void;
+  savedPresetNames: string[];
+  onSavePreset: (name: string) => void;
+  onLoadPreset: (name: string) => void;
+  onDeletePreset: (name: string) => void;
+}
+
+const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
+
+/** Which searchable controls belong to which section (used by the search box). */
+const SECTION_KEYS: Record<ControlSection, string[]> = {
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
+  wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
+  visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
+  sound: ["song", "importMidi", "wallBreakSound", "importWallBreak"],
+  recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
+};
+
+export function sliderStyle(value: number, min: number, max: number) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return {
+    background: `linear-gradient(to right, ${ACCENT_LIGHT} 0%, ${ACCENT} ${pct}%, #27272a ${pct}%, #27272a 100%)`,
+    accentColor: ACCENT,
+  };
+}
+
+const onBtn = `bg-[#93d119] text-slate-950`;
+const offBtn = "bg-zinc-800 text-zinc-300 hover:bg-zinc-700";
+const rainbowBtn = "bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 text-white";
+
+
+type Translate = ReturnType<typeof useTranslations>;
+type Matcher = (key: string) => boolean;
+
+/* ------------------------------------------------------------ building blocks
+ * These are module-level components (not closures inside Controls) so React keeps their
+ * DOM between renders: inputs keep focus while typing.
+ */
+
+function Searchable({ search, matches, labelKey, children }: { search: string; matches: Matcher; labelKey: string; children: ReactNode }) {
+  if (!search) return <>{children}</>;
+  if (!matches(labelKey)) return null;
+  return <div className="p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/50 shadow-sm">{children}</div>;
+}
+
+function ResetButton({ search, t, section, onReset }: { search: string; t: Translate; section: ControlSection; onReset: (section: ControlSection) => void }) {
+  if (search) return null;
+  return (
+    <div className="flex justify-center border-b border-zinc-800/60 pb-2 mb-2">
+      <button
+        type="button"
+        onClick={() => onReset(section)}
+        className="text-xs text-[#93d119] hover:text-[#7fb315] transition-colors font-medium flex items-center gap-1 cursor-pointer bg-zinc-800/40 hover:bg-zinc-800/80 px-2 py-1 rounded-md"
+      >
+        🔄 {t("resetSection")}
+      </button>
+    </div>
+  );
+}
+
+function Slider({
+  t,
+  search,
+  matches,
+  labelKey,
+  tipKey,
+  value,
+  range,
+  onChange,
+  display,
+  left,
+  right,
+  disabled,
+}: {
+  t: Translate;
+  search: string;
+  matches: Matcher;
+  labelKey: string;
+  tipKey?: string;
+  value: number;
+  range: { min: number; max: number; step: number };
+  onChange: (v: number) => void;
+  display?: string;
+  left?: string;
+  right?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Searchable search={search} matches={matches} labelKey={labelKey}>
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+          <span>
+            {t(labelKey)}
+            {tipKey && <Tooltip text={t(tipKey)} />}
+          </span>
+          <span className="text-zinc-500">{display ?? value}</span>
+        </label>
+        <div className="flex items-center gap-2">
+          {left && <span className="text-sm">{left}</span>}
+          <input
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={value}
+            disabled={disabled}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+            style={sliderStyle(value, range.min, range.max)}
+            aria-label={t(labelKey)}
+          />
+          {right && <span className="text-sm">{right}</span>}
+        </div>
+      </div>
+    </Searchable>
+  );
+}
+
+function Toggle({
+  t,
+  labelKey,
+  tipKey,
+  value,
+  onChange,
+  onClass = onBtn,
+  caseStyle = "upper",
+}: {
+  t: Translate;
+  labelKey: string;
+  tipKey?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  onClass?: string;
+  caseStyle?: "upper" | "title";
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <label className="text-sm font-medium text-zinc-300">
+        {t(labelKey)}
+        {tipKey && <Tooltip text={t(tipKey)} />}
+      </label>
+      <button
+        type="button"
+        onClick={() => onChange(!value)}
+        aria-pressed={value}
+        className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${value ? onClass : offBtn}`}
+      >
+        {value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}
+      </button>
+    </div>
+  );
+}
+
+function ColorPicker({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  return (
+    <input
+      type="color"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
+      className="w-full h-10 bg-zinc-800 rounded-lg cursor-pointer border border-zinc-700"
+    />
+  );
+}
+
+export default function Controls(props: ControlsProps) {
+  const { settings: s, update } = props;
+  const t = useTranslations("Controls");
+  const [openSection, setOpenSection] = useState<ControlSection | null>(null);
+  const [modeOpen, setModeOpen] = useState(true);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [midiDrag, setMidiDrag] = useState(false);
+  const [wallBreakDrag, setWallBreakDrag] = useState(false);
+  const [search, setSearch] = useState("");
+  const [advanced, setAdvanced] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(ADVANCED_STORAGE_KEY) === "true") setAdvanced(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setAdvancedPersist = (value: boolean) => {
+    setAdvanced(value);
+    try {
+      localStorage.setItem(ADVANCED_STORAGE_KEY, String(value));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const matches = (key: string) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const label = t.has(key) ? t(key) : "";
+    return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+  };
+  const sectionMatches = (keys: string[]) => !search || keys.some(matches);
+  const showAdvanced = advanced || !!search;
+
+  const modeNames: Record<ModeId, string> = {
+    classic: t("modeClassic"),
+    accumulation: t("modeAccumulation"),
+    multiply: t("modeMultiply"),
+    lines: t("modeLines"),
+    paint: t("modePaint"),
+    target: t("modeTarget"),
+    portal: t("modePortal"),
+    shatter: t("modeShatter"),
+    colorMatch: t("modeColorMatch"),
+    grow: t("modeGrow"),
+  };
+
+  const sections: { id: ControlSection; icon: string; label: string }[] = [
+    { id: "ball", icon: "🎱", label: t("ballPhysicsTab") },
+    { id: "wall", icon: "🔵", label: t("wallSettingsTab") },
+    { id: "visual", icon: "✨", label: t("visualEffectsTab") },
+    { id: "sound", icon: "🔊", label: t("customSoundTab") },
+    { id: "recording", icon: "🎬", label: t("recordingTab") },
+  ];
+
+  /* ------------------------------------------------------------ sections */
+
+  const ballSection = () => (
+    <div className="space-y-4">
+      <ResetButton search={search} t={t} section="ball" onReset={props.onResetSection} />
+      <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} left="🐢" right="🚀" />
+      <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} left="🌑" right="🌕" />
+      {showAdvanced && (
+        <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} left="🎈" right="🪨" />
+      )}
+      {!props.ballImage && !props.ballEmoji && (
+        <Searchable search={search} matches={matches} labelKey="ballColor">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-zinc-300">{t("ballColor")}</label>
+              <button
+                type="button"
+                onClick={() => update({ rainbowBall: !s.rainbowBall })}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowBall ? rainbowBtn : offBtn}`}
+              >
+                {t("rainbowSettings")}
+              </button>
+            </div>
+            {!s.rainbowBall && <ColorPicker value={s.ballColor} onChange={(v) => update({ ballColor: v })} label={t("ballColor")} />}
+          </div>
+        </Searchable>
+      )}
+      {TWO_BALL_MODES.includes(s.mode) && (
+        <Searchable search={search} matches={matches} labelKey="twoBalls">
+          <div className="space-y-3">
+            <Toggle t={t} labelKey="twoBalls" tipKey="twoBallsTip" value={s.twoBalls} onChange={(v) => update({ twoBalls: v })} caseStyle="title" />
+            {s.twoBalls && !s.rainbowBall && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-300">{t("ballColor2")}</label>
+                <ColorPicker value={s.ballColor2} onChange={(v) => update({ ballColor2: v })} label={t("ballColor2")} />
+              </div>
+            )}
+          </div>
+        </Searchable>
+      )}
+      {showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="bouncier">
+          <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
+        </Searchable>
+      )}
+      <Searchable search={search} matches={matches} labelKey="ballEmoji">
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-zinc-300">{t("ballEmoji")}</label>
+          <div className="grid grid-cols-6 gap-1.5">
+            {EMOJIS.map((emoji) => (
+              <button
+                type="button"
+                key={emoji}
+                onClick={() => props.onBallEmojiChange(props.ballEmoji === emoji ? null : emoji)}
+                aria-label={emoji}
+                className={`flex items-center justify-center w-full aspect-square rounded-lg text-xl transition-all cursor-pointer ${
+                  props.ballEmoji === emoji
+                    ? `bg-[#93d119]/30 border-2 border-[#93d119] shadow-lg shadow-[#93d119]/20 scale-110`
+                    : "bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 hover:scale-105"
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          {props.ballEmoji && (
+            <button type="button" onClick={() => props.onBallEmojiChange(null)} className="text-xs text-zinc-500 hover:text-red-400 transition-colors cursor-pointer">
+              ✕ {t("removeEmoji")}
+            </button>
+          )}
+        </div>
+      </Searchable>
+      {showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="customBallImage">
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-zinc-300">{t("customBallImage")}</label>
+            {props.ballImage ? (
+              <div className="flex items-center justify-between mt-1">
+                <div
+                  className="flex-shrink-0 rounded-full"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    backgroundImage: `url(${props.ballImage})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    boxShadow: "0 0 8px rgba(6, 182, 212, 0.3), inset 0 -2px 4px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.15)",
+                  }}
+                />
+                <button type="button" onClick={props.onBallImageClear} className="text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer" title={t("removeCustomImage")}>
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-sm cursor-pointer border border-dashed bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500">
+                <span>📁 {t("chooseImageFile")}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      props.onBallImageUpload(file);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        </Searchable>
+      )}
+    </div>
+  );
+
+  const wallSection = () => {
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch"].includes(s.mode);
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter"].includes(s.mode);
+    return (
+      <div className="space-y-4">
+        <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
+        {hasWallCount && (
+          <Slider t={t} search={search} matches={matches} labelKey="wallCount" tipKey="wallCountTip" value={s.wallCount} range={RANGES.wallCount} onChange={(v) => update({ wallCount: v })} />
+        )}
+        {hasGapControls && (
+          <>
+            {showAdvanced && (
+              <Slider t={t} search={search} matches={matches} labelKey="wallThickness" tipKey="wallThicknessTip" value={s.wallThickness} range={RANGES.wallThickness} onChange={(v) => update({ wallThickness: v })} display={`${s.wallThickness}px`} left="−" right="+" />
+            )}
+            {showAdvanced && (
+              <Slider t={t} search={search} matches={matches} labelKey="gapSize" tipKey="gapSizeTip" value={s.gapSize} range={RANGES.gapSize} onChange={(v) => update({ gapSize: v })} display={s.gapSize.toFixed(2)} left="🤏" right="👐" />
+            )}
+            <Searchable search={search} matches={matches} labelKey="rotation">
+              <div className="space-y-2">
+                <Toggle t={t} labelKey="rotation" tipKey="rotationTip" value={s.rotationEnabled} onChange={(v) => update({ rotationEnabled: v })} />
+                {s.rotationEnabled && (
+                  <>
+                    <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
+                      <span>{t("rotationSpeed")}</span>
+                      <span className="text-zinc-500">{s.rotationSpeed.toFixed(1)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={RANGES.rotationSpeed.min}
+                      max={RANGES.rotationSpeed.max}
+                      step={RANGES.rotationSpeed.step}
+                      value={s.rotationSpeed}
+                      onChange={(e) => update({ rotationSpeed: Number(e.target.value) })}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                      style={sliderStyle(s.rotationSpeed, RANGES.rotationSpeed.min, RANGES.rotationSpeed.max)}
+                      aria-label={t("rotationSpeed")}
+                    />
+                  </>
+                )}
+              </div>
+            </Searchable>
+          </>
+        )}
+        <Searchable search={search} matches={matches} labelKey="wallColor">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-zinc-300">{t("wallColor")}</label>
+              <button
+                type="button"
+                onClick={() => update({ rainbowWalls: !s.rainbowWalls })}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowWalls ? rainbowBtn : offBtn}`}
+              >
+                {t("rainbowSettings")}
+              </button>
+            </div>
+            {s.rainbowWalls ? (
+              <div className="flex gap-1 mt-1">
+                {(["pulse", "gradient"] as const).map((mode) => (
+                  <button
+                    type="button"
+                    key={mode}
+                    onClick={() => update({ rainbowWallMode: mode })}
+                    className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowWallMode === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                  >
+                    {t(mode)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <ColorPicker value={s.circleColor} onChange={(v) => update({ circleColor: v })} label={t("wallColor")} />
+            )}
+          </div>
+        </Searchable>
+      </div>
+    );
+  };
+
+  const visualSection = () => (
+    <div className="space-y-4">
+      <ResetButton search={search} t={t} section="visual" onReset={props.onResetSection} />
+      <Searchable search={search} matches={matches} labelKey="trails">
+        <div className="flex gap-2">
+          {(
+            [
+              ["trails", "trailsTip", s.showTrails, () => update({ showTrails: !s.showTrails })],
+              ["ballGlow", "ballGlowTip", s.showGlow, () => update({ showGlow: !s.showGlow })],
+              ["wallGlow", "wallGlowTip", s.showWallGlow, () => update({ showWallGlow: !s.showWallGlow })],
+            ] as const
+          ).map(([key, tip, value, toggle]) => (
+            <button
+              type="button"
+              key={key}
+              onClick={toggle}
+              aria-pressed={value}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-xs cursor-pointer ${value ? onBtn : offBtn}`}
+            >
+              {t(key)}
+              <Tooltip text={t(tip)} />
+            </button>
+          ))}
+        </div>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="colorTrail">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => update({ colorTrail: !s.colorTrail })}
+            aria-pressed={s.colorTrail}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-xs cursor-pointer ${s.colorTrail ? rainbowBtn : offBtn}`}
+          >
+            {t("colorTrail")}
+            <Tooltip text={t("colorTrailTip")} />
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ reactiveBackground: !s.reactiveBackground })}
+            aria-pressed={s.reactiveBackground}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-xs cursor-pointer ${s.reactiveBackground ? onBtn : offBtn}`}
+          >
+            {t("reactiveBg")}
+            <Tooltip text={t("reactiveBgTip")} />
+          </button>
+        </div>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="cameraFollow">
+        <button
+          type="button"
+          onClick={() => update({ cameraFollow: !s.cameraFollow })}
+          aria-pressed={s.cameraFollow}
+          className={`w-full px-4 py-2 rounded-lg font-medium transition-all text-xs cursor-pointer ${s.cameraFollow ? onBtn : offBtn}`}
+        >
+          📷 {t("cameraFollow")}
+          <Tooltip text={t("cameraFollowTip")} />
+        </button>
+      </Searchable>
+      {showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="cinematic">
+          <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
+        </Searchable>
+      )}
+      {s.showTrails && showAdvanced && (
+        <Slider t={t} search={search} matches={matches} labelKey="trailThickness" tipKey="trailThicknessTip" value={s.trailThickness} range={RANGES.trailThickness} onChange={(v) => update({ trailThickness: v })} display={`${s.trailThickness.toFixed(1)}x`} />
+      )}
+      <Searchable search={search} matches={matches} labelKey="wallBreakEffect">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300">
+            {t("wallBreakEffect")}
+            <Tooltip text={t("wallBreakEffectTip")} />
+          </label>
+          <div className="grid grid-cols-2 gap-1">
+            {(
+              [
+                ["confetti", "effectConfetti"],
+                ["shatter", "effectShatter"],
+                ["shockwave", "effectShockwave"],
+                ["all", "effectAll"],
+                ["none", "effectNone"],
+              ] as [WallBreakStyle, string][]
+            ).map(([value, key]) => (
+              <button
+                type="button"
+                key={value}
+                onClick={() => update({ wallBreakStyle: value })}
+                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.wallBreakStyle === value ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Searchable>
+    </div>
+  );
+
+  const soundSection = () => (
+    <div className="space-y-4">
+      <ResetButton search={search} t={t} section="sound" onReset={props.onResetSection} />
+      <Searchable search={search} matches={matches} labelKey="song">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300" htmlFor="song-select">
+            {t("song")}
+          </label>
+          <p className="text-xs text-zinc-500 leading-relaxed">{t("customSoundDesc")}</p>
+          <select
+            id="song-select"
+            value={props.customSoundId || ""}
+            onChange={(e) => props.onCustomSoundSelect(e.target.value || null)}
+            disabled={props.customSoundLoading}
+            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="">{t("defaultSong")}</option>
+            {props.customSoundId === "custom-upload" && (
+              <option value="custom-upload">
+                {props.customMidiName || "Uploaded MIDI"} ({props.customSoundNoteCount} {t("notesLoaded")})
+              </option>
+            )}
+            {SONGS.map((song) => (
+              <option key={song.id} value={song.id}>
+                {song.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Searchable>
+      {showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="importMidi">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300">{t("importMidi")}</label>
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setMidiDrag(true);
+              }}
+              onDragLeave={() => setMidiDrag(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setMidiDrag(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) props.onCustomMidiUpload(file);
+              }}
+              className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
+                midiDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+              }`}
+            >
+              <span className="text-lg">{midiDrag ? "📥" : "📁"}</span>
+              <span className="font-semibold">{midiDrag ? t("dropMidiHere") : t("chooseMidiFile")}</span>
+              <input
+                type="file"
+                accept=".mid,.midi,audio/midi,audio/x-midi"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    props.onCustomMidiUpload(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </label>
+            <p className="text-[11px] text-zinc-500 mt-1 flex items-start gap-1">
+              <span className="leading-none mt-0.5">💡</span>
+              <span>
+                {t("midiSourceText")}{" "}
+                <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className={`text-[#93d119] hover:text-[#7fb315] underline font-medium`}>
+                  bitmidi.com ↗
+                </a>
+              </span>
+            </p>
+          </div>
+        </Searchable>
+      )}
+      <Searchable search={search} matches={matches} labelKey="wallBreakSound">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
+            {t("wallBreakSound")}
+          </label>
+          <p className="text-xs text-zinc-500 leading-relaxed">{t("wallBreakSoundDesc")}</p>
+          <select
+            id="wallbreak-select"
+            value={s.wallBreakSound || ""}
+            onChange={(e) => update({ wallBreakSound: e.target.value || null })}
+            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none"
+          >
+            <option value="">{t("wallBreakSoundDefault")}</option>
+            {WALL_BREAK_SOUNDS.map((snd) => (
+              <option key={snd.id} value={snd.url}>
+                {snd.name}
+              </option>
+            ))}
+            {s.wallBreakSound?.startsWith("blob:") && <option value={s.wallBreakSound}>{props.customWallBreakName || "Custom"}</option>}
+          </select>
+        </div>
+      </Searchable>
+      {showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="importWallBreak">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300">{t("importWallBreak")}</label>
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setWallBreakDrag(true);
+              }}
+              onDragLeave={() => setWallBreakDrag(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setWallBreakDrag(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) props.onWallBreakSoundUpload(file);
+              }}
+              className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
+                wallBreakDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+              }`}
+            >
+              <span className="text-lg">📁</span>
+              <span className="font-semibold">{wallBreakDrag ? t("dropWallBreakHere") : t("chooseWallBreakFile")}</span>
+              <input
+                type="file"
+                accept=".mp3,.wav,.ogg,.aac,.m4a,audio/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    props.onWallBreakSoundUpload(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </label>
+          </div>
+        </Searchable>
+      )}
+      {props.customSoundLoading && (
+        <div className="flex items-center gap-2 text-sm text-zinc-400">
+          <div className={`w-4 h-4 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin`} />
+          {t("loadingMidi")}
+        </div>
+      )}
+    </div>
+  );
+
+  const recordingSection = () => (
+    <div className="space-y-3">
+      <ResetButton search={search} t={t} section="recording" onReset={props.onResetSection} />
+      <Searchable search={search} matches={matches} labelKey="videoResolution">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300" htmlFor="resolution-select">
+            {t("resolutionTitle")}
+          </label>
+          <select
+            id="resolution-select"
+            value={s.recordingResolution}
+            onChange={(e) => update({ recordingResolution: e.target.value })}
+            disabled={props.isRecording}
+            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {RESOLUTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r === "500x500" ? t("resolution500") : r === "1280x720" ? t("resolution720") : r === "1920x1080" ? t("resolution1080") : t("resolutionTikTok")}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Searchable>
+      {!props.simulationFound && (
+        <Searchable search={search} matches={matches} labelKey="videoDuration">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+              <span>
+                {t("durationSpan")}
+                <Tooltip text={t("durationTip")} />
+              </span>
+              <span className="text-zinc-500">{s.recordingDuration}s</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">⏱️</span>
+              <input
+                type="range"
+                min={RANGES.recordingDuration.min}
+                max={RANGES.recordingDuration.max}
+                step={RANGES.recordingDuration.step}
+                value={s.recordingDuration}
+                onChange={(e) => update({ recordingDuration: Number(e.target.value) })}
+                disabled={props.isRecording}
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={sliderStyle(s.recordingDuration, RANGES.recordingDuration.min, RANGES.recordingDuration.max)}
+                aria-label={t("durationSpan")}
+              />
+              <span className="text-sm">⏳</span>
+            </div>
+            <div className="flex justify-between text-xs text-zinc-500">
+              <span>{t("minDuration")}</span>
+              <span>{t("maxDuration")}</span>
+            </div>
+          </div>
+        </Searchable>
+      )}
+      {showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="customWatermark">
+          <div className="space-y-2 border-t border-zinc-800 pt-3">
+            <label className="text-sm font-medium text-zinc-300 flex items-center justify-between" htmlFor="watermark-input">
+              <span>
+                {t("customWatermark")}
+                <Tooltip text={t("watermarkTip")} />
+              </span>
+              {s.watermarkText && <span className="text-zinc-500 text-xs truncate max-w-[120px]">{s.watermarkText}</span>}
+            </label>
+            <input
+              id="watermark-input"
+              type="text"
+              value={s.watermarkText}
+              onChange={(e) => update({ watermarkText: e.target.value })}
+              placeholder={t("enterWatermark")}
+              maxLength={50}
+              className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+            />
+          </div>
+        </Searchable>
+      )}
+      {showAdvanced &&
+        (
+          [
+            ["topText", "topTextTip", "topTextPlaceholder", s.topText, (v: string) => update({ topText: v })],
+            ["bottomText", "bottomTextTip", "bottomTextPlaceholder", s.bottomText, (v: string) => update({ bottomText: v })],
+          ] as const
+        ).map(([key, tip, placeholder, value, set]) => (
+          <Searchable key={key} search={search} matches={matches} labelKey={key}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-300 flex items-center justify-between" htmlFor={`${key}-input`}>
+                <span>
+                  {t(key)}
+                  <Tooltip text={t(tip)} />
+                </span>
+                {value && <span className="text-zinc-500 text-xs truncate max-w-[120px]">{value}</span>}
+              </label>
+              <input
+                id={`${key}-input`}
+                type="text"
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                placeholder={t(placeholder)}
+                maxLength={60}
+                className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+              />
+            </div>
+          </Searchable>
+        ))}
+      {(s.topText || s.bottomText) && showAdvanced && (
+        <Searchable search={search} matches={matches} labelKey="textSize">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+              <span>
+                {t("textSize")}
+                <Tooltip text={t("textSizeTip")} />
+              </span>
+              <span className="text-zinc-500">{s.textSize.toFixed(1)}×</span>
+            </label>
+            <input
+              type="range"
+              min={RANGES.textSize.min}
+              max={RANGES.textSize.max}
+              step={RANGES.textSize.step}
+              value={s.textSize}
+              onChange={(e) => update({ textSize: Number(e.target.value) })}
+              className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+              style={sliderStyle(s.textSize, RANGES.textSize.min, RANGES.textSize.max)}
+              aria-label={t("textSize")}
+            />
+            <div className="flex justify-between text-xs text-zinc-500">
+              <span>{t("minSize")}</span>
+              <span>{t("maxSize")}</span>
+            </div>
+          </div>
+        </Searchable>
+      )}
+    </div>
+  );
+
+  const renderSection = (id: ControlSection) => {
+    switch (id) {
+      case "ball":
+        return ballSection();
+      case "wall":
+        return wallSection();
+      case "visual":
+        return visualSection();
+      case "sound":
+        return soundSection();
+      case "recording":
+        return recordingSection();
+    }
+  };
+
+  /* Mode-specific controls shown inside the Mode row. */
+  const modeSpecific = () => {
+    switch (s.mode) {
+      case "accumulation":
+        return (
+          <div className="space-y-3 pt-2">
+            <Slider t={t} search={search} matches={matches} labelKey="accumulationEscape" tipKey="accumulationEscapeTip" value={s.accumulationTime} range={RANGES.accumulationTime} onChange={(v) => update({ accumulationTime: v })} display={`${s.accumulationTime}s`} />
+            <Toggle t={t} labelKey="spikes" tipKey="spikesTip" value={s.spikesEnabled} onChange={(v) => update({ spikesEnabled: v })} onClass="bg-red-600 text-white" />
+            {s.spikesEnabled && (
+              <Slider t={t} search={search} matches={matches} labelKey="spikeCount" tipKey="spikeCountTip" value={s.spikeCount} range={RANGES.spikeCount} onChange={(v) => update({ spikeCount: v })} />
+            )}
+          </div>
+        );
+      case "multiply":
+        return (
+          <div className="space-y-3 pt-2">
+            <Slider t={t} search={search} matches={matches} labelKey="spawnCount" tipKey="spawnCountTip" value={s.multiplySpawnCount} range={RANGES.multiplySpawnCount} onChange={(v) => update({ multiplySpawnCount: v })} />
+          </div>
+        );
+      case "lines":
+        return (
+          <div className="space-y-3 pt-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-zinc-300">{t("lineColor")}</label>
+                <button type="button" onClick={() => update({ rainbowLines: !s.rainbowLines })} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowLines ? rainbowBtn : offBtn}`}>
+                  {t("rainbowSettings")}
+                </button>
+              </div>
+              {!s.rainbowLines && <ColorPicker value={s.lineColor} onChange={(v) => update({ lineColor: v })} label={t("lineColor")} />}
+            </div>
+            <div className="pt-2 border-t border-zinc-800/60">
+              <Toggle t={t} labelKey="centerDot" tipKey="centerDotTip" value={s.linesCenterDot} onChange={(v) => update({ linesCenterDot: v })} />
+            </div>
+          </div>
+        );
+      case "target":
+        return (
+          <div className="space-y-3 pt-2">
+            <Slider t={t} search={search} matches={matches} labelKey="targetCount" tipKey="targetCountTip" value={s.targetCount} range={RANGES.targetCount} onChange={(v) => update({ targetCount: v })} />
+            <Toggle t={t} labelKey="randomOrder" tipKey="randomOrderTip" value={s.countdownRandom} onChange={(v) => update({ countdownRandom: v })} onClass="bg-yellow-600 text-white" />
+          </div>
+        );
+      case "colorMatch":
+        return (
+          <div className="space-y-3 pt-2">
+            <Slider t={t} search={search} matches={matches} labelKey="colorCount" tipKey="colorCountTip" value={s.colorMatchColorCount} range={RANGES.colorMatchColorCount} onChange={(v) => update({ colorMatchColorCount: v })} />
+          </div>
+        );
+      case "grow":
+        return (
+          <div className="space-y-3 pt-2">
+            <Slider t={t} search={search} matches={matches} labelKey="growthRate" tipKey="growthRateTip" value={s.growRate} range={RANGES.growRate} onChange={(v) => update({ growRate: v })} display={`${s.growRate}%`} />
+            <Toggle t={t} labelKey="centerDot" tipKey="centerDotTip" value={s.growCenterDot} onChange={(v) => update({ growCenterDot: v })} />
+            <Toggle t={t} labelKey="growLines" tipKey="growLinesTip" value={s.growLines} onChange={(v) => update({ growLines: v })} />
+            {s.growLines && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-zinc-300">{t("lineColor")}</label>
+                  <button type="button" onClick={() => update({ rainbowLines: !s.rainbowLines })} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowLines ? rainbowBtn : offBtn}`}>
+                    {t("rainbowSettings")}
+                  </button>
+                </div>
+                {!s.rainbowLines && <ColorPicker value={s.lineColor} onChange={(v) => update({ lineColor: v })} label={t("lineColor")} />}
+              </div>
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id]));
+
+  return (
+    <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-zinc-800">
+      <h2 className="text-lg font-bold text-white mb-2">{t("controlsTitle")}</h2>
+      <button
+        type="button"
+        onClick={props.onRecordToggle}
+        disabled={!props.recordingSupported}
+        className={`w-full px-4 py-3.5 my-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+          props.isRecording
+            ? "bg-red-600 text-white/90 animate-pulse hover:bg-red-700 shadow-red-600/20"
+            : "bg-gradient-to-r from-cyan-600 to-cyan-500 text-slate-950 hover:from-cyan-500 hover:to-cyan-400 shadow-cyan-600/20"
+        }`}
+      >
+        {props.isRecording ? (
+          <>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>{" "}
+            {t("stopExport")}
+          </>
+        ) : (
+          <>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+              <rect x="2" y="6" width="14" height="12" rx="2" />
+            </svg>{" "}
+            {t("recordVideo")}
+          </>
+        )}
+      </button>
+
+      <div className="relative mb-1">
+        <input
+          type="text"
+          placeholder={t("searchSettings")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label={t("searchSettings")}
+          className="w-full pl-9 pr-8 py-2 bg-zinc-800/60 text-sm text-white rounded-lg border border-zinc-700/80 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 transition-all cursor-text focus:bg-zinc-800 focus:shadow-[0_0_12px_rgba(147,209,25,0.15)]"
+        />
+        <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">🔍</span>
+        {search && (
+          <button type="button" onClick={() => setSearch("")} className="absolute right-3 top-2.5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors cursor-pointer" aria-label={t("clearSearch")}>
+            ✕
+          </button>
+        )}
+      </div>
+
+      {search ? (
+        <div className="space-y-4 pt-2 border-t border-zinc-800/80 animate-fadeIn">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("searchResults")}</span>
+            <button type="button" onClick={() => setSearch("")} className={`text-xs text-[#93d119] hover:text-[#7fb315] font-medium cursor-pointer`}>
+              ✕ {t("clearSearch")}
+            </button>
+          </div>
+          <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+            {!anyResults && <p className="text-xs text-zinc-500 text-center py-4">{t("noSearchResults")}</p>}
+            {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(SECTION_KEYS[id]) && <div key={id}>{renderSection(id)}</div>)}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div>
+            <button
+              type="button"
+              onClick={() => setModeOpen((v) => !v)}
+              aria-expanded={modeOpen}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
+            >
+              <span>🎮</span>
+              <span>{t("modeSpan")}</span>
+              <span className="text-zinc-500 ml-auto">{modeOpen ? "−" : "+"}</span>
+            </button>
+            {modeOpen && (
+              <div className="px-4 pt-2 pb-3">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700">
+                    <span className="text-white font-medium text-sm">{modeNames[s.mode]}</span>
+                    <a
+                      href="#modes"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById("modes")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className={`text-xs text-[#93d119] hover:text-[#7fb315] transition-colors`}
+                    >
+                      {t("modeDisplay")}
+                    </a>
+                  </div>
+                  {modeSpecific()}
+                </div>
+              </div>
+            )}
+          </div>
+          {sections.map((section) => (
+            <div key={section.id}>
+              <button
+                type="button"
+                onClick={() => setOpenSection(openSection === section.id ? null : section.id)}
+                aria-expanded={openSection === section.id}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
+              >
+                <span>{section.icon}</span>
+                <span>{section.label}</span>
+                <span className="text-zinc-500 ml-auto">{openSection === section.id ? "−" : "+"}</span>
+              </button>
+              {openSection === section.id && <div className="px-4 pt-2 pb-3">{renderSection(section.id)}</div>}
+            </div>
+          ))}
+          <div>
+            <button
+              type="button"
+              onClick={() => setPresetsOpen((v) => !v)}
+              aria-expanded={presetsOpen}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
+            >
+              <span>💾</span>
+              <span>{t("savedPresetsSpan")}</span>
+              <span className="text-zinc-500 ml-auto">{presetsOpen ? "−" : "+"}</span>
+            </button>
+            {presetsOpen && (
+              <div className="px-4 pt-2 pb-3 space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder={t("presetPlaceholder")}
+                    maxLength={30}
+                    aria-label={t("presetPlaceholder")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && presetName.trim()) {
+                        props.onSavePreset(presetName.trim());
+                        setPresetName("");
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (presetName.trim()) {
+                        props.onSavePreset(presetName.trim());
+                        setPresetName("");
+                      }
+                    }}
+                    disabled={!presetName.trim()}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all bg-[#93d119] text-slate-950 hover:bg-[#7fb315] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer`}
+                  >
+                    {t("saveBtn")}
+                  </button>
+                </div>
+                {props.savedPresetNames.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-2">{t("noSavedPresets")}</p>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {props.savedPresetNames.map((name) => (
+                      <div key={name} className="flex items-center gap-2 px-3 py-2 bg-zinc-800/60 rounded-lg group">
+                        <span className="flex-1 text-sm text-zinc-300 truncate">{name}</span>
+                        <button type="button" onClick={() => props.onLoadPreset(name)} className={`px-2 py-1 rounded text-xs font-medium bg-[#93d119]/80 text-slate-950 hover:bg-[#93d119] transition-all cursor-pointer`}>
+                          {t("loadBtn")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => props.onDeletePreset(name)}
+                          aria-label={t("deletePreset")}
+                          className="px-2 py-1 rounded text-xs font-medium bg-red-600/80 text-white hover:bg-red-600 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <div className="pt-4 mt-2 border-t border-zinc-800/80">
+        <label className="flex items-center gap-2 cursor-pointer group px-2 w-fit">
+          <input
+            type="checkbox"
+            checked={advanced}
+            onChange={(e) => setAdvancedPersist(e.target.checked)}
+            className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 cursor-pointer"
+            style={{ accentColor: ACCENT }}
+          />
+          <span className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors cursor-pointer">{t("showAdvancedOptions")}</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+/** Settings that the "Reset Category" buttons restore, per section. */
+export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<SimulatorSettings> {
+  const d = defaultSettings(mode);
+  switch (section) {
+    case "ball":
+      return { ballSpeed: d.ballSpeed, ballRadius: d.ballRadius, gravity: d.gravity, ballColor: d.ballColor, twoBalls: d.twoBalls, ballColor2: d.ballColor2, bouncierEnabled: d.bouncierEnabled, rainbowBall: d.rainbowBall };
+    case "wall":
+      return { wallCount: d.wallCount, wallThickness: d.wallThickness, gapSize: d.gapSize, rotationEnabled: d.rotationEnabled, rotationSpeed: d.rotationSpeed, rainbowWalls: d.rainbowWalls, rainbowWallMode: d.rainbowWallMode, circleColor: d.circleColor };
+    case "visual":
+      return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
+    case "sound":
+      return { wallBreakSound: null };
+    case "recording":
+      return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
+  }
+}

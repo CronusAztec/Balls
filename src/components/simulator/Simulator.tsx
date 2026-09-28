@@ -1,0 +1,962 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
+import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
+import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
+import Tooltip from "./Tooltip";
+import { PhysicsEngine } from "@/lib/physics/engine";
+import type { ModeId } from "@/lib/physics/types";
+import { ToneGenerator } from "@/lib/audio/toneGenerator";
+import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
+import { SONGS } from "@/lib/audio/songs";
+import { VideoRecorder } from "@/lib/recording/recorder";
+import { findSimulation, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
+import {
+  RANGES,
+  defaultSettings,
+  loadPresets,
+  presetToSettings,
+  resolutionToSize,
+  savePresets,
+  settingsFromSearchParams,
+  settingsToSearchParams,
+  type PresetStore,
+  type SimulatorSettings,
+} from "@/lib/settings";
+
+/** Modes where "Find Simulation" makes no sense because the run never "finishes". */
+const NO_FINDER_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
+const SPEEDS = [1, 2, 4, 8];
+
+export default function Simulator() {
+  const t = useTranslations();
+  const searchParams = useSearchParams();
+
+  const engineRef = useRef<PhysicsEngine | null>(null);
+  const audioRef = useRef<ToneGenerator | null>(null);
+  const recorderRef = useRef<VideoRecorder | null>(null);
+  const canvasRef = useRef<CanvasHandle | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const timeLabelRef = useRef<HTMLSpanElement | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finderAbortRef = useRef<AbortController | null>(null);
+  const autoPausedRef = useRef(false);
+  const wallBreakObjectUrlRef = useRef<string | null>(null);
+
+  // Initial settings come from the URL (?mode=..., plus any shared parameters).
+  const [settings, setSettings] = useState<SimulatorSettings>(() => settingsFromSearchParams(new URLSearchParams(searchParams.toString())));
+  const [engineReady, setEngineReady] = useState(false);
+  const [isStarted, setIsStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [simSpeed, setSimSpeed] = useState(1);
+  const [fps, setFps] = useState(60);
+  const [finished, setFinished] = useState(false);
+  const [ballImage, setBallImage] = useState<string | null>(null);
+  const [ballEmoji, setBallEmoji] = useState<string | null>(null);
+  const [customSoundId, setCustomSoundId] = useState<string | null>(null);
+  const [customSoundLoading, setCustomSoundLoading] = useState(false);
+  const [customSoundNoteCount, setCustomSoundNoteCount] = useState(0);
+  const [customMidiName, setCustomMidiName] = useState<string | null>(null);
+  const [customWallBreakName, setCustomWallBreakName] = useState<string | null>(null);
+  const [presets, setPresets] = useState<PresetStore>({});
+  const [findDuration, setFindDuration] = useState(30);
+  const [findTolerance] = useState(0.5);
+  const [findMaxSeeds] = useState(1000);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchProgress, setSearchProgress] = useState<FinderProgress | null>(null);
+  const [searchResult, setSearchResult] = useState<FinderResult | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const recordingSupported = useMemo(() => VideoRecorder.isSupported(), []);
+
+  const update = useCallback((patch: Partial<SimulatorSettings>) => {
+    setSettings((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  /* ------------------------------------------------------------ engine lifecycle */
+
+  const initEngineForMode = useCallback((engine: PhysicsEngine, s: SimulatorSettings) => {
+    engine.setBouncier(s.bouncierEnabled);
+    engine.setWallBreakStyle(s.wallBreakStyle);
+    engine.setCinematicEnabled(s.cinematicEnabled);
+    engine.setCountdownTotal(s.targetCount);
+    engine.setCountdownRandomOrder(s.countdownRandom);
+    engine.setColorMatchColorCount(s.colorMatchColorCount);
+    engine.setMultiplySpawnCount(s.multiplySpawnCount);
+    engine.setGrowRate(s.growRate);
+    engine.setGrowCenterDotEnabled(s.growCenterDot);
+    engine.setGrowLinesEnabled(s.growLines);
+    engine.setLinesCenterDotEnabled(s.linesCenterDot);
+    engine.initMode(s.mode);
+    engine.setAccumulationTimerMax(1000 * s.accumulationTime);
+    engine.setSpikesEnabled(s.spikesEnabled);
+    engine.setSpikeCount(s.spikeCount);
+  }, []);
+
+  useEffect(() => {
+    if (engineRef.current) return;
+    const s = settings;
+    const engine = new PhysicsEngine({
+      gravity: s.gravity,
+      damping: 0,
+      bounce: s.bounce,
+      width: 800,
+      height: 600,
+      audioIntensity: 0,
+      ballSpeed: s.ballSpeed,
+      rotationSpeed: s.rotationEnabled ? s.rotationSpeed : 0,
+      wallCount: s.wallCount,
+      gapSize: s.gapSize,
+      ballColor: s.ballColor,
+      ballRadius: s.ballRadius,
+      twoBalls: s.twoBalls,
+      ballColor2: s.ballColor2,
+    });
+    initEngineForMode(engine, s);
+    engineRef.current = engine;
+    audioRef.current = new ToneGenerator();
+    setPresets(loadPresets());
+    setEngineReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Restart the current mode from scratch (R key / Restart button). */
+  const restart = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    setFinished(false);
+    setIsPaused(false);
+    audioRef.current?.resetCustomNoteIndex();
+    engine.setConfig({ ballRadius: settings.ballRadius });
+    initEngineForMode(engine, settings);
+  }, [settings, initEngineForMode]);
+
+  // Keep the engine in sync with the settings object.
+  const s = settings;
+  useEffect(() => {
+    engineRef.current?.setConfig({
+      gravity: s.gravity,
+      bounce: s.bounce,
+      ballSpeed: s.ballSpeed,
+      rotationSpeed: s.rotationEnabled ? s.rotationSpeed : 0,
+      wallCount: s.wallCount,
+      gapSize: s.gapSize,
+      ballColor: s.ballColor,
+      ballRadius: s.ballRadius,
+      twoBalls: s.twoBalls,
+      ballColor2: s.ballColor2,
+    });
+  }, [s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.wallCount, s.gapSize, s.ballColor, s.ballRadius, s.twoBalls, s.ballColor2]);
+  useEffect(() => {
+    engineRef.current?.setAccumulationTimerMax(1000 * s.accumulationTime);
+  }, [s.accumulationTime]);
+  useEffect(() => {
+    engineRef.current?.setSpikesEnabled(s.spikesEnabled);
+  }, [s.spikesEnabled]);
+  useEffect(() => {
+    engineRef.current?.setSpikeCount(s.spikeCount);
+  }, [s.spikeCount]);
+  useEffect(() => {
+    engineRef.current?.setMultiplySpawnCount(s.multiplySpawnCount);
+  }, [s.multiplySpawnCount]);
+  useEffect(() => {
+    engineRef.current?.setWallBreakStyle(s.wallBreakStyle);
+  }, [s.wallBreakStyle]);
+  useEffect(() => {
+    engineRef.current?.setBouncier(s.bouncierEnabled);
+  }, [s.bouncierEnabled]);
+  useEffect(() => {
+    engineRef.current?.setCinematicEnabled(s.cinematicEnabled);
+  }, [s.cinematicEnabled]);
+  useEffect(() => {
+    engineRef.current?.setGrowRate(s.growRate);
+  }, [s.growRate]);
+  useEffect(() => {
+    engineRef.current?.setGrowCenterDotEnabled(s.growCenterDot);
+  }, [s.growCenterDot]);
+  useEffect(() => {
+    engineRef.current?.setGrowLinesEnabled(s.growLines);
+  }, [s.growLines]);
+  useEffect(() => {
+    engineRef.current?.setLinesCenterDotEnabled(s.linesCenterDot);
+  }, [s.linesCenterDot]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setCountdownTotal(s.targetCount);
+    engine.setCountdownRandomOrder(s.countdownRandom);
+    if (s.mode === "target" && engine.getCurrentModeName() === "target") {
+      engine.initCountdown();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.targetCount, s.countdownRandom]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setColorMatchColorCount(s.colorMatchColorCount);
+    if (s.mode === "colorMatch" && engine.getCurrentModeName() === "colorMatch") {
+      engine.initColorMatch();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.colorMatchColorCount]);
+  useEffect(() => {
+    audioRef.current?.setWallBreakSound(s.wallBreakSound);
+  }, [s.wallBreakSound]);
+
+  // Any physics-relevant change invalidates a seed found by the finder.
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate]);
+
+  // Live add/remove of the second ball.
+  const prevTwoBallsRef = useRef(s.twoBalls);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || prevTwoBallsRef.current === s.twoBalls) return;
+    prevTwoBallsRef.current = s.twoBalls;
+    const balls = engine.getBalls();
+    if (s.twoBalls && balls.length === 1) {
+      const b = balls[0];
+      const a = Math.atan2(b.vy, b.vx) + Math.PI;
+      engine.addBall({ x: b.x, y: b.y, vx: Math.cos(a) * s.ballSpeed, vy: Math.sin(a) * s.ballSpeed, radius: b.radius, color: s.ballColor2 });
+    } else if (!s.twoBalls && balls.length > 1) {
+      engine.setBalls(balls.slice(0, 1));
+    }
+  }, [s.twoBalls, s.ballSpeed, s.ballColor2]);
+
+  // Mirror settings into the URL so any setup can be bookmarked or shared.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = settingsToSearchParams(settings);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }, [settings]);
+
+  /* ------------------------------------------------------------ mode change */
+
+  const changeMode = useCallback(
+    (mode: ModeId) => {
+      const engine = engineRef.current;
+      finderAbortRef.current?.abort();
+      finderAbortRef.current = null;
+      setIsSearching(false);
+      setSearchResult(null);
+      setIsStarted(false);
+      setIsPaused(false);
+      setFinished(false);
+      audioRef.current?.resetCustomNoteIndex();
+      const fresh = { ...defaultSettings(mode), recordingResolution: settings.recordingResolution, watermarkText: settings.watermarkText, wallBreakSound: settings.wallBreakSound };
+      setSettings(fresh);
+      if (engine) {
+        engine.setConfig({
+          gravity: fresh.gravity,
+          bounce: fresh.bounce,
+          ballSpeed: fresh.ballSpeed,
+          rotationSpeed: fresh.rotationSpeed,
+          wallCount: fresh.wallCount,
+          gapSize: fresh.gapSize,
+          ballColor: fresh.ballColor,
+          ballRadius: fresh.ballRadius,
+          twoBalls: false,
+          ballColor2: fresh.ballColor2,
+        });
+        initEngineForMode(engine, fresh);
+      }
+    },
+    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, initEngineForMode],
+  );
+
+  // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const mode = (e as CustomEvent<ModeId>).detail;
+      changeMode(mode);
+      document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth" });
+    };
+    window.addEventListener("viralballs:select-mode", handler);
+    return () => window.removeEventListener("viralballs:select-mode", handler);
+  }, [changeMode]);
+
+  /* ------------------------------------------------------------ start / pause / loop */
+
+  const start = useCallback(async () => {
+    audioRef.current = audioRef.current || new ToneGenerator();
+    await audioRef.current.start();
+    setIsStarted(true);
+    setAudioEnabled(true);
+    setIsPaused(false);
+  }, []);
+
+  // Sound events + audio analyser + finished detection, polled once per frame.
+  useEffect(() => {
+    let raf = 0;
+    let bins: Uint8Array<ArrayBuffer> | null = null;
+    let tick = 0;
+    const loop = () => {
+      const engine = engineRef.current;
+      const audio = audioRef.current;
+      if (engine && audio) {
+        for (const ev of engine.consumeSoundEvents()) {
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex);
+          else audio.playGapPass();
+        }
+      }
+      if (isStarted && !isPaused && audioEnabled && audio) {
+        const analyser = audio.getAnalyser();
+        if (analyser) {
+          if (!bins || bins.length !== analyser.frequencyBinCount) bins = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(bins);
+          tick = (tick + 1) % 4;
+          if (tick === 0) {
+            let sum = 0;
+            for (let i = 0; i < bins.length; i++) sum += bins[i];
+            canvasRef.current?.setAudioIntensity(sum / bins.length / 255);
+          }
+        }
+      }
+      if (engine && isStarted && !isPaused) {
+        const done = engine.isSimulationFinished();
+        setFinished((prev) => (prev !== done ? done : prev));
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [isStarted, isPaused, audioEnabled]);
+
+  // FPS readout.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (canvasRef.current?.fpsRef) setFps(Math.round(canvasRef.current.fpsRef.current));
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
+
+  // Elapsed time readout (written directly to the DOM to avoid re-renders).
+  useEffect(() => {
+    if (!isStarted || isPaused || finished) return;
+    const id = setInterval(() => {
+      const el = timeLabelRef.current;
+      const engine = engineRef.current;
+      if (!el || !engine) return;
+      const secs = engine.getElapsedMs() / 1000;
+      const m = Math.floor(secs / 60);
+      const sec = secs % 60;
+      el.textContent = m > 0 ? `${m}:${sec.toFixed(1).padStart(4, "0")}` : `${sec.toFixed(1)}s`;
+    }, 100);
+    return () => clearInterval(id);
+  }, [isStarted, isPaused, finished]);
+
+  // Keyboard shortcuts: Space = pause/resume, R = restart.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (isStarted) setIsPaused((p) => !p);
+      } else if (e.code === "KeyR" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        restart();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isStarted, restart]);
+
+  // Auto-pause when the simulator scrolls out of view or the tab is hidden (not while recording).
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (autoPausedRef.current) {
+            autoPausedRef.current = false;
+            setIsPaused(false);
+          }
+        } else {
+          setIsPaused((p) => {
+            if (p || !isStarted || isRecording) return p;
+            autoPausedRef.current = true;
+            return true;
+          });
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isStarted, isRecording]);
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) {
+        setIsPaused((p) => {
+          if (p || !isStarted || isRecording) return p;
+          autoPausedRef.current = true;
+          return true;
+        });
+      } else if (autoPausedRef.current) {
+        autoPausedRef.current = false;
+        setIsPaused(false);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isStarted, isRecording]);
+
+  /* ------------------------------------------------------------ recording */
+
+  const stopRecordingAndDownload = useCallback(async () => {
+    if (recordTimerRef.current) {
+      clearTimeout(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    canvasRef.current?.setRecording(false);
+    const recorder = recorderRef.current;
+    if (recorder) {
+      const blob = await recorder.stopRecording();
+      if (blob) recorder.downloadBlob(blob, "viralballs-export");
+    }
+    setIsRecording(false);
+  }, []);
+
+  const toggleRecording = useCallback(async () => {
+    const canvas = canvasRef.current?.getCanvas();
+    if (!canvas || !recordingSupported) return;
+    if (isRecording) {
+      await stopRecordingAndDownload();
+      return;
+    }
+    if (!isStarted) await start();
+    recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
+    await audioRef.current?.start();
+    canvasRef.current?.setRecording(true);
+    setIsRecording(true);
+    const ok = await recorderRef.current.startRecording({
+      mimeType: "video/mp4",
+      resolution: resolutionToSize(settings.recordingResolution),
+      audioStream: audioRef.current?.getAudioStream() || null,
+      textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
+    });
+    if (!ok) {
+      canvasRef.current?.setRecording(false);
+      setIsRecording(false);
+      return;
+    }
+    recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), 1000 * settings.recordingDuration);
+  }, [isRecording, isStarted, recordingSupported, settings, start, stopRecordingAndDownload]);
+
+  // Stop the recording shortly after the run finishes.
+  useEffect(() => {
+    if (!isRecording || !finished) return;
+    const id = setTimeout(() => void stopRecordingAndDownload(), 500);
+    return () => clearTimeout(id);
+  }, [isRecording, finished, stopRecordingAndDownload]);
+
+  /* ------------------------------------------------------------ custom media */
+
+  const onBallImageUpload = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setBallImage((e.target?.result as string) || null);
+      setBallEmoji(null);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const onWallBreakSoundUpload = useCallback(
+    (file: File) => {
+      if (wallBreakObjectUrlRef.current) URL.revokeObjectURL(wallBreakObjectUrlRef.current);
+      const url = URL.createObjectURL(file);
+      wallBreakObjectUrlRef.current = url;
+      setCustomWallBreakName(file.name);
+      update({ wallBreakSound: url });
+    },
+    [update],
+  );
+
+  const onCustomSoundSelect = useCallback(async (id: string | null) => {
+    if (!id) {
+      audioRef.current?.clearCustomNotes();
+      setCustomSoundId(null);
+      setCustomSoundNoteCount(0);
+      setCustomMidiName(null);
+      return;
+    }
+    const song = SONGS.find((sng) => sng.id === id);
+    if (!song) return;
+    setCustomSoundId(id);
+    setCustomMidiName(null);
+    setCustomSoundLoading(true);
+    try {
+      const notes = await loadMidiFrequencies(song.file);
+      audioRef.current?.setCustomNotes(notes);
+      setCustomSoundNoteCount(notes.length);
+    } catch (err) {
+      console.error("Failed to load MIDI file:", err);
+      setCustomSoundId(null);
+      setCustomSoundNoteCount(0);
+      audioRef.current?.clearCustomNotes();
+    } finally {
+      setCustomSoundLoading(false);
+    }
+  }, []);
+
+  const onCustomMidiUpload = useCallback(
+    async (file: File) => {
+      setCustomSoundLoading(true);
+      setCustomSoundId("custom-upload");
+      setCustomMidiName(file.name);
+      try {
+        const notes = parseMidiToFrequencies(await file.arrayBuffer());
+        audioRef.current?.setCustomNotes(notes);
+        setCustomSoundNoteCount(notes.length);
+      } catch (err) {
+        console.error("Failed to parse uploaded MIDI file:", err);
+        alert(t("Controls.midiParseError"));
+        setCustomSoundId(null);
+        setCustomMidiName(null);
+        setCustomSoundNoteCount(0);
+        audioRef.current?.clearCustomNotes();
+      } finally {
+        setCustomSoundLoading(false);
+      }
+    },
+    [t],
+  );
+
+  /* ------------------------------------------------------------ presets */
+
+  const onSavePreset = useCallback(
+    (name: string) => {
+      const next = { ...presets, [name]: { ...settings } };
+      setPresets(next);
+      savePresets(next);
+    },
+    [presets, settings],
+  );
+
+  const onLoadPreset = useCallback(
+    (name: string) => {
+      const preset = presets[name];
+      if (!preset) return;
+      finderAbortRef.current?.abort();
+      finderAbortRef.current = null;
+      setIsSearching(false);
+      setSearchResult(null);
+      const loaded = presetToSettings(preset);
+      setSettings(loaded);
+      const engine = engineRef.current;
+      if (engine) {
+        engine.setConfig({
+          gravity: loaded.gravity,
+          bounce: loaded.bounce,
+          ballSpeed: loaded.ballSpeed,
+          rotationSpeed: loaded.rotationEnabled ? loaded.rotationSpeed : 0,
+          wallCount: loaded.wallCount,
+          gapSize: loaded.gapSize,
+          ballColor: loaded.ballColor,
+          ballRadius: loaded.ballRadius,
+          twoBalls: loaded.twoBalls,
+          ballColor2: loaded.ballColor2,
+        });
+        initEngineForMode(engine, loaded);
+      }
+      setIsStarted(false);
+      setIsPaused(false);
+      setFinished(false);
+    },
+    [presets, initEngineForMode],
+  );
+
+  const onDeletePreset = useCallback(
+    (name: string) => {
+      const next = { ...presets };
+      delete next[name];
+      setPresets(next);
+      savePresets(next);
+    },
+    [presets],
+  );
+
+  const onResetSection = useCallback(
+    (section: ControlSection) => {
+      update(sectionDefaults(section, settings.mode));
+      if (section === "ball") {
+        setBallImage(null);
+        setBallEmoji(null);
+      }
+      if (section === "sound") void onCustomSoundSelect(null);
+    },
+    [settings.mode, update, onCustomSoundSelect],
+  );
+
+  /* ------------------------------------------------------------ find simulation */
+
+  const runFinder = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine || isSearching) return;
+    setIsSearching(true);
+    setSearchResult(null);
+    setSearchProgress(null);
+    const controller = new AbortController();
+    finderAbortRef.current = controller;
+    const result = await findSimulation(
+      {
+        targetDurationSec: findDuration,
+        toleranceSec: findTolerance,
+        maxSeeds: findMaxSeeds,
+        maxSimTimeSec: findDuration + (settings.mode === "colorMatch" ? 90 : 30),
+        physicsConfig: { ...engine.config },
+        mode: settings.mode,
+        modeSettings: {
+          bouncierEnabled: settings.bouncierEnabled,
+          countdownTotal: settings.targetCount,
+          countdownRandom: settings.countdownRandom,
+          colorMatchColorCount: settings.colorMatchColorCount,
+          accumulationTimerMax: 1000 * settings.accumulationTime,
+          spikesEnabled: settings.spikesEnabled,
+          spikeCount: settings.spikeCount,
+          multiplySpawnCount: settings.multiplySpawnCount,
+          shatterSegmentsPerWall: engine.getShatterSegmentsPerWall(),
+          shatterHpPerSegment: engine.getShatterHpPerSegment(),
+          growRate: settings.growRate,
+          portalCount: engine.getPortalCount(),
+          twoBalls: settings.twoBalls,
+        },
+      },
+      (p) => setSearchProgress(p),
+      controller.signal,
+    );
+    finderAbortRef.current = null;
+    setIsSearching(false);
+    setSearchResult(result);
+    if (result.found) {
+      engine.setSeed(result.seed);
+      setFinished(false);
+      setIsPaused(true);
+      audioRef.current?.resetCustomNoteIndex();
+      update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration)) });
+      engine.setConfig({ ballRadius: settings.ballRadius });
+      initEngineForMode(engine, settings);
+    }
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode]);
+
+  const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
+
+  const copyShareLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, []);
+
+  /* ------------------------------------------------------------ canvas labels */
+
+  const labels = useMemo<CanvasLabels>(() => {
+    const fill = (key: string, vars: Record<string, string | number>) => {
+      let text = t(key);
+      for (const [k, v] of Object.entries(vars)) text = text.replace(`[${k}]`, String(v));
+      return text;
+    };
+    return {
+      escaped: t("Simulator.canvasEscaped"),
+      afterFrozenBalls: (n) => fill("Simulator.canvasAfterFrozenBalls", { count: n }),
+      frozenCount: (n) => fill("Simulator.canvasFrozenCount", { count: n }),
+      painted: (pct) => fill("Simulator.canvasPainted", { pct }),
+      teleports: t("Simulator.canvasTeleports"),
+      afterTeleports: (n) => fill("Simulator.canvasAfterTeleports", { count: n }),
+      shattered: t("Simulator.canvasShattered"),
+      segmentsDestroyed: (b, total) => fill("Simulator.canvasSegmentsDestroyed", { broken: b, total }),
+      segmentsShattered: t("Simulator.canvasSegmentsShattered"),
+      matched: t("Simulator.canvasMatched"),
+      segmentsCleared: (total) => fill("Simulator.canvasSegmentsCleared", { total }),
+      matchColour: t("Simulator.canvasMatchColour"),
+      complete: t("Simulator.canvasComplete"),
+      segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
+      ballsLabel: t("Simulator.canvasBalls"),
+    };
+  }, [t]);
+
+  const showFinder = !NO_FINDER_MODES.includes(settings.mode);
+  const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
+  const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
+
+  return (
+    <main id="simulator" ref={mainRef} className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2 flex flex-col">
+          <div className="bg-zinc-900/50 rounded-lg p-2 sm:p-4 border border-zinc-800">
+            <div className="relative aspect-square sm:aspect-video bg-black rounded-lg overflow-hidden shadow-2xl shadow-cyan-500/20">
+              {engineReady && engineRef.current && (
+                <Canvas
+                  ref={canvasRef}
+                  physicsEngine={engineRef.current}
+                  audioIntensity={0}
+                  showTrails={s.showTrails}
+                  trailThickness={s.trailThickness}
+                  showGlow={s.showGlow}
+                  showWallGlow={s.showWallGlow}
+                  isPaused={isPaused}
+                  isStarted={isStarted}
+                  circleColor={s.circleColor}
+                  wallThickness={s.wallThickness}
+                  watermarkText={s.watermarkText}
+                  rainbowWalls={s.rainbowWalls}
+                  rainbowWallMode={s.rainbowWallMode}
+                  rainbowBall={s.rainbowBall}
+                  lineColor={s.lineColor}
+                  rainbowLines={s.rainbowLines}
+                  ballImage={ballImage}
+                  ballEmoji={ballEmoji}
+                  topText={s.topText}
+                  bottomText={s.bottomText}
+                  textSize={s.textSize}
+                  reactiveBackground={s.reactiveBackground}
+                  colorTrail={s.colorTrail}
+                  cameraFollow={s.cameraFollow}
+                  simSpeed={simSpeed}
+                  labels={labels}
+                />
+              )}
+              <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
+                <span className={gradientText}>
+                  {fps} {t("Simulator.fps")}
+                </span>
+              </div>
+              {isRecording && (
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 animate-pulse hover:bg-red-500 transition-colors cursor-pointer"
+                  aria-label={t("Simulator.stopRecordingTooltip")}
+                >
+                  <div className="w-2 h-2 bg-white rounded-full" />
+                  {t("Simulator.stopRecording")}
+                </button>
+              )}
+              {isStarted && !isRecording && !finished && (
+                <button type="button" onClick={restart} title={t("Simulator.restartTooltip")} className={`absolute top-4 left-4 group flex items-center gap-2 ${overlayButton}`}>
+                  <span className={`${gradientText} group-hover:rotate-180 transition-transform duration-500 inline-block`}>↻</span>
+                  <span className={gradientText}>{t("Simulator.restart")}</span>
+                </button>
+              )}
+              {isStarted && !finished && (
+                <button type="button" onClick={() => setIsPaused((p) => !p)} className={`absolute top-4 right-4 flex items-center gap-1.5 ${overlayButton}`}>
+                  <span className={gradientText}>{isPaused ? t("Simulator.resume") : t("Simulator.pause")}</span>
+                </button>
+              )}
+              {isStarted && (
+                <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md rounded-xl border border-slate-700/40 p-1.5 shadow-2xl">
+                  <span ref={timeLabelRef} className={`text-[11px] font-black font-mono ${gradientText} px-2 tabular-nums`}>
+                    0.0s
+                  </span>
+                  <div className="w-px h-4 bg-slate-700/60" />
+                  {SPEEDS.map((speed) => (
+                    <button
+                      type="button"
+                      key={speed}
+                      onClick={() => setSimSpeed(speed)}
+                      aria-pressed={simSpeed === speed}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black font-mono cursor-pointer ${simSpeed === speed ? "bg-cyan-500 text-slate-950" : "text-slate-400 hover:text-white hover:bg-slate-700/60"}`}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
+              )}
+              {isStarted && finished && !isRecording && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-md transition-all duration-500">
+                  <button type="button" onClick={restart} className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-base transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
+                    {t("Simulator.restartSimulation")}
+                  </button>
+                </div>
+              )}
+              {isSearching && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
+                  <div className="text-center space-y-5 max-w-xs px-4">
+                    <div className="text-5xl animate-pulse">🔍</div>
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-400">{t("Simulator.findingSimulation")}</p>
+                    {searchProgress && (
+                      <div className="space-y-3">
+                        <div className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden">
+                          <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
+                        </div>
+                        <p className="text-xs text-slate-400 font-mono">{t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
+                        {searchProgress.bestDuration > 0 && <p className="text-xs text-slate-500">{t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
+                      </div>
+                    )}
+                    <button type="button" onClick={cancelFinder} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
+                      {t("Simulator.cancel")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!isStarted && !isSearching && searchResult && !searchResult.found && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
+                  <div className="text-center space-y-5 max-w-xs px-4">
+                    <div className="text-5xl">❌</div>
+                    <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
+                    <p className="text-xs text-slate-500">
+                      {t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
+                    </p>
+                    <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
+                      {t("Simulator.tryAgain")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!isStarted && !isSearching && !(searchResult && !searchResult.found) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40 backdrop-blur-2xl">
+                  <div className="text-center space-y-6 px-4">
+                    <div className="text-7xl drop-shadow-[0_0_20px_rgba(34,211,238,0.3)]">⚡</div>
+                    <p className="text-lg font-medium text-slate-300">
+                      {searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}
+                    </p>
+                    {searchResult?.found && <p className="text-sm text-amber-500/90 max-w-sm mx-auto font-medium">{t("Simulator.doNotChangeSettingsWarning")}</p>}
+                    <button type="button" onClick={start} className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-base transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
+                      {t("Simulator.startSimulator")}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
+              <span>{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</span>
+              <button type="button" onClick={copyShareLink} className="shrink-0 px-2.5 py-1 rounded-md bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 transition-colors cursor-pointer">
+                {shareCopied ? `✅ ${t("Simulator.shareLinkCopied")}` : `🔗 ${t("Simulator.shareLink")}`}
+              </button>
+            </div>
+          </div>
+
+          {showFinder && (
+            <div className="mt-6 max-w-[800px] mx-auto w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-xl flex-1 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-zinc-300">🔍 {t("Controls.findSimulation")}</span>
+                <Tooltip text={t("Controls.findSimulationTip")} />
+              </div>
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500" htmlFor="find-duration">
+                      {t("Controls.duration")}
+                    </label>
+                    <span className="text-xs font-mono text-cyan-400">{findDuration}s</span>
+                  </div>
+                  <input
+                    id="find-duration"
+                    type="range"
+                    min={RANGES.findDuration.min}
+                    max={RANGES.findDuration.max}
+                    step={RANGES.findDuration.step}
+                    value={findDuration}
+                    onChange={(e) => setFindDuration(Number(e.target.value))}
+                    className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                    style={sliderStyle(findDuration, RANGES.findDuration.min, RANGES.findDuration.max)}
+                  />
+                  <div className="flex justify-between text-[10px] text-zinc-600">
+                    <span>{RANGES.findDuration.min}s</span>
+                    <span>{RANGES.findDuration.max}s</span>
+                  </div>
+                </div>
+              </div>
+              {isSearching && searchProgress && (
+                <div className="space-y-2">
+                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                    <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                    <span className="font-mono">{t("Controls.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</span>
+                    {searchProgress.bestDuration > 0 && <span>{t("Controls.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</span>}
+                  </div>
+                </div>
+              )}
+              {!isSearching && searchResult && !searchResult.found && (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-red-950/30 border border-red-900/30 rounded-lg">
+                  <span className="text-sm">❌</span>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
+                    <p className="text-[10px] text-zinc-500">{t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested })}</p>
+                  </div>
+                  <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
+                    ✕
+                  </button>
+                </div>
+              )}
+              {!isSearching && searchResult && searchResult.found && (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">
+                  <span className="text-sm">✅</span>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-emerald-400">{t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) })}</p>
+                    <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
+                  </div>
+                  <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
+                    ✕
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={isSearching ? cancelFinder : runFinder}
+                disabled={isRecording}
+                className={`mt-auto w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg text-xs uppercase tracking-wider cursor-pointer ${
+                  isSearching
+                    ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700"
+                    : "bg-gradient-to-r from-blue-600 to-cyan-600 text-slate-950 hover:from-blue-500 hover:to-cyan-500 shadow-blue-600/20 hover:scale-[1.02] active:scale-95"
+                } ${isRecording ? "opacity-40 cursor-not-allowed" : ""}`}
+              >
+                {isSearching ? (
+                  <>
+                    <span className="animate-pulse">🔍</span> {t("Controls.cancelSearch")}
+                  </>
+                ) : (
+                  <>🔍 {t("Controls.findDurationSimulation", { duration: findDuration })}</>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-1">
+          <Controls
+            settings={settings}
+            update={update}
+            onResetSection={onResetSection}
+            isRecording={isRecording}
+            recordingSupported={recordingSupported}
+            simulationFound={!!searchResult?.found}
+            onRecordToggle={toggleRecording}
+            ballImage={ballImage}
+            onBallImageUpload={onBallImageUpload}
+            onBallImageClear={() => setBallImage(null)}
+            ballEmoji={ballEmoji}
+            onBallEmojiChange={(emoji) => {
+              setBallEmoji(emoji);
+              if (emoji) setBallImage(null);
+            }}
+            customSoundId={customSoundId}
+            customSoundLoading={customSoundLoading}
+            customSoundNoteCount={customSoundNoteCount}
+            onCustomSoundSelect={onCustomSoundSelect}
+            customMidiName={customMidiName}
+            onCustomMidiUpload={onCustomMidiUpload}
+            customWallBreakName={customWallBreakName}
+            onWallBreakSoundUpload={onWallBreakSoundUpload}
+            savedPresetNames={Object.keys(presets)}
+            onSavePreset={onSavePreset}
+            onLoadPreset={onLoadPreset}
+            onDeletePreset={onDeletePreset}
+          />
+        </div>
+      </div>
+    </main>
+  );
+}

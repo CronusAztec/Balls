@@ -1,0 +1,815 @@
+{
+  "Headings": {
+    "features": "Features & Customisation",
+    "modes": "Game Modes",
+    "faq": "Frequently Asked Questions",
+    "howItWorks": "How It Works"
+  },
+  "Navbar": {
+    "simulator": "Simulator",
+    "modes": "Modes",
+    "features": "Features",
+    "faq": "FAQ",
+    "blog": "Blog",
+    "goHome": "Go to Home",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "back": "← Back",
+    "backToSimulator": "← Back to simulator"
+  },
+  "Hero": {
+    "title1": "Satisfying Ball Physics",
+    "title2": "for TikTok & Reels",
+    "subtitle": "Build hypnotic bouncing-ball simulations in your browser: tune the physics, stack rainbow effects, pick one of 10 modes and export a vertical MP4 that is ready to post. Free, no account, nothing to install.",
+    "startCreating": "Start Creating",
+    "exploreModes": "Explore Modes",
+    "mobileNotice": "For the best experience, use a desktop or laptop browser. Controls are optimised for larger screens."
+  },
+  "SimulatorPage": {
+    "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",
+    "metaDescription": "Free browser-based ball physics simulator with 10 modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
+  },
+  "Layout": {
+    "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
+    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and 10 unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
+    "browserRequirements": "Requires a modern web browser with JavaScript enabled",
+    "features": [
+      "10 simulation modes",
+      "Customisable physics and visuals",
+      "Rainbow wall effects",
+      "Colour trail",
+      "Wall break effects (confetti, shatter, shockwave)",
+      "MP4 video export in multiple resolutions",
+      "TikTok vertical format support",
+      "Custom ball images",
+      "Text overlays",
+      "Save and load presets"
+    ]
+  },
+  "Simulator": {
+    "stopRecording": "REC",
+    "restart": "Restart",
+    "resume": "▶ Resume",
+    "pause": "⏸ Pause",
+    "restartSimulation": "🔄 Restart Simulation",
+    "ready": "Ready to start the simulation",
+    "readyToStartSimulationFor": "Ready to start simulation for {duration}s",
+    "doNotChangeSettingsWarning": "⚠️ Please do not change settings during playback to ensure simulation accuracy.",
+    "startSimulator": "▶ Start Simulator",
+    "stopRecordingTooltip": "Stop recording and export video",
+    "restartTooltip": "Restart (R)",
+    "canvasEscaped": "ESCAPED!",
+    "canvasAfterFrozenBalls": "After [count] frozen ball(s)",
+    "canvasFrozenCount": "Frozen: [count]",
+    "canvasPainted": "[pct]% painted",
+    "canvasTeleports": "teleports",
+    "canvasAfterTeleports": "After [count] teleport(s)",
+    "canvasShattered": "SHATTERED!",
+    "canvasSegmentsDestroyed": "[broken]/[total] segments destroyed",
+    "canvasSegmentsShattered": "segments shattered",
+    "canvasMatched": "MATCHED!",
+    "canvasSegmentsCleared": "All [total] segments cleared",
+    "canvasMatchColour": "Match colour:",
+    "canvasComplete": "COMPLETE!",
+    "canvasSegmentsHitInOrder": "All [total] segments hit in order",
+    "canvasBalls": "balls",
+    "findingSimulation": "Finding simulation...",
+    "seedProgress": "Seed {tested}/{max}",
+    "closestDuration": "Closest: {duration}s",
+    "cancel": "Cancel",
+    "didNotFind": "Didn't find simulation",
+    "testedSeedsClosest": "Tested {tested} seeds. Closest was {closest}s (target: {target}s ±{tolerance}s)",
+    "tryAgain": "Try again",
+    "recordingUnsupported": "Video recording is not supported in this browser. Try a recent version of Chrome, Edge or Firefox.",
+    "exportFormatNote": "Exports as MP4 where the browser supports it, otherwise WebM.",
+    "fps": "FPS",
+    "shareLink": "Copy share link",
+    "shareLinkCopied": "Link copied!"
+  },
+  "HowItWorks": {
+    "step1": {
+      "title": "Pick a Mode",
+      "description": "Choose one of 10 simulation modes: classic rings, paint trails, shatter, colour match, grow and more."
+    },
+    "step2": {
+      "title": "Customise Everything",
+      "description": "Adjust physics, colours, effects, text overlays and the look of the ball until the clip feels like yours."
+    },
+    "step3": {
+      "title": "Export & Share",
+      "description": "Record the run as an MP4 in any resolution, including vertical TikTok format, and post it wherever you like."
+    }
+  },
+  "Controls": {
+    "modeDisplay": "Change mode ↓",
+    "accumulationEscape": "Escape Time",
+    "accumulationEscapeTip": "Seconds the ball has to escape before it freezes in place.",
+    "spikes": "Spikes",
+    "spikesTip": "Add inward-pointing spikes on the outer wall as obstacles.",
+    "spikeCount": "Spike Count",
+    "spikeCountTip": "Number of spikes evenly distributed around the outer wall.",
+    "spawnCount": "Spawn Count",
+    "spawnCountTip": "How many new balls spawn each time one escapes a wall.",
+    "lineColor": "Line Color",
+    "rainbowSettings": "🌈 Rainbow",
+    "targetCount": "Number of Targets",
+    "targetCountTip": "How many numbered segments to place on the wall.",
+    "randomOrder": "Random Order",
+    "randomOrderTip": "Shuffle the position of target numbers around the wall.",
+    "colorCount": "Number of Colors",
+    "colorCountTip": "How many distinct colours are used on the wall segments. Fewer colours = easier to match.",
+    "ballSpeed": "Ball Speed",
+    "ballSpeedTip": "How fast the ball moves. Higher values make the simulation more energetic.",
+    "ballSize": "Ball Size",
+    "ballSizeTip": "Radius of the ball in pixels. Larger balls have a harder time fitting through gaps.",
+    "gravity": "Gravity",
+    "gravityTip": "Downward pull on the ball. Set to 0 for zero-gravity floating.",
+    "ballColor": "Ball Color",
+    "twoBalls": "Two Balls",
+    "twoBallsTip": "Spawn a second ball moving in the opposite direction for double the action.",
+    "ballColor2": "Second Ball Color",
+    "bouncier": "Bouncier Each Hit",
+    "bouncierTip": "Ball gets faster with every wall bounce, building momentum until it escapes.",
+    "customBallImage": "Custom Ball Image",
+    "removeCustomImage": "Remove custom image",
+    "ballEmoji": "Ball Emoji",
+    "removeEmoji": "Remove emoji",
+    "wallCount": "Wall Count",
+    "wallCountTip": "Number of concentric circular walls the ball must break through.",
+    "wallThickness": "Wall Thickness",
+    "wallThicknessTip": "Thickness of each wall ring in pixels.",
+    "gapSize": "Gap Size",
+    "gapSizeTip": "Size of the opening in each wall. Larger gaps make it easier for the ball to escape.",
+    "rotation": "Rotation",
+    "rotationTip": "Walls rotate over time, making the gaps move around the circle.",
+    "rotationSpeed": "Speed",
+    "wallColor": "Wall Color",
+    "pulse": "Pulse",
+    "gradient": "Gradient",
+    "trails": "Trails",
+    "trailsTip": "Show a fading trail behind the ball as it moves.",
+    "ballGlow": "Ball Glow",
+    "ballGlowTip": "Radial light effect around the ball.",
+    "wallGlow": "Wall Glow",
+    "wallGlowTip": "Walls flash with colour when the ball bounces off them.",
+    "colorTrail": "Color Trail",
+    "colorTrailTip": "Rainbow hue-shifting trail behind the ball.",
+    "reactiveBg": "Reactive BG",
+    "reactiveBgTip": "Background pulses and shifts colour on each bounce.",
+    "cameraFollow": "Camera Follow",
+    "cameraFollowTip": "Smoothly shifts the viewport to keep the ball centred.",
+    "cinematic": "Drama Director",
+    "cinematicTip": "Subtly steers rebounds to create near-misses and dramatic escapes. Turn off for pure physics.",
+    "trailThickness": "Trail Thickness",
+    "trailThicknessTip": "How thick the ball's trail is. Higher values create a bolder streak.",
+    "wallBreakEffect": "Wall Break Effect",
+    "wallBreakEffectTip": "Visual effect that plays when the ball breaks through a wall.",
+    "effectConfetti": "🎊 Confetti",
+    "effectShatter": "💎 Shatter",
+    "effectShockwave": "💫 Shockwave",
+    "effectAll": "✨ All",
+    "effectNone": "🚫 None",
+    "wallBreakSound": "Wall Break Sound",
+    "wallBreakSoundDesc": "Play a custom audio clip instead of the default tones when the ball breaks through a wall.",
+    "wallBreakSoundDefault": "Default tones",
+    "importWallBreak": "Import Custom Wall Break Sound",
+    "chooseWallBreakFile": "Choose audio file",
+    "dropWallBreakHere": "Drop your audio file here!",
+    "customSoundDesc": "Choose a song to use its melody as bounce sounds. Each wall hit plays the next note from the song.",
+    "song": "Song",
+    "defaultSong": "Default tones",
+    "loadingSong": "Loading song...",
+    "notesLoaded": "notes loaded",
+    "importMidi": "Import Custom MIDI",
+    "chooseMidiFile": "Choose .mid file",
+    "dropMidiHere": "Drop your MIDI file here!",
+    "midiSourceText": "Not sure where to get MIDI files? Try",
+    "midiParseError": "Failed to parse MIDI file. Make sure it is a valid format 0 or 1 MIDI file.",
+    "videoResolution": "Resolution",
+    "videoDuration": "Duration",
+    "durationTip": "The simulation will automatically stop and save after this many seconds.",
+    "customWatermark": "Custom Watermark",
+    "watermarkTip": "Text displayed faintly in the centre of your exported recording.",
+    "topText": "Top Text",
+    "bottomText": "Bottom Text",
+    "textSize": "Text Size",
+    "saveSettings": "Save Settings",
+    "saveAs": "Save as...",
+    "saveHint": "Save your current setup (colours, physics, effects) to use later.",
+    "saveButton": "Save",
+    "controlsTitle": "Controls",
+    "modeSpan": "Mode",
+    "resolutionTitle": "Recording Resolution",
+    "durationSpan": "Duration",
+    "minDuration": "10s",
+    "maxDuration": "120s",
+    "enterWatermark": "Enter watermark text...",
+    "topTextPlaceholder": "Text above the circle...",
+    "bottomTextPlaceholder": "Text below the circle...",
+    "minSize": "0.5×",
+    "maxSize": "3×",
+    "stopExport": "Stop & Export MP4",
+    "recordVideo": "Record Video",
+    "savedPresetsSpan": "Saved Presets",
+    "presetPlaceholder": "Preset name...",
+    "saveBtn": "Save",
+    "noSavedPresets": "No saved presets yet",
+    "loadBtn": "Load",
+    "deletePreset": "Delete preset",
+    "ballPhysicsTab": "Ball & Physics",
+    "wallSettingsTab": "Wall Settings",
+    "visualEffectsTab": "Visual Effects",
+    "customSoundTab": "Custom Sound",
+    "recordingTab": "Recording",
+    "loadingMidi": "Loading MIDI…",
+    "resolution500": "500×500 (Square)",
+    "resolution720": "1280×720 (HD)",
+    "resolution1080": "1920×1080 (Full HD)",
+    "resolutionTikTok": "1080×1920 (Vertical, TikTok)",
+    "modeClassic": "Classic",
+    "modeAccumulation": "Accumulation",
+    "modeMultiply": "Multiply",
+    "modeLines": "Lines",
+    "modePaint": "Paint",
+    "modeTarget": "Target",
+    "modePortal": "Portal",
+    "modeShatter": "Shatter",
+    "modeColorMatch": "Color Match",
+    "modeGrow": "Grow",
+    "growthRate": "Growth Rate",
+    "growthRateTip": "How fast the ball grows with each bounce (as a percentage).",
+    "centerDot": "Center Obstacle",
+    "centerDotTip": "Place a small dot in the centre of the circle that the ball bounces off.",
+    "growLines": "Lines",
+    "growLinesTip": "Draw lines from each bounce point to the ball, like in Lines mode.",
+    "onText": "ON",
+    "offText": "OFF",
+    "onTextCase": "On",
+    "offTextCase": "Off",
+    "modeTitle": "Mode",
+    "recording": "Recording",
+    "uploadPlaceholder": "Upload Image",
+    "finderTitle": "Simulation Finder 🔍",
+    "finderDesc": "Find a simulation seed that runs for the exact duration you select, keeping all your custom settings in mind.",
+    "targetDuration": "Target Duration",
+    "searching": "Simulating combinations...",
+    "findButton": "Find Perfect Simulation",
+    "finderMatch": "PERFECT MATCH FOUND",
+    "replayButton": "Replay Simulation",
+    "chooseImageFile": "Choose Image",
+    "resetSection": "Reset Category",
+    "topTextTip": "Custom text overlay displayed above the physics arena.",
+    "bottomTextTip": "Custom text overlay displayed below the physics arena.",
+    "textSizeTip": "Adjust the font size of the text overlays.",
+    "searchSettings": "Search settings...",
+    "searchResults": "Search Results",
+    "clearSearch": "Clear",
+    "noSearchResults": "No settings match your search.",
+    "showAdvancedOptions": "Show Advanced Options",
+    "findSimulation": "Find Simulation",
+    "findSimulationTip": "Search for a simulation seed that produces a run of the exact target duration.",
+    "duration": "Duration",
+    "tolerance": "Tolerance (±s)",
+    "maxSeeds": "Max Seeds",
+    "seedProgress": "Seed {tested}/{max}",
+    "closestDuration": "Closest: {duration}s",
+    "closestDurationWithSeeds": "Closest: {duration}s ({seeds} seeds)",
+    "didNotFind": "Didn't find simulation",
+    "foundDuration": "Found! {duration}s",
+    "seedTested": "Seed: {seed} ({tested} tested)",
+    "cancelSearch": "Cancel Search",
+    "findDurationSimulation": "Find {duration}s Simulation"
+  },
+  "Modes": {
+    "classic": {
+      "name": "Classic",
+      "description": "A ball bounces inside concentric rings that each have a single gap. Every wall it slips through breaks with a satisfying effect. Simple, hypnotic and endlessly rewatchable."
+    },
+    "accumulation": {
+      "name": "Accumulation",
+      "description": "The ball has a few seconds to escape before it freezes where it is. Every frozen ball becomes an obstacle for the next one. Will the last ball make it out?"
+    },
+    "multiply": {
+      "name": "Multiply",
+      "description": "Each time a ball escapes the ring it spawns extra balls. The arena fills with bouncing chaos within seconds, which makes for explosive, shareable clips."
+    },
+    "lines": {
+      "name": "Lines",
+      "description": "Every bounce point is connected to the ball by a line, so the run slowly draws intricate string art as the ball ricochets around the circle."
+    },
+    "paint": {
+      "name": "Paint",
+      "description": "The ball paints a rainbow trail wherever it goes, gradually colouring the whole circle while a live percentage counter tracks the coverage."
+    },
+    "target": {
+      "name": "Target",
+      "description": "Numbered segments line the wall and must be hit in order. Every correct hit triggers a wall-break effect; wrong hits flash red."
+    },
+    "grow": {
+      "name": "Grow",
+      "description": "The ball is sealed inside one large ring and grows a little with every bounce, filling more and more of the space until there is nowhere left to go."
+    },
+    "shatter": {
+      "name": "Shatter",
+      "description": "Every wall is made of segments with hit points. Each bounce cracks a segment and enough hits shatter it. Clear a path through every wall to escape."
+    },
+    "colorMatch": {
+      "name": "Color Match",
+      "description": "The wall is split into coloured segments and the ball changes colour on every bounce. A segment only breaks when the colours match. Clear them all to escape."
+    },
+    "portal": {
+      "name": "Portal",
+      "description": "Colour-matched portal pairs sit on the wall. Touch one and the ball teleports to its twin. After enough uses the portals burn out and become exits."
+    }
+  },
+  "Features": {
+    "wallBreak": {
+      "name": "Wall Break Effects",
+      "description": "Confetti, glass shatter, a shockwave, all three at once, or none. Every time the ball breaks through a wall, your chosen effect plays."
+    },
+    "rainbowWalls": {
+      "name": "Rainbow Walls",
+      "description": "Walls cycle through the spectrum in two styles: a smooth gradient across all rings, or a reactive pulse that flashes colour on every hit."
+    },
+    "glow": {
+      "name": "Ball & Wall Glow",
+      "description": "Toggle a soft radial glow around the ball and a flash on the walls independently, so you get exactly the amount of shine you want."
+    },
+    "colorTrail": {
+      "name": "Colour Trail",
+      "description": "The ball leaves a vivid, hue-shifting streak behind it, so fast motion reads as intentional rather than messy."
+    },
+    "reactiveBg": {
+      "name": "Reactive Background",
+      "description": "The backdrop pulses and shifts colour with every bounce, making each hit feel heavier."
+    },
+    "bouncier": {
+      "name": "Increasing Bounciness",
+      "description": "The ball speeds up with every wall hit until it finally breaks free, then the boost resets for the next ring."
+    },
+    "customBall": {
+      "name": "Custom Ball Image",
+      "description": "Replace the ball with your own image or an emoji: a logo, a face, a product. It scales and moves with the ball."
+    },
+    "textOverlays": {
+      "name": "Text Overlays",
+      "description": "Add a top and a bottom caption with adjustable size for hooks, branding or calls to action, baked into the export."
+    },
+    "spikes": {
+      "name": "Spikes",
+      "description": "Add inward-pointing spikes to the outer wall that freeze the ball on contact, raising the stakes in Accumulation mode."
+    },
+    "videoExport": {
+      "name": "Video Export",
+      "description": "Record the run as an MP4 in square, HD, Full HD or vertical TikTok (1080×1920) format, from 10 to 120 seconds long."
+    },
+    "savePresets": {
+      "name": "Save & Load Presets",
+      "description": "Store the whole configuration, mode, colours, physics and effects, in your browser and load it back with one click."
+    },
+    "watermark": {
+      "name": "Custom Watermark",
+      "description": "Stamp your handle faintly in the centre of the ring so reposts still credit you."
+    },
+    "customSound": {
+      "name": "Custom Sound",
+      "description": "Pick a melody from the built-in library or import your own MIDI file. Every wall hit plays the next note of the song."
+    }
+  },
+  "FAQ": {
+    "q1": {
+      "question": "Is {siteName} free to use?",
+      "answer": "Yes. The simulator, every mode, every customisation option and the video export are free, and there is no account to create."
+    },
+    "q2": {
+      "question": "What video formats and resolutions can I export?",
+      "answer": "You can record 500×500 (square), 1280×720 (HD), 1920×1080 (Full HD) and 1080×1920 (vertical, TikTok) clips between 10 and 120 seconds long. Browsers that support MP4 recording export MP4; others export WebM."
+    },
+    "q3": {
+      "question": "Can I use the exported videos commercially?",
+      "answer": "Yes. Everything you create is yours to use on TikTok, YouTube, Instagram or anywhere else, with no attribution required."
+    },
+    "q4": {
+      "question": "Do I need to install anything?",
+      "answer": "No. The whole tool runs in your browser. Open the site and start creating."
+    },
+    "q5": {
+      "question": "Can I save my settings?",
+      "answer": "Yes. Save as many presets as you like to your browser's local storage and load them back at any time. The URL also updates as you tweak settings, so you can bookmark or share a setup."
+    },
+    "q6": {
+      "question": "Does it work on mobile?",
+      "answer": "The simulator is designed for desktop browsers, where there is room for the canvas and the controls side by side. It runs on phones too, but a laptop or desktop is the better experience."
+    },
+    "q7": {
+      "question": "Are there keyboard shortcuts?",
+      "answer": "Yes. Press Space to pause or resume and R to restart the simulation."
+    },
+    "q8": {
+      "question": "How do I upload a custom ball image?",
+      "answer": "Open the Ball & Physics section, enable Show Advanced Options and click Choose Image. Any image works: logos, photos, memes. Or pick an emoji from the emoji grid."
+    },
+    "q9": {
+      "question": "How does the custom sound feature work?",
+      "answer": "In the Custom Sound section, choose a song from the built-in library or import a MIDI file. The melody is extracted from the file and every wall hit plays its next note, turning the run into a musical performance."
+    },
+    "q10": {
+      "question": "What makes {siteName} a satisfying ball simulator?",
+      "answer": "The loop is simple: a ball bounces inside rings with tiny gaps, and every time it slips through something rewarding happens: confetti, a shatter, a shockwave. Because you control physics, colours and effects, the tension and the payoff look exactly the way you want."
+    },
+    "q11": {
+      "question": "Can I use {siteName} as a satisfying ball clicker?",
+      "answer": "It is not a clicker game, but it scratches the same itch. You watch, anticipate the gap and get rewarded with effects and sound on every escape. The run plays itself, so it is the satisfaction without the tapping."
+    }
+  },
+  "AboutTool": {
+    "badge": "About the tool",
+    "title": "What {siteName} actually is",
+    "p1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings, press record and download the clip. There is no account, no installation and no video editor involved; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
+    "p2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
+    "h3_1": "Ten modes, one canvas",
+    "p3": "Each of the ten modes tells a different kind of story. Classic is the one most people picture: a ball breaking out through rings. Multiply turns one ball into a swarm. Accumulation freezes balls in place until the last one has to thread a maze of its predecessors. Paint, Target, Grow, Shatter, Color Match, Lines and Portal each change the rules in their own way. Switching takes one click and the canvas updates immediately.",
+    "h3_2": "Built to be tweaked",
+    "p4": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
+    "h3_3": "Record, export, post",
+    "p5": "When the run looks right, record it in the browser and export a video sized for vertical feeds. No screen-capture app, no unwanted watermark, no re-encoding elsewhere. Found a combination you like? Save it as a preset and reuse it for a whole series; many accounts post the same mode every day with small variations.",
+    "h3_4": "Why build it yourself",
+    "p6": "Reposting a clip that a hundred other accounts already used gives the algorithm, and your audience, nothing new. When you build the run yourself you decide the hook, the colours, the pacing and the moment it pays off. You can match a trending sound, add your handle and post a fresh version every day without repeating yourself, and original content never trips the reused-content filters that quietly limit reach.",
+    "h3_5": "No learning curve",
+    "p7": "The defaults already produce a clip worth posting. From there, change one thing at a time and watch what happens: add a ring, swap the break effect, turn the glow up. Because the canvas reacts immediately you learn what each setting does by using it, and after a few sessions you develop a feel for which combinations land.",
+    "h3_6": "Who it is for",
+    "p8": "Most people here are creators chasing reach without a budget: no camera, no studio, no design background, just a hook and a few minutes of tuning. Teachers use it to show motion and collisions in a way students actually watch. Plenty of people open it just to play, because a ball smashing through rings is fun on its own. The controls are the same for everyone.",
+    "h3_7": "Free, and private by default",
+    "p9_before": "{siteName} is free. Presets and settings live in your own browser, videos render on your own machine and there is no sign-up wall. If you want to go deeper on a mode or find settings that tend to perform, the",
+    "p9_mid": "breaks each one down with examples, and if something feels off or you wish a setting existed, the",
+    "p9_after": "goes straight to the person building it.",
+    "blog": "blog",
+    "feedbackPage": "feedback page",
+    "cta": "Open the simulator"
+  },
+  "Instructions": {
+    "howToUse": "How to use it",
+    "title": "Every control, explained",
+    "description": "This is the simulator layout: a live canvas on the left and the controls panel on the right. The numbers on the mockup match the steps beside it.",
+    "restart": "Restart",
+    "pause": "Pause",
+    "startSimulator": "Start simulator",
+    "controls": "Controls",
+    "searchSettings": "Search settings…",
+    "recordVideo": "Record video",
+    "mockupCaption": "A simplified view of the simulator screen.",
+    "whatEachControlDoes": "What each control does",
+    "tryItYourself": "Try it yourself",
+    "labels": {
+      "mode": "Mode",
+      "ballPhysics": "Ball physics",
+      "wallSettings": "Wall settings",
+      "visualEffects": "Visual effects",
+      "customSound": "Custom sound",
+      "recording": "Recording",
+      "savedPresets": "Saved presets"
+    },
+    "step1": {
+      "title": "Pick a mode",
+      "body": "Open the Mode row in the controls panel and choose one of the ten modes. The mode sets the rules, so decide it first."
+    },
+    "step2": {
+      "title": "Open a section and tweak it",
+      "body": "Ball, Wall, Visual and Sound each expand when clicked. Change the wall count, the break effect, the colours or the trail. In a hurry? Type a setting name into the search box at the top."
+    },
+    "step3": {
+      "title": "Press Start",
+      "body": "Hit Start simulator on the canvas. The defaults already look good, so start right away and adjust once you see it move."
+    },
+    "step4": {
+      "title": "Get the run right",
+      "body": "While it plays, use Restart to reroll, Pause to hold a frame and the speed buttons (1x to 8x) to skip ahead. Space pauses, R restarts. Reset until the timing lands the way you want."
+    },
+    "step5": {
+      "title": "Set length and size",
+      "body": "Open the Recording section to choose how long the clip runs and its resolution. 1080×1920 is the vertical size for TikTok, Reels and Shorts."
+    },
+    "step6": {
+      "title": "Record, and it downloads",
+      "body": "Press Record video. It captures the run with sound and saves the file to your device. Like the setup? Save it as a preset and reuse it for a whole series."
+    },
+    "settings": {
+      "mode": { "name": "Mode", "what": "The core game. Sets the goal and the rules." },
+      "ballPhysics": { "name": "Ball physics", "what": "Speed, size, gravity, colour and bounce." },
+      "wallsGap": { "name": "Walls / Gap", "what": "How many rings and how wide the opening is." },
+      "wallBreakEffect": { "name": "Wall break effect", "what": "Confetti, shatter, shockwave, all or none." },
+      "visualEffects": { "name": "Visual effects", "what": "Rainbow walls, glow and the colour trail." },
+      "reactiveBackground": { "name": "Reactive background", "what": "Pulses the backdrop in time with hits." },
+      "spikes": { "name": "Spikes", "what": "Adds hazards inside the ring for tension." },
+      "customBall": { "name": "Custom ball", "what": "Puts your own image or an emoji on the ball." },
+      "textOverlay": { "name": "Text overlay", "what": "Adds a top and bottom caption over the canvas." },
+      "customSound": { "name": "Custom sound", "what": "Use a built-in melody or import your own MIDI." },
+      "watermark": { "name": "Watermark", "what": "Stamps your handle so reposts still credit you." },
+      "speed": { "name": "Speed (1x to 8x)", "what": "Fast-forwards a long run while you preview." },
+      "findSimulation": { "name": "Find simulation", "what": "Searches for a run that hits a target length." },
+      "recording": { "name": "Recording", "what": "Sets the clip length and export resolution." },
+      "savePreset": { "name": "Save preset", "what": "Stores the whole setup to load again in one click." }
+    }
+  },
+  "Editorial": {
+    "physicsBadge": "Behind the simulation",
+    "physicsTitle": "How the physics engine works",
+    "physicsP1": "Every run starts from the same idea: a ball bouncing inside a ring. Speed, gravity and bounciness change how it moves, a bit like dropping a real ball into a bowl and deciding how fast it falls and how hard it ricochets. The engine steps the world sixty times per second with several sub-steps per frame, so collisions stay stable even at high speed.",
+    "physicsP2": "Each ring has a small gap. When the ball lines up with it and passes through, the ring breaks with the effect you picked: confetti, shattering glass or a shockwave. The ball moves on to the next ring, and the process repeats until it escapes or the recording ends.",
+    "physicsP3": "Every mode layers its own rules on top: the ball might split into a swarm, freeze into an obstacle course, or grow with every bounce. All of it runs locally in your browser; nothing is uploaded and the video is encoded on your own machine.",
+    "modesBadge": "Game modes",
+    "modesTitle": "What each mode does",
+    "modeClassic": "A single ball bounces through concentric rings, each with a gap. Break through every wall to escape. The default mode: simple, hypnotic and endlessly watchable.",
+    "modeAccumulation": "The ball has limited time to escape. If it fails, it freezes in place and becomes a new obstacle, and a fresh ball spawns. The arena fills up fast. Can the last one get out?",
+    "modeMultiply": "Each time a ball escapes the ring it spawns extra balls, so one ball quickly becomes a swarm. Great for explosive, chaotic clips that fill the screen.",
+    "modeLines": "Every bounce point is connected to the ball by a line, producing intricate geometric patterns. Part physics, part generative art.",
+    "modePaint": "The ball leaves a colourful trail as it moves, gradually covering the circle. A percentage counter tracks how much you have painted. Try to reach 100%.",
+    "modeTarget": "Numbered segments appear on the wall. Hit them in order; each correct hit triggers a break effect, and wrong hits flash red.",
+    "modePortal": "Colour-matched portal pairs sit on the wall. Touch one to teleport to its twin. After enough uses the portals burn out and the ball breaks free.",
+    "modeShatter": "Walls are split into segments with hit points. Each bounce cracks a segment and after enough hits it shatters. Clear a path through all walls to escape.",
+    "modeColorMatch": "The wall is split into coloured segments and the ball changes colour on every bounce. A segment breaks only when the colours match. Clear them all to win.",
+    "modeGrow": "The ball is sealed inside a single ring and grows with every bounce, taking up more and more of the space until it can barely move.",
+    "tipsBadge": "Pro tips",
+    "tipsTitle": "Tips for the best recordings",
+    "tipFindSimulationTitle": "Use the Find Simulation tool",
+    "tipFindSimulationBody": "Rather than guessing, let the tool search for a seed that produces a run of your target length. Open Find Simulation below the canvas, set the duration and let it scan seeds. Once it finds one, the run lasts exactly that long, which makes recording predictable.",
+    "tipLayerEffectsTitle": "Layer effects for visual impact",
+    "tipLayerEffectsBody": "Rainbow walls, glow, colour trails and wall-break effects stack. Try a reactive background with confetti breaks and a glow; the extra layers keep viewers watching.",
+    "tipTextHooksTitle": "Add text hooks",
+    "tipTextHooksBody": "Top and bottom overlays give context. A question like \"Will it escape?\" or a countdown builds anticipation. Adjust the text size so it is readable at a glance on a phone.",
+    "tipClipLengthTitle": "Match the clip length to the platform",
+    "tipClipLengthBody": "Shorter clips (15 to 30 seconds) tend to perform better on TikTok and Reels. Set the duration in the Recording section and pick the vertical 1080×1920 resolution.",
+    "tipPresetsTitle": "Save your favourite setups as presets",
+    "tipPresetsBody": "When a configuration works, save it and load it again for your next video. Consistent series perform well because the audience knows what to expect.",
+    "tipSpeedTitle": "Speed up previews, record at 1×",
+    "tipSpeedBody": "Use the 2× to 8× speed buttons to fast-forward through a long run while previewing. Before recording, set it back to 1× so the export captures every frame at full quality.",
+    "troubleBadge": "Help",
+    "troubleTitle": "Troubleshooting",
+    "troubleExportQ": "The video export looks wrong or is missing frames",
+    "troubleExportA": "Use a recent version of Chrome, Edge or Firefox; recording works best there. Close other tabs and apps to free up memory, and keep the simulator tab visible while it records. Chrome and Safari export MP4; Firefox exports WebM, which every major platform accepts.",
+    "troubleAudioQ": "The simulation does not play audio",
+    "troubleAudioA": "Browsers block sound until you interact with the page. Click anywhere first, then press Start. If there is still no sound, check the system volume and make sure the site is allowed to play audio.",
+    "troubleSpeedQ": "The ball moves too fast or too slow",
+    "troubleSpeedA": "Open the Ball & Physics section and adjust Ball Speed. Lower values are easier to follow; higher values give more energetic clips. Gravity also changes the pacing: lower gravity keeps the ball floating longer between hits.",
+    "troubleSettingsQ": "Settings are not saving",
+    "troubleSettingsA": "Presets are stored in your browser's local storage. Clearing site data or using a private window removes them. Copy the share link of a setup you care about so you can restore it later.",
+    "troubleMidiQ": "My custom MIDI file does not load",
+    "troubleMidiA": "Very complex files with many simultaneous tracks may not parse. Try a simpler single-melody MIDI (format 0 or 1). The tool keeps only the highest note at each moment, so a lead-melody export from your music software works best.",
+    "troubleStuckQ": "Still stuck?",
+    "troubleStuckA": "Send a note through the feedback page and describe what you were doing."
+  },
+  "Footer": {
+    "about": "About",
+    "tiktok": "TikTok Videos",
+    "disclaimer": "Disclaimer",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "feedback": "Feedback",
+    "shortcuts": "Keyboard shortcuts",
+    "pauseResume": "Pause/Resume",
+    "restart": "Restart"
+  },
+  "Blog": {
+    "title": "Blog",
+    "subtitle": "Tips, tutorials and ideas for creating viral physics content.",
+    "metaTitle": "Blog – {siteName}",
+    "metaDescription": "Tips, tutorials and ideas for creating viral ball physics content for TikTok, Instagram Reels and YouTube Shorts.",
+    "viewAll": "View all posts",
+    "back": "← Back",
+    "readMore": "Read more",
+    "tryNow": "Try it in the simulator →"
+  },
+  "NotFound": {
+    "title": "Page not found",
+    "description": "The page you are looking for does not exist or has moved.",
+    "home": "Go to the home page",
+    "simulator": "Open the simulator"
+  },
+  "Privacy": {
+    "title": "Privacy Policy",
+    "lastUpdated": "Last updated",
+    "metaTitle": "Privacy Policy – {siteName}",
+    "metaDescription": "Privacy policy for {siteDomain}",
+    "introduction": {
+      "title": "1. Introduction",
+      "content": "Welcome to {siteDomain} (\"we\", \"our\", \"us\"). We respect your privacy and keep the amount of information connected to your use of this site as small as possible. This policy explains what is collected, how it is used and what your rights are."
+    },
+    "information": {
+      "title": "2. Information We Collect",
+      "subtitle": "We collect the minimum needed to run and improve the service:",
+      "analytics": {
+        "label": "Analytics data:",
+        "content": "If analytics are enabled, we use a privacy-focused service that records anonymous usage statistics such as page views, browser type, screen size and approximate region. It does not identify you personally."
+      },
+      "localStorage": {
+        "label": "Local storage data:",
+        "content": "Your simulator settings and presets are stored in your browser's local storage. They never leave your device and are not sent to our servers."
+      },
+      "images": {
+        "label": "Uploaded images and audio:",
+        "content": "Custom ball images, MIDI files and sound clips are processed entirely in your browser. Nothing is uploaded, stored or transmitted."
+      }
+    },
+    "howWeUse": {
+      "title": "3. How We Use Your Information",
+      "content": "Analytics data is used only to understand how the site is used so we can improve it. We do not sell, share or transfer collected data to third parties for marketing."
+    },
+    "cookies": {
+      "title": "4. Cookies and Tracking",
+      "content": "We may use minimal cookies or similar technologies for analytics and to remember your language. They do not track you across other websites and do not collect personal information."
+    },
+    "thirdParty": {
+      "title": "5. Third-Party Services",
+      "content": "Third-party analytics services, where enabled, may collect anonymous usage data under their own privacy policies."
+    },
+    "retention": {
+      "title": "6. Data Retention",
+      "content": "Analytics data is kept only in aggregate form. Because we collect no personally identifiable information there is no personal data to delete. Local storage data can be cleared at any time through your browser settings."
+    },
+    "children": {
+      "title": "7. Children's Privacy",
+      "content": "The service is not directed at children under 13 and we do not knowingly collect personal information from children."
+    },
+    "changes": {
+      "title": "8. Changes to This Policy",
+      "content": "We may update this policy from time to time. Changes appear on this page with an updated revision date."
+    },
+    "adsenseNotice": {
+      "title": "9. Advertising",
+      "line1": "We may display advertisements through a third-party ad service such as Google AdSense. Such services use cookies to show relevant ads based on your browsing and collect non-personal information such as browser type and pages viewed.",
+      "line2": "You can learn more in the",
+      "privacyLink": "Google Privacy Policy",
+      "line3": "and the",
+      "termsLink": "Google Terms of Service",
+      "line4": ". You can opt out of personalised advertising at",
+      "optOutLink": "Ad Settings",
+      "line5": "."
+    },
+    "consent": {
+      "title": "10. Cookie Consent",
+      "content": "Where required by law, you will be asked to consent to non-essential cookies before they are set. You can change your choice at any time through your browser settings."
+    },
+    "contact": {
+      "title": "11. Contact",
+      "content": "Questions about this policy? Reach us through our",
+      "feedbackLink": "feedback form"
+    }
+  },
+  "Terms": {
+    "title": "Terms of Service",
+    "lastUpdated": "Last updated",
+    "metaTitle": "Terms of Service – {siteName}",
+    "metaDescription": "Terms of service for {siteDomain}",
+    "acceptance": {
+      "title": "1. Acceptance of Terms",
+      "content": "By using {siteDomain} (\"the Service\") you agree to these Terms of Service. If you do not agree with any part of them, please do not use the Service."
+    },
+    "description": {
+      "title": "2. Description of Service",
+      "content": "{siteName} is a free, browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. The Service is provided \"as is\" without any guarantee of availability or uptime."
+    },
+    "ugc": {
+      "title": "3. User-Generated Content",
+      "subtitle": "When using the Service you may:",
+      "item1": "Upload custom images, MIDI files and sound clips to use in your simulations.",
+      "item2": "Create and export video recordings of simulations.",
+      "item3": "Save simulation presets to your browser's local storage.",
+      "footer": "You keep full ownership of anything you create with the Service and may use exported videos for any purpose, including commercially, without attribution. A mention of {siteDomain} is always appreciated."
+    },
+    "acceptable": {
+      "title": "4. Acceptable Use",
+      "subtitle": "You agree not to:",
+      "item1": "Disrupt, overload or interfere with the Service's infrastructure.",
+      "item2": "Use automated tools to scrape or copy the Service's code or assets.",
+      "item3": "Upload content that is illegal, harmful or infringes the intellectual property rights of others.",
+      "item4": "Present the Service as your own product."
+    },
+    "intellectual": {
+      "title": "5. Intellectual Property",
+      "content": "The Service, including its code, design and branding, belongs to {siteDomain}. Videos and images you create with it are yours."
+    },
+    "warranties": {
+      "title": "6. Disclaimer of Warranties",
+      "content": "The Service is provided on an \"as is\" and \"as available\" basis without warranties of any kind, express or implied, including reliability, accuracy or fitness for a particular purpose. We do not guarantee that the Service will be uninterrupted or error-free."
+    },
+    "liability": {
+      "title": "7. Limitation of Liability",
+      "content": "To the fullest extent permitted by law, {siteDomain} is not liable for any indirect, incidental, special or consequential damages arising from your use of the Service, including loss of data, revenue or profits."
+    },
+    "changes": {
+      "title": "8. Changes to These Terms",
+      "content": "We may update these terms at any time. Changes are posted on this page with a new date, and continued use of the Service after a change means you accept the revised terms."
+    },
+    "contact": {
+      "title": "9. Contact",
+      "content": "Questions about these terms? Reach us through our",
+      "feedbackLink": "feedback form"
+    }
+  },
+  "Disclaimer": {
+    "title": "Disclaimer",
+    "lastUpdated": "Last updated",
+    "metaTitle": "Disclaimer – {siteName}",
+    "metaDescription": "Disclaimer for {siteName}: how the tool is provided, what it does not guarantee and its relationship to third-party platforms.",
+    "general": {
+      "title": "General information",
+      "content": "{siteName} ({siteDomain}) is a free tool for creating physics-based animation videos in your browser. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
+    },
+    "noGuarantee": {
+      "title": "No guarantee of results",
+      "content": "{siteName} helps you make videos. It does not promise that those videos will go viral or gain views, followers, engagement or income. References to videos \"going viral\" describe what the format can do, not a result we guarantee. Performance on TikTok, Instagram, YouTube or any other platform depends on factors outside our control, including each platform's algorithm, your audience and your content."
+    },
+    "noAffiliation": {
+      "title": "No affiliation with third-party platforms",
+      "content": "{siteName} is an independent project. It is not affiliated with, endorsed by, sponsored by or associated with TikTok, Instagram, Meta, YouTube, Google or any other platform mentioned on this site. Product names, logos and trademarks belong to their respective owners and are used only to describe where videos can be shared."
+    },
+    "yourContent": {
+      "title": "Your content and your responsibility",
+      "content": "You are responsible for the content you create and upload, including images, audio, text and logos. Do not use material you do not have the right to use. You are also responsible for following the rules of any platform where you post and for complying with applicable laws. {siteName} does not review or moderate what users create."
+    },
+    "asIs": {
+      "title": "\"As is\" basis",
+      "content": "The tool is provided \"as is\" and \"as available\" without warranties of any kind. We do not warrant that the site will be uninterrupted, error-free or compatible with every browser or device, and features may change or be removed without notice. To the fullest extent permitted by law, {siteName} is not liable for any loss or damage arising from your use of, or inability to use, the site."
+    },
+    "externalLinks": {
+      "title": "External links",
+      "content": "This site may link to external websites we do not operate. Links are provided for convenience and do not imply endorsement; we are not responsible for the content, policies or practices of any third-party site."
+    },
+    "changes": {
+      "title": "Changes to this disclaimer",
+      "content": "We may update this disclaimer from time to time. Changes take effect as soon as they are posted here. For details on how we handle data, see our"
+    },
+    "and": "and",
+    "privacyLink": "privacy policy",
+    "termsLink": "terms of service",
+    "feedbackLink": "feedback page",
+    "contact": {
+      "title": "Contact",
+      "content": "Questions about this disclaimer? Reach out through the"
+    }
+  },
+  "Feedback": {
+    "title": "Send Us Feedback",
+    "subtitle": "We'd love to hear from you: a bug report, a feature request or just how your experience has been.",
+    "metaTitle": "Feedback – {siteName}",
+    "metaDescription": "Share your feedback, report bugs or request features for {siteName}.",
+    "ratingLabel": "How would you rate your experience?",
+    "categoryLabel": "What's this about?",
+    "category_general": "General",
+    "category_bug": "Bug Report",
+    "category_feature": "Feature Request",
+    "category_design": "Design",
+    "category_other": "Other",
+    "messageLabel": "Your message",
+    "messagePlaceholder": "Tell us what you think, what could be improved, or describe an issue you ran into...",
+    "emailLabel": "Email",
+    "emailPlaceholder": "your@email.com (if you'd like a reply)",
+    "optional": "optional",
+    "submit": "Send Feedback",
+    "sending": "Sending...",
+    "successTitle": "Thank you!",
+    "successMessage": "Your feedback has been received. We really appreciate you taking the time to help improve {siteName}.",
+    "sendAnother": "Send another",
+    "errorMessage": "Something went wrong. Please try again later.",
+    "cta": "Missing something? Want to report a bug? Let us know!"
+  },
+  "TikTokBallVideos": {
+    "metaTitle": "Make Bouncing Ball Videos for TikTok – Free Tool – {siteName}",
+    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with 10 modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
+    "badge": "TikTok Content",
+    "navLabel": "TikTok Ball Videos",
+    "title": "Bouncing Ball Videos for TikTok",
+    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a free browser tool built for exactly this kind of content, with physics controls, visual effects and one-click vertical export.",
+    "p2": "What makes the format work is its built-in tension arc. The ball ricochets faster, the walls close in, the gap looks impossibly small, and then the ball slips through and everything pays off with confetti, a shatter or a shockwave. That loop fits naturally into 15 to 60 seconds, which is where TikTok engagement peaks.",
+    "h2_1": "Why It Works on TikTok",
+    "p3": "TikTok rewards videos that hold viewers to the end and get replayed. Ball physics does both: people stay to see whether the ball escapes and rewatch to catch the effects they missed. The format also fits TikTok's sound culture: {siteName} can play a melody note by note on every wall hit, turning the physics into a musical performance.",
+    "p4": "There is no dialogue, no face on screen and no setup. Just a clean visual hook that works even as background noise for a scrolling viewer, which is why the format regularly out-performs more produced content in the discovery feed.",
+    "h2_2": "Export in the Right Format",
+    "p5": "TikTok's preferred aspect ratio is 9:16 vertical, 1080×1920 pixels. {siteName} records directly at that size, so there is no cropping, no re-encoding and no external editor. Set the recording duration (10 to 120 seconds), press record and download a platform-ready clip.",
+    "p6": "You can also export 500×500 (square), 1280×720 (HD) or 1920×1080 (Full HD) for Reels, YouTube Shorts and other platforms. Recording happens entirely in your browser; nothing is uploaded and no watermark is added unless you add your own.",
+    "h2_3": "Start with a Proven Format",
+    "p7": "The best TikTok ball videos follow a simple recipe: a clear visual hook in the first second, a visible progress indicator such as the number of walls left, and a satisfying payoff when the ball finally escapes. The Find Simulation tool searches for a seed that produces a run of your target length, so you can plan the clip instead of guessing.",
+    "p8": "All ten modes, Classic, Accumulation, Multiply, Lines, Paint, Target, Grow, Shatter, Color Match and Portal, produce a different rhythm, so you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
+    "cta": "Make Your First TikTok Ball Video"
+  },
+  "About": {
+    "metaTitle": "About {siteName} – Free Ball Physics Video Maker",
+    "metaDescription": "The story behind {siteName}: a free, browser-based tool for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
+    "metaOgTitle": "About {siteName}",
+    "metaOgDescription": "Why {siteName} exists and who it is for.",
+    "badge": "About",
+    "title": "About {siteName}",
+    "p1": "{siteName} started with a simple frustration. Bouncing-ball physics videos were everywhere, pulling in millions of views, and every way of making one was clunky: learn a game engine, pay for an app, or repost a clip a thousand other accounts had already used. None of that suited someone who just wanted to make a good video and post it. So we built the tool we wished existed: open a tab, make the video, download it, done.",
+    "p2": "That idea still runs the whole site. {siteName} is free, works in your browser and asks nothing of you before you start. No sign-up, no install, no paywall between you and a finished clip. The defaults already produce something worth posting; everything after that is you shaping it to fit your idea.",
+    "h2_1": "What we care about",
+    "p3": "Speed and control, more than anything else. Speed, because the gap between an idea and a posted video is where most content dies; if a clip takes twenty minutes and three apps, you stop making clips. Control, because reposted content does not grow an account. When you set the mode, the colours, the pacing and the hook yourself, the video is yours and it stands a real chance in a feed that has seen every recycled clip.",
+    "p4": "We also care about staying out of your way. The simulator updates as you change things, so you learn by doing rather than reading a manual. Settings have plain names. The hard part, the physics and the rendering, happens quietly in the background while you focus on whether the video is fun to watch.",
+    "h2_2": "Privacy by default",
+    "p5": "Your work stays with you. Presets and settings live in your browser and videos render on your own machine, not on a server we control. We are not interested in harvesting your data or locking your creations behind an account. The less we know about you, the better the tool feels to use. The details are in our <privacy>privacy policy</privacy>.",
+    "h2_3": "Who makes this",
+    "p6": "{siteName} is a small, independent project rather than a venture-backed company with a roadmap full of upsells, and that shapes what gets built. New modes and settings appear because creators ask for them. When you write in through the <feedback>feedback page</feedback>, the note reaches the person actually working on the tool, and a lot of what is in the simulator today exists because someone asked for it.",
+    "h2_4": "Where it is going",
+    "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. On the <blog>blog</blog> we break down which settings tend to perform and why certain videos hook people, so the tool and the knowledge around it grow together. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
+    "cta": "Open the simulator"
+  }
+}

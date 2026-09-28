@@ -1,0 +1,1086 @@
+import { CinematicDirector } from "./director";
+import {
+  AccumulationMode,
+  ClassicMode,
+  ColorMatchMode,
+  GrowMode,
+  LinesMode,
+  MultiplyMode,
+  PaintMode,
+  PortalMode,
+  ShatterMode,
+  TargetMode,
+} from "./modes";
+import type {
+  Ball,
+  CircularWall,
+  GameMode,
+  ModeContext,
+  ModeId,
+  NewBall,
+  Particle,
+  PhysicsConfig,
+  Shockwave,
+  SoundEvent,
+  WallBreakFlash,
+  WallBreakStyle,
+  WallHit,
+} from "./types";
+import { TWO_PI } from "./types";
+
+/**
+ * The physics engine. It is deliberately framework-free so it can run in the page,
+ * inside a Web Worker, or headlessly in the seed finder.
+ *
+ * Determinism: every random decision that affects the simulation goes through `random()`,
+ * a seeded Mulberry32 generator. Given the same config, mode and seed, a run is reproducible,
+ * which is what makes "Find Simulation" possible. Purely visual randomness (particles) uses
+ * Math.random so it never disturbs the simulation.
+ */
+export class PhysicsEngine {
+  private balls: Ball[] = [];
+  private _config: PhysicsConfig;
+  private nextId = 0;
+  private destructionMode = false;
+  private infiniteMode = false;
+  private infiniteTimer = 0;
+  private _elapsedMs = 0;
+  private circularWalls: CircularWall[] = [];
+  private wallRotations: number[] = [];
+  private brokenWalls = new Set<number>();
+  private lastWallLayer = new Map<number, number>();
+  private wallHits: WallHit[] = [];
+  private particles: Particle[] = [];
+  private shockwaves: Shockwave[] = [];
+  private wallBreakFlashes: WallBreakFlash[] = [];
+  private wallBreakStyle: WallBreakStyle = "confetti";
+  private pendingSoundEvents: SoundEvent[] = [];
+  private readonly MAX_PARTICLES = 200;
+  private bouncierEnabled = false;
+  private bounceSpeedMultiplier = 1;
+  private readonly bouncierIncrement = 0.03;
+  private readonly bouncierMaxMultiplier = 3;
+  private cinematicDirector = new CinematicDirector();
+  private _seed = 0;
+  private _rngState = 0;
+  private _customSeed: number | null = null;
+  private currentMode: GameMode | null = null;
+  private timeAccumulator = 0;
+  private readonly FIXED_STEP_MS = 1000 / 60;
+
+  readonly classicMode = new ClassicMode();
+  readonly linesMode = new LinesMode();
+  readonly paintMode = new PaintMode();
+  readonly multiplyMode = new MultiplyMode();
+  readonly accumulationMode = new AccumulationMode();
+  readonly targetMode = new TargetMode();
+  readonly portalMode = new PortalMode();
+  readonly shatterMode = new ShatterMode();
+  readonly colorMatchMode = new ColorMatchMode();
+  readonly growMode = new GrowMode();
+
+  readonly ctx: ModeContext;
+
+  constructor(config: PhysicsConfig) {
+    this._config = config;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const self = this;
+    this.ctx = {
+      get config() {
+        return self._config;
+      },
+      getBalls: () => this.balls,
+      setBalls: (balls) => {
+        this.balls = balls;
+      },
+      addBall: (ball) => this.addBall(ball),
+      getNextId: () => this.nextId,
+      getCircularWalls: () => this.circularWalls,
+      setCircularWalls: (walls) => {
+        this.circularWalls = walls;
+      },
+      getWallRotations: () => this.wallRotations,
+      setWallRotations: (rotations) => {
+        this.wallRotations = rotations;
+      },
+      getBrokenWalls: () => this.brokenWalls,
+      getLastWallLayer: () => this.lastWallLayer,
+      addWallHit: (wallIndex, angle, radius) => this.addWallHit(wallIndex, angle, radius),
+      addPendingSoundEvent: (event) => {
+        this.pendingSoundEvents.push(event);
+      },
+      spawnWallBreakByStyle: (wallIndex, x, y) => this.spawnWallBreakByStyle(wallIndex, x, y),
+      spawnConfetti: (x, y) => this.spawnConfetti(x, y),
+      isBouncierEnabled: () => this.bouncierEnabled,
+      getBounceSpeedMultiplier: () => this.bounceSpeedMultiplier,
+      setBounceSpeedMultiplier: (value) => {
+        this.bounceSpeedMultiplier = value;
+      },
+      setDestructionMode: (enabled) => {
+        this.destructionMode = enabled;
+      },
+      setInfiniteMode: (enabled) => {
+        this.infiniteMode = enabled;
+      },
+      random: () => this.random(),
+      getElapsedMs: () => this._elapsedMs,
+    };
+    this._seed = Math.floor(0x7fffffff * Math.random());
+    this._rngState = this._seed;
+    this.cinematicDirector.setRandom(() => this.random());
+    this.initializeCircularWalls();
+  }
+
+  // ---------------------------------------------------------------- RNG / seeds
+
+  setSeed(seed: number | null) {
+    if (seed === null) {
+      this._customSeed = null;
+    } else {
+      this._customSeed = seed | 0;
+      this._seed = this._customSeed;
+      this._rngState = this._seed;
+    }
+  }
+  getSeed() {
+    return this._seed;
+  }
+  resetRng() {
+    this._rngState = this._seed;
+  }
+  /** Mulberry32. */
+  random(): number {
+    let t = (this._rngState += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
+  }
+
+  get config() {
+    return this._config;
+  }
+
+  // ---------------------------------------------------------------- mode activation
+
+  private activateMode(mode: GameMode, layout: "classic" | "single-gap" | "solid") {
+    this.clear();
+    this._elapsedMs = 0;
+    this._seed = this._customSeed !== null ? this._customSeed : Math.floor(0x7fffffff * Math.random());
+    this.resetRng();
+    this.currentMode = mode;
+    this.cinematicDirector.reset();
+    if (layout === "classic") {
+      this.initializeCircularWalls();
+    } else if (layout === "single-gap") {
+      const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
+      const gap = this._config.gapSize || 0.3;
+      const start = 0.25 * Math.PI;
+      this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
+      this.wallRotations = [0];
+    } else {
+      const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
+      this.circularWalls = [{ radius: r, gaps: [] }];
+      this.wallRotations = [0];
+    }
+    this.brokenWalls.clear();
+    mode.init(this.ctx);
+    if (this.balls.length === 0) {
+      const cx = this._config.width / 2;
+      const cy = this._config.height / 2;
+      const a = this.random() * Math.PI * 2;
+      const speed = this._config.ballSpeed || 400;
+      this.addBall({
+        x: cx,
+        y: cy,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        radius: this._config.ballRadius || 8,
+        color: this._config.ballColor || "#FFFFFF",
+      });
+      this.lastWallLayer.set(this.nextId - 1, -1);
+      if (this._config.twoBalls && TWO_BALL_MODES.includes(mode.name)) {
+        const b = (a + Math.PI) % TWO_PI;
+        this.addBall({
+          x: cx,
+          y: cy,
+          vx: Math.cos(b) * speed,
+          vy: Math.sin(b) * speed,
+          radius: this._config.ballRadius || 8,
+          color: this._config.ballColor2 || "#FF3366",
+        });
+        this.lastWallLayer.set(this.nextId - 1, -1);
+      }
+    }
+  }
+
+  initClassic() {
+    this.activateMode(this.classicMode, "classic");
+  }
+  initAccumulation() {
+    this.clear();
+    this._elapsedMs = 0;
+    this._seed = this._customSeed !== null ? this._customSeed : Math.floor(0x7fffffff * Math.random());
+    this.resetRng();
+    this.currentMode = this.accumulationMode;
+    this.cinematicDirector.reset();
+    const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
+    const gap = this._config.gapSize || 0.3;
+    const start = 0.25 * Math.PI;
+    this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
+    this.wallRotations = [0];
+    this.brokenWalls.clear();
+    this.accumulationMode.init(this.ctx);
+    this.lastWallLayer.set(this.nextId - 1, -1);
+  }
+  initMultiply() {
+    this.activateMode(this.multiplyMode, "single-gap");
+  }
+  initLines() {
+    this.activateMode(this.linesMode, "solid");
+  }
+  initPaint() {
+    this.activateMode(this.paintMode, "solid");
+  }
+  initCountdown() {
+    this.activateMode(this.targetMode, "solid");
+  }
+  initPortal() {
+    this.activateMode(this.portalMode, "solid");
+  }
+  initShatter() {
+    this.activateMode(this.shatterMode, "classic");
+  }
+  initColorMatch() {
+    this.activateMode(this.colorMatchMode, "solid");
+  }
+  initGrow() {
+    this.activateMode(this.growMode, "solid");
+  }
+
+  /** Convenience: (re)start the simulation for a mode id. */
+  initMode(mode: ModeId) {
+    switch (mode) {
+      case "classic":
+        return this.initClassic();
+      case "accumulation":
+        return this.initAccumulation();
+      case "multiply":
+        return this.initMultiply();
+      case "lines":
+        return this.initLines();
+      case "paint":
+        return this.initPaint();
+      case "target":
+        return this.initCountdown();
+      case "portal":
+        return this.initPortal();
+      case "shatter":
+        return this.initShatter();
+      case "colorMatch":
+        return this.initColorMatch();
+      case "grow":
+        return this.initGrow();
+    }
+  }
+
+  // ---------------------------------------------------------------- getters
+
+  getCircularWalls() {
+    return this.circularWalls;
+  }
+  getWallRotations() {
+    return this.wallRotations;
+  }
+  getBrokenWalls() {
+    return this.brokenWalls;
+  }
+  getShockwaves() {
+    return this.shockwaves;
+  }
+  getWallBreakFlashes() {
+    return this.wallBreakFlashes;
+  }
+  setWallBreakStyle(style: WallBreakStyle) {
+    this.wallBreakStyle = style;
+  }
+  getWallBreakStyle() {
+    return this.wallBreakStyle;
+  }
+  getWallHits() {
+    return this.wallHits;
+  }
+  getParticles() {
+    return this.particles;
+  }
+  getBalls() {
+    return this.balls;
+  }
+  setBalls(balls: Ball[]) {
+    this.balls = balls;
+  }
+  setBouncier(enabled: boolean) {
+    this.bouncierEnabled = enabled;
+    if (!enabled) this.bounceSpeedMultiplier = 1;
+  }
+  isBouncierEnabled() {
+    return this.bouncierEnabled;
+  }
+  getBounceSpeedMultiplier() {
+    return this.bounceSpeedMultiplier;
+  }
+  setDestructionMode(enabled: boolean) {
+    this.destructionMode = enabled;
+  }
+  setInfiniteMode(enabled: boolean) {
+    this.infiniteMode = enabled;
+  }
+  getCurrentModeName(): ModeId {
+    return this.currentMode?.name ?? "classic";
+  }
+  getCurrentMode() {
+    return this.currentMode;
+  }
+
+  isAccumulationMode() {
+    return this.currentMode === this.accumulationMode;
+  }
+  hasAccumulationEscaped() {
+    return this.accumulationMode.hasEscaped();
+  }
+  getFrozenBalls() {
+    return this.accumulationMode.getFrozenBalls();
+  }
+  getAccumulationTimer() {
+    return this.accumulationMode.getTimer();
+  }
+  getAccumulationTimerMax() {
+    return this.accumulationMode.getTimerMax();
+  }
+  setAccumulationTimerMax(ms: number) {
+    this.accumulationMode.setTimerMax(ms);
+  }
+  getSpikesEnabled() {
+    return this.accumulationMode.getSpikesEnabled();
+  }
+  getSpikeCount() {
+    return this.accumulationMode.getSpikeCount();
+  }
+  getSpikeAngles() {
+    return this.accumulationMode.getSpikeAngles();
+  }
+  getSpikeLength() {
+    return this.accumulationMode.getSpikeLength();
+  }
+  setSpikesEnabled(enabled: boolean) {
+    this.accumulationMode.setSpikesEnabled(enabled, this.ctx);
+  }
+  setSpikeCount(count: number) {
+    this.accumulationMode.setSpikeCount(count, this.ctx);
+  }
+  isMultiplyModeActive() {
+    return this.currentMode === this.multiplyMode;
+  }
+  getMultiplySpawnCount() {
+    return this.multiplyMode.getSpawnCount();
+  }
+  setMultiplySpawnCount(n: number) {
+    this.multiplyMode.setSpawnCount(n);
+  }
+  isLinesMode() {
+    return this.currentMode === this.linesMode;
+  }
+  getBouncePoints() {
+    return this.linesMode.getBouncePoints();
+  }
+  isPaintMode() {
+    return this.currentMode === this.paintMode;
+  }
+  getPaintPoints() {
+    return this.paintMode.getPaintPoints();
+  }
+  getPaintCoverage() {
+    return this.paintMode.getPaintCoverage();
+  }
+  isCountdownMode() {
+    return this.currentMode === this.targetMode;
+  }
+  getCountdownTotal() {
+    return this.targetMode.getTotal();
+  }
+  getCountdownTarget() {
+    return this.targetMode.getTarget();
+  }
+  getCountdownHit() {
+    return this.targetMode.getHit();
+  }
+  getCountdownWrongFlashes() {
+    return this.targetMode.getWrongFlashes();
+  }
+  isCountdownComplete() {
+    return this.targetMode.isComplete();
+  }
+  isCountdownRandomOrder() {
+    return this.targetMode.isRandomOrder();
+  }
+  getCountdownSegmentMap() {
+    return this.targetMode.getSegmentMap();
+  }
+  setCountdownTotal(n: number) {
+    this.targetMode.setTotal(n);
+  }
+  setCountdownRandomOrder(v: boolean) {
+    this.targetMode.setRandomOrder(v);
+  }
+  isPortalMode() {
+    return this.currentMode === this.portalMode;
+  }
+  getPortals() {
+    return this.portalMode.getPortals();
+  }
+  getPortalTeleportCount() {
+    return this.portalMode.getTeleportCount();
+  }
+  hasPortalEscaped() {
+    return this.portalMode.hasEscaped();
+  }
+  getPortalCount() {
+    return this.portalMode.getPortalCount();
+  }
+  setPortalCount(n: number) {
+    this.portalMode.setPortalCount(n);
+  }
+  isShatterMode() {
+    return this.currentMode === this.shatterMode;
+  }
+  getShatterSegments() {
+    return this.shatterMode.getSegments();
+  }
+  getShatterProgress() {
+    return this.shatterMode.getProgress();
+  }
+  hasShatterEscaped() {
+    return this.shatterMode.hasEscaped();
+  }
+  getShatterSegmentsPerWall() {
+    return this.shatterMode.getSegmentsPerWall();
+  }
+  setShatterSegmentsPerWall(n: number) {
+    this.shatterMode.setSegmentsPerWall(n);
+  }
+  getShatterHpPerSegment() {
+    return this.shatterMode.getHpPerSegment();
+  }
+  setShatterHpPerSegment(n: number) {
+    this.shatterMode.setHpPerSegment(n);
+  }
+  isColorMatchMode() {
+    return this.currentMode === this.colorMatchMode;
+  }
+  getColorMatchSegments() {
+    return this.colorMatchMode.getSegments();
+  }
+  getColorMatchBallColor() {
+    return this.colorMatchMode.getBallColor();
+  }
+  getColorMatchBallHue() {
+    return this.colorMatchMode.getBallHue();
+  }
+  getColorMatchProgress() {
+    return { broken: this.colorMatchMode.getBrokenCount(), total: this.colorMatchMode.getTotalSegments() };
+  }
+  hasColorMatchEscaped() {
+    return this.colorMatchMode.hasEscaped();
+  }
+  getColorMatchSegmentCount() {
+    return this.colorMatchMode.getSegmentCount();
+  }
+  setColorMatchSegmentCount(n: number) {
+    this.colorMatchMode.setSegmentCount(n);
+  }
+  getColorMatchColorCount() {
+    return this.colorMatchMode.getColorCount();
+  }
+  setColorMatchColorCount(n: number) {
+    this.colorMatchMode.setColorCount(n);
+  }
+  isGrowMode() {
+    return this.currentMode === this.growMode;
+  }
+  getGrowRate() {
+    return this.growMode.getGrowRate();
+  }
+  setGrowRate(rate: number) {
+    this.growMode.setGrowRate(rate);
+  }
+  isGrowCenterDotEnabled() {
+    return this.growMode.isCenterDotEnabled();
+  }
+  setGrowCenterDotEnabled(enabled: boolean) {
+    this.growMode.setCenterDotEnabled(enabled);
+  }
+  isGrowLinesEnabled() {
+    return this.growMode.isLinesEnabled();
+  }
+  setGrowLinesEnabled(enabled: boolean) {
+    this.growMode.setLinesEnabled(enabled);
+  }
+  getGrowBouncePoints() {
+    return this.growMode.getBouncePoints();
+  }
+  getGrowState() {
+    return this.growMode.getState() as { centerDotEnabled: boolean; centerDotRadius: number; linesEnabled: boolean };
+  }
+  isLinesCenterDotEnabled() {
+    return this.linesMode.isCenterDotEnabled();
+  }
+  setLinesCenterDotEnabled(enabled: boolean) {
+    this.linesMode.setCenterDotEnabled(enabled);
+  }
+  getLinesState() {
+    return this.linesMode.getState() as { centerDotEnabled: boolean; centerDotRadius: number };
+  }
+  getElapsedMs() {
+    return this._elapsedMs;
+  }
+  isSimulationFinished() {
+    return this.currentMode?.isFinished(this.ctx) ?? false;
+  }
+  getPersonalityState() {
+    return this.cinematicDirector.getPersonalityState();
+  }
+  getDramaTension() {
+    return this.cinematicDirector.getTension();
+  }
+  setCinematicEnabled(enabled: boolean) {
+    this.cinematicDirector.setEnabled(enabled);
+  }
+  isCinematicEnabled() {
+    return this.cinematicDirector.isEnabled();
+  }
+  consumeSoundEvents(): SoundEvent[] {
+    const events = this.pendingSoundEvents;
+    this.pendingSoundEvents = [];
+    return events;
+  }
+
+  // ---------------------------------------------------------------- balls
+
+  addBall(ball: NewBall) {
+    this.balls.push({ ...ball, id: this.nextId++, trail: [], trailIndex: 0 });
+  }
+  removeBall(id: number) {
+    this.balls = this.balls.filter((b) => b.id !== id);
+  }
+  clear() {
+    this.balls = [];
+    this.nextId = 0;
+    this.brokenWalls.clear();
+    this.lastWallLayer.clear();
+    this.timeAccumulator = 0;
+    this.particles = [];
+    this.shockwaves = [];
+    this.wallBreakFlashes = [];
+    this.wallHits = [];
+    this.pendingSoundEvents = [];
+  }
+
+  setConfig(patch: Partial<PhysicsConfig>) {
+    const oldW = this._config.width;
+    const oldH = this._config.height;
+    const oldWallCount = this._config.wallCount;
+    const oldGap = this._config.gapSize;
+    this._config = { ...this._config, ...patch };
+    if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
+    if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius;
+    const sizeChanged =
+      (patch.width !== undefined && patch.width !== oldW) || (patch.height !== undefined && patch.height !== oldH);
+    if (sizeChanged && oldW > 0 && oldH > 0) {
+      const sx = this._config.width / oldW;
+      const sy = this._config.height / oldH;
+      const oldCx = oldW / 2;
+      const oldCy = oldH / 2;
+      const cx = this._config.width / 2;
+      const cy = this._config.height / 2;
+      for (const b of this.balls) {
+        b.x = cx + (b.x - oldCx) * sx;
+        b.y = cy + (b.y - oldCy) * sy;
+        b.trail = [];
+      }
+      if (this.currentMode === this.accumulationMode) this.accumulationMode.repositionFrozenBalls(sx, sy, oldCx, oldCy, cx, cy);
+      if (this.currentMode === this.linesMode) this.linesMode.repositionPoints(sx, sy, oldCx, oldCy, cx, cy);
+    }
+    const wallCountChanged = patch.wallCount !== undefined && patch.wallCount !== oldWallCount;
+    const gapChanged = patch.gapSize !== undefined && patch.gapSize !== oldGap;
+    if (sizeChanged || wallCountChanged || gapChanged) {
+      const handled = this.currentMode?.onConfigChange(this.ctx, sizeChanged, wallCountChanged, gapChanged);
+      if (!handled) this.initializeCircularWalls();
+      this.brokenWalls.clear();
+    }
+  }
+
+  // ---------------------------------------------------------------- simulation step
+
+  /**
+   * Advances the simulation. `frameMs` is wall-clock time (capped), split into fixed 60 Hz
+   * steps, each with 4+ sub-steps for stable collisions. `audioIntensity` (0..1) slightly
+   * boosts gravity for a music-reactive feel.
+   */
+  update(frameMs: number, audioIntensity = 0) {
+    const dt = Math.min(frameMs, 128);
+    this.timeAccumulator += dt;
+    while (this.timeAccumulator >= this.FIXED_STEP_MS) {
+      this.timeAccumulator -= this.FIXED_STEP_MS;
+      this._elapsedMs += this.FIXED_STEP_MS;
+      const stepMs = this.FIXED_STEP_MS;
+      while (this.wallRotations.length < this.circularWalls.length) this.wallRotations.push(0);
+      const stepSec = stepMs / 1000;
+      for (let i = 0; i < this.circularWalls.length; i++) {
+        const speed = (this._config.rotationSpeed ?? 1) * 0.8;
+        this.wallRotations[i] += (i % 2 === 0 ? speed : -speed) * stepSec;
+        if (Math.abs(this.wallRotations[i]) > TWO_PI) this.wallRotations[i] = this.wallRotations[i] % TWO_PI;
+      }
+      if (this.infiniteMode) {
+        this.infiniteTimer += stepMs;
+        if (this.infiniteTimer > 1000) {
+          this.infiniteTimer = 0;
+          if (this.balls.length < 200) {
+            const a = this.random() * Math.PI * 2;
+            const speed = 150 + 150 * this.random();
+            this.addBall({
+              x: this._config.width / 2,
+              y: this._config.height / 2,
+              vx: Math.cos(a) * speed,
+              vy: Math.sin(a) * speed,
+              radius: (this._config.ballRadius || 8) + 12 * this.random(),
+              color: this.getRandomColor(),
+            });
+          }
+        }
+      }
+      this.cinematicDirector.update(stepMs);
+      this.currentMode?.onPreUpdate(this.ctx, stepMs);
+
+      const subSteps =
+        this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
+      const subMs = stepMs / subSteps;
+      for (let s = 0; s < subSteps; s++) {
+        const subSec = subMs / 1000;
+        for (let i = this.balls.length - 1; i >= 0; i--) {
+          const ball = this.balls[i];
+          const baseSpeed = this._config.ballSpeed || 400;
+          const gravityScale = (baseSpeed / 300) * (1 + 0.5 * audioIntensity);
+          ball.vy += this._config.gravity * subSec * gravityScale;
+          const speed = Math.hypot(ball.vx, ball.vy);
+          if (speed > 0 && speed < baseSpeed) {
+            const boost = 1 + 0.5 * subSec;
+            ball.vx *= boost;
+            ball.vy *= boost;
+          }
+          ball.x += ball.vx * subSec;
+          ball.y += ball.vy * subSec;
+          this.currentMode?.onBallStep(this.ctx, ball, subSec);
+          if (s === 0 && ball.lifetime !== undefined) {
+            ball.lifetime -= stepMs;
+            if (ball.lifetime <= 0) {
+              this.balls.splice(i, 1);
+              continue;
+            }
+          }
+          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
+        }
+        for (let a = 0; a < this.balls.length; a++) {
+          for (let b = a + 1; b < this.balls.length; b++) this.handleBallCollision(this.balls[a], this.balls[b]);
+        }
+        this.currentMode?.onPostSubStep(this.ctx);
+      }
+      this.currentMode?.onPostUpdate(this.ctx, stepMs);
+      for (const ball of this.balls) {
+        if (ball.trail.length < 20) ball.trail.push({ x: ball.x, y: ball.y });
+        else {
+          ball.trail[ball.trailIndex].x = ball.x;
+          ball.trail[ball.trailIndex].y = ball.y;
+          ball.trailIndex = (ball.trailIndex + 1) % 20;
+        }
+      }
+    }
+    this.updateParticles(frameMs / 1000);
+  }
+
+  private handleCircularWallCollisions(ball: Ball) {
+    const cx = this._config.width / 2;
+    const cy = this._config.height / 2;
+    for (let iter = 0; iter < 5; iter++) {
+      const dx = ball.x - cx;
+      const dy = ball.y - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist === 0) continue;
+      let angle = Math.atan2(dy, dx);
+      if (angle < 0) angle += TWO_PI;
+      // Keep the ball inside the arena while any intact wall still encloses it.
+      if (this.circularWalls.some((w, i) => !this.brokenWalls.has(i) && w.radius >= dist)) {
+        const bound =
+          this.circularWalls.length > 0
+            ? this.circularWalls[this.circularWalls.length - 1].radius + 50
+            : Math.min(this._config.width, this._config.height) / 2;
+        if (dist > bound) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          ball.x = cx + nx * (bound - ball.radius);
+          ball.y = cy + ny * (bound - ball.radius);
+          const dot = ball.vx * nx + ball.vy * ny;
+          ball.vx -= 2 * dot * nx;
+          ball.vy -= 2 * dot * ny;
+        }
+      }
+      if (!this.processWallCollisions(ball, cx, cy, dist, angle)) break;
+    }
+  }
+
+  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number): boolean {
+    const dx = ball.x - cx;
+    const dy = ball.y - cy;
+    let outermostBelow = -1;
+    for (let i = 0; i < this.circularWalls.length; i++) {
+      if (!this.brokenWalls.has(i) && dist > this.circularWalls[i].radius + ball.radius) outermostBelow = i;
+    }
+    this.lastWallLayer.set(ball.id, outermostBelow);
+    const isShatter = this.currentMode?.name === "shatter";
+    let collided = false;
+    for (let w = 0; w < this.circularWalls.length; w++) {
+      if (this.brokenWalls.has(w)) continue;
+      const wall = this.circularWalls[w];
+      const rotation = this.wallRotations[w];
+      const inner = dist - ball.radius - 2;
+      const outer = dist + ball.radius + 2;
+      if (!(inner <= wall.radius && outer >= wall.radius)) continue;
+
+      let inGap = false;
+      const ballAngular = Math.atan2(ball.radius, wall.radius);
+      for (const gap of wall.gaps) {
+        let start = gap.startAngle + rotation;
+        let end = gap.endAngle + rotation;
+        start = ((start % TWO_PI) + TWO_PI) % TWO_PI;
+        end = ((end % TWO_PI) + TWO_PI) % TWO_PI;
+        let width = end - start;
+        if (width < 0) width += TWO_PI;
+        // A gap only counts when the whole ball fits through it (with a safety margin).
+        if (width >= ballAngular * (isShatter ? 1.2 : 2.5)) {
+          const margin = isShatter ? 0.5 * ballAngular : ballAngular;
+          const a0 = start + margin;
+          let a1 = end - margin;
+          if (a1 < 0) a1 += TWO_PI;
+          if (a1 < a0) {
+            if (angle >= a0 || angle <= a1) {
+              inGap = true;
+              break;
+            }
+          } else if (angle >= a0 && angle <= a1) {
+            inGap = true;
+            break;
+          }
+        }
+      }
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      if (inGap) {
+        const inside = dist < wall.radius;
+        const movingOut = ball.vx * nx + ball.vy * ny > 0;
+        if (!inside || movingOut) {
+          const gap = wall.gaps.length > 0 ? wall.gaps[0] : null;
+          if (gap) {
+            const adj = this.cinematicDirector.adjustGapPass(ball, wall.radius, rotation, gap, cx, cy);
+            if (adj) {
+              ball.vx += adj.vxAdjust;
+              ball.vy += adj.vyAdjust;
+            }
+          }
+          this.cinematicDirector.onGapPass();
+          if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
+          const handled = this.currentMode?.onGapPass(this.ctx, ball, w);
+          if (!handled) {
+            if (!this.brokenWalls.has(w)) {
+              this.spawnWallBreakByStyle(w, ball.x, ball.y);
+              this.pendingSoundEvents.push({ type: "gap", wallIndex: w });
+            }
+            this.brokenWalls.add(w);
+          }
+        }
+      } else {
+        const inside = dist < wall.radius;
+        const push = isShatter ? ball.radius + 0.5 : ball.radius + 3;
+        if (inside) {
+          ball.x = cx + nx * (wall.radius - push);
+          ball.y = cy + ny * (wall.radius - push);
+        } else {
+          ball.x = cx + nx * (wall.radius + push);
+          ball.y = cy + ny * (wall.radius + push);
+        }
+        const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
+        if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
+        this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
+        if (this.bouncierEnabled && !result?.resetBouncier) {
+          this.bounceSpeedMultiplier = Math.min(this.bounceSpeedMultiplier + this.bouncierIncrement, this.bouncierMaxMultiplier);
+        }
+        if (!result?.suppressBounce) {
+          const baseSpeed = this._config.ballSpeed || 400;
+          const speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier();
+          const scatter = Math.PI / 3;
+          let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
+          outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
+          ball.vx = Math.cos(outAngle) * speed;
+          ball.vy = Math.sin(outAngle) * speed;
+        }
+        collided = true;
+      }
+    }
+    return collided;
+  }
+
+  private initializeCircularWalls() {
+    const maxR = (Math.min(this._config.width, this._config.height) / 2) * 0.85;
+    const count = this._config.wallCount || 7;
+    this.circularWalls = [];
+    this.wallRotations = [];
+    for (let i = 0; i < count; i++) {
+      const radius = maxR * (0.4 + (0.6 / count) * (i + 1));
+      const gap = this._config.gapSize || 0.3;
+      const start = (TWO_PI * i) / count;
+      this.circularWalls.push({ radius, gaps: [{ startAngle: start, endAngle: start + gap }] });
+      this.wallRotations.push(0);
+    }
+  }
+
+  private handleBallCollision(a: Ball, b: Ball) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.hypot(dx, dy);
+    const minDist = a.radius + b.radius;
+    if (dist >= minDist || dist === 0) return;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const overlap = minDist - dist;
+    a.x -= nx * overlap * 0.5;
+    a.y -= ny * overlap * 0.5;
+    b.x += nx * overlap * 0.5;
+    b.y += ny * overlap * 0.5;
+    const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+    if (rel > 0) return;
+    const impulse = rel; // equal masses
+    a.vx += nx * impulse;
+    a.vy += ny * impulse;
+    b.vx -= nx * impulse;
+    b.vy -= ny * impulse;
+    this.currentMode?.onBallCollision?.(this.ctx, a, b);
+  }
+
+  private addWallHit(wallIndex: number, angle: number, radius: number) {
+    this.wallHits.push({ wallIndex, angle, radius, timestamp: Date.now() });
+    const cutoff = Date.now() - 1000;
+    let drop = 0;
+    while (drop < this.wallHits.length && this.wallHits[drop].timestamp < cutoff) drop++;
+    if (drop > 0) this.wallHits.splice(0, drop);
+  }
+
+  private getRandomColor() {
+    const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B500", "#E74C3C", "#3498DB", "#2ECC71"];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
+
+  // ---------------------------------------------------------------- effects
+
+  spawnWallBreakByStyle(wallIndex: number, x: number, y: number) {
+    const style = this.wallBreakStyle;
+    const isShatter = this.currentMode?.name === "shatter";
+    const all = style === "all";
+    if (style === "confetti" || all) this.spawnConfetti(x, y);
+    if (style === "shatter" || all) {
+      if (isShatter) this.spawnLocalizedShardEffect(wallIndex, x, y);
+      else this.spawnWallBreakEffect(wallIndex, x, y);
+    }
+    if (style === "shockwave" || all) {
+      if (isShatter) this.spawnLocalizedShockwaveEffect(wallIndex, x, y);
+      else this.spawnShockwaveEffect(wallIndex);
+    }
+  }
+
+  private spawnShockwaveEffect(wallIndex: number) {
+    const wall = this.circularWalls[wallIndex];
+    if (!wall) return;
+    this.shockwaves.push({
+      x: this._config.width / 2,
+      y: this._config.height / 2,
+      radius: wall.radius,
+      maxRadius: wall.radius + 80,
+      life: 0.5,
+      maxLife: 0.5,
+      color: "#FFFFFF",
+    });
+    this.wallBreakFlashes.push({ wallRadius: wall.radius, life: 0.2, maxLife: 0.2 });
+  }
+
+  private spawnLocalizedShockwaveEffect(_wallIndex: number, x: number, y: number) {
+    this.shockwaves.push({ x, y, radius: 5, maxRadius: 60, life: 0.4, maxLife: 0.4, color: "#FFFFFF" });
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * TWO_PI;
+      const speed = 80 + 150 * Math.random();
+      this.pushParticle({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        color: "#FFFFFF",
+        size: 1.5 + 2 * Math.random(),
+        life: 0.3 + 0.3 * Math.random(),
+        maxLife: 0.6,
+        rotation: 0,
+        rotationSpeed: 0,
+        type: "spark",
+      });
+    }
+  }
+
+  private static readonly SHARD_COLORS = ["#FFFFFF", "#C8E6FF", "#A8D4FF", "#E0F0FF", "#88CCFF", "#DDEEFF"];
+
+  private spawnWallBreakEffect(wallIndex: number, x: number, y: number) {
+    const wall = this.circularWalls[wallIndex];
+    if (!wall) return;
+    const cx = this._config.width / 2;
+    const cy = this._config.height / 2;
+    const colors = PhysicsEngine.SHARD_COLORS;
+    for (let i = 0; i < 40; i++) {
+      const a = (TWO_PI * i) / 40 + (Math.random() - 0.5) * 0.3;
+      const px = cx + Math.cos(a) * wall.radius;
+      const py = cy + Math.sin(a) * wall.radius;
+      const radial = 100 + 250 * Math.random();
+      const tangential = (Math.random() - 0.5) * 100;
+      this.pushParticle({
+        x: px,
+        y: py,
+        vx: Math.cos(a) * radial + Math.cos(a + Math.PI / 2) * tangential,
+        vy: Math.sin(a) * radial + Math.sin(a + Math.PI / 2) * tangential,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 3 + 8 * Math.random(),
+        life: 1 + 0.8 * Math.random(),
+        maxLife: 1.8,
+        rotation: Math.random() * TWO_PI,
+        rotationSpeed: (Math.random() - 0.5) * 15,
+        type: "shard",
+      });
+    }
+    for (let i = 0; i < 20; i++) {
+      const a = Math.random() * TWO_PI;
+      const speed = 200 + 300 * Math.random();
+      this.pushParticle({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        color: "#FFFFFF",
+        size: 1.5 + 2.5 * Math.random(),
+        life: 0.4 + 0.4 * Math.random(),
+        maxLife: 0.8,
+        rotation: 0,
+        rotationSpeed: 0,
+        type: "spark",
+      });
+    }
+  }
+
+  private spawnLocalizedShardEffect(_wallIndex: number, x: number, y: number) {
+    const cx = this._config.width / 2;
+    const cy = this._config.height / 2;
+    const baseAngle = Math.atan2(y - cy, x - cx);
+    const colors = PhysicsEngine.SHARD_COLORS;
+    for (let i = 0; i < 12; i++) {
+      const a = baseAngle + (Math.PI / 2) * (Math.random() - 0.5);
+      const radial = 80 + 200 * Math.random();
+      const tangential = (Math.random() - 0.5) * 60;
+      this.pushParticle({
+        x,
+        y,
+        vx: Math.cos(a) * radial + Math.cos(a + Math.PI / 2) * tangential,
+        vy: Math.sin(a) * radial + Math.sin(a + Math.PI / 2) * tangential,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 2 + 5 * Math.random(),
+        life: 0.8 + 0.6 * Math.random(),
+        maxLife: 1.4,
+        rotation: Math.random() * TWO_PI,
+        rotationSpeed: (Math.random() - 0.5) * 15,
+        type: "shard",
+      });
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = baseAngle + (Math.random() - 0.5) * Math.PI;
+      const speed = 150 + 200 * Math.random();
+      this.pushParticle({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        color: "#FFFFFF",
+        size: 1 + 2 * Math.random(),
+        life: 0.3 + 0.3 * Math.random(),
+        maxLife: 0.6,
+        rotation: 0,
+        rotationSpeed: 0,
+        type: "spark",
+      });
+    }
+  }
+
+  private pushParticle(p: Particle) {
+    if (this.particles.length >= this.MAX_PARTICLES) return;
+    this.particles.push(p);
+  }
+
+  spawnConfetti(x: number, y: number) {
+    const colors = ["#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3", "#A8D8EA"];
+    for (let i = 0; i < 30; i++) {
+      const a = (TWO_PI * i) / 30 + 0.5 * Math.random();
+      const speed = 150 + 200 * Math.random();
+      this.pushParticle({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 4 + 6 * Math.random(),
+        life: 1.5,
+        maxLife: 1.5,
+        rotation: Math.random() * TWO_PI,
+        rotationSpeed: (Math.random() - 0.5) * 10,
+        type: "confetti",
+      });
+    }
+  }
+
+  private updateParticles(dtSec: number) {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dtSec;
+      p.y += p.vy * dtSec;
+      p.vy += 400 * dtSec;
+      p.vx *= 0.98;
+      p.vy *= 0.98;
+      p.rotation += p.rotationSpeed * dtSec;
+      p.life -= dtSec;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+    for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+      const s = this.shockwaves[i];
+      s.life -= dtSec;
+      const t = 1 - s.life / s.maxLife;
+      s.radius = s.radius + (s.maxRadius - s.radius) * t;
+      if (s.life <= 0) this.shockwaves.splice(i, 1);
+    }
+    for (let i = this.wallBreakFlashes.length - 1; i >= 0; i--) {
+      const f = this.wallBreakFlashes[i];
+      f.life -= dtSec;
+      if (f.life <= 0) this.wallBreakFlashes.splice(i, 1);
+    }
+  }
+}
+
+/** Modes that support the optional second ball. */
+export const TWO_BALL_MODES: ModeId[] = ["classic", "multiply", "lines", "grow", "shatter"];

@@ -1,0 +1,35 @@
+{
+  "name": "viralballs-clone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Free browser-based ball physics simulator for TikTok, Reels and Shorts – a full-featured, editable clone of viralballs.com",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke-test.mjs",
+    "previews": "node scripts/generate-mode-previews.mjs"
+  },
+  "dependencies": {
+    "next": "15.5.26",
+    "next-intl": "^4.14.7",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.26",
+    "playwright": "^1.56.1",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  }
+}

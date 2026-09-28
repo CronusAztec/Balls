@@ -1,0 +1,1339 @@
+"use client";
+
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import type { PhysicsEngine } from "@/lib/physics/engine";
+import type { RainbowWallMode } from "@/lib/settings";
+
+/** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
+export interface CanvasLabels {
+  escaped: string;
+  afterFrozenBalls: (n: number) => string;
+  frozenCount: (n: number) => string;
+  painted: (pct: number) => string;
+  teleports: string;
+  afterTeleports: (n: number) => string;
+  shattered: string;
+  segmentsDestroyed: (broken: number, total: number) => string;
+  segmentsShattered: string;
+  matched: string;
+  segmentsCleared: (total: number) => string;
+  matchColour: string;
+  complete: string;
+  segmentsHitInOrder: (total: number) => string;
+  ballsLabel: string;
+}
+
+export interface CanvasHandle {
+  getCanvas: () => HTMLCanvasElement | null;
+  setRecording: (recording: boolean) => void;
+  setAudioIntensity: (v: number) => void;
+  fpsRef: React.RefObject<number>;
+}
+
+export interface CanvasProps {
+  physicsEngine: PhysicsEngine;
+  audioIntensity?: number;
+  showTrails: boolean;
+  showGlow: boolean;
+  showWallGlow: boolean;
+  isPaused: boolean;
+  isStarted?: boolean;
+  backgroundColor?: string;
+  circleColor?: string;
+  wallThickness?: number;
+  watermarkText?: string;
+  rainbowWalls?: boolean;
+  rainbowWallMode?: RainbowWallMode;
+  rainbowBall?: boolean;
+  lineColor?: string;
+  rainbowLines?: boolean;
+  ballImage?: string | null;
+  ballEmoji?: string | null;
+  topText?: string;
+  bottomText?: string;
+  textSize?: number;
+  trailThickness?: number;
+  reactiveBackground?: boolean;
+  colorTrail?: boolean;
+  simSpeed?: number;
+  cameraFollow?: boolean;
+  labels?: CanvasLabels;
+}
+
+const DEFAULT_LABELS: CanvasLabels = {
+  escaped: "ESCAPED!",
+  afterFrozenBalls: (n) => `After ${n} frozen ball${n !== 1 ? "s" : ""}`,
+  frozenCount: (n) => `Frozen: ${n}`,
+  painted: (pct) => `${pct}% painted`,
+  teleports: "teleports",
+  afterTeleports: (n) => `After ${n} teleport${n !== 1 ? "s" : ""}`,
+  shattered: "SHATTERED!",
+  segmentsDestroyed: (b, t) => `${b}/${t} segments destroyed`,
+  segmentsShattered: "segments shattered",
+  matched: "MATCHED!",
+  segmentsCleared: (t) => `All ${t} segments cleared`,
+  matchColour: "Match colour:",
+  complete: "COMPLETE!",
+  segmentsHitInOrder: (t) => `All ${t} segments hit in order`,
+  ballsLabel: "balls",
+};
+
+const TWO_PI = Math.PI * 2;
+const GLOW_LAYERS = [
+  { widthMult: 5, alphaMult: 0.06 },
+  { widthMult: 2.5, alphaMult: 0.18 },
+  { widthMult: 1, alphaMult: 0.65 },
+];
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace("#", "");
+  if (h.length === 3) return { r: parseInt(h[0] + h[0], 16), g: parseInt(h[1] + h[1], 16), b: parseInt(h[2] + h[2], 16) };
+  if (h.length === 6) return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+  return { r: 6, g: 182, b: 212 };
+}
+
+/**
+ * The canvas renderer. It runs its own requestAnimationFrame loop, advances the physics
+ * engine (respecting pause and playback speed) and draws walls, mode overlays, balls,
+ * trails, glow, particles, HUD text and overlays. Visual props are mirrored into a ref so
+ * the loop never has to restart when they change.
+ */
+const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
+  {
+    physicsEngine,
+    audioIntensity = 0,
+    showTrails,
+    showGlow,
+    showWallGlow,
+    isPaused,
+    isStarted = false,
+    backgroundColor = "#0a0a0a",
+    circleColor = "#06b6d4",
+    wallThickness = 2,
+    watermarkText = "",
+    rainbowWalls = false,
+    rainbowWallMode = "pulse",
+    rainbowBall = false,
+    lineColor = "#ffffff",
+    rainbowLines = false,
+    ballImage = null,
+    ballEmoji = null,
+    topText = "",
+    bottomText = "",
+    textSize = 1,
+    trailThickness = 0.8,
+    reactiveBackground = false,
+    colorTrail = false,
+    simSpeed = 1,
+    cameraFollow = false,
+    labels,
+  },
+  ref,
+) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number | undefined>(undefined);
+  const lastTimeRef = useRef(Date.now());
+  const elapsedRef = useRef(0);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const imageLoadedRef = useRef(false);
+  const emojiCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recordingRef = useRef(false);
+  const labelsRef = useRef<CanvasLabels | undefined>(labels);
+  const sizeRef = useRef({ width: 800, height: 600 });
+  const fpsRef = useRef(60);
+  const lastFpsSampleRef = useRef(0);
+  const lastFrameRef = useRef(0);
+  const camXRef = useRef(0);
+  const camYRef = useRef(0);
+  const audioRef = useRef(audioIntensity);
+  labelsRef.current = labels;
+
+  const propsRef = useRef({
+    showTrails,
+    showGlow,
+    showWallGlow,
+    isPaused,
+    isStarted,
+    backgroundColor,
+    circleColor,
+    wallThickness,
+    watermarkText,
+    rainbowWalls,
+    rainbowWallMode,
+    rainbowBall,
+    lineColor,
+    rainbowLines,
+    topText,
+    bottomText,
+    textSize,
+    trailThickness,
+    reactiveBackground,
+    colorTrail,
+    simSpeed,
+    cameraFollow,
+  });
+  useEffect(() => {
+    propsRef.current = {
+      showTrails,
+      showGlow,
+      showWallGlow,
+      isPaused,
+      isStarted,
+      backgroundColor,
+      circleColor,
+      wallThickness,
+      watermarkText,
+      rainbowWalls,
+      rainbowWallMode,
+      rainbowBall,
+      lineColor,
+      rainbowLines,
+      topText,
+      bottomText,
+      textSize,
+      trailThickness,
+      reactiveBackground,
+      colorTrail,
+      simSpeed,
+      cameraFollow,
+    };
+  }, [
+    showTrails,
+    showGlow,
+    showWallGlow,
+    isPaused,
+    isStarted,
+    backgroundColor,
+    circleColor,
+    wallThickness,
+    watermarkText,
+    rainbowWalls,
+    rainbowWallMode,
+    rainbowBall,
+    lineColor,
+    rainbowLines,
+    topText,
+    bottomText,
+    textSize,
+    trailThickness,
+    reactiveBackground,
+    colorTrail,
+    simSpeed,
+    cameraFollow,
+  ]);
+
+  const circleRgbRef = useRef(hexToRgb(circleColor));
+  useEffect(() => {
+    circleRgbRef.current = hexToRgb(circleColor);
+  }, [circleColor]);
+
+  useEffect(() => {
+    audioRef.current = audioIntensity;
+  }, [audioIntensity]);
+
+  useImperativeHandle(ref, () => ({
+    getCanvas: () => canvasRef.current,
+    setRecording: (v: boolean) => {
+      recordingRef.current = v;
+    },
+    setAudioIntensity: (v: number) => {
+      audioRef.current = v;
+    },
+    fpsRef,
+  }));
+
+  useEffect(() => {
+    if (ballImage) {
+      const img = new Image();
+      img.onload = () => {
+        imageRef.current = img;
+        imageLoadedRef.current = true;
+      };
+      img.onerror = () => {
+        imageRef.current = null;
+        imageLoadedRef.current = false;
+      };
+      img.src = ballImage;
+    } else {
+      imageRef.current = null;
+      imageLoadedRef.current = false;
+    }
+  }, [ballImage]);
+
+  useEffect(() => {
+    if (ballEmoji) {
+      const c = document.createElement("canvas");
+      c.width = 128;
+      c.height = 128;
+      const g = c.getContext("2d")!;
+      g.clearRect(0, 0, 128, 128);
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.font = "172.8px serif";
+      g.fillText(ballEmoji, 64, 74.24);
+      emojiCanvasRef.current = c;
+    } else {
+      emojiCanvasRef.current = null;
+    }
+  }, [ballEmoji]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const engine = physicsEngine;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      sizeRef.current = { width: rect.width, height: rect.height };
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      engine.setConfig({ width: rect.width, height: rect.height });
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const alphaCache = new Map<string, string>();
+    const ballSpriteCache = new Map<string, HTMLCanvasElement>();
+    const glowSpriteCache = new Map<string, HTMLCanvasElement>();
+    let accumulator = 0;
+
+    const withAlpha = (color: string, alpha: number) => {
+      const key = `${color}_${alpha.toFixed(2)}`;
+      const cached = alphaCache.get(key);
+      if (cached) return cached;
+      let out: string;
+      if (color.startsWith("hsl")) out = color.replace(")", `, ${alpha})`).replace("hsl(", "hsla(");
+      else {
+        const { r, g, b } = hexToRgb(color);
+        out = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+      if (alphaCache.size > 2000) alphaCache.clear();
+      alphaCache.set(key, out);
+      return out;
+    };
+
+    const draw = () => {
+      const now = performance.now();
+      if (now - lastFrameRef.current < 15) {
+        rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      lastFrameRef.current = now;
+      const frameMs = Math.min(now - lastTimeRef.current, 100);
+      lastTimeRef.current = now;
+      const p = propsRef.current;
+
+      if (!p.isPaused && p.isStarted) {
+        accumulator += frameMs * p.simSpeed;
+        if (accumulator > 250) accumulator = 250;
+        while (accumulator >= 16.666) {
+          engine.update(16.666, audioRef.current);
+          accumulator -= 16.666;
+        }
+      }
+      elapsedRef.current += frameMs;
+      const time = elapsedRef.current;
+      const walls = engine.getCircularWalls();
+      const rotations = engine.getWallRotations();
+      const broken = engine.getBrokenWalls();
+      const circleAlpha = (a: number) => {
+        const { r, g, b } = circleRgbRef.current;
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+      };
+
+      /** Colour for wall `index`, optionally with alpha and (for gradient mode) an angle. */
+      const wallColor = (index: number, alpha?: number, angle?: number) => {
+        if (!p.rainbowWalls) return alpha !== undefined ? circleAlpha(alpha) : p.circleColor;
+        if (p.rainbowWallMode === "gradient" && angle !== undefined) {
+          const hue = Math.floor((((0.03 * time) % 360) + (angle / TWO_PI) * 360) % 360);
+          return alpha !== undefined ? `hsla(${hue}, 100%, 60%, ${alpha})` : `hsl(${hue}, 100%, 60%)`;
+        }
+        const hue = Math.floor((((0.05 * time) % 360) + (walls.length > 1 ? (index / walls.length) * 360 : 0)) % 360);
+        return alpha !== undefined ? `hsla(${hue}, 100%, 60%, ${alpha})` : `hsl(${hue}, 100%, 60%)`;
+      };
+
+      // Background
+      ctx.fillStyle = p.backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const size = sizeRef.current;
+      const cx = size.width / 2;
+      const cy = size.height / 2;
+      const arena = (Math.min(size.width, size.height) / 2) * 0.85;
+
+      if (p.reactiveBackground) {
+        const hits = engine.getWallHits();
+        const nowMs = Date.now();
+        const maxR = 0.7 * Math.max(size.width, size.height);
+        const hueBase = 0.05 * time;
+        let drawn = 0;
+        for (let i = hits.length - 1; i >= 0 && drawn < 3; i--) {
+          const hit = hits[i];
+          const age = nowMs - hit.timestamp;
+          if (age >= 400) continue;
+          drawn++;
+          const alpha = (1 - age / 400) * 0.15;
+          const hue = Math.floor(((180 * hit.angle) / Math.PI + hueBase) % 360);
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+          grad.addColorStop(0, `hsla(${hue},100%,60%,${alpha.toFixed(3)})`);
+          grad.addColorStop(0.5, `hsla(${hue},80%,40%,${(0.4 * alpha).toFixed(3)})`);
+          grad.addColorStop(1, `hsla(${hue},60%,20%,0)`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, size.width, size.height);
+        }
+      }
+
+      ctx.save();
+      ctx.lineWidth = p.wallThickness;
+      ctx.globalAlpha = 0.6;
+      ctx.save();
+      if (p.cameraFollow) {
+        const balls = engine.getBalls();
+        if (balls.length > 0) {
+          const b = balls[0];
+          const limit = 0.5 * arena;
+          const tx = Math.max(-limit, Math.min(limit, cx - b.x));
+          const ty = Math.max(-limit, Math.min(limit, cy - b.y));
+          camXRef.current += (tx - camXRef.current) * 0.08;
+          camYRef.current += (ty - camYRef.current) * 0.08;
+          ctx.translate(camXRef.current, camYRef.current);
+        }
+      } else {
+        camXRef.current = 0;
+        camYRef.current = 0;
+      }
+
+      let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
+      const conicGradient = (alpha?: number) => {
+        if (conicCache && conicCache.time === time && conicCache.alpha === alpha) return conicCache.gradient;
+        const g = ctx.createConicGradient(0, cx, cy);
+        const base = (0.03 * time) % 360;
+        for (let i = 0; i <= 16; i++) {
+          const t = i / 16;
+          const hue = Math.floor((base + 360 * t) % 360);
+          g.addColorStop(t, alpha !== undefined ? `hsla(${hue},100%,60%,${alpha})` : `hsl(${hue},100%,60%)`);
+        }
+        conicCache = { time, alpha, gradient: g };
+        return g;
+      };
+      const strokeArc = (index: number, radius: number, from: number, to: number, alpha?: number) => {
+        ctx.strokeStyle = p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, from, to);
+        ctx.stroke();
+      };
+
+      const isShatter = engine.isShatterMode();
+      const shatterSegments = isShatter ? engine.getShatterSegments() : null;
+
+      // Walls
+      for (let i = 0; i < walls.length; i++) {
+        if (broken.has(i)) continue;
+        const wall = walls[i];
+        const rot = rotations[i] || 0;
+        if (isShatter && shatterSegments && shatterSegments[i]) {
+          const thickness = Math.max(6, p.wallThickness + 4);
+          for (const seg of shatterSegments[i]) {
+            if (seg.hp <= 0) continue;
+            const inset = (seg.endAngle - seg.startAngle) * 0.25;
+            const a0 = seg.startAngle + rot + inset / 2;
+            const a1 = seg.endAngle + rot - inset / 2;
+            const mid = (a0 + a1) / 2;
+            const rIn = wall.radius - thickness / 2;
+            const rOut = wall.radius + thickness / 2;
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle = wallColor(i, undefined, p.rainbowWalls && p.rainbowWallMode === "gradient" ? ((mid % TWO_PI) + TWO_PI) % TWO_PI : undefined);
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(a0) * rOut, cy + Math.sin(a0) * rOut);
+            ctx.arc(cx, cy, rOut, a0, a1);
+            ctx.lineTo(cx + Math.cos(a1) * rIn, cy + Math.sin(a1) * rIn);
+            ctx.arc(cx, cy, rIn, a1, a0, true);
+            ctx.closePath();
+            ctx.fill();
+          }
+        } else {
+          let cursor = 0;
+          for (const gap of wall.gaps) {
+            const start = gap.startAngle + rot;
+            if (start > cursor + rot) strokeArc(i, wall.radius, cursor + rot, start);
+            cursor = gap.endAngle;
+          }
+          if (cursor < TWO_PI) strokeArc(i, wall.radius, cursor + rot, TWO_PI + rot);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // Color Match segments
+      if (engine.isColorMatchMode()) {
+        const segments = engine.getColorMatchSegments();
+        if (walls.length > 0 && !broken.has(0)) {
+          const rot = rotations[0] || 0;
+          const radius = walls[0].radius;
+          ctx.lineWidth = Math.max(10, p.wallThickness + 8);
+          for (const seg of segments) {
+            if (seg.broken) continue;
+            ctx.globalAlpha = 0.85;
+            ctx.strokeStyle = seg.color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005);
+            ctx.stroke();
+          }
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          for (const seg of segments) {
+            if (seg.broken) continue;
+            const a = seg.startAngle + rot;
+            const r0 = radius - p.wallThickness / 2 - 4;
+            const r1 = radius + p.wallThickness / 2 + 4;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+            ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Paint trail
+      if (engine.isPaintMode()) {
+        const points = engine.getPaintPoints();
+        const balls = engine.getBalls();
+        const radius = balls.length > 0 ? balls[0].radius : 8;
+        const lineWidth = 2 * radius;
+        if (points.length > 0) {
+          ctx.globalAlpha = 0.75;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.lineWidth = lineWidth;
+          const maxJump = 3 * lineWidth;
+          const maxJump2 = maxJump * maxJump;
+          let i = 0;
+          while (i < points.length) {
+            const start = points[i];
+            ctx.strokeStyle = start.color;
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            let j = i + 1;
+            while (j < points.length) {
+              const prev = points[j - 1];
+              const cur = points[j];
+              const dx = cur.x - prev.x;
+              const dy = cur.y - prev.y;
+              if (dx * dx + dy * dy > maxJump2) break;
+              if (cur.color !== prev.color) {
+                ctx.lineTo(cur.x, cur.y);
+                ctx.stroke();
+                ctx.strokeStyle = cur.color;
+                ctx.beginPath();
+                ctx.moveTo(cur.x, cur.y);
+              } else ctx.lineTo(cur.x, cur.y);
+              j++;
+            }
+            ctx.stroke();
+            i = j;
+          }
+          const last = points[points.length - 1];
+          ctx.fillStyle = last.color;
+          ctx.beginPath();
+          ctx.arc(last.x, last.y, radius, 0, TWO_PI);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Target segments
+      if (engine.isCountdownMode()) {
+        const total = engine.getCountdownTotal();
+        const target = engine.getCountdownTarget();
+        const hit = engine.getCountdownHit();
+        const flashes = engine.getCountdownWrongFlashes();
+        const map = engine.getCountdownSegmentMap();
+        const wall = walls[0];
+        if (wall) {
+          const step = TWO_PI / total;
+          const radius = wall.radius;
+          const thickness = Math.max(8, 0.06 * radius);
+          const labelR = radius + Math.max(12, 0.08 * radius);
+          const fontSize = Math.max(10, 0.03 * Math.min(size.width, size.height));
+          const startAngle = -Math.PI / 2;
+          const flashBySegment: Record<number, number> = {};
+          for (const f of flashes) {
+            const t = Math.min(1, Math.max(0, f.time / 400));
+            if (flashBySegment[f.segment] === undefined || t > flashBySegment[f.segment]) flashBySegment[f.segment] = t;
+          }
+          const pulse = 0.5 + 0.3 * Math.sin(0.005 * time);
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          for (let s = 0; s < total; s++) {
+            const number = map[s] ?? total - s;
+            const a0 = startAngle + s * step;
+            const a1 = a0 + step;
+            const mid = (a0 + a1) / 2;
+            const flash = flashBySegment[number];
+            let color: string, alpha: number, shadow: string, blur: number;
+            if (hit.has(number)) [color, alpha, shadow, blur] = ["#22c55e", 0.7, "#22c55e", 12];
+            else if (number === target) [color, alpha, shadow, blur] = ["#facc15", pulse, "#facc15", 12];
+            else if (flash !== undefined) [color, alpha, shadow, blur] = ["#ef4444", 0.3 + 0.6 * flash, "#ef4444", 12 * flash];
+            else [color, alpha, shadow, blur] = ["#333333", 0.4, "", 0];
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = thickness;
+            if (shadow) {
+              ctx.shadowColor = shadow;
+              ctx.shadowBlur = blur;
+            }
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, a0 + 0.02, a1 - 0.02);
+            ctx.stroke();
+            ctx.restore();
+            const lx = cx + labelR * Math.cos(mid);
+            const ly = cy + labelR * Math.sin(mid);
+            ctx.save();
+            if (hit.has(number)) {
+              ctx.fillStyle = "#22c55e";
+              ctx.globalAlpha = 0.9;
+            } else if (number === target) {
+              ctx.fillStyle = "#facc15";
+              ctx.globalAlpha = 1;
+              ctx.shadowColor = "#facc15";
+              ctx.shadowBlur = 8;
+            } else {
+              ctx.fillStyle = "#666666";
+              ctx.globalAlpha = 0.6;
+            }
+            ctx.fillText(String(number), lx, ly);
+            ctx.restore();
+          }
+          ctx.save();
+          ctx.strokeStyle = "#555555";
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.3;
+          const rIn = radius - thickness / 2;
+          const rOut = radius + thickness / 2;
+          for (let s = 0; s < total; s++) {
+            const a = startAngle + s * step;
+            ctx.beginPath();
+            ctx.moveTo(cx + rIn * Math.cos(a), cy + rIn * Math.sin(a));
+            ctx.lineTo(cx + rOut * Math.cos(a), cy + rOut * Math.sin(a));
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      // Portals
+      if (engine.isPortalMode()) {
+        const portals = engine.getPortals();
+        const wall = walls[0];
+        if (wall && !broken.has(0)) {
+          for (const portal of portals) {
+            if (portal.exhausted) continue;
+            const drawPortal = (angle: number) => {
+              const a0 = angle - portal.halfWidth;
+              const a1 = angle + portal.halfWidth;
+              ctx.save();
+              ctx.lineWidth = Math.max(6, 0.04 * wall.radius);
+              ctx.strokeStyle = portal.color;
+              ctx.shadowColor = portal.color;
+              ctx.shadowBlur = 16;
+              ctx.globalAlpha = 0.85;
+              ctx.beginPath();
+              ctx.arc(cx, cy, wall.radius, a0, a1);
+              ctx.stroke();
+              ctx.lineWidth = Math.max(3, 0.02 * wall.radius);
+              ctx.globalAlpha = 0.4;
+              ctx.beginPath();
+              ctx.arc(cx, cy, wall.radius - Math.max(4, 0.025 * wall.radius), a0, a1);
+              ctx.stroke();
+              ctx.restore();
+              const px = cx + wall.radius * Math.cos(angle);
+              const py = cy + wall.radius * Math.sin(angle);
+              ctx.save();
+              ctx.fillStyle = portal.color;
+              ctx.shadowColor = portal.color;
+              ctx.shadowBlur = 10;
+              ctx.globalAlpha = 0.9;
+              ctx.translate(px, py);
+              ctx.rotate(angle);
+              const d = Math.max(4, 0.025 * wall.radius);
+              ctx.beginPath();
+              ctx.moveTo(0, -d);
+              ctx.lineTo(d, 0);
+              ctx.lineTo(0, d);
+              ctx.lineTo(-d, 0);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            };
+            drawPortal(portal.angleA);
+            drawPortal(portal.angleB);
+            const r = 0.92 * wall.radius;
+            ctx.save();
+            ctx.strokeStyle = portal.color;
+            ctx.globalAlpha = 0.15;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 6]);
+            ctx.beginPath();
+            ctx.moveTo(cx + r * Math.cos(portal.angleA), cy + r * Math.sin(portal.angleA));
+            ctx.lineTo(cx + r * Math.cos(portal.angleB), cy + r * Math.sin(portal.angleB));
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+          }
+        }
+      }
+
+      // Spikes
+      if (engine.isAccumulationMode() && engine.getSpikesEnabled()) {
+        const angles = engine.getSpikeAngles();
+        const length = engine.getSpikeLength();
+        const wall = walls[0];
+        const rot = rotations[0] || 0;
+        if (wall && !broken.has(0) && angles.length > 0) {
+          ctx.fillStyle = "#FF4444";
+          ctx.globalAlpha = 0.85;
+          for (const a of angles) {
+            const t = a + rot;
+            const outer = wall.radius;
+            const inner = outer - length;
+            ctx.beginPath();
+            ctx.moveTo(cx + outer * Math.cos(t - 0.06), cy + outer * Math.sin(t - 0.06));
+            ctx.lineTo(cx + outer * Math.cos(t + 0.06), cy + outer * Math.sin(t + 0.06));
+            ctx.lineTo(cx + inner * Math.cos(t), cy + inner * Math.sin(t));
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Wall glow on recent hits
+      if (p.showWallGlow) {
+        const hits = engine.getWallHits();
+        const nowMs = Date.now();
+        const latest: Record<number, number> = {};
+        for (const h of hits) if (latest[h.wallIndex] === undefined || h.timestamp > latest[h.wallIndex]) latest[h.wallIndex] = h.timestamp;
+        for (const key of Object.keys(latest)) {
+          const wi = Number(key);
+          const age = nowMs - latest[wi];
+          if (age >= 1000) continue;
+          const t = age / 1000;
+          const strength = 1 - t * t;
+          if (strength < 0.01 || wi >= walls.length || broken.has(wi)) continue;
+          const wall = walls[wi];
+          const rot = rotations[wi];
+          if (isShatter && shatterSegments && shatterSegments[wi]) {
+            const thickness = Math.max(6, p.wallThickness + 4);
+            const arcs: { sA: number; eA: number }[] = [];
+            for (const seg of shatterSegments[wi]) {
+              if (seg.hp <= 0) continue;
+              const inset = (seg.endAngle - seg.startAngle) * 0.25;
+              arcs.push({ sA: seg.startAngle + rot + inset / 2, eA: seg.endAngle + rot - inset / 2 });
+            }
+            if (arcs.length === 0) continue;
+            for (const layer of GLOW_LAYERS) {
+              const alpha = strength * layer.alphaMult;
+              ctx.fillStyle = p.rainbowWalls ? (p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(wi, alpha)) : circleAlpha(alpha);
+              ctx.globalAlpha = layer.alphaMult > 0.2 ? 0.85 : 0.5;
+              for (const arc of arcs) {
+                const rIn = wall.radius - (thickness / 2) * layer.widthMult - 1;
+                const rOut = wall.radius + (thickness / 2) * layer.widthMult + 1;
+                ctx.beginPath();
+                ctx.arc(cx, cy, rOut, arc.sA, arc.eA);
+                ctx.arc(cx, cy, rIn, arc.eA, arc.sA, true);
+                ctx.closePath();
+                ctx.fill();
+              }
+            }
+            ctx.globalAlpha = 1;
+          } else {
+            const arcs: { start: number; end: number }[] = [];
+            let cursor = 0;
+            for (const gap of wall.gaps) {
+              const start = gap.startAngle + rot;
+              if (start > cursor + rot) arcs.push({ start: cursor + rot, end: start });
+              cursor = gap.endAngle;
+            }
+            if (cursor < TWO_PI) arcs.push({ start: cursor + rot, end: TWO_PI + rot });
+            for (const layer of GLOW_LAYERS) {
+              ctx.lineWidth = (4 + 4 * strength) * layer.widthMult;
+              const alpha = strength * layer.alphaMult;
+              ctx.strokeStyle = p.rainbowWalls ? (p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(wi, alpha)) : circleAlpha(alpha);
+              ctx.globalAlpha = layer.alphaMult > 0.2 ? 0.85 : 0.5;
+              for (const arc of arcs) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, wall.radius, arc.start, arc.end);
+                ctx.stroke();
+              }
+            }
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+
+      // Lines mode strings
+      const drawStrings = (points: { x: number; y: number }[]) => {
+        const balls = engine.getBalls();
+        const ball = balls.length > 0 ? balls[0] : null;
+        const colorAt = (i: number) => {
+          if (!p.rainbowLines) return p.lineColor;
+          const base = (0.03 * time) % 360;
+          const spread = points.length > 1 ? (i / points.length) * 360 : 0;
+          return `hsl(${(base + spread) % 360}, 100%, 60%)`;
+        };
+        for (let i = 0; i < points.length; i++) {
+          const pt = points[i];
+          const color = colorAt(i);
+          if (ball) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(pt.x, pt.y);
+            ctx.lineTo(ball.x, ball.y);
+            ctx.stroke();
+          }
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 2.5, 0, TWO_PI);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      };
+      if (engine.isLinesMode()) drawStrings(engine.getBouncePoints());
+
+      // Frozen balls (Accumulation)
+      if (engine.isAccumulationMode()) {
+        for (const f of engine.getFrozenBalls()) {
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = f.color;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius, 0, TWO_PI);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(150, 200, 255, 0.5)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Center dot (Grow / Lines) and Grow strings
+      const isGrow = engine.isGrowMode();
+      const isLines = engine.isLinesMode();
+      if (isGrow || isLines) {
+        const state = isGrow ? engine.getGrowState() : engine.getLinesState();
+        if (state.centerDotEnabled) {
+          const r = state.centerDotRadius;
+          ctx.save();
+          ctx.shadowColor = "#ffffff";
+          ctx.shadowBlur = 12;
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, TWO_PI);
+          ctx.fill();
+          const grad = ctx.createRadialGradient(cx - 0.3 * r, cy - 0.3 * r, 0, cx, cy, r);
+          grad.addColorStop(0, "rgba(255,255,255,0.6)");
+          grad.addColorStop(0.5, "rgba(255,255,255,0.1)");
+          grad.addColorStop(1, "rgba(255,255,255,0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, TWO_PI);
+          ctx.fill();
+          ctx.restore();
+        }
+        if (isGrow && engine.getGrowState().linesEnabled) drawStrings(engine.getGrowBouncePoints());
+      }
+
+      // Balls
+      const balls = engine.getBalls();
+      const isColorMatch = engine.isColorMatchMode();
+      const matchColor = isColorMatch ? engine.getColorMatchBallColor() : null;
+      const rainbowColors: string[] = [];
+      if (p.rainbowBall && !isColorMatch) {
+        const base = (0.08 * time) % 360;
+        for (let i = 0; i < balls.length; i++) {
+          rainbowColors.push(`hsl(${Math.floor((base + (balls.length > 1 ? (i / balls.length) * 360 : 0)) % 360)}, 100%, 55%)`);
+        }
+      }
+      const personality = engine.getPersonalityState();
+      balls.forEach((ball, index) => {
+        const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
+        // Trail
+        if (p.showTrails && index < 30 && ball.trail.length > 1) {
+          const intensity = personality.trailIntensity;
+          const len = ball.trail.length;
+          const at = (i: number) => ball.trail[(ball.trailIndex + i) % len];
+          if (p.colorTrail) {
+            for (let i = 1; i < len; i++) {
+              const t = i / len;
+              const hue = Math.floor((0.1 * time + 15 * i + 60 * index) % 360);
+              const alpha = Math.min(1, (0.1 + 0.5 * t) * intensity);
+              ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${alpha})`;
+              ctx.lineWidth = ball.radius * p.trailThickness * (0.3 + 0.7 * t);
+              ctx.beginPath();
+              ctx.moveTo(at(i - 1).x, at(i - 1).y);
+              ctx.lineTo(at(i).x, at(i).y);
+              ctx.stroke();
+            }
+          } else {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = ball.radius * p.trailThickness;
+            ctx.globalAlpha = Math.min(1, 0.3 * intensity);
+            ctx.beginPath();
+            ctx.moveTo(at(0).x, at(0).y);
+            for (let i = 1; i < len; i++) ctx.lineTo(at(i).x, at(i).y);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
+        // Glow
+        if (p.showGlow) {
+          const pulse = 1 + 0.15 * Math.sin(time * personality.glowPulseRate * 0.001 * TWO_PI) * personality.glowScale;
+          const scale = personality.glowScale * pulse;
+          const glowR = 2 * ball.radius * scale;
+          const r = Math.round(ball.radius);
+          const key = `${color}_${r}`;
+          if (p.rainbowBall || isColorMatch) {
+            const grad = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, glowR);
+            grad.addColorStop(0, color);
+            grad.addColorStop(0.5, withAlpha(color, 0.27));
+            grad.addColorStop(1, withAlpha(color, 0));
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, glowR, 0, TWO_PI);
+            ctx.fill();
+          } else {
+            let sprite = glowSpriteCache.get(key);
+            if (!sprite) {
+              sprite = document.createElement("canvas");
+              sprite.width = 4 * r;
+              sprite.height = 4 * r;
+              const g = sprite.getContext("2d")!;
+              const grad = g.createRadialGradient(2 * r, 2 * r, 0, 2 * r, 2 * r, 2 * r);
+              grad.addColorStop(0, color);
+              grad.addColorStop(0.5, withAlpha(color, 0.27));
+              grad.addColorStop(1, withAlpha(color, 0));
+              g.fillStyle = grad;
+              g.beginPath();
+              g.arc(2 * r, 2 * r, 2 * r, 0, TWO_PI);
+              g.fill();
+              if (glowSpriteCache.size > 1000) glowSpriteCache.clear();
+              glowSpriteCache.set(key, sprite);
+            }
+            ctx.drawImage(sprite, ball.x - glowR, ball.y - glowR, 2 * glowR, 2 * glowR);
+          }
+        }
+        const fading = ball.lifetime !== undefined && ball.lifetime < 1000;
+        if (fading) {
+          ctx.save();
+          ctx.globalAlpha = ball.lifetime! / 1000;
+        }
+        // Body: emoji, image or shaded disc
+        if (emojiCanvasRef.current) {
+          ctx.save();
+          ctx.translate(ball.x, ball.y);
+          ctx.beginPath();
+          ctx.arc(0, 0, ball.radius, 0, TWO_PI);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(emojiCanvasRef.current, -ball.radius, -ball.radius, 2 * ball.radius, 2 * ball.radius);
+          ctx.restore();
+        } else if (imageLoadedRef.current && imageRef.current) {
+          ctx.save();
+          ctx.translate(ball.x, ball.y);
+          ctx.beginPath();
+          ctx.arc(0, 0, ball.radius, 0, TWO_PI);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(imageRef.current, -ball.radius, -ball.radius, 2 * ball.radius, 2 * ball.radius);
+          ctx.restore();
+        } else {
+          const r = Math.round(ball.radius);
+          const key = `${color}_${r}`;
+          if (p.rainbowBall || isColorMatch) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
+            ctx.fill();
+            const hl = ctx.createRadialGradient(ball.x - 0.3 * ball.radius, ball.y - 0.3 * ball.radius, 0, ball.x - 0.3 * ball.radius, ball.y - 0.3 * ball.radius, ball.radius);
+            hl.addColorStop(0, "rgba(255, 255, 255, 0.5)");
+            hl.addColorStop(0.5, "rgba(255, 255, 255, 0.1)");
+            hl.addColorStop(1, "rgba(255, 255, 255, 0)");
+            ctx.fillStyle = hl;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
+            ctx.fill();
+          } else {
+            let sprite = ballSpriteCache.get(key);
+            if (!sprite) {
+              sprite = document.createElement("canvas");
+              sprite.width = 2 * r;
+              sprite.height = 2 * r;
+              const g = sprite.getContext("2d")!;
+              g.fillStyle = color;
+              g.beginPath();
+              g.arc(r, r, r, 0, TWO_PI);
+              g.fill();
+              const hl = g.createRadialGradient(0.7 * r, 0.7 * r, 0, 0.7 * r, 0.7 * r, r);
+              hl.addColorStop(0, "rgba(255, 255, 255, 0.5)");
+              hl.addColorStop(0.5, "rgba(255, 255, 255, 0.1)");
+              hl.addColorStop(1, "rgba(255, 255, 255, 0)");
+              g.fillStyle = hl;
+              g.beginPath();
+              g.arc(r, r, r, 0, TWO_PI);
+              g.fill();
+              if (ballSpriteCache.size > 1000) ballSpriteCache.clear();
+              ballSpriteCache.set(key, sprite);
+            }
+            ctx.drawImage(sprite, ball.x - ball.radius, ball.y - ball.radius, 2 * ball.radius, 2 * ball.radius);
+          }
+        }
+        // Personality ring (tension indicator)
+        if (personality.state !== "calm" && !emojiCanvasRef.current) {
+          const hue =
+            personality.state === "aggressive" ? 10 : personality.state === "chaotic" ? 280 : personality.state === "unstable" ? 45 : personality.state === "overcharged" ? 55 : 200;
+          const alpha = 0.3 + 0.5 * personality.tension;
+          const pulse = 1 + 0.3 * Math.sin(time * personality.glowPulseRate * 0.001 * TWO_PI);
+          ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${alpha})`;
+          ctx.lineWidth = 1.5 + personality.tension;
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius + 2 * pulse, 0, TWO_PI);
+          ctx.stroke();
+        }
+        if (fading) ctx.restore();
+        ctx.globalAlpha = 1;
+      });
+
+      // Wall-break flashes and shockwaves
+      for (const flash of engine.getWallBreakFlashes()) {
+        const a = (flash.life / flash.maxLife) * 0.6;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 8 * (flash.life / flash.maxLife);
+        ctx.shadowColor = "#FFFFFF";
+        ctx.shadowBlur = 30 * a;
+        ctx.beginPath();
+        ctx.arc(cx, cy, flash.wallRadius, 0, TWO_PI);
+        ctx.stroke();
+        ctx.restore();
+      }
+      for (const wave of engine.getShockwaves()) {
+        const a = (wave.life / wave.maxLife) * 0.5;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = wave.color;
+        ctx.lineWidth = 2 + 3 * (wave.life / wave.maxLife);
+        ctx.shadowColor = wave.color;
+        ctx.shadowBlur = 15 * a;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, wave.radius, 0, TWO_PI);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Particles
+      for (const part of engine.getParticles()) {
+        ctx.save();
+        ctx.translate(part.x, part.y);
+        ctx.rotate(part.rotation);
+        const life = part.life / part.maxLife;
+        ctx.globalAlpha = life;
+        if (part.type === "shard") {
+          ctx.fillStyle = part.color;
+          if (life > 0.3) {
+            ctx.shadowColor = "#88CCFF";
+            ctx.shadowBlur = 3;
+          }
+          const s = part.size;
+          ctx.beginPath();
+          ctx.moveTo(-0.5 * s, -0.2 * s);
+          ctx.lineTo(0.1 * s, -0.5 * s);
+          ctx.lineTo(0.5 * s, 0.1 * s);
+          ctx.lineTo(0.2 * s, 0.4 * s);
+          ctx.lineTo(-0.3 * s, 0.3 * s);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.5)";
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        } else if (part.type === "spark") {
+          ctx.fillStyle = "#FFFFFF";
+          ctx.shadowColor = "#FFFFFF";
+          ctx.shadowBlur = 4;
+          ctx.beginPath();
+          ctx.arc(0, 0, part.size, 0, TWO_PI);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = part.color;
+          ctx.fillRect(-part.size / 2, -part.size / 4, part.size, part.size / 2);
+          if (life > 0.6) {
+            ctx.shadowColor = part.color;
+            ctx.shadowBlur = 4;
+          }
+        }
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore(); // camera
+
+      // HUD: mode counters in the centre
+      {
+        const L = labelsRef.current ?? DEFAULT_LABELS;
+        const minDim = Math.min(size.width, size.height);
+        const blocks: { height: number; draw: (y: number) => void }[] = [];
+        const bigBanner = (text: string, sub: string, color: string) => {
+          const fs = Math.max(24, 0.08 * minDim);
+          const sfs = 0.4 * fs;
+          blocks.push({
+            height: fs + 1.2 * sfs,
+            draw: (y) => {
+              ctx.save();
+              ctx.font = `bold ${fs}px sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillStyle = color;
+              ctx.shadowColor = color;
+              ctx.shadowBlur = 20;
+              ctx.fillText(text, cx, y + 0.5 * fs);
+              ctx.shadowBlur = 0;
+              ctx.font = `${sfs}px sans-serif`;
+              ctx.fillStyle = "#aaa";
+              ctx.fillText(sub, cx, y + fs + 0.6 * sfs);
+              ctx.restore();
+            },
+          });
+        };
+        if (engine.isAccumulationMode()) {
+          const frozen = engine.getFrozenBalls().length;
+          if (engine.hasAccumulationEscaped()) bigBanner(L.escaped, L.afterFrozenBalls(frozen), "#4ECDC4");
+          else {
+            const timer = engine.getAccumulationTimer();
+            const max = engine.getAccumulationTimerMax();
+            const seconds = Math.max(0, timer / 1000);
+            const ratio = Math.max(0, timer / max);
+            const fs = Math.max(18, 0.06 * minDim);
+            const sfs = 0.45 * fs;
+            blocks.push({
+              height: fs + (frozen > 0 ? 1.2 * sfs : 0),
+              draw: (y) => {
+                ctx.save();
+                ctx.font = `bold ${fs}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = `rgb(${Math.round(255 * (1 - ratio))}, ${Math.round(255 * ratio)}, 80)`;
+                ctx.fillText(seconds.toFixed(1) + "s", cx, y + 0.5 * fs);
+                if (frozen > 0) {
+                  ctx.font = `${sfs}px sans-serif`;
+                  ctx.fillStyle = "#999";
+                  ctx.fillText(L.frozenCount(frozen), cx, y + fs + 0.6 * sfs);
+                }
+                ctx.restore();
+              },
+            });
+          }
+        }
+        if (engine.isPaintMode()) {
+          const coverage = engine.getPaintCoverage();
+          const fs = Math.max(16, 0.05 * minDim);
+          const pct = Math.round(100 * coverage);
+          const color = coverage >= 0.95 ? "#4ECDC4" : "#ffffff";
+          blocks.push({
+            height: fs,
+            draw: (y) => {
+              ctx.save();
+              ctx.font = `bold ${fs}px sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              const text = L.painted(pct);
+              const w = ctx.measureText(text).width + 0.8 * fs;
+              const h = 1.4 * fs;
+              const x0 = cx - w / 2;
+              const y0 = y + 0.5 * fs - h / 2;
+              const rad = h / 2;
+              ctx.globalAlpha = 0.55;
+              ctx.fillStyle = "#000000";
+              ctx.beginPath();
+              ctx.moveTo(x0 + rad, y0);
+              ctx.lineTo(x0 + w - rad, y0);
+              ctx.arcTo(x0 + w, y0, x0 + w, y0 + rad, rad);
+              ctx.arcTo(x0 + w, y0 + h, x0 + w - rad, y0 + h, rad);
+              ctx.lineTo(x0 + rad, y0 + h);
+              ctx.arcTo(x0, y0 + h, x0, y0 + h - rad, rad);
+              ctx.arcTo(x0, y0, x0 + rad, y0, rad);
+              ctx.closePath();
+              ctx.fill();
+              ctx.globalAlpha = 0.9;
+              ctx.fillStyle = color;
+              if (coverage >= 0.95) {
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 15;
+              }
+              ctx.fillText(text, cx, y + 0.5 * fs);
+              ctx.restore();
+            },
+          });
+        }
+        if (engine.isPortalMode()) {
+          const count = engine.getPortalTeleportCount();
+          if (engine.hasPortalEscaped()) bigBanner(L.escaped, L.afterTeleports(count), "#6c5ce7");
+          else {
+            const fs = Math.max(18, 0.06 * minDim);
+            const sfs = 0.45 * fs;
+            blocks.push({
+              height: fs + 1.2 * sfs,
+              draw: (y) => {
+                ctx.save();
+                ctx.font = `bold ${fs}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#6c5ce7";
+                ctx.fillText(String(count), cx, y + 0.5 * fs);
+                ctx.font = `${sfs}px sans-serif`;
+                ctx.fillStyle = "#888";
+                ctx.fillText(L.teleports, cx, y + fs + 0.5 * sfs);
+                ctx.restore();
+              },
+            });
+          }
+        }
+        if (engine.isShatterMode() && engine.hasShatterEscaped()) {
+          const prog = engine.getShatterProgress();
+          bigBanner(L.shattered, L.segmentsDestroyed(prog.broken, prog.total), "#ef4444");
+        }
+        if (isColorMatch) {
+          const prog = engine.getColorMatchProgress();
+          const ballColor = engine.getColorMatchBallColor();
+          if (engine.hasColorMatchEscaped()) bigBanner(L.matched, L.segmentsCleared(prog.total), "#22c55e");
+          else {
+            const fs = Math.max(18, 0.045 * minDim);
+            const sfs = 0.5 * fs;
+            const dot = 0.4 * sfs;
+            blocks.push({
+              height: fs + sfs + (2 * dot + 6) + 4,
+              draw: (y) => {
+                ctx.save();
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.font = `bold ${fs}px sans-serif`;
+                ctx.fillStyle = "#fff";
+                ctx.fillText(`${prog.broken} / ${prog.total}`, cx, y + 0.5 * fs);
+                const ly = y + fs + 0.6 * sfs;
+                ctx.font = `${sfs}px sans-serif`;
+                ctx.fillStyle = "#aaa";
+                ctx.fillText(L.matchColour, cx, ly);
+                const dy = ly + 0.5 * sfs + dot + 4;
+                ctx.fillStyle = ballColor;
+                ctx.shadowColor = ballColor;
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.arc(cx, dy, dot, 0, TWO_PI);
+                ctx.fill();
+                ctx.restore();
+              },
+            });
+          }
+        }
+        if (engine.isCountdownMode()) {
+          const target = engine.getCountdownTarget();
+          const total = engine.getCountdownTotal();
+          const hitCount = engine.getCountdownHit().size;
+          if (engine.isCountdownComplete()) bigBanner(L.complete, L.segmentsHitInOrder(total), "#22c55e");
+          else {
+            const fs = Math.max(28, 0.1 * minDim);
+            const sfs = 0.25 * fs;
+            blocks.push({
+              height: fs + 1.1 * sfs,
+              draw: (y) => {
+                ctx.save();
+                ctx.font = `bold ${fs}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "#facc15";
+                ctx.shadowColor = "#facc15";
+                ctx.shadowBlur = 15;
+                ctx.fillText(String(target), cx, y + 0.5 * fs);
+                ctx.shadowBlur = 0;
+                ctx.font = `${sfs}px sans-serif`;
+                ctx.fillStyle = "#888";
+                ctx.fillText(`${hitCount}/${total}`, cx, y + fs + 0.5 * sfs);
+                ctx.restore();
+              },
+            });
+          }
+        }
+        const totalH = blocks.reduce((s, b) => s + b.height, 0) + 8 * Math.max(0, blocks.length - 1);
+        let y = cy - totalH / 2;
+        for (const b of blocks) {
+          b.draw(y);
+          y += b.height + 8;
+        }
+        if (p.watermarkText) {
+          ctx.save();
+          const fs = Math.max(14, 0.045 * minDim);
+          ctx.font = `bold ${fs}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = "#ffffff";
+          const wy = blocks.length > 0 ? cy + totalH / 2 + 8 + 0.8 * fs : cy;
+          ctx.fillText(p.watermarkText, cx, wy);
+          ctx.restore();
+        }
+      }
+
+      // Top / bottom text (the recorder draws its own copy at export resolution)
+      if ((p.topText || p.bottomText) && !recordingRef.current) {
+        ctx.save();
+        const fs = Math.max(14, 0.045 * Math.min(size.width, size.height)) * p.textSize;
+        ctx.font = `bold ${fs}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#ffffff";
+        ctx.globalAlpha = 0.95;
+        const pad = 0.6 * fs;
+        ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+        ctx.shadowBlur = 8;
+        if (p.topText) ctx.fillText(p.topText, cx, cy - arena - pad);
+        if (p.bottomText) ctx.fillText(p.bottomText, cx, cy + arena + pad);
+        ctx.restore();
+      }
+
+      // Audio-reactive outer ring
+      const intensity = audioRef.current;
+      if (intensity > 0.3) {
+        ctx.strokeStyle = `rgba(6, 182, 212, ${0.5 * intensity})`;
+        ctx.lineWidth = 3 + 4 * intensity;
+        ctx.beginPath();
+        ctx.arc(cx, cy, arena + 20 * intensity, 0, TWO_PI);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // FPS estimate
+      if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;
+      const delta = now - lastFpsSampleRef.current;
+      lastFpsSampleRef.current = now;
+      if (delta > 0) fpsRef.current = 0.9 * fpsRef.current + (1000 / delta) * 0.1;
+      rafRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", resize);
+    };
+  }, [physicsEngine]);
+
+  return <canvas ref={canvasRef} className="w-full h-full rounded-lg" style={{ display: "block" }} />;
+});
+
+export default Canvas;
