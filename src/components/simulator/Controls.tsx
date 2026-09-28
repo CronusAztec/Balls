@@ -3,6 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
+import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
+import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
@@ -40,12 +42,16 @@ export interface ControlsProps {
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
 
+/** Translation keys for the instrument and scale pickers (Controls namespace). */
+const INSTRUMENT_LABELS: Record<InstrumentId, string> = { sine: "instSine", triangle: "instTriangle", square: "instSquare", saw: "instSaw", pluck: "instPluck", marimba: "instMarimba", chip: "instChip" };
+const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", major: "scaleMajor", minor: "scaleMinor", pentatonic: "scalePentatonic", blues: "scaleBlues", wholeTone: "scaleWholeTone" };
+
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", "bouncier", "ballEmoji", "customBallImage"],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor"],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
-  sound: ["song", "importMidi", "wallBreakSound", "importWallBreak"],
+  sound: ["song", "importMidi", "instrument", "scale", "beatLock", "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
 
@@ -622,6 +628,105 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
+      <Searchable search={search} matches={matches} labelKey="instrument">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300" htmlFor="instrument-select">
+            {t("instrument")}
+          </label>
+          <p className="text-xs text-zinc-500 leading-relaxed">{t("instrumentDesc")}</p>
+          <select
+            id="instrument-select"
+            value={s.instrument}
+            onChange={(e) => update({ instrument: e.target.value as InstrumentId })}
+            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none"
+          >
+            {INSTRUMENT_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t(INSTRUMENT_LABELS[id])}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="scale">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-zinc-300" htmlFor="scale-select">
+            {t("scale")}
+          </label>
+          <p className="text-xs text-zinc-500 leading-relaxed">{t("scaleDesc")}</p>
+          <select
+            id="scale-select"
+            value={s.scale}
+            onChange={(e) => update({ scale: e.target.value as ScaleId })}
+            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none"
+          >
+            {SCALE_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t(SCALE_LABELS[id])}
+              </option>
+            ))}
+          </select>
+          {s.scale !== "chromatic" && (
+            <div className="space-y-1.5 pt-1">
+              <span className="text-xs font-medium text-zinc-400">{t("rootNote")}</span>
+              <div className="grid grid-cols-6 gap-1" role="group" aria-label={t("rootNote")}>
+                {NOTE_NAMES.map((name, index) => (
+                  <button
+                    type="button"
+                    key={name}
+                    onClick={() => update({ rootNote: index })}
+                    aria-pressed={s.rootNote === index}
+                    className={`px-1 py-1 rounded-md text-xs font-mono font-medium transition-all cursor-pointer ${s.rootNote === index ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="beatLock">
+        <div className="space-y-2">
+          <Toggle t={t} labelKey="beatLock" tipKey="beatLockTip" value={s.quantizeToBeat} onChange={(v) => update({ quantizeToBeat: v })} />
+          <p className="text-xs text-zinc-500 leading-relaxed">{t("beatLockDesc")}</p>
+          {s.quantizeToBeat && (
+            <>
+              <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
+                <span>{t("bpm")}</span>
+                <span className="text-zinc-500">{s.bpm}</span>
+              </label>
+              <input
+                type="range"
+                min={RANGES.bpm.min}
+                max={RANGES.bpm.max}
+                step={RANGES.bpm.step}
+                value={s.bpm}
+                onChange={(e) => update({ bpm: Number(e.target.value) })}
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
+                aria-label={t("bpm")}
+              />
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-xs font-medium text-zinc-400">{t("quantizeGrid")}</span>
+                <div className="flex gap-1" role="group" aria-label={t("quantizeGrid")}>
+                  {QUANTIZE_GRIDS.map((grid) => (
+                    <button
+                      type="button"
+                      key={grid}
+                      onClick={() => update({ quantizeGrid: grid })}
+                      aria-pressed={s.quantizeGrid === grid}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer ${s.quantizeGrid === grid ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                    >
+                      {grid}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Searchable>
       <Searchable search={search} matches={matches} labelKey="wallBreakSound">
         <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
@@ -1126,7 +1231,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     case "visual":
       return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
     case "sound":
-      return { wallBreakSound: null };
+      return { wallBreakSound: null, instrument: d.instrument, scale: d.scale, rootNote: d.rootNote, quantizeToBeat: d.quantizeToBeat, bpm: d.bpm, quantizeGrid: d.quantizeGrid };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
   }

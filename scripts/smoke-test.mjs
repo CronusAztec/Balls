@@ -137,6 +137,32 @@ await wm.pressSequentially("hello world", { delay: 30 });
 check("typing keeps focus (watermark input)", (await wm.inputValue()) === "hello world", `(value="${await wm.inputValue()}")`);
 await page.getByLabel("Show Advanced Options").uncheck();
 
+// 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
+await page.goto(`${BASE}/en/simulator/?mode=classic&inst=marimba&scale=minor&root=9&qz=1&bpm=140&grid=1%2F16`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+{
+  const inst = await page.locator("#instrument-select").inputValue();
+  const scale = await page.locator("#scale-select").inputValue();
+  const bpm = await page.locator('input[aria-label="BPM"]').inputValue();
+  const rootPressed = await page.getByRole("group", { name: "Root note" }).getByRole("button", { name: "A", exact: true }).getAttribute("aria-pressed");
+  const gridPressed = await page.getByRole("group", { name: "Grid" }).getByRole("button", { name: "1/16", exact: true }).getAttribute("aria-pressed");
+  check("music settings load from URL", inst === "marimba" && scale === "minor" && bpm === "140" && rootPressed === "true" && gridPressed === "true", `(inst=${inst}, scale=${scale}, bpm=${bpm}, root A=${rootPressed}, grid 1/16=${gridPressed})`);
+}
+await page.locator("#instrument-select").selectOption("pluck");
+await page.locator("#scale-select").selectOption("pentatonic");
+await page.getByRole("group", { name: "Grid" }).getByRole("button", { name: "1/4", exact: true }).click();
+await page.waitForTimeout(300);
+check("music settings mirror into URL", /inst=pluck/.test(page.url()) && /scale=pentatonic/.test(page.url()) && /grid=1%2F4/.test(page.url()) && /qz=1/.test(page.url()), `(${page.url().split("?")[1]})`);
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(2500);
+{
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("simulator runs with pluck + pentatonic + beat lock", /\d/.test(time) && time !== "0.0s", `(elapsed ${time})`);
+}
+await page.getByPlaceholder("Search settings...").fill("beat");
+check("search finds the beat lock", (await page.getByText("Beat lock (BPM)").isVisible()) && (await page.locator('input[aria-label="BPM"]').isVisible()) && !(await page.locator("#instrument-select").isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+
 // 5. Recording: 3-second clip downloads
 await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Recording/ }).click();

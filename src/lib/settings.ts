@@ -1,4 +1,6 @@
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
+import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
+import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -66,6 +68,14 @@ export interface SimulatorSettings {
   recordingResolution: string;
   recordingDuration: number;
   wallBreakSound: string | null;
+  // Music: instrument voice, scale snapping and beat lock (see lib/audio/instruments.ts, scales.ts)
+  instrument: InstrumentId;
+  scale: ScaleId;
+  /** Root of the scale as semitones above C (0 = C … 11 = B). */
+  rootNote: number;
+  quantizeToBeat: boolean;
+  bpm: number;
+  quantizeGrid: QuantizeGrid;
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -123,6 +133,12 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     recordingResolution: "1080x1920",
     recordingDuration: 30,
     wallBreakSound: null,
+    instrument: "triangle",
+    scale: "chromatic",
+    rootNote: 0,
+    quantizeToBeat: false,
+    bpm: 120,
+    quantizeGrid: "1/8",
   };
 }
 
@@ -145,6 +161,8 @@ export const RANGES = {
   colorMatchColorCount: { min: 2, max: 7, step: 1 },
   growRate: { min: 3, max: 10, step: 1 },
   findDuration: { min: 30, max: 120, step: 1 },
+  rootNote: { min: ROOT_NOTE_MIN, max: ROOT_NOTE_MAX, step: 1 },
+  bpm: { min: BPM_MIN, max: BPM_MAX, step: 1 },
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -175,6 +193,8 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   sc: "spikeCount",
   msc: "multiplySpawnCount",
   ts: "textSize",
+  root: "rootNote",
+  bpm: "bpm",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -197,6 +217,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   glines: "growLines",
   ldot: "linesCenterDot",
   cine: "cinematicEnabled",
+  qz: "quantizeToBeat",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -227,6 +248,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.wallBreakStyle !== base.wallBreakStyle) params.set("wbreak", settings.wallBreakStyle);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
+  if (settings.instrument !== base.instrument) params.set("inst", settings.instrument);
+  if (settings.scale !== base.scale) params.set("scale", settings.scale);
+  if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
   return params;
 }
 
@@ -262,7 +286,19 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (res && (RESOLUTIONS as readonly string[]).includes(res)) settings.recordingResolution = res;
   const dur = Number(params.get("dur"));
   if (Number.isFinite(dur) && dur >= RANGES.recordingDuration.min && dur <= RANGES.recordingDuration.max) settings.recordingDuration = dur;
+  const inst = params.get("inst");
+  if (isInstrumentId(inst)) settings.instrument = inst;
+  const scale = params.get("scale");
+  if (isScaleId(scale)) settings.scale = scale;
+  const grid = params.get("grid");
+  if (isQuantizeGrid(grid)) settings.quantizeGrid = grid;
+  if (!inRange(settings.rootNote, RANGES.rootNote) || !Number.isInteger(settings.rootNote)) settings.rootNote = 0;
+  if (!inRange(settings.bpm, RANGES.bpm)) settings.bpm = defaultSettings(mode).bpm;
   return settings;
+}
+
+function inRange(value: number, range: { min: number; max: number }) {
+  return value >= range.min && value <= range.max;
 }
 
 /* ------------------------------------------------------------------ presets */

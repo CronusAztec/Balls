@@ -1,9 +1,32 @@
+import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instruments";
+import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
+
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
  * or the next note of a loaded melody); gap passes play a rising four-note arpeggio or a
  * custom audio clip. Everything is routed through a master gain and also into a
  * MediaStreamDestination so the recorder can capture the audio track.
+ *
+ * The music settings decide how a hit turns into sound: the instrument voice
+ * (instruments.ts), the scale every pitch is snapped to and, when the beat lock is on,
+ * the BPM grid the sound is delayed onto (scales.ts). With the defaults – triangle,
+ * chromatic, lock off – the output is exactly the classic bounce tone.
  */
+export interface MusicSettings {
+  instrument: InstrumentId;
+  scale: ScaleId;
+  /** Semitones above C (0 = C … 11 = B). */
+  rootNote: number;
+  quantizeToBeat: boolean;
+  bpm: number;
+  quantizeGrid: QuantizeGrid;
+}
+
+export const DEFAULT_MUSIC_SETTINGS: MusicSettings = { instrument: "triangle", scale: "chromatic", rootNote: 0, quantizeToBeat: false, bpm: 120, quantizeGrid: "1/8" };
+
+/** The classic gap-pass arpeggio (C5 E5 G5 C6), snapped to the current scale before playing. */
+const GAP_ARPEGGIO = [523.25, 659.25, 783.99, 1046.5];
+
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -20,12 +43,48 @@ export class ToneGenerator {
   private wallBreakBuffer: AudioBuffer | null = null;
   private wallBreakDecoding = false;
   private volume = 1;
+  private music: MusicSettings = { ...DEFAULT_MUSIC_SETTINGS };
+  private readonly pluckCache = new PluckCache();
+  /** AudioContext time the beat grid counts from (the moment the run started). */
+  private gridOrigin = 0;
+  /** Grid slot already holding a bounce sound; later hits in the same slot are dropped. */
+  private lastSlotTime = -1;
 
   async start() {
     if (this.isPlaying) return;
     this.initAudioGraph();
     if (this.audioContext && this.audioContext.state === "suspended") await this.audioContext.resume();
     this.isPlaying = true;
+    this.resetBeatGrid();
+  }
+
+  /** Instrument, scale and beat lock; applied to every sound scheduled from now on. */
+  setMusicSettings(music: MusicSettings) {
+    this.music = { ...music };
+    this.lastSlotTime = -1;
+  }
+
+  getMusicSettings(): MusicSettings {
+    return { ...this.music };
+  }
+
+  /** Re-anchors the beat grid at "now" (call when a run starts or restarts). */
+  resetBeatGrid() {
+    this.gridOrigin = this.audioContext?.currentTime ?? 0;
+    this.lastSlotTime = -1;
+  }
+
+  /**
+   * When the beat lock is on, the AudioContext time of the next grid point (at most one grid
+   * step away); otherwise `now`. The grid maths itself is the pure `nextGridTime()`.
+   */
+  private scheduleTime(now: number): number {
+    if (!this.music.quantizeToBeat) return now;
+    return nextGridTime(now, this.music.bpm, this.music.quantizeGrid, this.gridOrigin);
+  }
+
+  private snap(frequency: number): number {
+    return quantizeFrequency(frequency, this.music.scale, this.music.rootNote);
   }
 
   private initAudioGraph() {
@@ -109,31 +168,26 @@ export class ToneGenerator {
       let frequency: number;
       let duration: number;
       let gain: number;
-      let type: OscillatorType;
-      if (this.customNotes.length > 0) {
+      const melody = this.customNotes.length > 0;
+      if (melody) {
         if (now - this.lastCustomNoteTime < this.NOTE_COOLDOWN) return;
-        this.lastCustomNoteTime = now;
         frequency = this.customNotes[this.customNoteIndex % this.customNotes.length];
-        this.customNoteIndex++;
-        type = "sine";
         duration = 0.25;
         gain = 0.35;
       } else {
         frequency = Math.max(300, 800 - 80 * wallIndex);
-        type = "triangle";
         duration = 0.15;
         gain = 0.25;
       }
-      const osc = this.audioContext.createOscillator();
-      const g = this.audioContext.createGain();
-      osc.type = type;
-      osc.frequency.value = frequency;
-      osc.connect(g);
-      g.connect(this.masterGain);
-      g.gain.setValueAtTime(gain, now);
-      g.gain.exponentialRampToValueAtTime(0.01, now + duration);
-      osc.start(now);
-      osc.stop(now + duration);
+      const time = this.scheduleTime(now);
+      // Beat lock: one bounce sound per grid slot, so the export sits cleanly on the beat.
+      if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
+      this.lastSlotTime = time;
+      if (melody) {
+        this.lastCustomNoteTime = now;
+        this.customNoteIndex++;
+      }
+      playVoice(this.audioContext, this.masterGain, this.music.instrument, { frequency: this.snap(frequency), time, duration, gain }, this.pluckCache);
     } catch (err) {
       console.error("Error playing wall hit sound:", err);
     }
@@ -156,14 +210,15 @@ export class ToneGenerator {
   private scheduleGapPass() {
     if (!this.audioContext || !this.masterGain) return;
     try {
-      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+      const start = this.scheduleTime(this.audioContext.currentTime);
+      GAP_ARPEGGIO.forEach((freq, i) => {
         const osc = this.audioContext!.createOscillator();
         const g = this.audioContext!.createGain();
         osc.type = "sine";
-        osc.frequency.value = freq;
+        osc.frequency.value = this.snap(freq);
         osc.connect(g);
         g.connect(this.masterGain!);
-        const t = this.audioContext!.currentTime + 0.06 * i;
+        const t = start + 0.06 * i;
         g.gain.setValueAtTime(0, t);
         g.gain.linearRampToValueAtTime(0.25, t + 0.02);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.25);
@@ -215,7 +270,7 @@ export class ToneGenerator {
       const source = this.audioContext.createBufferSource();
       source.buffer = this.wallBreakBuffer;
       source.connect(this.masterGain);
-      source.start();
+      source.start(this.scheduleTime(this.audioContext.currentTime));
     } catch (err) {
       console.error("Error playing wall-break sound:", err);
     }
@@ -237,6 +292,8 @@ export class ToneGenerator {
     }
     this.mediaStreamDestination = null;
     this.masterGain = null;
+    this.pluckCache.clear();
+    this.lastSlotTime = -1;
     this.isInitialized = false;
     this.isPlaying = false;
   }

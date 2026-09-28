@@ -17,6 +17,7 @@ static host – no server required.
 | **Visuals** | Rainbow walls (gradient / pulse), ball & wall glow, colour trail, trail thickness, reactive background, camera follow, wall-break effects (confetti, shatter, shockwave, all, none), custom ball image or emoji, top/bottom text overlays, watermark |
 | **Drama director** | A hidden "cinematic" layer that nudges rebounds for near-misses and dramatic escapes (toggle in advanced options) |
 | **Sound** | Synthesised bounce tones, 12 built-in public-domain melodies (MIDI), custom MIDI import, custom wall-break sound clips |
+| **Instruments, scales & BPM lock** | Seven bounce voices (sine, triangle, square, saw, Karplus-Strong pluck, FM marimba, chip blip), snap every wall tone and melody note to a scale (major, minor, pentatonic, blues, whole tone) on any root note, and a beat lock that schedules sounds on a 60–200 BPM grid (1/4, 1/8, 1/16) so exports sit on the beat – all shareable via the URL (`inst`, `scale`, `root`, `qz`, `bpm`, `grid`) |
 | **Recording** | MediaRecorder export in 500×500, 1280×720, 1920×1080 or 1080×1920, 10–120 s, with audio; MP4 where supported (Chrome, Safari), WebM elsewhere |
 | **Find Simulation** | Deterministic, seeded physics lets the finder search for a seed whose run lasts exactly N seconds |
 | **Presets & sharing** | Save/load presets in localStorage; every setting is mirrored into the URL for bookmarking and sharing |
@@ -119,7 +120,7 @@ src/
   content/              blog posts (blog.en.ts, blog.pl.ts, blog.es.ts)
   i18n/                 next-intl routing + request config
   lib/physics/          engine.ts · director.ts · types.ts · modes/*.ts
-  lib/audio/            toneGenerator.ts · midi.ts · songs.ts
+  lib/audio/            toneGenerator.ts · instruments.ts (voices) · scales.ts (scale snap + beat grid) · midi.ts · songs.ts
   lib/recording/        recorder.ts (MediaRecorder wrapper)
   lib/simulation/       finder.ts (seed search)
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
@@ -149,6 +150,20 @@ Append an object to `src/content/blog.en.ts` (and translations in `blog.pl.ts` /
 
 ### Add a melody or sound
 Drop a `.mid` file into `public/notes` and list it in `src/lib/audio/songs.ts` (`SONGS`); drop an audio file into `public/wallBreak` and list it in `WALL_BREAK_SOUNDS`. Wrap the paths in `assetPath()` (as the existing entries do) so they resolve under a base path.
+
+### Add an instrument or a scale
+- **Instrument**: add the id to `INSTRUMENT_IDS` in `src/lib/audio/instruments.ts`, give it a loudness in `LEVEL` and a
+  `play…()` recipe reached from `playVoice()` (one short Web Audio graph per note; keep per-note work small – a bounce can
+  fire several times a second). Add its label key to `INSTRUMENT_LABELS` in `Controls.tsx` and `Controls.inst<Name>` to
+  every `messages/*.json`. Pure DSP such as the pluck's `renderPluck()` belongs in a testable function (see
+  `tests/instruments.test.ts`).
+- **Scale**: add the id and its semitone intervals to `SCALE_IDS` / `SCALE_INTERVALS` in `src/lib/audio/scales.ts`, a
+  label key in `SCALE_LABELS` (`Controls.tsx`) and `Controls.scale<Name>` in every message file. `quantizeFrequency()`
+  picks up the new scale automatically; `tests/scales.test.ts` checks every scale only ever returns its own degrees.
+- The music settings (`instrument`, `scale`, `rootNote`, `quantizeToBeat`, `bpm`, `quantizeGrid`) live in
+  `SimulatorSettings` like everything else and reach the audio through `ToneGenerator.setMusicSettings()`. The beat lock
+  uses `nextGridTime()` on `AudioContext.currentTime`, anchored when the run starts (`resetBeatGrid()`), and drops extra
+  hits that land in a grid slot that already has a sound.
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.
