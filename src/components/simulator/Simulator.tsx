@@ -73,6 +73,10 @@ import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
 import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
+// --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
+import { runnerSettingsOf, type RunnerBeatInput } from "@/lib/physics/modes/runner";
+import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
+import { jdmRhythmFinderSettingsOf } from "@/lib/physics/modes/jdmRhythmFields";
 import {
   RANGES,
   defaultSettings,
@@ -145,6 +149,8 @@ export default function Simulator() {
   const audioRef = useRef<ToneGenerator | null>(null);
   const recorderRef = useRef<VideoRecorder | null>(null);
   const canvasRef = useRef<CanvasHandle | null>(null);
+  /** --- jdm-rhythm-runner --- The loaded song's beat grid the Beat Runner plans its course on (null: the manual BPM). */
+  const rhythmBeatRef = useRef<RunnerBeatInput | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   const timeLabelRef = useRef<HTMLSpanElement | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -247,6 +253,9 @@ export default function Simulator() {
     // --- jdm-arena-games ---
     engine.setBattleSettings(battleSettingsOf(s));
     engine.setCtfSettings(ctfSettingsOf(s));
+    // --- jdm-rhythm-runner ---
+    engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
+    engine.setPaddleSettings(paddleSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -760,6 +769,100 @@ export default function Simulator() {
     () => ({ bpm: activeBeats && activeBeats.beats.bpm > 0 ? activeBeats.beats.bpm : null, analyzing: beatJobs > 0, hasSong: !!musicTrack || !!sliceSongInfo, source: activeBeats?.source ?? null }),
     [activeBeats, beatJobs, musicTrack, sliceSongInfo],
   );
+  // --- jdm-rhythm-runner --- Beat Runner: the course is planned for the beat it follows (the loaded song's detected grid, the
+  // same one Picture Paint follows, else the Sound section's BPM), so a change of the course (auto jump, obstacles, speed,
+  // jump height, density, mix, beat source), of the tempo or of the Gravity restarts the run and drops a found seed.
+  // Paddle Keep-Up restarts on a change of the game (or of the Gravity / Ball Size its flight is scaled with). The Sound
+  // section's scale and root – the notes – follow live in both.
+  const rhythmBeat = useMemo<RunnerBeatInput | null>(
+    () => (activeBeats ? { grid: { bpm: activeBeats.beats.bpm, beatTimes: activeBeats.beats.beatTimes, duration: activeBeats.beats.duration }, offset: activeBeats.offset, loop: activeBeats.loop } : null),
+    [activeBeats],
+  );
+  rhythmBeatRef.current = rhythmBeat;
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeat));
+    if (s.mode === "runner" && engine.getCurrentModeName() === "runner") {
+      engine.initRunner();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, rhythmBeat]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, rhythmBeat, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPaddleSettings(paddleSettingsOf(s));
+    if (s.mode === "paddle" && engine.getCurrentModeName() === "paddle") {
+      engine.initPaddle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.gravity, s.ballRadius]);
+  useEffect(() => {
+    engineRef.current?.setRunnerSettings({ scale: s.scale, rootNote: s.rootNote });
+    engineRef.current?.setPaddleSettings({ scale: s.scale, rootNote: s.rootNote });
+  }, [s.scale, s.rootNote]);
+  // Played by hand: Space (or ↑ / W) jumps in the Beat Runner – instead of pausing, Escape pauses there – and ← → (A / D) or
+  // the pointer over the canvas move the paddle; a tap on the canvas jumps too. Only while the run is going.
+  const handPlay = isStarted && !isPaused && !finished && ((s.mode === "runner" && !s.runnerAutoJump) || (s.mode === "paddle" && !s.pdAuto));
+  useEffect(() => {
+    if (!handPlay) return;
+    const engine = engineRef.current;
+    const canvas = canvasRef.current?.getCanvas() ?? null;
+    if (!engine) return;
+    const typing = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    };
+    const held = new Set<string>();
+    const direction = () => (held.has("ArrowRight") || held.has("KeyD") ? 1 : 0) - (held.has("ArrowLeft") || held.has("KeyA") ? 1 : 0);
+    const onDown = (e: KeyboardEvent) => {
+      if (typing(e)) return;
+      if (s.mode === "runner") {
+        if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (!e.repeat) engine.runnerJump();
+        } else if (e.code === "Escape") setIsPaused(true);
+      } else if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "KeyA" || e.code === "KeyD") {
+        e.preventDefault();
+        held.add(e.code);
+        engine.setPaddleInput({ direction: direction() });
+      }
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (!held.delete(e.code)) return;
+      engine.setPaddleInput({ direction: direction() });
+    };
+    const onPointerDown = () => {
+      if (s.mode === "runner") engine.runnerJump();
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (s.mode !== "paddle" || !canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const f = engine.getPaddleView().field;
+      engine.setPaddleInput({ target: (e.clientX - rect.left - f.left) / Math.max(1, f.width) });
+    };
+    const onPointerLeave = () => engine.setPaddleInput({ target: null });
+    window.addEventListener("keydown", onDown, true);
+    window.addEventListener("keyup", onUp, true);
+    canvas?.addEventListener("pointerdown", onPointerDown);
+    canvas?.addEventListener("pointermove", onPointerMove);
+    canvas?.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      window.removeEventListener("keydown", onDown, true);
+      window.removeEventListener("keyup", onUp, true);
+      canvas?.removeEventListener("pointerdown", onPointerDown);
+      canvas?.removeEventListener("pointermove", onPointerMove);
+      canvas?.removeEventListener("pointerleave", onPointerLeave);
+      engine.setPaddleInput({ direction: 0 });
+    };
+  }, [handPlay, s.mode]);
+  // --- end jdm-rhythm-runner ---
 
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
@@ -789,7 +892,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s) }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
@@ -1649,6 +1752,7 @@ export default function Simulator() {
           // --- jdm-arena-games --- (capture the flag searches with a time limit past the target, so a game won on the score can match it)
           battle: battleSettingsOf(settings),
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
+          ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
         },
         outcome, // --- rigged ---
       },
@@ -1806,6 +1910,21 @@ export default function Simulator() {
         zone: t("ArenaGames.zone"),
         names: Array.from({ length: 20 }, (_, i) => t(`ArenaGames.name${i + 1}`)),
       },
+      // --- jdm-rhythm-runner ---
+      jdmRhythm: {
+        complete: t("JdmRhythm.complete"),
+        completeSub: (jumps, onBeat, landings) => fill("JdmRhythm.completeSub", { jumps, onBeat, landings }),
+        attempt: (n) => fill("JdmRhythm.attempt", { n }),
+        auto: t("JdmRhythm.auto"),
+        jumpHint: t("JdmRhythm.jumpHint"),
+        bpm: (bpm) => fill("JdmRhythm.bpm", { bpm }),
+        score: t("JdmRhythm.score"),
+        miss: t("JdmRhythm.miss"),
+        gameOver: t("JdmRhythm.gameOver"),
+        gameOverSub: (hits, best) => fill("JdmRhythm.gameOverSub", { hits, best }),
+        streak: (n) => fill("JdmRhythm.streak", { n }),
+        moveHint: t("JdmRhythm.moveHint"),
+      },
     };
   }, [t]);
 
@@ -1890,7 +2009,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
