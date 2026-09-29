@@ -1013,7 +1013,11 @@
     "ilCycleInfo": "One cycle lasts {seconds}s",
     "wallWobble": "Wobbly Walls",
     "wallWobbleTip": "Circular walls bulge where a ball hits them; the bulge travels round the wall and dies away like jelly. Visual only – the physics, seeds and Find Simulation stay the same.",
-    "wallWobbleOff": "Off"
+    "wallWobbleOff": "Off",
+    "fastExportFps": "Fast export frame rate",
+    "fastExportFpsTip": "Frames per second of the ⚡ Fast export: 60 is the smoothest, 30 makes a smaller file and renders sooner. The physics always runs 60 steps a second, so the run and its sounds are the same either way.",
+    "fastExportFps30": "30 fps",
+    "fastExportFps60": "60 fps"
   },
   "Modes": {
     "classic": {
@@ -1631,5 +1635,22 @@
     "ballN": "Ball {n}",
     "noteNeverEscape": "Rigged: no ball can escape",
     "noteWinner": "Rigged: {name} wins"
+  },
+  "FastExport": {
+    "button": "Fast export",
+    "buttonTip": "Builds the clip frame by frame from the start of the current run instead of recording the screen – usually faster than real time, never drops a frame, and the same seed always gives the same video. Uses the resolution, duration and frame rate of the Recording section; the run pauses meanwhile.",
+    "preparing": "Preparing the export…",
+    "rendering": "Rendering frame {frame} of {frames}",
+    "mixing": "Mixing and encoding the sound…",
+    "finishing": "Writing the file…",
+    "progressLabel": "Fast export progress",
+    "speed": "{speed}× real time",
+    "cancel": "Cancel",
+    "done": "Exported a {seconds} s {format} in {wall} s ({speed}× real time).",
+    "cancelled": "Fast export cancelled – nothing was saved.",
+    "fallbackWebCodecs": "This browser can't encode video by itself (no WebCodecs), so the clip is being recorded in real time with Record Video instead.",
+    "fallbackCodecs": "This browser has no H.264, VP9 or VP8 encoder with AAC or Opus sound for the fast export, so the clip is being recorded in real time with Record Video instead.",
+    "unsupportedNote": "Fast export needs WebCodecs (a recent Chrome, Edge, Safari or Firefox); here it records in real time instead.",
+    "error": "Fast export failed ({message}). Record Video still works."
   }
 }

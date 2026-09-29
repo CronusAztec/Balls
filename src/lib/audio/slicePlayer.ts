@@ -32,6 +32,11 @@ export class SlicePlayer {
     return this.buffer !== null;
   }
 
+  /** --- fast-render --- The decoded song (null without one), for the fast export's offline copy of the player. */
+  getBuffer(): AudioBuffer | null {
+    return this.buffer;
+  }
+
   /** Song length in seconds (0 without a song). */
   getDuration(): number {
     return this.buffer?.duration ?? 0;

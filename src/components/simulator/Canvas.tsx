@@ -42,6 +42,9 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
+// --- fast-render --- offline mode (the fast export's hidden instance) and the wrapper that mounts it
+import type { FastRenderHost, OfflineCanvasDriver } from "@/lib/recording/fastRender";
+import { withFastRender } from "./fastRenderCanvas";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -191,6 +194,15 @@ export interface CanvasProps {
   captions?: CanvasCaptionOptions | null;
   /** --- jdm-illusions --- Wobbly Walls, 0–1: circular walls deform with a travelling wave where a ball hits them (0 = perfect circles). */
   wallWobble?: number;
+  // --- fast-render ---
+  /** The page's fast-export host: while it has a job, a second, hidden instance of this canvas renders it (fastRenderCanvas.tsx). */
+  fastRender?: FastRenderHost | null;
+  /**
+   * Offline mode – that hidden instance: no animation loop (the export calls the draw routine once per frame), the export's
+   * clock instead of the wall clock, the world drawn at the export's scale, recording from the first frame (lib/recording/fastRender.ts).
+   */
+  offline?: OfflineCanvasDriver | null;
+  // --- end fast-render ---
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -313,6 +325,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     onObstaclesChange,
     captions = null, // --- captions ---
     wallWobble = 0, // --- jdm-illusions ---
+    offline = null, // --- fast-render ---
+    fastRender = null, // --- fast-render ---
   },
   ref,
 ) {
@@ -367,6 +381,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   // --- jdm-illusions --- the Wobbly Walls amount, read by the draw loop
   const wobbleAmountRef = useRef(wallWobble);
   wobbleAmountRef.current = wallWobble;
+  // --- fast-render --- the pictures an offline frame waits for (decoded asynchronously by the effects below), and the page's
+  // export host: the visible canvas rests while an export renders, so the export has the main thread to itself
+  const picturesRef = useRef({ ballImage, paintPicture, backgroundImage });
+  picturesRef.current = { ballImage, paintPicture, backgroundImage };
+  const fastRenderRef = useRef(fastRender);
+  fastRenderRef.current = fastRender;
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -569,18 +589,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const engine = physicsEngine;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = offline ? offline.scale : Math.min(window.devicePixelRatio || 1, 2); // --- fast-render --- (offline: the export's scale)
 
     const resize = () => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = offline ? { width: offline.worldWidth, height: offline.worldHeight } : canvas.getBoundingClientRect(); // --- fast-render --- (offline: the engine's world)
       sizeRef.current = { width: rect.width, height: rect.height };
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      engine.setConfig({ width: rect.width, height: rect.height });
+      if (!offline) engine.setConfig({ width: rect.width, height: rect.height }); // --- fast-render --- (the export's engine already has the page's size)
     };
     resize();
-    window.addEventListener("resize", resize);
+    if (!offline) window.addEventListener("resize", resize); // --- fast-render ---
 
     const alphaCache = new Map<string, string>();
     const ballSpriteCache = new Map<string, HTMLCanvasElement>();
@@ -742,9 +762,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     };
 
     const draw = () => {
-      const now = performance.now();
-      if (now - lastFrameRef.current < 15) {
+      const now = offline ? offline.now() : performance.now(); // --- fast-render --- (offline: the export's clock)
+      // --- fast-render --- the page's canvas keeps its last frame while a fast export renders (the run is paused meanwhile)
+      if (!offline && fastRenderRef.current?.getJob()) {
+        lastTimeRef.current = now;
         rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      if (now - lastFrameRef.current < 15) {
+        if (!offline) rafRef.current = requestAnimationFrame(draw); // --- fast-render ---
         return;
       }
       lastFrameRef.current = now;
@@ -2453,14 +2479,38 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const delta = now - lastFpsSampleRef.current;
       lastFpsSampleRef.current = now;
       if (delta > 0) fpsRef.current = 0.9 * fpsRef.current + (1000 / delta) * 0.1;
-      rafRef.current = requestAnimationFrame(draw);
+      if (!offline) rafRef.current = requestAnimationFrame(draw); // --- fast-render --- (offline, the export calls draw() per frame)
     };
-    draw();
+    // --- fast-render --- offline, the export draws every frame itself, on its clock from 0 (one frame per call), recording from the start
+    if (offline) {
+      lastTimeRef.current = -offline.frameMs;
+      lastFrameRef.current = -Infinity;
+      elapsedRef.current = 0;
+      recordingRef.current = true;
+      clipStartRef.current = 0;
+      exportSizeRef.current = { width: offline.exportWidth, height: offline.exportHeight };
+      offline.attach({
+        canvas,
+        renderFrame: draw,
+        noteWallBreak: () => faces.noteWallBreak(),
+        setSongProgress: (v) => {
+          songProgressRef.current = v;
+        },
+        holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
+        paintBackground: (c, width, height, crop) => bgPainter().paintExport(c, width, height, crop, backgroundLook()),
+        ready: () => {
+          const pics = picturesRef.current;
+          return (!pics.ballImage || imageLoadedRef.current) && (!pics.paintPicture || !!paintImageRef.current) && (!pics.backgroundImage || !!bgImageRef.current);
+        },
+      });
+    } else draw();
+    // --- end fast-render ---
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", resize);
+      offline?.attach(null); // --- fast-render ---
     };
-  }, [physicsEngine]);
+  }, [physicsEngine, offline]); // --- fast-render --- (offline)
 
   // --- obstacle-editor --- Backspace / Delete remove the selected obstacle while the run is not going; the selection goes when it starts
   useEffect(() => {
@@ -2510,7 +2560,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     <canvas
       ref={canvasRef}
       className="w-full h-full rounded-lg"
-      style={{ display: "block", touchAction: obstacleEditing ? "none" : undefined }}
+      style={{ display: offline ? "none" : "block", touchAction: obstacleEditing ? "none" : undefined }} // --- fast-render --- (the export's canvas is hidden)
       onPointerDown={onObstaclePointer}
       onPointerMove={onObstaclePointer}
       onPointerUp={onObstaclePointer}
@@ -2520,4 +2570,4 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   );
 });
 
-export default Canvas;
+export default withFastRender(Canvas); // --- fast-render --- (a hidden second instance renders the fast export)

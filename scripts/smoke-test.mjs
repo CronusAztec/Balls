@@ -3144,6 +3144,94 @@ const instrumentOscillators = () =>
 }
 // --- end timeline ---
 
+// --- fast-render --- Fast export: a 500×500, 10 s Classic clip at 30 fps is rendered offline (WebCodecs) and downloads as an
+// MP4 or WebM with a video and an audio track of the clip's length, the progress bar runs meanwhile, a second export of the
+// same seed has the same frames (digest), and Cancel stops a long export without a download. Without WebCodecs the button
+// must say so and start Record Video instead.
+{
+  /** Length (s) and tracks of an MP4 (mvhd, hdlr) or WebM (Segment Info Duration, CodecIDs) file. */
+  const probeVideoFile = (buf) => {
+    if (buf.includes(Buffer.from("ftyp"))) {
+      const at = buf.indexOf(Buffer.from("mvhd"));
+      if (at < 0) return { container: "mp4", duration: -1, video: false, audio: false };
+      const v1 = buf[at + 4] === 1;
+      const timescale = buf.readUInt32BE(at + (v1 ? 24 : 16));
+      const duration = v1 ? Number(buf.readBigUInt64BE(at + 28)) : buf.readUInt32BE(at + 20);
+      return { container: "mp4", duration: duration / timescale, video: buf.includes(Buffer.from("vide")), audio: buf.includes(Buffer.from("soun")) };
+    }
+    let duration = -1;
+    for (let i = buf.indexOf(Buffer.from([0x44, 0x89])); i >= 0 && i < buf.length - 10; i = buf.indexOf(Buffer.from([0x44, 0x89]), i + 1)) {
+      if (buf[i + 2] === 0x88) duration = buf.readDoubleBE(i + 3) / 1000;
+      else if (buf[i + 2] === 0x84) duration = buf.readFloatBE(i + 3) / 1000;
+      if (duration > 0) break;
+    }
+    return { container: "webm", duration, video: buf.includes(Buffer.from("V_VP")), audio: buf.includes(Buffer.from("A_OPUS")) };
+  };
+  const fastPanel = page.locator("[data-fast-export]");
+  const fastState = async () => ({ status: await fastPanel.getAttribute("data-fast-export"), digest: await fastPanel.getAttribute("data-fast-digest") });
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  const fastButton = page.getByRole("button", { name: /Fast export/ });
+  if (webCodecs) {
+    const exportOnce = async (label) => {
+      const downloadWait = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+      const startedAt = Date.now();
+      await fastButton.click();
+      const progress = await page.getByRole("progressbar", { name: /Fast export progress/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      const ms = Date.now() - startedAt;
+      const state = await fastState();
+      let file = null;
+      if (download) {
+        const out = path.join(outDir, `fast-${label}-${download.suggestedFilename()}`);
+        await download.saveAs(out);
+        const buf = fs.readFileSync(out);
+        file = { name: download.suggestedFilename(), bytes: buf.length, ...probeVideoFile(buf) };
+      }
+      return { progress, state, file, ms };
+    };
+    const first = await exportOnce("a");
+    const f = first.file;
+    const doneLine = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+    check(
+      "fast export renders a 10 s clip offline and downloads it with video and audio tracks",
+      first.progress && first.state.status === "done" && !!f && f.bytes > 10000 && f.video && f.audio && f.duration > 2 && f.duration <= 10.05 && /\.(mp4|webm)$/.test(f.name) && !!doneLine,
+      `(${f ? `${f.name}, ${f.container}, ${f.duration.toFixed(2)} s, ${f.bytes} bytes, video=${f.video}, audio=${f.audio}` : "no download"}, progress bar=${first.progress}, ${first.ms} ms, "${doneLine}")`,
+    );
+    const second = await exportOnce("b");
+    check(
+      "fast export is reproducible: the same seed renders the same frames",
+      second.state.status === "done" && !!first.state.digest && first.state.digest === second.state.digest && !!second.file && Math.abs(second.file.duration - (f?.duration ?? -1)) < 1e-6,
+      `(digests ${first.state.digest} / ${second.state.digest}, lengths ${f?.duration} / ${second.file?.duration} s)`,
+    );
+    // Cancel: a long 1080×1920 export stops on Cancel, reports it and downloads nothing; the page's run can start afterwards.
+    await page.goto(`${BASE}/en/simulator/?mode=classic&dur=60&res=1080x1920`, { waitUntil: "networkidle" });
+    let cancelDownload = false;
+    const onDownload = () => (cancelDownload = true);
+    page.on("download", onDownload);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const running = await page.getByRole("progressbar", { name: /Fast export progress/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1500);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    const cancelled = await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") === "cancelled", null, { timeout: 20000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1000);
+    page.off("download", onDownload);
+    const hiddenCanvases = await page.evaluate(() => document.querySelectorAll("canvas").length);
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(1500);
+    const liveRuns = await page.evaluate(() => document.querySelector("canvas")?.width > 0);
+    check("fast export cancels without a download and the page runs on", running && cancelled && !cancelDownload && liveRuns, `(running=${running}, cancelled=${cancelled}, download=${cancelDownload}, canvases=${hiddenCanvases})`);
+  } else {
+    await fastButton.click();
+    const note = await page.getByText(/can't encode video by itself/).first().waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    const recording = await page.getByRole("button", { name: /Stop & Export/ }).first().isVisible().catch(() => false);
+    check("without WebCodecs the fast export explains itself and records in real time", note && recording, `(note=${note}, recording=${recording})`);
+    if (recording) await page.getByRole("button", { name: /Stop & Export/ }).first().click();
+  }
+}
+// --- end fast-render ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

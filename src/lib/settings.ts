@@ -29,6 +29,7 @@ import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, re
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
 import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
+import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
@@ -439,6 +440,9 @@ export interface SimulatorSettings {
   /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
   wallWobble: number;
   // --- end jdm-illusions ---
+  // --- fast-render --- Fast export (lib/recording/fastRender.ts): frames per second of the offline export, 30 or 60 (URL `xfps`)
+  fastExportFps: number;
+  // --- end fast-render ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -540,6 +544,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultTimelineSettings(), // --- timeline ---
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
+    ...DEFAULT_FAST_EXPORT_SETTINGS, // --- fast-render ---
   };
 }
 
@@ -597,6 +602,7 @@ export const RANGES = {
   // --- jdm-illusions ---
   ...ILLUSION_RANGES,
   ...WOBBLE_RANGES,
+  ...FAST_EXPORT_RANGES, // --- fast-render ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -706,6 +712,7 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   mpmb: "mpMaxBalls",
   mptg: "mpTarget",
   fw: "forcedWinner", // --- rigged ---
+  xfps: "fastExportFps", // --- fast-render ---
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -932,6 +939,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readTimelineParams(params, settings, RANGES); // --- timeline ---
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
+  Object.assign(settings, resolveFastExportSettings(settings)); // --- fast-render --- (snapped to 30 or 60)
   return settings;
 }
 
@@ -1093,6 +1101,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveFastExportSettings(merged)); // --- fast-render --- (snapped to 30 or 60)
   return merged;
 }
 

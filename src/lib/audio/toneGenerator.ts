@@ -7,6 +7,7 @@ import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // 
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
+import { clockedAudioContext } from "./offlineContext"; // --- fast-render ---
 
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
@@ -630,4 +631,49 @@ export class ToneGenerator {
   isActive() {
     return this.isPlaying;
   }
+
+  // --- fast-render ---
+  /**
+   * A copy of this generator that renders into `context` – an OfflineAudioContext (fast export, lib/recording/fastRender.ts)
+   * – instead of the speakers: the same volume, instruments, scale, beat lock (its grid starts with the clip), melody (from
+   * its first note), hit sample, wall-break clip, song slicer (from the start of the song) and music bed (playing from its
+   * start offset at 0 s), all read on `clock` (seconds of the clip) through `clockedAudioContext()`. Every sound then takes
+   * the code path it takes on the page (`playWallHit()`, `playGapPass()`, …). Resolves once the hit sample and the
+   * wall-break clip are decoded for the offline context.
+   */
+  async createOfflineTwin(context: BaseAudioContext, clock: () => number): Promise<ToneGenerator> {
+    const twin = new ToneGenerator();
+    const ctx = clockedAudioContext(context, clock);
+    const master = ctx.createGain();
+    master.gain.value = this.volume;
+    master.connect(context.destination);
+    twin.audioContext = ctx;
+    twin.masterGain = master;
+    twin.volume = this.volume;
+    twin.music = { ...this.music };
+    twin.customNotes = this.customNotes.slice();
+    twin.lastCustomNoteTime = -Infinity;
+    twin.hitSoundMode = this.hitSoundMode;
+    twin.hitSampleUrl = this.hitSampleUrl;
+    twin.hitSamplePitchByWall = this.hitSamplePitchByWall;
+    twin.hitSampleVolume = this.hitSampleVolume;
+    twin.sampler = new HitSampler(ctx, master);
+    twin.sampler.setVolume(this.hitSampleVolume);
+    twin.wallBreakSoundUrl = this.wallBreakSoundUrl;
+    twin.wallBreakBuffer = this.wallBreakBuffer;
+    twin.slicer.setOptions(this.slicer.getOptions());
+    twin.slicer.setBuffer(this.slicer.getBuffer());
+    twin.slicer.setEnabled(this.slicer.isActive());
+    twin.musicBed.attach(ctx, master);
+    twin.musicBed.setOptions(this.musicBed.getOptions());
+    twin.musicBed.setBuffer(this.musicBed.getBuffer());
+    twin.isInitialized = true;
+    twin.isPlaying = true;
+    twin.resetBeatGrid();
+    if (twin.hitSoundMode === "sample" && twin.hitSampleUrl) await twin.sampler.load(twin.hitSampleUrl);
+    if (twin.wallBreakSoundUrl && !twin.wallBreakBuffer) await twin.decodeWallBreakSound(twin.wallBreakSoundUrl);
+    twin.musicBed.play();
+    return twin;
+  }
+  // --- end fast-render ---
 }
