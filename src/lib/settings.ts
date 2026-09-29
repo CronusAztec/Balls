@@ -11,6 +11,7 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
+import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -75,6 +76,20 @@ export interface SimulatorSettings {
   cameraFollow: boolean;
   wallBreakStyle: WallBreakStyle;
   cinematicEnabled: boolean;
+  // --- themes (lib/themes.ts): one-click looks, backgrounds and particle styles – visual only, off by default
+  /** The theme the look was picked from, "" = none (URL `theme`). */
+  themeId: string;
+  /** solid | gradient | image (URL `bgt`; the uploaded picture stays in memory, so links carry solid / gradient only). */
+  backgroundType: BackgroundType;
+  /** Two colours: the solid colour (first) or the top → bottom gradient (URL `bg1`, `bg2`). */
+  backgroundColors: string[];
+  /** 0–1: how far the background picture is darkened (URL `bgd`). */
+  backgroundDim: number;
+  /** confetti | sparks | petals | pixels | bubbles: the bursts at wall breaks and finishes (URL `ps`). */
+  particleStyle: ParticleStyle;
+  /** Two colours the colour trail cycles between; empty = the rainbow (URL `trc`). */
+  trailColors: string[];
+  // --- end themes
   // Mode specific
   accumulationTime: number;
   spikesEnabled: boolean;
@@ -235,6 +250,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     cameraFollow: false,
     wallBreakStyle: "confetti",
     cinematicEnabled: true,
+    ...defaultThemeSettings(), // --- themes
     accumulationTime: 4,
     spikesEnabled: false,
     spikeCount: 6,
@@ -316,6 +332,7 @@ export const RANGES = {
   ...BOX_RANGES,
   ...PENDULUM_RANGES,
   ...PICTURE_PAINT_RANGES,
+  ...THEME_RANGES, // --- themes
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -468,6 +485,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.melodyInstrument !== base.melodyInstrument) params.set("minst", settings.melodyInstrument);
   if (settings.scale !== base.scale) params.set("scale", settings.scale);
   if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
+  writeThemeParams(settings, base, params); // --- themes: theme, bgt, bg1, bg2, bgd, ps, trc
   return params;
 }
 
@@ -540,6 +558,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isQuantizeGrid(grid)) settings.quantizeGrid = grid;
   if (!inRange(settings.rootNote, RANGES.rootNote) || !Number.isInteger(settings.rootNote)) settings.rootNote = 0;
   if (!inRange(settings.bpm, RANGES.bpm)) settings.bpm = defaultSettings(mode).bpm;
+  readThemeParams(params, settings); // --- themes
   return settings;
 }
 
@@ -649,6 +668,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampBoxSettings(merged);
   clampPendulumSettings(merged);
   clampPicturePaint(merged);
+  Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
   return merged;
 }
 

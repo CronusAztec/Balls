@@ -19,6 +19,7 @@ import {
 import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView, PicturePaintState } from "./modes";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
+import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
 import type {
   Ball,
@@ -118,6 +119,11 @@ export class PhysicsEngine {
   private shockwaves: Shockwave[] = [];
   private wallBreakFlashes: WallBreakFlash[] = [];
   private wallBreakStyle: WallBreakStyle = "confetti";
+  // --- themes: style and colours of the confetti bursts (visual only; see particleStyles.ts)
+  private particleStyle: ParticleStyle = "confetti";
+  private particlePalette: readonly string[] = [];
+  private readonly pushParticleFn = (p: Particle) => this.pushParticle(p);
+  // --- end themes
   private pendingSoundEvents: SoundEvent[] = [];
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
@@ -403,6 +409,19 @@ export class PhysicsEngine {
   getWallBreakStyle() {
     return this.wallBreakStyle;
   }
+  // --- themes
+  /**
+   * Style of the confetti bursts (wall breaks, portals, finished runs) and the colours they take; an empty palette
+   * keeps each style's own colours, and "confetti" with an empty palette is the classic burst. Visual only.
+   */
+  setParticleStyle(style: ParticleStyle, palette: readonly string[] = []) {
+    this.particleStyle = style;
+    this.particlePalette = palette;
+  }
+  getParticleStyle() {
+    return this.particleStyle;
+  }
+  // --- end themes
   getWallHits() {
     return this.wallHits;
   }
@@ -1489,7 +1508,13 @@ export class PhysicsEngine {
   }
 
   spawnConfetti(x: number, y: number) {
-    const colors = ["#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3", "#A8D8EA"];
+    // --- themes: sparks, petals, pixels and bubbles, or confetti in a theme's colours; the classic burst below stays the default
+    if (this.particleStyle !== "confetti" || this.particlePalette.length > 0) {
+      spawnStyledBurst(this.particleStyle, this.particlePalette, x, y, this.pushParticleFn);
+      return;
+    }
+    // --- end themes
+    const colors =["#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3", "#A8D8EA"];
     for (let i = 0; i < 30; i++) {
       const a = (TWO_PI * i) / 30 + 0.5 * Math.random();
       const speed = 150 + 200 * Math.random();
@@ -1556,7 +1581,7 @@ export class PhysicsEngine {
       const p = this.particles[i];
       p.x += p.vx * dtSec;
       p.y += p.vy * dtSec;
-      p.vy += 400 * dtSec;
+      p.vy += 400 * (p.gravity ?? 1) * dtSec; // --- themes: per-particle gravity (bubbles rise, petals float)
       p.vx *= 0.98;
       p.vy *= 0.98;
       p.rotation += p.rotationSpeed * dtSec;

@@ -13,6 +13,7 @@ import PendulumWaveSection, { PENDULUM_WAVE_KEYS } from "./sections/PendulumWave
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
 import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
+import ThemeSection, { THEME_KEYS, type ThemeImageProps } from "./sections/ThemeSection"; // --- themes
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -76,6 +77,9 @@ export interface ControlsProps {
   onSavePreset: (name: string) => void;
   onLoadPreset: (name: string) => void;
   onDeletePreset: (name: string) => void;
+  // --- themes: the background picture uploaded in this session (kept in memory) and how to change it
+  themeImage: ThemeImageProps;
+  // --- end themes
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -88,7 +92,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
-  visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
+  visual: [...THEME_KEYS, "trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
@@ -365,6 +369,8 @@ export default function Controls(props: ControlsProps) {
   const visualSection = () => (
     <div className="space-y-4">
       <ResetButton search={search} t={t} section="visual" onReset={props.onResetSection} />
+      {/* --- themes: theme cards, background, particle style and trail colours at the top of the Visual section */}
+      <ThemeSection t={t} search={search} matches={matches} settings={s} update={update} image={props.themeImage} />
       <Searchable search={search} matches={matches} labelKey="trails">
         <div className="flex gap-2">
           {(
@@ -1264,6 +1270,14 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         paintBeatPulse: d.paintBeatPulse,
         paintGuided: d.paintGuided,
         paintPaceToSong: d.paintPaceToSong,
+        // --- themes: back to the plain background, confetti and the rainbow trail (the colours reset with the Ball / Wall sections)
+        themeId: d.themeId,
+        backgroundType: d.backgroundType,
+        backgroundColors: d.backgroundColors,
+        backgroundDim: d.backgroundDim,
+        particleStyle: d.particleStyle,
+        trailColors: d.trailColors,
+        // --- end themes
       };
     case "sound":
       return {
