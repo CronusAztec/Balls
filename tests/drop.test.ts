@@ -7,13 +7,17 @@ import {
   DROP_RANGES,
   MAX_HIT_SOUNDS_PER_STEP,
   MIN_DROP_RADIUS,
+  REST_DISTANCE,
+  REST_TIME_MS,
   SIZE_SPREAD,
+  WALL_EXTENSION,
   buildDropLayout,
   dropHitFrequency,
   dropSettingFields,
   dropSettingsOf,
   resolveDropSettings,
 } from "@/lib/physics/modes/drop";
+import { segmentEndpoints, type SegmentObstacle } from "@/lib/physics/obstacles";
 import { MODE_IDS, type PhysicsConfig } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -146,8 +150,23 @@ describe("Ball Drop pitch and layout", () => {
       expect(field.bottom).toBe(height - margin);
       expect(field.right - field.left).toBeLessThanOrEqual(Math.min(width, height));
       expect(Math.abs((field.left + field.right) / 2 - width / 2)).toBeLessThan(1e-9);
-      // Walls first: left, right, floor.
+      // Walls first: left, right, floor. The side walls continue one canvas height above the top, so an
+      // overflowing pile stays between them; the floor closes the board at the bottom.
       expect(obstacles.slice(0, 3).map((o) => o.kind)).toEqual(["segment", "segment", "segment"]);
+      const [leftWall, rightWall, floor] = obstacles as SegmentObstacle[];
+      for (const [wall, x] of [
+        [leftWall, field.left],
+        [rightWall, field.right],
+      ] as const) {
+        const ends = segmentEndpoints(wall);
+        expect(Math.min(ends.x1, ends.x2)).toBeCloseTo(x, 9);
+        expect(Math.max(ends.x1, ends.x2)).toBeCloseTo(x, 9);
+        expect(Math.min(ends.y1, ends.y2)).toBeCloseTo(field.top - WALL_EXTENSION * height, 9);
+        expect(Math.max(ends.y1, ends.y2)).toBeCloseTo(field.bottom, 9);
+      }
+      const floorEnds = segmentEndpoints(floor);
+      expect(floorEnds.y1).toBeCloseTo(field.bottom, 9);
+      expect(floorEnds.y2).toBeCloseTo(field.bottom, 9);
       const cols = Math.round((field.right - field.left) / layout.columnSpacing);
       let pegs = 0;
       let bars = 0;
@@ -297,6 +316,83 @@ describe("Ball Drop mode", () => {
       expect(b.x + b.radius).toBeLessThanOrEqual(field.right + 0.5);
       expect(b.y + b.radius).toBeLessThanOrEqual(field.bottom + 0.5);
     }
+  });
+
+  it("finishes an overfull board – 40 balls of size 30 at full size spread – with the balls it could hold, confined between the walls", () => {
+    // Such a board cannot hold every ball: the pile grows above the top of the board and the release spots
+    // fill up. The run must still finish (SETTLED!, auto-stop of a recording, a finite finder time): a ball at
+    // rest above the top counts as resting, and a release that finds no room for REST_TIME_MS while the
+    // pile is at rest ends the run with the balls that fit, which getProgress().total then reports.
+    const drop = { ballCount: 40, sizeVariation: 1, rows: 7 } as const;
+    const cfg = { ballRadius: 30 } as const;
+    let someBoardWasFull = false;
+    let somePileReachedAboveTheTop = false;
+    for (const seed of [1, 2, 3]) {
+      const engine = dropEngine(drop, seed, cfg);
+      let finishedAt = -1;
+      for (let i = 1; i <= 60 * 60 && finishedAt < 0; i++) {
+        engine.update(STEP, 0);
+        if (engine.isSimulationFinished()) finishedAt = i / 60;
+      }
+      expect(finishedAt).toBeGreaterThan(0);
+      expect(finishedAt).toBeLessThan(60);
+      const progress = engine.getDropProgress();
+      const balls = engine.getBalls();
+      expect(progress.finished).toBe(true);
+      expect(progress.released).toBe(balls.length);
+      expect(progress.total).toBe(balls.length);
+      expect(progress.total).toBeLessThanOrEqual(40);
+      expect(progress.total).toBeGreaterThan(10);
+      if (progress.total < 40) someBoardWasFull = true;
+      const field = engine.getDropLayout()!.field;
+      const positions = balls.map((b) => [b.x, b.y] as const);
+      for (const b of balls) {
+        // The extended side walls keep even the part of the pile above the top between the walls (a ball wedged
+        // against a wall by the pile may overlap it by a couple of px: the pair pass runs after the obstacle pass).
+        expect(b.x - b.radius).toBeGreaterThanOrEqual(field.left - REST_DISTANCE);
+        expect(b.x + b.radius).toBeLessThanOrEqual(field.right + REST_DISTANCE);
+        expect(b.y + b.radius).toBeLessThanOrEqual(field.bottom + 0.5);
+        if (b.y < field.top) somePileReachedAboveTheTop = true;
+      }
+      // Finished means finished: the pile stays put (a wedged ball may still jitter within REST_DISTANCE), the
+      // silence holds and the progress does not change any more.
+      engine.consumeSoundEvents();
+      run(engine, 60);
+      expect(engine.isSimulationFinished()).toBe(true);
+      expect(engine.getDropProgress()).toEqual(progress);
+      expect(engine.getBalls()).toHaveLength(balls.length);
+      expect(engine.consumeSoundEvents()).toHaveLength(0);
+      engine.getBalls().forEach((b, i) => expect(Math.hypot(b.x - positions[i][0], b.y - positions[i][1])).toBeLessThanOrEqual(REST_DISTANCE));
+    }
+    expect(someBoardWasFull).toBe(true);
+    expect(somePileReachedAboveTheTop).toBe(true);
+    // The finder gets a real duration instead of burning its whole budget, and the same one on every replay.
+    const request: FinderRequest = { targetDurationSec: 20, toleranceSec: 0.5, maxSeeds: 1, maxSimTimeSec: 60, physicsConfig: { ...config, ...cfg }, mode: "drop", modeSettings: { ...modeSettings, drop } };
+    const ms = simulateSeed(2, request, 60_000);
+    expect(ms).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(60_000);
+    expect(simulateSeed(2, request, 60_000)).toBe(ms);
+  });
+
+  it("does not call a board full while balls are still due or moving", () => {
+    // A slow release schedule: the top is free between releases, so `blockedMs` never grows, and the run only
+    // finishes once the last ball has been released and the pile has been still for REST_TIME_MS.
+    const engine = dropEngine({ ballCount: 6, spawnInterval: 2, sizeVariation: 0, gravityVariation: 0 });
+    for (let i = 1; i <= 60 * 9; i++) {
+      engine.update(STEP, 0);
+      expect(engine.isSimulationFinished()).toBe(false);
+      expect(engine.getDropProgress().total).toBe(6);
+    }
+    expect(engine.getDropProgress().released).toBe(5);
+    run(engine, 60 * 15);
+    expect(engine.getDropProgress()).toEqual({ released: 6, total: 6, finished: true });
+    // A burst of big balls released at once: the first ones block the top for a moment, the rest follow as
+    // soon as they have fallen clear – far sooner than REST_TIME_MS – so the count is never cut short.
+    const burst = dropEngine({ ballCount: 20, spawnInterval: 0, sizeVariation: 0, gravityVariation: 0 }, 3, { ballRadius: 20 });
+    expect(burst.getDropProgress().released).toBeLessThan(20);
+    run(burst, Math.round(REST_TIME_MS / STEP));
+    expect(burst.getDropProgress().released).toBe(20);
+    expect(burst.getDropProgress().total).toBe(20);
   });
 
   it("rain: the floor is open, balls that fall out come back in at the top and the run never ends", () => {

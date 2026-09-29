@@ -367,6 +367,26 @@ await page.waitForTimeout(3500);
   await page.screenshot({ path: path.join(outDir, "sim-drop-board.png") });
 }
 
+// 4b''''. An overfull Ball Drop board – 40 balls of size 30 at full size spread, more than the board can hold – still
+// finishes: the pile above the top counts as resting and a release that finds no room ends the run with the balls that
+// fit, so the finished overlay (Restart Simulation) appears; at 8× the pile settles within a few seconds of real time.
+await page.goto(`${BASE}/en/simulator/?mode=drop&dbc=40&dsv=1&dsi=0&r=30`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const restart = page.getByRole("button", { name: /Restart Simulation/ });
+  let finished = false;
+  try {
+    await restart.waitFor({ state: "visible", timeout: 60_000 });
+    finished = true;
+  } catch {
+    finished = false;
+  }
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("overfull ball drop board still settles and finishes", finished, `(elapsed ${time})`);
+  await page.screenshot({ path: path.join(outDir, "sim-drop-overfull.png") });
+}
+
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
 await page.goto(`${BASE}/en/simulator/?mode=classic&inst=marimba&scale=minor&root=9&qz=1&bpm=140&grid=1%2F16`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Custom Sound/ }).click();

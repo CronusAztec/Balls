@@ -9,6 +9,8 @@ import type { Ball, GameMode, ModeContext, ObstacleHitResult } from "../types";
  * (bigger = lower, snapped to the current scale by the tone generator like every other sound), so the
  * mix of gravities and sizes turns the run into a polyrhythm. The run is finished once every ball has
  * come to rest (or never with "rain" on: the floor opens and balls that fall out re-enter at the top).
+ * A board that cannot hold every ball (many big balls) finishes once it is full: when a due release has
+ * found no room at the top for a while and the pile is at rest, the run ends with the balls it holds.
  *
  * Everything random (spawn positions, sizes, weights) comes from `ctx.random()`, so a seed replays
  * identically and Find Simulation works for the closed board.
@@ -147,6 +149,8 @@ export const FLOOR_RESTITUTION = 0.45;
  * takes the energy out of the pile so the board settles.
  */
 export const BALL_TO_BALL_RESTITUTION = 0.6;
+/** How far the side walls continue above the top of the board, as a fraction of the canvas height (see `buildDropLayout()`). */
+export const WALL_EXTENSION = 1;
 
 /**
  * Lays out the board for a canvas of `width` × `height`: a portrait playfield that uses the full
@@ -163,8 +167,12 @@ export function buildDropLayout(width: number, height: number, rows: number, bal
   const top = margin;
   const bottom = height - margin;
   const obstacles: Obstacle[] = [];
-  obstacles.push(segmentBetween(left, top, left, bottom, { restitution: WALL_RESTITUTION }));
-  obstacles.push(segmentBetween(right, top, right, bottom, { restitution: WALL_RESTITUTION }));
+  // The side walls continue one canvas height above the top (the canvas clips them at its edge), so a pile
+  // that outgrows the board – more or bigger balls than it can hold – stays between them instead of
+  // spilling sideways above the canvas, and the release spots at the top are judged against a confined pile.
+  const wallTop = top - WALL_EXTENSION * height;
+  obstacles.push(segmentBetween(left, wallTop, left, bottom, { restitution: WALL_RESTITUTION }));
+  obstacles.push(segmentBetween(right, wallTop, right, bottom, { restitution: WALL_RESTITUTION }));
   if (!loop) obstacles.push(segmentBetween(left, bottom, right, bottom, { restitution: FLOOR_RESTITUTION }));
 
   const r = Math.max(2, ballRadius);
@@ -195,7 +203,11 @@ export function buildDropLayout(width: number, height: number, rows: number, bal
 
 /** The run is finished once no ball has moved more than this (px) … */
 export const REST_DISTANCE = 3;
-/** … over a window this long (ms). Positions rather than speeds, because a resting ball still jitters by one sub-step of gravity. */
+/**
+ * … over a window this long (ms). Positions rather than speeds, because a resting ball still jitters by one
+ * sub-step of gravity. The same span decides that a board is full: a due release that has found no free spot
+ * at the top for this long, while every released ball is at rest, is the sign that the rest cannot enter.
+ */
 export const REST_TIME_MS = 1000;
 /** Candidate spots tried for a release before it waits for the next step (the top must be clear of other balls). */
 const SPAWN_ATTEMPTS = 6;
@@ -216,6 +228,10 @@ export class DropMode implements GameMode {
   private settings: DropSettings = { ...DEFAULT_DROP_SETTINGS };
   private layout: DropLayout | null = null;
   private released = 0;
+  /** Balls this run will release: the configured count, or the number that fit once the board proved full. */
+  private target = DEFAULT_DROP_SETTINGS.ballCount;
+  /** Milliseconds a due release has been finding no free spot at the top (back to 0 as soon as one succeeds). */
+  private blockedMs = 0;
   /** Milliseconds into the current rest window and where every ball was when it started. */
   private restMs = 0;
   private restAnchors = new Map<number, { x: number; y: number }>();
@@ -232,8 +248,9 @@ export class DropMode implements GameMode {
   getLayout() {
     return this.layout;
   }
+  /** `total` is the number of balls this run releases: the setting, or fewer once the board proved full (see onPostUpdate). */
   getProgress() {
-    return { released: this.released, total: this.settings.ballCount, finished: this.finished };
+    return { released: this.released, total: this.target, finished: this.finished };
   }
 
   init(ctx: ModeContext) {
@@ -241,6 +258,8 @@ export class DropMode implements GameMode {
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
     this.released = 0;
+    this.target = this.settings.ballCount;
+    this.blockedMs = 0;
     this.restMs = 0;
     this.restAnchors.clear();
     this.finished = false;
@@ -248,11 +267,11 @@ export class DropMode implements GameMode {
     this.rebuild(ctx);
     this.releaseDue(ctx, 0);
   }
-  onPreUpdate(ctx: ModeContext) {
+  onPreUpdate(ctx: ModeContext, dtMs: number) {
     this.soundsThisStep = 0;
     // A live change of the ball size re-spaces the pegs for the new size.
     if (this.layout && (ctx.config.ballRadius || 8) !== this.layout.ballRadius) this.rebuild(ctx);
-    if (this.released < this.settings.ballCount) this.releaseDue(ctx, ctx.getElapsedMs());
+    if (this.released < this.target) this.blockedMs = this.releaseDue(ctx, ctx.getElapsedMs()) ? this.blockedMs + dtMs : 0;
   }
   onBallStep() {}
   /**
@@ -318,21 +337,26 @@ export class DropMode implements GameMode {
       return;
     }
     if (this.finished) return;
-    if (this.released < this.settings.ballCount) return;
+    // A full board: a due release has found no room at the top for REST_TIME_MS. The run then finishes with
+    // the balls it holds (once they are at rest) instead of waiting forever for balls that cannot enter.
+    const full = this.released < this.target && this.blockedMs >= REST_TIME_MS;
+    if (this.released < this.target && !full) return;
     // Rest detection: a window starts with a snapshot of every ball; if none of them has moved more than
-    // REST_DISTANCE by the end of it, the board has settled – otherwise a new window starts from here.
+    // REST_DISTANCE by the end of it, the board has settled – otherwise a new window starts from here. Where
+    // a ball rests does not matter: a pile may reach above the top of the board (the walls continue there).
     if (this.restAnchors.size === 0) this.anchorBalls(balls);
     this.restMs += dtMs;
     if (this.restMs < REST_TIME_MS) return;
     let resting = true;
     for (const ball of balls) {
       const anchor = this.restAnchors.get(ball.id);
-      if (!anchor || ball.y < field.top || Math.hypot(ball.x - anchor.x, ball.y - anchor.y) > REST_DISTANCE) {
+      if (!anchor || Math.hypot(ball.x - anchor.x, ball.y - anchor.y) > REST_DISTANCE) {
         resting = false;
         break;
       }
     }
     if (resting) {
+      if (full) this.target = this.released;
       this.finished = true;
       ctx.spawnConfetti((field.left + field.right) / 2, field.bottom - 0.15 * (field.bottom - field.top));
     } else {
@@ -352,7 +376,7 @@ export class DropMode implements GameMode {
     return this.finished;
   }
   getState() {
-    return { released: this.released, total: this.settings.ballCount, finished: this.finished, restMs: this.restMs };
+    return { released: this.released, total: this.target, finished: this.finished, restMs: this.restMs, blockedMs: this.blockedMs };
   }
 
   private anchorBalls(balls: Ball[]) {
@@ -372,15 +396,20 @@ export class DropMode implements GameMode {
 
   /**
    * Releases every ball whose turn has come: ball k leaves the top at k × spawnInterval seconds. A ball
-   * whose spot at the top is still taken (a burst of big balls) waits for a later step, so balls never
-   * spawn inside each other.
+   * whose spot at the top is still taken (a burst of big balls, or a pile that reaches the top) waits for
+   * a later step, so balls never spawn inside each other. Returns true when a due release found no spot,
+   * so the caller can time how long the top has been blocked (see onPostUpdate: a full board).
    */
-  private releaseDue(ctx: ModeContext, elapsedMs: number) {
-    const { ballCount, spawnInterval } = this.settings;
-    while (this.released < ballCount && elapsedMs + 1e-6 >= this.released * spawnInterval * 1000) {
-      if (!this.spawn(ctx)) return;
+  private releaseDue(ctx: ModeContext, elapsedMs: number): boolean {
+    const { spawnInterval } = this.settings;
+    while (this.released < this.target && elapsedMs + 1e-6 >= this.released * spawnInterval * 1000) {
+      if (!this.spawn(ctx)) return true;
       this.released++;
+      // A new ball starts the rest detection over (only relevant on a blocked board, where a window may already run).
+      this.restMs = 0;
+      this.restAnchors.clear();
     }
+    return false;
   }
 
   private spawn(ctx: ModeContext): boolean {
