@@ -2392,8 +2392,330 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 // --- end obstacle-editor + captions ---
 
+// --- jdm-double-pendulum ---
+// 22. Double Pendulum Harp & sparring: the preview image, URL → the "Double pendulum" block of the Mode row, controls →
+// URL, the search box, the finder (Endless hides it; the clip length decides the run length, so a matching target is
+// found with the first seed – keeping the clip length – and a missing one is explained), a default run at 30+ fps whose
+// notes all belong to the harp's C major ladder (OscillatorNode.start is instrumented) with the energy held
+// (data-dp-drift), a sparring run whose mirrored pendulums hit each other, a triple pendulum on a radial harp and a
+// 10 s clip at 8× that finishes after its finale.
+{
+  const res = await page.request.get(`${BASE}/modes/doublePendulum.webp`);
+  check("asset /modes/doublePendulum.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+{
+  /** The On/Off button of a toggle in the Double pendulum block, by the start of its label (tooltips mention other toggles). */
+  const dpToggle = (label) => page.getByTestId("double-pendulum").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpn=3&dpsg=3&dprs=0&dpa1=100&dpa3=-45&dpst=16&dpsl=radial&dpo=3&dptr=6&dpd=0.0015&dpen=1`, { waitUntil: "networkidle" });
+  {
+    const values = { dpn: await sliderValue("Pendulums"), dpa1: await sliderValue("Start Angle 1"), dpa3: await sliderValue("Start Angle 3"), dpst: await sliderValue("Harp Strings"), dpo: await sliderValue("Harp Octaves"), dptr: await sliderValue("Trail Length"), dpd: await sliderValue("Friction") };
+    const triple = await page.getByRole("group", { name: "Arms", exact: true }).getByRole("button", { name: "Triple", exact: true }).getAttribute("aria-pressed");
+    const radial = await page.getByRole("group", { name: "String Layout", exact: true }).getByRole("button", { name: /Radial/ }).getAttribute("aria-pressed");
+    const endless = await dpToggle("Endless").getAttribute("aria-pressed");
+    const randomStart = await dpToggle("Random Start").getAttribute("aria-pressed");
+    const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+    check(
+      "double pendulum loads from URL",
+      values.dpn === "3" && values.dpa1 === "100" && values.dpa3 === "-45" && values.dpst === "16" && values.dpo === "3" && values.dptr === "6" && values.dpd === "0.0015" && triple === "true" && radial === "true" && endless === "true" && randomStart === "false" && finderHidden,
+      `(${JSON.stringify(values)}, triple=${triple}, radial=${radial}, endless=${endless}, random=${randomStart}, finder hidden=${finderHidden})`,
+    );
+  }
+  await page.locator('input[aria-label="Harp Strings"]').evaluate(setRangeValue, "9");
+  await page.getByRole("group", { name: "String Layout", exact: true }).getByRole("button", { name: /Vertical/ }).click();
+  await dpToggle("Sparring").click();
+  await dpToggle("Endless").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const countDisabled = await page.locator('input[aria-label="Pendulums"]').isDisabled();
+    check(
+      "double pendulum mirrors into the URL",
+      /(^|&)dpst=9(&|$)/.test(query) && /(^|&)dpsp=1(&|$)/.test(query) && /(^|&)dpd=0.0015(&|$)/.test(query) && /(^|&)dpsg=3(&|$)/.test(query) && !/(^|&)dpsl=/.test(query) && !/(^|&)dpen=/.test(query) && finderShown && countDisabled,
+      `(${query}, finder shown=${finderShown}, count disabled while sparring=${countDisabled})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("harp octaves");
+  check("search finds the double pendulum controls", (await page.locator('input[aria-label="Harp Octaves"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+// The run always lasts the clip length: a 30 s clip is found with the first seed, a 12 s clip is explained.
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const found = await page.getByText(/Ready to start simulation for 30\.0s/).first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  // The clip length is the run length: the found seed keeps it (no rounding up to a 31 s clip).
+  const query = page.url().split("?")[1] || "";
+  check("finder finds a double pendulum run of the clip length at once, keeping the clip length", found && !/(^|&)dur=/.test(query), `(found=${found}, ${query})`);
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dur=12`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const shown = await page.getByText(/Double Pendulum run always lasts exactly 12\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("finder explains a double pendulum run fixed by the clip length", shown);
+  if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__dpOsc = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(500);
+{
+  // Frame intervals over 4 s of the default harp (one double pendulum, 15 strings, a 4 s trail), in half-second windows.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    4000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__dpOsc);
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  // 15 strings over two octaves of C major from C4 (the chromatic default leaves them unsnapped).
+  const ladder = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
+  const onLadder = pitches.length > 0 && midis.every((m) => ladder.includes(m));
+  check(
+    "simulator mode=doublePendulum plucks the harp at 30+ fps",
+    data.dpPendulums === "1" && data.dpSegments === "2" && data.dpStrings === "15" && data.dpLayout === "vertical" && Number(data.dpPlucks) >= 20 && onLadder && Number(data.dpDrift) < 100 && windows.length >= 6 && minWindow >= fpsFloor(30),
+    `(${data.dpPlucks} plucks, ${pitches.length} tones, MIDI ${[...new Set(midis)].sort((a, b) => a - b).join("/")}, drift ${data.dpDrift} ppm, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-double-pendulum.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpsp=1&dprs=0&dpa1=45&dpa2=90&dpst=0&dpen=1`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const hit = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.dpHits ?? 0) > 0, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1500);
+  const data = await canvasData();
+  check("double pendulum spars: two mirrored pendulums hit each other, the energy held", hit && data.dpPendulums === "2" && data.dpSpar === "1" && Number(data.dpHits) > 0 && data.dpPlucks === "0" && Number(data.dpDrift) < 100, `(${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-double-pendulum-spar.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpsg=3&dpn=2&dpsl=radial&dpst=12`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const plucked = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.dpPlucks ?? 0) > 3, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("double pendulum runs two triple pendulums on a radial harp", plucked && data.dpSegments === "3" && data.dpPendulums === "2" && data.dpLayout === "radial" && data.dpStrings === "12", `(${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-double-pendulum-triple.png") });
+}
+// A 10 s clip at 8×: the finale holds the rig under the "TIME!" banner, then the run finishes at the clip length.
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dur=10`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("a double pendulum run finishes at the clip length after its finale", done && data.dpDone === "1" && Number(data.dpPlucks) > 20 && Number(data.dpDrift) < 100, `(finished=${done}, elapsed ${time}, ${JSON.stringify(data)})`);
+}
+// --- end jdm-double-pendulum ---
+// --- jdm-illusions ---
+// 23. Circle Illusion and Wobbly Walls: the preview image and the card; URL → the Illusion block of the Mode row (type,
+// count, speed, tracks, reveal, cycles) and the Wobbly Walls slider of the Visual section, controls → URL, the search
+// box, the finder (a fixed-length rings run says so, the nested circles hide it); a lines run whose balls stay exactly on
+// the hidden rolling circle while every rim touch plays a C-major degree (OscillatorNode.start is instrumented); a rings
+// run that lines up; nested circles that collide and wobble; a white-spaces run at 8× that reveals its picture – read
+// back from the canvas pixels: the probe inside the picture bright, the painted arena dark – and holds it before the end
+// screen; the frame rate of every type's defaults; Wobbly Walls in Classic.
+{
+  const res = await page.request.get(`${BASE}/modes/illusion.webp`);
+  check("asset /modes/illusion.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Circle Illusion card is on the landing page", (await page.locator('img[src$="/modes/illusion.webp"]').count()) === 1);
+}
+{
+  const illusionToggle = (label) => page.getByTestId("illusion-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const typeButton = (name) => page.getByRole("group", { name: "Illusion", exact: true }).getByRole("button", { name: new RegExp(name) });
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=rings&ilr=6&ils=1.5&ilc=2&iltr=0&ilrv=1&wob=0.5`, { waitUntil: "networkidle" });
+  {
+    const values = { ilr: await sliderValue("Rings"), ils: await sliderValue("Illusion Speed"), ilc: await sliderValue("Cycles") };
+    const rings = await typeButton("Rings").getAttribute("aria-pressed");
+    const tracks = await illusionToggle("Tracks").getAttribute("aria-pressed");
+    const reveal = await illusionToggle("Reveal").getAttribute("aria-pressed");
+    const cycle = await page.getByTestId("illusion-cycle").innerText();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Balls"]').count()) === 0;
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    const wob = await sliderValue("Wobbly Walls");
+    check(
+      "circle illusion loads from URL",
+      values.ilr === "6" && values.ils === "1.5" && values.ilc === "2" && rings === "true" && tracks === "false" && reveal === "true" && /16s/.test(cycle) && noRingControls && wob === "0.5",
+      `(${JSON.stringify(values)}, rings=${rings}, tracks=${tracks}, reveal=${reveal}, "${cycle}", wobble=${wob})`,
+    );
+    // Two cycles of 16 s always last 32 s: the finder says so at once instead of testing seeds.
+    await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    const shown = await page.getByText(/Circle Illusion always lasts exactly 32\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    check("finder explains a fixed-length illusion run", shown);
+    if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+  }
+  await typeButton("Lines").click();
+  await page.locator('input[aria-label="Balls"]').evaluate(setRangeValue, "12");
+  await page.locator('input[aria-label="Cycles"]').evaluate(setRangeValue, "0");
+  await page.locator('input[aria-label="Wobbly Walls"]').evaluate(setRangeValue, "0.8");
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+    check("circle illusion mirrors into the URL", !/(^|&)ilt=/.test(query) && /(^|&)ilb=12(&|$)/.test(query) && !/(^|&)ilc=/.test(query) && /(^|&)wob=0.8(&|$)/.test(query) && /(^|&)ilrv=1(&|$)/.test(query) && finderHidden, `(${query}, finder hidden=${finderHidden})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("hidden picture");
+  const pictureFound = await page.locator("#illusion-pattern-select").isVisible();
+  await page.getByPlaceholder("Search settings...").fill("wobbly");
+  const wobbleFound = await page.locator('input[aria-label="Wobbly Walls"]').isVisible();
+  check("search finds the illusion controls and Wobbly Walls", pictureFound && wobbleFound && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+const instrumentOscillators = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__ilOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+{
+  // Lines: 8 balls, 4 s a cycle – a touch every quarter second, each ball its own C-major degree from C4.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilrv=1`, { waitUntil: "networkidle" });
+  await instrumentOscillators();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  let worstError = 0;
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    worstError = Math.max(worstError, Number((await canvasData()).illusionCircleError));
+  }
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__ilOsc);
+  const midis = new Set(pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440))));
+  const major = [60, 62, 64, 65, 67, 69, 71, 72];
+  check(
+    "the lines illusion keeps every ball on the hidden rolling circle and plays a note per rim touch",
+    data.illusionType === "lines" && data.illusionBodies === "8" && Number(data.illusionNotes) >= 8 && worstError < 0.01 && pitches.length > 0 && [...midis].every((m) => major.includes(m)) && midis.size >= 6 && data.wobble === undefined,
+    `(${JSON.stringify(data)}, worst circle error ${worstError}px, ${pitches.length} tones, MIDI ${[...midis].sort((a, b) => a - b).join("/")})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-lines.png") });
+}
+{
+  // Rings at 3×: a cycle of 8 s, the balls line up once per cycle.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=rings&ils=3&ilrv=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const aligned = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.illusionAlignments ?? 0) >= 1, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("the rings illusion bounces and lines up every cycle", aligned && data.illusionType === "rings" && Number(data.illusionNotes) > 40, `(${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-rings.png") });
+}
+{
+  // Nested: the circles collide and their walls wobble even with Wobbly Walls at 0; the run is endless, so no finder.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=nested`, { waitUntil: "networkidle" });
+  const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const wobbled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.wobble ?? 0) >= 1, null, { timeout: 10000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1500);
+  const data = await canvasData();
+  check("the nested circles collide, play and wobble; the finder is hidden", wobbled && finderHidden && data.illusionBodies === "3" && Number(data.illusionCollisions) > 0 && Number(data.illusionNotes) > 0, `(${JSON.stringify(data)}, finder hidden=${finderHidden})`);
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-nested.png") });
+}
+{
+  // White spaces at 8×: the balls paint until the picture is revealed; the picture stays bright, the paint is dark,
+  // and the end screen waits for the reveal.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=whitespace&ilp=8`, { waitUntil: "networkidle" });
+  const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const revealed = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.illusionFinished === "1", null, { timeout: 45000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const data = await canvasData();
+  const pixels = await page.evaluate(() => {
+    const c = document.querySelector("main canvas");
+    const g = c.getContext("2d");
+    const dpr = c.width / c.getBoundingClientRect().width;
+    const at = (s) => {
+      const [x, y] = (s || "0,0").split(",").map(Number);
+      return Array.from(g.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data).slice(0, 3);
+    };
+    return { picture: at(c.dataset.illusionProbe), paint: at(c.dataset.illusionPaper) };
+  });
+  const endScreenHeld = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-whitespace.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+  check(
+    "white spaces: the balls paint the arena and reveal the hidden picture, held before the end screen",
+    finderShown && revealed && Number(data.illusionCoverage) >= 98 && !!data.illusionPattern && (pixels.picture[0] + pixels.picture[1] + pixels.picture[2]) / 3 > 140 && pixels.paint.every((v) => v < 60) && endScreenHeld && endScreen,
+    `(finder shown=${finderShown}, ${JSON.stringify(data)}, picture px ${pixels.picture}, paint px ${pixels.paint}, held=${endScreenHeld}, end screen=${endScreen})`,
+  );
+}
+{
+  // The defaults of every type keep the frame rate (headless Chromium; 30+ fps on average over 3 s, fpsFloor() on a busy machine).
+  const rates = {};
+  for (const type of ["lines", "rings", "nested", "whitespace"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=${type}&wob=1`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    rates[type] = await page.evaluate(
+      (ms) =>
+        new Promise((resolve) => {
+          let frames = 0;
+          const start = performance.now();
+          const frame = (t) => {
+            frames++;
+            if (t - start < ms) requestAnimationFrame(frame);
+            else resolve(Math.round((1000 * frames) / (t - start)));
+          };
+          requestAnimationFrame(frame);
+        }),
+      3000,
+    );
+  }
+  check("every illusion type keeps 30+ fps with wobbly walls", Object.values(rates).every((fps) => fps >= fpsFloor(30)), `(${JSON.stringify(rates)}, floor ${fpsFloor(30)}${loadNote()})`);
+}
+{
+  // Wobbly Walls in a ring mode: the rings deform where the ball hits them (data-wobble counts the walls wobbling), off by default.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wob=1&s=700`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const wobbled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.wobble ?? 0) >= 1, null, { timeout: 10000 }).then(() => true).catch(() => false);
+  await page.screenshot({ path: path.join(outDir, "sim-classic-wobble.png") });
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const plain = await canvasData();
+  check("Wobbly Walls make the rings of Classic wobble (and are off by default)", wobbled && plain.wobble === undefined, `(wobbled=${wobbled}, default data-wobble=${plain.wobble})`);
+}
+// --- end jdm-illusions ---
 // --- rigged ---
-// 22. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
+// 24. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
 // warning and the note under the canvas, controls → URL, the search box; a Never Escape run at 8× in which the rig acts
 // and no ball escapes; a three-team race won by the Forced Winner; Find Simulation's Outcome select – a run without an
 // escape in Classic, a first escape at a chosen second in Multiply (whose finder shows now) and a won race.
@@ -2497,7 +2819,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 // --- end rigged ---
 // --- timeline ---
-// 23. Timeline keyframes: a link with keyframes fills the Timeline section (a row per keyframe) and the bar under the
+// 25. Timeline keyframes: a link with keyframes fills the Timeline section (a row per keyframe) and the bar under the
 // canvas (a marker per keyframe); the sliders of the automated settings show the value the run starts with, locked, with an
 // AUTO badge; a run at 8× plays the keyframes on the simulation clock – the engine's values follow them (data-timeline-engine)
 // while the link keeps the settings as they were (the automation is never written back); a keyframe added from the panel at

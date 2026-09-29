@@ -29,6 +29,11 @@ import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, re
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
 import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
+// --- jdm-double-pendulum ---
+import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+// --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
+import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
+import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -374,6 +379,66 @@ export interface SimulatorSettings {
   /** `{ time, key, value }` keyframes of the settings the engine takes live; applied to the run only, never written back here (URL `kf`, e.g. `g_0_300_10_1200`). */
   keyframes: Keyframe[];
   // --- end timeline ---
+  // --- jdm-double-pendulum --- Double Pendulum Harp & sparring (lib/physics/modes/doublePendulum.ts); URL keys in DP_URL_KEYS
+  /** Pendulums sharing the pivot, 1–4 (URL `dpn`; sparring always uses two). */
+  dpCount: number;
+  /** Rods per pendulum: 2 (double) or 3 (triple) (URL `dpsg`). */
+  dpSegments: number;
+  /** Relative rod lengths, 0.2–1 (URL `dpl1`, `dpl2`, `dpl3`). */
+  dpLength1: number;
+  dpLength2: number;
+  dpLength3: number;
+  /** Bob masses, 0.2–5 (URL `dpm1`, `dpm2`, `dpm3`). */
+  dpMass1: number;
+  dpMass2: number;
+  dpMass3: number;
+  /** Gravity as a multiple of 9.81 m/s² on a 1 m rig, 0.2–3 (URL `dpg`). */
+  dpGravity: number;
+  /** Start angles in degrees from hanging down, −180…180 (URL `dpa1`, `dpa2`, `dpa3`). */
+  dpAngle1: number;
+  dpAngle2: number;
+  dpAngle3: number;
+  /** Start from angles drawn from the seed (URL `dprs`). */
+  dpRandomStart: boolean;
+  /** Fraction of the angular velocity lost per 60 Hz step, 0–0.01 (URL `dpd`). */
+  dpDamping: number;
+  /** Seconds the rainbow trail of the last bob reaches back, 0–10 (URL `dptr`). */
+  dpTrailSeconds: number;
+  /** Harp strings, 0–24 (URL `dpst`). */
+  dpStrings: number;
+  /** vertical | radial (URL `dpsl`). */
+  dpStringLayout: DpStringLayout;
+  /** Octaves the strings are tuned across, 1–4 (URL `dpo`). */
+  dpOctaves: number;
+  /** Two pendulums side by side whose bobs collide (URL `dpsp`). */
+  dpSpar: boolean;
+  /** Keep swinging after the clip length (URL `dpen`). */
+  dpEndless: boolean;
+  // --- end jdm-double-pendulum ---
+  // --- jdm-illusions --- Circle Illusion (lib/physics/modes/illusion.ts) and Wobbly Walls (lib/physics/wobble.ts, render-only)
+  /** lines | rings | nested | whitespace (URL `ilt`). */
+  ilType: IllusionType;
+  /** Lines: balls on diameters, 2–32 (URL `ilb`). */
+  ilBalls: number;
+  /** Rings: rings with a ball each, 2–16 (URL `ilr`). */
+  ilRings: number;
+  /** Nested: moving circles inside the arena, 2–5 (URL `ild`). */
+  ilDepth: number;
+  /** Whitespace: painting balls, 1–12 (URL `ilp`). */
+  ilPainters: number;
+  /** Whitespace: the hidden picture, "auto" = chosen by the seed (URL `ilpt`). */
+  ilPattern: IllusionPatternChoice;
+  /** Tempo of every type, 0.25–3 (URL `ils`). */
+  ilSpeed: number;
+  /** Lines: the diameters; rings: the rails (URL `iltr`). */
+  ilTracks: boolean;
+  /** Lines: the hidden rolling circle; rings: a line through the balls (URL `ilrv`). */
+  ilReveal: boolean;
+  /** Lines / rings: cycles after which the run finishes, 0 = never (URL `ilc`). */
+  ilCycles: number;
+  /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
+  wallWobble: number;
+  // --- end jdm-illusions ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -473,6 +538,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultCaptionSettings(), // --- captions ---
     ...DEFAULT_RIGGED, // --- rigged ---
     ...defaultTimelineSettings(), // --- timeline ---
+    ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
+    ...defaultIllusionFields(), // --- jdm-illusions ---
   };
 }
 
@@ -526,6 +593,10 @@ export const RANGES = {
   ...CAPTION_RANGES, // --- captions ---
   ...RIGGED_RANGES, // --- rigged ---
   ...TIMELINE_RANGES, // --- timeline ---
+  ...DOUBLE_PENDULUM_RANGES, // --- jdm-double-pendulum ---
+  // --- jdm-illusions ---
+  ...ILLUSION_RANGES,
+  ...WOBBLE_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -751,6 +822,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
   writeTimelineParams(settings, params); // --- timeline ---: kf
+  writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
+  writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   return params;
 }
 
@@ -857,6 +930,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readCaptionParams(params, settings); // --- captions ---
   Object.assign(settings, resolveRiggedConfig(settings)); // --- rigged --- a bad team slot is off
   readTimelineParams(params, settings, RANGES); // --- timeline ---
+  readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
+  readIllusionParams(params, settings); // --- jdm-illusions ---
   return settings;
 }
 
@@ -1016,6 +1091,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
   Object.assign(merged, resolveRiggedConfig(merged)); // --- rigged --- a non-boolean flag is off, a bad team slot too
   Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
+  Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
+  Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   return merged;
 }
 
