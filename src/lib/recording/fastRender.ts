@@ -188,6 +188,11 @@ export function fastRenderSupported(): boolean {
 
 /** Plays one engine sound event through `audio` – the page's dispatch (the sound loop in Simulator.tsx); keep the two in step. */
 export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak: () => void) {
+  // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
+  if (ev.race) {
+    audio.playRaceArpeggio(ev.race, ev.frequency);
+    return;
+  }
   if (ev.bumper) {
     audio.playBumper(ev.frequency);
     return;

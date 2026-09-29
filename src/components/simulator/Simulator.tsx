@@ -116,7 +116,14 @@ function musicSettingsOf(s: SimulatorSettings): MusicSettings {
 // --- fast-render ---
 /** The page's holds between a finished run and its end screen (the finish detection in the sound loop), for the fast export. */
 function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds {
-  const preMs = engine.isPaintMode() && engine.getPaintState().picture ? PAINT_FINISH_HOLD_MS : engine.isIllusionMode() && engine.getIllusionView().type === "whitespace" ? ILLUSION_REVEAL_HOLD_MS : 0;
+  const preMs =
+    engine.isPaintMode() && engine.getPaintState().picture
+      ? PAINT_FINISH_HOLD_MS
+      : engine.isIllusionMode() && engine.getIllusionView().type === "whitespace"
+        ? ILLUSION_REVEAL_HOLD_MS
+        : isArenaGameMode(engine.getCurrentModeName())
+          ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
+          : 0;
   const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
 }
