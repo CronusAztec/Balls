@@ -23,6 +23,9 @@ import { DEFAULT_BACKGROUND_COLORS, type BackgroundType } from "@/lib/themes"; /
 import { TeamLayer, type CanvasTeamOptions } from "./teamsRenderer"; // --- teams ---
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
+// --- camera --- zoom, screen shake, slow motion on near misses and the escape replay (lib/simulation/camera.ts)
+import { CinematicCamera } from "./cameraRenderer";
+import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -62,6 +65,8 @@ export interface CanvasLabels {
   // --- jdm-collisions ---
   /** Collision Playground: the caption of the anti-collision switch. */
   collideAnti?: string;
+  /** --- camera --- the badge over the escape replay. */
+  replay?: string;
 }
 
 export interface CanvasHandle {
@@ -76,6 +81,8 @@ export interface CanvasHandle {
   // --- themes: the recorder paints each exported frame's background through this (gradient / picture, seamless letterbox bars)
   paintRecordingBackground: (ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => void;
   // --- end themes
+  /** --- camera --- True while the escape replay is about to play or playing: the page holds the end screen (and a recording) back. */
+  holdsEndScreen: () => boolean;
 }
 
 export interface CanvasProps {
@@ -127,6 +134,8 @@ export interface CanvasProps {
   // --- end themes
   // --- teams --- team colours, emoji and names on the balls, the scoreboard and the winner banner (null = no roster); see teamsRenderer.ts
   teams?: CanvasTeamOptions | null;
+  /** --- camera --- Cinematic camera: zoom, shake, slow motion on near misses, escape replay (all off by default). */
+  camera?: CameraSettings;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -161,6 +170,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   paintBeat: (bpm) => `♩ ${bpm} BPM`,
   // --- jdm-collisions ---
   collideAnti: "ANTI-COLLISION",
+  replay: "REPLAY", // --- camera ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -224,6 +234,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     trailColors = NO_TRAIL_COLORS,
     // --- end themes
     teams = null, // --- teams ---
+    camera = DEFAULT_CAMERA_SETTINGS, // --- camera ---
   },
   ref,
 ) {
@@ -256,6 +267,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   // --- teams --- the roster options, read by the draw loop
   const teamsRef = useRef<CanvasTeamOptions | null>(teams);
   teamsRef.current = teams;
+  // --- camera --- the camera settings the draw loop reads; the camera itself lives with the loop
+  const cameraRef = useRef<CameraSettings>(camera);
+  cameraRef.current = camera;
+  const cinematicRef = useRef<CinematicCamera | null>(null);
+  // --- end camera ---
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -392,6 +408,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
     },
     // --- end themes
+    holdsEndScreen: () => cinematicRef.current?.holdsEndScreen() ?? false, // --- camera ---
   }));
 
   useEffect(() => {
@@ -495,6 +512,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
     const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
+    // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
+    const cam = new CinematicCamera();
+    cinematicRef.current = cam;
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -610,20 +630,25 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
       const p = propsRef.current;
+      cam.settings = cameraRef.current; // --- camera ---
 
       if (!p.isPaused && p.isStarted) {
-        accumulator += frameMs * p.simSpeed;
+        accumulator += frameMs * p.simSpeed * cam.timeScale(); // --- camera: slow motion feeds the engine less time; its fixed steps stay the same
         if (accumulator > 250) accumulator = 250;
         while (accumulator >= 16.666) {
           engine.update(16.666, audioRef.current);
+          cam.afterStep(engine); // --- camera: the escape replay's ring buffer
           accumulator -= 16.666;
         }
       }
+      cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
-      const walls = engine.getCircularWalls();
-      const rotations = engine.getWallRotations();
-      const broken = engine.getBrokenWalls();
+      // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones
+      const replay = cam.replayView();
+      const walls = replay ? replay.walls : engine.getCircularWalls();
+      const rotations = replay ? replay.rotations : engine.getWallRotations();
+      const broken = replay ? replay.broken : engine.getBrokenWalls();
       const circleAlpha = (a: number) => {
         const { r, g, b } = circleRgbRef.current;
         return `rgba(${r}, ${g}, ${b}, ${a})`;
@@ -692,7 +717,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       ctx.lineWidth = p.wallThickness;
       ctx.globalAlpha = 0.6;
       ctx.save();
-      if (p.cameraFollow) {
+      if (cam.applyView(ctx, engine, p.cameraFollow, cx, cy, arena, Math.min(size.width, size.height), camXRef.current, camYRef.current)) {
+        // --- camera --- zoom, shake or the replay own the view; the classic follow picks up from where it is
+        camXRef.current = -cam.view.offsetX;
+        camYRef.current = -cam.view.offsetY;
+      } else if (p.cameraFollow) {
         const balls = engine.getBalls();
         if (balls.length > 0) {
           const b = balls[0];
@@ -1299,7 +1328,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Balls
-      const balls = engine.getBalls();
+      const balls = replay ? replay.balls : engine.getBalls(); // --- camera: the replayed balls and trails during the escape replay
       const isColorMatch = engine.isColorMatchMode();
       const matchColor = isColorMatch ? engine.getColorMatchBallColor() : null;
       const rainbowColors: string[] = [];
@@ -1826,6 +1855,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             });
           }
         }
+        if (replay) blocks.length = 0; // --- camera --- the mode banners wait for the end of the escape replay
         const totalH = blocks.reduce((s, b) => s + b.height, 0) + 8 * Math.max(0, blocks.length - 1);
         let y = cy - totalH / 2;
         for (const b of blocks) {
@@ -1911,6 +1941,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.arc(cx, cy, arena + 20 * intensity, 0, TWO_PI);
         ctx.stroke();
       }
+      // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text is there
+      cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", !!p.topText && !p.bottomText);
       ctx.restore();
 
       // Picture Paint: mirror what the HUD shows onto the element (data-paint-*) so tools and the smoke test can read it.
@@ -1972,6 +2004,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.collideBodies !== undefined) {
         for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
       }
+      cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
 
       // --- teams --- teams in play, per-team "bounces/walls/escapes", the winner, the names drawn and the scoreboard (data-team-*) for tools and the smoke test
       if (teamLayer.isActive()) {

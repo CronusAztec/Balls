@@ -108,7 +108,8 @@
     "canvasTeamEscapes": "Escapes",
     "canvasTeamWins": "[name] wins!",
     "canvasTeamTie": "It's a tie!",
-    "canvasTeamFallback": "Team [n]"
+    "canvasTeamFallback": "Team [n]",
+    "canvasReplay": "REPLAY"
   },
   "HowItWorks": {
     "step1": {
@@ -684,7 +685,24 @@
     "teamDefault3": "Green",
     "teamDefault4": "Gold",
     "teamDefault5": "Purple",
-    "teamDefault6": "Orange"
+    "teamDefault6": "Orange",
+    "cameraGroup": "Camera",
+    "cameraGroupTip": "Cinematic camera effects. They only change the picture and the pace at which the clock feeds the simulation, never the physics: seeds and found simulations play out exactly the same.",
+    "cameraGroupDesc": "Zoom in on the ball, shake the view when a wall breaks, slow down on near misses and replay the escape – in the preview and in recordings.",
+    "cameraOff": "Off",
+    "cameraZoom": "Camera Zoom",
+    "cameraZoomTip": "How far the view zooms toward the ball, following it around the arena. 0 keeps today's view (with Camera Follow on, the gentle classic follow). In the two-ball modes the zoom stays wide enough to keep both balls in frame.",
+    "screenShake": "Screen Shake",
+    "screenShakeTip": "Shakes the view every time a wall breaks; the shake dies out over 300 ms. Higher values shake harder.",
+    "slowMoOnNearMiss": "Slow-Mo on Near Miss",
+    "slowMoOnNearMissTip": "When the ball squeezes through a gap right next to its edge (the Drama Director's near miss), time slows down for a moment. The simulation runs the same steps, just slower – recordings show the slow motion.",
+    "slowMoFactor": "Slow-Mo Speed",
+    "slowMoFactorTip": "How fast time runs during the slow motion: 0.2× is very slow, 0.8× barely slower.",
+    "slowMoMs": "Slow-Mo Length",
+    "slowMoMsTip": "How long each slow-motion moment lasts, in real time. Afterwards a short pause keeps back-to-back near misses from slowing down the whole run.",
+    "replayOnEscape": "Replay on Escape",
+    "replayOnEscapeTip": "When a ball escapes the outer wall and the run ends, its last 2 seconds play again at half speed with a REPLAY badge before the end screen – in recordings too.",
+    "replayOnEscapeModes": "The replay plays in the escape modes: Classic, Accumulation, Portal, Shatter and Color Match."
   },
   "Modes": {
     "classic": {

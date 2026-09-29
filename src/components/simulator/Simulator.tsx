@@ -34,6 +34,7 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces 
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
+import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import {
   RANGES,
   defaultSettings,
@@ -583,7 +584,9 @@ export default function Simulator() {
           if (paintFinishedAtRef.current === null) paintFinishedAtRef.current = now;
           if (now - paintFinishedAtRef.current < PAINT_FINISH_HOLD_MS) done = false;
         } else paintFinishedAtRef.current = null;
+        if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
+        // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over)
         if (done && teamsPlayRef.current) {
           const now = performance.now();
           if (winnerShownAtRef.current === null) winnerShownAtRef.current = now;
@@ -1157,6 +1160,7 @@ export default function Simulator() {
       paintBeat: (bpm) => fill("Simulator.canvasPaintBeat", { bpm }),
       // --- jdm-collisions ---
       collideAnti: t("Simulator.canvasCollideAnti"),
+      replay: t("Simulator.canvasReplay"), // --- camera ---
     };
   }, [t]);
 
@@ -1246,6 +1250,8 @@ export default function Simulator() {
                   backgroundImage={backgroundImage?.url ?? null}
                   trailColors={s.trailColors}
                   teams={teamRender} // --- teams ---
+                  // --- camera ---
+                  camera={cameraSettingsOf(s)}
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">

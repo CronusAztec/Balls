@@ -18,6 +18,7 @@ import { SITE_DOMAIN } from "@/lib/site";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- boris-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
+import { CAMERA_RANGES, DEFAULT_CAMERA_SETTINGS, cameraSettingsOf, resolveCameraSettings } from "@/lib/simulation/camera"; // --- camera
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -289,6 +290,20 @@ export interface SimulatorSettings {
   /** top-left | top-right (URL `tsp`). */
   scoreboardPosition: ScoreboardPosition;
   // --- end teams ---
+  // --- camera --- Cinematic camera (lib/simulation/camera.ts): rendering and time scale only, all off by default
+  /** 0–1: the view zooms toward the ball and follows it; 0 = the classic camera follow (URL `cz`). */
+  cameraZoom: number;
+  /** 0–1: the view shakes on every wall break, decaying over 300 ms (URL `shake`). */
+  screenShake: number;
+  /** The simulation clock slows down for a moment on a near miss (URL `slow`). */
+  slowMoOnNearMiss: boolean;
+  /** Slow-motion speed, 0.2–0.8 of real time (URL `slowf`). */
+  slowMoFactor: number;
+  /** Slow-motion window in ms of real time, 200–1500 (URL `slowms`). */
+  slowMoMs: number;
+  /** When a ball escapes the outer wall, its last 2 s replay at half speed before the end screen (URL `replay`). */
+  replayOnEscape: boolean;
+  // --- end camera ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -378,6 +393,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     quantizeGrid: "1/8",
     ...DEFAULT_CHARACTER, // --- boris-faces ---
     ...defaultTeamSettings(), // --- teams ---
+    ...DEFAULT_CAMERA_SETTINGS, // --- camera ---
   };
 }
 
@@ -421,6 +437,7 @@ export const RANGES = {
   // --- jdm-collisions ---
   ...COLLIDE_RANGES,
   ...TEAM_RANGES, // --- teams ---
+  ...CAMERA_RANGES, // --- camera ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -511,6 +528,11 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   cpg: "cpGravity",
   cpe: "cpRestitution",
   cpac: "cpAntiCollisionAt",
+  // --- camera --- Cinematic camera
+  cz: "cameraZoom",
+  shake: "screenShake",
+  slowf: "slowMoFactor",
+  slowms: "slowMoMs",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -554,6 +576,9 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   cpsq: "cpSquishy",
   cpsy: "cpSyncStart",
   cpr: "cpRing",
+  // --- camera --- Cinematic camera
+  slow: "slowMoOnNearMiss",
+  replay: "replayOnEscape",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -704,6 +729,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   clampCharacter(settings);
   readThemeParams(params, settings); // --- themes
   readTeamParams(params, settings); // --- teams --- (after `two`: a roster or `nb` sets the ball count)
+  clampCameraSettings(settings); // --- camera ---
   return settings;
 }
 
@@ -772,6 +798,13 @@ function clampCharacter(settings: SimulatorSettings) {
   Object.assign(settings, resolveCharacterSettings(characterOf(settings)));
 }
 
+// --- camera ---
+/** Keeps the cinematic-camera settings inside their ranges; a bad number falls back to its default, a non-boolean flag to "off" (URL parameters and presets alike). */
+function clampCameraSettings(settings: SimulatorSettings) {
+  Object.assign(settings, resolveCameraSettings(cameraSettingsOf(settings)));
+}
+// --- end camera ---
+
 /* ------------------------------------------------------------------ presets */
 
 export const PRESETS_STORAGE_KEY = "viralballs_saved_settings";
@@ -837,6 +870,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampCharacter(merged); // --- boris-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
   Object.assign(merged, resolveTeamSettings({ ...merged, ballCount: preset.ballCount })); // --- teams --- (a preset without a ball count: `twoBalls` means two)
+  clampCameraSettings(merged); // --- camera ---
   return merged;
 }
 

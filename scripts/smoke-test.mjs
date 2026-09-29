@@ -1463,6 +1463,89 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
   }
 }
 // --- end teams ---
+// --- camera ---
+// 15. Cinematic camera: URL → the Camera group of the Visual section, controls → URL, the search box; a Classic run
+// zooms toward the ball, shakes on a wall break and slows the clock on a near miss (data-camera-*); a quick Classic
+// escape recorded at 8× replays its last 2 s at half speed with the REPLAY badge while the recording keeps going,
+// and only then do the export and the end screen follow.
+{
+  const cameraToggle = (label) => page.getByTestId("camera-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const cameraPhase = () => page.evaluate(() => document.querySelector("main canvas")?.dataset.cameraReplay ?? "");
+  await page.goto(`${BASE}/en/simulator/?mode=classic&cz=0.6&shake=0.5&slow=1&slowf=0.3&slowms=900&replay=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  {
+    const values = { cz: await sliderValue("Camera Zoom"), shake: await sliderValue("Screen Shake"), slowf: await sliderValue("Slow-Mo Speed"), slowms: await sliderValue("Slow-Mo Length") };
+    const slow = await cameraToggle("Slow-Mo on Near Miss").getAttribute("aria-pressed");
+    const replay = await cameraToggle("Replay on Escape").getAttribute("aria-pressed");
+    check("camera settings load from URL into the Camera group", values.cz === "0.6" && values.shake === "0.5" && values.slowf === "0.3" && values.slowms === "900" && slow === "true" && replay === "true", `(${JSON.stringify(values)}, slow=${slow}, replay=${replay})`);
+  }
+  await page.locator('input[aria-label="Camera Zoom"]').evaluate(setRangeValue, "0.8");
+  await cameraToggle("Slow-Mo on Near Miss").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const slidersHidden = (await page.locator('input[aria-label="Slow-Mo Speed"]').count()) === 0;
+    check("camera controls mirror into the URL", /(^|&)cz=0\.8(&|$)/.test(query) && !/(^|&)slow=/.test(query) && /(^|&)replay=1(&|$)/.test(query) && slidersHidden, `(${query}, slow-mo sliders hidden=${slidersHidden})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("shake");
+  check("search finds the camera controls", (await page.locator('input[aria-label="Screen Shake"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+
+  await page.goto(`${BASE}/en/simulator/?mode=classic&cz=1&shake=1&slow=1&slowf=0.2&slowms=1200`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  {
+    const slowed = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.cameraTimeScale) < 0.5, null, { timeout: 45000, polling: "raf" }).then(() => true).catch(() => false);
+    await page.screenshot({ path: path.join(outDir, "sim-camera-slowmo.png") });
+    const data = await canvasData();
+    check(
+      "camera zooms toward the ball, shakes on a wall break and slows the clock on a near miss",
+      slowed && Number(data.cameraScale) > 1.6 && Number(data.cameraShakes) > 0 && Number(data.cameraSlowMo) > 0 && data.cameraReplay === "idle",
+      `(slowed=${slowed}, scale ${data.cameraScale}, time scale ${data.cameraTimeScale}, shakes ${data.cameraShakes}, slow-mo windows ${data.cameraSlowMo})`,
+    );
+  }
+
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=2&gap=0.9&replay=1&shake=0.6&res=500x500&dur=60`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const replayDownload = page.waitForEvent("download", { timeout: 90000 }).catch(() => null);
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const playing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "playing", null, { timeout: 60000, polling: "raf" }).then(() => true).catch(() => false);
+    const playingAt = Date.now();
+    const recordingDuringReplay = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+    const endScreenDuringReplay = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false);
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: path.join(outDir, "sim-camera-replay.png") });
+    const mid = await canvasData();
+    const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "done", null, { timeout: 20000 }).then(() => true).catch(() => false);
+    const replayMs = Date.now() - playingAt;
+    const download = await replayDownload;
+    let size = 0;
+    if (download) {
+      const file = path.join(outDir, `replay-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      size = fs.statSync(file).size;
+    }
+    const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    check(
+      "escape replay plays at half speed, recorded, before the end screen",
+      playing && recordingDuringReplay && !endScreenDuringReplay && mid.cameraReplay === "playing" && mid.cameraReplays === "1" && done && replayMs > 1500 && replayMs < 9000 && size > 10000 && endScreen && (await cameraPhase()) === "done",
+      `(playing=${playing}, recording during replay=${recordingDuringReplay}, end screen during replay=${endScreenDuringReplay}, replay ${replayMs} ms, export ${size} bytes, end screen=${endScreen})`,
+    );
+  }
+  // Without a recording: Restart Simulation runs again, and the end screen waits for the replay.
+  await page.getByRole("button", { name: /Restart Simulation/ }).click();
+  {
+    const restarted = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "idle", null, { timeout: 5000, polling: "raf" }).then(() => true).catch(() => false);
+    const playing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "playing", null, { timeout: 60000, polling: "raf" }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    const heldBack = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false)) && (await cameraPhase()) === "playing";
+    const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    check("the end screen waits for the escape replay", restarted && playing && heldBack && endScreen && (await cameraPhase()) === "done", `(restarted=${restarted}, playing=${playing}, held back=${heldBack}, end screen=${endScreen})`);
+  }
+}
+// --- end camera ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

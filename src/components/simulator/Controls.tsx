@@ -16,6 +16,7 @@ import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type Paint
 import PolyrhythmSection, { POLYRHYTHM_KEYS } from "./sections/PolyrhythmSection"; // --- jdm-polyrhythm ---
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import ThemeSection, { THEME_KEYS, type ThemeImageProps } from "./sections/ThemeSection"; // --- themes
+import CameraSection, { CAMERA_KEYS } from "./sections/CameraSection"; // --- camera ---
 // --- jdm-collisions ---
 import CollisionPlaygroundSection, { COLLISION_PLAYGROUND_KEYS } from "./sections/CollisionPlaygroundSection";
 // --- teams ---
@@ -28,6 +29,7 @@ import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { characterOf } from "@/lib/character/character"; // --- boris-faces ---
+import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { ACCENT } from "@/lib/site";
@@ -109,6 +111,8 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
 SECTION_KEYS.ball.push("ballCount"); // --- teams --- the ball count slider (it replaced the "Two balls" switch)
 // --- jdm-polyrhythm --- the Metronomes & Polyrhythms block is searched with the Ball section (like the Pendulum wave block).
 SECTION_KEYS.ball.push(...POLYRHYTHM_KEYS);
+// --- camera --- the Camera group (zoom, shake, slow motion, replay) is part of the Visual section.
+SECTION_KEYS.visual.push(...CAMERA_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -437,6 +441,8 @@ export default function Controls(props: ControlsProps) {
           <Tooltip text={t("cameraFollowTip")} />
         </button>
       </Searchable>
+      {/* --- camera --- the Camera group: zoom toward the ball, screen shake, slow motion on near misses, escape replay */}
+      <CameraSection t={t} search={search} matches={matches} settings={s} update={update} />
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="cinematic">
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
@@ -1299,6 +1305,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         particleStyle: d.particleStyle,
         trailColors: d.trailColors,
         // --- end themes
+        ...cameraSettingsOf(d), // --- camera ---
       };
     case "sound":
       return {
