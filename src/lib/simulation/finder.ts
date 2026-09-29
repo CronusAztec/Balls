@@ -15,6 +15,8 @@ import type { GlassSettings } from "@/lib/physics/modes/glass";
 import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } from "@/lib/physics/modes/multipliers";
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
+// --- jdm-illusions ---
+import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettings } from "@/lib/physics/modes/illusion";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -60,7 +62,14 @@ export interface ModeSettings {
   // --- jdm-double-pendulum ---
   /** Double Pendulum: rig, start, damping, strings, sparring and the end (clip length or endless; see modes/doublePendulum.ts); the defaults when left out. */
   doublePendulum?: Partial<DoublePendulumSettings>;
+  // --- jdm-illusions ---
+  /** Circle Illusion: type, counts, pattern, speed and cycles (see modes/illusion.ts); the defaults when left out. The whitespace type ends when its picture is revealed, so the finder searches it. */
+  illusion?: Partial<IllusionSettings>;
 }
+
+// --- jdm-illusions ---
+/** Seeds of the Circle Illusion simulated per animation frame (a whitespace seed paints a grid for tens of seconds). */
+export const ILLUSION_FINDER_BATCH = 4;
 
 /** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
 export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
@@ -71,7 +80,7 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
   if (mode === "collide") return true;
@@ -82,6 +91,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "polyrhythm") return resolvePolyrhythmSettings(settings.polyrhythm).cycles === 0;
   // --- jdm-double-pendulum --- (endless: it swings until it is stopped)
   if (mode === "doublePendulum") return resolveDoublePendulumSettings(settings.doublePendulum).endless;
+  // --- jdm-illusions --- the nested circles bounce forever; lines and rings with the cycles at "never"
+  if (mode === "illusion") return illusionRunNeverFinishes(settings.illusion);
   return false;
 }
 
@@ -91,7 +102,7 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
  * finder does not search a fixed length that misses the target: it resolves at once with `fixedDuration`
  * set and the page says what to change instead.
  */
-export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum">): number | null {
+export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">): number | null {
   // --- jdm-polyrhythm --- (cycles × the cycle length, the seed only picks the direction)
   if (mode === "polyrhythm") {
     const p = resolvePolyrhythmSettings(settings.polyrhythm);
@@ -102,6 +113,8 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
     const dp = resolveDoublePendulumSettings(settings.doublePendulum);
     return dp.endless ? null : dp.clipSeconds;
   }
+  // --- jdm-illusions --- lines and rings: cycles × the cycle length, whatever the seed
+  if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
@@ -179,6 +192,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "multipliers") engine.setMultipliersSettings(settings.multipliers ?? {});
   // --- jdm-double-pendulum ---
   if (mode === "doublePendulum") engine.setDoublePendulumSettings(settings.doublePendulum ?? {});
+  // --- jdm-illusions ---
+  if (mode === "illusion") engine.setIllusionSettings(settings.illusion ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -247,7 +262,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : 50;
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed)
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;

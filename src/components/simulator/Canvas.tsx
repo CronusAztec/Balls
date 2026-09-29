@@ -38,6 +38,9 @@ import { CaptionLayer, type CanvasCaptionOptions, type CaptionView } from "./cap
 import { edgeTextBounds, emptyEdgeTextLines, exportEdgeTextLines, liveEdgeTextLines } from "@/lib/captions"; // --- captions ---
 // --- jdm-double-pendulum ---
 import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumStrings, drawDoublePendulumTrails, type DoublePendulumRenderOptions } from "./doublePendulumRenderer";
+// --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
+import { WobbleLayer } from "./wobbleRenderer";
+import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -100,6 +103,10 @@ export interface CanvasLabels {
   dpPlucks?: (n: number) => string;
   dpHits?: (n: number) => string;
   dpChaos?: (seconds: number) => string;
+  // --- jdm-illusions ---
+  /** Circle Illusion: the whitespace picture is revealed; the cycles a lines / rings run finished after. */
+  illusionRevealed?: string;
+  illusionCycles?: (n: number) => string;
 }
 
 export interface CanvasHandle {
@@ -181,6 +188,8 @@ export interface CanvasProps {
   onObstaclesChange?: (obstacles: EditorObstacle[]) => void;
   /** --- captions --- Animated captions drawn in the exported square on the simulation clock (null = none); see captionsRenderer.ts. */
   captions?: CanvasCaptionOptions | null;
+  /** --- jdm-illusions --- Wobbly Walls, 0–1: circular walls deform with a travelling wave where a ball hits them (0 = perfect circles). */
+  wallWobble?: number;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -232,6 +241,9 @@ const DEFAULT_LABELS: CanvasLabels = {
   dpPlucks: (n) => `${n} strings plucked`,
   dpHits: (n) => `${n} hits`,
   dpChaos: (seconds) => `${seconds}s of chaos`,
+  // --- jdm-illusions ---
+  illusionRevealed: "REVEALED!",
+  illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
 };
 
 const TWO_PI = Math.PI * 2;
@@ -299,6 +311,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     obstacleEditing = false, // --- obstacle-editor ---
     onObstaclesChange,
     captions = null, // --- captions ---
+    wallWobble = 0, // --- jdm-illusions ---
   },
   ref,
 ) {
@@ -350,6 +363,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const captionsRef = useRef<CanvasCaptionOptions | null>(captions);
   captionsRef.current = captions;
   const captionLayerRef = useRef<CaptionLayer | null>(null);
+  // --- jdm-illusions --- the Wobbly Walls amount, read by the draw loop
+  const wobbleAmountRef = useRef(wallWobble);
+  wobbleAmountRef.current = wallWobble;
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -614,6 +630,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- obstacle-editor --- the editor obstacles' renderer options, refreshed per frame, and the layer that draws and edits them
     const obstacleRender: ObstacleRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, gradient: false, editing: false };
     const obstacleLayer = (obstacleLayerRef.current ??= new ObstacleEditorLayer());
+    // --- jdm-illusions --- the wobbly walls (contacts → displacement waves) and the Circle Illusion's layers, with their per-frame options
+    const wobble = new WobbleLayer();
+    const illusionLayer = new IllusionLayer();
+    const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr, nowMs: 0 };
+    const illusionLabels: IllusionLabels = { revealed: DEFAULT_LABELS.illusionRevealed!, painted: DEFAULT_LABELS.painted };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -863,6 +884,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (multBoard) ctx.translate(0, -multBoard.cameraY);
       // --- end boris-multipliers ---
 
+      // --- jdm-illusions --- the Circle Illusion's view, and this frame's wobbly walls: new contacts, the simulation time, the amount
+      const illusionView = engine.isIllusionMode() ? engine.getIllusionView() : null;
+      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
+
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
       const conicGradient = (alpha?: number) => {
         if (conicCache && conicCache.time === time && conicCache.alpha === alpha) return conicCache.gradient;
@@ -878,6 +903,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       };
       const strokeArc = (index: number, radius: number, from: number, to: number, alpha?: number) => {
         ctx.strokeStyle = p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
+        if (wobble.strokeArc(ctx, index, cx, cy, radius, from, to)) return; // --- jdm-illusions --- a wobbling wall follows its displacement wave
         ctx.beginPath();
         ctx.arc(cx, cy, radius, from, to);
         ctx.stroke();
@@ -903,6 +929,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             const rOut = wall.radius + thickness / 2;
             ctx.globalAlpha = 0.85;
             ctx.fillStyle = wallColor(i, undefined, p.rainbowWalls && p.rainbowWallMode === "gradient" ? ((mid % TWO_PI) + TWO_PI) % TWO_PI : undefined);
+            if (wobble.fillSector(ctx, i, cx, cy, rIn, rOut, a0, a1, wall.radius)) continue; // --- jdm-illusions ---
             ctx.beginPath();
             ctx.moveTo(cx + Math.cos(a0) * rOut, cy + Math.sin(a0) * rOut);
             ctx.arc(cx, cy, rOut, a0, a1);
@@ -1055,6 +1082,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         drawDoublePendulumTrails(ctx, view, dpRender);
       }
 
+      // --- jdm-illusions --- Circle Illusion: the big circle and its diameters, the rings, the nested circles, or the white arena and its paint.
+      if (illusionView) {
+        illusionRender.wallColor = wallColor;
+        illusionRender.rainbow = p.rainbowWalls;
+        illusionRender.wallThickness = p.wallThickness;
+        illusionRender.showGlow = p.showGlow;
+        illusionRender.showTrails = p.showTrails;
+        illusionRender.trailThickness = p.trailThickness;
+        illusionRender.nowMs = engine.getElapsedMs();
+        illusionLayer.drawStage(ctx, illusionView, illusionRender, wobble);
+      }
+
       // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
       if (glassView) {
         const GL = labelsRef.current ?? DEFAULT_LABELS;
@@ -1088,6 +1127,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             if (seg.broken) continue;
             ctx.globalAlpha = 0.85;
             ctx.strokeStyle = seg.color;
+            if (wobble.strokeArc(ctx, 0, cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005)) continue; // --- jdm-illusions ---
             ctx.beginPath();
             ctx.arc(cx, cy, radius, seg.startAngle + rot + 0.005, seg.endAngle + rot - 0.005);
             ctx.stroke();
@@ -1238,7 +1278,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               ctx.shadowBlur = blur;
             }
             ctx.beginPath();
-            ctx.arc(cx, cy, radius, a0 + 0.02, a1 - 0.02);
+            wobble.pathArc(ctx, 0, cx, cy, radius, a0 + 0.02, a1 - 0.02); // --- jdm-illusions --- (the segments follow a wobbling wall)
             ctx.stroke();
             ctx.restore();
             const lx = cx + labelR * Math.cos(mid);
@@ -1393,6 +1433,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               for (const arc of arcs) {
                 const rIn = wall.radius - (thickness / 2) * layer.widthMult - 1;
                 const rOut = wall.radius + (thickness / 2) * layer.widthMult + 1;
+                if (wobble.fillSector(ctx, wi, cx, cy, rIn, rOut, arc.sA, arc.eA, wall.radius)) continue; // --- jdm-illusions ---
                 ctx.beginPath();
                 ctx.arc(cx, cy, rOut, arc.sA, arc.eA);
                 ctx.arc(cx, cy, rIn, arc.eA, arc.sA, true);
@@ -1416,6 +1457,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               ctx.strokeStyle = p.rainbowWalls ? (p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(wi, alpha)) : circleAlpha(alpha);
               ctx.globalAlpha = layer.alphaMult > 0.2 ? 0.85 : 0.5;
               for (const arc of arcs) {
+                if (wobble.strokeArc(ctx, wi, cx, cy, wall.radius, arc.start, arc.end)) continue; // --- jdm-illusions ---
                 ctx.beginPath();
                 ctx.arc(cx, cy, wall.radius, arc.start, arc.end);
                 ctx.stroke();
@@ -1530,6 +1572,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
       else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
+      else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1719,6 +1762,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- jdm-double-pendulum --- faces on the Double Pendulum's bobs too
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
+      // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
+      if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
@@ -1822,6 +1867,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
+      // --- jdm-illusions --- Circle Illusion: the alignment / reveal flash, the paint counter and "REVEALED!" (screen space, part of the recording).
+      if (illusionView) {
+        const IL = labelsRef.current ?? DEFAULT_LABELS;
+        illusionLabels.revealed = IL.illusionRevealed ?? DEFAULT_LABELS.illusionRevealed!;
+        illusionLabels.painted = IL.painted;
+        illusionLayer.drawOverlay(ctx, size.width, size.height, illusionView, engine.getElapsedMs(), illusionLabels);
+      }
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
       // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
       const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
@@ -2033,6 +2085,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             bigBanner(L.dpDone ?? DEFAULT_LABELS.dpDone!, summary, "#a3e635");
           }
         }
+        // --- jdm-illusions --- lines / rings run for a set number of cycles: the figure is back where it started.
+        if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635");
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
           const prog = engine.getGlassProgress();
@@ -2288,6 +2342,27 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.dpPendulums !== undefined) {
         for (const key of ["dpPendulums", "dpSegments", "dpStrings", "dpLayout", "dpSpar", "dpPlucks", "dpHits", "dpDrift", "dpDone"]) delete canvas.dataset[key];
       }
+      // --- jdm-illusions --- Circle Illusion (data-illusion-*) and the wobbly walls (data-wobble: walls wobbling this frame) for tools and the smoke test
+      if (illusionView) {
+        const iv = illusionView;
+        setCanvasData("illusionType", iv.type);
+        setCanvasData("illusionBodies", String(iv.count));
+        setCanvasData("illusionNotes", String(iv.noteCount));
+        setCanvasData("illusionCycles", String(iv.cyclesDone));
+        setCanvasData("illusionAlignments", String(iv.alignCount));
+        setCanvasData("illusionCollisions", String(iv.collisions));
+        setCanvasData("illusionCoverage", String(Math.floor(100 * iv.coverage)));
+        setCanvasData("illusionPattern", iv.pattern ? iv.pattern.id : "");
+        setCanvasData("illusionFinished", iv.finished ? "1" : "0");
+        setCanvasData("illusionCircleError", iv.circleError.toFixed(3));
+        setCanvasData("illusionProbe", iv.pattern ? `${Math.round(iv.pattern.probeX)},${Math.round(iv.pattern.probeY)}` : "");
+        setCanvasData("illusionPaper", iv.type === "whitespace" ? `${Math.round(iv.cx)},${Math.round(iv.cy + 0.85 * iv.radius)}` : "");
+      } else if (canvas.dataset.illusionType !== undefined) {
+        for (const key of ["illusionType", "illusionBodies", "illusionNotes", "illusionCycles", "illusionAlignments", "illusionCollisions", "illusionCoverage", "illusionPattern", "illusionFinished", "illusionCircleError", "illusionProbe", "illusionPaper"]) delete canvas.dataset[key];
+      }
+      if (wobble.on) setCanvasData("wobble", String(wobble.wobbling));
+      else if (canvas.dataset.wobble !== undefined) delete canvas.dataset.wobble;
+      // --- end jdm-illusions ---
       cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
       // --- obstacle-editor --- obstacles in play, editing, the selection, hits, bumper kicks and the first spinner's angle (data-obstacle*) for tools and the smoke test
       if (editorField) {

@@ -29,6 +29,9 @@ import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, re
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+// --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
+import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
+import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -400,6 +403,30 @@ export interface SimulatorSettings {
   /** Keep swinging after the clip length (URL `dpen`). */
   dpEndless: boolean;
   // --- end jdm-double-pendulum ---
+  // --- jdm-illusions --- Circle Illusion (lib/physics/modes/illusion.ts) and Wobbly Walls (lib/physics/wobble.ts, render-only)
+  /** lines | rings | nested | whitespace (URL `ilt`). */
+  ilType: IllusionType;
+  /** Lines: balls on diameters, 2–32 (URL `ilb`). */
+  ilBalls: number;
+  /** Rings: rings with a ball each, 2–16 (URL `ilr`). */
+  ilRings: number;
+  /** Nested: moving circles inside the arena, 2–5 (URL `ild`). */
+  ilDepth: number;
+  /** Whitespace: painting balls, 1–12 (URL `ilp`). */
+  ilPainters: number;
+  /** Whitespace: the hidden picture, "auto" = chosen by the seed (URL `ilpt`). */
+  ilPattern: IllusionPatternChoice;
+  /** Tempo of every type, 0.25–3 (URL `ils`). */
+  ilSpeed: number;
+  /** Lines: the diameters; rings: the rails (URL `iltr`). */
+  ilTracks: boolean;
+  /** Lines: the hidden rolling circle; rings: a line through the balls (URL `ilrv`). */
+  ilReveal: boolean;
+  /** Lines / rings: cycles after which the run finishes, 0 = never (URL `ilc`). */
+  ilCycles: number;
+  /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
+  wallWobble: number;
+  // --- end jdm-illusions ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -498,6 +525,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
+    ...defaultIllusionFields(), // --- jdm-illusions ---
   };
 }
 
@@ -550,6 +578,9 @@ export const RANGES = {
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
   ...DOUBLE_PENDULUM_RANGES, // --- jdm-double-pendulum ---
+  // --- jdm-illusions ---
+  ...ILLUSION_RANGES,
+  ...WOBBLE_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -773,6 +804,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
+  writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   return params;
 }
 
@@ -878,6 +910,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
+  readIllusionParams(params, settings); // --- jdm-illusions ---
   return settings;
 }
 
@@ -1036,6 +1069,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
+  Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   return merged;
 }
 

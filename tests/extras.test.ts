@@ -98,6 +98,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   multipliers: { samples: [[211640,191252],[266980,620146],[529953,990656],[362092,1570907],[620725,1348624],[611940,1608709],[447416,1810903],[350566,1720155]], broken: [], walls: [] },
   // --- jdm-double-pendulum --- Double Pendulum: RK4 chains, no rings; recorded when the mode was added (seed 12345, default: one double pendulum from a seeded start, 15 strings).
   doublePendulum: { samples: [[346027,416241],[466095,461058],[522054,260913],[597547,364478],[287916,237854],[311917,363747],[507974,369040],[380581,383037]], broken: [], walls: [] },
+  // --- jdm-illusions --- Circle Illusion: analytic motion, no rings; recorded when the mode was added (seed 12345, default: 8 balls on diameters, a 4 s cycle).
+  illusion: { samples: [[400000,477173],[311414,513866],[400000,300000],[436694,211414],[400000,122827],[436694,211414],[400000,550560],[311414,513866]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

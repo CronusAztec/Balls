@@ -35,3 +35,6 @@ export type { MultipliersSettings, MultipliersView, MultiplierBoard, GateKind, G
 // --- jdm-double-pendulum ---
 export { DoublePendulumMode } from "./doublePendulum";
 export type { DoublePendulumSettings, DoublePendulumView, DpPendulum, DpString, DpHit, DpField, DpStringLayout, HarpGeometry } from "./doublePendulum";
+// --- jdm-illusions ---
+export { IllusionMode } from "./illusion";
+export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionView } from "./illusion";

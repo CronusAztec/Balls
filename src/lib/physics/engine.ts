@@ -28,6 +28,9 @@ import { MultipliersMode, type MultipliersSettings, type MultipliersView } from 
 // --- jdm-double-pendulum ---
 import { DoublePendulumMode, type DoublePendulumSettings, type DoublePendulumView } from "./modes/doublePendulum";
 import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
+// --- jdm-illusions --- the Circle Illusion mode and the wall-contact log of the wobbly walls
+import { IllusionMode, type IllusionSettings, type IllusionView } from "./modes/illusion";
+import { WallContactLog, wobbleStrength } from "./wobble";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -207,6 +210,9 @@ export class PhysicsEngine {
   private pairRs = new Float64Array(0);
   // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners (obstacleEditor.ts), built from the config
   private readonly editorObstacles = new ObstacleField();
+  // --- jdm-illusions --- the Circle Illusion mode, and every wall contact of the run for the canvas' wobbly walls (render-only)
+  readonly illusionMode = new IllusionMode();
+  private readonly wallContacts = new WallContactLog();
 
   readonly ctx: ModeContext;
 
@@ -267,6 +273,7 @@ export class PhysicsEngine {
       getObstacles: () => this.obstacles,
       setObstacles: (obstacles) => this.setObstacles(obstacles),
       getMultipliers: () => this.multipliers, // --- boris-multipliers ---
+      recordWallContact: (wallIndex, angle, strength, timeMs) => this.wallContacts.record(wallIndex, angle, strength, timeMs ?? this._elapsedMs), // --- jdm-illusions ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -440,6 +447,10 @@ export class PhysicsEngine {
   initDoublePendulum() {
     this.activateMode(this.doublePendulumMode, "none");
   }
+  // --- jdm-illusions ---
+  initIllusion() {
+    this.activateMode(this.illusionMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -485,6 +496,9 @@ export class PhysicsEngine {
       // --- jdm-double-pendulum ---
       case "doublePendulum":
         return this.initDoublePendulum();
+      // --- jdm-illusions ---
+      case "illusion":
+        return this.initIllusion();
     }
   }
 
@@ -1023,6 +1037,29 @@ export class PhysicsEngine {
     return this.doublePendulumMode.energyDrift();
   }
   // --- end jdm-double-pendulum ---
+  // --- jdm-illusions ---
+  isIllusionMode() {
+    return this.currentMode === this.illusionMode;
+  }
+  getIllusionSettings(): IllusionSettings {
+    return this.illusionMode.getSettings();
+  }
+  /** Type, counts, pattern, speed and cycles of the Circle Illusion apply on the next `initIllusion()`; the tracks and the reveal at once. */
+  setIllusionSettings(settings: Partial<IllusionSettings>) {
+    this.illusionMode.setSettings(settings);
+  }
+  /** Live Circle Illusion state (bodies, circles, rings, layers, paint, counters) for the canvas and the HUD; the same object every call. */
+  getIllusionView(): IllusionView {
+    return this.illusionMode.getView();
+  }
+  getIllusionProgress() {
+    return this.illusionMode.getProgress();
+  }
+  /** Every wall contact of the run – the rings of the ring modes, the Circle Illusion's own circles – for the canvas' wobbly walls. */
+  getWallContacts(): WallContactLog {
+    return this.wallContacts;
+  }
+  // --- end jdm-illusions ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
@@ -1159,6 +1196,7 @@ export class PhysicsEngine {
     this.multipliers.reset(); // --- boris-multipliers ---
     this.ballStats.reset(); // --- teams ---
     this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
+    this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1628,6 +1666,8 @@ export class PhysicsEngine {
           const target = contactSpin(ball.vx, ball.vy, nx, ny, inside, this.wallRotationRate(w) * wall.radius, ball.radius);
           ball.spin += (target - ball.spin) * this.extras.spinStrength;
         }
+        // --- jdm-illusions --- the contact for the canvas' wobbly walls (render-only): a ball inside pushes the wall out, one outside in
+        this.wallContacts.record(w, angle, (inside ? 1 : -1) * wobbleStrength(ball.vx * nx + ball.vy * ny, this._config.ballSpeed || 400), this._elapsedMs);
         const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
         this.pendingSoundEvents.push({ type: "hit", wallIndex: w });

@@ -35,6 +35,8 @@ export const MODE_IDS = [
   "multipliers",
   // --- jdm-double-pendulum ---
   "doublePendulum",
+  // --- jdm-illusions ---
+  "illusion",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -308,6 +310,15 @@ export interface ModeContext {
   // --- boris-multipliers ---
   /** The run's stat multipliers (cap, pickups, outgrow): modes stack multipliers through it (see multipliers.ts). */
   getMultipliers?(): MultiplierRuntime;
+  // --- jdm-illusions ---
+  /**
+   * Records a wall contact for the canvas' wobbly walls (render-only, see wobble.ts): wall `wallIndex` (a mode that
+   * draws its own circles numbers them itself) was hit at `angle` (radians, seen from the wall's centre) with
+   * `strength` (positive pushes the wall outward, negative inward; 1 = a head-on hit at the ball speed), at simulation
+   * time `timeMs` (the current time when left out). Never changes the physics.
+   */
+  recordWallContact?(wallIndex: number, angle: number, strength: number, timeMs?: number): void;
+  // --- end jdm-illusions ---
 }
 
 export interface GameMode {

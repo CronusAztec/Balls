@@ -24,6 +24,7 @@ import { modeWallBreakSound } from "@/lib/audio/songs";
 // --- boris-multipliers ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { multipliersSettingsOf } from "@/lib/physics/modes/multipliers";
+import { illusionSettingsOf } from "@/lib/physics/modes/illusion"; // --- jdm-illusions ---
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -76,6 +77,8 @@ const MULT_FINISH_HOLD_MS = 2000;
  * replay, finished picture) instead of cutting it; this long at most (the longest hold is replay + banner, ~7.5 s).
  */
 const END_HOLD_FALLBACK_MS = 12000;
+/** --- jdm-illusions --- How long the Circle Illusion's revealed picture (whitespace) stays on screen before the end screen covers it (a recording keeps it). */
+const ILLUSION_REVEAL_HOLD_MS = 2000;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -179,6 +182,7 @@ export default function Simulator() {
     engine.setGlassSettings(glassSettingsOf(s)); // --- boris-glass ---
     engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
+    engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -458,6 +462,33 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.obstacles, s.bumperBoost]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end obstacle-editor ---
+  // --- jdm-illusions --- Circle Illusion: a change of the type, the counts, the picture, the speed or the cycles restarts it with
+  // a fresh seed (so the figure starts in line); the tracks and the reveal only change the drawing and follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setIllusionSettings(illusionSettingsOf(s));
+    if (s.mode === "illusion" && engine.getCurrentModeName() === "illusion") {
+      engine.setSeed(null);
+      engine.initIllusion();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ilType, s.ilBalls, s.ilRings, s.ilDepth, s.ilPainters, s.ilPattern, s.ilSpeed, s.ilCycles]);
+  useEffect(() => {
+    engineRef.current?.setIllusionSettings({ tracks: s.ilTracks, reveal: s.ilReveal });
+  }, [s.ilTracks, s.ilReveal]);
+  // The nested circles and the painters take their size at the start: a Ball Size change restarts those two types.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || s.mode !== "illusion" || engine.getCurrentModeName() !== "illusion" || (s.ilType !== "nested" && s.ilType !== "whitespace")) return;
+    engine.setSeed(null);
+    engine.initIllusion();
+    setFinished(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ballRadius]);
+  const illusionRevealAtRef = useRef<number | null>(null);
+  // --- end jdm-illusions ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -703,6 +734,12 @@ export default function Simulator() {
           if (paintFinishedAtRef.current === null) paintFinishedAtRef.current = now;
           if (now - paintFinishedAtRef.current < PAINT_FINISH_HOLD_MS) done = false;
         } else paintFinishedAtRef.current = null;
+        // --- jdm-illusions --- the whitespace picture's reveal plays (and records) before the end screen covers it
+        if (done && engine.isIllusionMode() && engine.getIllusionView().type === "whitespace") {
+          const now = performance.now();
+          if (illusionRevealAtRef.current === null) illusionRevealAtRef.current = now;
+          if (now - illusionRevealAtRef.current < ILLUSION_REVEAL_HOLD_MS) done = false;
+        } else illusionRevealAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -1224,6 +1261,7 @@ export default function Simulator() {
           glass: glassSettingsOf(settings), // --- boris-glass ---
           multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
+          illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
         },
       },
       (p) => setSearchProgress(p),
@@ -1328,6 +1366,9 @@ export default function Simulator() {
       dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),
       dpHits: (n) => fill("Simulator.canvasDpHits", { count: n }),
       dpChaos: (seconds) => fill("Simulator.canvasDpChaos", { seconds }),
+      // --- jdm-illusions ---
+      illusionRevealed: t("Simulator.canvasIllusionRevealed"),
+      illusionCycles: (n) => fill("Simulator.canvasIllusionCycles", { count: n }),
     };
   }, [t]);
 
@@ -1371,9 +1412,9 @@ export default function Simulator() {
   );
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
-  const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length)
+  const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- boris-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
   const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
@@ -1436,6 +1477,7 @@ export default function Simulator() {
                   obstacleEditing={obstacleEditing}
                   onObstaclesChange={onObstaclesChange}
                   captions={captionRender} // --- captions ---
+                  wallWobble={s.wallWobble} // --- jdm-illusions ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
