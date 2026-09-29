@@ -1801,8 +1801,10 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   await page.screenshot({ path: path.join(outDir, "sim-glass-home.png") });
 }
 // --- boris-multipliers --- Glass Smash with its multiplier gates (glg=1): the switch in the Glass block, the Ball section's
-// Multipliers group (the cap), and a run at 8× in which the gate row of every stage stacks its multiplier on the ball – the
-// HUD mirrors it into data-mult-* – on its way HOME.
+// Multipliers group (the cap), and a run in which the gate row of every stage stacks its multiplier on the ball – the HUD
+// mirrors it into data-mult-* – on its way HOME. The first row is read at normal speed, then the run goes on at 8×: a ball
+// that falls fast through the first stage meets the next row within a second of simulation – about a tenth of a second at
+// 8× –, so read at 8× "after the first row" often held both rows already.
 await page.goto(`${BASE}/en/simulator/?mode=glass&glg=1&gls=2&glr=4`, { waitUntil: "networkidle" });
 {
   const gates = await glassToggle("Multiplier Gates").getAttribute("aria-pressed").catch(() => null);
@@ -1814,11 +1816,11 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.waitForTimeout(300);
 {
   const hud = await canvasData();
-  await page.getByRole("button", { name: "8x", exact: true }).click();
   const through = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.glassGates ?? 0) >= 1, null, { timeout: 20000 }).then(() => true).catch(() => false);
   await page.waitForTimeout(100);
   const first = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-glass-gates.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
   const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
   const data = await canvasData();
   const product = Number(data.multSpeed) * Number(data.multSize) * Number(data.multDamage);
@@ -1826,7 +1828,7 @@ await page.waitForTimeout(300);
   check(
     "glass smash gates stack a multiplier on the ball at every stage on its way HOME",
     hud.multSpeed !== undefined && through && firstProduct > 1 && done && data.glassHome === "1" && data.glassGates === "2" && product > firstProduct && data.multBalls === "1",
-    `(HUD from the start=${hud.multSpeed !== undefined}, after the first row speed x${first.multSpeed} size x${first.multSize} dmg x${first.multDamage}; at HOME=${data.glassHome} rows ${data.glassGates}, speed x${data.multSpeed} size x${data.multSize} dmg x${data.multDamage})`,
+    `(HUD from the start=${hud.multSpeed !== undefined}, after the first row (rows ${first.glassGates}) speed x${first.multSpeed} size x${first.multSize} dmg x${first.multDamage}; at HOME=${data.glassHome} rows ${data.glassGates}, speed x${data.multSpeed} size x${data.multSize} dmg x${data.multDamage})`,
   );
 }
 // --- end boris-glass ---
