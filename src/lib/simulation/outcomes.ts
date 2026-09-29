@@ -11,7 +11,9 @@ import { teamResult } from "@/lib/teams";
  * - **escapes-at**: the first escape comes within ±0.5 s of a target time,
  * - **winner** (teams): the chosen team tops the scoreboard (escapes, then walls, then bounces, then the earlier first
  *   escape) when the run ends – or when the clip does, for a run that goes on – with no tie. In the modes that end on
- *   an escape the first team out wins, so this is "escapes first or has the top score".
+ *   an escape the first team out wins, so this is "escapes first or has the top score". In the battle modes
+ *   (`BATTLE_WINNER_MODES`) the winner is the last ball standing: the run is followed past the clip to the battle's end
+ *   (`winnerNeedsEnd()`), and only a finished battle whose verdict crowned the chosen ball matches.
  *
  * Everything here is pure: a headless run is boiled down to a `RunSummary` (finder.ts simulates it) and the predicates
  * judge it, so they can be tested on synthetic runs. Times are real (recording) time – what the clip shows.
@@ -34,7 +36,7 @@ export const ESCAPE_TAIL_MS = 5000;
 
 export interface FinderOutcome {
   kind: FinderOutcomeKind;
-  /** The clip (seconds): never-escapes must survive it, winner judges the scoreboard at its end at the latest, escapes-at records at least it. */
+  /** The clip (seconds): never-escapes must survive it, winner judges the scoreboard at its end at the latest (a battle's at the battle's end), escapes-at records at least it. */
   clipSec: number;
   /** escapes-at: when the first escape should come (seconds) and how close (± seconds; ESCAPE_AT_TOLERANCE_SEC by default). */
   atSec?: number;
@@ -45,6 +47,8 @@ export interface FinderOutcome {
 
 /** What a headless run of one seed amounted to (see `simulateOutcomeRun()` in finder.ts). */
 export interface RunSummary {
+  /** The mode the run was simulated in (a battle's winner is judged at its end – `winnerNeedsEnd()`); absent: any other mode. */
+  mode?: ModeId;
   /** Real time simulated (ms): until the run finished, or until the search stopped following it. */
   durationMs: number;
   /** The run ended (the mode's own finish) within `durationMs`. */
@@ -55,13 +59,26 @@ export interface RunSummary {
   teams: readonly Readonly<BallStats>[];
 }
 
-/** How far the run of `outcome` is simulated at most (ms); `maxSimMs` only bounds the classic duration search. */
-export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number): number {
+/**
+ * Whether the winner outcome follows a run of `mode` to its end: the battle modes (`BATTLE_WINNER_MODES`), whose winner
+ * is the last ball standing – crowned (an escape in the team stats) only when the battle is over. Whoever leads a battle
+ * still going when the clip ends may well lose it later, so the clip cannot be the verdict there.
+ */
+export function winnerNeedsEnd(outcome: Pick<FinderOutcome, "kind">, mode: ModeId | undefined): boolean {
+  return outcome.kind === "winner" && mode !== undefined && BATTLE_WINNER_MODES.includes(mode);
+}
+
+/**
+ * How far the run of `outcome` is simulated at most (ms); `maxSimMs` bounds the classic duration search – and a battle's
+ * winner search (`winnerNeedsEnd()`), which follows the battle past the clip to its end.
+ */
+export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?: ModeId): number {
   const clipMs = 1000 * outcome.clipSec;
   switch (outcome.kind) {
     case "never-escapes":
-    case "winner":
       return clipMs;
+    case "winner":
+      return winnerNeedsEnd(outcome, mode) ? Math.max(clipMs, maxSimMs) : clipMs;
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -72,9 +89,9 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number): numb
 
 /**
  * Whether a run being simulated can stop now: its outcome is settled (`elapsedMs` real time so far, `firstEscapeMs`
- * the first escape or −1, `finished` the mode's own end).
+ * the first escape or −1, `finished` the mode's own end). A battle's winner is settled only by its end (`winnerNeedsEnd()`).
  */
-export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstEscapeMs: number, finished: boolean): boolean {
+export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstEscapeMs: number, finished: boolean, mode?: ModeId): boolean {
   if (finished) return true;
   switch (outcome.kind) {
     case "never-escapes":
@@ -87,13 +104,13 @@ export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstE
       return elapsedMs >= firstEscapeMs + ESCAPE_TAIL_MS; // a match: follow it a moment longer (the run may end)
     }
     case "winner":
-      return elapsedMs >= 1000 * outcome.clipSec;
+      return !winnerNeedsEnd(outcome, mode) && elapsedMs >= 1000 * outcome.clipSec;
     default:
       return false;
   }
 }
 
-/** Whether a run achieved `outcome`. */
+/** Whether a run achieved `outcome` (a battle's winner only once the battle is over and has crowned it – `winnerNeedsEnd()`). */
 export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean {
   switch (outcome.kind) {
     case "never-escapes":
@@ -105,6 +122,7 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     case "winner": {
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
+      if (winnerNeedsEnd(outcome, run.mode) && !(run.finished && run.teams[team].escapes > 0)) return false;
       const result = teamResult(run.teams, run.teams.length);
       return !result.tie && result.winner === team;
     }

@@ -25,6 +25,11 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("multipliers") >= 0 ? MODE_CARD_O
 }
 // --- jdm-arena-games --- the two team games join the rhythm family after the other project.jdm modes (before the Boris ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ctf");
+// --- jdm-rhythm-runner --- the Beat Runner and Paddle Keep-Up join the rhythm family right after the arena games
+{
+  const at = MODE_CARD_ORDER.indexOf("ctf");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "runner", "paddle");
+}
 // --- boris-vortex --- the Sound Vortex joins the Boris family at the end of the rhythm cards, right before Glass Smash (which
 // closes them)
 {
@@ -76,6 +81,9 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag: every clash and bounce is a note
   battle: "rhythm",
   ctf: "rhythm",
+  // --- jdm-rhythm-runner --- every landing on the beat / every catch is a note
+  runner: "rhythm",
+  paddle: "rhythm",
   // --- boris-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
   vortex: "rhythm",
 };

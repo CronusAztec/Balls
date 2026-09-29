@@ -96,6 +96,8 @@ export interface FastRenderJob {
   driver: OfflineCanvasDriver;
   /** A cat face chirped on the offline canvas: the chirp goes into the export's mix. */
   onChirp: (kind: ChirpKind) => void;
+  /** The page's run key of the race being exported (race mode only): the export's cup table scores the race under it. */
+  raceKey?: string;
 }
 
 /** Hands the job in progress to the canvas wrapper (a tiny store for `useSyncExternalStore`). */
@@ -148,6 +150,8 @@ export interface FastRenderOptions {
   audio: ToneGenerator | null;
   /** The page's holds between the run's end and its end screen (winner banner, finished picture…); called once the run is over. */
   endHolds?: (engine: PhysicsEngine) => EndHolds;
+  /** Race mode: the page's run key of the exported race (`runKey()`), so the export's cup table matches the page's. */
+  raceKey?: string;
   textOverlay: RecordingTextOverlay;
   backgroundColor: string;
   onProgress?: (progress: FastRenderProgress) => void;
@@ -208,9 +212,9 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     return;
   }
   if (ev.type === "gap") onWallBreak();
-  if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
+  if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();
-  else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2);
+  else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);
   else audio.playInteraction(ev.type);
 }
 
@@ -368,7 +372,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
   if (signal?.aborted) return null;
 
   const engine = sandbox(() => options.createEngine());
-  host.start({ id: Math.floor(startedAt), engine, driver, onChirp: (kind) => mix.playCharacterChirp(kind) });
+  host.start({ id: Math.floor(startedAt), engine, driver, onChirp: (kind) => mix.playCharacterChirp(kind), raceKey: options.raceKey });
 
   let videoEncoder: VideoEncoder | null = null;
   let audioEncoder: AudioEncoder | null = null;

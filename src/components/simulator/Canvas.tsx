@@ -55,6 +55,8 @@ import { withFastRender } from "./fastRenderCanvas";
 import { RACE_DATA_KEYS, RaceLayer, writeRaceDataset, type CanvasRaceOptions, type RaceRenderOptions } from "./raceRenderer";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOptions } from "./arenaRenderer";
+// --- jdm-rhythm-runner --- the Beat Runner (course, square, progress) and Paddle Keep-Up (field, platform, score)
+import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_KEYS, RunnerLayer, writePaddleDataset, writeRunnerDataset, type JdmRhythmLabels, type JdmRhythmRenderOptions } from "./jdmRhythmRenderer";
 // --- boris-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
 
@@ -132,6 +134,9 @@ export interface CanvasLabels {
   // --- jdm-arena-games ---
   /** Battle Royale / Capture the Flag: KO, winner, draw, squares left, capture, time, the banner lines and the built-in names. */
   arena?: ArenaLabels;
+  // --- jdm-rhythm-runner ---
+  /** Beat Runner / Paddle Keep-Up: LEVEL COMPLETE!, the attempt counter, the tempo badge, score, MISS! and GAME OVER. */
+  jdmRhythm?: JdmRhythmLabels;
   // --- boris-vortex ---
   /** Sound Vortex: the HUD title, the swallowed / pew counter and the banner when every ball is gone. */
   vortex?: VortexLabels;
@@ -703,6 +708,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- jdm-arena-games --- the arena games' layer and its per-frame options (the Teams roster names and colours the squares)
     const arenaLayer = new ArenaLayer();
     const arenaRender: ArenaRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, roster: null, showNames: true, numbers: true, labels: DEFAULT_ARENA_LABELS };
+    // --- jdm-rhythm-runner --- the Beat Runner's and Paddle Keep-Up's layers and their per-frame options
+    const rrLayer = new RunnerLayer();
+    const pdLayer = new PaddleLayer();
+    const jrRender: JdmRhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, bodyColor: "#fff" };
+    const jrBodyColor = () => jrRender.bodyColor;
     // --- boris-vortex --- the Sound Vortex's layer (cached gradients) and its per-frame options
     const vortexLayer = new VortexLayer();
     const vortexRender: VortexRenderOptions = { wallAlpha: () => "#fff", rainbow: true, wallThickness: 2, showWallGlow: true, ballRadius: 8 };
@@ -876,6 +886,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       setCanvasData("background", themeLook.backgroundType === "image" && !bgImageRef.current ? "solid" : themeLook.backgroundType);
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
+      // The run's seed (data-seed), for tools and the smoke test: a found run is the one the page restarts.
+      setCanvasData("seed", String(engine.getSeed()));
       const cx = size.width / 2;
       const cy = size.height / 2;
       const arena = (Math.min(size.width, size.height) / 2) * 0.85;
@@ -958,6 +970,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
         ctx.save();
         raceLayer.applyCamera(ctx, raceView);
+      }
+      // --- jdm-rhythm-runner --- the Beat Runner scrolls sideways with the square (its own camera, like the race)
+      const rrView = engine.isRunnerMode() ? engine.getRunnerView() : null;
+      const pdView = engine.isPaddleMode() ? engine.getPaddleView() : null;
+      if (rrView) {
+        ctx.restore();
+        ctx.save();
+        rrLayer.applyCamera(ctx, rrView);
       }
       // --- boris-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
@@ -1248,6 +1268,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         raceRender.showTrails = p.showTrails;
         raceRender.trailThickness = p.trailThickness;
         raceLayer.drawWorld(ctx, raceView, raceRender, raceRef.current, raceView.cameraY - 40, raceView.cameraY + size.height + 40);
+      }
+      // --- jdm-rhythm-runner --- the course (floor, pits, blocks, spikes, beat markers, finish) / the paddle's field, platform and sparks
+      if (rrView || pdView) {
+        jrRender.wallColor = wallColor;
+        jrRender.wallThickness = p.wallThickness;
+        jrRender.showWallGlow = p.showWallGlow;
+        jrRender.showGlow = p.showGlow;
+        jrRender.showTrails = p.showTrails;
+        jrRender.bodyColor = p.rainbowBall ? `hsl(${Math.floor((0.08 * time) % 360)}, 100%, 55%)` : (drawnBalls[0]?.color ?? "#ffffff");
+        if (rrView) rrLayer.drawWorld(ctx, rrView, jrRender);
+        if (pdView) pdLayer.drawWorld(ctx, pdView, jrRender);
       }
       // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
       multRender.wallColor = wallColor;
@@ -1720,6 +1751,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
+      else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1916,10 +1948,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
       if (faces.isActive() && arenaView) faces.drawOverlays(ctx, balls, arenaLayer.bodyColor, { shape: "square", countdown: false });
+      if (faces.isActive() && rrView && rrView.alive) faces.drawOverlays(ctx, balls, jrBodyColor, { shape: "square", countdown: false }); // --- jdm-rhythm-runner --- a face on the square
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
+      if (rrView) rrLayer.drawParticles(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- landing dust, crash debris, finish sparks
       if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- boris-vortex --- the throat's shade, note pulses and splashes over the balls
 
       // Wall-break flashes and shockwaves
@@ -2037,6 +2071,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
       if (arenaView) arenaLayer.drawOverlay(ctx, size.width, size.height, arenaView, arenaRender);
+      // --- jdm-rhythm-runner --- progress, tempo, attempts and LEVEL COMPLETE! / score, lives, MISS! and GAME OVER (screen space,
+      // part of the recording; live, below the page's buttons over a nearly square canvas)
+      if (rrView) rrLayer.drawOverlay(ctx, rrView, (labelsRef.current ?? DEFAULT_LABELS).jdmRhythm ?? DEFAULT_JDM_RHYTHM_LABELS, jrRender, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 40 : 0);
+      if (pdView) pdLayer.drawOverlay(ctx, pdView, (labelsRef.current ?? DEFAULT_LABELS).jdmRhythm ?? DEFAULT_JDM_RHYTHM_LABELS);
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
       // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
       const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
@@ -2578,8 +2616,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
         setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
         setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
+        // Where the cut rule tests each fighter's next move from (its previous position) against its ball – the largest
+        // gap, 0 between steps – and whether every ball is inside the ring: a resize must keep both.
+        let stalePx = 0;
+        let inRing = true;
+        for (const b of engine.getBalls()) {
+          const t = b.team;
+          if (t === undefined || t < 0 || t >= sbView.fighters.length) continue;
+          const f = sbView.fighters[t];
+          if (!f.alive || f.id !== b.id) continue;
+          const gap = Math.hypot(b.x - f.px, b.y - f.py);
+          if (gap > stalePx) stalePx = gap;
+          if (Math.hypot(b.x - sbView.cx, b.y - sbView.cy) + b.radius > sbView.radius + 1) inRing = false;
+        }
+        setCanvasData("sbStalePx", stalePx.toFixed(1));
+        setCanvasData("sbInRing", inRing ? "1" : "0");
       } else if (canvas.dataset.sbBalls !== undefined) {
-        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion"]) delete canvas.dataset[key];
+        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
@@ -2710,6 +2763,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-race --- racers, phase, leader, winner, finishers, passes, swaps, boosts, hits, lap, camera, order and callouts (data-race-*)
       if (raceView) writeRaceDataset(raceView, setCanvasData);
       else if (canvas.dataset.raceRacers !== undefined) for (const key of RACE_DATA_KEYS) delete canvas.dataset[key];
+      // --- jdm-rhythm-runner --- the runner's landings on the beat, jumps, crashes and progress (data-rr-*), the paddle's score (data-pd-*)
+      if (rrView) writeRunnerDataset(rrView, rrLayer, setCanvasData);
+      else if (canvas.dataset.rrEvents !== undefined) for (const key of RUNNER_DATA_KEYS) delete canvas.dataset[key];
+      if (pdView) writePaddleDataset(pdView, pdLayer, setCanvasData);
+      else if (canvas.dataset.pdHits !== undefined) for (const key of PADDLE_DATA_KEYS) delete canvas.dataset[key];
       // --- boris-vortex --- balls, entered, swallowed, in flight, notes, chords, rings, the deepest ring, loop, tempo, depth, finished (data-vortex-*)
       if (vortexView) writeVortexDataset(vortexView, setCanvasData);
       else if (canvas.dataset.vortexBalls !== undefined) for (const key of VORTEX_DATA_KEYS) delete canvas.dataset[key];

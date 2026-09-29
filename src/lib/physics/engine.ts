@@ -40,6 +40,9 @@ import { RaceMode, type RaceSettings, type RaceView } from "./modes/race";
 import { BattleMode } from "./modes/battle";
 import { CtfMode } from "./modes/ctf";
 import type { ArenaView, BattleSettings, CtfSettings } from "./modes/arenaGames";
+// --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
+import { RunnerMode, type RunnerSettings, type RunnerView } from "./modes/runner";
+import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } from "./modes/paddle";
 // --- boris-vortex --- the Sound Vortex (a spiral funnel of sound rings)
 import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
@@ -253,6 +256,9 @@ export class PhysicsEngine {
   // --- jdm-arena-games --- the two team games of bouncing squares
   readonly battleMode = new BattleMode();
   readonly ctfMode = new CtfMode();
+  // --- jdm-rhythm-runner --- the Beat Runner (obstacles on the beat) and Paddle Keep-Up (a ball on a moving platform)
+  readonly runnerMode = new RunnerMode();
+  readonly paddleMode = new PaddleMode();
   // --- boris-vortex ---
   readonly vortexMode = new VortexMode();
 
@@ -524,6 +530,13 @@ export class PhysicsEngine {
   initCtf() {
     this.activateMode(this.ctfMode, "none");
   }
+  // --- jdm-rhythm-runner --- both own their playfields (no rings)
+  initRunner() {
+    this.activateMode(this.runnerMode, "none");
+  }
+  initPaddle() {
+    this.activateMode(this.paddleMode, "none");
+  }
   // --- boris-vortex --- the mode owns its funnel (no rings)
   initVortex() {
     this.activateMode(this.vortexMode, "none");
@@ -590,6 +603,11 @@ export class PhysicsEngine {
         return this.initBattle();
       case "ctf":
         return this.initCtf();
+      // --- jdm-rhythm-runner ---
+      case "runner":
+        return this.initRunner();
+      case "paddle":
+        return this.initPaddle();
       // --- boris-vortex ---
       case "vortex":
         return this.initVortex();
@@ -1193,6 +1211,53 @@ export class PhysicsEngine {
     return this.powerLayersMode.getProgress();
   }
   // --- end odd-power-layers ---
+  // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up (modes/runner.ts, modes/paddle.ts)
+  isRunnerMode() {
+    return this.currentMode === this.runnerMode;
+  }
+  /** The runner's course is planned at init: every setting (and the beat grid) applies on the next `initRunner()`; the scale and root at once. */
+  setRunnerSettings(settings: Partial<RunnerSettings>) {
+    this.runnerMode.setSettings(settings);
+  }
+  getRunnerSettings(): RunnerSettings {
+    return this.runnerMode.getSettings();
+  }
+  /** Live state for the canvas and the HUD; the same object every call. */
+  getRunnerView(): RunnerView {
+    return this.runnerMode.getView();
+  }
+  getRunnerProgress() {
+    return this.runnerMode.getProgress();
+  }
+  /** Space in the Beat Runner played by hand: the square jumps at the next sub-step (or right on landing). */
+  runnerJump() {
+    if (this.currentMode === this.runnerMode) this.runnerMode.requestJump(this._elapsedMs);
+  }
+  isPaddleMode() {
+    return this.currentMode === this.paddleMode;
+  }
+  /** The game applies on the next `initPaddle()`; the scale and root at once. */
+  setPaddleSettings(settings: Partial<PaddleSettings>) {
+    this.paddleMode.setSettings(settings);
+  }
+  getPaddleSettings(): PaddleSettings {
+    return this.paddleMode.getSettings();
+  }
+  getPaddleView(): PaddleView {
+    return this.paddleMode.getView();
+  }
+  getPaddleProgress() {
+    return this.paddleMode.getProgress();
+  }
+  /** Paddle Keep-Up played by hand: the pointer's place over the field (0–1, null = none) and the arrow keys (−1, 0, 1). */
+  setPaddleInput(input: Partial<PaddleInput>) {
+    this.paddleMode.setInput(input);
+  }
+  /** The finder's fast path for a freshly initialised paddle game: when it finishes (ms, at most `maxMs`), without the engine loop. */
+  paddleRunLengthMs(maxMs: number) {
+    return this.paddleMode.runLengthMs(this.ctx, maxMs);
+  }
+  // --- end jdm-rhythm-runner ---
   // --- jdm-race ---
   isRaceMode() {
     return this.currentMode === this.raceMode;

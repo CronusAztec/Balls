@@ -51,6 +51,11 @@ export type { RaceSettings, RaceView, RaceCallout, RacePhase, RaceShape, RaceCam
 export { BattleMode } from "./battle";
 export { CtfMode } from "./ctf";
 export type { ArenaView, ArenaField, ArenaFlag, ArenaBase, ArenaKo, ArenaPowerUp, BattleSettings, CtfSettings, BattleArena } from "./arenaGames";
+// --- jdm-rhythm-runner ---
+export { RunnerMode } from "./runner";
+export type { RunnerSettings, RunnerView, RunnerCourse, RunnerEvent, RunnerMix, RunnerBeatSource, RunnerField } from "./runner";
+export { PaddleMode } from "./paddle";
+export type { PaddleSettings, PaddleView, PaddleField, PaddleInput, PaddlePhase } from "./paddle";
 // --- boris-vortex ---
 export { VortexMode } from "./vortex";
 export type { VortexSettings, VortexField, VortexView, SpiralState } from "./vortex";

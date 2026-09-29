@@ -27,7 +27,9 @@ import { clockedAudioContext } from "./offlineContext"; // --- fast-render ---
  * melody notes keep a voice of their own), the scale every pitch is snapped to and, when
  * the beat lock is on, the BPM grid the sound – voice or sample – is delayed onto
  * (scales.ts). With the defaults – triangle tones, sine melody, chromatic, lock off – the
- * output is exactly the classic bounce sound.
+ * output is exactly the classic bounce sound. A hit that accompanies the tune instead of
+ * being a note of it (`SoundEvent.melody` false: a paddle's wall bounce, a runner's crash)
+ * skips the slicer and the melody and leaves its beat-lock slot to the tune.
  *
  * Under all of that the background music bed (musicBed.ts) plays an uploaded track into the
  * same master gain, and every bounce / wall-break sound scheduled here ducks it at the sound's
@@ -317,24 +319,29 @@ export class ToneGenerator {
    * does a hit sample that is not pitched by wall (the copies would all sound the same).
    * `level` (0–1, default 1) scales the loudness of this one hit – voice, melody note or sample (the Collision
    * Playground's soft collision notes, softer still for gentle impacts; see `hitLevel()`).
+   * `melody` false (--- jdm-rhythm-runner --- `SoundEvent.melody`): a hit that accompanies the tune instead of being a
+   * note of it – a paddle's wall or ceiling bounce, a miss, a runner's crash. It skips the song slicer and the melody (it
+   * plays its own pitch or chord with the bounce instrument, or the hit sample), waits out no melody cooldown and never
+   * takes a beat-lock slot (it is still dropped from a slot the tune already holds), so it never uses up or silences a
+   * note of the song.
    */
-  playWallHit(wallIndex = 0, frequency?: number, accent = false, chord?: readonly number[], level = 1) {
+  playWallHit(wallIndex = 0, frequency?: number, accent = false, chord?: readonly number[], level = 1, melody = true) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent, chord, level));
+      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent, chord, level, melody));
       return;
     }
-    this.scheduleHit(wallIndex, frequency, accent, chord, level);
+    this.scheduleHit(wallIndex, frequency, accent, chord, level, melody);
   }
 
-  private scheduleHit(wallIndex: number, pitch?: number, accent = false, chord?: readonly number[], level = 1) {
+  private scheduleHit(wallIndex: number, pitch?: number, accent = false, chord?: readonly number[], level = 1, melody = true) {
     // --- jdm-collisions --- a per-hit loudness (soft collision notes); 1 leaves every other hit as it was.
     const softness = hitLevel(level);
     if (!this.audioContext || !this.masterGain) return;
     const now = this.audioContext.currentTime;
-    // 1. The song slicer takes over the bounce sound while it has a song to play.
-    if (this.slicer.trigger(this.audioContext, this.masterGain)) {
+    // 1. The song slicer takes over the bounce sound while it has a song to play (not for an accompaniment hit).
+    if (melody && this.slicer.trigger(this.audioContext, this.masterGain)) {
       this.musicBed.duck(now);
       return;
     }
@@ -342,7 +349,7 @@ export class ToneGenerator {
     if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
-      this.lastSlotTime = time;
+      if (melody) this.lastSlotTime = time; // an accompaniment hit leaves its slot to the tune
       // Without "pitch by wall" every copy of a chord would play at the same rate, and n identical copies only add up
       // √n times louder (and take every voice): the clip then plays once for the whole chord.
       const pitches = this.hitSamplePitchByWall ? hitPitches(wallIndex, pitch, chord, MAX_SAMPLE_VOICES) : [pitch];
@@ -356,8 +363,8 @@ export class ToneGenerator {
       let notes: number[];
       let duration: number;
       let gain: number;
-      const melody = this.customNotes.length > 0;
-      if (melody) {
+      const melodyNote = melody && this.customNotes.length > 0;
+      if (melodyNote) {
         if (now - this.lastCustomNoteTime < this.NOTE_COOLDOWN) return;
         notes = [this.customNotes[this.customNoteIndex % this.customNotes.length]];
         duration = 0.25;
@@ -373,15 +380,16 @@ export class ToneGenerator {
       }
       if (softness !== 1) gain *= softness;
       const time = this.scheduleTime(now);
-      // Beat lock: one bounce sound per grid slot, so the export sits cleanly on the beat.
+      // Beat lock: one bounce sound per grid slot, so the export sits cleanly on the beat (an accompaniment hit only
+      // fills a free slot, it never takes one from the tune).
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
-      this.lastSlotTime = time;
-      if (melody) {
+      if (melody) this.lastSlotTime = time;
+      if (melodyNote) {
         this.lastCustomNoteTime = now;
         this.customNoteIndex++;
       }
       // Melody notes keep their own voice (sine by default), so a song sounds as it always did.
-      const instrument = melody ? this.music.melodyInstrument : this.music.instrument;
+      const instrument = melodyNote ? this.music.melodyInstrument : this.music.instrument;
       for (const frequency of notes) playVoice(this.audioContext, this.masterGain, instrument, { frequency: this.snap(frequency), time, duration, gain }, this.pluckCache);
       this.musicBed.duck(time);
     } catch (err) {
@@ -481,31 +489,34 @@ export class ToneGenerator {
    * (multiplierTones.ts). It goes the way a bounce goes – the next slice while the song slicer plays, the hit sample
    * transposed to every note in sample mode, otherwise the bounce instrument (a loaded melody roots it on its next note
    * with the melody voice) – snapped to the scale, its first note on the beat grid (one slot), ducking the music bed.
+   * `melody` false (--- jdm-rhythm-runner --- `SoundEvent.melody`, Paddle Keep-Up's streak chime): the arpeggio
+   * accompanies the tune – no slice, no melody root, the bounce instrument, no beat-lock slot of its own – like an
+   * accompaniment hit (`playWallHit()`), so it never uses up a note of the song.
    */
-  playMultiplier(total: number) {
+  playMultiplier(total: number, melody = true) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.scheduleMultiplier(total));
+      this.audioContext.resume().then(() => this.scheduleMultiplier(total, melody));
       return;
     }
-    this.scheduleMultiplier(total);
+    this.scheduleMultiplier(total, melody);
   }
 
-  private scheduleMultiplier(total: number) {
+  private scheduleMultiplier(total: number, melody = true) {
     if (!this.audioContext || !this.masterGain) return;
     try {
       const now = this.audioContext.currentTime;
-      if (this.slicer.trigger(this.audioContext, this.masterGain)) {
+      if (melody && this.slicer.trigger(this.audioContext, this.masterGain)) {
         this.musicBed.duck(now);
         return;
       }
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
-      this.lastSlotTime = time;
-      const melody = this.customNotes.length > 0;
-      const root = melody ? this.customNotes[this.customNoteIndex % this.customNotes.length] : undefined;
-      if (melody) {
+      if (melody) this.lastSlotTime = time;
+      const melodyNote = melody && this.customNotes.length > 0;
+      const root = melodyNote ? this.customNotes[this.customNoteIndex % this.customNotes.length] : undefined;
+      if (melodyNote) {
         this.customNoteIndex++;
         this.lastCustomNoteTime = now;
       }
@@ -513,7 +524,7 @@ export class ToneGenerator {
       if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
         for (const note of notes) this.sampler!.play(hitSamplePlaybackRate(0, true, this.snap(note.frequency)), time + note.offset, note.gain / 0.25);
       } else {
-        scheduleArpeggio(this.audioContext, this.masterGain, melody ? this.music.melodyInstrument : this.music.instrument, notes, time, (f) => this.snap(f), this.pluckCache);
+        scheduleArpeggio(this.audioContext, this.masterGain, melodyNote ? this.music.melodyInstrument : this.music.instrument, notes, time, (f) => this.snap(f), this.pluckCache);
       }
       this.musicBed.duck(time);
     } catch (err) {

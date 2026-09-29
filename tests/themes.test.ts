@@ -259,11 +259,12 @@ describe("particle styles", () => {
     const bubbles = engine.getParticles().slice();
     expect(bubbles).toHaveLength(BURST_RECIPES.bubbles.count);
     expect(bubbles.every((p) => p.style === "bubbles")).toBe(true);
-    const startY = bubbles.map((p) => p.y);
+    // Follow this burst's own bubbles: the engine's seed is random, so the ball may break a wall meanwhile and throw a burst of its own.
+    const startY = new Map(bubbles.map((p) => [p, p.y]));
     for (let i = 0; i < 30; i++) engine.update(1000 / 60, 0);
-    const risen = engine.getParticles().filter((p) => p.style === "bubbles");
+    const risen = engine.getParticles().filter((p) => startY.has(p));
     expect(risen.length).toBeGreaterThan(0);
-    expect(risen.every((p, i) => p.y < startY[i])).toBe(true); // bubbles float up against the particle gravity
+    expect(risen.every((p) => p.y < startY.get(p)!)).toBe(true); // bubbles float up against the particle gravity
 
     engine.initMode("classic");
     engine.setParticleStyle("confetti", ["#ff00e6", "#00f0ff"]);

@@ -3327,6 +3327,65 @@ const instrumentOscillators = () =>
   const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
   check("Find Simulation finds a string battle the chosen ball wins", labelled && /Found! ACID wins/.test(text), `("${text}")`);
 }
+{
+  // Find Simulation with nine lives: a battle outlasts the 30 s duration, so the finder follows every one to its end (the
+  // last ball standing – not whoever leads when the duration is up). The found battle, played to its end at 8×, is really
+  // ACID's, and the recording length covers all of it plus the winner banner's hold.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbl=9`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("2");
+  const hint = await page.getByTestId("finder-outcome-hint").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Find a Run ACID Wins/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 180_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/\(([\d.]+)s\)/.exec(text) || [])[1]);
+  await page.waitForTimeout(500);
+  const dur = Number(new URLSearchParams(page.url().split("?")[1] || "").get("dur") ?? 30); // the link leaves out the default 30 s
+  let data = {};
+  if (/Found! ACID wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    data = await canvasData();
+  }
+  check(
+    "Find Simulation follows a nine-life string battle to its end: the found battle is really ACID's, recorded whole",
+    /last one standing/.test(hint) && /Found! ACID wins/.test(text) && foundSec > 0 && data.sbFinished === "1" && data.sbWinner === "2" && data.sbWinnerName === "ACID" && data.sbAlive === "1" && dur >= Math.min(120, foundSec + 3 - 0.05) && dur < foundSec + 4.05,
+    `("${text}", dur=${dur}, played: ${JSON.stringify({ finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, alive: data.sbAlive, lives: data.sbLives })}, hint="${hint}")`,
+  );
+}
+{
+  // A resize mid-battle (a phone turned, a window dragged narrower), paused so the frame shows the resized battle before
+  // the next step: every ball stays where it was in the ring (data-sb-in-ring) and every fighter's previous position –
+  // where the cut rule tests its next move from – moved with its ball (data-sb-stale-px, the largest gap: 0), so the
+  // resize itself cuts no thread and costs no life.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbStrings ?? 0) >= 8, null, { timeout: 15_000 }).catch(() => {});
+  const trials = [];
+  for (const size of [{ width: 760, height: 1040 }, { width: 1400, height: 900 }, { width: 980, height: 640 }, { width: 1400, height: 900 }]) {
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(200);
+    const before = await canvasData();
+    const box0 = await page.locator("main canvas").boundingBox();
+    await page.setViewportSize(size);
+    await page.waitForTimeout(400);
+    const box1 = await page.locator("main canvas").boundingBox();
+    const held = await canvasData();
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(600);
+    const after = await canvasData();
+    const resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
+    trials.push({ resized, running: before.sbFinished === "0" && held.sbFinished === "0", stale: Number(held.sbStalePx), inRing: held.sbInRing === "1", lost: Number(after.sbLivesLost) - Number(held.sbLivesLost), size: `${box0 ? Math.round(box0.width) : "?"}×${box0 ? Math.round(box0.height) : "?"}→${box1 ? Math.round(box1.width) : "?"}×${box1 ? Math.round(box1.height) : "?"}` });
+  }
+  await page.setViewportSize({ width: 1400, height: 900 });
+  check(
+    "a resize mid string battle keeps the balls in the ring and leaves no stale move for the cut rule",
+    trials.length === 4 && trials.every((t) => t.resized && t.running && t.stale <= 0.5 && t.inRing),
+    `(${JSON.stringify(trials)})`,
+  );
+}
 // --- end odd-string-battle ---
 
 // --- odd-power-layers ---
@@ -3676,6 +3735,67 @@ const plFrameRates = async (ms) => {
   await page.waitForTimeout(300);
   check("dropping a project file on the panel imports it", outlineShown && /Opened/.test(dropText) && setupRestored(linkParams()), `(outline ${outlineShown}, status "${dropText}", link ${linkParams().toString()})`);
 
+  // A project dropped on one of the panel's own drop zones (the hit sample, the wall-break sound) still opens as a project –
+  // it is not loaded as a sound – while an audio file dropped there still goes to that zone.
+  const dropOn = async (target, name, type, content) => {
+    const dt = await page.evaluateHandle(
+      ({ name, type, content }) => {
+        const d = new DataTransfer();
+        const bytes = typeof content === "string" ? content : new Uint8Array(content);
+        d.items.add(new File([bytes], name, { type }));
+        return d;
+      },
+      { name, type, content },
+    );
+    await target.dispatchEvent("dragenter", { dataTransfer: dt });
+    await target.dispatchEvent("dragover", { dataTransfer: dt });
+    await target.dispatchEvent("drop", { dataTransfer: dt });
+  };
+  const decodeErrors = [];
+  const onDecodeError = (msg) => {
+    if (msg.type() === "error" || /decode/i.test(msg.text())) decodeErrors.push(msg.text());
+  };
+  page.on("console", onDecodeError);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&hsm=sample&hs=kick`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const hitZone = page.locator("label:has(#hit-sample-input)");
+  await hitZone.waitFor({ timeout: 10000 });
+  await dropOn(hitZone, "my.viralballs.json", "application/json", projectText);
+  const hitDropText = await projectStatus();
+  await page.waitForTimeout(300);
+  const hitDropParams = linkParams();
+  check(
+    "a project dropped on the hit-sample drop zone opens as a project, not as a sample",
+    /Opened/.test(hitDropText) && setupRestored(hitDropParams) && !hitDropParams.has("hsm") && !decodeErrors.some((e) => /decode/i.test(e)),
+    `(status "${hitDropText}", link ${hitDropParams.toString()}, errors ${JSON.stringify(decodeErrors.slice(0, 2))})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=classic&g=450`, { waitUntil: "networkidle" });
+  // The search shows the wall-break picker and its drop zone together.
+  await page.getByPlaceholder("Search settings...").fill("Wall Break");
+  const wallBreakZone = page.locator('label:has-text("Import Custom Wall Break Sound") + label');
+  await wallBreakZone.waitFor({ timeout: 10000 });
+  decodeErrors.length = 0;
+  await dropOn(wallBreakZone, "my.viralballs.json", "application/json", projectText);
+  await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const wallBreakValue = await page.locator("#wallbreak-select").inputValue({ timeout: 5000 }).catch(() => "(missing)");
+  const wallBreakProjectOption = await page.locator("#wallbreak-select option", { hasText: "my.viralballs.json" }).count().catch(() => -1);
+  await page.getByPlaceholder("Search settings...").fill(""); // the search hides the Project file block and its status
+  const wallDropText = await projectStatus();
+  check(
+    "a project dropped on the wall-break drop zone opens as a project, not as a wall-break sound",
+    /Opened/.test(wallDropText) && setupRestored(linkParams()) && wallBreakValue !== "(missing)" && !wallBreakValue.startsWith("blob:") && wallBreakProjectOption === 0 && !decodeErrors.some((e) => /decode/i.test(e)),
+    `(status "${wallDropText}", wall break "${wallBreakValue.slice(0, 40)}", project option ${wallBreakProjectOption}, link ${linkParams().toString()}, errors ${JSON.stringify(decodeErrors.slice(0, 2))})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=classic&hsm=sample&hs=kick`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await hitZone.waitFor({ timeout: 10000 });
+  await dropOn(hitZone, "dropped-hit.wav", "audio/wav", [...makeWav(1)]);
+  const hitTaken = await page.waitForFunction(() => document.querySelector("#hit-sample-select")?.value === "custom", null, { timeout: 10000 }).then(() => true).catch(() => false);
+  const noProject = !(await page.getByTestId("project-status").isVisible().catch(() => false));
+  check("an audio file dropped on the hit-sample zone still loads as the hit sample", hitTaken && noProject && linkParams().get("hsm") === "sample", `(custom=${hitTaken}, project status=${!noProject}, link ${linkParams().toString()})`);
+  page.off("console", onDecodeError);
+
   // A JSON file that is not a project is refused, and the page keeps its settings.
   await page.goto(`${BASE}/en/simulator/?mode=lines&g=450`, { waitUntil: "networkidle" });
   await openProjectBlock();
@@ -3854,6 +3974,41 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
     const summary = await page.getByTestId("race-cup-summary").innerText().catch(() => "");
     check("a second race adds its points to the cup", again && cup2?.races === 2 && cup2.points.reduce((a, b) => a + b, 0) === 2 * 80 && /2 race/.test(summary), `(finished=${again}, stored ${JSON.stringify(cup2)}, "${summary}")`);
   }
+}
+// --- fast-render --- A race the page has already scored, then fast-exported: the export's cup table shows it as the same race
+// ("Race 1", the page's run key), not as a second one with doubled points, and the export stores nothing.
+if (await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined")) {
+  await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  // A new cup (the page reads the stored one when it loads, so it loads again).
+  await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const scored = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 45000 }).then(() => true).catch(() => false);
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  // Every "Race n" line the export's (hidden) canvas draws.
+  await page.evaluate(() => {
+    const main = document.querySelector("main canvas");
+    const seen = new Set();
+    window.__exportRaceLines = seen;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (this.canvas !== main && /^Race \d+$/.test(String(text))) seen.add(String(text));
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  const downloadWait = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+  await page.getByRole("button", { name: /Fast export/ }).click();
+  const download = await downloadWait;
+  await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+  const status = await page.locator("[data-fast-export]").getAttribute("data-fast-export").catch(() => "");
+  const lines = await page.evaluate(() => [...(window.__exportRaceLines ?? [])]);
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  check(
+    "a fast export of a race the page already scored draws the same cup table (no second race, no doubled points)",
+    scored && before?.races >= 1 && !!download && status === "done" && lines.length === 1 && lines[0] === `Race ${before.races}` && after?.races === before.races && JSON.stringify(after.points) === JSON.stringify(before.points),
+    `(scored=${scored}, stored before ${JSON.stringify(before)}, export ${status}, drawn ${JSON.stringify(lines)}, stored after ${JSON.stringify(after)})`,
+  );
 }
 // A staged winner: the director favours racer 3 (Gold) at the swap zones and turbo pads – and Gold wins.
 await page.goto(`${BASE}/en/simulator/?mode=race&rcn=6&rcl=4&rcw=3`, { waitUntil: "networkidle" });
@@ -4071,8 +4226,618 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 // --- end jdm-arena-games ---
 
+// --- jdm-rhythm-runner ---
+// 31. Beat Runner and Paddle Keep-Up: the preview images and both cards under the rhythm heading of the landing page; URL →
+// the Mode-row blocks and back into the URL, the search box; a Beat Runner at 1× – every landing on a beat of the 120 BPM
+// grid (data-rr-on-beat equals the landings, the notes – OscillatorNode.start is instrumented – come whole beats apart), no
+// crash, 30+ fps, the finish; the default course at 8× to LEVEL COMPLETE and the end screen; a hand-played run – Space
+// jumps instead of pausing, no jump crashes and restarts the section (ATTEMPT 2), the finder is hidden; the finder times an
+// auto run for 30 s and the run keeps the promise; Paddle Keep-Up – URL → controls, a default game at 8× to GAME OVER
+// after the allowed misses with a note per catch, skill 100% hides the finder, the arrow keys move a hand-played platform,
+// the finder finds a 30 s game; a 1080×1920 recording of each keeps 20+ fps and downloads.
+{
+  for (const mode of ["runner", "paddle"]) {
+    const res = await page.request.get(`${BASE}/modes/${mode}.webp`);
+    check(`asset /modes/${mode}.webp`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  }
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    const heading = [...document.querySelectorAll("#modes h3")].find((h) => /rhythm/i.test(h.textContent || ""));
+    const group = heading?.nextElementSibling;
+    return ["runner", "paddle"].map((m) => !!group?.querySelector(`img[src$="/modes/${m}.webp"]`));
+  });
+  check("the Beat Runner and Paddle Keep-Up cards sit under the rhythm heading", inRhythm.every(Boolean), `(${JSON.stringify(inRhythm)})`);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const jrFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+/** Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). */
+const jrInstrumentTones = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__jrOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      return start.apply(this, arguments);
+    };
+  });
+const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+{
+  // The runner's block: from the URL into the controls, from the controls into the URL, and the search box.
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=40&rrsp=12&rrj=3.2&rrd=0.8&rrm=blocks&rrbs=bpm&rra=0`, { waitUntil: "networkidle" });
+  const values = { rrn: await sliderValue("Obstacles"), rrsp: await sliderValue("Run Speed"), rrj: await sliderValue("Jump Height"), rrd: await sliderValue("Density") };
+  const blocks = await page.getByRole("group", { name: "Obstacle Mix", exact: true }).getByRole("button", { name: /Blocks/ }).getAttribute("aria-pressed");
+  const bpm = await page.getByRole("group", { name: "Beat", exact: true }).getByRole("button", { name: /BPM/ }).getAttribute("aria-pressed");
+  const auto = await jrToggle("runner-section", "Auto Jump").getAttribute("aria-pressed");
+  const run = await page.getByTestId("runner-run").innerText();
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  check(
+    "the beat runner loads from the URL",
+    values.rrn === "40" && values.rrsp === "12" && values.rrj === "3.2" && values.rrd === "0.8" && blocks === "true" && bpm === "true" && auto === "false" && /Space/.test(run) && noRingControls,
+    `(${JSON.stringify(values)}, blocks=${blocks}, bpm=${bpm}, auto=${auto}, "${run}")`,
+  );
+  await page.getByRole("group", { name: "Obstacle Mix", exact: true }).getByRole("button", { name: /Mixed/ }).click();
+  await jrToggle("runner-section", "Auto Jump").click();
+  await page.locator('input[aria-label="Obstacles"]').evaluate(setRangeValue, "30");
+  await page.waitForTimeout(300);
+  const query = page.url().split("?")[1] || "";
+  const info = await page.getByTestId("runner-run").innerText();
+  check("the beat runner mirrors into the URL", /(^|&)rrn=30(&|$)/.test(query) && !/(^|&)rrm=/.test(query) && !/(^|&)rra=/.test(query) && /(^|&)rrbs=bpm(&|$)/.test(query) && /30 obstacles on a 120 BPM beat/.test(info), `(${query}, "${info}")`);
+  await page.getByPlaceholder("Search settings...").fill("obstacle mix");
+  const found = await page.getByRole("group", { name: "Obstacle Mix", exact: true }).isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the beat runner controls", found && hidden, `(found=${found}, Ball Speed hidden=${hidden})`);
+}
+{
+  // Auto jump at 1×: every landing on the beat, a note per landing whole beats apart, no crash, 30+ fps, then the finish.
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=8&rrm=mixed`, { waitUntil: "networkidle" });
+  await jrInstrumentTones();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await jrFrameRates(5000);
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-runner.png") });
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.rrFinished === "1", null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__jrOsc);
+  // One note per landing (the finale chord and the arpeggio come after the last one); a frame or two of jitter is allowed.
+  const notes = tones.slice(0, Number(data.rrLandings || 0));
+  const gaps = notes.slice(1).map((o, i) => o.t - notes[i].t);
+  const onGrid = notes.length >= 2 && gaps.every((g) => Math.abs(g / 500 - Math.round(g / 500)) * 500 < 120 && g > 380);
+  check(
+    "beat runner: every landing on the beat (notes whole beats apart), no crash, at 30+ fps",
+    Number(mid.rrLandings) >= 2 && mid.rrDeaths === "0" && onGrid && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
+    `(landings ${mid.rrLandings}/${mid.rrEvents} at 5 s, notes ${notes.length} gaps ${gaps.map((g) => Math.round(g)).join("/")} ms, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  check(
+    "beat runner: the course is cleared on the beat to LEVEL COMPLETE",
+    done && data.rrFinished === "1" && data.rrCrossed === "1" && data.rrLandings === data.rrEvents && data.rrOnBeat === data.rrLandings && data.rrCleared === data.rrEvents && data.rrDeaths === "0" && data.rrAuto === "1" && data.rrBpm === "120",
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("rr"))))})`,
+  );
+}
+{
+  // The default course (24 obstacles) at 8× to its end screen.
+  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const end = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("beat runner: the default course at 8× ends on its end screen", end && data.rrFinished === "1" && Number(data.rrEvents) >= 24 && data.rrOnBeat === data.rrEvents && data.rrDeaths === "0", `(end screen=${end}, landings ${data.rrLandings}/${data.rrEvents}, on beat ${data.rrOnBeat})`);
+  await page.screenshot({ path: path.join(outDir, "sim-runner-complete.png") });
+}
+{
+  // Played by hand: the finder is hidden, Space jumps (the run does not pause), no jump crashes and restarts the section.
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes`, { waitUntil: "networkidle" });
+  const finder = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(700);
+  const afterJump = await canvasData();
+  const stillRunning = await page.getByRole("button", { name: /Pause/ }).isVisible();
+  const crashed = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.rrAttempt || 0) >= 2, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-runner-manual.png") });
+  check(
+    "beat runner by hand: Space jumps (no pause), a crash restarts the section, no finder",
+    finder === 0 && Number(afterJump.rrJumps) >= 1 && stillRunning && crashed && Number(data.rrDeaths) >= 1 && data.rrAuto === "0",
+    `(finder buttons ${finder}, jumps ${afterJump.rrJumps}, running=${stillRunning}, attempt ${data.rrAttempt}, deaths ${data.rrDeaths})`,
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  check("beat runner by hand: Escape pauses", await page.getByRole("button", { name: /Resume/ }).isVisible());
+}
+{
+  // The finder times an auto run: 30 s, and the found run ends where it promised.
+  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.rrFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check("the finder finds a 30s beat runner and the run keeps the promise", ready && Math.abs(promised - 30) <= 0.5 && Math.abs(Number(data.rrEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", ends at ${data.rrEndSec}s)`);
+}
+{
+  // Paddle Keep-Up: the block from the URL; a perfect controller hides the finder.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdsk=0.85&pdm=4&pdw=0.3&pdsp=0.4&pdu=0.05`, { waitUntil: "networkidle" });
+  const values = { pdsk: await sliderValue("Skill"), pdm: await sliderValue("Misses Allowed"), pdw: await sliderValue("Platform Width"), pdsp: await sliderValue("Spin"), pdu: await sliderValue("Speed-Up") };
+  const auto = await jrToggle("paddle-section", "Auto Platform").getAttribute("aria-pressed");
+  const info = await page.getByTestId("paddle-info").innerText();
+  const finderBefore = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  await page.locator('input[aria-label="Skill"]').evaluate(setRangeValue, "1");
+  await page.waitForTimeout(300);
+  const finderAfter = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  const perfect = await page.getByTestId("paddle-info").innerText();
+  const query = page.url().split("?")[1] || "";
+  check(
+    "paddle keep-up loads from the URL; skill 100% never misses, so no finder",
+    values.pdsk === "0.85" && values.pdm === "4" && values.pdw === "0.3" && values.pdsp === "0.4" && values.pdu === "0.05" && auto === "true" && /5 lives/.test(info) && finderBefore === 1 && finderAfter === 0 && /never misses/.test(perfect) && /(^|&)pdsk=1(&|$)/.test(query),
+    `(${JSON.stringify(values)}, auto=${auto}, "${info}", finder ${finderBefore} → ${finderAfter}, ${query})`,
+  );
+}
+{
+  // A default game at 8×: a note per catch, GAME OVER after the allowed misses, the end screen.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  await jrInstrumentTones();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, "sim-paddle.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const end = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__jrOsc);
+  await page.screenshot({ path: path.join(outDir, "sim-paddle-over.png") });
+  check(
+    "paddle keep-up: a note per catch, GAME OVER after the allowed misses",
+    end && data.pdFinished === "1" && data.pdOver === "1" && data.pdMisses === "3" && data.pdAllowed === "2" && Number(data.pdHits) >= 1 && tones.length >= Number(data.pdHits) && data.pdAuto === "1",
+    `(end screen=${end}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("pd"))))}, ${tones.length} tones)`,
+  );
+}
+{
+  // Played by hand: the arrow keys move the platform.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pda=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const x0 = Number((await canvasData()).pdX);
+  await page.keyboard.down("ArrowRight");
+  await page.waitForTimeout(400);
+  await page.keyboard.up("ArrowRight");
+  const x1 = Number((await canvasData()).pdX);
+  await page.keyboard.down("ArrowLeft");
+  await page.waitForTimeout(700);
+  await page.keyboard.up("ArrowLeft");
+  const x2 = Number((await canvasData()).pdX);
+  const finder = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  check("paddle keep-up by hand: the arrow keys move the platform, no finder", x1 > x0 + 0.1 && x2 < x1 - 0.1 && finder === 0, `(x ${x0} → ${x1} → ${x2}, finder buttons ${finder})`);
+}
+{
+  // The finder finds a 30 s game over and the game keeps the promise.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.pdFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check("the finder finds a 30s paddle game and the game keeps the promise", ready && Math.abs(promised - 30) <= 0.5 && Math.abs(Number(data.pdEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", game over + hold at ${data.pdEndSec}s)`);
+}
+{
+  // 1080×1920 recordings (the default resolution) of both modes.
+  for (const mode of ["runner", "paddle"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}&dur=10`, { waitUntil: "networkidle" });
+    let fps = { windows: [], avg: 0, min: 0 };
+    const download = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+      (async () => {
+        await page.getByRole("button", { name: /Record Video/ }).click();
+        await page.waitForTimeout(300);
+        fps = await jrFrameRates(3500);
+        await page.getByRole("button", { name: /Stop & Export/ }).click();
+      })(),
+    ]).then(([d]) => d);
+    let size = 0;
+    if (download) {
+      const file = path.join(outDir, `${mode}-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      size = fs.statSync(file).size;
+    }
+    check(`a 1080×1920 ${mode} recording keeps 20+ fps and downloads`, size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  }
+}
+// 31b. Review fixes of the rhythm modes. A melody on Paddle Keep-Up: every catch plays the melody's next note and only a
+// catch does (the walls, the ceiling and the streak chime accompany it with the bounce instrument). A Beat Runner re-plans
+// only when what its course follows changes, and then restarts the music bed with the course: a song analysed under a run
+// on the BPM changes nothing, switching it onto the song's beat restarts the bed with the course and the landings fall on
+// the song's clicks, the BPM of a run on a song changes nothing; the BPM drops a found seed only for a runner on the BPM,
+// never in Classic. A run played by hand has no fast export (the button is off and says so) and its batch job fails as
+// "played by hand".
+/** Logs every oscillator (time, audio time, scheduled time, pitch, waveform) and buffer source (the music bed: start(0, offset)). */
+const jrInstrumentAudio = () =>
+  page.evaluate(() => {
+    const osc = [];
+    const src = [];
+    window.__jrAudio = { osc, src };
+    const oscStart = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function (when) {
+      if (this.frequency.value !== 1) osc.push({ t: performance.now(), ctx: this.context.currentTime, when: typeof when === "number" && when > 0 ? when : this.context.currentTime, f: this.frequency.value, type: this.type });
+      return oscStart.apply(this, arguments);
+    };
+    const srcStart = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function () {
+      src.push({ t: performance.now(), ctx: this.context.currentTime, args: [...arguments], dur: this.buffer ? this.buffer.duration : 0 });
+      return srcStart.apply(this, arguments);
+    };
+  });
+/** The music bed's starts (a buffer source started as start(0, offset) on a track longer than `minSec`). */
+const jrBedStarts = async (minSec = 20) => (await page.evaluate(() => window.__jrAudio.src)).filter((s) => s.args.length === 2 && s.dur > minSec);
+const jrMark = () => page.evaluate(() => performance.now());
+const jrSeed = async () => (await canvasData()).seed;
+{
+  // A melody on Paddle Keep-Up (the saw voice) – the bounce tones keep the triangle.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdsk=1&minst=saw`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator("#song-select").selectOption("fur-elise");
+  const loaded = await page
+    .waitForFunction(() => {
+      const select = document.querySelector("#song-select");
+      return !!select && !select.disabled && select.value === "fur-elise";
+    }, null, { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await jrInstrumentAudio();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(14000);
+  await page.getByRole("button", { name: /Pause/ }).click();
+  await page.waitForTimeout(400);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__jrAudio.osc);
+  const melody = tones.filter((o) => o.type === "sawtooth");
+  const bounce = tones.filter((o) => o.type === "triangle");
+  const hits = Number(data.pdHits);
+  const walls = Number(data.pdWalls) + Number(data.pdCeiling);
+  check(
+    "paddle keep-up with a melody: each catch plays the melody's next note and only a catch – walls and ceiling keep the bounce tone",
+    loaded && hits >= 5 && walls >= 1 && melody.length === hits && bounce.length >= walls,
+    `(${hits} catches, ${data.pdWalls} wall + ${data.pdCeiling} ceiling bounces; ${melody.length} melody notes, ${bounce.length} bounce tones)`,
+  );
+}
+{
+  // A song analysed under a run on the BPM changes nothing; switching the run onto the song's beat restarts the course and
+  // the music bed together, and the landings then fall on the song's clicks. The square's position is logged every frame,
+  // so a restart of the course cannot hide between two reads.
+  const P = 60 / 128;
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=60&rrd=1&rrbs=bpm`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await jrInstrumentAudio();
+  await page.evaluate(() => {
+    const log = [];
+    window.__rrXLog = log;
+    const frame = () => {
+      const x = Number(document.querySelector("main canvas")?.dataset.rrX);
+      if (Number.isFinite(x)) log.push({ t: performance.now(), x });
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  await page.locator("#music-file-input").setInputFiles({ name: "smoke-click-128.wav", mimeType: "audio/wav", buffer: makeClickWav(30, 128) });
+  await page.getByTestId("music-track").waitFor({ timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+  const onBpm = await canvasData();
+  const bedsBefore = await jrBedStarts();
+  const switchAt = await jrMark();
+  await page.getByRole("group", { name: "Beat", exact: true }).getByRole("button", { name: /Song/ }).click();
+  const switched = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.rrBpm) !== 120, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const switchedAt = await jrMark();
+  await page.waitForTimeout(5500);
+  const onSong = await canvasData();
+  const beds = await jrBedStarts();
+  const xLog = await page.evaluate(() => window.__rrXLog);
+  const restartBed = beds.find((b) => b.t >= switchAt - 20);
+  const tones = await page.evaluate(() => window.__jrAudio.osc);
+  // On the BPM the square only ever moves on; after the switch it starts over from the beginning of the new course.
+  const beforeSwitch = xLog.filter((e) => e.t < switchAt);
+  const steady = beforeSwitch.length > 100 && beforeSwitch.every((e, i) => i === 0 || e.x >= beforeSwitch[i - 1].x - 1e-6);
+  const restartedCourse = xLog.some((e) => e.t >= switchAt && e.x < 1) && Number(onSong.rrX) > 5;
+  // The landing notes (the bounce instrument) after the restart, against the clicks of the bed (0.25 s + k · P into the song).
+  const notes = restartBed ? tones.filter((o) => o.type === "triangle" && o.when > restartBed.ctx + 0.05) : [];
+  const phase = notes.map((o) => {
+    let e = (((o.when - restartBed.ctx + restartBed.args[1] - 0.25) % P) + P) % P;
+    if (e > P / 2) e -= P;
+    return e;
+  });
+  const sorted = phase.map(Math.abs).sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : Infinity;
+  check(
+    "beat runner on the BPM: a song loaded and analysed mid-run does not restart the run",
+    bedsBefore.length === 1 && onBpm.rrBpm === "120" && steady && onBpm.rrAttempt === "1" && Number(onBpm.rrLandings) >= 2,
+    `(bed starts ${bedsBefore.length}, x only moving on=${steady} over ${beforeSwitch.length} frames to ${onBpm.rrX}, bpm ${onBpm.rrBpm}, landings ${onBpm.rrLandings})`,
+  );
+  check(
+    "beat runner: switching onto the song's beat restarts the music bed with the course, and the landings fall on the song's clicks",
+    switched && switchedAt - switchAt < 1500 && Math.abs(Number(onSong.rrBpm) - 128) <= 2 && restartedCourse && !!restartBed && restartBed.args[1] === 0 && restartBed.t - switchAt < 1000 && notes.length >= 3 && median < 0.08,
+    `(bpm ${onSong.rrBpm} after ${Math.round(switchedAt - switchAt)} ms, course restarted=${restartedCourse}, bed restarted ${restartBed ? `${Math.round(restartBed.t - switchAt)} ms after the switch at offset ${restartBed.args[1]}` : "never"}, ${notes.length} landings, phase to the clicks ${phase.map((e) => Math.round(1000 * e)).join("/")} ms, median |${Math.round(1000 * median)}| ms${loadNote()})`,
+  );
+}
+{
+  // The BPM of a run on a song's beat changes nothing (the Beat lock shows the BPM slider).
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=60&qz=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator("#music-file-input").setInputFiles({ name: "smoke-click-128.wav", mimeType: "audio/wav", buffer: makeClickWav(30, 128) });
+  const onSong = await page.waitForFunction(() => Math.abs(Number(document.querySelector("main canvas")?.dataset.rrBpm) - 128) <= 2, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  await jrInstrumentAudio();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const before = await canvasData();
+  const changeAt = await jrMark();
+  await page.locator('input[aria-label="BPM"]').evaluate(setRangeValue, "100");
+  await page.waitForTimeout(700);
+  const after = await canvasData();
+  const beds = await jrBedStarts();
+  const query = page.url().split("?")[1] || "";
+  check(
+    "beat runner on a song's beat: the BPM changes nothing (no restart of the run or the music)",
+    onSong && /(^|&)bpm=100(&|$)/.test(query) && Number(after.rrX) > Number(before.rrX) && after.rrAttempt === "1" && after.rrBpm === before.rrBpm && beds.length === 1 && beds.every((b) => b.t < changeAt),
+    `(song beat=${onSong}, x ${before.rrX} → ${after.rrX}, bpm ${before.rrBpm} → ${after.rrBpm}, bed starts ${beds.length}, ${query})`,
+  );
+}
+{
+  // A found seed: the BPM keeps it in Classic (R restarts the found run) and drops it for a runner that follows the BPM.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&qz=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const classicFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const found = await jrSeed();
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator('input[aria-label="BPM"]').evaluate(setRangeValue, "128");
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("r");
+  await page.waitForTimeout(400);
+  const restarted = await jrSeed();
+  check("classic: a BPM change keeps a found seed (R restarts the found run)", classicFound && !!found && restarted === found && /(^|&)bpm=128(&|$)/.test(page.url()), `(found ${found}, after the BPM and R ${restarted})`);
+  await page.goto(`${BASE}/en/simulator/?mode=runner&qz=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const runnerFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const runnerSeed = await jrSeed();
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator('input[aria-label="BPM"]').evaluate(setRangeValue, "128");
+  await page.waitForTimeout(400);
+  const replanned = await canvasData();
+  check("beat runner on the BPM: a BPM change re-plans the course and drops the found seed", runnerFound && !!runnerSeed && replanned.seed !== runnerSeed && replanned.rrBpm === "128", `(found ${runnerSeed}, after the BPM ${replanned.seed}, course at ${replanned.rrBpm} BPM)`);
+}
+{
+  // Played by hand: no fast export (the button is off and says to use Record Video); Auto Jump brings it back.
+  const fastState = async () => {
+    const panel = page.locator("[data-fast-export]");
+    return {
+      disabled: await page.getByRole("button", { name: /Fast export/ }).isDisabled(),
+      hand: await panel.getAttribute("data-fast-hand-play"),
+      note: await page.getByText(/can't be exported fast/).first().isVisible().catch(() => false),
+    };
+  };
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes&rrn=6`, { waitUntil: "networkidle" });
+  const runnerHand = await fastState();
+  await jrToggle("runner-section", "Auto Jump").click();
+  await page.waitForTimeout(300);
+  const runnerAuto = await fastState();
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pda=0`, { waitUntil: "networkidle" });
+  const paddleHand = await fastState();
+  check(
+    "a run played by hand has no fast export: the button is off and points to Record Video (Auto Jump brings it back)",
+    runnerHand.disabled && runnerHand.hand === "1" && runnerHand.note && !runnerAuto.disabled && runnerAuto.hand === null && !runnerAuto.note && paddleHand.disabled && paddleHand.hand === "1" && paddleHand.note,
+    `(runner by hand ${JSON.stringify(runnerHand)}, with Auto Jump ${JSON.stringify(runnerAuto)}, paddle by hand ${JSON.stringify(paddleHand)})`,
+  );
+  // The batch render fails such a job with its own reason (and downloads nothing).
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes&rrn=6&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => localStorage.removeItem("viralballs_batch_render"));
+    await page.getByRole("button", { name: /Recording/ }).click();
+    const block = page.locator("[data-batch]");
+    await block.waitFor({ timeout: 10000 });
+    await block.getByRole("button", { name: "Seed list", exact: true }).click();
+    await page.locator("#batch-list").fill("101");
+    let downloaded = false;
+    const onDownload = () => (downloaded = true);
+    page.on("download", onDownload);
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const finished = await page.waitForFunction(() => ["finished", "stopped"].includes(document.querySelector("[data-batch]")?.getAttribute("data-batch") || ""), null, { timeout: 60000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    page.off("download", onDownload);
+    const rows = await page.locator("[data-batch-job]").evaluateAll((els) => els.map((e) => ({ status: e.getAttribute("data-batch-job"), text: e.textContent || "" })));
+    check("the batch render fails a hand-played Beat Runner's job as played by hand", finished && rows.length === 1 && rows[0].status === "failed" && /played by hand/.test(rows[0].text) && !downloaded, `(rows ${JSON.stringify(rows)}, download=${downloaded})`);
+    await page.evaluate(() => localStorage.removeItem("viralballs_batch_render"));
+  }
+}
+// --- end jdm-rhythm-runner ---
+
+// --- batch-render --- Batch render (the Batch block at the end of the Recording section): a pasted list of two seeds and a
+// bad line renders two 500×500, 10 s Classic clips one after the other, each downloads as classic-<seed>-<duration>.mp4 /
+// .webm, "Download all as ZIP" packs exactly those files (read back entry by entry: STORE, UTF-8 flag, CRC-32, the same
+// bytes) and the definition survives a reload (localStorage). A mode variant – Portal and Shatter, rendered in card order –
+// stopped with "Stop after this clip" finishes its first clip in Shatter (the mode card's change), skips the Portal one and
+// gives the page its own mode back. Without WebCodecs the block says so and cannot start.
+{
+  const BATCH_KEY = "viralballs_batch_render";
+  /** CRC-32 (IEEE), as the ZIP stores it. */
+  const crc32 = (buf) => {
+    let c = ~0 >>> 0;
+    for (let i = 0; i < buf.length; i++) {
+      c ^= buf[i];
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    return ~c >>> 0;
+  };
+  /** The entries of a ZIP file (end record → central directory → local headers). */
+  const readZip = (zip) => {
+    const end = zip.length - 22;
+    if (end < 0 || zip.readUInt32LE(end) !== 0x06054b50) return null;
+    const count = zip.readUInt16LE(end + 10);
+    let at = zip.readUInt32LE(end + 16);
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+      if (zip.readUInt32LE(at) !== 0x02014b50) return null;
+      const flags = zip.readUInt16LE(at + 8);
+      const method = zip.readUInt16LE(at + 10);
+      const crc = zip.readUInt32LE(at + 16);
+      const size = zip.readUInt32LE(at + 24);
+      const nameLength = zip.readUInt16LE(at + 28);
+      const skip = zip.readUInt16LE(at + 30) + zip.readUInt16LE(at + 32);
+      const local = zip.readUInt32LE(at + 42);
+      const name = zip.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+      if (zip.readUInt32LE(local) !== 0x04034b50) return null;
+      const dataAt = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+      entries.push({ name, flags, method, crc, data: zip.subarray(dataAt, dataAt + size) });
+      at += 46 + nameLength + skip;
+    }
+    return entries;
+  };
+  const isVideo = (buf) => buf.length > 10000 && (buf.includes(Buffer.from("ftyp")) || buf.readUInt32BE(0) === 0x1a45dfa3);
+  const batchStatus = () => page.locator("[data-batch]").getAttribute("data-batch").catch(() => null);
+  const batchRows = () => page.locator("[data-batch-job]").evaluateAll((els) => els.map((e) => ({ status: e.getAttribute("data-batch-job"), file: e.getAttribute("data-batch-file"), seed: e.getAttribute("data-batch-seed") })));
+  const openBatch = async () => {
+    await page.getByRole("button", { name: /Recording/ }).click();
+    await page.locator("[data-batch]").waitFor({ timeout: 10000 });
+    return page.locator("[data-batch]");
+  };
+
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  await page.evaluate((key) => localStorage.removeItem(key), BATCH_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  let block = await openBatch();
+  await block.getByRole("button", { name: "Seed list", exact: true }).click();
+  await page.locator("#batch-list").fill("101\n202\nnot-a-seed");
+  const listRead = await block.locator("[data-batch-list]").innerText().catch(() => "");
+  const summary = await block.getByText(/clips? · 500×500 · 30 fps/).first().innerText().catch(() => "");
+  if (webCodecs) {
+    // 1. Two seeds, one after the other, each downloaded under its own name.
+    const downloads = [];
+    const onDownload = (d) => downloads.push(d);
+    page.on("download", onDownload);
+    const startedAt = Date.now();
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const finished = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "finished", null, { timeout: 300000 }).then(() => true).catch(() => false);
+    const ms = Date.now() - startedAt;
+    await page.waitForTimeout(1000);
+    page.off("download", onDownload);
+    const rows = await batchRows();
+    const files = {};
+    for (const d of downloads) {
+      const out = path.join(outDir, `batch-${d.suggestedFilename()}`);
+      await d.saveAs(out);
+      files[d.suggestedFilename()] = fs.readFileSync(out);
+    }
+    const names = Object.keys(files).sort();
+    const namesOk = names.length === 2 && /^classic-101-\d+(\.\d)?s\.(mp4|webm)$/.test(names[0]) && /^classic-202-\d+(\.\d)?s\.(mp4|webm)$/.test(names[1]);
+    check(
+      "batch render: a list of two seeds (and a bad line) renders two clips, each downloaded as mode-seed-duration",
+      finished && /2 jobs/.test(listRead) && /line 3 skipped/.test(listRead) && /^2 clips/.test(summary) && rows.length === 2 && rows.every((r) => r.status === "done") && namesOk && names.every((n) => isVideo(files[n])) && rows.map((r) => r.file).sort().join() === names.join(),
+      `(${names.join(", ") || "no downloads"}; rows ${JSON.stringify(rows)}; "${listRead}"; "${summary}"; ${ms} ms)`,
+    );
+    // 2. Download all as ZIP: exactly those clips, stored, with their checksums.
+    const zipWait = page.waitForEvent("download", { timeout: 60000 }).catch(() => null);
+    await block.getByRole("button", { name: /Download all as ZIP/ }).click();
+    const zipDownload = await zipWait;
+    let entries = null;
+    let zipName = "";
+    if (zipDownload) {
+      zipName = zipDownload.suggestedFilename();
+      const out = path.join(outDir, `batch-${zipName}`);
+      await zipDownload.saveAs(out);
+      entries = readZip(fs.readFileSync(out));
+    }
+    check(
+      "batch render: Download all as ZIP packs exactly the rendered clips (STORE, UTF-8 names, CRC-32, same bytes)",
+      /^viralballs-batch-\d{8}-\d{4}\.zip$/.test(zipName) && !!entries && entries.length === 2 && entries.map((e) => e.name).sort().join() === names.join() && entries.every((e) => e.method === 0 && (e.flags & 0x800) && files[e.name] && Buffer.compare(e.data, files[e.name]) === 0 && crc32(e.data) === e.crc),
+      `(${zipName || "no zip"}: ${entries ? entries.map((e) => `${e.name} ${e.data.length} B method ${e.method}`).join(", ") : "unreadable"})`,
+    );
+    // 3. The definition is remembered; a mode variant stopped after its first clip.
+    await page.reload({ waitUntil: "networkidle" });
+    block = await openBatch();
+    const kept = await page.locator("#batch-list").inputValue().catch(() => "");
+    check("batch render: the batch definition survives a reload (localStorage)", kept === "101\n202\nnot-a-seed", `(${JSON.stringify(kept)})`);
+    await page.locator("#batch-list").fill("303");
+    await block.getByRole("button", { name: "Every mode", exact: true }).click();
+    await block.getByRole("button", { name: "Clear", exact: true }).click();
+    const chips = block.getByRole("group", { name: "Every mode" });
+    await chips.getByRole("button", { name: "Portal", exact: true }).click();
+    await chips.getByRole("button", { name: "Shatter", exact: true }).click();
+    const modeDownloads = [];
+    const onModeDownload = (d) => modeDownloads.push(d.suggestedFilename());
+    page.on("download", onModeDownload);
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const stopButton = block.getByRole("button", { name: /Stop after this clip/ });
+    const canStop = await stopButton.waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+    if (canStop) await stopButton.click();
+    const stopping = await block.getByText(/Stopping after this clip/).first().isVisible().catch(() => false);
+    const stopped = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "stopped", null, { timeout: 180000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1000);
+    page.off("download", onModeDownload);
+    const modeRows = await batchRows();
+    const pageMode = new URL(page.url()).searchParams.get("mode");
+    const doneLine = await block.getByText(/Stopped – 1 of 2 clips rendered/).first().isVisible().catch(() => false);
+    check(
+      "batch render: every mode renders the clip in the picked mode; Stop after this clip finishes it, skips the rest and gives the page its mode back",
+      canStop && stopping && stopped && doneLine && modeRows.length === 2 && modeRows[0].status === "done" && /^shatter-303-/.test(modeRows[0].file || "") && modeRows[1].status === "skipped" && modeDownloads.length === 1 && /^shatter-303-/.test(modeDownloads[0]) && pageMode === "classic",
+      `(rows ${JSON.stringify(modeRows)}, downloads ${JSON.stringify(modeDownloads)}, page mode ${pageMode}, stopping=${stopping})`,
+    );
+  } else {
+    const disabled = await block.getByRole("button", { name: /Render batch/ }).isDisabled();
+    const note = await block.getByText(/needs WebCodecs/).first().isVisible().catch(() => false);
+    check("without WebCodecs the batch render says so and cannot start", disabled && note && (await batchStatus()) === "idle", `(disabled=${disabled}, note=${note})`);
+  }
+  await page.evaluate((key) => localStorage.removeItem(key), BATCH_KEY);
+}
+// --- end batch-render ---
+
 // --- boris-vortex ---
-// 31. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
+// 32. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
 // time, pull, depth cue, loop, the run summary), controls → URL and the search box; the Respawn Loop hides the finder and
 // says why; a short run at 1× at 30+ fps whose ring notes climb the C-major degrees ring by ring and whose swallows pew –
 // a sweep from an octave above the innermost ring (OscillatorNode.start is instrumented) – and then finishes; the finder

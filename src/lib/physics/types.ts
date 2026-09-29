@@ -47,6 +47,9 @@ export const MODE_IDS = [
   // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
   "battle",
   "ctf",
+  // --- jdm-rhythm-runner --- Beat Runner (a Geometry Dash-style runner on the beat) and Paddle Keep-Up (a moving platform)
+  "runner",
+  "paddle",
   // --- boris-vortex --- Sound Vortex
   "vortex",
 ] as const;
@@ -220,6 +223,15 @@ export interface SoundEvent {
   // --- jdm-race ---
   /** A "hit" that plays a tune of the race (`ToneGenerator.playRaceArpeggio()`): the rising chime of a pass, the winner's fanfare; rooted on `frequency`. */
   race?: "chime" | "fanfare";
+  // --- jdm-rhythm-runner ---
+  /**
+   * `false`: a "hit" or "multiplier" that accompanies the tune instead of being a note of it (Paddle Keep-Up's walls, ceiling,
+   * misses, game over and streak chime, the Beat Runner's crash). While a melody or the song slicer is loaded it still plays
+   * its own sound – its pitch (or chord) with the bounce instrument, the arpeggio unrooted – and it never advances the melody
+   * or the slicer, never waits out the melody's cooldown and never takes a beat-lock slot, so every catch / landing plays the
+   * next note of the song. Absent: the hit is a note of the tune like every other.
+   */
+  melody?: false;
   // --- boris-vortex ---
   /** A ball swallowed by the Sound Vortex: the page plays the "pew" (`ToneGenerator.playPew()`), a fast downward sweep from `frequency`. */
   pew?: boolean;

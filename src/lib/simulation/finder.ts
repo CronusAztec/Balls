@@ -16,7 +16,7 @@ import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } 
 // --- rigged ---
 import { startBallCount } from "@/lib/physics/ballStats";
 import { rigNeverFinishes } from "@/lib/physics/rigged";
-import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
+import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -29,6 +29,10 @@ import { powerLayersFixedDurationSec, type PowerLayersSettings } from "@/lib/phy
 import type { RaceSettings } from "@/lib/physics/modes/race";
 // --- jdm-arena-games ---
 import type { BattleSettings, CtfSettings } from "@/lib/physics/modes/arenaGames";
+// --- jdm-rhythm-runner ---
+import type { RunnerSettings } from "@/lib/physics/modes/runner";
+import type { PaddleSettings } from "@/lib/physics/modes/paddle";
+import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 // --- boris-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
 
@@ -95,6 +99,15 @@ export interface ModeSettings {
    */
   battle?: Partial<BattleSettings>;
   ctf?: Partial<CtfSettings>;
+  // --- jdm-rhythm-runner ---
+  /**
+   * Beat Runner (see modes/runner.ts; the defaults when left out): the course, the tempo and the loaded song's beat grid.
+   * With auto jump the run ends at the finish line, planned at init, so the finder reads its length off the plan; played by
+   * hand it has no length to search for (`runNeverFinishes()`).
+   */
+  runner?: Partial<RunnerSettings>;
+  /** Paddle Keep-Up (see modes/paddle.ts): the auto controller below skill 1 misses deterministically, so the finder times the game over; manual or perfect play never ends. */
+  paddle?: Partial<PaddleSettings>;
   // --- boris-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
@@ -121,7 +134,7 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "vortex">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
   if (mode === "collide") return true;
@@ -134,6 +147,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "doublePendulum") return resolveDoublePendulumSettings(settings.doublePendulum).endless;
   // --- jdm-illusions --- the nested circles bounce forever; lines and rings with the cycles at "never"
   if (mode === "illusion") return illusionRunNeverFinishes(settings.illusion);
+  // --- jdm-rhythm-runner --- the runner played by hand (the finder cannot play), the paddle played by hand or perfectly
+  if (mode === "runner" || mode === "paddle") return jdmRhythmNeverFinishes(mode, settings);
   // --- boris-vortex --- with the loop on every swallowed ball comes back: the vortex never ends
   if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
   return false;
@@ -262,6 +277,9 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   // --- jdm-arena-games ---
   if (mode === "battle") engine.setBattleSettings(settings.battle ?? {});
   if (mode === "ctf") engine.setCtfSettings(settings.ctf ?? {});
+  // --- jdm-rhythm-runner ---
+  if (mode === "runner") engine.setRunnerSettings(settings.runner ?? {});
+  if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
   engine.setSeed(seed);
@@ -274,6 +292,10 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
   // --- odd-power-layers --- the run length is known as soon as the seed's plan is drawn: the hit count × the bounce period + the celebration
   if (request.mode === "powerLayers") return Math.min(maxSimMs, engine.getPowerLayersProgress().plannedMs);
+  // --- jdm-rhythm-runner --- an auto runner's length is planned at init (the finish line + the celebration); the paddle game
+  // runs on the mode's own fast path (the same 60 Hz steps as the page, without the engine loop around them)
+  if (request.mode === "runner") return Math.min(maxSimMs, engine.getRunnerProgress().plannedMs);
+  if (request.mode === "paddle") return engine.paddleRunLengthMs(maxSimMs);
   const step = 1000 / 60;
   let elapsed = 0;
   while (elapsed < maxSimMs) {
@@ -429,11 +451,14 @@ const OUTCOME_FRAME_BUDGET_MS = 30;
 /**
  * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
  * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
- * soon as the outcome is settled (`outcomeSettled()`), so a failing seed costs little.
+ * soon as the outcome is settled (`outcomeSettled()`), so a failing seed costs little. A battle's winner search follows
+ * the battle to its end (`winnerNeedsEnd()`) – and gives up on it as soon as the chosen ball is out.
  */
 export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome: FinderOutcome): RunSummary {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
-  const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000);
+  const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode);
+  // --- odd-string-battle --- the chosen ball of a battle's winner search (−1: none to watch)
+  const battleTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "stringBattle" ? (outcome.team ?? -1) : -1;
   const step = 1000 / 60;
   let elapsed = 0;
   let firstEscape = -1;
@@ -444,11 +469,12 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     engine.consumeSoundEvents();
     if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
     finished = engine.isSimulationFinished();
-    if (outcomeSettled(outcome, elapsed, firstEscape, finished)) break;
+    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode)) break;
+    if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
-  return { durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
