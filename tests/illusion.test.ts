@@ -8,6 +8,8 @@ import {
   RING_CYCLE_SEC,
   RING_TRAVERSALS,
   WHITESPACE_DONE,
+  WHITESPACE_STALL_COVERAGE,
+  WHITESPACE_STALL_SEC,
   illusionCycleSeconds,
   illusionFixedDurationSec,
   illusionRunNeverFinishes,
@@ -21,6 +23,8 @@ import {
   ringFraction,
   rollingCircleCentre,
   whitespacePitch,
+  whitespaceRevealDue,
+  whitespaceStallSteps,
   type IllusionSettings,
 } from "@/lib/physics/modes/illusion";
 import { COVERAGE_GRID, CoverageGrid, ILLUSION_PATTERNS, PATTERN_ELEMENTS, buildIllusionPattern, isLegalPosition, pointInPolygon } from "@/lib/physics/illusionPatterns";
@@ -448,6 +452,93 @@ describe("illusion white spaces", () => {
     expect(grid.isUnpainted(0, 0)).toBe(false);
     expect(grid.isUnpainted(0, 60)).toBe(true);
     expect(COVERAGE_GRID).toBe(128);
+  });
+
+  it("scores a painter's ray only up to the first cell the paint cannot reach – white behind the picture does not count", () => {
+    // A wall of the picture across the middle of the arena (a band no ball may be centred in), everything else white.
+    const grid = new CoverageGrid(64);
+    grid.build(0, 0, 100, 4, (x, y) => Math.hypot(x, y) <= 96 && Math.abs(y) > 12);
+    expect(grid.isPaintable(0, 60)).toBe(true);
+    expect(grid.isPaintable(0, 0)).toBe(false);
+    expect(grid.isPaintable(0, 150)).toBe(false);
+    // Paint the upper half: the only white left lies behind the wall.
+    for (let y = -95; y <= -8; y += 2) grid.markSegment(-100, y, 100, y, 4);
+    expect(grid.isUnpainted(0, 60)).toBe(true);
+    expect(grid.isUnpainted(0, -60)).toBe(false);
+    // Straight down from the top: the ray ends at the wall, however much white lies beyond it.
+    expect(grid.rayScore(0, -90, 0, 1, 200, 2)).toBe(0);
+    // From below the wall the same white is reachable and counts, up to the rim.
+    const below = grid.rayScore(0, 20, 0, 1, 200, 2);
+    expect(below).toBeGreaterThan(30);
+    expect(grid.rayScore(0, 20, 0, 1, 1000, 2)).toBe(below);
+  });
+
+  it("reveals from 90 % once no painter has found a new cell for six seconds, counted in steps", () => {
+    expect(whitespaceStallSteps(60, 1)).toBe(WHITESPACE_STALL_SEC * 60);
+    expect(whitespaceStallSteps(60, 2)).toBe(WHITESPACE_STALL_SEC * 30);
+    expect(whitespaceRevealDue(WHITESPACE_DONE, 0, 60, 1)).toBe(true);
+    expect(whitespaceRevealDue(WHITESPACE_DONE - 0.001, 0, 60, 1)).toBe(false);
+    expect(whitespaceRevealDue(WHITESPACE_STALL_COVERAGE, 359, 60, 1)).toBe(false);
+    expect(whitespaceRevealDue(WHITESPACE_STALL_COVERAGE, 360, 60, 1)).toBe(true);
+    expect(whitespaceRevealDue(WHITESPACE_STALL_COVERAGE - 0.001, 10_000, 60, 1)).toBe(false);
+    // In the engine: painters that stop finding white (frozen here) reveal the picture exactly six seconds after
+    // their last new cell once 90 % is painted – and never below it.
+    for (const [threshold, reveals] of [
+      [WHITESPACE_STALL_COVERAGE + 0.01, true],
+      [0.5, false],
+    ] as const) {
+      const e = engineFor({ type: "whitespace", painters: 3 }, 8);
+      const v = e.getIllusionView();
+      while (v.coverage < threshold && !v.finished) run(e, 1);
+      expect(v.finished).toBe(false);
+      const mode = e.illusionMode as unknown as { pvx: Float64Array; pvy: Float64Array };
+      mode.pvx.fill(0);
+      mode.pvy.fill(0);
+      const frozenAt = v.step;
+      const coverage = v.coverage;
+      const events = run(e, whitespaceStallSteps(60, 1) - 1);
+      expect(v.finished).toBe(false);
+      expect(v.coverage).toBe(coverage);
+      expect(events.some((ev) => ev.accent)).toBe(false);
+      const last = run(e, 1);
+      expect(v.finished).toBe(reveals);
+      if (reveals) {
+        // The same reveal as at 98 %: the step, the accented chord, at the coverage reached.
+        expect(v.revealStep).toBe(frozenAt + whitespaceStallSteps(60, 1));
+        const chord = last.filter((ev) => ev.accent);
+        expect(chord).toHaveLength(1);
+        expect(chord[0].chord).toHaveLength(4);
+        expect(v.coverage).toBeLessThan(WHITESPACE_DONE);
+        expect(e.isSimulationFinished()).toBe(true);
+      }
+    }
+  });
+
+  it("reaches every pocket it can: big painters and a smile, one or two painters and a cross", () => {
+    // Once stuck at 97.7 % (big painters, pockets under the eyes) and at 84–97 % (the cross with few painters): steering
+    // off the picture too, at white a painter can reach, finds the last pockets.
+    const cases: [Partial<IllusionSettings>, number, PhysicsConfig, number][] = [
+      [{ type: "whitespace", pattern: "smile", painters: 5 }, 4, { ...config, ballRadius: 16 }, 40],
+      ...[1, 3, 5, 9, 11, 12].map((seed): [Partial<IllusionSettings>, number, PhysicsConfig, number] => [{ type: "whitespace", pattern: "cross", painters: 2 }, seed, config, 90]),
+      [{ type: "whitespace", pattern: "cross", painters: 1 }, 2, config, 150],
+    ];
+    for (const [settings, seed, cfg, boundSec] of cases) {
+      const e = engineFor(settings, seed, cfg);
+      const v = e.getIllusionView();
+      const pattern = v.pattern!;
+      let steps = 0;
+      let outside = 0;
+      while (!e.isSimulationFinished() && steps < 60 * boundSec) {
+        e.update(STEP, 0);
+        e.consumeSoundEvents();
+        for (let j = 0; j < v.count; j++) if (!isLegalPosition(pattern, v.x[j], v.y[j], v.painterRadius - 0.5)) outside++;
+        steps++;
+      }
+      const label = `${JSON.stringify(settings)} seed ${seed} ball ${cfg.ballRadius}`;
+      expect(v.finished, label).toBe(true);
+      expect(v.coverage, label).toBeGreaterThanOrEqual(WHITESPACE_DONE);
+      expect(outside, label).toBe(0);
+    }
   });
 
   it("paints until the picture is revealed, never entering it, with notes climbing the scale", () => {

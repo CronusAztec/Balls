@@ -2,6 +2,7 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import { advanceRing, contactArc, createRingTrack, renormalizeRing, resolveRingContacts, sortRingOrder, type RingTrack } from "../ringTrack";
 import { SpatialHash, createPairBuffer, type PairBuffer } from "../spatialHash";
 import type { Ball, GameMode, ModeContext } from "../types";
+import { wobbleStrength } from "../wobble";
 
 /**
  * Collision Playground ("collide" mode, the project.jdm "1247 varied bouncing orbs" formats): no rings. Hundreds
@@ -732,7 +733,7 @@ export class CollideMode implements GameMode {
     }
     const field = this.view.field;
     if (!field) return;
-    this.containerBounce(ball, k, field, true);
+    this.containerBounce(ball, k, field, true, ctx);
     // Speed cap: a safety net against a pile squeezing an orb out at an absurd speed.
     const cap = Math.max(MAX_SPEED_FACTOR * this.ballSpeed, 1.5 * Math.sqrt(2 * this.gravityAccel(ctx) * 2 * field.radius));
     const v2 = ball.vx * ball.vx + ball.vy * ball.vy;
@@ -743,8 +744,11 @@ export class CollideMode implements GameMode {
     }
   }
 
-  /** Resolves an orb against the container walls; `report` turns a real impact into a sound / squash. */
-  private containerBounce(ball: Ball, k: number, field: CollideField, report: boolean) {
+  /**
+   * Resolves an orb against the container walls; `report` turns a real impact into a sound / squash and – with `ctx`, on
+   * the circle – a contact for the Wobbly Walls (wall 0: the circle bulges out where an orb hits it; render-only).
+   */
+  private containerBounce(ball: Ball, k: number, field: CollideField, report: boolean, ctx?: ModeContext) {
     const e = this.wallRestitution;
     const r = ball.radius;
     if (field.kind === "circle") {
@@ -767,7 +771,11 @@ export class CollideMode implements GameMode {
       if (vn > 0) {
         ball.vx -= (1 + e) * vn * nx;
         ball.vy -= (1 + e) * vn * ny;
-        if (report) this.wallImpact(k, r, nx, ny, vn);
+        if (report) {
+          this.wallImpact(k, r, nx, ny, vn);
+          // A real impact (not an orb resting on the wall or pressed against it by the pile) makes the wall wobble.
+          if (ctx && vn >= this.minSoundSpeed) ctx.recordWallContact?.(0, Math.atan2(ny, nx), wobbleStrength(vn, this.ballSpeed));
+        }
       }
       return;
     }

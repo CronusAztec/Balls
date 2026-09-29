@@ -24,6 +24,10 @@ export class WobbleLayer {
   wobbling = 0;
   /** Largest displacement (px) drawn this frame. */
   maxPx = 0;
+  /** Largest displacement drawn this run (since the contact log's last restart): px, and as a share of that wall's full amplitude (at most 1 – the field saturates). */
+  runMaxPx = 0;
+  runPeak = 0;
+  private generation = -1;
 
   /**
    * Starts a frame: the contacts `log` gained (always copied, so switching the wobble on mid-run shows the waves already
@@ -40,7 +44,14 @@ export class WobbleLayer {
     this.wobbling = 0;
     this.maxPx = 0;
     this.counted.fill(0);
-    if (log) this.field.sync(log);
+    if (log) {
+      if (log.generation !== this.generation) {
+        this.generation = log.generation;
+        this.runMaxPx = 0;
+        this.runPeak = 0;
+      }
+      this.field.sync(log);
+    }
   }
 
   /** True while Wobbly Walls is on (or the mode wobbles by itself). */
@@ -74,6 +85,8 @@ export class WobbleLayer {
     }
     const px = amp * this.peak[index];
     if (px > this.maxPx) this.maxPx = px;
+    if (px > this.runMaxPx) this.runMaxPx = px;
+    if (this.peak[index] > this.runPeak) this.runPeak = this.peak[index];
   }
 
   /** True when wall `index` wobbles this frame. */

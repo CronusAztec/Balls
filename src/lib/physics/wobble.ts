@@ -15,6 +15,12 @@ import type { ModeId } from "./types";
  * after. Each wall is sampled at `WOBBLE_SAMPLES` (64) angles – cheap enough for every ring of every mode – and the
  * canvas traces the displaced wall through those samples.
  *
+ * The cap: a ball wedged between two rings (Shatter), growing back into its wall (Grow) or crowding it with others
+ * touches the same wall every step, and a separate wave per contact would add up to many times the amplitude. So the
+ * contacts of one push – within `WOBBLE_MERGE_MS` and `WOBBLE_MERGE_RAD` of a hit the wall already has – refresh that
+ * hit instead of adding one, and the field saturates the sum of a wall's waves (`saturateWobble()`: unchanged up to
+ * `WOBBLE_KNEE`, then easing toward 1): a wall never moves further than the full amplitude (`wobbleAmplitudePx()`).
+ *
  * Determinism: the engine records every contact with its simulation time in a `WallContactLog` (typed arrays, a ring
  * of the last `CONTACT_LOG_CAPACITY` contacts); the canvas copies the new ones into a `WobbleField` and samples it at
  * the frame's simulation time, so the displacement is a pure function of the run and its clock: a pause freezes it,
@@ -49,11 +55,27 @@ export const MAX_WOBBLE_WALLS = 64;
 export const CONTACT_LOG_CAPACITY = 256;
 /** A wall whose largest displacement is below this (in units of the full amplitude) is drawn as a plain arc. */
 export const WOBBLE_QUIET = 0.004;
+/** A contact within this many ms… */
+export const WOBBLE_MERGE_MS = 50;
+/** …and this many radians of a hit the wall already has is the same push: it refreshes that hit (the stronger strength, the newer time and angle). */
+export const WOBBLE_MERGE_RAD = 0.3;
+/** A wall's summed displacement (units of the full amplitude) is drawn as it is up to this; beyond it, it eases toward 1 and never goes past it. */
+export const WOBBLE_KNEE = 0.8;
 
 /* ------------------------------------------------------------------ the setting */
 
-/** The modes with circular walls a ball hits: the ten ring modes and the Circle Illusion (the Wobbly Walls slider shows there). */
-export const WOBBLE_MODES: readonly ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "illusion"];
+/**
+ * The modes with circular walls a ball hits: the ten ring modes, the Circle Illusion and the Collision Playground (its
+ * circle container – `wallWobbleOffered()` leaves out the box and the lollipop ring, which have none).
+ */
+export const WOBBLE_MODES: readonly ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "illusion", "collide"];
+
+/** Does the Wobbly Walls slider do anything for these settings: a mode of `WOBBLE_MODES` with a circular wall in play? */
+export function wallWobbleOffered(settings: { mode: ModeId; cpContainer?: string; cpRing?: boolean }): boolean {
+  if (!WOBBLE_MODES.includes(settings.mode)) return false;
+  if (settings.mode === "collide") return settings.cpContainer === "circle" && !settings.cpRing;
+  return true;
+}
 
 /** Slider range, spread into `RANGES` by settings.ts (URL `wob`). */
 export const WOBBLE_RANGES = {
@@ -115,6 +137,19 @@ export function wobbleStrength(normalSpeed: number, referenceSpeed: number): num
   return Math.min(MAX_WOBBLE_STRENGTH, Math.abs(normalSpeed) / referenceSpeed);
 }
 
+/**
+ * The displacement a wall is drawn with for the sum `d` of its waves (units of the full amplitude): `d` itself up to
+ * ±`WOBBLE_KNEE`, then a tanh easing toward ±1 that joins it smoothly (same value and slope at the knee) – so no number
+ * of hits moves a wall further than the full amplitude.
+ */
+export function saturateWobble(d: number): number {
+  const a = Math.abs(d);
+  if (!(a > WOBBLE_KNEE)) return d;
+  const span = 1 - WOBBLE_KNEE;
+  const out = WOBBLE_KNEE + span * Math.tanh((a - WOBBLE_KNEE) / span);
+  return d < 0 ? -out : out;
+}
+
 /** Full amplitude (px) of a wall of `radius` at Wobbly Walls `amount`: `WOBBLE_FRACTION` of the radius, at most `WOBBLE_MAX_PX`. */
 export function wobbleAmplitudePx(amount: number, radius: number): number {
   if (!(amount > 0) || !(radius > 0)) return 0;
@@ -173,8 +208,9 @@ export class WallContactLog {
 
 /**
  * The recent hits of every wall and their displacement waves. `sync()` copies the contacts a `WallContactLog` gained since
- * the last call (a new generation starts the field over); `sample()` evaluates the waves of one wall at the 64 sample
- * angles for a simulation time. Pure and allocation-free after construction.
+ * the last call (a new generation starts the field over; a contact of the same push as a hit the wall has refreshes
+ * it); `sample()` evaluates the waves of one wall at the 64 sample angles for a simulation time, saturated so the wall
+ * never moves further than the full amplitude. Pure and allocation-free after construction.
  */
 export class WobbleField {
   private readonly hitAngle = new Float64Array(MAX_WOBBLE_WALLS * WOBBLE_HITS_PER_WALL);
@@ -193,10 +229,32 @@ export class WobbleField {
     this.lastTime.fill(-Infinity);
   }
 
+  /**
+   * Adds a contact to wall `wall`. One within `WOBBLE_MERGE_MS` and `WOBBLE_MERGE_RAD` of a hit the wall has (the
+   * newest such hit) is the same push – a ball resting or wedged against the wall, or growing into it, touches it every
+   * step – and refreshes that hit: it keeps the stronger strength and takes the newer time and angle, so the bulge
+   * follows the ball instead of piling up. Anything else takes a slot of its own (the oldest goes).
+   */
   addHit(wall: number, angle: number, strength: number, timeMs: number) {
     if (!(wall >= 0 && wall < MAX_WOBBLE_WALLS)) return;
+    const base = wall * WOBBLE_HITS_PER_WALL;
+    let same = -1;
+    for (let h = 0; h < this.hitCount[wall]; h++) {
+      const i = base + h;
+      if (Math.abs(timeMs - this.hitTime[i]) > WOBBLE_MERGE_MS || Math.abs(wrapAngle(angle - this.hitAngle[i])) > WOBBLE_MERGE_RAD) continue;
+      if (same < 0 || this.hitTime[i] > this.hitTime[same]) same = i;
+    }
+    if (same >= 0) {
+      if (Math.abs(strength) > Math.abs(this.hitStrength[same])) this.hitStrength[same] = strength;
+      if (timeMs >= this.hitTime[same]) {
+        this.hitTime[same] = timeMs;
+        this.hitAngle[same] = angle;
+      }
+      if (timeMs > this.lastTime[wall]) this.lastTime[wall] = timeMs;
+      return;
+    }
     const slot = this.nextSlot[wall];
-    const i = wall * WOBBLE_HITS_PER_WALL + slot;
+    const i = base + slot;
     this.hitAngle[i] = angle;
     this.hitTime[i] = timeMs;
     this.hitStrength[i] = strength;
@@ -231,7 +289,8 @@ export class WobbleField {
 
   /**
    * Writes the displacement of wall `wall` at simulation time `nowMs` into `out` (`WOBBLE_SAMPLES` values, sample k at
-   * angle k · 2π / 64, in units of the full amplitude, positive outward) and returns the largest |value|.
+   * angle k · 2π / 64, in units of the full amplitude, positive outward: the sum of the hits' waves through
+   * `saturateWobble()`, so every value is within [−1, 1]) and returns the largest |value|.
    */
   sample(wall: number, nowMs: number, out: Float32Array): number {
     out.fill(0);
@@ -251,7 +310,9 @@ export class WobbleField {
     }
     let max = 0;
     for (let k = 0; k < WOBBLE_SAMPLES; k++) {
-      const a = Math.abs(out[k]);
+      const d = saturateWobble(out[k]);
+      out[k] = d;
+      const a = Math.abs(d);
       if (a > max) max = a;
     }
     return max;

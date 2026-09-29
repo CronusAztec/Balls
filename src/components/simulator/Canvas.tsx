@@ -1065,7 +1065,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         collideRender.showGlow = p.showGlow;
         collideRender.showTrails = p.showTrails;
         collideRender.trailThickness = p.trailThickness;
-        drawCollideArena(ctx, engine.getCollideView(), collideRender);
+        drawCollideArena(ctx, engine.getCollideView(), collideRender, wobble); // --- jdm-illusions --- the circle container wobbles
       }
 
       // --- jdm-double-pendulum --- Double Pendulum: the harp strings (vibrating after a pluck), then the rainbow trails.
@@ -2360,8 +2360,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.illusionType !== undefined) {
         for (const key of ["illusionType", "illusionBodies", "illusionNotes", "illusionCycles", "illusionAlignments", "illusionCollisions", "illusionCoverage", "illusionPattern", "illusionFinished", "illusionCircleError", "illusionProbe", "illusionPaper"]) delete canvas.dataset[key];
       }
-      if (wobble.on) setCanvasData("wobble", String(wobble.wobbling));
-      else if (canvas.dataset.wobble !== undefined) delete canvas.dataset.wobble;
+      if (wobble.on) {
+        setCanvasData("wobble", String(wobble.wobbling));
+        // The largest displacement drawn this run, px and as a share of that wall's full amplitude (the cap: below 1).
+        setCanvasData("wobbleMaxPx", wobble.runMaxPx.toFixed(1));
+        setCanvasData("wobblePeak", wobble.runPeak.toFixed(3));
+      } else if (canvas.dataset.wobble !== undefined) for (const key of ["wobble", "wobbleMaxPx", "wobblePeak"]) delete canvas.dataset[key];
       // --- end jdm-illusions ---
       cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
       // --- obstacle-editor --- obstacles in play, editing, the selection, hits, bumper kicks and the first spinner's angle (data-obstacle*) for tools and the smoke test
