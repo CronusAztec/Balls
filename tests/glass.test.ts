@@ -6,6 +6,7 @@ import {
   CELEBRATION_MS,
   DEFAULT_GLASS_SETTINGS,
   GLASS_RANGES,
+  HIT_SPEED,
   HOME_CHORD,
   MAX_PANE_HP,
   MAX_SHARDS_PER_PANE,
@@ -417,6 +418,75 @@ describe("GlassMode in the engine", () => {
     expect(rest - top).toBeLessThan(1.15 * height);
     expect(hopSpeed(glassGravity(300, view.level!.field.height), height)).toBeGreaterThan(40);
   });
+
+  it("counts a slow touch from above as a landing, so the ball can never come to rest on the glass", () => {
+    const engine = glassEngine({ hp: 3, holes: false, moving: false });
+    const level = engine.getGlassView().level!;
+    const first = level.panes[0];
+    const ball = engine.getBalls()[0];
+    // Set down on the pane far slower than HIT_SPEED: it still cracks the pane and hops back up.
+    ball.x = first.x;
+    ball.y = first.y - first.thickness / 2 - ball.radius + 0.5;
+    ball.vx = 0;
+    ball.vy = 1;
+    engine.update(1000 / 60, 0);
+    expect([first.hits, first.hp, first.cracks.length]).toEqual([1, 2, 1]);
+    expect(ball.vy).toBeLessThan(-HIT_SPEED);
+    // The full hop, less the gravity of what was left of the step after the landing.
+    const g = glassGravity(300, level.field.height);
+    const hop = hopSpeed(g, level.stages[0].bounceHeight);
+    expect(ball.vy).toBeGreaterThanOrEqual(-hop - 1e-6);
+    expect(ball.vy).toBeLessThanOrEqual(-hop + g / 60 + 1e-6);
+    // Resting on the rounded end of a hole's glass (the grazed edge the stuck runs sat on) is a landing too.
+    const holes = glassEngine({ stages: 3, holes: true, moving: false }, 3);
+    const pane = holes.getGlassView().level!.panes.find((p) => p.kind === "hole")!;
+    expect(pane).toBeDefined();
+    const seg = pane.segments[1];
+    const b = holes.getBalls()[0];
+    const reach = b.radius + seg.thickness / 2;
+    b.x = seg.x - seg.halfLength - 0.6 * reach;
+    b.y = seg.y - 0.8 * reach + 0.3;
+    b.vx = 0;
+    b.vy = 0;
+    holes.update(1000 / 60, 0);
+    expect(pane.hits).toBe(1);
+    expect(b.vy).toBeLessThan(-HIT_SPEED);
+    // A slow knock from below is still only a push: the ball drops away without cracking anything.
+    const below = glassEngine({ hp: 3, holes: false, moving: false });
+    const second = below.getGlassView().level!.panes[1];
+    const b2 = below.getBalls()[0];
+    b2.x = second.x;
+    b2.y = second.y + second.thickness / 2 + b2.radius - 0.5;
+    b2.vx = 0;
+    b2.vy = -1;
+    below.update(1000 / 60, 0);
+    expect(second.hits).toBe(0);
+    expect(b2.vy).toBeGreaterThan(0);
+  });
+
+  it("finishes the runs that used to come to rest on an unbroken pane (regression)", () => {
+    // These runs settled on a pane – contacts slower than HIT_SPEED only damped the ball's bounce – and never reached
+    // HOME: seed 209979 with the defaults (from ~26 s on a hole pane, 2 of 2 hit points left) and four 10-stage seeds.
+    const cases: [Partial<GlassSettings>, number][] = [
+      [{}, 209979],
+      [{ stages: 10 }, 30],
+      [{ stages: 10 }, 41],
+      [{ stages: 10 }, 69],
+      [{ stages: 10 }, 82],
+    ];
+    for (const [settings, seed] of cases) {
+      const engine = glassEngine(settings, seed);
+      runUntil(engine, () => engine.isSimulationFinished(), 180);
+      expect(engine.isSimulationFinished(), `seed ${seed}`).toBe(true);
+      expect(engine.getGlassView().homeReached, `seed ${seed}`).toBe(true);
+    }
+    // And with the canvas resized under it mid-run.
+    const resized = glassEngine({}, 209979);
+    runUntil(resized, () => resized.getElapsedMs() >= 12000, 20);
+    resized.setConfig({ width: 1080, height: 1920 });
+    runUntil(resized, () => resized.isSimulationFinished(), 180);
+    expect(resized.isSimulationFinished()).toBe(true);
+  }, 60000);
 
   it("smashes through every stage, scrolls the camera down and ends at HOME with a chord and a celebration", () => {
     const engine = glassEngine({ rows: 4, hp: 1, stages: 3, holes: false, moving: false }, 21);

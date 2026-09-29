@@ -799,7 +799,10 @@ export class GlassMode implements GameMode {
       for (const seg of pane.segments) {
         const impact = resolveBallSegment(ball, seg, dtSec);
         if (impact < 0) continue;
-        if (impact >= HIT_SPEED) this.hitPane(ctx, ball, pane, impact, g);
+        // A knock from below needs HIT_SPEED to count. A contact from above is always a landing, however slow – a graze
+        // on the end of a hole's glass, a sliding pane lifting the ball onto its top – so the ball never comes to rest on
+        // unbroken glass (the capsule maths alone would only damp its bounce there, and the run would never end).
+        if (impact >= HIT_SPEED || ball.y < pane.y) this.hitPane(ctx, ball, pane, Math.max(impact, HIT_SPEED), g);
         break;
       }
     }
