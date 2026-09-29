@@ -1,6 +1,7 @@
 import type { Obstacle } from "./obstacles";
 import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
+import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -162,6 +163,19 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** Speed factor a bumper gives a ball on a hard hit, 1–2. */
   bumperBoost?: number;
   // --- end obstacle-editor ---
+  // --- rigged --- guaranteed outcomes (rigged.ts): the director's hard constraints, off by default
+  /** No ball ever leaves the outermost intact wall (the modes that end with an escape then never finish). */
+  neverEscape?: boolean;
+  /** Team slot (0–5) the director makes win in the multi-ball escape modes; −1 or absent = off. */
+  forcedWinner?: number;
+  // --- end rigged ---
+  // --- timeline ---
+  /**
+   * Keyframed settings (lib/simulation/timeline.ts): the engine applies them at the start of every fixed step from the
+   * simulation clock, and the seed finder copies them with the rest of the config. Empty / absent = no automation.
+   */
+  timeline?: readonly Keyframe[];
+  // --- end timeline ---
 }
 
 export interface SoundEvent {
@@ -310,6 +324,12 @@ export interface ModeContext {
   // --- boris-multipliers ---
   /** The run's stat multipliers (cap, pickups, outgrow): modes stack multipliers through it (see multipliers.ts). */
   getMultipliers?(): MultiplierRuntime;
+  // --- rigged ---
+  /**
+   * True while the rigged outcomes keep wall `wallIndex` closed to `ball` (a ball inside it): a mode that breaks walls
+   * itself must not break it open for that ball (Shatter takes no damage, Color Match keeps its last segment).
+   */
+  isWallSealed?(ball: Ball, wallIndex: number): boolean;
   // --- jdm-illusions ---
   /**
    * Records a wall contact for the canvas' wobbly walls (render-only, see wobble.ts): wall `wallIndex` (a mode that

@@ -36,6 +36,7 @@ import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } fr
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CaptionLayer, type CanvasCaptionOptions, type CaptionView } from "./captionsRenderer"; // --- captions ---
 import { edgeTextBounds, emptyEdgeTextLines, exportEdgeTextLines, liveEdgeTextLines } from "@/lib/captions"; // --- captions ---
+import { writeRigDataset } from "./riggedRenderer"; // --- rigged ---
 // --- jdm-double-pendulum ---
 import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumStrings, drawDoublePendulumTrails, type DoublePendulumRenderOptions } from "./doublePendulumRenderer";
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
@@ -2445,6 +2446,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.multSpeed !== undefined) {
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
+      writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import type { ControlSection } from "./Controls";
+import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- timeline ---
 import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
 
 /*
@@ -78,6 +79,9 @@ export function Slider({
   right?: string;
   disabled?: boolean;
 }) {
+  // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
+  const live = useTimelineSlider(labelKey);
+  const shown = live ? live.value : value;
   return (
     <Searchable search={search} matches={matches} labelKey={labelKey}>
       <div className="space-y-2">
@@ -86,7 +90,7 @@ export function Slider({
             {t(labelKey)}
             {tipKey && <Tooltip text={t(tipKey)} />}
           </span>
-          <span className="text-zinc-500">{display ?? value}</span>
+          <span className="text-zinc-500">{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : (display ?? value)}</span>
         </label>
         <div className="flex items-center gap-2">
           {left && <span className="text-sm">{left}</span>}
@@ -95,11 +99,11 @@ export function Slider({
             min={range.min}
             max={range.max}
             step={range.step}
-            value={value}
-            disabled={disabled}
+            value={shown}
+            disabled={disabled || !!live}
             onChange={(e) => onChange(Number(e.target.value))}
             className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-            style={sliderStyle(value, range.min, range.max)}
+            style={sliderStyle(shown, range.min, range.max)}
             aria-label={t(labelKey)}
           />
           {right && <span className="text-sm">{right}</span>}

@@ -38,6 +38,8 @@ import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
 import { BallStatsBook, ESCAPE_MARGIN, MULTI_BALL_MODES, startBallAngle, startBallColor, startBallCount, type BallStats } from "./ballStats"; // --- teams ---
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
+import type { RigView } from "./rigged"; // --- rigged ---
+import { TimelineRuntime, resizeGaps, type TimelineKey } from "@/lib/simulation/timeline"; // --- timeline ---
 import type {
   Ball,
   BallInteractionConfig,
@@ -155,6 +157,8 @@ export class PhysicsEngine {
   private pendingSoundEvents: SoundEvent[] = [];
   /** Wall breaks so far – every "gap" event, the engine's or a mode's (never reset). The cinematic camera shakes on it. */
   private wallBreakSerial = 0; // --- camera ---
+  /** --- rigged --- A rigged-outcome rule (never escape, forced winner) is in effect this step (see rigged.ts); false = the plain code path. */
+  private rigOn = false;
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
   private bounceSpeedMultiplier = 1;
@@ -210,6 +214,10 @@ export class PhysicsEngine {
   private pairRs = new Float64Array(0);
   // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners (obstacleEditor.ts), built from the config
   private readonly editorObstacles = new ObstacleField();
+  // --- timeline --- keyframed settings (lib/simulation/timeline.ts), applied at the start of every fixed step from the simulation clock
+  private readonly timeline = new TimelineRuntime();
+  /** True while the timeline writes the config itself (its values are not the page's, so they bypass `prepare()`). */
+  private timelineApplying = false;
   // --- jdm-illusions --- the Circle Illusion mode, and every wall contact of the run for the canvas' wobbly walls (render-only)
   readonly illusionMode = new IllusionMode();
   private readonly wallContacts = new WallContactLog();
@@ -223,6 +231,7 @@ export class PhysicsEngine {
     this.interaction = resolveBallInteraction(config);
     this.multipliers.setConfig(config); // --- boris-multipliers ---
     this.editorObstacles.configure(config); // --- obstacle-editor ---
+    this.timeline.prepare({ timeline: config.timeline }, config); // --- timeline --- (the config's values become the automated settings' bases)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -273,6 +282,7 @@ export class PhysicsEngine {
       getObstacles: () => this.obstacles,
       setObstacles: (obstacles) => this.setObstacles(obstacles),
       getMultipliers: () => this.multipliers, // --- boris-multipliers ---
+      isWallSealed: (ball, wallIndex) => this.rigOn && this.rigSeals(ball, wallIndex), // --- rigged ---
       recordWallContact: (wallIndex, angle, strength, timeMs) => this.wallContacts.record(wallIndex, angle, strength, timeMs ?? this._elapsedMs), // --- jdm-illusions ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
@@ -991,7 +1001,7 @@ export class PhysicsEngine {
       const limit = outer + ball.radius + ESCAPE_MARGIN;
       const dx = ball.x - cx;
       const dy = ball.y - cy;
-      if (dx * dx + dy * dy > limit * limit) this.ballStats.escape(ball, this._elapsedMs);
+      if (dx * dx + dy * dy > limit * limit && this.ballStats.escape(ball, this._elapsedMs)) this.cinematicDirector.rig.noteEscape(ball, this._elapsedMs); // --- rigged --- the run's first escape
     }
   }
   // --- end teams ---
@@ -1158,6 +1168,25 @@ export class PhysicsEngine {
     return this.cinematicDirector.getNearMissSerial();
   }
   // --- end camera ---
+  // --- rigged ---
+  /** The rigged outcomes in effect (never escape, the forced winner) and their counters, plus the run's first escape; the same object every call. */
+  getRigView(): RigView {
+    this.cinematicDirector.rig.refreshRules(this.currentMode?.name, this._config, this.circularWalls.length);
+    return this.cinematicDirector.rig.getView();
+  }
+  /** Simulation time (ms) of the run's first escape – a ball beyond the outermost wall – or −1 while there was none (tracked whether the rig is on or off). */
+  getFirstEscapeMs(): number {
+    return this.cinematicDirector.rig.getFirstEscapeMs();
+  }
+  /** `ball` is inside wall `w` and the rig keeps that wall closed to it. */
+  private rigSeals(ball: Ball, w: number): boolean {
+    const wall = this.circularWalls[w];
+    if (!wall) return false;
+    const dx = ball.x - this._config.width / 2;
+    const dy = ball.y - this._config.height / 2;
+    return dx * dx + dy * dy < wall.radius * wall.radius && this.cinematicDirector.rig.closes(ball, w);
+  }
+  // --- end rigged ---
   /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
   getPhysicsExtras(): PhysicsExtras {
     return this.extras;
@@ -1196,6 +1225,7 @@ export class PhysicsEngine {
     this.multipliers.reset(); // --- boris-multipliers ---
     this.ballStats.reset(); // --- teams ---
     this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
+    this.applyTimeline(0); // --- timeline --- every run starts from the keyframes' values at 0 s (before its rings and balls are built)
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
   }
 
@@ -1206,6 +1236,8 @@ export class PhysicsEngine {
   }
 
   setConfig(patch: Partial<PhysicsConfig>) {
+    // --- timeline --- keyframed settings keep following their keyframes; the rest of the patch applies as always
+    if (!this.timelineApplying && (patch.timeline !== undefined || this.timeline.active)) return this.setConfigWithTimeline(patch);
     const oldW = this._config.width;
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
@@ -1251,6 +1283,52 @@ export class PhysicsEngine {
     // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off.
     this.applyBreathing();
   }
+
+  // --- timeline ---
+  /**
+   * `setConfig()` while keyframes are in play or arrive (`patch.timeline`): `TimelineRuntime.prepare()` keeps the
+   * automated settings at their keyframed values (the page's values wait as their bases), gives a setting whose keyframes
+   * are gone its base back, and new keyframes apply at once, at the current simulation time.
+   */
+  private setConfigWithTimeline(patch: Partial<PhysicsConfig>) {
+    const { rest, gap, retimed } = this.timeline.prepare(patch, this._config);
+    this.timelineApplying = true;
+    try {
+      this.setConfig(rest);
+      if (gap !== null) this.setTimelineGap(gap);
+    } finally {
+      this.timelineApplying = false;
+    }
+    if (retimed) this.applyTimeline(this._elapsedMs);
+  }
+
+  /** Applies the keyframed values at simulation time `tMs` (the start of a fixed step, or 0 when a run starts). Allocates only when a value changes. */
+  private applyTimeline(tMs: number) {
+    if (!this.timeline.active) return;
+    const t = tMs / 1000;
+    const patch = this.timeline.patchAt(t, this._config);
+    const gap = this.timeline.gapAt(t, this._config);
+    if (!patch && gap === null) return;
+    this.timelineApplying = true;
+    try {
+      if (patch) this.setConfig(patch);
+      if (gap !== null) this.setTimelineGap(gap);
+    } finally {
+      this.timelineApplying = false;
+    }
+  }
+
+  /** A keyframed gap size: the config takes it and the rings' gaps resize in place – no rebuild, so broken rings stay broken (see `resizeGaps()`). */
+  private setTimelineGap(gap: number) {
+    this._config = { ...this._config, gapSize: gap };
+    resizeGaps(this.circularWalls, gap, this.currentMode?.name);
+  }
+
+  /** Whether the keyframes drive `key` (its config value is then the keyframed one; the page's own waits as its base). */
+  isTimelineAutomated(key: TimelineKey): boolean {
+    return this.timeline.isAutomated(key);
+  }
+  // --- end timeline ---
 
   // ---------------------------------------------------------------- breathing walls
 
@@ -1318,9 +1396,14 @@ export class PhysicsEngine {
     mult.setMode(modeName);
     // --- end boris-multipliers ---
     this.timeAccumulator += dt;
-    const extras = this.extras;
+    let extras = this.extras; // --- timeline --- (re-read below after keyframes move an extra)
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
       this.timeAccumulator -= this.FIXED_STEP_MS;
+      // --- timeline --- the keyframed settings at the start of this step, on the simulation clock (so the frame rate never matters)
+      if (this.timeline.active) {
+        this.applyTimeline(this._elapsedMs);
+        extras = this.extras;
+      }
       // --- boris-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
       // radius (≤ 4 px) per sub-step; past 64 sub-steps the step itself shrinks (time dilation, SLOW-MO in the HUD).
       // Without multipliers `plan` is null and the step is exactly the fixed step, as before.
@@ -1378,6 +1461,12 @@ export class PhysicsEngine {
       // The ring modes keep every ball at least at its base speed; a mode whose balls may rest (Ball Drop) opts out.
       const keepMoving = !this.currentMode?.ballsMayRest;
       const hasObstacles = this.obstacles.length > 0;
+      // --- rigged --- the director's hard constraints for this step (never escape, forced winner); both off = the plain path
+      this.rigOn = this.cinematicDirector.rig.beginStep(modeName, this._config, extras, this.circularWalls, this.wallRotations, this.brokenWalls, this.gravityAccel(audioIntensity), gDirX, gDirY, keepMoving, this._elapsedMs);
+      if (this.rigOn) {
+        for (let i = 0; i < this.balls.length; i++) this.cinematicDirector.rig.guide(this.balls[i]); // mid-flight guidance
+        this.cinematicDirector.rig.markInside(this.balls); // the backstop below keeps these balls in
+      }
 
       let subSteps =
         this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
@@ -1450,6 +1539,7 @@ export class PhysicsEngine {
         this.handleBallCollisions(multActive);
         this.currentMode?.onPostSubStep(this.ctx);
       }
+      if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
       if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- boris-multipliers --- orbs taken, grown balls refitted, HUD
       if (this.circularWalls.length > 0) this.scanEscapes(); // --- teams ---
@@ -1483,6 +1573,7 @@ export class PhysicsEngine {
   /** A ring breaks for good under a ball (a smash from damage, or a grown ball bursting it): effect, sound, split, director. */
   private smashWall(ball: Ball, wallIndex: number) {
     if (this.brokenWalls.has(wallIndex)) return;
+    if (this.rigOn && this.rigSeals(ball, wallIndex)) return; // --- rigged --- a wall closed to this ball never breaks under it
     this.spawnWallBreakByStyle(wallIndex, ball.x, ball.y);
     this.pendingSoundEvents.push({ type: "gap", wallIndex });
     this.reportWallBreak(ball, wallIndex);
@@ -1575,7 +1666,8 @@ export class PhysicsEngine {
     const isShatter = this.currentMode?.name === "shatter";
     let collided = false;
     for (let w = 0; w < this.circularWalls.length; w++) {
-      if (this.brokenWalls.has(w)) continue;
+      // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
+      if (this.brokenWalls.has(w) && !(this.rigOn && dist < this.circularWalls[w].radius && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const wall = this.circularWalls[w];
       const rotation = this.wallRotations[w];
       const inner = dist - ball.radius - 2;
@@ -1622,9 +1714,18 @@ export class PhysicsEngine {
 
       const nx = dx / dist;
       const ny = dy / dist;
+      // --- rigged --- a wall closed to this ball (never escape's barrier, a forced winner's locked walls): its gaps do not
+      // let the ball out – it rebounds as off the wall (the safety net under the director's steering)
+      let sealedGap = false;
+      if (inGap && this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) {
+        inGap = false;
+        sealedGap = true;
+        if (ball.vx * nx + ball.vy * ny > 0 || crossed) this.cinematicDirector.rig.noteSeal();
+      }
       if (inGap) {
         const movingOut = ball.vx * nx + ball.vy * ny > 0;
         if (!inside || movingOut || crossed) {
+          if (this.rigOn) this.cinematicDirector.rig.notePass(ball, w); // --- rigged --- the forced winner's passes open the wall
           const gap = wall.gaps.length > 0 ? wall.gaps[0] : null;
           if (gap) {
             const adj = this.cinematicDirector.adjustGapPass(ball, wall.radius, rotation, gap, cx, cy);
@@ -1648,12 +1749,12 @@ export class PhysicsEngine {
         }
       } else {
         // --- boris-multipliers --- enough damage smashes the ring on contact: no gap needed
-        if (ball.mult && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) {
+        if (ball.mult && !(this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
           this.smashWall(ball, w);
           this.multipliers.noteSmash();
           continue;
         }
-        const push = isShatter ? ball.radius + 0.5 : ball.radius + 3;
+        const push = isShatter && !sealedGap ? ball.radius + 0.5 : ball.radius + 3; // --- rigged --- a refused pass clears the gap
         if (inside) {
           ball.x = cx + nx * (wall.radius - push);
           ball.y = cy + ny * (wall.radius - push);
@@ -1670,6 +1771,8 @@ export class PhysicsEngine {
         this.wallContacts.record(w, angle, (inside ? 1 : -1) * wobbleStrength(ball.vx * nx + ball.vy * ny, this._config.ballSpeed || 400), this._elapsedMs);
         const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
+        // --- rigged --- a bounce off a closed wall right beside its gap: a near miss (the camera's slow motion follows it)
+        if (this.rigOn && inside && this.cinematicDirector.rig.nearMissAt(ball, w, angle, wall.radius, rotation)) this.cinematicDirector.noteRigNearMiss();
         this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
         this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
@@ -1683,6 +1786,12 @@ export class PhysicsEngine {
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
+          // --- rigged --- the director turns the rebound so the next bounce misses the gaps closed to this ball (and the
+          // forced winner's through a gap it can pass)
+          if (this.rigOn) {
+            this.cinematicDirector.rig.syncWalls(this.circularWalls, this.wallRotations);
+            outAngle = this.cinematicDirector.steerRigged(ball, w, inside, outAngle, speed);
+          }
           // A mode may steer the rebound further (Paint's guided coverage); it draws no random numbers.
           if (this.currentMode?.adjustRebound) outAngle = this.currentMode.adjustRebound(this.ctx, ball, w, outAngle);
           ball.vx = Math.cos(outAngle) * speed;

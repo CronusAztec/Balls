@@ -35,6 +35,10 @@ import { defaultObstacleSettings, supportsObstacles } from "@/lib/physics/obstac
 import CaptionsSection, { CAPTION_KEYS } from "./sections/CaptionsSection"; // --- captions ---
 import DoublePendulumSection, { DOUBLE_PENDULUM_KEYS } from "./sections/DoublePendulumSection"; // --- jdm-double-pendulum ---
 import { defaultCaptionSettings } from "@/lib/captions"; // --- captions ---
+import RiggedSection, { RIGGED_KEYS } from "./sections/RiggedSection"; // --- rigged ---
+import { riggedConfigOf } from "@/lib/physics/rigged"; // --- rigged ---
+import TimelineSection, { TIMELINE_SECTION_KEYS, TimelineRangeInput, TimelineValueText } from "./sections/TimelineSection"; // --- timeline ---
+import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- timeline ---
 // --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
@@ -53,7 +57,7 @@ import { ACCENT } from "@/lib/site";
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
 
-export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions")
+export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions" | "timeline"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions") --- timeline --- ("timeline")
 
 export interface ControlsProps {
   settings: SimulatorSettings;
@@ -125,6 +129,7 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   teams: TEAM_KEYS, // --- teams ---
   obstacles: OBSTACLE_KEYS, // --- obstacle-editor ---
   captions: CAPTION_KEYS, // --- captions ---
+  timeline: TIMELINE_SECTION_KEYS, // --- timeline ---
 };
 SECTION_KEYS.ball.push("ballCount"); // --- teams --- the ball count slider (it replaced the "Two balls" switch)
 // --- jdm-polyrhythm --- the Metronomes & Polyrhythms block is searched with the Ball section (like the Pendulum wave block).
@@ -135,6 +140,8 @@ SECTION_KEYS.visual.push(...CAMERA_KEYS);
 SECTION_KEYS.ball.push(...GLASS_KEYS);
 // --- boris-multipliers --- the Multipliers group of the Ball section and the multipliers-board block of the Mode row.
 SECTION_KEYS.ball.push(...MULTIPLIER_KEYS, ...MULTIPLIERS_MODE_KEYS);
+// --- rigged --- the Rigged Outcomes group (never escape, forced winner) sits under the Drama Director in the Visual section.
+SECTION_KEYS.visual.push(...RIGGED_KEYS);
 // --- jdm-double-pendulum --- the "Double pendulum" block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...DOUBLE_PENDULUM_KEYS);
 // --- jdm-illusions --- the Circle Illusion block is searched with the Ball section, Wobbly Walls with the Visual section.
@@ -217,6 +224,7 @@ export default function Controls(props: ControlsProps) {
   // --- obstacle-editor --- the Obstacles section, in the ring modes (the layout is kept, unused, in the others)
   if (supportsObstacles(s.mode)) sections.push({ id: "obstacles", icon: "🚧", label: t("obstaclesTab") });
   sections.push({ id: "captions", icon: "💬", label: t("captionsTab") }); // --- captions --- (every mode, after the playfield sections)
+  sections.push({ id: "timeline", icon: "⏱️", label: t("timelineTab") }); // --- timeline --- (every mode)
 
   /* ------------------------------------------------------------ sections */
 
@@ -374,18 +382,16 @@ export default function Controls(props: ControlsProps) {
                   <>
                     <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
                       <span>{t("rotationSpeed")}</span>
-                      <span className="text-zinc-500">{s.rotationSpeed.toFixed(1)}</span>
+                      {/* --- timeline --- the live value with the AUTO badge while keyframes drive the rotation speed */}
+                      <TimelineValueText t={t} labelKey="rotationSpeed" fallback={s.rotationSpeed.toFixed(1)} />
                     </label>
-                    <input
-                      type="range"
-                      min={RANGES.rotationSpeed.min}
-                      max={RANGES.rotationSpeed.max}
-                      step={RANGES.rotationSpeed.step}
+                    <TimelineRangeInput
+                      labelKey="rotationSpeed"
                       value={s.rotationSpeed}
-                      onChange={(e) => update({ rotationSpeed: Number(e.target.value) })}
+                      range={RANGES.rotationSpeed}
+                      onChange={(v) => update({ rotationSpeed: v })}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                      style={sliderStyle(s.rotationSpeed, RANGES.rotationSpeed.min, RANGES.rotationSpeed.max)}
-                      aria-label={t("rotationSpeed")}
+                      ariaLabel={t("rotationSpeed")}
                     />
                   </>
                 )}
@@ -497,6 +503,8 @@ export default function Controls(props: ControlsProps) {
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
         </Searchable>
       )}
+      {/* --- rigged --- the director's hard constraints: never escape and the forced winner, with the storytelling warning */}
+      {showAdvanced && <RiggedSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Picture Paint controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "paint" && !!search && picturePaintSection()}
       {s.showTrails && showAdvanced && (
@@ -1008,6 +1016,9 @@ export default function Controls(props: ControlsProps) {
       // --- captions ---
       case "captions":
         return <CaptionsSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
+      // --- timeline ---
+      case "timeline":
+        return <TimelineSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
     }
   };
 
@@ -1375,6 +1386,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         trailColors: d.trailColors,
         // --- end themes
         ...cameraSettingsOf(d), // --- camera ---
+        ...riggedConfigOf(d), // --- rigged --- never escape off, no forced winner
         wallWobble: d.wallWobble, // --- jdm-illusions ---
       };
     case "sound":
@@ -1414,5 +1426,8 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     // --- captions --- no captions
     case "captions":
       return defaultCaptionSettings();
+    // --- timeline --- no keyframes
+    case "timeline":
+      return defaultTimelineSettings();
   }
 }
