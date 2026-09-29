@@ -47,6 +47,9 @@ export const MODE_IDS = [
   // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
   "battle",
   "ctf",
+  // --- jdm-rhythm-runner --- Beat Runner (a Geometry Dash-style runner on the beat) and Paddle Keep-Up (a moving platform)
+  "runner",
+  "paddle",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

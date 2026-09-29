@@ -112,6 +112,10 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // Re-recorded when the battle's fixed margins became reference pixels scaled with the field (a seed plays the same on any canvas).
   battle: { samples: [[374459,349977],[329182,250770],[338535,110954],[267052,343771],[595188,183924],[337396,292032],[459252,122349],[517487,427594]], broken: [], walls: [] },
   ctf: { samples: [[464260,193076],[653920,237007],[304817,457518],[313243,546485],[446150,169209],[271083,282839],[314906,501106],[633347,562433]], broken: [], walls: [] },
+  // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up: no rings; recorded when the modes were added (seed 12345, defaults: 24 obstacles
+  // on a 120 BPM beat with auto jump / the auto platform at skill 0.7).
+  runner: { samples: [[943750,351750],[1787500,314250],[2631250,363948],[3475000,314250]], broken: [], walls: [] },
+  paddle: { samples: [[314390,202273],[331052,238645],[387168,186813],[518968,322737]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

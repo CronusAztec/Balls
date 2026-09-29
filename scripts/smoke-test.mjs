@@ -4071,6 +4071,269 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 // --- end jdm-arena-games ---
 
+// --- jdm-rhythm-runner ---
+// 28. Beat Runner and Paddle Keep-Up: the preview images and both cards under the rhythm heading of the landing page; URL →
+// the Mode-row blocks and back into the URL, the search box; a Beat Runner at 1× – every landing on a beat of the 120 BPM
+// grid (data-rr-on-beat equals the landings, the notes – OscillatorNode.start is instrumented – come whole beats apart), no
+// crash, 30+ fps, the finish; the default course at 8× to LEVEL COMPLETE and the end screen; a hand-played run – Space
+// jumps instead of pausing, no jump crashes and restarts the section (ATTEMPT 2), the finder is hidden; the finder times an
+// auto run for 30 s and the run keeps the promise; Paddle Keep-Up – URL → controls, a default game at 8× to GAME OVER
+// after the allowed misses with a note per catch, skill 100% hides the finder, the arrow keys move a hand-played platform,
+// the finder finds a 30 s game; a 1080×1920 recording of each keeps 20+ fps and downloads.
+{
+  for (const mode of ["runner", "paddle"]) {
+    const res = await page.request.get(`${BASE}/modes/${mode}.webp`);
+    check(`asset /modes/${mode}.webp`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  }
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    const heading = [...document.querySelectorAll("#modes h3")].find((h) => /rhythm/i.test(h.textContent || ""));
+    const group = heading?.nextElementSibling;
+    return ["runner", "paddle"].map((m) => !!group?.querySelector(`img[src$="/modes/${m}.webp"]`));
+  });
+  check("the Beat Runner and Paddle Keep-Up cards sit under the rhythm heading", inRhythm.every(Boolean), `(${JSON.stringify(inRhythm)})`);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const jrFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+/** Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). */
+const jrInstrumentTones = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__jrOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      return start.apply(this, arguments);
+    };
+  });
+const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+{
+  // The runner's block: from the URL into the controls, from the controls into the URL, and the search box.
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=40&rrsp=12&rrj=3.2&rrd=0.8&rrm=blocks&rrbs=bpm&rra=0`, { waitUntil: "networkidle" });
+  const values = { rrn: await sliderValue("Obstacles"), rrsp: await sliderValue("Run Speed"), rrj: await sliderValue("Jump Height"), rrd: await sliderValue("Density") };
+  const blocks = await page.getByRole("group", { name: "Obstacle Mix", exact: true }).getByRole("button", { name: /Blocks/ }).getAttribute("aria-pressed");
+  const bpm = await page.getByRole("group", { name: "Beat", exact: true }).getByRole("button", { name: /BPM/ }).getAttribute("aria-pressed");
+  const auto = await jrToggle("runner-section", "Auto Jump").getAttribute("aria-pressed");
+  const run = await page.getByTestId("runner-run").innerText();
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  check(
+    "the beat runner loads from the URL",
+    values.rrn === "40" && values.rrsp === "12" && values.rrj === "3.2" && values.rrd === "0.8" && blocks === "true" && bpm === "true" && auto === "false" && /Space/.test(run) && noRingControls,
+    `(${JSON.stringify(values)}, blocks=${blocks}, bpm=${bpm}, auto=${auto}, "${run}")`,
+  );
+  await page.getByRole("group", { name: "Obstacle Mix", exact: true }).getByRole("button", { name: /Mixed/ }).click();
+  await jrToggle("runner-section", "Auto Jump").click();
+  await page.locator('input[aria-label="Obstacles"]').evaluate(setRangeValue, "30");
+  await page.waitForTimeout(300);
+  const query = page.url().split("?")[1] || "";
+  const info = await page.getByTestId("runner-run").innerText();
+  check("the beat runner mirrors into the URL", /(^|&)rrn=30(&|$)/.test(query) && !/(^|&)rrm=/.test(query) && !/(^|&)rra=/.test(query) && /(^|&)rrbs=bpm(&|$)/.test(query) && /30 obstacles on a 120 BPM beat/.test(info), `(${query}, "${info}")`);
+  await page.getByPlaceholder("Search settings...").fill("obstacle mix");
+  const found = await page.getByRole("group", { name: "Obstacle Mix", exact: true }).isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the beat runner controls", found && hidden, `(found=${found}, Ball Speed hidden=${hidden})`);
+}
+{
+  // Auto jump at 1×: every landing on the beat, a note per landing whole beats apart, no crash, 30+ fps, then the finish.
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=8&rrm=mixed`, { waitUntil: "networkidle" });
+  await jrInstrumentTones();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await jrFrameRates(5000);
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-runner.png") });
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.rrFinished === "1", null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__jrOsc);
+  // One note per landing (the finale chord and the arpeggio come after the last one); a frame or two of jitter is allowed.
+  const notes = tones.slice(0, Number(data.rrLandings || 0));
+  const gaps = notes.slice(1).map((o, i) => o.t - notes[i].t);
+  const onGrid = notes.length >= 2 && gaps.every((g) => Math.abs(g / 500 - Math.round(g / 500)) * 500 < 120 && g > 380);
+  check(
+    "beat runner: every landing on the beat (notes whole beats apart), no crash, at 30+ fps",
+    Number(mid.rrLandings) >= 2 && mid.rrDeaths === "0" && onGrid && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
+    `(landings ${mid.rrLandings}/${mid.rrEvents} at 5 s, notes ${notes.length} gaps ${gaps.map((g) => Math.round(g)).join("/")} ms, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  check(
+    "beat runner: the course is cleared on the beat to LEVEL COMPLETE",
+    done && data.rrFinished === "1" && data.rrCrossed === "1" && data.rrLandings === data.rrEvents && data.rrOnBeat === data.rrLandings && data.rrCleared === data.rrEvents && data.rrDeaths === "0" && data.rrAuto === "1" && data.rrBpm === "120",
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("rr"))))})`,
+  );
+}
+{
+  // The default course (24 obstacles) at 8× to its end screen.
+  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const end = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("beat runner: the default course at 8× ends on its end screen", end && data.rrFinished === "1" && Number(data.rrEvents) >= 24 && data.rrOnBeat === data.rrEvents && data.rrDeaths === "0", `(end screen=${end}, landings ${data.rrLandings}/${data.rrEvents}, on beat ${data.rrOnBeat})`);
+  await page.screenshot({ path: path.join(outDir, "sim-runner-complete.png") });
+}
+{
+  // Played by hand: the finder is hidden, Space jumps (the run does not pause), no jump crashes and restarts the section.
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes`, { waitUntil: "networkidle" });
+  const finder = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(400);
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(700);
+  const afterJump = await canvasData();
+  const stillRunning = await page.getByRole("button", { name: /Pause/ }).isVisible();
+  const crashed = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.rrAttempt || 0) >= 2, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-runner-manual.png") });
+  check(
+    "beat runner by hand: Space jumps (no pause), a crash restarts the section, no finder",
+    finder === 0 && Number(afterJump.rrJumps) >= 1 && stillRunning && crashed && Number(data.rrDeaths) >= 1 && data.rrAuto === "0",
+    `(finder buttons ${finder}, jumps ${afterJump.rrJumps}, running=${stillRunning}, attempt ${data.rrAttempt}, deaths ${data.rrDeaths})`,
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  check("beat runner by hand: Escape pauses", await page.getByRole("button", { name: /Resume/ }).isVisible());
+}
+{
+  // The finder times an auto run: 30 s, and the found run ends where it promised.
+  await page.goto(`${BASE}/en/simulator/?mode=runner`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.rrFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check("the finder finds a 30s beat runner and the run keeps the promise", ready && Math.abs(promised - 30) <= 0.5 && Math.abs(Number(data.rrEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", ends at ${data.rrEndSec}s)`);
+}
+{
+  // Paddle Keep-Up: the block from the URL; a perfect controller hides the finder.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdsk=0.85&pdm=4&pdw=0.3&pdsp=0.4&pdu=0.05`, { waitUntil: "networkidle" });
+  const values = { pdsk: await sliderValue("Skill"), pdm: await sliderValue("Misses Allowed"), pdw: await sliderValue("Platform Width"), pdsp: await sliderValue("Spin"), pdu: await sliderValue("Speed-Up") };
+  const auto = await jrToggle("paddle-section", "Auto Platform").getAttribute("aria-pressed");
+  const info = await page.getByTestId("paddle-info").innerText();
+  const finderBefore = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  await page.locator('input[aria-label="Skill"]').evaluate(setRangeValue, "1");
+  await page.waitForTimeout(300);
+  const finderAfter = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  const perfect = await page.getByTestId("paddle-info").innerText();
+  const query = page.url().split("?")[1] || "";
+  check(
+    "paddle keep-up loads from the URL; skill 100% never misses, so no finder",
+    values.pdsk === "0.85" && values.pdm === "4" && values.pdw === "0.3" && values.pdsp === "0.4" && values.pdu === "0.05" && auto === "true" && /5 lives/.test(info) && finderBefore === 1 && finderAfter === 0 && /never misses/.test(perfect) && /(^|&)pdsk=1(&|$)/.test(query),
+    `(${JSON.stringify(values)}, auto=${auto}, "${info}", finder ${finderBefore} → ${finderAfter}, ${query})`,
+  );
+}
+{
+  // A default game at 8×: a note per catch, GAME OVER after the allowed misses, the end screen.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  await jrInstrumentTones();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, "sim-paddle.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const end = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__jrOsc);
+  await page.screenshot({ path: path.join(outDir, "sim-paddle-over.png") });
+  check(
+    "paddle keep-up: a note per catch, GAME OVER after the allowed misses",
+    end && data.pdFinished === "1" && data.pdOver === "1" && data.pdMisses === "3" && data.pdAllowed === "2" && Number(data.pdHits) >= 1 && tones.length >= Number(data.pdHits) && data.pdAuto === "1",
+    `(end screen=${end}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("pd"))))}, ${tones.length} tones)`,
+  );
+}
+{
+  // Played by hand: the arrow keys move the platform.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pda=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const x0 = Number((await canvasData()).pdX);
+  await page.keyboard.down("ArrowRight");
+  await page.waitForTimeout(400);
+  await page.keyboard.up("ArrowRight");
+  const x1 = Number((await canvasData()).pdX);
+  await page.keyboard.down("ArrowLeft");
+  await page.waitForTimeout(700);
+  await page.keyboard.up("ArrowLeft");
+  const x2 = Number((await canvasData()).pdX);
+  const finder = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  check("paddle keep-up by hand: the arrow keys move the platform, no finder", x1 > x0 + 0.1 && x2 < x1 - 0.1 && finder === 0, `(x ${x0} → ${x1} → ${x2}, finder buttons ${finder})`);
+}
+{
+  // The finder finds a 30 s game over and the game keeps the promise.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.pdFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check("the finder finds a 30s paddle game and the game keeps the promise", ready && Math.abs(promised - 30) <= 0.5 && Math.abs(Number(data.pdEndSec) - promised) < 0.1, `(ready=${ready}, "${readyText}", game over + hold at ${data.pdEndSec}s)`);
+}
+{
+  // 1080×1920 recordings (the default resolution) of both modes.
+  for (const mode of ["runner", "paddle"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}&dur=10`, { waitUntil: "networkidle" });
+    let fps = { windows: [], avg: 0, min: 0 };
+    const download = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+      (async () => {
+        await page.getByRole("button", { name: /Record Video/ }).click();
+        await page.waitForTimeout(300);
+        fps = await jrFrameRates(3500);
+        await page.getByRole("button", { name: /Stop & Export/ }).click();
+      })(),
+    ]).then(([d]) => d);
+    let size = 0;
+    if (download) {
+      const file = path.join(outDir, `${mode}-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      size = fs.statSync(file).size;
+    }
+    check(`a 1080×1920 ${mode} recording keeps 20+ fps and downloads`, size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  }
+}
+// --- end jdm-rhythm-runner ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

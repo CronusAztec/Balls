@@ -1262,7 +1262,54 @@
     "ctfTimeInfo": "Time limit: {seconds}s (the clip length minus the winner banner)",
     "arenaNudge": "Director Nudge",
     "arenaNudgeTip": "How far the director turns a wall rebound toward the action – the nearest opponent, the enemy flag or home with it. 0 is pure physics; it is seeded, so every run stays reproducible.",
-    "arenaTeamsHint": "Names and colours come from the Teams roster when you set one (Teams & Scoreboard section); otherwise every square gets a colour name."
+    "arenaTeamsHint": "Names and colours come from the Teams roster when you set one (Teams & Scoreboard section); otherwise every square gets a colour name.",
+    "modeRunner": "Beat Runner",
+    "modePaddle": "Paddle Keep-Up",
+    "rrTitle": "Beat runner",
+    "rrDesc": "A square runs along the floor under a scrolling camera; spikes, pits and blocks sit on the beat of the loaded song (or the BPM of the Custom Sound section), so every real-gravity jump lands exactly on a beat and plays the next note.",
+    "rrAutoJump": "Auto Jump",
+    "rrAutoJumpTip": "On: the square jumps by itself at the times the jump solver planned – it never fails and every landing is on the beat. Off: you jump with Space (or ↑ / a tap on the canvas); a crash restarts the section at its checkpoint, and Escape pauses.",
+    "rrObstacles": "Obstacles",
+    "rrObstaclesTip": "How many obstacles the course has before the finish line (at the default tempo a run takes about a second and a half per obstacle).",
+    "rrSpeed": "Run Speed",
+    "rrSpeedTip": "Horizontal speed of the square in cube lengths per second. Faster makes the jumps longer and the obstacles wider.",
+    "rrJump": "Jump Height",
+    "rrJumpTip": "How high a jump goes, in cube lengths. With the Gravity of the Ball & Physics section it sets the take-off speed and the flight time the solver times every jump with.",
+    "rrDensity": "Density",
+    "rrDensityTip": "How often an obstacle takes the earliest beat it fits on. Lower leaves a beat or two free now and then (chosen by the seed).",
+    "rrMix": "Obstacle Mix",
+    "rrMixTip": "What the course is built from: a mix, only rows of spikes, blocks to jump onto and drop off, or pits.",
+    "rrMixMixed": "Mixed",
+    "rrMixSpikes": "Spikes",
+    "rrMixBlocks": "Blocks",
+    "rrMixGaps": "Pits",
+    "rrBeatSource": "Beat",
+    "rrBeatSourceTip": "Song: the obstacles follow the detected beat of the loaded song (Background Music or Song Slicer – the detector of Picture Paint), or the BPM while no song is loaded. BPM: always the BPM of the Custom Sound section.",
+    "rrBeatSong": "Song",
+    "rrBeatBpm": "BPM",
+    "rrBeatInfoSong": "Following the song's beat: {bpm} BPM.",
+    "rrBeatInfoNoSong": "No song loaded – following the BPM of the Custom Sound section: {bpm}.",
+    "rrBeatInfoBpm": "Following the BPM of the Custom Sound section: {bpm}.",
+    "rrBeatAnalyzing": "Detecting the song's beat…",
+    "rrRunInfo": "{obstacles} obstacles on a {bpm} BPM beat – a run of about {seconds}s (the seed moves it by a few beats).",
+    "rrManualInfo": "{obstacles} obstacles – press Space (or tap the canvas) to jump. A crash restarts the section; Find Simulation needs Auto Jump.",
+    "pdTitle": "Paddle keep-up",
+    "pdDesc": "A ball falls onto a platform that slides left and right. Every catch plays the next note and launches the ball back up – higher from the centre, lower and sideways with spin from the edges – off the walls and the ceiling. Miss too often and it is game over.",
+    "pdAuto": "Auto Platform",
+    "pdAutoTip": "On: a deterministic controller predicts every landing and moves the platform there (the Skill slider decides how well). Off: you move it with the pointer or ← → (A / D).",
+    "pdSkill": "Skill",
+    "pdSkillTip": "How well the controller plays. Below 100% it plans some catches a little early or late, aims a little off and reacts later – all from the seed, so the misses and the game over come at the same moments every time for a seed. At 100% it never misses.",
+    "pdMisses": "Misses Allowed",
+    "pdMissesTip": "Misses before the next one ends the game (the hearts above the field).",
+    "pdWidth": "Platform Width",
+    "pdWidthTip": "Width of the platform as a share of the field.",
+    "pdSpin": "Spin",
+    "pdSpinTip": "How much a hit off the platform's centre kicks the ball sideways and spins it (the platform's own motion adds a little).",
+    "pdSpeedUp": "Speed-Up",
+    "pdSpeedUpTip": "Every catch makes the flight this much faster (up to twice as fast): the longer the game, the harder it gets.",
+    "pdInfoPerfect": "At 100% skill the controller never misses – the game never ends (Find Simulation needs a lower skill).",
+    "pdInfoAuto": "{lives} lives – the controller's misses come from the seed, so Find Simulation can time the game over.",
+    "pdInfoManual": "Move the platform with the pointer or ← →. Find Simulation needs Auto Platform."
   },
   "Modes": {
     "classic": {
@@ -1360,6 +1407,14 @@
     "ctf": {
       "name": "Capture the Flag",
       "description": "Two teams of bouncing squares and a base with a flag at each end: touch the enemy flag to carry it, bring it home to score – get tackled on the way and the flag drops where you are. First to the target score, or the better score when the clip ends, wins, with a goal fanfare for every capture."
+    },
+    "runner": {
+      "name": "Beat Runner",
+      "description": "A Geometry Dash-style square runs under a scrolling camera; spikes, pits and blocks sit on the beat of your song, and every real-gravity jump lands exactly on a beat and plays the next note. Auto jump never fails – or play it yourself with Space."
+    },
+    "paddle": {
+      "name": "Paddle Keep-Up",
+      "description": "Keep the ball up with a platform that slides left and right: every catch is a note, off-centre hits send it sideways with spin, off the walls and the ceiling – until the misses run out and it is game over."
     }
   },
   "Features": {
@@ -1610,7 +1665,9 @@
     "modePowerLayers": "The oddplayground power-layers format, no rings: a navy portrait playfield with a glowing ceiling bar in its upper third and, from mid-screen down, a dense stack of 20–800 thin rainbow layers – the layers between the ball and freedom. One white ball bounces between the ceiling and the top of the stack with a slight seeded drift. Every impact destroys as many layers as the current power – they shatter into coloured particles and the stack drops – and the power then doubles, follows Fibonacci or the primes, grows by one, or is drawn from the seed (chaos: some hits destroy dozens, others change nothing). Two rainbow pills show the rule, the power and the level, every level plays the next note of your scale, a big hit adds a chord and a whoosh, and when the last layer goes the ball falls through the bottom to freedom. Every bounce takes the same time, so a run lasts the hit count times the bounce period – Find Simulation says so, or searches the chaos seeds for your clip length.",
     "modeRace": "The project.jdm marble-race format, no rings: 2–16 named racers – the Teams roster's names, colours and emoji – drop from a start grid down a long vertical track generated from the seed. Rows of pegs, funnels, spinners, pinball bumpers, turbo dash pads, narrow gates and swap zones (the first racer through arms one, the second swaps places with it) shuffle the order; every obstacle a racer hits plays its own note, every overtake a rising chime. The camera follows the leader or frames the pack, a mini-map shows the whole track, the standings list positions and gaps, and the finish brings a fanfare, a podium and confetti. Loop the track for several laps, switch on a cup to keep F1 points across races, or pick a staged winner.",
     "modeBattle": "No rings: 2–20 squares with hit points bounce around a box or a circle and into each other. When two collide, the faster one deals damage in proportion to their closing speed; the square that is hit flashes and shrinks a little, and at 0 HP it explodes into shards with a KO callout. An optional safe zone closes in from the eighth second and pushes the survivors together, and heal, shield and speed power-ups appear at seeded times. The last square standing wins under a banner with confetti. Seeded and deterministic, so Find Simulation can search for a battle of a given length.",
-    "modeCtf": "No rings: two teams of one to four squares play capture the flag in a box with a base and a flag at each end. A square that touches the enemy flag carries it and scores when it reaches its own base; a carrier hit by an enemy drops the flag where it is – the enemy can grab it again, its own team sends it home. The director nudges rebounds toward each square's goal, the scoreboard shows the captures and the clock, and every capture plays a goal fanfare. The first team to the target score wins, otherwise the better score when the clip ends."
+    "modeCtf": "No rings: two teams of one to four squares play capture the flag in a box with a base and a flag at each end. A square that touches the enemy flag carries it and scores when it reaches its own base; a carrier hit by an enemy drops the flag where it is – the enemy can grab it again, its own team sends it home. The director nudges rebounds toward each square's goal, the scoreboard shows the captures and the clock, and every capture plays a goal fanfare. The first team to the target score wins, otherwise the better score when the clip ends.",
+    "modeRunner": "The project.jdm \"realistic gravity in Geometry Dash\" rhythm runner, no rings: a square runs along a floor at a constant speed under a scrolling camera. The course is planned on the beat of the loaded song (its detected beat – the same detector as Picture Paint) or of the BPM: for every obstacle – a row of spikes, a pit, a block to jump onto and later drop off – the jump solver takes the flight time of a jump under real gravity with a fixed take-off speed and times the take-off so that the landing falls exactly on a beat. With Auto Jump the square jumps at those times and never fails; without it you jump with Space and a crash restarts the section. Every landing plays the next note with a puff of dust; the finish plays a chord.",
+    "modePaddle": "The \"Ball Bounce Game with Moving Platform\" format, no rings: a ball falls under real gravity onto a platform that slides left and right; a catch launches it back up – higher from the centre, lower and sideways with spin from the edges – so it wanders off the walls and the ceiling, and every catch plays the next note. The auto controller predicts every landing and heads there; its Skill decides how often it arrives early or late, so the misses (and the game over after the allowed ones) are deterministic for a seed. Or move the platform yourself."
   },
   "Footer": {
     "about": "About",
@@ -1953,5 +2010,19 @@
     "name18": "Olive",
     "name19": "Navy",
     "name20": "Snow"
+  },
+  "JdmRhythm": {
+    "complete": "LEVEL COMPLETE!",
+    "completeSub": "[jumps] jumps · [onBeat]/[landings] landings on the beat",
+    "attempt": "ATTEMPT [n]",
+    "auto": "AUTO",
+    "jumpHint": "SPACE to jump",
+    "bpm": "♩ [bpm] BPM",
+    "score": "SCORE",
+    "miss": "MISS!",
+    "gameOver": "GAME OVER",
+    "gameOverSub": "Score [hits] · best streak [best]",
+    "streak": "[n] in a row",
+    "moveHint": "← → or the pointer moves the platform"
   }
 }
