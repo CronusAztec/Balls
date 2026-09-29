@@ -1828,6 +1828,142 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
 }
 // --- end boris-multipliers ---
 
+// --- obstacle-editor ---
+// 19. Obstacle editor: URL → the Obstacles section (a row per obstacle, the bumper boost) and the canvas (data-obstacles),
+// the ready screen shrinks to a bar so the obstacles stay visible and editable; a mouse drag moves a peg (the URL follows
+// on release), a click + Backspace deletes a bumper, a touch drag (pointerType "touch") moves the blocker, the dropdown
+// adds a spinner on a free spot; a run at 8× hits the obstacles (hits, bumper kicks, the spinner turning), pausing makes
+// them draggable again, Clear All empties the layout, and the section is not offered outside the ring modes.
+{
+  const layout = "p:0.5,0,6;b:-0.5,0,10;k:0,0.5,40,0;s:0,-0.5,50,0,30;b:0.22,0,12";
+  await page.goto(`${BASE}/en/simulator/?mode=classic&obs=${encodeURIComponent(layout)}&obb=1.8`, { waitUntil: "networkidle" });
+  const obsParam = () => new URL(page.url()).searchParams.get("obs") ?? "";
+  /** The URL's obstacles as [code, ...numbers]. */
+  const obsList = () =>
+    obsParam()
+      .split(";")
+      .filter(Boolean)
+      .map((part) => [part.split(":")[0], ...part.split(":")[1].split(",").map(Number)]);
+  const box = await page.locator("main canvas").boundingBox();
+  const R = (Math.min(box.width, box.height) / 2) * 0.75;
+  const at = (ax, ay) => ({ x: box.x + box.width / 2 + ax * R, y: box.y + box.height / 2 + ay * R });
+  /** Lets the page commit a change (React state → URL) and the canvas draw a frame or two. */
+  const settle = () => page.waitForTimeout(250);
+  const sectionButtonsClassic = await page.getByRole("button", { name: /^🚧/ }).count();
+  await page.getByRole("button", { name: /Obstacles/ }).first().click();
+  const rows = await page.getByTestId("obstacle-row").count();
+  const boost = await sliderValue("Bumper Boost");
+  const readyBar = await page.getByTestId("obstacle-ready-bar").isVisible();
+  const editing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.obstacleEditing === "1", null, { timeout: 5000 }).then(() => true).catch(() => false);
+  const hint = await page.getByTestId("obstacle-canvas-hint").isVisible();
+  const touchAction = await page.evaluate(() => document.querySelector("main canvas").style.touchAction);
+  check(
+    "obstacles from the URL: a row each in the Obstacles section, the bumper boost, the ready bar, the hint and canvas editing",
+    rows === 5 && boost === "1.8" && readyBar && editing && hint && touchAction === "none" && (await canvasData()).obstacles === "5",
+    `(rows=${rows}, boost=${boost}, bar=${readyBar}, editing=${editing}, hint=${hint}, touch-action=${touchAction})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-obstacles-ready.png") });
+
+  // A mouse drag moves the peg; the URL follows on release (arena radii, so it matches the pointer's arena position).
+  const from = at(0.5, 0);
+  const to = at(0.3, 0.35);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 4 });
+  await page.mouse.move(to.x, to.y, { steps: 4 });
+  await page.mouse.up();
+  await settle();
+  const peg = obsList()[0];
+  check("dragging a peg on the canvas moves it and updates the URL", peg[0] === "p" && Math.abs(peg[1] - 0.3) < 0.02 && Math.abs(peg[2] - 0.35) < 0.02 && peg[3] === 6, `(${obsParam()})`);
+
+  // Click the first bumper, then Backspace deletes it.
+  const bumper = at(-0.5, 0);
+  await page.mouse.click(bumper.x, bumper.y);
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.obstacleSelected === "1", null, { timeout: 3000 }).catch(() => {});
+  const selected = (await canvasData()).obstacleSelected;
+  await page.keyboard.press("Backspace");
+  await settle();
+  const afterDelete = obsList();
+  check(
+    "a click selects an obstacle and Backspace deletes it",
+    selected === "1" && afterDelete.length === 4 && afterDelete.filter((o) => o[0] === "b").length === 1 && (await page.getByTestId("obstacle-row").count()) === 4,
+    `(selected=${selected}, ${obsParam()})`,
+  );
+
+  // A touch drag (pointer events with pointerType "touch") moves the blocker.
+  const tFrom = at(0, 0.5);
+  const tTo = at(-0.35, 0.6);
+  await page.evaluate(
+    ([a, b]) => {
+      const canvas = document.querySelector("main canvas");
+      const fire = (type, p) => canvas.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 41, pointerType: "touch", isPrimary: true, clientX: p.x, clientY: p.y, buttons: type === "pointerup" ? 0 : 1 }));
+      fire("pointerdown", a);
+      for (let i = 1; i <= 6; i++) fire("pointermove", { x: a.x + ((b.x - a.x) * i) / 6, y: a.y + ((b.y - a.y) * i) / 6 });
+      fire("pointerup", b);
+    },
+    [tFrom, tTo],
+  );
+  await settle();
+  const blocker = obsList().find((o) => o[0] === "k");
+  check("a touch drag moves the blocker", !!blocker && Math.abs(blocker[1] + 0.35) < 0.02 && Math.abs(blocker[2] - 0.6) < 0.02 && blocker[3] === 40, `(${obsParam()})`);
+
+  // The dropdown adds a spinner on a free spot.
+  await page.locator("#obstacle-kind-select").selectOption("spinner");
+  await page.getByRole("button", { name: /Add Obstacle/ }).click();
+  await settle();
+  const added = obsList();
+  const spinners = added.filter((o) => o[0] === "s");
+  check("the kind dropdown adds a spinner", added.length === 5 && spinners.length === 2 && (await page.getByTestId("obstacle-row").count()) === 5 && (await canvasData()).obstacles === "5", `(${obsParam()})`);
+
+  // A run at 8×: the ball hits the obstacles and the bumper kicks it; the spinners turn; editing is off meanwhile.
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const angle0 = Number((await canvasData()).spinnerAngle);
+  const hit = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.obstacleHits ?? 0) > 0 && Number(document.querySelector("main canvas")?.dataset.bumperHits ?? 0) > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  // The spinner turns 180°/s of simulation time: its angle moves within a frame or two at 8× (the hit may come first).
+  const turned = await page.waitForFunction((a0) => Number(document.querySelector("main canvas")?.dataset.spinnerAngle) !== a0, angle0, { timeout: 5000 }).then(() => true).catch(() => false);
+  const running = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-obstacles-running.png") });
+  check(
+    "a run hits the obstacles, bumpers kick and spinners turn (no editing while it runs)",
+    hit && turned && running.obstacleEditing === "0" && !(await page.getByTestId("obstacle-canvas-hint").isVisible()),
+    `(hits=${running.obstacleHits}, bumper kicks=${running.bumperHits}, spinner ${angle0}° → ${running.spinnerAngle}°, editing=${running.obstacleEditing})`,
+  );
+
+  // Paused: draggable again. The bumper near the centre moves.
+  const pause = page.getByRole("button", { name: /Pause/ });
+  const stillRunning = await pause.isVisible().catch(() => false);
+  if (stillRunning) {
+    await pause.click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.obstacleEditing === "1", null, { timeout: 5000 }).catch(() => {});
+    const bFrom = at(0.22, 0);
+    const bTo = at(-0.2, -0.25);
+    await page.mouse.move(bFrom.x, bFrom.y);
+    await page.mouse.down();
+    await page.mouse.move(bTo.x, bTo.y, { steps: 6 });
+    await page.mouse.up();
+    await settle();
+  }
+  const pausedBumper = obsList().find((o) => o[0] === "b");
+  check("while paused an obstacle can be dragged again", stillRunning && !!pausedBumper && Math.abs(pausedBumper[1] + 0.2) < 0.03 && Math.abs(pausedBumper[2] + 0.25) < 0.03, `(was running=${stillRunning}, ${obsParam()})`);
+
+  // Clear All empties the layout (URL, list, canvas).
+  await page.getByRole("button", { name: /Clear All Obstacles/ }).click();
+  await settle();
+  check("Clear All removes every obstacle", obsParam() === "" && (await page.getByTestId("obstacle-row").count()) === 0 && (await canvasData()).obstacles === undefined, `(obs="${obsParam()}")`);
+
+  // Outside the ring modes the section is not offered and nothing is drawn (the layout stays in the link).
+  await page.goto(`${BASE}/en/simulator/?mode=drop&obs=${encodeURIComponent(layout)}`, { waitUntil: "networkidle" });
+  await settle();
+  const offered = await page.getByRole("button", { name: /^🚧/ }).count();
+  check(
+    "no Obstacles section and no obstacles outside the ring modes (the layout stays in the link)",
+    sectionButtonsClassic === 1 && offered === 0 && (await canvasData()).obstacles === undefined && obsParam() === layout,
+    `(section buttons: classic ${sectionButtonsClassic}, drop ${offered}; obs="${obsParam()}")`,
+  );
+}
+// --- end obstacle-editor ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 
