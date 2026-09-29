@@ -98,7 +98,10 @@
     "exportFormatNote": "Eksport jako MP4, jeśli przeglądarka to obsługuje; w przeciwnym razie WebM.",
     "fps": "FPS",
     "shareLink": "Kopiuj link do udostępnienia",
-    "shareLinkCopied": "Link skopiowany!"
+    "shareLinkCopied": "Link skopiowany!",
+    "canvasPolyrhythmDone": "W FAZIE!",
+    "canvasPolyrhythmAligned": "Wszystkie głosy ([count]) znów w fazie po cyklach: [cycles]",
+    "finderFixedPolyrhythm": "Metronomy i polirytmy przy tych ustawieniach trwają zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień długość cyklu, tempa albo liczbę cykli w wierszu Tryb, żeby trafić w cel."
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -505,7 +508,50 @@
     "foundDuration": "Znaleziono! {duration}s",
     "seedTested": "Seed: {seed} ({tested} sprawdzonych)",
     "cancelSearch": "Anuluj wyszukiwanie",
-    "findDurationSimulation": "Znajdź symulację {duration}s"
+    "findDurationSimulation": "Znajdź symulację {duration}s",
+    "modePolyrhythm": "Metronomy i polirytmy",
+    "prDesc": "Głosy tykające we własnym tempie: każde tyknięcie gra nutę, a gdy wszystkie tykną naraz, ekran błyska i rozbrzmiewa akord. Pozycje są dokładnymi funkcjami czasu, więc nawet 400 głosów odtwarza się identycznie.",
+    "prLayout": "Układ",
+    "prLayoutTip": "Okręgi: kropka na każdym okręgu obiega środek całkowitą liczbę razy na cykl i tyka na godzinie 12. Łuki: kropki przesuwają się tam i z powrotem w poprzek koła i tykają na obu końcach. Metronomy: siatka wahadeł tykających w obu skrajnych położeniach – połącz je z krokami BPM, żeby uzyskać przesunięcie fazowe tempa. Spirala: krążące kropki, których punkty tyknięć leżą na spirali odtwarzanej przy każdym zgraniu. Układ można zmienić w trakcie – rytm trwa dalej.",
+    "prLayoutRings": "Okręgi",
+    "prLayoutArcs": "Łuki",
+    "prLayoutMetronomes": "Metronomy",
+    "prLayoutSpiral": "Spirala",
+    "prArcStyle": "Rodzaj łuków",
+    "prArcStyleTip": "Cięciwy: każda kropka przesuwa się po własnej poziomej cięciwie dużego koła (efekt „metronomów w kole”). Półokręgi: każda kropka wędruje po półokręgu i tyka na linii podstawy.",
+    "prArcChords": "Cięciwy",
+    "prArcSemicircles": "Półokręgi",
+    "prPolygon": "Wielokąty",
+    "prPolygonTip": "Rysuje każdy okrąg jako wielokąt o tylu wierzchołkach, ile wynosi jego proporcja (3 tyknięcia na cykl = trójkąt), obracający się raz na cykl tak, że przy każdym tyknięciu wierzchołek spotyka kropkę.",
+    "prTempos": "Tempa",
+    "prTemposTip": "Harmoniczne: głos n tyka n razy na cykl (1:2:3…), a na końcu każdego cyklu wszystkie są znów w fazie. Kroki BPM: tempa rosną od bazowego BPM o stały krok, więc sąsiednie głosy powoli się rozjeżdżają i zgrywają dopiero po długim czasie. Własne: twoja lista proporcji, np. 3,4,5,7.",
+    "prTemposHarmonic": "Harmoniczne",
+    "prTemposArithmetic": "Kroki BPM",
+    "prTemposCustom": "Własne",
+    "prCount": "Głosy",
+    "prCountTip": "Ile głosów tyka naraz, do 400. Więcej głosów daje gęstsze wzory; nuty wspinają się po skali durowej od najwolniejszego głosu.",
+    "prCycleSeconds": "Długość cyklu",
+    "prCycleSecondsTip": "Sekundy na cykl przy tempach harmonicznych i własnych: głos o proporcji n tyka n razy na cykl, a na końcu każdego cyklu wszystkie głosy są znów w fazie.",
+    "prBaseBpm": "Tempo bazowe",
+    "prBaseBpmTip": "Tempo pierwszego głosu w uderzeniach na minutę.",
+    "prBpmStep": "Krok tempa",
+    "prBpmStepTip": "O ile szybciej tyka każdy kolejny głos, w BPM. Małe kroki dają powolne przesunięcie fazowe w stylu Reicha; głosy zgrywają się znowu, gdy każde tempo mieści całkowitą liczbę tyknięć w tym samym czasie.",
+    "prCustom": "Proporcje",
+    "prCustomTip": "Liczby całkowite oddzielone przecinkami, spacjami lub dwukropkami – każda to głos tykający tyle razy na cykl (3:4:5 to klasyczny polirytm). Do 400 głosów.",
+    "prCustomVoices": "Głosy: {count}",
+    "prAccentEvery": "Akcent co",
+    "prAccentEveryTip": "Co k-te tyknięcie każdego głosu jest głośniejsze i dłuższe, z pierścieniem wokół kropki – jak pierwsza miara taktu. 0 wyłącza akcenty.",
+    "prPitchBy": "Wysokość",
+    "prPitchByTip": "Wg głosu: każdy głos gra kolejny stopień skali durowej od C4. Wg proporcji: każdy głos gra swoją proporcję tempa jako alikwot C3, więc 3:4:5 brzmi jak akord G–C–E. Oba warianty są przyciągane do skali wybranej w sekcji dźwięku.",
+    "prPitchIndex": "Wg głosu",
+    "prPitchRatio": "Wg proporcji",
+    "prNumbers": "Liczby",
+    "prNumbersTip": "Wypisuje na kropce proporcję (albo BPM) jej głosu.",
+    "prCycles": "Cykle",
+    "prCyclesTip": "Po ilu cyklach symulacja się kończy, ze wszystkimi głosami znów w fazie. 0 pozwala jej tykać bez końca.",
+    "prCyclesNever": "Nigdy",
+    "prOff": "Wył.",
+    "prRealign": "Wszystkie głosy zgrywają się co {seconds}s"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -526,6 +572,10 @@
     "pendulum": {
       "name": "Fala wahadeł",
       "description": "Wahadła nastrojone tak, że każde wykonuje o jedno wahnięcie na cykl więcej niż poprzednie: rząd rozjeżdża się w wędrujące fale, dzieli na grupy i co cykl znów staje w linii, a każde przejście to nuta. Rząd, łuk, okrąg, galaktyka, szyny albo odbijanie – oraz tryb przesunięcia fazowego, który nigdy do końca się nie zrównuje."
+    },
+    "polyrhythm": {
+      "name": "Metronomy i polirytmy",
+      "description": "Do 400 głosów tyka we własnym tempie – kropki krążące po okręgach w rytmie 3:4:5, kropki sunące w poprzek koła, siatka metronomów rozjeżdżających się w fazie, spirala – a każde tyknięcie to nuta. Rozchodzą się w polirytmy i wracają do wspólnej fazy z błyskiem i akordem."
     }
   },
   "Features": {
@@ -667,7 +717,8 @@
     "troubleMidiQ": "Mój plik MIDI się nie wczytuje",
     "troubleMidiA": "Bardzo złożone pliki z wieloma jednoczesnymi ścieżkami mogą się nie wczytać. Spróbuj prostszego pliku MIDI z jedną melodią (format 0 lub 1). Narzędzie zachowuje tylko najwyższą nutę w danym momencie, więc eksport samej linii melodycznej z programu muzycznego działa najlepiej.",
     "troubleStuckQ": "Nadal masz problem?",
-    "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś."
+    "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś.",
+    "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu."
   },
   "Footer": {
     "about": "O nas",

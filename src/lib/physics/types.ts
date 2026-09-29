@@ -23,6 +23,8 @@ export const MODE_IDS = [
   "drop",
   "box",
   "pendulum",
+  // --- jdm-polyrhythm ---
+  "polyrhythm",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

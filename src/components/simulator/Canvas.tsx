@@ -6,6 +6,8 @@ import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { createPendulumTrailLayer, drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, updatePendulumTrailLayer, type PendulumRenderOptions, type PendulumTrailLayer } from "./pendulumRenderer";
+// --- jdm-polyrhythm ---
+import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
@@ -36,6 +38,10 @@ export interface CanvasLabels {
   /** Pendulum Wave: the row is back in line after the last cycle. */
   pendulumDone: string;
   pendulumInLine: (n: number, cycles: number) => string;
+  // --- jdm-polyrhythm ---
+  /** Metronomes & Polyrhythms: every voice back in phase after the last cycle. */
+  polyrhythmDone: string;
+  polyrhythmAligned: (n: number, cycles: number) => string;
   /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
   paintOnSchedule: string;
   paintBehind: string;
@@ -108,6 +114,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   boxCounted: (n) => `All ${n} shape${n !== 1 ? "s" : ""} reached zero`,
   pendulumDone: "IN LINE!",
   pendulumInLine: (n, c) => `All ${n} pendulums back in phase after ${c} cycle${c !== 1 ? "s" : ""}`,
+  polyrhythmDone: "IN PHASE!", // --- jdm-polyrhythm ---
+  polyrhythmAligned: (n, c) => `All ${n} voices back in phase after ${c} cycle${c !== 1 ? "s" : ""}`,
   paintOnSchedule: "on schedule",
   paintBehind: "behind schedule",
   paintAhead: "ahead of schedule",
@@ -375,6 +383,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Pendulum Wave: the renderer's options and the fading trail layer (device pixels; rebuilt when the canvas size changes).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     let pendulumTrails: PendulumTrailLayer | null = null;
+    // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the renderer's options, refreshed per frame.
+    const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -732,6 +742,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         } else pendulumTrails = null;
         drawPendulumRig(ctx, view, pendulumRender);
       } else if (pendulumTrails) pendulumTrails = null;
+
+      // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
+      const isPoly = engine.isPolyrhythmMode();
+      if (isPoly) {
+        polyRender.wallColor = wallColor;
+        polyRender.wallThickness = p.wallThickness;
+        polyRender.showGlow = p.showGlow;
+        drawPolyrhythmStage(ctx, engine.getPolyrhythmView(), polyRender);
+      }
 
       // Color Match segments
       if (engine.isColorMatchMode()) {
@@ -1175,6 +1194,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
+      else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       else balls.forEach((ball, index) => {
         const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
         // Trail
@@ -1416,6 +1436,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isBox) drawBoxCornerFlash(ctx, size.width, size.height, engine.getBoxView());
       // Pendulum Wave: a big chord (most of the row in line) lights up the frame too.
       if (isPendulum) drawPendulumChordFlash(ctx, size.width, size.height, engine.getPendulumView());
+      // --- jdm-polyrhythm --- every voice ticking at once lights up the frame.
+      if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
 
       // HUD: mode counters in the centre
       {
@@ -1567,6 +1589,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isPendulum) {
           const prog = engine.getPendulumProgress();
           if (prog.finished) bigBanner(L.pendulumDone, L.pendulumInLine(prog.count, prog.total), "#a3e635");
+        }
+        // --- jdm-polyrhythm ---
+        if (isPoly) {
+          const prog = engine.getPolyrhythmProgress();
+          if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635");
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
@@ -1730,6 +1757,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("pendulumCycles", String(view.cyclesDone));
       } else if (canvas.dataset.pendulumNotes !== undefined) {
         for (const key of ["pendulumNotes", "pendulumChords", "pendulumCycles"]) delete canvas.dataset[key];
+      }
+      // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
+      if (isPoly) {
+        const view = engine.getPolyrhythmView();
+        setCanvasData("polyVoices", String(view.count));
+        setCanvasData("polyTicks", String(view.tickCount));
+        setCanvasData("polyAlignments", String(view.alignCount));
+        setCanvasData("polyCycles", String(view.cyclesDone));
+        setCanvasData("polyLayout", view.settings.layout);
+      } else if (canvas.dataset.polyTicks !== undefined) {
+        for (const key of ["polyVoices", "polyTicks", "polyAlignments", "polyCycles", "polyLayout"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

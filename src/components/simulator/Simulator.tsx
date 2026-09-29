@@ -14,6 +14,7 @@ import { ballInteractionOf } from "@/lib/physics/interactions";
 import { boxSettingsOf } from "@/lib/physics/modes/box";
 import { dropSettingsOf } from "@/lib/physics/modes/drop";
 import { pendulumSettingsOf } from "@/lib/physics/modes/pendulum";
+import { parseCustomRatios, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm"; // --- jdm-polyrhythm ---
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -130,6 +131,7 @@ export default function Simulator() {
     engine.setDropSettings(dropSettingsOf(s));
     engine.setBoxSettings(boxSettingsOf(s));
     engine.setPendulumSettings(pendulumSettingsOf(s));
+    engine.setPolyrhythmSettings(polyrhythmSettingsOf(s)); // --- jdm-polyrhythm ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -295,6 +297,26 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwTrails, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
+  // --- jdm-polyrhythm --- Metronomes & Polyrhythms: a change of the tempos (voices, series, ratio list, cycle, BPMs) or of the
+  // cycles restarts the run with a fresh seed, so every voice starts in phase; a custom list only counts once it parses differently.
+  const polyCustomKey = parseCustomRatios(s.prCustom).join(",");
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPolyrhythmSettings(polyrhythmSettingsOf(s));
+    if (s.mode === "polyrhythm" && engine.getCurrentModeName() === "polyrhythm") {
+      engine.setSeed(null);
+      engine.initPolyrhythm();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.prCount, s.prTempos, polyCustomKey, s.prCycleSeconds, s.prBaseBpm, s.prBpmStep, s.prCycles]);
+  // The layout, arc style, polygons, accents, pitch mapping and numbers apply live: positions follow the clock, the rhythm carries on.
+  useEffect(() => {
+    engineRef.current?.setPolyrhythmSettings(polyrhythmSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.prLayout, s.prArcStyle, s.prPolygon, s.prAccentEvery, s.prPitchBy, s.prNumbers, s.prCustom]);
+  // --- end jdm-polyrhythm ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -963,6 +985,7 @@ export default function Simulator() {
           drop: dropSettingsOf(settings),
           box: boxSettingsOf(settings),
           pendulum: pendulumSettingsOf(settings),
+          polyrhythm: polyrhythmSettingsOf(settings), // --- jdm-polyrhythm ---
         },
       },
       (p) => setSearchProgress(p),
@@ -1027,6 +1050,8 @@ export default function Simulator() {
       boxCounted: (n) => fill("Simulator.canvasBoxCounted", { count: n }),
       pendulumDone: t("Simulator.canvasPendulumDone"),
       pendulumInLine: (n, cycles) => fill("Simulator.canvasPendulumInLine", { count: n, cycles }),
+      polyrhythmDone: t("Simulator.canvasPolyrhythmDone"), // --- jdm-polyrhythm ---
+      polyrhythmAligned: (n, cycles) => fill("Simulator.canvasPolyrhythmAligned", { count: n, cycles }),
       paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
       paintBehind: t("Simulator.canvasPaintBehind"),
       paintAhead: t("Simulator.canvasPaintAhead"),
@@ -1035,7 +1060,9 @@ export default function Simulator() {
   }, [t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings) });
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings) });
+  // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
+  const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : "Simulator.finderFixed";
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
@@ -1157,7 +1184,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t("Simulator.finderFixed", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
+                      {searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}

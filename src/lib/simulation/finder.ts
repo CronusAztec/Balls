@@ -4,6 +4,8 @@ import type { BoxSettings, DropSettings, PendulumSettings } from "@/lib/physics/
 import { resolveBoxSettings } from "@/lib/physics/modes/box";
 import { resolveDropSettings } from "@/lib/physics/modes/drop";
 import { resolvePendulumSettings } from "@/lib/physics/modes/pendulum";
+// --- jdm-polyrhythm ---
+import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSettings } from "@/lib/physics/modes/polyrhythm";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 
 /**
@@ -32,6 +34,9 @@ export interface ModeSettings {
   box: Partial<BoxSettings>;
   /** Pendulum Wave: count, tuning, layout, sound and cycles (see modes/pendulum.ts); the defaults when left out. */
   pendulum?: Partial<PendulumSettings>;
+  // --- jdm-polyrhythm ---
+  /** Metronomes & Polyrhythms: voices, tempo series, cycle and cycles (see modes/polyrhythm.ts); the defaults when left out. */
+  polyrhythm?: Partial<PolyrhythmSettings>;
 }
 
 /** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
@@ -43,11 +48,13 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
   if (mode === "drop") return resolveDropSettings(settings.drop).loop;
   if (mode === "box") return resolveBoxSettings(settings.box).countdown === 0;
   if (mode === "pendulum") return resolvePendulumSettings(settings.pendulum).cycles === 0;
+  // --- jdm-polyrhythm --- (cycles at "never")
+  if (mode === "polyrhythm") return resolvePolyrhythmSettings(settings.polyrhythm).cycles === 0;
   return false;
 }
 
@@ -57,7 +64,12 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
  * finder does not search a fixed length that misses the target: it resolves at once with `fixedDuration`
  * set and the page says what to change instead.
  */
-export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum">): number | null {
+export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm">): number | null {
+  // --- jdm-polyrhythm --- (cycles × the cycle length, the seed only picks the direction)
+  if (mode === "polyrhythm") {
+    const p = resolvePolyrhythmSettings(settings.polyrhythm);
+    return p.cycles > 0 ? p.cycles * polyrhythmCycleSeconds(p) : null;
+  }
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
@@ -121,6 +133,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "drop") engine.setDropSettings(settings.drop);
   if (mode === "box") engine.setBoxSettings(settings.box);
   if (mode === "pendulum") engine.setPendulumSettings(settings.pendulum ?? {});
+  if (mode === "polyrhythm") engine.setPolyrhythmSettings(settings.polyrhythm ?? {}); // --- jdm-polyrhythm ---
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
