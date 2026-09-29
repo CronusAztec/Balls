@@ -55,6 +55,10 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+// --- project-files ---
+import ProjectDropZone from "./ProjectDropZone";
+import { ShareCodeNotice, useShareCodeLoader, useShortShareLink } from "./shareLinks";
+import { useProjectFiles, type ProjectUploads } from "./useProjectFiles";
 import {
   RANGES,
   defaultSettings,
@@ -110,6 +114,7 @@ export default function Simulator() {
   const hitSampleObjectUrlRef = useRef<string | null>(null);
   const sliceUploadIdRef = useRef(0);
   const musicUploadIdRef = useRef(0);
+  const projectUploadsRef = useRef<ProjectUploads>({}); // --- project-files --- the uploads' original files (decoded songs keep no bytes)
 
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
   const [settings, setSettings] = useState<SimulatorSettings>(() => settingsFromSearchParams(new URLSearchParams(searchParams.toString())));
@@ -972,6 +977,7 @@ export default function Simulator() {
       const url = URL.createObjectURL(file);
       wallBreakObjectUrlRef.current = url;
       setCustomWallBreakName(file.name);
+      projectUploadsRef.current.wallBreakSound = file; // --- project-files ---
       update({ wallBreakSound: url });
     },
     [update],
@@ -983,6 +989,7 @@ export default function Simulator() {
       const url = URL.createObjectURL(file);
       hitSampleObjectUrlRef.current = url;
       setCustomHitSample({ name: file.name, url });
+      projectUploadsRef.current.hitSample = file; // --- project-files ---
       update({ hitSampleId: CUSTOM_HIT_SAMPLE_ID, hitSoundMode: "sample" });
     },
     [update],
@@ -1026,6 +1033,7 @@ export default function Simulator() {
         audio.getSlicer().setBuffer(buffer);
         analyzeSong("slice", buffer);
         setSliceSongInfo({ name: file.name, duration: buffer.duration });
+        projectUploadsRef.current.sliceSong = file; // --- project-files ---
         update({ sliceSong: true });
       } catch (err) {
         if (uploadId !== sliceUploadIdRef.current) return;
@@ -1058,6 +1066,7 @@ export default function Simulator() {
         audio.getMusicBed().setBuffer(buffer);
         analyzeSong("music", buffer);
         setMusicTrack({ name: file.name, duration: buffer.duration });
+        projectUploadsRef.current.musicBed = file; // --- project-files ---
       } catch (err) {
         if (uploadId !== musicUploadIdRef.current) return;
         console.error("Failed to decode the music track:", err);
@@ -1179,6 +1188,7 @@ export default function Simulator() {
         const notes = parseMidiToFrequencies(await file.arrayBuffer());
         audioRef.current?.setCustomNotes(notes);
         setCustomSoundNoteCount(notes.length);
+        projectUploadsRef.current.midi = file; // --- project-files ---
       } catch (err) {
         console.error("Failed to parse uploaded MIDI file:", err);
         alert(t("Controls.midiParseError"));
@@ -1204,10 +1214,9 @@ export default function Simulator() {
     [presets, settings],
   );
 
-  const onLoadPreset = useCallback(
-    (name: string) => {
-      const preset = presets[name];
-      if (!preset) return;
+  // --- project-files --- a saved preset, an imported project and a share code all load their settings through here
+  const loadPresetSettings = useCallback(
+    (preset: Partial<SimulatorSettings>) => {
       finderAbortRef.current?.abort();
       finderAbortRef.current = null;
       setIsSearching(false);
@@ -1241,7 +1250,15 @@ export default function Simulator() {
       setIsPaused(false);
       setFinished(false);
     },
-    [presets, customHitSample, initEngineForMode],
+    [customHitSample, initEngineForMode],
+  );
+
+  const onLoadPreset = useCallback(
+    (name: string) => {
+      const preset = presets[name];
+      if (preset) loadPresetSettings(preset);
+    },
+    [presets, loadPresetSettings],
   );
 
   const onDeletePreset = useCallback(
@@ -1253,6 +1270,43 @@ export default function Simulator() {
     },
     [presets],
   );
+
+  // --- project-files --- Export / Import project (the settings plus the media in memory) and the short ?c= share codes
+  const projectFiles = useProjectFiles({
+    settings,
+    uploads: projectUploadsRef,
+    media: {
+      ballImage,
+      ballEmoji,
+      customHitSampleName: customHitSample?.name ?? null,
+      customWallBreakName,
+      sliceSongName: sliceSongInfo?.name ?? null,
+      musicTrackName: musicTrack?.name ?? null,
+      customSoundId,
+      customMidiName,
+      paintPicture,
+      backgroundImage,
+    },
+    actions: {
+      loadSettings: loadPresetSettings,
+      update,
+      setBallImage,
+      setBallEmoji,
+      setPaintPicture,
+      setBackgroundImage,
+      onHitSampleUpload,
+      onWallBreakSoundUpload,
+      onSliceSongUpload,
+      onSliceSongClear,
+      onMusicUpload,
+      onMusicRemove,
+      onCustomMidiUpload,
+      onCustomSoundSelect,
+    },
+  });
+  const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
+  const shortShareLink = useShortShareLink(settings);
+  // --- end project-files ---
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -1354,13 +1408,13 @@ export default function Simulator() {
 
   const copyShareLink = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(shortShareLink.get() ?? (await shortShareLink.make())); // --- project-files --- the short ?c= link (the long one without CompressionStream)
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     } catch {
       /* clipboard unavailable */
     }
-  }, []);
+  }, [shortShareLink]);
 
   /* ------------------------------------------------------------ canvas labels */
 
@@ -1672,6 +1726,8 @@ export default function Simulator() {
                 {shareCopied ? `✅ ${t("Simulator.shareLinkCopied")}` : `🔗 ${t("Simulator.shareLink")}`}
               </button>
             </div>
+            {/* --- project-files --- a ?c= share code that could not be read */}
+            <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
             {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}
             {obstacleEditing && (
               <p className="mt-1.5 text-[11px] text-[#93d119]/80 leading-relaxed" data-testid="obstacle-canvas-hint">
@@ -1778,7 +1834,7 @@ export default function Simulator() {
           )}
         </div>
 
-        <div className="lg:col-span-1">
+        <ProjectDropZone className="lg:col-span-1" label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} /* --- project-files --- */>
           <Controls
             settings={settings}
             update={update}
@@ -1826,8 +1882,9 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
+            project={projectFiles.panel} // --- project-files ---
           />
-        </div>
+        </ProjectDropZone>
       </div>
     </main>
   );
