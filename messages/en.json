@@ -738,6 +738,8 @@
     "glassMovingTip": "From the third stage on, some panes are narrower and slide left and right: the ball can miss one and drop past it – a lucky escape – or bounce up into it from below.",
     "glassHoles": "Panes with Holes",
     "glassHolesTip": "From the second stage on, some panes have a hole the ball must miss to keep smashing. Dropping through it skips that pane (the ball can still crack it from below).",
+    "glassGates": "Multiplier Gates",
+    "glassGatesTip": "A row of three gates above every stage's glass – x2 DMG (a pane loses two hit points a hit), x1.5 SPEED (every hop runs faster) and x1.25 SIZE – in a seeded order. The gate Boris falls through stacks its multiplier on him (with no cap unless you set one in the Ball section's Multipliers group) and the HUD shows it.",
     "glassRunSize": "Whole run: {panes} panes and up to {hits} hits over {stages} stage(s), then HOME.",
     "wallBreakSoundModeDefault": "Mode default ({name})",
     "modeMultipliers": "Multipliers",

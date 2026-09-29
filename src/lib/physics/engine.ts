@@ -27,6 +27,7 @@ import { GlassMode, type GlassSettings, type GlassView } from "./modes/glass";
 import { MultipliersMode, type MultipliersSettings, type MultipliersView } from "./modes/multipliers";
 import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
+import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -58,6 +59,13 @@ import { TWO_PI } from "./types";
  * gravity the threshold rises to three times that per-sub-step speed (see `handleObstacleCollisions()`).
  */
 export const OBSTACLE_HIT_SPEED = 40;
+/**
+ * --- boris-multipliers --- With multipliers in play and more balls than this, the ball-to-ball pass finds its pairs
+ * through a spatial hash – O(n) a sub-step instead of n²/2, which up to 64 sub-steps a step would multiply (Multiply's
+ * children inherit the speed multiplier and crowd the ring) –; every other run keeps the plain pair loop and its exact
+ * trajectories.
+ */
+export const HASHED_PAIRS_FROM = 64;
 
 /**
  * The physics engine. It is deliberately framework-free so it can run in the page,
@@ -187,6 +195,12 @@ export class PhysicsEngine {
     },
   });
 
+  // --- boris-multipliers --- the hashed ball pass: the grid, the candidate pairs and the balls' positions (reused, grown on demand)
+  private readonly pairHash = new SpatialHash();
+  private readonly pairBuffer = createPairBuffer(512);
+  private pairXs = new Float64Array(0);
+  private pairYs = new Float64Array(0);
+  private pairRs = new Float64Array(0);
   // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners (obstacleEditor.ts), built from the config
   private readonly editorObstacles = new ObstacleField();
 
@@ -873,6 +887,14 @@ export class PhysicsEngine {
   applyBallMultiplier(ball: Ball, stat: MultiplierStat, factor: number): number {
     return this.multipliers.apply(ball, stat, factor);
   }
+  /**
+   * The run ended with a multipliers celebration the canvas draws – a ball outgrew the arena ("OUTGREW THE ARENA"), or
+   * the board emptied ("N Boris made it home") – which the page holds on screen (and in a recording) before its end
+   * screen covers it. Both finish the run in the step they happen, so this is true from that step on.
+   */
+  endsWithMultiplierFinish(): boolean {
+    return this.multipliers.isOutgrown() || (this.currentMode === this.multipliersMode && this.multipliersMode.getView().done);
+  }
   // --- end boris-multipliers ---
   // --- teams ---
   /** Bounces, walls broken and escapes of one ball (undefined until it scored anything; see ballStats.ts). */
@@ -1353,7 +1375,7 @@ export class PhysicsEngine {
           if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
           if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
         }
-        this.handleBallCollisions();
+        this.handleBallCollisions(multActive);
         this.currentMode?.onPostSubStep(this.ctx);
       }
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
@@ -1645,16 +1667,70 @@ export class PhysicsEngine {
    * rebound in "bounce" and "split" mode (the halves of a split must not fly through each other), a fusion
    * in "merge" mode, nothing at all in "pass" mode.
    */
-  private handleBallCollisions() {
+  private handleBallCollisions(multipliersActive = false) {
     const interaction = this.interaction.ballInteraction;
     if (interaction === "pass" || this.currentMode?.ballsPassThrough) return;
     const merge = interaction === "merge";
+    // --- boris-multipliers --- a crowd in a multiplier run (Multiply's fast children): the pairs come from a grid
+    if (multipliersActive && !merge && this.balls.length > HASHED_PAIRS_FROM) {
+      this.handleBallCollisionsHashed();
+      return;
+    }
     for (let a = 0; a < this.balls.length; a++) {
       for (let b = a + 1; b < this.balls.length; b++) {
         if (!merge) this.handleBallCollision(this.balls[a], this.balls[b]);
         else if (this.mergeBallPair(a, b)) b--; // ball b was absorbed into a and the next ball now sits at index b
       }
     }
+  }
+
+  /**
+   * --- boris-multipliers --- The rebound pass through a spatial hash: the balls are binned into cells three of the
+   * biggest radii wide, the pairs that touch – or nearly: a one-radius margin, as the pass itself pushes balls about –
+   * come out in grid order (deterministic: it only depends on the positions) and each gets the pair loop's elastic
+   * rebound. The grid covers the canvas and a few cells around it; balls flung further out (Multiply's escaped ones) are
+   * clamped into its border cells, still next to anything they touch. Allocation-free once the buffers have grown.
+   */
+  private handleBallCollisionsHashed() {
+    const balls = this.balls;
+    const n = balls.length;
+    if (this.pairXs.length < n) {
+      const size = Math.max(2 * this.pairXs.length, n);
+      this.pairXs = new Float64Array(size);
+      this.pairYs = new Float64Array(size);
+      this.pairRs = new Float64Array(size);
+    }
+    const xs = this.pairXs;
+    const ys = this.pairYs;
+    const rs = this.pairRs;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxR = 0;
+    for (let i = 0; i < n; i++) {
+      const b = balls[i];
+      xs[i] = b.x;
+      ys[i] = b.y;
+      rs[i] = b.radius;
+      if (b.x < minX) minX = b.x;
+      if (b.x > maxX) maxX = b.x;
+      if (b.y < minY) minY = b.y;
+      if (b.y > maxY) maxY = b.y;
+      if (b.radius > maxR) maxR = b.radius;
+    }
+    if (!(maxX >= minX) || !(maxY >= minY) || !(maxR > 0) || !Number.isFinite(maxR)) return; // nothing sensible to pair
+    const margin = maxR;
+    const cell = 2 * maxR + margin;
+    const pad = 3 * cell;
+    const x0 = Math.max(minX, -pad) - maxR;
+    const y0 = Math.max(minY, -pad) - maxR;
+    const x1 = Math.max(x0 + cell, Math.min(maxX, this._config.width + pad) + maxR);
+    const y1 = Math.max(y0 + cell, Math.min(maxY, this._config.height + pad) + maxR);
+    this.pairHash.build(xs, ys, n, cell, x0, y0, x1, y1);
+    const count = this.pairHash.collectContacts(xs, ys, rs, margin, this.pairBuffer);
+    const pairs = this.pairBuffer.pairs;
+    for (let k = 0; k < count; k++) this.handleBallCollision(balls[pairs[2 * k]], balls[pairs[2 * k + 1]]);
   }
 
   /**

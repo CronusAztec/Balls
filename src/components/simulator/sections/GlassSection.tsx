@@ -13,7 +13,7 @@ export interface GlassSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const GLASS_KEYS = ["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles"];
+export const GLASS_KEYS = ["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles", "glassGates"];
 
 /** Panes and hits of the whole run with these settings (every pane shattered), for the summary line. */
 export function glassRunSize(s: SimulatorSettings): { panes: number; hits: number } {
@@ -30,8 +30,8 @@ export function glassRunSize(s: SimulatorSettings): { panes: number; hits: numbe
 
 /**
  * "Glass" controls of the Glass Smash mode, shown in the Mode row while the mode is active (and in the Ball section
- * while the settings search is in use): panes per stage, hits per pane, stages, sliding panes and holes, with a line
- * that sums the run up. The values live in SimulatorSettings like everything else; Simulator.tsx forwards them to the
+ * while the settings search is in use): panes per stage, hits per pane, stages, sliding panes, holes and the multiplier
+ * gates, with a line that sums the run up. The values live in SimulatorSettings like everything else; Simulator.tsx forwards them to the
  * engine (see lib/physics/modes/glass.ts) and restarts the shaft when they change.
  */
 export default function GlassSection({ t, search, matches, settings: s, update }: GlassSectionProps) {
@@ -52,6 +52,10 @@ export default function GlassSection({ t, search, matches, settings: s, update }
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="glassHoles">
         <Toggle t={t} labelKey="glassHoles" tipKey="glassHolesTip" value={s.glassHoles} onChange={(v) => update({ glassHoles: v })} />
+      </Searchable>
+      {/* --- boris-multipliers --- a row of multiplier gates above every stage's glass (the cap is in the Ball section's Multipliers group) */}
+      <Searchable search={search} matches={matches} labelKey="glassGates">
+        <Toggle t={t} labelKey="glassGates" tipKey="glassGatesTip" value={s.glassGates} onChange={(v) => update({ glassGates: v })} />
       </Searchable>
       {!search && (
         <p className="text-xs text-zinc-500 leading-relaxed" data-testid="glass-run-size">

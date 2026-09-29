@@ -66,6 +66,11 @@ const PAINT_FINISH_HOLD_MS = 1500;
 /** --- teams --- How long the winner banner and its confetti play before the end screen covers them (a recording keeps them). */
 const WINNER_HOLD_MS = 3000;
 /**
+ * --- boris-multipliers --- How long a multipliers finish – "N Boris made it home" when the board empties, "OUTGREW THE
+ * ARENA" – and its confetti play before the end screen covers them (a recording keeps them); both end the run at once.
+ */
+const MULT_FINISH_HOLD_MS = 2000;
+/**
  * A recording whose length runs out after its run finished waits for the end-of-run hold (winner banner, escape
  * replay, finished picture) instead of cutting it; this long at most (the longest hold is replay + banner, ~7.5 s).
  */
@@ -130,7 +135,8 @@ export default function Simulator() {
   const [beatJobs, setBeatJobs] = useState(0);
   const beatAbortRef = useRef<{ music: AbortController | null; slice: AbortController | null }>({ music: null, slice: null });
   const paintFinishedAtRef = useRef<number | null>(null);
-  // --- teams --- whether teams play in this run (the finish detection then holds the winner banner) and when the banner appeared
+  // --- teams --- whether teams play in this run (the finish detection then holds the winner banner) and when the banner
+  // (or --- boris-multipliers --- the multipliers' finish banner) appeared
   const teamsPlayRef = useRef(false);
   const winnerShownAtRef = useRef<number | null>(null);
   // --- themes: the background picture uploaded in this session (a data: URL kept in memory, never in links or presets)
@@ -376,7 +382,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
-  // --- boris-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes) restarts it.
+  // --- boris-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes, gates) restarts it.
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -386,11 +392,11 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles]);
+  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);
   // A Glass Smash change invalidates a found seed too.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles]);
+  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);
   // --- end boris-glass ---
   // --- boris-multipliers --- pickups, cap and smash threshold travel in the physics config (like the physics extras);
   // a change of the multipliers board restarts it, the count target only matters to the finder.
@@ -676,11 +682,14 @@ export default function Simulator() {
         } else paintFinishedAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
-        // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over)
-        if (done && teamsPlayRef.current) {
+        // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
+        // --- boris-multipliers --- so is a multipliers finish ("N Boris made it home", "OUTGREW THE ARENA"); with teams as
+        // well both celebrations play at once, for the longer of the two holds.
+        const holdMs = done ? Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0) : 0;
+        if (holdMs > 0) {
           const now = performance.now();
           if (winnerShownAtRef.current === null) winnerShownAtRef.current = now;
-          if (now - winnerShownAtRef.current < WINNER_HOLD_MS) done = false;
+          if (now - winnerShownAtRef.current < holdMs) done = false;
         } else if (!done) winnerShownAtRef.current = null;
         setFinished((prev) => (prev !== done ? done : prev));
       }
@@ -1207,8 +1216,10 @@ export default function Simulator() {
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
       audioRef.current?.getMusicBed().stop(); // the found run starts over, so the bed does too
-      // --- teams --- the recording also keeps the winner banner's hold after the run
-      update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + (teamsPlayRef.current ? WINNER_HOLD_MS / 1000 : 0))) });
+      // --- teams --- the recording also keeps the winner banner's hold after the run (--- boris-multipliers --- and the
+      // board's "made it home", which ends every board run)
+      const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0);
+      update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + holdMs / 1000)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
     }

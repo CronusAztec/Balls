@@ -26,9 +26,12 @@ const KIND_OPTIONS: Record<PickupKind, { labelKey: string; icon: string }> = {
   gravity: { labelKey: "pickupKindGravity", icon: "🪨" },
 };
 
-/** Whether the Multipliers block shows in the Ball section for this mode: the ring modes (pickups) and the multipliers board (cap). */
-export function showsMultipliersSection(mode: SimulatorSettings["mode"]): boolean {
-  return PICKUP_MODES.includes(mode) || mode === "multipliers";
+/**
+ * Whether the Multipliers block shows in the Ball section for this mode: the ring modes (pickups), the multipliers
+ * board and Glass Smash with its gate rows on (the cap).
+ */
+export function showsMultipliersSection(mode: SimulatorSettings["mode"], glassGates = false): boolean {
+  return PICKUP_MODES.includes(mode) || mode === "multipliers" || (mode === "glass" && glassGates);
 }
 
 /**

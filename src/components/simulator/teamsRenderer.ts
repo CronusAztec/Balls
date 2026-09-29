@@ -148,6 +148,25 @@ export class TeamLayer {
     return this.active;
   }
 
+  /**
+   * --- boris-multipliers --- Writes into `out` the screen rectangle the scoreboard takes this frame on a canvas of
+   * `width` × `height` with the live `inset` – where `drawOverlay()` will draw it – and returns true; false (and `out`
+   * untouched) when no scoreboard is drawn. An overlay drawn before it, the multipliers HUD, keeps clear of it. Call
+   * after `beginFrame()`; allocation-free (the layout is cached).
+   */
+  scoreboardRect(ctx: CanvasRenderingContext2D, width: number, height: number, inset: number, out: { x: number; y: number; w: number; h: number }): boolean {
+    const o = this.options;
+    if (!this.active || !o || !o.showScoreboard || this.count <= 0) return false;
+    const side = Math.min(width, height);
+    const lay = this.scoreboardLayout(ctx, side);
+    const sx = (width - side) / 2;
+    out.x = o.position === "top-right" ? sx + side - lay.margin - lay.width : sx + lay.margin;
+    out.y = (height - side) / 2 + inset + lay.margin;
+    out.w = lay.width;
+    out.h = lay.height;
+    return true;
+  }
+
   /** Once per frame, before the balls. */
   beginFrame(engine: PhysicsEngine, options: CanvasTeamOptions | null | undefined) {
     const next = options ?? null;

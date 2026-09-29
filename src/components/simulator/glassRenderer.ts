@@ -1,12 +1,15 @@
-import { BANNER_MS, CRACK_GROW_MS, type GlassPane, type GlassView } from "@/lib/physics/modes/glass";
+import { BANNER_MS, CRACK_GROW_MS, paneDamage, type GlassPane, type GlassView } from "@/lib/physics/modes/glass";
 import { ACCENT } from "@/lib/site";
+// --- boris-multipliers --- the gate rows speak the board's language (colours, labels)
+import { MULTIPLIER_COLORS } from "@/lib/physics/multipliers";
+import { DEFAULT_MULTIPLIER_LABELS, gateLabel, type MultiplierLabels } from "./multiplierRenderer";
 
 /**
  * Canvas drawing of the Glass Smash mode (lib/physics/modes/glass.ts): the panes – thin translucent rectangles with a
  * stage tint, a bright top edge, glints, a frost that thickens with the damage and a flash on every hit – their
  * cracks (grown over `CRACK_GROW_MS` from the impact), the rails of sliding panes, the stage markers, the ground and
- * the HOME doorway (warm light once the ball is home), the flying shards, and in screen space the "STAGE n" banner and
- * the stage dots. Canvas.tsx scrolls the world by `GlassView.cameraY` (`applyGlassCamera()`) inside its camera
+ * the HOME doorway (warm light once the ball is home), the multiplier gate rows (x2 DMG, x1.5 SPEED, x1.25 SIZE; the
+ * slot the ball went through lights up), the flying shards, and in screen space the "STAGE n" banner and the stage dots. Canvas.tsx scrolls the world by `GlassView.cameraY` (`applyGlassCamera()`) inside its camera
  * transform, so the obstacle walls, the ball, its face, the particles and everything here share the scroll. Only
  * what is in view is drawn and the fill strings are cached per hue, so a 30-pane stage stays cheap at 1080×1920.
  */
@@ -20,6 +23,8 @@ export interface GlassRenderOptions {
   stageLabel: (n: number) => string;
   /** The sign over the door (translated). */
   homeLabel: string;
+  /** --- boris-multipliers --- The stat words of the gate labels (x2 DMG, x1.5 SPEED, x1.25 SIZE), translated. */
+  multLabels?: MultiplierLabels;
 }
 
 const TWO_PI = Math.PI * 2;
@@ -27,6 +32,8 @@ const STAGE_DASH = [4, 6];
 const NO_DASH: number[] = [];
 /** How long a pane flashes after a hit (simulation ms). */
 export const PANE_FLASH_MS = 220;
+/** How long the gate the ball went through flashes (simulation ms); it stays lit afterwards and the other slots dim. */
+export const GATE_FLASH_MS = 600;
 
 const fillCache = new Map<number, string>();
 const edgeCache = new Map<number, string>();
@@ -126,6 +133,8 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
   ctx.setLineDash(NO_DASH);
   ctx.globalAlpha = 1;
 
+  if (level.gates.length > 0) drawGlassGates(ctx, view, opts, viewTop, viewBottom);
+
   // Panes.
   for (const pane of level.panes) {
     if (pane.shattered) continue;
@@ -142,7 +151,7 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
       ctx.lineTo(f.right, pane.y);
       ctx.stroke();
     }
-    const damage = pane.maxHp > 0 ? pane.hits / pane.maxHp : 0;
+    const damage = paneDamage(pane);
     const age = now - pane.lastHitMs;
     const flash = age >= 0 && age < PANE_FLASH_MS ? 1 - age / PANE_FLASH_MS : 0;
     const left = pane.x - pane.halfWidth;
@@ -251,6 +260,68 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
     }
     ctx.fillText(opts.homeLabel, home.doorX, y0 - 0.5 * w - 4);
     ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+/**
+ * --- boris-multipliers --- The gate rows in view: per slot a tinted band under the gate line and its label (shrunk to
+ * fit its slot, an outline for contrast). The slot the ball went through flashes and stays lit; the others dim.
+ */
+function drawGlassGates(ctx: CanvasRenderingContext2D, view: GlassView, opts: GlassRenderOptions, viewTop: number, viewBottom: number) {
+  const level = view.level!;
+  const f = level.field;
+  const labels = opts.multLabels ?? DEFAULT_MULTIPLIER_LABELS;
+  const bandH = Math.max(14, 0.04 * f.height);
+  const fs = Math.max(10, 0.028 * f.height);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  for (const row of level.gates) {
+    if (row.y + bandH < viewTop || row.y - bandH > viewBottom) continue;
+    const age = view.timeMs - row.passedAtMs;
+    const flash = age >= 0 && age < GATE_FLASH_MS ? 1 - age / GATE_FLASH_MS : 0;
+    for (let i = 0; i < row.slots.length; i++) {
+      const slot = row.slots[i];
+      const color = MULTIPLIER_COLORS[slot.kind];
+      const taken = row.passedSlot === i;
+      const dim = row.passedSlot >= 0 && !taken;
+      const x0 = slot.x0 + 3;
+      const w = slot.x1 - slot.x0 - 6;
+      if (w <= 0) continue;
+      ctx.globalAlpha = dim ? 0.05 : taken ? 0.3 + 0.45 * flash : 0.16;
+      ctx.fillStyle = color;
+      ctx.fillRect(x0, row.y, w, bandH);
+      ctx.globalAlpha = dim ? 0.3 : 0.95;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      if (taken && flash > 0.05 && opts.showGlow) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 18 * flash;
+      }
+      ctx.beginPath();
+      ctx.moveTo(x0, row.y);
+      ctx.lineTo(x0 + w, row.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      const text = gateLabel(slot.kind, slot.factor, labels);
+      let size = fs;
+      ctx.font = `900 ${size.toFixed(1)}px sans-serif`;
+      const tw = ctx.measureText(text).width;
+      if (tw > w - 6) {
+        size *= Math.max(0.3, (w - 6) / tw);
+        ctx.font = `900 ${size.toFixed(1)}px sans-serif`;
+      }
+      const lx = (slot.x0 + slot.x1) / 2;
+      const ly = row.y + 0.5 * bandH;
+      ctx.globalAlpha = dim ? 0.35 : 1;
+      ctx.lineWidth = Math.max(2, 0.18 * size);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.75)";
+      ctx.strokeText(text, lx, ly);
+      ctx.fillStyle = taken && flash > 0.5 ? "#ffffff" : color;
+      ctx.fillText(text, lx, ly);
+    }
   }
   ctx.restore();
 }

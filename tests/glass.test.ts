@@ -5,7 +5,11 @@ import {
   BOUNCE_MIN,
   CELEBRATION_MS,
   DEFAULT_GLASS_SETTINGS,
+  GATE_Y,
+  GLASS_GATE_FACTORS,
+  GLASS_GATE_KINDS,
   GLASS_RANGES,
+  HIT_SPEED,
   HOME_CHORD,
   MAX_PANE_HP,
   MAX_SHARDS_PER_PANE,
@@ -17,12 +21,15 @@ import {
   buildGlassField,
   buildGlassLevel,
   cameraTarget,
+  gateSlotAt,
   glassGravity,
+  glassMaxBallRadius,
   glassPitch,
   glassSettingFields,
   glassSettingsOf,
   hopSpeed,
   makeCrack,
+  paneDamage,
   resolveGlassSettings,
   shardCount,
   solidSpan,
@@ -39,11 +46,13 @@ import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/typ
 import { modeWallBreakSound, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/songs";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
+import { showsMultipliersSection } from "@/components/simulator/sections/MultipliersSection";
 
 /**
  * Glass Smash (lib/physics/modes/glass.ts): the settings (URL, presets, ranges), the stage progression, the level
  * generation and its determinism, the cracks and the shatter state, the sound events, the camera and the stages, the
- * HOME finish, a resize mid-run, the finder and the mode's default wall-break clip.
+ * HOME finish, a resize mid-run, the finder, the mode's default wall-break clip and – boris-multipliers – the damage,
+ * speed and size multipliers on the glass and the multiplier gate rows.
  */
 
 const config: PhysicsConfig = {
@@ -119,33 +128,40 @@ function levelPrint(level: GlassLevel) {
 describe("Glass Smash settings", () => {
   it("resolve to the defaults and clamp every value to a whole number in its range", () => {
     expect(resolveGlassSettings(undefined)).toEqual(DEFAULT_GLASS_SETTINGS);
-    expect(resolveGlassSettings({ rows: 99, hp: 0, stages: 4.6, moving: "yes" as unknown as boolean, holes: false })).toEqual({ rows: 30, hp: 1, stages: 5, moving: DEFAULT_GLASS_SETTINGS.moving, holes: false });
+    expect(resolveGlassSettings({ rows: 99, hp: 0, stages: 4.6, moving: "yes" as unknown as boolean, holes: false, gates: 1 as unknown as boolean })).toEqual({ rows: 30, hp: 1, stages: 5, moving: DEFAULT_GLASS_SETTINGS.moving, holes: false, gates: false });
+    expect(DEFAULT_GLASS_SETTINGS.gates).toBe(false);
+    expect(resolveGlassSettings({ gates: true }).gates).toBe(true);
     expect(resolveGlassSettings({ rows: Number.NaN })).toEqual(DEFAULT_GLASS_SETTINGS);
     expect(RANGES.glassRows).toEqual(GLASS_RANGES.glassRows);
     expect([GLASS_RANGES.glassRows.min, GLASS_RANGES.glassRows.max, GLASS_RANGES.glassHp.min, GLASS_RANGES.glassHp.max, GLASS_RANGES.glassStages.min, GLASS_RANGES.glassStages.max]).toEqual([3, 30, 1, 5, 1, 10]);
     expect(glassSettingsOf(glassSettingFields(DEFAULT_GLASS_SETTINGS))).toEqual(DEFAULT_GLASS_SETTINGS);
   });
 
-  it("are part of the settings object, the URL (glr, glhp, gls, glm, glh) and presets", () => {
+  it("are part of the settings object, the URL (glr, glhp, gls, glm, glh, glg) and presets", () => {
     const d = defaultSettings("glass");
     expect(glassSettingsOf(d)).toEqual(DEFAULT_GLASS_SETTINGS);
     // The other modes keep their defaults: the glass fields are simply there.
     expect(glassSettingsOf(defaultSettings("classic"))).toEqual(DEFAULT_GLASS_SETTINGS);
-    const s: SimulatorSettings = { ...d, glassRows: 12, glassHp: 4, glassStages: 7, glassMoving: false, glassHoles: false };
+    const s: SimulatorSettings = { ...d, glassRows: 12, glassHp: 4, glassStages: 7, glassMoving: false, glassHoles: false, glassGates: true };
     const params = settingsToSearchParams(s);
     expect(params.get("glr")).toBe("12");
     expect(params.get("glhp")).toBe("4");
     expect(params.get("gls")).toBe("7");
     expect(params.get("glm")).toBe("0");
     expect(params.get("glh")).toBe("0");
-    expect(glassSettingsOf(settingsFromSearchParams(params))).toEqual({ rows: 12, hp: 4, stages: 7, moving: false, holes: false });
+    expect(params.get("glg")).toBe("1");
+    expect(glassSettingsOf(settingsFromSearchParams(params))).toEqual({ rows: 12, hp: 4, stages: 7, moving: false, holes: false, gates: true });
     // Defaults stay out of the link.
     const plain = settingsToSearchParams(d);
-    for (const key of ["glr", "glhp", "gls", "glm", "glh"]) expect(plain.has(key)).toBe(false);
+    for (const key of ["glr", "glhp", "gls", "glm", "glh", "glg"]) expect(plain.has(key)).toBe(false);
     // Out-of-range values from a link or a preset are clamped.
     expect(glassSettingsOf(settingsFromSearchParams(new URLSearchParams("mode=glass&glr=500&glhp=-3&gls=2.4")))).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 30, hp: 1, stages: 2 });
-    const preset = presetToSettings({ mode: "glass", glassRows: 1, glassHp: 9, glassStages: 0, glassHoles: "no" } as unknown as Partial<SimulatorSettings>);
+    const preset = presetToSettings({ mode: "glass", glassRows: 1, glassHp: 9, glassStages: 0, glassHoles: "no", glassGates: "yes" } as unknown as Partial<SimulatorSettings>);
     expect(glassSettingsOf(preset)).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 3, hp: 5, stages: 1 });
+    expect(glassSettingsOf(presetToSettings({ mode: "glass", glassGates: true }))).toEqual({ ...DEFAULT_GLASS_SETTINGS, gates: true });
+    // The Ball section's Multipliers group (the cap) shows in Glass Smash while the gates are on.
+    expect(showsMultipliersSection("glass", false)).toBe(false);
+    expect(showsMultipliersSection("glass", true)).toBe(true);
   });
 });
 
@@ -418,6 +434,75 @@ describe("GlassMode in the engine", () => {
     expect(hopSpeed(glassGravity(300, view.level!.field.height), height)).toBeGreaterThan(40);
   });
 
+  it("counts a slow touch from above as a landing, so the ball can never come to rest on the glass", () => {
+    const engine = glassEngine({ hp: 3, holes: false, moving: false });
+    const level = engine.getGlassView().level!;
+    const first = level.panes[0];
+    const ball = engine.getBalls()[0];
+    // Set down on the pane far slower than HIT_SPEED: it still cracks the pane and hops back up.
+    ball.x = first.x;
+    ball.y = first.y - first.thickness / 2 - ball.radius + 0.5;
+    ball.vx = 0;
+    ball.vy = 1;
+    engine.update(1000 / 60, 0);
+    expect([first.hits, first.hp, first.cracks.length]).toEqual([1, 2, 1]);
+    expect(ball.vy).toBeLessThan(-HIT_SPEED);
+    // The full hop, less the gravity of what was left of the step after the landing.
+    const g = glassGravity(300, level.field.height);
+    const hop = hopSpeed(g, level.stages[0].bounceHeight);
+    expect(ball.vy).toBeGreaterThanOrEqual(-hop - 1e-6);
+    expect(ball.vy).toBeLessThanOrEqual(-hop + g / 60 + 1e-6);
+    // Resting on the rounded end of a hole's glass (the grazed edge the stuck runs sat on) is a landing too.
+    const holes = glassEngine({ stages: 3, holes: true, moving: false }, 3);
+    const pane = holes.getGlassView().level!.panes.find((p) => p.kind === "hole")!;
+    expect(pane).toBeDefined();
+    const seg = pane.segments[1];
+    const b = holes.getBalls()[0];
+    const reach = b.radius + seg.thickness / 2;
+    b.x = seg.x - seg.halfLength - 0.6 * reach;
+    b.y = seg.y - 0.8 * reach + 0.3;
+    b.vx = 0;
+    b.vy = 0;
+    holes.update(1000 / 60, 0);
+    expect(pane.hits).toBe(1);
+    expect(b.vy).toBeLessThan(-HIT_SPEED);
+    // A slow knock from below is still only a push: the ball drops away without cracking anything.
+    const below = glassEngine({ hp: 3, holes: false, moving: false });
+    const second = below.getGlassView().level!.panes[1];
+    const b2 = below.getBalls()[0];
+    b2.x = second.x;
+    b2.y = second.y + second.thickness / 2 + b2.radius - 0.5;
+    b2.vx = 0;
+    b2.vy = -1;
+    below.update(1000 / 60, 0);
+    expect(second.hits).toBe(0);
+    expect(b2.vy).toBeGreaterThan(0);
+  });
+
+  it("finishes the runs that used to come to rest on an unbroken pane (regression)", () => {
+    // These runs settled on a pane – contacts slower than HIT_SPEED only damped the ball's bounce – and never reached
+    // HOME: seed 209979 with the defaults (from ~26 s on a hole pane, 2 of 2 hit points left) and four 10-stage seeds.
+    const cases: [Partial<GlassSettings>, number][] = [
+      [{}, 209979],
+      [{ stages: 10 }, 30],
+      [{ stages: 10 }, 41],
+      [{ stages: 10 }, 69],
+      [{ stages: 10 }, 82],
+    ];
+    for (const [settings, seed] of cases) {
+      const engine = glassEngine(settings, seed);
+      runUntil(engine, () => engine.isSimulationFinished(), 180);
+      expect(engine.isSimulationFinished(), `seed ${seed}`).toBe(true);
+      expect(engine.getGlassView().homeReached, `seed ${seed}`).toBe(true);
+    }
+    // And with the canvas resized under it mid-run.
+    const resized = glassEngine({}, 209979);
+    runUntil(resized, () => resized.getElapsedMs() >= 12000, 20);
+    resized.setConfig({ width: 1080, height: 1920 });
+    runUntil(resized, () => resized.isSimulationFinished(), 180);
+    expect(resized.isSimulationFinished()).toBe(true);
+  }, 60000);
+
   it("smashes through every stage, scrolls the camera down and ends at HOME with a chord and a celebration", () => {
     const engine = glassEngine({ rows: 4, hp: 1, stages: 3, holes: false, moving: false }, 21);
     const view = engine.getGlassView();
@@ -551,6 +636,248 @@ describe("GlassMode in the engine", () => {
     expect(engine.getGlassSettings().rows).toBe(9);
   });
 });
+
+// --- boris-multipliers ---
+describe("Glass Smash with multipliers", () => {
+  it("lays a row of the three gates above every stage's glass only when they are on, leaving the glass as it was", () => {
+    const off = buildGlassLevel(800, 600, { stages: 5 }, 8, rng(9));
+    const on = buildGlassLevel(800, 600, { stages: 5, gates: true }, 8, rng(9));
+    expect(off.gates).toEqual([]);
+    // The gate rows draw their random numbers after everything else: the glass is the same with or without them.
+    expect(levelPrint(on)).toEqual(levelPrint(off));
+    expect(on.gates).toHaveLength(5);
+    const f = on.field;
+    on.gates.forEach((row, s) => {
+      const st = on.stages[s];
+      const first = on.panes[st.firstPane];
+      expect(row.stage).toBe(s);
+      expect(row.y).toBeCloseTo(st.top + GATE_Y * f.height, 9);
+      // Under the stage's top, over its first pane – with room for the ball between them.
+      expect(row.y).toBeGreaterThan(st.top);
+      expect(row.y + 2 * 8).toBeLessThan(first.y - first.thickness / 2);
+      expect(row.slots.map((g) => g.kind).sort()).toEqual([...GLASS_GATE_KINDS].sort());
+      for (const g of row.slots) expect(g.factor).toBe(GLASS_GATE_FACTORS[g.kind]);
+      // Three slots side by side across the whole shaft.
+      expect(row.slots[0].x0).toBeCloseTo(f.left, 9);
+      expect(row.slots[row.slots.length - 1].x1).toBeCloseTo(f.right, 9);
+      for (let i = 1; i < row.slots.length; i++) expect(row.slots[i].x0).toBeCloseTo(row.slots[i - 1].x1, 9);
+      expect([row.passedSlot, row.applied]).toEqual([-1, 1]);
+      expect(gateSlotAt(row, f.left - 5)).toBe(0);
+      expect(gateSlotAt(row, (row.slots[1].x0 + row.slots[1].x1) / 2)).toBe(1);
+      expect(gateSlotAt(row, f.right + 5)).toBe(row.slots.length - 1);
+    });
+    expect(GLASS_GATE_FACTORS).toEqual({ damage: 2, speed: 1.5, size: 1.25 });
+    // The order of the slots is seeded: the same for a seed, not the same in every row.
+    const orders = (seed: number) => buildGlassLevel(800, 600, { stages: 10, gates: true }, 8, rng(seed)).gates.map((r) => r.slots.map((g) => g.kind).join());
+    expect(orders(9)).toEqual(orders(9));
+    expect(new Set(orders(9)).size).toBeGreaterThan(1);
+  });
+
+  it("scales the damage of a hit: x2 DMG breaks a 2-hit pane in one landing", () => {
+    const engine = glassEngine({ hp: 2, holes: false, moving: false });
+    const first = engine.getGlassView().level!.panes[0];
+    expect(first.maxHp).toBe(2);
+    engine.applyBallMultiplier(engine.getBalls()[0], "damage", 2);
+    const events: SoundEvent[] = [];
+    runUntil(engine, () => first.hits >= 1, 10, events);
+    expect([first.hits, first.hp, first.shattered]).toEqual([1, 0, true]);
+    expect(paneDamage(first)).toBe(1);
+    // The shatter's accent and the wall-break sound, and the ball crashes on through.
+    expect(events.some((e) => e.type === "hit" && e.accent)).toBe(true);
+    expect(events.filter((e) => e.type === "gap")).toHaveLength(1);
+    expect(engine.getBalls()[0].vy).toBeGreaterThan(0);
+    // A plain ball takes two landings.
+    const plain = glassEngine({ hp: 2, holes: false, moving: false });
+    const p0 = plain.getGlassView().level!.panes[0];
+    runUntil(plain, () => p0.hits >= 1, 10);
+    expect([p0.hp, p0.shattered, paneDamage(p0)]).toEqual([1, false, 0.5]);
+    // More damage than the pane has left never takes it below zero; a 4-hit pane shows half its damage after one x2 hit.
+    const big = glassEngine({ hp: 2, holes: false, moving: false });
+    big.applyBallMultiplier(big.getBalls()[0], "damage", 3);
+    const b0 = big.getGlassView().level!.panes[0];
+    runUntil(big, () => b0.hits >= 1, 10);
+    expect([b0.hp, b0.shattered]).toEqual([0, true]);
+    const thick = glassEngine({ hp: 4, holes: false, moving: false });
+    thick.applyBallMultiplier(thick.getBalls()[0], "damage", 2);
+    const t0 = thick.getGlassView().level!.panes[0];
+    runUntil(thick, () => t0.hits >= 1, 10);
+    expect([t0.hp, t0.shattered, paneDamage(t0), t0.cracks.length]).toEqual([2, false, 0.5, 1]);
+  });
+
+  it("runs the whole flight faster with a speed multiplier: the same hop, k× as fast", () => {
+    const hop = (k: number) => {
+      const engine = glassEngine({ hp: 5, holes: false, moving: false });
+      const level = engine.getGlassView().level!;
+      const first = level.panes[0];
+      if (k !== 1) engine.applyBallMultiplier(engine.getBalls()[0], "speed", k);
+      runUntil(engine, () => first.hits >= 1, 10);
+      const start = engine.getElapsedMs();
+      let top = Infinity;
+      runUntil(engine, () => {
+        top = Math.min(top, engine.getBalls()[0].y);
+        return first.hits >= 2;
+      }, 10);
+      const rest = first.y - first.thickness / 2 - engine.getBalls()[0].radius;
+      return { ms: engine.getElapsedMs() - start, height: rest - top, bounce: level.stages[0].bounceHeight };
+    };
+    const one = hop(1);
+    const two = hop(2);
+    // Half the time between two landings (to a step or two of the 60 Hz clock) …
+    expect(Math.abs(two.ms - one.ms / 2)).toBeLessThan(2.5 * (1000 / 60));
+    // … for the same hop height.
+    expect(two.height).toBeGreaterThan(0.85 * two.bounce);
+    expect(two.height).toBeLessThan(1.15 * two.bounce);
+  });
+
+  it("gives the ball the gate it falls through at the end of the step, through the run's multipliers, with the arpeggio", () => {
+    for (let i = 0; i < GLASS_GATE_KINDS.length; i++) {
+      const engine = glassEngine({ stages: 1, gates: true, holes: false, moving: false }, 5);
+      const view = engine.getGlassView();
+      const row = view.level!.gates[0];
+      const slot = row.slots[i];
+      const ball = engine.getBalls()[0];
+      ball.x = (slot.x0 + slot.x1) / 2;
+      ball.y = row.y - 1;
+      ball.vx = 0;
+      ball.vy = 150;
+      engine.update(1000 / 60, 0);
+      const events = engine.consumeSoundEvents();
+      expect(row.passedSlot).toBe(i);
+      expect(row.applied).toBe(slot.factor);
+      expect(view.gatesPassed).toBe(1);
+      expect(engine.getGlassProgress().gates).toBe(1);
+      expect(ball.mult![slot.kind]).toBe(slot.factor);
+      for (const other of GLASS_GATE_KINDS) if (other !== slot.kind) expect(ball.mult![other]).toBe(1);
+      if (slot.kind === "size") expect(ball.radius).toBeCloseTo(8 * slot.factor, 9);
+      // The rising arpeggio with the new total, and the HUD badge.
+      expect(events.filter((e) => e.type === "multiplier").map((e) => e.multiplier)).toEqual([slot.factor]);
+      const mv = engine.getMultiplierView();
+      expect(mv.active).toBe(true);
+      expect(mv[slot.kind]).toBe(slot.factor);
+      expect(mv.changedAt[slot.kind]).toBeGreaterThan(-Infinity);
+      // Back up and down through the row again: each row counts once.
+      ball.y = row.y - 30;
+      ball.vy = 150;
+      for (let f = 0; f < 10; f++) engine.update(1000 / 60, 0);
+      expect(ball.mult![slot.kind]).toBe(slot.factor);
+      expect(view.gatesPassed).toBe(1);
+    }
+  });
+
+  it("plays with multipliers from the first step when the gates are on, and leaves a run without them as it was", () => {
+    const on = glassEngine({ gates: true }, 11);
+    on.update(1000 / 60, 0);
+    expect(on.getMultiplierView().active).toBe(true);
+    const off = glassEngine({}, 11);
+    off.update(1000 / 60, 0);
+    expect(off.getMultiplierView().active).toBe(false);
+    expect(off.getGlassView().level!.gates).toEqual([]);
+    expect(off.getBalls()[0].mult).toBeUndefined();
+  });
+
+  it("applies the rows deterministically over a whole run: each once, and the ball carries their product", () => {
+    const run = (seed: number) => {
+      const engine = glassEngine({ stages: 4, gates: true }, seed);
+      const view = engine.getGlassView();
+      const rows = view.level!.gates;
+      runUntil(engine, () => engine.isSimulationFinished(), 180);
+      expect(engine.isSimulationFinished()).toBe(true);
+      expect(view.homeReached).toBe(true);
+      expect(view.gatesPassed).toBe(rows.length);
+      const product = { speed: 1, size: 1, damage: 1 };
+      for (const row of rows) {
+        expect(row.passedSlot).toBeGreaterThanOrEqual(0);
+        const slot = row.slots[row.passedSlot];
+        expect(row.applied).toBeLessThanOrEqual(slot.factor + 1e-12);
+        if (slot.kind !== "size") expect(row.applied).toBe(slot.factor);
+        product[slot.kind] *= row.applied;
+      }
+      const ball = engine.getBalls()[0];
+      expect(ball.mult!.speed).toBeCloseTo(product.speed, 9);
+      expect(ball.mult!.size).toBeCloseTo(product.size, 9);
+      expect(ball.mult!.damage).toBeCloseTo(product.damage, 9);
+      expect(ball.radius).toBeCloseTo(8 * product.size, 9);
+      const mv = engine.getMultiplierView();
+      expect([mv.speed, mv.size, mv.damage].map((v) => Math.round(v * 1e9))).toEqual([product.speed, product.size, product.damage].map((v) => Math.round(v * 1e9)));
+      return { passes: rows.map((r) => r.passedSlot), mult: { ...ball.mult }, ms: view.timeMs, hits: view.hits, camera: view.cameraY };
+    };
+    expect(run(31)).toEqual(run(31));
+    const all = [31, 32, 33, 34, 35].map((seed) => JSON.stringify(run(seed).mult));
+    expect(new Set(all).size).toBeGreaterThan(1);
+  }, 60000);
+
+  it("never grows the ball past the room the panes below leave, and stacks through the multipliers cap", () => {
+    const engine = glassEngine({ stages: 1, gates: true, holes: false, moving: false }, 5, { ballRadius: 20 });
+    const level = engine.getGlassView().level!;
+    const row = level.gates[0];
+    const size = row.slots.findIndex((g) => g.kind === "size");
+    const room = glassMaxBallRadius(level, 0);
+    expect(room).toBeGreaterThan(20 * 1.25);
+    expect(room).toBeLessThan(20 * 1.25 * 1.25);
+    const ball = engine.getBalls()[0];
+    engine.applyBallMultiplier(ball, "size", 1.25);
+    ball.x = (row.slots[size].x0 + row.slots[size].x1) / 2;
+    ball.y = row.y - 1;
+    ball.vx = 0;
+    ball.vy = 150;
+    engine.update(1000 / 60, 0);
+    expect(row.passedSlot).toBe(size);
+    expect(row.applied).toBeGreaterThan(1);
+    expect(row.applied).toBeLessThan(GLASS_GATE_FACTORS.size);
+    expect(ball.radius).toBeCloseTo(room, 9);
+    // Grown to its limit, it still gets between the panes and home.
+    runUntil(engine, () => engine.isSimulationFinished(), 120);
+    expect(engine.isSimulationFinished()).toBe(true);
+    // A cap of x1 (Unlimited off) keeps every stat where it was.
+    const capped = glassEngine({ stages: 2, gates: true }, 6, { mpUnlimited: false, mpCap: 1 });
+    runUntil(capped, () => capped.isSimulationFinished(), 180);
+    expect(capped.isSimulationFinished()).toBe(true);
+    const m = capped.getBalls()[0].mult;
+    expect([m?.speed ?? 1, m?.size ?? 1, m?.damage ?? 1]).toEqual([1, 1, 1]);
+    expect(capped.getGlassView().gatesPassed).toBe(2);
+    expect(capped.getGlassView().level!.gates.map((r) => r.applied)).toEqual([1, 1]);
+  });
+
+  it("follows the level across a canvas resize, and every run with gates ends at HOME inside the shaft", () => {
+    const engine = glassEngine({ stages: 3, gates: true }, 12);
+    for (let i = 0; i < 30; i++) engine.update(1000 / 60, 0);
+    const level = engine.getGlassView().level!;
+    const old = { ...level.field };
+    const before = level.gates.map((r) => [(r.y - old.top) / old.height, (r.slots[1].x0 - old.cx) / old.height, (r.slots[1].x1 - old.cx) / old.height]);
+    engine.setConfig({ width: 1080, height: 1920 });
+    const f = engine.getGlassView().level!.field;
+    const after = level.gates.map((r) => [(r.y - f.top) / f.height, (r.slots[1].x0 - f.cx) / f.height, (r.slots[1].x1 - f.cx) / f.height]);
+    after.forEach((triple, i) => triple.forEach((v, j) => expect(v).toBeCloseTo(before[i][j], 9)));
+    runUntil(engine, () => engine.isSimulationFinished(), 180);
+    expect(engine.isSimulationFinished()).toBe(true);
+    for (const seed of [1, 2, 3]) {
+      const e = glassEngine({ rows: 8, stages: 5, gates: true }, seed);
+      const view = e.getGlassView();
+      const fld = view.level!.field;
+      runUntil(e, () => {
+        const ball = e.getBalls()[0];
+        expect(ball.x).toBeGreaterThanOrEqual(fld.left + ball.radius - 1e-6);
+        expect(ball.x).toBeLessThanOrEqual(fld.right - ball.radius + 1e-6);
+        expect(ball.y - view.cameraY).toBeGreaterThanOrEqual(fld.top);
+        expect(ball.y - view.cameraY).toBeLessThanOrEqual(fld.bottom);
+        return e.isSimulationFinished();
+      }, 180);
+      expect(e.isSimulationFinished(), `seed ${seed}`).toBe(true);
+      expect(view.gatesPassed).toBe(5);
+    }
+  }, 60000);
+
+  it("replays a seed with gates exactly in the finder", () => {
+    const request: FinderRequest = { targetDurationSec: 10, toleranceSec: 0.5, maxSeeds: 10, maxSimTimeSec: 90, physicsConfig: config, mode: "glass", modeSettings: { ...modeSettings, glass: { gates: true } } };
+    const a = simulateSeed(7, request, 90000);
+    expect(a).toBeLessThan(90000);
+    expect(simulateSeed(7, request, 90000)).toBe(a);
+    const engine = createEngineForSettings(config, "glass", request.modeSettings, 7);
+    const seconds = runUntil(engine, () => engine.isSimulationFinished(), 90);
+    expect(Math.abs(seconds * 1000 - a)).toBeLessThan(1000 / 60 + 1e-6);
+  });
+});
+// --- end boris-multipliers ---
 
 describe("Glass Smash and the finder", () => {
   it("is never endless: every run ends at HOME, so seeds are searched", () => {

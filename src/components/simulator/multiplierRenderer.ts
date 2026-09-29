@@ -491,21 +491,40 @@ const BADGES = [
   ["balls", MULTIPLIER_COLORS.balls],
 ] as const;
 
+/** A screen rectangle the HUD keeps clear of (the teams' scoreboard). */
+export interface HudRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function overlaps(x: number, y: number, w: number, h: number, r: HudRect | null | undefined): boolean {
+  return !!r && x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y;
+}
+
 /**
  * The HUD (screen space) inside the square `x0, y0, side` the recorder crops to: the stat badges in its top left,
  * SLOW-MO in its top right, and – on the multipliers board – the live HOME counter at its bottom. `nowMs` is the
  * simulation time the badge pops are measured on (a pause freezes them); `board` says the multipliers board is up.
+ * `avoid` is the teams' scoreboard in a top corner of the same square: in the badges' corner (top left) the badges start
+ * below it, in the other one a badge that would run into it wraps to the next row and SLOW-MO moves below it. Returns
+ * the screen y of the first badge row (−1 while no badge shows), which the canvas mirrors for the smoke test.
  */
-export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null) {
-  if (!mv.active) return;
+export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null, avoid?: HudRect | null): number {
+  if (!mv.active) return -1;
   ctx.save();
   const fs = Math.max(11, 0.034 * side);
   const pad = 0.025 * side;
   const h = 1.6 * fs;
+  const gap = 0.4 * fs;
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   let x = x0 + pad;
   let y = y0 + pad;
+  // The teams' scoreboard in the badges' own corner: they start below it (in the export as live).
+  if (avoid && avoid.x < x0 + side / 2) y = Math.max(y, avoid.y + avoid.h + gap);
+  let firstY = -1;
   for (const [key, color] of BADGES) {
     const value = key === "balls" ? mv.balls : mv[key];
     const changed = mv.changedAt[key];
@@ -519,8 +538,16 @@ export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierV
     const w = ctx.measureText(text).width + 1.2 * fs;
     if (x + w > x0 + side - pad && x > x0 + pad) {
       x = x0 + pad;
-      y += h + 0.4 * fs;
+      y += h + gap;
     }
+    // Clear of the scoreboard in the other corner: wrap before it (or, at the start of a row, go below it).
+    for (let guard = 0; guard < 8 && overlaps(x, y, w, h, avoid); guard++) {
+      if (x > x0 + pad) {
+        x = x0 + pad;
+        y += h + gap;
+      } else y = avoid!.y + avoid!.h + gap;
+    }
+    if (firstY < 0) firstY = y;
     ctx.save();
     ctx.translate(x + w / 2, y + h / 2);
     ctx.scale(pop, pop);
@@ -540,23 +567,25 @@ export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierV
     ctx.fillStyle = glow > 0.4 ? "#ffffff" : color;
     ctx.fillText(text, -w / 2 + 0.6 * fs, 0);
     ctx.restore();
-    x += w + 0.4 * fs;
+    x += w + gap;
   }
-  // SLOW-MO while the clock is dilated.
+  // SLOW-MO while the clock is dilated (below the scoreboard when that takes the top right).
   if (mv.dilation < 1) {
     const text = labels.slowMo(formatDilation(mv.dilation));
     ctx.font = `900 ${fs.toFixed(1)}px sans-serif`;
     const w = ctx.measureText(text).width + 1.2 * fs;
+    const sx = x0 + side - pad - w;
+    const sy = overlaps(sx, y0 + pad, w, h, avoid) ? avoid!.y + avoid!.h + gap : y0 + pad;
     ctx.globalAlpha = 0.85 + 0.15 * Math.sin(nowMs * 0.01);
     ctx.fillStyle = "rgba(8, 8, 10, 0.7)";
     ctx.beginPath();
-    roundRect(ctx, x0 + side - pad - w, y0 + pad, w, h, h / 2);
+    roundRect(ctx, sx, sy, w, h, h / 2);
     ctx.fill();
     ctx.strokeStyle = MULTIPLIER_COLORS.release;
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.fillStyle = MULTIPLIER_COLORS.release;
-    ctx.fillText(text, x0 + side - pad - w + 0.6 * fs, y0 + pad + h / 2);
+    ctx.fillText(text, sx + 0.6 * fs, sy + h / 2);
   }
   // The live HOME counter of the board, in the bottom-left corner – until the HOME zone itself (which shows the count) is on screen.
   if (board && board.board && board.board.homeY - board.cameraY > y0 + side - 0.12 * side) {
@@ -590,6 +619,7 @@ export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierV
     ctx.restore();
   }
   ctx.restore();
+  return firstY;
 }
 
 /** Mirrors the multiplier state onto the canvas element (data-mult-*) through `set` (which only writes changes) for tools and the smoke test. */
@@ -614,5 +644,5 @@ export function writeMultiplierDataset(mv: MultiplierView, board: MultipliersVie
   }
 }
 
-/** Every data-mult-* key `writeMultiplierDataset()` may write (to clear them when multipliers are off). */
-export const MULTIPLIER_DATA_KEYS = ["multSpeed", "multSize", "multDamage", "multBounce", "multGravity", "multBalls", "multPickups", "multOrbs", "multSmashes", "multSlowmo", "multOutgrew", "multHome", "multActive", "multClones", "multGates", "multDone"];
+/** Every data-mult-* key `writeMultiplierDataset()` – and the canvas, for the HUD's first badge row (multHudTop) – may write (to clear them when multipliers are off). */
+export const MULTIPLIER_DATA_KEYS = ["multSpeed", "multSize", "multDamage", "multBounce", "multGravity", "multBalls", "multPickups", "multOrbs", "multSmashes", "multSlowmo", "multOutgrew", "multHome", "multActive", "multClones", "multGates", "multDone", "multHudTop"];

@@ -174,8 +174,11 @@ describe("the multipliers board in the engine", () => {
     const sounds = runOut(engine, 240, () => {
       expect(view.home).toBeGreaterThanOrEqual(homeSeen);
       homeSeen = view.home;
+      // The board's finish is a multipliers celebration from the step it happens in (the page holds it on screen).
+      expect(engine.endsWithMultiplierFinish()).toBe(engine.isSimulationFinished());
     });
     expect(engine.isSimulationFinished()).toBe(true);
+    expect(engine.endsWithMultiplierFinish()).toBe(true);
     expect(view.done).toBe(true);
     expect(view.active).toBe(0);
     expect(engine.getBalls()).toHaveLength(0);

@@ -229,6 +229,8 @@ export interface SimulatorSettings {
   glassMoving: boolean;
   /** From the second stage on some panes have a hole the ball must miss (URL `glh`). */
   glassHoles: boolean;
+  /** --- boris-multipliers --- A row of multiplier gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) above every stage's glass (URL `glg`). */
+  glassGates: boolean;
   // --- end boris-glass ---
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
@@ -665,6 +667,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   // --- boris-glass --- Glass Smash
   glm: "glassMoving",
   glh: "glassHoles",
+  glg: "glassGates", // --- boris-multipliers --- the gate rows
   // --- boris-multipliers ---
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
