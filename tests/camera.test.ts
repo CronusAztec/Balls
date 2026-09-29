@@ -777,6 +777,8 @@ describe("StepInterpolator", () => {
     expect(interp.sample(5 * STEP, now, walls(), [0], 0.5), "steps missed in between").toBeNull();
     interp.capture(6 * STEP, now, walls(), [0]);
     expect(interp.sample(6 * STEP, now, walls(), [0], 0.5)).not.toBeNull();
+    interp.capture(6.25 * STEP, now, walls(), [0]); // a step shortened by the multipliers' time dilation
+    expect(interp.sample(6.25 * STEP, now, walls(), [0], 0.5)).not.toBeNull();
     interp.reset();
     expect(interp.sample(6 * STEP, now, walls(), [0], 0.5)).toBeNull();
   });
@@ -800,11 +802,14 @@ describe("StepInterpolator", () => {
     const many = (x: number) => Array.from({ length: INTERP_MAX_BALLS + 3 }, (_, i) => ball(i, x, i));
     interp.capture(STEP, many(0), walls(), [0]);
     const now = many(10);
-    now[0] = { ...now[0], color: "#123456", team: 2, lifetime: 500 };
+    const mult = { speed: 2, size: 1, damage: 3, bounce: 1, gravity: 1 };
+    now[0] = { ...now[0], color: "#123456", team: 2, lifetime: 500, mult };
     interp.capture(2 * STEP, now, walls(), [0]);
     const v = interp.sample(2 * STEP, now, walls(), [0], 0.5)!;
     expect(v.balls).toHaveLength(INTERP_MAX_BALLS + 3);
     expect(v.balls[0]).toMatchObject({ x: 5, color: "#123456", team: 2, lifetime: 500 });
+    expect(v.balls[0].mult).toBe(mult);
+    expect(v.balls[1].mult).toBeUndefined();
     expect(v.balls[INTERP_MAX_BALLS - 1].x).toBe(5);
     expect(v.balls[INTERP_MAX_BALLS]).toBe(now[INTERP_MAX_BALLS]);
   });
@@ -898,7 +903,7 @@ describe("live slow motion", () => {
   it("only takes over the ring modes' live view with the slow motion on, and never changes the run", () => {
     expect(slowViewEligible("classic")).toBe(true);
     expect(slowViewEligible("grow")).toBe(true);
-    for (const mode of ["drop", "box", "pendulum", "polyrhythm", "collide"] as ModeId[]) expect(slowViewEligible(mode), mode).toBe(false);
+    for (const mode of ["drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers"] as ModeId[]) expect(slowViewEligible(mode), mode).toBe(false);
     const engine = makeEngine("classic", 4242);
     const cam = new CinematicCamera();
     let views = 0;

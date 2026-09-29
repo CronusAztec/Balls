@@ -22,7 +22,10 @@ export const INTERP_SNAP_PX = 120;
 /** Trail points of an interpolated ball – the engine's trail length. */
 const TRAIL = 20;
 const TWO_PI = Math.PI * 2;
-/** Two captures belong to consecutive steps when their times are one fixed step apart (1000 / 60 ms). */
+/**
+ * Two captures belong to consecutive steps when their times are at most one fixed step apart (1000 / 60 ms; a step
+ * the multipliers' time dilation shortened is closer) – a gap of two steps or more means steps ran uncaptured.
+ */
 const STEP_MS = 1000 / 60;
 
 /** Shortest signed angular difference b − a in (−π, π]. */
@@ -103,15 +106,15 @@ export class StepInterpolator {
   /** True when the two kept steps are consecutive and the latest one is the engine's current state (`timeMs`). */
   ready(timeMs: number) {
     const gap = this.last.time - this.prev.time;
-    return this.last.time === timeMs && Math.abs(gap - STEP_MS) < 1e-3;
+    return this.last.time === timeMs && gap > 0 && gap < STEP_MS + 1e-3;
   }
 
   /**
    * The scene `alpha` (0–1) of the way from the step before the latest one to the latest one – the engine's current
    * `balls`, `walls` and `rotations`, which must be the state `capture()` saw last at `timeMs` – or null when the two
    * steps are not both in (the first step after a restart). Balls follow their id (a ball new in the latest step, or
-   * one that jumped more than `INTERP_SNAP_PX`, is drawn where it is); each keeps its live colour, team, lifetime and
-   * velocity, and its trail is the engine's with the newest point moved to where the ball is drawn.
+   * one that jumped more than `INTERP_SNAP_PX`, is drawn where it is); each keeps its live colour, team, multipliers,
+   * lifetime and velocity, and its trail is the engine's with the newest point moved to where the ball is drawn.
    */
   sample(timeMs: number, balls: readonly Ball[], walls: readonly CircularWall[], rotations: readonly number[], alpha: number): StepView | null {
     if (!this.ready(timeMs)) return null;
@@ -171,6 +174,7 @@ export class StepInterpolator {
       ball.gravityScale = live.gravityScale;
       ball.radiusScale = live.radiusScale;
       ball.team = live.team;
+      ball.mult = live.mult;
       // Trail: the engine's points oldest first, the newest one (where the engine has the ball) moved to where it is drawn.
       const src = live.trail;
       const len = Math.min(src.length, TRAIL);
