@@ -27,6 +27,9 @@ import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFie
 // --- obstacle-editor ---
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
+// --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
+import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
+import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -362,6 +365,30 @@ export interface SimulatorSettings {
   /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
   captions: Caption[];
   // --- end captions ---
+  // --- jdm-illusions --- Circle Illusion (lib/physics/modes/illusion.ts) and Wobbly Walls (lib/physics/wobble.ts, render-only)
+  /** lines | rings | nested | whitespace (URL `ilt`). */
+  ilType: IllusionType;
+  /** Lines: balls on diameters, 2–32 (URL `ilb`). */
+  ilBalls: number;
+  /** Rings: rings with a ball each, 2–16 (URL `ilr`). */
+  ilRings: number;
+  /** Nested: moving circles inside the arena, 2–5 (URL `ild`). */
+  ilDepth: number;
+  /** Whitespace: painting balls, 1–12 (URL `ilp`). */
+  ilPainters: number;
+  /** Whitespace: the hidden picture, "auto" = chosen by the seed (URL `ilpt`). */
+  ilPattern: IllusionPatternChoice;
+  /** Tempo of every type, 0.25–3 (URL `ils`). */
+  ilSpeed: number;
+  /** Lines: the diameters; rings: the rails (URL `iltr`). */
+  ilTracks: boolean;
+  /** Lines: the hidden rolling circle; rings: a line through the balls (URL `ilrv`). */
+  ilReveal: boolean;
+  /** Lines / rings: cycles after which the run finishes, 0 = never (URL `ilc`). */
+  ilCycles: number;
+  /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
+  wallWobble: number;
+  // --- end jdm-illusions ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -459,6 +486,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
+    ...defaultIllusionFields(), // --- jdm-illusions ---
   };
 }
 
@@ -510,6 +538,9 @@ export const RANGES = {
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
+  // --- jdm-illusions ---
+  ...ILLUSION_RANGES,
+  ...WOBBLE_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -732,6 +763,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
+  writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   return params;
 }
 
@@ -836,6 +868,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   clampMultiplierSettings(settings);
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
+  readIllusionParams(params, settings); // --- jdm-illusions ---
   return settings;
 }
 
@@ -993,6 +1026,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampMultiplierSettings(merged); // --- boris-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
+  Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   return merged;
 }
 

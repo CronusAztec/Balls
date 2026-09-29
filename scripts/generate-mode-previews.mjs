@@ -35,6 +35,8 @@ const MODES = {
   glass: { wait: 11500, query: "face=cute&glow=1" },
   // --- boris-multipliers ---
   multipliers: { wait: 3000, query: "mpsb=3&mprw=10" },
+  // --- jdm-illusions --- the white spaces mid-reveal: the painted arena, the painters and the hidden heart emerging
+  illusion: { wait: 11000, query: "ilt=whitespace&ilpt=heart&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

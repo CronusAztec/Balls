@@ -32,3 +32,6 @@ export type { GlassSettings, GlassLevel, GlassPane, GlassStage, GlassCrack, Glas
 // --- boris-multipliers ---
 export { MultipliersMode } from "./multipliers";
 export type { MultipliersSettings, MultipliersView, MultiplierBoard, GateKind, Gate, Blocker, BoardLayout } from "./multipliers";
+// --- jdm-illusions ---
+export { IllusionMode } from "./illusion";
+export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionView } from "./illusion";

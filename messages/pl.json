@@ -130,7 +130,10 @@
     "finderMpClosestCount": "Najbliżej: {count} w domu",
     "finderMpTestedClosest": "Sprawdzono {tested} ziaren. Najbliższy wynik to {closest} (cel: {target} ±5 %)",
     "canvasCaptionWall": "Ściana [n]/[total]",
-    "canvasCaptionQuestion": "Czy ucieknie?"
+    "canvasCaptionQuestion": "Czy ucieknie?",
+    "canvasIllusionRevealed": "ODSŁONIĘTE!",
+    "canvasIllusionCycles": "Z powrotem na starcie po cyklach: [count]",
+    "finderFixedIllusion": "Iluzja okręgu przy tych ustawieniach trwa zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień prędkość albo liczbę cykli w wierszu Tryb, żeby trafić w cel – albo wypróbuj białe plamy, których długość zależy od ziarna."
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -865,7 +868,51 @@
     "captionBackgroundOf": "Tło napisu {n}",
     "captionBackgroundColorOf": "Kolor tła napisu {n}",
     "captionEdit": "Edytuj napis {n}",
-    "captionRemove": "Usuń napis {n}"
+    "captionRemove": "Usuń napis {n}",
+    "modeIllusion": "Iluzja okręgu",
+    "ilDesc": "Cztery iluzje z okręgami w stylu project.jdm. Każde dotknięcie, odbicie i zderzenie gra nutę wybranym instrumentem, w wybranej skali i z blokadą rytmu.",
+    "ilType": "Iluzja",
+    "ilTypeTip": "Linie: piłki sunące tam i z powrotem po prostych, które razem toczą ukryty okrąg. Pierścienie: w każdym obracającym się pierścieniu odbija się jedna piłka. Zagnieżdżone: okręgi odbijające się w okręgach, z falującymi ścianami. Białe plamy: piłki malują arenę i zostawiają białą ukrytą figurę.",
+    "ilTypeLines": "Linie",
+    "ilTypeRings": "Pierścienie",
+    "ilTypeNested": "Zagnieżdżone",
+    "ilTypeWhitespace": "Białe plamy",
+    "ilHintLines": "Każda piłka porusza się tylko tam i z powrotem po swojej średnicy – a jednak razem tworzą mniejszy okrąg toczący się wewnątrz dużego.",
+    "ilHintRings": "W każdym pierścieniu jedna piłka odbija się między jego ścianami. Pierścienie obracają się z różną prędkością, więc odbicia rozchodzą się spiralami na zewnątrz i pod koniec każdego cyklu znów stają w linii.",
+    "ilHintNested": "Okrąg odbijający się w okręgu w okręgu – każde uderzenie popycha następny i wprawia jego ścianę w drgania.",
+    "ilHintWhitespace": "Piłki malują białą arenę na czarno, ale nigdy nie wjeżdżają w ukryte kształty: białe plamy, które zostaną na końcu, to obrazek.",
+    "ilBalls": "Piłki",
+    "ilBallsTip": "Piłki na średnicach, 2–32. Piłka i sunie po średnicy pod kątem i·π/N z przesunięciem fazy i·π/N, więc wszystkie leżą na jednym mniejszym okręgu toczącym się w dużym. Każda gra swoją nutę, gdy dotknie krawędzi.",
+    "ilRings": "Pierścienie",
+    "ilRingsTip": "Współśrodkowe pierścienie z jedną piłką w każdym, 2–16. Wewnętrzne pierścienie obracają się szybciej i grają wyższe nuty.",
+    "ilDepth": "Głębokość",
+    "ilDepthTip": "Ruchome okręgi na arenie, 2–5: każdy odbija się wewnątrz kolejnego, większego, a najmniejszy jest piłką. Zderzenia są sprężyste, więc energia przechodzi tam i z powrotem między warstwami.",
+    "ilPainters": "Malarze",
+    "ilPaintersTip": "Piłki malujące arenę, 1–12. Więcej malarzy szybciej odsłania obrazek; symulacja kończy się, gdy arena jest pomalowana.",
+    "ilPattern": "Ukryty obrazek",
+    "ilPatternTip": "Kształt, w który piłki nigdy nie wjadą. Auto zostawia wybór ziarnu, więc każde ziarno może ukrywać inny obrazek.",
+    "ilPatternAuto": "Auto (z ziarna)",
+    "ilPatternHeart": "Serce",
+    "ilPatternStar": "Gwiazda",
+    "ilPatternSmile": "Uśmiech",
+    "ilPatternMoon": "Księżyc",
+    "ilPatternNote": "Nuta",
+    "ilPatternDiamond": "Romb",
+    "ilPatternFlower": "Kwiat",
+    "ilPatternCross": "Krzyżyk",
+    "ilSpeed": "Prędkość iluzji",
+    "ilSpeedTip": "Tempo iluzji: przy 1× cykl linii trwa 4 s, a cykl pierścieni 24 s; zagnieżdżone okręgi i malarze przyspieszają albo zwalniają razem z nim.",
+    "ilTracks": "Tory",
+    "ilTracksTip": "Linie: rysuje średnice, po których suną piłki. Pierścienie: rysuje szynę, po której jedzie każda piłka.",
+    "ilReveal": "Odsłoń",
+    "ilRevealTip": "Linie: pokazuje ukryty okrąg, który tworzą piłki, gdy się toczy. Pierścienie: rysuje linię przez piłki, pokazując wędrujący wzór.",
+    "ilCycles": "Cykle",
+    "ilCyclesTip": "Linie i pierścienie: symulacja kończy się po tylu cyklach, gdy każda piłka wróci na start. Nigdy – trwa bez końca.",
+    "ilCyclesNever": "Nigdy",
+    "ilCycleInfo": "Jeden cykl trwa {seconds}s",
+    "wallWobble": "Falujące ściany",
+    "wallWobbleTip": "Okrągłe ściany wybrzuszają się tam, gdzie uderzy piłka; wybrzuszenie obiega ścianę i gaśnie jak galaretka. Tylko efekt wizualny – fizyka, ziarna i Znajdź symulację się nie zmieniają.",
+    "wallWobbleOff": "Wył."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -902,6 +949,10 @@
     "multipliers": {
       "name": "Mnożniki",
       "description": "Boris korzysta z mnożników, żeby dotrzeć do domu: piłki spadają przez rzędy bramek – x2, x3 i x5 je klonują, x2 PRĘDKOŚĆ, x1,5 ROZMIAR i x2 OBRAŻENIA kumulują się bez limitu, ÷2 zabiera połowę, a zapadki wypuszczają je seriami – obok odbijaczy i blokad, a licznik na żywo pokazuje, ile z nich dotarło do domu."
+    },
+    "illusion": {
+      "name": "Iluzja okręgu",
+      "description": "Piłki sunące po prostych, które po cichu toczą okrąg, pierścienie z odbijającymi się piłkami falujące spiralami, okręgi odbijające się w okręgach z falującymi ścianami i piłki malujące arenę, aż biały zostanie tylko ukryty obrazek – każde dotknięcie to nuta."
     }
   },
   "Features": {
@@ -1047,7 +1098,8 @@
     "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu.",
     "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru.",
     "modeGlass": "Szklany format borisbounces, bez pierścieni: pionowy szyb z poziomymi szklanymi taflami dzieli piłkę od drzwi z napisem DOM. Piłka spada, a każde lądowanie zostawia pęknięcie na tafli pod nią – proceduralna rysa rośnie od miejsca uderzenia – i gra kolejną nutę melodii albo, bez melodii, stopień skali według rzędu; przy ostatnim uderzeniu tafla rozpada się na odłamki z akcentowaną nutą i dźwiękiem tłuczonego szkła, a piłka przebija się do następnej tafli. Po ostatniej tafli etapu kamera zjeżdża do kolejnego: więcej tafli, grubsze szkło, tafle jeżdżące w lewo i w prawo oraz tafle z dziurami, które piłka musi ominąć. Ostatni etap kończy się wtoczeniem piłki w drzwi i świętowaniem. Każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno do długości klipu.",
-    "modeMultipliers": "Wysoka plansza, którą kamera przewija w dół, zawsze za najniżej położoną piłką. Każdy rząd dzieli się na 2–4 bramki: bramki liczby (x2, x3, x5) klonują każdą przechodzącą piłkę – aż do wybranego limitu, od 50 do 2000 –, bramki prędkości, rozmiaru i obrażeń nakładają na nią mnożniki bez górnej granicy, bramki ÷2 pochłaniają co drugą piłkę, a bramki z zapadką trzymają stos piłek na klapie, która otwiera się seriami. Między rzędami stoją kołki rozdzielające, sprężyste odbijacze, lejki i blokady z punktami wytrzymałości (mnożnik obrażeń szybciej je kruszy), każde uderzenie to nuta pentatonicznego „pianina plinko”, a strefa DOM na dole liczy na żywo przybyłe piłki aż do końcowego „Boris w domu: N”. Piłka, która urośnie szerzej niż plansza, przerasta arenę i kończy bieg świętowaniem. Ustaw docelową liczbę, a Znajdź symulację poszuka ziarna, którego końcowy wynik mieści się w 5 % od celu. Te same mnożniki unoszą się jako znajdźki w trybach z pierścieniami (sekcja Piłka → Mnożniki)."
+    "modeMultipliers": "Wysoka plansza, którą kamera przewija w dół, zawsze za najniżej położoną piłką. Każdy rząd dzieli się na 2–4 bramki: bramki liczby (x2, x3, x5) klonują każdą przechodzącą piłkę – aż do wybranego limitu, od 50 do 2000 –, bramki prędkości, rozmiaru i obrażeń nakładają na nią mnożniki bez górnej granicy, bramki ÷2 pochłaniają co drugą piłkę, a bramki z zapadką trzymają stos piłek na klapie, która otwiera się seriami. Między rzędami stoją kołki rozdzielające, sprężyste odbijacze, lejki i blokady z punktami wytrzymałości (mnożnik obrażeń szybciej je kruszy), każde uderzenie to nuta pentatonicznego „pianina plinko”, a strefa DOM na dole liczy na żywo przybyłe piłki aż do końcowego „Boris w domu: N”. Piłka, która urośnie szerzej niż plansza, przerasta arenę i kończy bieg świętowaniem. Ustaw docelową liczbę, a Znajdź symulację poszuka ziarna, którego końcowy wynik mieści się w 5 % od celu. Te same mnożniki unoszą się jako znajdźki w trybach z pierścieniami (sekcja Piłka → Mnożniki).",
+    "modeIllusion": "Bez pierścieni do przebicia: cztery iluzje w stylu project.jdm. Linie – N piłek sunie tam i z powrotem po średnicach dużego okręgu, piłka i pod kątem i·π/N z przesunięciem fazy i·π/N, więc razem tworzą mniejszy okrąg toczący się w środku; każda piłka gra swoją nutę, gdy dotknie krawędzi. Pierścienie – współśrodkowe pierścienie z jedną odbijającą się piłką w każdym; obracają się z różną prędkością, więc odbicia rozchodzą się spiralami i co cykl znów stają w linii. Zagnieżdżone – okrąg odbijający się w okręgu w okręgu (2–5 warstw), ze sprężystymi zderzeniami i ścianami, które falują tam, gdzie zostały uderzone. Białe plamy – piłki malują białą arenę na czarno, ale odbijają się od kształtów, w które nigdy nie wjadą, więc na końcu ukazuje się ukryty obrazek wybrany przez ziarno. Wszystko jest deterministyczne, a suwak Falujące ściany w sekcji Efekty wizualne sprawia, że ściany każdego trybu z pierścieniami też drgają jak galaretka."
   },
   "Footer": {
     "about": "O nas",

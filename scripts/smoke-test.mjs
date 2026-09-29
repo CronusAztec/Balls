@@ -2194,6 +2194,180 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 // --- end obstacle-editor + captions ---
 
+// --- jdm-illusions ---
+// 22. Circle Illusion and Wobbly Walls: the preview image and the card; URL → the Illusion block of the Mode row (type,
+// count, speed, tracks, reveal, cycles) and the Wobbly Walls slider of the Visual section, controls → URL, the search
+// box, the finder (a fixed-length rings run says so, the nested circles hide it); a lines run whose balls stay exactly on
+// the hidden rolling circle while every rim touch plays a C-major degree (OscillatorNode.start is instrumented); a rings
+// run that lines up; nested circles that collide and wobble; a white-spaces run at 8× that reveals its picture – read
+// back from the canvas pixels: the probe inside the picture bright, the painted arena dark – and holds it before the end
+// screen; the frame rate of every type's defaults; Wobbly Walls in Classic.
+{
+  const res = await page.request.get(`${BASE}/modes/illusion.webp`);
+  check("asset /modes/illusion.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Circle Illusion card is on the landing page", (await page.locator('img[src$="/modes/illusion.webp"]').count()) === 1);
+}
+{
+  const illusionToggle = (label) => page.getByTestId("illusion-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const typeButton = (name) => page.getByRole("group", { name: "Illusion", exact: true }).getByRole("button", { name: new RegExp(name) });
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=rings&ilr=6&ils=1.5&ilc=2&iltr=0&ilrv=1&wob=0.5`, { waitUntil: "networkidle" });
+  {
+    const values = { ilr: await sliderValue("Rings"), ils: await sliderValue("Illusion Speed"), ilc: await sliderValue("Cycles") };
+    const rings = await typeButton("Rings").getAttribute("aria-pressed");
+    const tracks = await illusionToggle("Tracks").getAttribute("aria-pressed");
+    const reveal = await illusionToggle("Reveal").getAttribute("aria-pressed");
+    const cycle = await page.getByTestId("illusion-cycle").innerText();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Balls"]').count()) === 0;
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    const wob = await sliderValue("Wobbly Walls");
+    check(
+      "circle illusion loads from URL",
+      values.ilr === "6" && values.ils === "1.5" && values.ilc === "2" && rings === "true" && tracks === "false" && reveal === "true" && /16s/.test(cycle) && noRingControls && wob === "0.5",
+      `(${JSON.stringify(values)}, rings=${rings}, tracks=${tracks}, reveal=${reveal}, "${cycle}", wobble=${wob})`,
+    );
+    // Two cycles of 16 s always last 32 s: the finder says so at once instead of testing seeds.
+    await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    const shown = await page.getByText(/Circle Illusion always lasts exactly 32\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    check("finder explains a fixed-length illusion run", shown);
+    if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+  }
+  await typeButton("Lines").click();
+  await page.locator('input[aria-label="Balls"]').evaluate(setRangeValue, "12");
+  await page.locator('input[aria-label="Cycles"]').evaluate(setRangeValue, "0");
+  await page.locator('input[aria-label="Wobbly Walls"]').evaluate(setRangeValue, "0.8");
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+    check("circle illusion mirrors into the URL", !/(^|&)ilt=/.test(query) && /(^|&)ilb=12(&|$)/.test(query) && !/(^|&)ilc=/.test(query) && /(^|&)wob=0.8(&|$)/.test(query) && /(^|&)ilrv=1(&|$)/.test(query) && finderHidden, `(${query}, finder hidden=${finderHidden})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("hidden picture");
+  const pictureFound = await page.locator("#illusion-pattern-select").isVisible();
+  await page.getByPlaceholder("Search settings...").fill("wobbly");
+  const wobbleFound = await page.locator('input[aria-label="Wobbly Walls"]').isVisible();
+  check("search finds the illusion controls and Wobbly Walls", pictureFound && wobbleFound && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+const instrumentOscillators = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__ilOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+{
+  // Lines: 8 balls, 4 s a cycle – a touch every quarter second, each ball its own C-major degree from C4.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilrv=1`, { waitUntil: "networkidle" });
+  await instrumentOscillators();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  let worstError = 0;
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    worstError = Math.max(worstError, Number((await canvasData()).illusionCircleError));
+  }
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__ilOsc);
+  const midis = new Set(pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440))));
+  const major = [60, 62, 64, 65, 67, 69, 71, 72];
+  check(
+    "the lines illusion keeps every ball on the hidden rolling circle and plays a note per rim touch",
+    data.illusionType === "lines" && data.illusionBodies === "8" && Number(data.illusionNotes) >= 8 && worstError < 0.01 && pitches.length > 0 && [...midis].every((m) => major.includes(m)) && midis.size >= 6 && data.wobble === undefined,
+    `(${JSON.stringify(data)}, worst circle error ${worstError}px, ${pitches.length} tones, MIDI ${[...midis].sort((a, b) => a - b).join("/")})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-lines.png") });
+}
+{
+  // Rings at 3×: a cycle of 8 s, the balls line up once per cycle.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=rings&ils=3&ilrv=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const aligned = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.illusionAlignments ?? 0) >= 1, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("the rings illusion bounces and lines up every cycle", aligned && data.illusionType === "rings" && Number(data.illusionNotes) > 40, `(${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-rings.png") });
+}
+{
+  // Nested: the circles collide and their walls wobble even with Wobbly Walls at 0; the run is endless, so no finder.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=nested`, { waitUntil: "networkidle" });
+  const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const wobbled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.wobble ?? 0) >= 1, null, { timeout: 10000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1500);
+  const data = await canvasData();
+  check("the nested circles collide, play and wobble; the finder is hidden", wobbled && finderHidden && data.illusionBodies === "3" && Number(data.illusionCollisions) > 0 && Number(data.illusionNotes) > 0, `(${JSON.stringify(data)}, finder hidden=${finderHidden})`);
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-nested.png") });
+}
+{
+  // White spaces at 8×: the balls paint until the picture is revealed; the picture stays bright, the paint is dark,
+  // and the end screen waits for the reveal.
+  await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=whitespace&ilp=8`, { waitUntil: "networkidle" });
+  const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const revealed = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.illusionFinished === "1", null, { timeout: 45000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const data = await canvasData();
+  const pixels = await page.evaluate(() => {
+    const c = document.querySelector("main canvas");
+    const g = c.getContext("2d");
+    const dpr = c.width / c.getBoundingClientRect().width;
+    const at = (s) => {
+      const [x, y] = (s || "0,0").split(",").map(Number);
+      return Array.from(g.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data).slice(0, 3);
+    };
+    return { picture: at(c.dataset.illusionProbe), paint: at(c.dataset.illusionPaper) };
+  });
+  const endScreenHeld = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-illusion-whitespace.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+  check(
+    "white spaces: the balls paint the arena and reveal the hidden picture, held before the end screen",
+    finderShown && revealed && Number(data.illusionCoverage) >= 98 && !!data.illusionPattern && (pixels.picture[0] + pixels.picture[1] + pixels.picture[2]) / 3 > 140 && pixels.paint.every((v) => v < 60) && endScreenHeld && endScreen,
+    `(finder shown=${finderShown}, ${JSON.stringify(data)}, picture px ${pixels.picture}, paint px ${pixels.paint}, held=${endScreenHeld}, end screen=${endScreen})`,
+  );
+}
+{
+  // The defaults of every type keep the frame rate (headless Chromium; 30+ fps on average over 3 s).
+  const rates = {};
+  for (const type of ["lines", "rings", "nested", "whitespace"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=${type}&wob=1`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    rates[type] = await page.evaluate(
+      (ms) =>
+        new Promise((resolve) => {
+          let frames = 0;
+          const start = performance.now();
+          const frame = (t) => {
+            frames++;
+            if (t - start < ms) requestAnimationFrame(frame);
+            else resolve(Math.round((1000 * frames) / (t - start)));
+          };
+          requestAnimationFrame(frame);
+        }),
+      3000,
+    );
+  }
+  check("every illusion type keeps 30+ fps with wobbly walls", Object.values(rates).every((fps) => fps >= 30), `(${JSON.stringify(rates)})`);
+}
+{
+  // Wobbly Walls in a ring mode: the rings deform where the ball hits them (data-wobble counts the walls wobbling), off by default.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wob=1&s=700`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const wobbled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.wobble ?? 0) >= 1, null, { timeout: 10000 }).then(() => true).catch(() => false);
+  await page.screenshot({ path: path.join(outDir, "sim-classic-wobble.png") });
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const plain = await canvasData();
+  check("Wobbly Walls make the rings of Classic wobble (and are off by default)", wobbled && plain.wobble === undefined, `(wobbled=${wobbled}, default data-wobble=${plain.wobble})`);
+}
+// --- end jdm-illusions ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

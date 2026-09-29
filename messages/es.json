@@ -130,7 +130,10 @@
     "finderMpClosestCount": "Más cercano: {count} en casa",
     "finderMpTestedClosest": "Se probaron {tested} semillas. El recuento final más cercano fue {closest} (objetivo: {target} ±5 %)",
     "canvasCaptionWall": "Pared [n]/[total]",
-    "canvasCaptionQuestion": "¿Escapará?"
+    "canvasCaptionQuestion": "¿Escapará?",
+    "canvasIllusionRevealed": "¡REVELADO!",
+    "canvasIllusionCycles": "De vuelta al inicio tras [count] ciclo(s)",
+    "finderFixedIllusion": "La ilusión del círculo dura siempre exactamente {duration}s con estos ajustes (los ciclos × la duración del ciclo), sea cual sea la semilla. Cambia la velocidad o el número de ciclos en la fila Modo para alcanzar el objetivo, o prueba los espacios en blanco, cuya duración depende de la semilla."
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los 12 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
@@ -865,7 +868,51 @@
     "captionBackgroundOf": "Fondo del subtítulo {n}",
     "captionBackgroundColorOf": "Color de fondo del subtítulo {n}",
     "captionEdit": "Editar subtítulo {n}",
-    "captionRemove": "Quitar subtítulo {n}"
+    "captionRemove": "Quitar subtítulo {n}",
+    "modeIllusion": "Ilusión del círculo",
+    "ilDesc": "Cuatro ilusiones con círculos al estilo de project.jdm. Cada roce, rebote y choque toca una nota con tu instrumento, tu escala y el bloqueo de ritmo.",
+    "ilType": "Ilusión",
+    "ilTypeTip": "Líneas: pelotas que van y vienen por rectas y que juntas hacen rodar un círculo oculto. Anillos: una pelota rebota en cada anillo mientras los anillos giran. Anidados: círculos que rebotan dentro de círculos, con paredes que tiemblan. Espacios en blanco: las pelotas pintan la arena y dejan en blanco un dibujo oculto.",
+    "ilTypeLines": "Líneas",
+    "ilTypeRings": "Anillos",
+    "ilTypeNested": "Anidados",
+    "ilTypeWhitespace": "Espacios en blanco",
+    "ilHintLines": "Cada pelota solo va y viene por su diámetro y, aun así, juntas forman un círculo más pequeño que rueda dentro del grande.",
+    "ilHintRings": "Cada anillo tiene una pelota que rebota entre sus paredes. Los anillos giran a distinta velocidad, así que los rebotes se propagan hacia fuera en espirales y vuelven a alinearse al final de cada ciclo.",
+    "ilHintNested": "Un círculo que rebota dentro de un círculo dentro de otro círculo: cada golpe empuja al siguiente y hace temblar su pared.",
+    "ilHintWhitespace": "Las pelotas pintan de negro la arena blanca, pero nunca pueden entrar en las formas ocultas: los espacios en blanco que quedan al final son el dibujo.",
+    "ilBalls": "Pelotas",
+    "ilBallsTip": "Pelotas en diámetros, 2–32. La pelota i recorre el diámetro de ángulo i·π/N con un desfase de i·π/N, así que todas quedan sobre un círculo más pequeño que rueda dentro del grande. Cada una toca su nota al tocar el borde.",
+    "ilRings": "Anillos",
+    "ilRingsTip": "Anillos concéntricos con una pelota cada uno, 2–16. Los anillos interiores giran más rápido y tocan notas más agudas.",
+    "ilDepth": "Profundidad",
+    "ilDepthTip": "Círculos móviles dentro de la arena, 2–5: cada uno rebota dentro del siguiente más grande y el más pequeño es la pelota. Los choques son elásticos, así que la energía pasa de una capa a otra.",
+    "ilPainters": "Pintores",
+    "ilPaintersTip": "Pelotas que pintan la arena, 1–12. Con más pintores el dibujo aparece antes; la simulación termina cuando la arena está pintada.",
+    "ilPattern": "Dibujo oculto",
+    "ilPatternTip": "La forma en la que las pelotas nunca pueden entrar. Auto deja que la elija la semilla, así que cada semilla puede esconder un dibujo distinto.",
+    "ilPatternAuto": "Auto (de la semilla)",
+    "ilPatternHeart": "Corazón",
+    "ilPatternStar": "Estrella",
+    "ilPatternSmile": "Sonrisa",
+    "ilPatternMoon": "Luna",
+    "ilPatternNote": "Nota musical",
+    "ilPatternDiamond": "Rombo",
+    "ilPatternFlower": "Flor",
+    "ilPatternCross": "Cruz",
+    "ilSpeed": "Velocidad de la ilusión",
+    "ilSpeedTip": "Tempo de la ilusión: a 1× un ciclo de líneas dura 4 s y uno de anillos 24 s; los círculos anidados y los pintores aceleran o frenan con él.",
+    "ilTracks": "Guías",
+    "ilTracksTip": "Líneas: dibuja los diámetros por los que se deslizan las pelotas. Anillos: dibuja el raíl por el que va cada pelota.",
+    "ilReveal": "Revelar",
+    "ilRevealTip": "Líneas: muestra el círculo oculto que forman las pelotas mientras rueda. Anillos: dibuja una línea a través de las pelotas para mostrar el patrón que viaja.",
+    "ilCycles": "Ciclos",
+    "ilCyclesTip": "Líneas y anillos: la simulación termina tras estos ciclos, con cada pelota de vuelta en su inicio. Nunca la deja seguir.",
+    "ilCyclesNever": "Nunca",
+    "ilCycleInfo": "Un ciclo dura {seconds}s",
+    "wallWobble": "Paredes gelatina",
+    "wallWobbleTip": "Las paredes circulares se abomban donde las golpea una pelota; el bulto recorre la pared y se apaga como gelatina. Solo visual: la física, las semillas y Buscar simulación no cambian.",
+    "wallWobbleOff": "No"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -902,6 +949,10 @@
     "multipliers": {
       "name": "Multiplicadores",
       "description": "Boris usa los multiplicadores para llegar a casa: las pelotas caen por filas de puertas – x2, x3 y x5 las clonan, x2 VELOCIDAD, x1,5 TAMAÑO y x2 DAÑO se acumulan sin límite, ÷2 se lleva la mitad y las compuertas las sueltan en tandas – entre rebotadores y bloqueos, mientras un contador en vivo muestra cuántas llegan a casa."
+    },
+    "illusion": {
+      "name": "Ilusión del círculo",
+      "description": "Pelotas que se deslizan por rectas y en secreto hacen rodar un círculo, anillos de pelotas que rebotan y se propagan en espirales, círculos que rebotan dentro de círculos con paredes gelatina y pelotas que pintan la arena hasta que solo un dibujo oculto queda en blanco: cada roce es una nota."
     }
   },
   "Features": {
@@ -1047,7 +1098,8 @@
     "modePolyrhythm": "Sin anillos de los que escapar: de 2 a 400 voces marcan cada una su propio tempo y cada tic toca una nota. Anillos (puntos que dan 1, 2, 3… vueltas por ciclo y suenan a las 12, opcionalmente como polígonos giratorios), arcos (puntos que se deslizan por las cuerdas o los semicírculos de un círculo y suenan en ambos extremos), una cuadrícula de metrónomos o una espiral cuyos puntos de tic vuelven a alinearse en cada ciclo. Los tempos siguen la serie armónica, una serie aritmética de BPM (el desfase de tempo al estilo de Reich) o tu propia lista de proporciones, como 3,4,5,7. El instante en que todas las voces coinciden se calcula con exactitud y llega con un acorde y un destello; la simulación termina tras el número de ciclos elegido y siempre dura lo mismo, así que encaja en cualquier clip.",
     "modeCollide": "Sin anillos: de 10 a 2000 esferas de distintos tamaños (la masa crece con el tamaño) rebotan dentro de un círculo o un cuadrado y entre sí con colisiones elásticas, con tanta o tan poca gravedad como quieras. Cada colisión toca una nota suave cuya altura depende de la esfera más pequeña (las grandes graves, las pequeñas agudas, en una escalera pentatónica ajustada a tu escala) y en cada fotograma solo suenan la docena de choques más enérgicos, así que cientos de esferas suenan como lluvia sobre un cristal y no como ruido. Variantes: esferas blanditas que se aplastan en cada impacto, una salida sincronizada que las suelta todas a la vez desde una cuadrícula, un interruptor de anticolisión que las deja atravesarse en el segundo que elijas y piruletas en un anillo que chocan a lo largo de una pista circular.",
     "modeGlass": "El formato de cristal de borisbounces, sin anillos: un pozo vertical de paneles de cristal horizontales separa la pelota de una puerta con el cartel CASA. La pelota cae y cada aterrizaje agrieta el panel de abajo —una grieta procedural crece desde el punto de impacto— y toca la siguiente nota de tu melodía o, sin melodía, un grado de la escala según la fila; en su último golpe el panel estalla en esquirlas con una nota acentuada y un sonido de cristal roto, y la pelota lo atraviesa hasta el siguiente. Tras el último panel de una etapa, la cámara baja a la siguiente: más paneles, cristal más grueso, paneles que se deslizan a izquierda y derecha y paneles con agujeros que la pelota debe esquivar. La última etapa termina con la pelota rodando hasta la puerta y una celebración. Cada recorrido es determinista, así que Buscar simulación puede elegir una semilla para la duración de tu clip.",
-    "modeMultipliers": "Un tablero alto que la cámara recorre hacia abajo, siempre siguiendo a la pelota más baja. Cada fila se divide en 2–4 puertas: las puertas de cantidad (x2, x3, x5) clonan cada pelota que pasa – hasta el límite de pelotas que elijas, de 50 a 2000 –, las de velocidad, tamaño y daño le acumulan multiplicadores sin tope, las ÷2 absorben una de cada dos pelotas y las compuertas retienen un montón sobre una trampilla que se abre en tandas. Entre las filas hay pivotes divisores, rebotadores que impulsan, embudos y bloqueos con puntos de vida (el multiplicador de daño los desgasta más rápido); cada golpe es una nota de un piano plinko pentatónico, y la zona CASA de abajo cuenta las llegadas en directo hasta el final: «N Boris llegaron a casa». Una pelota que crece más que el tablero lo supera y termina la partida con una celebración. Fija un número objetivo y Buscar simulación busca una semilla cuyo recuento final quede a menos del 5 % del objetivo. Los mismos multiplicadores flotan como potenciadores en los modos de anillos (sección Bola → Multiplicadores)."
+    "modeMultipliers": "Un tablero alto que la cámara recorre hacia abajo, siempre siguiendo a la pelota más baja. Cada fila se divide en 2–4 puertas: las puertas de cantidad (x2, x3, x5) clonan cada pelota que pasa – hasta el límite de pelotas que elijas, de 50 a 2000 –, las de velocidad, tamaño y daño le acumulan multiplicadores sin tope, las ÷2 absorben una de cada dos pelotas y las compuertas retienen un montón sobre una trampilla que se abre en tandas. Entre las filas hay pivotes divisores, rebotadores que impulsan, embudos y bloqueos con puntos de vida (el multiplicador de daño los desgasta más rápido); cada golpe es una nota de un piano plinko pentatónico, y la zona CASA de abajo cuenta las llegadas en directo hasta el final: «N Boris llegaron a casa». Una pelota que crece más que el tablero lo supera y termina la partida con una celebración. Fija un número objetivo y Buscar simulación busca una semilla cuyo recuento final quede a menos del 5 % del objetivo. Los mismos multiplicadores flotan como potenciadores en los modos de anillos (sección Bola → Multiplicadores).",
+    "modeIllusion": "Sin anillos de los que escapar: cuatro ilusiones de project.jdm. Líneas: N pelotas van y vienen por diámetros del círculo grande, la pelota i con ángulo i·π/N y un desfase de i·π/N, así que juntas forman un círculo más pequeño que rueda dentro; cada pelota toca su nota al tocar el borde. Anillos: anillos concéntricos con una pelota que rebota en cada uno; giran a distinta velocidad, así que los rebotes se propagan en espirales y cada ciclo vuelven a alinearse. Anidados: un círculo que rebota dentro de un círculo dentro de otro (2–5 capas), con choques elásticos y paredes que tiemblan donde reciben el golpe. Espacios en blanco: las pelotas pintan de negro la arena blanca pero rebotan en formas en las que nunca pueden entrar, así que al final aparece un dibujo oculto elegido por la semilla. Todo es determinista, y el control Paredes gelatina de la sección Efectos visuales hace que las paredes de todos los modos con anillos también reboten como gelatina."
   },
   "Footer": {
     "about": "Acerca de",

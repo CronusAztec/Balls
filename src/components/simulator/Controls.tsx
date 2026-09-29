@@ -34,6 +34,9 @@ import ObstaclesSection, { OBSTACLE_KEYS } from "./sections/ObstaclesSection";
 import { defaultObstacleSettings, supportsObstacles } from "@/lib/physics/obstacleEditor";
 import CaptionsSection, { CAPTION_KEYS } from "./sections/CaptionsSection"; // --- captions ---
 import { defaultCaptionSettings } from "@/lib/captions"; // --- captions ---
+// --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
+import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
+import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -131,6 +134,9 @@ SECTION_KEYS.visual.push(...CAMERA_KEYS);
 SECTION_KEYS.ball.push(...GLASS_KEYS);
 // --- boris-multipliers --- the Multipliers group of the Ball section and the multipliers-board block of the Mode row.
 SECTION_KEYS.ball.push(...MULTIPLIER_KEYS, ...MULTIPLIERS_MODE_KEYS);
+// --- jdm-illusions --- the Circle Illusion block is searched with the Ball section, Wobbly Walls with the Visual section.
+SECTION_KEYS.ball.push(...ILLUSION_KEYS);
+SECTION_KEYS.visual.push(...WALL_WOBBLE_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -191,6 +197,8 @@ export default function Controls(props: ControlsProps) {
     glass: t("modeGlass"),
     // --- boris-multipliers ---
     multipliers: t("modeMultipliers"),
+    // --- jdm-illusions ---
+    illusion: t("modeIllusion"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -253,6 +261,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "glass" && !!search && <GlassSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- boris-multipliers --- pickups, cap and smash threshold; the board block while searching */}
       {s.mode === "multipliers" && !!search && <MultipliersModeSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- jdm-illusions --- */}
+      {s.mode === "illusion" && !!search && <IllusionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
@@ -332,10 +342,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers"].includes(s.mode);
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers"].includes(s.mode);
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "illusion"].includes(s.mode); // --- jdm-illusions --- (illusion)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "illusion"].includes(s.mode); // --- jdm-illusions --- (illusion)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers";
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "illusion"; // --- jdm-illusions --- (illusion)
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -473,6 +483,8 @@ export default function Controls(props: ControlsProps) {
       </Searchable>
       {/* --- camera --- the Camera group: zoom toward the ball, screen shake, slow motion on near misses, escape replay */}
       <CameraSection t={t} search={search} matches={matches} settings={s} update={update} />
+      {/* --- jdm-illusions --- Wobbly Walls: circular walls deform where a ball hits them (ring modes, Circle Illusion) */}
+      <WallWobbleSection t={t} search={search} matches={matches} settings={s} update={update} />
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="cinematic">
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
@@ -1077,6 +1089,9 @@ export default function Controls(props: ControlsProps) {
       // --- boris-multipliers ---
       case "multipliers":
         return <MultipliersModeSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- jdm-illusions ---
+      case "illusion":
+        return <IllusionSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:
@@ -1350,6 +1365,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         trailColors: d.trailColors,
         // --- end themes
         ...cameraSettingsOf(d), // --- camera ---
+        wallWobble: d.wallWobble, // --- jdm-illusions ---
       };
     case "sound":
       return {
