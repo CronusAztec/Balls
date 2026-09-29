@@ -473,7 +473,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Pendulum Wave: the renderer's options and the scratch placement the trails are sampled into (one object each for the life of the loop).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     const pendulumTrailPoint = { x: 0, y: 0, angle: 0 };
-    // --- boris-faces --- ball characters (faces, name label, squash); the Box / Pendulum bodies get faces through drawOverlays()
+    // --- boris-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
     const boxHueColors: string[] = [];
@@ -1480,8 +1480,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (fading) ctx.restore();
         ctx.globalAlpha = 1;
       });
-      // --- boris-faces --- faces on the shapes / bobs the Bouncing Shapes and Pendulum Wave renderers drew
-      if (faces.isActive() && (isBox || isPendulum)) {
+      // --- boris-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
+      // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
+      if (faces.isActive() && (isBox || isPendulum || isPoly || isCollide)) {
         const boxView: BoxView | null = isBox ? engine.getBoxView() : null;
         faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0 } : null);
       }

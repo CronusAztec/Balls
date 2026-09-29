@@ -16,7 +16,7 @@ import { chirpAllowed, chirpForExpression, type ChirpKind } from "@/lib/audio/ch
  * `FaceLayer` is what Canvas.tsx uses: `beginFrame()` once per frame (advances the per-ball CharacterTracker on
  * the simulation clock and reports the expression events the cat face chirps on), then per ball `pushSquash()`
  * (a transform around the body), `drawBehind()` (ears, before the body), `drawFront()` (the face, after it) and
- * `drawLabel()`; the Bouncing Shapes and Pendulum Wave modes draw their own bodies, so `drawOverlays()` puts the
+ * `drawLabel()`; the Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and Collision Playground modes draw their own bodies, so `drawOverlays()` puts the
  * faces on them afterwards. `drawFace()` is also what the live preview in the panel paints with.
  */
 
