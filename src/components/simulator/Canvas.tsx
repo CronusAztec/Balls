@@ -36,6 +36,8 @@ import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } fr
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CaptionLayer, type CanvasCaptionOptions, type CaptionView } from "./captionsRenderer"; // --- captions ---
 import { edgeTextBounds, emptyEdgeTextLines, exportEdgeTextLines, liveEdgeTextLines } from "@/lib/captions"; // --- captions ---
+// --- jdm-double-pendulum ---
+import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumStrings, drawDoublePendulumTrails, type DoublePendulumRenderOptions } from "./doublePendulumRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -92,6 +94,12 @@ export interface CanvasLabels {
   /** The multipliers board is done: "N Boris made it home", with the clones made along the way. */
   madeItHome?: (n: number) => string;
   madeItHomeSub?: (clones: number) => string;
+  // --- jdm-double-pendulum ---
+  /** Double Pendulum: the banner at the end of the clip, with the plucks, the sparring hits or the seconds of chaos. */
+  dpDone?: string;
+  dpPlucks?: (n: number) => string;
+  dpHits?: (n: number) => string;
+  dpChaos?: (seconds: number) => string;
 }
 
 export interface CanvasHandle {
@@ -219,6 +227,11 @@ const DEFAULT_LABELS: CanvasLabels = {
   outgrewSub: (size) => `SIZE ${size}`,
   madeItHome: (n) => `${n} Boris made it home`,
   madeItHomeSub: (clones) => `${clones} clones along the way`,
+  // --- jdm-double-pendulum ---
+  dpDone: "TIME!",
+  dpPlucks: (n) => `${n} strings plucked`,
+  dpHits: (n) => `${n} hits`,
+  dpChaos: (seconds) => `${seconds}s of chaos`,
 };
 
 const TWO_PI = Math.PI * 2;
@@ -581,6 +594,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
     const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
+    // --- jdm-double-pendulum --- Double Pendulum: the renderer's options, refreshed per frame.
+    const dpRender: DoublePendulumRenderOptions = { wallColor: () => "#fff", rainbow: true, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8 };
     // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
     const cam = new CinematicCamera();
     cinematicRef.current = cam;
@@ -1024,6 +1039,20 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         collideRender.showTrails = p.showTrails;
         collideRender.trailThickness = p.trailThickness;
         drawCollideArena(ctx, engine.getCollideView(), collideRender);
+      }
+
+      // --- jdm-double-pendulum --- Double Pendulum: the harp strings (vibrating after a pluck), then the rainbow trails.
+      const isDp = engine.isDoublePendulumMode();
+      if (isDp) {
+        dpRender.wallColor = wallColor;
+        dpRender.rainbow = p.rainbowWalls;
+        dpRender.wallThickness = p.wallThickness;
+        dpRender.showGlow = p.showGlow;
+        dpRender.showTrails = p.showTrails;
+        dpRender.trailThickness = p.trailThickness;
+        const view = engine.getDoublePendulumView();
+        drawDoublePendulumStrings(ctx, view, dpRender);
+        drawDoublePendulumTrails(ctx, view, dpRender);
       }
 
       // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
@@ -1500,6 +1529,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
       else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
+      else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1687,6 +1717,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const boxView: BoxView | null = isBox ? engine.getBoxView() : null;
         faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0 } : null);
       }
+      // --- jdm-double-pendulum --- faces on the Double Pendulum's bobs too
+      if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
@@ -1786,6 +1818,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
       // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
+      // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
+      if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
@@ -1990,6 +2024,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isPoly) {
           const prog = engine.getPolyrhythmProgress();
           if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635");
+        }
+        // --- jdm-double-pendulum --- the finale of the clip: what the harp played (or the sparring hits, or the seconds of chaos).
+        if (isDp) {
+          const prog = engine.getDoublePendulumProgress();
+          if (prog.finale || prog.finished) {
+            const summary = prog.spar ? (L.dpHits ?? DEFAULT_LABELS.dpHits!)(prog.hits) : prog.strings > 0 ? (L.dpPlucks ?? DEFAULT_LABELS.dpPlucks!)(prog.plucks) : (L.dpChaos ?? DEFAULT_LABELS.dpChaos!)(Math.round(prog.timeSec));
+            bigBanner(L.dpDone ?? DEFAULT_LABELS.dpDone!, summary, "#a3e635");
+          }
         }
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
@@ -2230,6 +2272,21 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("collideAnti", view.antiActive ? "1" : "0");
       } else if (canvas.dataset.collideBodies !== undefined) {
         for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
+      }
+      // --- jdm-double-pendulum --- pendulums, rods, strings, plucks, sparring hits, the energy drift (ppm) and the finish (data-dp-*) for tools and the smoke test.
+      if (isDp) {
+        const view = engine.getDoublePendulumView();
+        setCanvasData("dpPendulums", String(view.count));
+        setCanvasData("dpSegments", String(view.segments));
+        setCanvasData("dpStrings", String(view.strings.length));
+        setCanvasData("dpLayout", view.settings.stringLayout);
+        setCanvasData("dpSpar", view.settings.spar ? "1" : "0");
+        setCanvasData("dpPlucks", String(view.plucks));
+        setCanvasData("dpHits", String(view.hitCount));
+        setCanvasData("dpDrift", String(Math.round(1e6 * engine.getDoublePendulumEnergyDrift())));
+        setCanvasData("dpDone", view.finished ? "1" : "0");
+      } else if (canvas.dataset.dpPendulums !== undefined) {
+        for (const key of ["dpPendulums", "dpSegments", "dpStrings", "dpLayout", "dpSpar", "dpPlucks", "dpHits", "dpDrift", "dpDone"]) delete canvas.dataset[key];
       }
       cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
       // --- obstacle-editor --- obstacles in play, editing, the selection, hits, bumper kicks and the first spinner's angle (data-obstacle*) for tools and the smoke test

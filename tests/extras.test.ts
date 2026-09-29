@@ -96,6 +96,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   glass: { samples: [[485763,293145],[518834,716109],[329481,898042],[245066,1181480]], broken: [], walls: [] },
   // --- boris-multipliers --- Multipliers board: no rings; recorded when the mode was added (seed 12345, default board: 8 rows, one ball).
   multipliers: { samples: [[211640,191252],[266980,620146],[529953,990656],[362092,1570907],[620725,1348624],[611940,1608709],[447416,1810903],[350566,1720155]], broken: [], walls: [] },
+  // --- jdm-double-pendulum --- Double Pendulum: RK4 chains, no rings; recorded when the mode was added (seed 12345, default: one double pendulum from a seeded start, 15 strings).
+  doublePendulum: { samples: [[346027,416241],[466095,461058],[522054,260913],[597547,364478],[287916,237854],[311917,363747],[507974,369040],[380581,383037]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

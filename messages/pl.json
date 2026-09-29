@@ -130,7 +130,12 @@
     "finderMpClosestCount": "Najbliżej: {count} w domu",
     "finderMpTestedClosest": "Sprawdzono {tested} ziaren. Najbliższy wynik to {closest} (cel: {target} ±5 %)",
     "canvasCaptionWall": "Ściana [n]/[total]",
-    "canvasCaptionQuestion": "Czy ucieknie?"
+    "canvasCaptionQuestion": "Czy ucieknie?",
+    "canvasDpDone": "KONIEC!",
+    "canvasDpPlucks": "Szarpnięte struny: [count]",
+    "canvasDpHits": "Uderzenia: [count]",
+    "canvasDpChaos": "[seconds] s chaosu",
+    "finderFixedDoublePendulum": "Przebieg podwójnego wahadła trwa zawsze dokładnie {duration}s – tyle, ile klip (Czas trwania w sekcji Nagrywanie), niezależnie od ziarna. Ustaw Czas trwania na potrzebną długość albo włącz Bez końca w bloku Podwójne wahadło."
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -865,7 +870,57 @@
     "captionBackgroundOf": "Tło napisu {n}",
     "captionBackgroundColorOf": "Kolor tła napisu {n}",
     "captionEdit": "Edytuj napis {n}",
-    "captionRemove": "Usuń napis {n}"
+    "captionRemove": "Usuń napis {n}",
+    "modeDoublePendulum": "Podwójne wahadło",
+    "dpDesc": "Chaotyczne podwójne wahadła kołyszą się nad harfą: każda struna, którą przetnie kulka, zostaje szarpnięta i gra swój dźwięk, a ostatnia kulka maluje długi tęczowy ślad. Dodaj wahadła, by zobaczyć efekt motyla, trzecie ramię dla wahadła potrójnego albo pozwól dwóm wahadłom stoczyć sparing.",
+    "dpGroupRig": "Układ",
+    "dpGroupStart": "Start",
+    "dpGroupPhysics": "Fizyka",
+    "dpGroupHarp": "Ślad i harfa",
+    "dpGroupRun": "Przebieg",
+    "dpSegments": "Ramiona",
+    "dpSegmentsTip": "Dwa ramiona to klasyczne wahadło podwójne; trzecie ramię tworzy wahadło potrójne – jeszcze dziksze, z biczem na końcu.",
+    "dpSegmentsDouble": "Podwójne",
+    "dpSegmentsTriple": "Potrójne",
+    "dpCount": "Wahadła",
+    "dpCountTip": "Ile wahadeł wisi na wspólnym punkcie zawieszenia. Każde startuje odrobinę (0,05°) dalej niż poprzednie: najpierw kołyszą się jak jedno, a potem się rozbiegają – efekt motyla. Sparing zawsze używa dwóch.",
+    "dpSparCount": "2 – sparing",
+    "dpSpar": "Sparing",
+    "dpSparTip": "Dwa wahadła wiszą obok siebie, startują jako lustrzane odbicia, a ich kulki zderzają się sprężyście: każde uderzenie gra niski, perkusyjny dźwięk i błyska – mocne rozświetla cały kadr.",
+    "dpRandomStart": "Losowy start",
+    "dpRandomStartTip": "Włączony: każdy przebieg startuje z wysokiej, chaotycznej pozycji wylosowanej z ziarna – Uruchom ponownie daje nową; znalezione ziarno albo udostępniony link odtwarza ją dokładnie. Wyłączony: kąty startowe poniżej.",
+    "dpAngle1": "Kąt startowy 1",
+    "dpAngle2": "Kąt startowy 2",
+    "dpAngle3": "Kąt startowy 3",
+    "dpAngleTip": "Gdzie startuje ramię, w stopniach od zwisu pionowo w dół (180° to pionowo w górę). Przy sparingu drugie wahadło dostaje lustrzane kąty.",
+    "dpLength1": "Długość ramienia 1",
+    "dpLength2": "Długość ramienia 2",
+    "dpLength3": "Długość ramienia 3",
+    "dpLengthTip": "Względna długość ramienia. Całe wahadło jest skalowane tak, by wypełniało film, więc liczą się tylko proporcje: krótkie pierwsze ramię sprawia, że ostatnia kulka zatacza pętle wokół punktu zawieszenia.",
+    "dpMass1": "Masa kulki 1",
+    "dpMass2": "Masa kulki 2",
+    "dpMass3": "Masa kulki 3",
+    "dpMassTip": "Masa kulki. Ciężka pierwsza kulka i lekka ostatnia sprawiają, że koniec śmiga jak bicz; cięższe kulki są rysowane nieco większe (i przy sparingu uderzają mocniej).",
+    "dpGravity": "Grawitacja wahadła",
+    "dpGravityTip": "Grawitacja jako wielokrotność ziemskiej dla wahadła o długości 1 m: mniej to wolny, rozmarzony ruch, więcej – szybki i szalony.",
+    "dpDamping": "Tarcie",
+    "dpDampingTip": "Ile prędkości wahadło traci co sekundę, aż zawiśnie nieruchomo. Wyłączone – kołysze się bez końca, a integrator utrzymuje energię przez cały klip.",
+    "dpOff": "Wył.",
+    "dpTrailSeconds": "Długość śladu",
+    "dpTrailSecondsTip": "Ile sekund wstecz sięga tęczowy ślad ostatniej kulki, zanikający ku końcowi. Wyłączony – brak śladu (tak samo działa przełącznik Ślady w sekcji Efekty wizualne).",
+    "dpStrings": "Struny harfy",
+    "dpStringsTip": "Struny w poprzek filmu. Każda kulka, która przetnie strunę, szarpie ją: struna drga i gra swój dźwięk, nastrojony do skali i dźwięku podstawowego z sekcji Własny dźwięk (skala durowa, gdy skala jest chromatyczna), od niskich do wysokich. Działają instrument, gra do rytmu i próbki uderzeń. Wyłączone: bez harfy.",
+    "dpStringLayout": "Układ strun",
+    "dpStringLayoutTip": "Pionowe struny obok siebie z niskimi dźwiękami po lewej albo promieniste struny wokół środka, wznoszące się zgodnie z ruchem wskazówek zegara.",
+    "dpStringLayoutVertical": "Pionowe",
+    "dpStringLayoutRadial": "Promieniste",
+    "dpOctaves": "Oktawy harfy",
+    "dpOctavesTip": "Ile oktaw obejmują struny, licząc od dźwięku podstawowego z sekcji Własny dźwięk: pierwsza struna to dźwięk podstawowy, ostatnia – ten sam dźwięk tyle oktaw wyżej.",
+    "dpEndless": "Bez końca",
+    "dpEndlessTip": "Wyłączone: przebieg kończy się akordem po czasie trwania klipu (Czas trwania w sekcji Nagrywanie). Włączone: wahadła kołyszą się, dopóki ich nie zatrzymasz.",
+    "dpRunLength": "Kończy się po {duration}s – tyle, ile trwa klip.",
+    "dpRunEndless": "Kołysze się, dopóki go nie zatrzymasz.",
+    "dpFixedRunLength": "Zawsze {duration}s – tyle, ile klip; zmień Czas trwania albo włącz Bez końca"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -902,6 +957,10 @@
     "multipliers": {
       "name": "Mnożniki",
       "description": "Boris korzysta z mnożników, żeby dotrzeć do domu: piłki spadają przez rzędy bramek – x2, x3 i x5 je klonują, x2 PRĘDKOŚĆ, x1,5 ROZMIAR i x2 OBRAŻENIA kumulują się bez limitu, ÷2 zabiera połowę, a zapadki wypuszczają je seriami – obok odbijaczy i blokad, a licznik na żywo pokazuje, ile z nich dotarło do domu."
+    },
+    "doublePendulum": {
+      "name": "Harfa z podwójnym wahadłem",
+      "description": "Chaotyczne podwójne wahadło kołysze się nad harfą: każda struna, którą przetnie kulka, zostaje szarpnięta i gra swój dźwięk, a ostatnia kulka maluje długi tęczowy ślad. Dodaj wahadła, by zobaczyć efekt motyla, trzecie ramię, by powstało wahadło potrójne, albo pozwól dwóm wahadłom stoczyć sparing – każde uderzenie to perkusyjny dźwięk."
     }
   },
   "Features": {
@@ -1047,7 +1106,8 @@
     "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu.",
     "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru.",
     "modeGlass": "Szklany format borisbounces, bez pierścieni: pionowy szyb z poziomymi szklanymi taflami dzieli piłkę od drzwi z napisem DOM. Piłka spada, a każde lądowanie zostawia pęknięcie na tafli pod nią – proceduralna rysa rośnie od miejsca uderzenia – i gra kolejną nutę melodii albo, bez melodii, stopień skali według rzędu; przy ostatnim uderzeniu tafla rozpada się na odłamki z akcentowaną nutą i dźwiękiem tłuczonego szkła, a piłka przebija się do następnej tafli. Po ostatniej tafli etapu kamera zjeżdża do kolejnego: więcej tafli, grubsze szkło, tafle jeżdżące w lewo i w prawo oraz tafle z dziurami, które piłka musi ominąć. Ostatni etap kończy się wtoczeniem piłki w drzwi i świętowaniem. Każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno do długości klipu.",
-    "modeMultipliers": "Wysoka plansza, którą kamera przewija w dół, zawsze za najniżej położoną piłką. Każdy rząd dzieli się na 2–4 bramki: bramki liczby (x2, x3, x5) klonują każdą przechodzącą piłkę – aż do wybranego limitu, od 50 do 2000 –, bramki prędkości, rozmiaru i obrażeń nakładają na nią mnożniki bez górnej granicy, bramki ÷2 pochłaniają co drugą piłkę, a bramki z zapadką trzymają stos piłek na klapie, która otwiera się seriami. Między rzędami stoją kołki rozdzielające, sprężyste odbijacze, lejki i blokady z punktami wytrzymałości (mnożnik obrażeń szybciej je kruszy), każde uderzenie to nuta pentatonicznego „pianina plinko”, a strefa DOM na dole liczy na żywo przybyłe piłki aż do końcowego „Boris w domu: N”. Piłka, która urośnie szerzej niż plansza, przerasta arenę i kończy bieg świętowaniem. Ustaw docelową liczbę, a Znajdź symulację poszuka ziarna, którego końcowy wynik mieści się w 5 % od celu. Te same mnożniki unoszą się jako znajdźki w trybach z pierścieniami (sekcja Piłka → Mnożniki)."
+    "modeMultipliers": "Wysoka plansza, którą kamera przewija w dół, zawsze za najniżej położoną piłką. Każdy rząd dzieli się na 2–4 bramki: bramki liczby (x2, x3, x5) klonują każdą przechodzącą piłkę – aż do wybranego limitu, od 50 do 2000 –, bramki prędkości, rozmiaru i obrażeń nakładają na nią mnożniki bez górnej granicy, bramki ÷2 pochłaniają co drugą piłkę, a bramki z zapadką trzymają stos piłek na klapie, która otwiera się seriami. Między rzędami stoją kołki rozdzielające, sprężyste odbijacze, lejki i blokady z punktami wytrzymałości (mnożnik obrażeń szybciej je kruszy), każde uderzenie to nuta pentatonicznego „pianina plinko”, a strefa DOM na dole liczy na żywo przybyłe piłki aż do końcowego „Boris w domu: N”. Piłka, która urośnie szerzej niż plansza, przerasta arenę i kończy bieg świętowaniem. Ustaw docelową liczbę, a Znajdź symulację poszuka ziarna, którego końcowy wynik mieści się w 5 % od celu. Te same mnożniki unoszą się jako znajdźki w trybach z pierścieniami (sekcja Piłka → Mnożniki).",
+    "modeDoublePendulum": "Bez pierścieni: od jednego do czterech podwójnych – albo potrójnych – wahadeł kołysze się z punktu zawieszenia na środku filmu, liczonych krok po kroku (metodą Rungego–Kutty czwartego rzędu z drobnymi podkrokami), więc chaos to prawdziwa fizyka, a energia utrzymuje się przez cały klip. W poprzek planszy stoi do 24 strun harfy, pionowych lub promienistych; każda kulka, która przetnie strunę, szarpie ją – struna drga i gra swój dźwięk, nastrojony do skali z sekcji Własny dźwięk w zakresie od jednej do czterech oktaw – a ostatnia kulka rysuje długi tęczowy ślad. Kilka wahadeł startuje minimalnie przesuniętych i po kilku sekundach się rozbiega (efekt motyla); sparing wiesza dwa wahadła obok siebie, których kulki zderzają się sprężyście – każde uderzenie to perkusyjny dźwięk i błysk. Długości ramion, masy, grawitację, tarcie i kąty startowe (albo losowy start z ziarna) można regulować, a przebieg kończy się razem z klipem albo nigdy."
   },
   "Footer": {
     "about": "O nas",
