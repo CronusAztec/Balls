@@ -35,6 +35,10 @@ import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulu
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
+// --- odd-string-battle --- the String Battle mode (oddplayground's WEB DOMINION)
+import { STRING_BATTLE_RANGES, defaultStringBattleFields, readStringBattleParams, resolveStringBattleFields, writeStringBattleParams, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
+// --- odd-power-layers --- the Power Layers mode (oddplayground)
+import { POWER_LAYERS_RANGES, defaultPowerLayersFields, powerLayersModeDefaults, readPowerLayersParams, resolvePowerLayersFields, writePowerLayersParams, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
 // --- jdm-race ---
 import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writeRaceParams, type RaceCamera, type RaceShape } from "@/lib/physics/modes/race";
 import type { RaceFeature } from "@/lib/physics/raceTrack";
@@ -445,6 +449,42 @@ export interface SimulatorSettings {
   /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
   wallWobble: number;
   // --- end jdm-illusions ---
+  // --- odd-string-battle --- String Battle (lib/physics/modes/stringBattle.ts)
+  /** Balls in the battle, 2–6 (URL `sbn`). */
+  sbBalls: number;
+  /** Lives every ball starts with, 1–9 (URL `sbl`). */
+  sbLives: number;
+  /** Threads a ball drags at most, 3–40 (URL `sbm`). */
+  sbMaxStrings: number;
+  /** cut | touch | collide (URL `sbr`). */
+  sbRule: SbRule;
+  /** web | neon (URL `sbst`). */
+  sbStyle: SbStyle;
+  /** Clip limit in seconds, 0 = until one ball remains (URL `sbd`). */
+  sbDuration: number;
+  /** 1–3: the finale's top speed (URL `sbf`). */
+  sbFinaleSpeed: number;
+  /** 0–1: the neon ring's wobble (URL `sbw`). */
+  sbWobble: number;
+  /** The "FLASHING LIGHTS" warning badge (URL `sbb`). */
+  sbBadge: boolean;
+  /** The WEB DOMINION HUD (URL `sbh`). */
+  sbHud: boolean;
+  // --- end odd-string-battle ---
+  // --- odd-power-layers --- Power Layers (lib/physics/modes/powerLayers.ts): a ball smashing a stack of rainbow layers
+  /** Layers in the stack, 20–800 (URL `pll`). */
+  plLayers: number;
+  /** How the power advances after every hit: double | fibonacci | primes | plusOne | random (URL `plq`). */
+  plSequence: PlSequence;
+  /** 0–1: the seeded sideways drift of the ball (URL `pld`). */
+  plDrift: number;
+  /** 0.5–2: bounce speed, one bounce a second at 1 (URL `plsp`). */
+  plSpeed: number;
+  /** The corner badge: sound | warning | both | none (URL `plb`). */
+  plBadge: PlBadge;
+  /** The two rainbow rule pills at the top of the field (URL `plp`). */
+  plPills: boolean;
+  // --- end odd-power-layers ---
   // --- fast-render --- Fast export (lib/recording/fastRender.ts): frames per second of the offline export, 30 or 60 (URL `xfps`)
   fastExportFps: number;
   // --- end fast-render ---
@@ -593,6 +633,10 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultTimelineSettings(), // --- timeline ---
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
+    ...defaultStringBattleFields(), // --- odd-string-battle ---
+    // --- odd-power-layers --- the feature's fields, and the mode's own ball size (radius 10) in Power Layers only
+    ...defaultPowerLayersFields(),
+    ...powerLayersModeDefaults(mode),
     ...DEFAULT_FAST_EXPORT_SETTINGS, // --- fast-render ---
     ...defaultRaceFields(), // --- jdm-race ---
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
@@ -653,6 +697,8 @@ export const RANGES = {
   // --- jdm-illusions ---
   ...ILLUSION_RANGES,
   ...WOBBLE_RANGES,
+  ...STRING_BATTLE_RANGES, // --- odd-string-battle ---
+  ...POWER_LAYERS_RANGES, // --- odd-power-layers ---
   ...FAST_EXPORT_RANGES, // --- fast-render ---
   ...RACE_RANGES, // --- jdm-race ---
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
@@ -884,6 +930,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
+  writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh
+  writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   return params;
@@ -994,6 +1042,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readTimelineParams(params, settings, RANGES); // --- timeline ---
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
+  readStringBattleParams(params, settings); // --- odd-string-battle ---
+  readPowerLayersParams(params, settings); // --- odd-power-layers --- (clamped; unknown options fall back)
   Object.assign(settings, resolveFastExportSettings(settings)); // --- fast-render --- (snapped to 30 or 60)
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
@@ -1158,6 +1208,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveStringBattleFields(merged)); // --- odd-string-battle --- clamped numbers, known rule / style, real booleans
+  Object.assign(merged, resolvePowerLayersFields(merged)); // --- odd-power-layers --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveFastExportSettings(merged)); // --- fast-render --- (snapped to 30 or 60)
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans

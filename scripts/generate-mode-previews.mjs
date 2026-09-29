@@ -39,6 +39,10 @@ const MODES = {
   doublePendulum: { wait: 7000, query: "dprs=0&dpa1=150&dpa2=120&dptr=8&glow=1" },
   // --- jdm-illusions --- the white spaces mid-reveal: the painted arena, the painters and the hidden heart emerging
   illusion: { wait: 11000, query: "ilt=whitespace&ilpt=heart&glow=1" },
+  // --- odd-string-battle --- mid-battle: fans of threads, numbered balls, the WEB DOMINION HUD and the warning badge
+  stringBattle: { wait: 7000, query: "" },
+  // --- odd-power-layers --- right after a big hit: the shattered band's particles over a dense rainbow stack
+  powerLayers: { wait: 5650, query: "pll=400&glow=1" },
   // --- jdm-race --- ten racers mid-race: the standings, the mini-map, swap zones, turbo pads and a pass callout in view
   race: { wait: 8000, query: "rcn=10&glow=1" },
   // --- jdm-arena-games --- mid-battle: squares with HP bars, a KO blast, power-ups; and a capture the flag game with a carrier

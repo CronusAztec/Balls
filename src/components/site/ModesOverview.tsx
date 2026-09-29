@@ -10,7 +10,7 @@ const cardClass =
   "bg-slate-900/40 backdrop-blur-sm border border-slate-800 rounded-3xl overflow-hidden flex flex-col cursor-pointer hover:border-cyan-500/30 hover:bg-slate-900/60 transition-all duration-300 group shadow-sm hover:shadow-cyan-500/5 hover:-translate-y-1";
 
 /** Heading key (Headings namespace) of each mode family. */
-const CATEGORY_HEADINGS = { escape: "modesEscape", rhythm: "modesRhythm" } as const;
+const CATEGORY_HEADINGS = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle" /* --- odd-string-battle --- */ } as const;
 
 /**
  * Mode cards, grouped under a heading per family (escape modes, rhythm modes – see lib/modes.ts). On the

@@ -3144,6 +3144,364 @@ const instrumentOscillators = () =>
 }
 // --- end timeline ---
 
+// --- odd-string-battle ---
+// 26. String Battle: the preview image and the card under the battle heading; URL → the String Battle block of the Mode row
+// (rule, style, fighters, lives, threads, clip limit, finale, wobble, badge), controls → URL, the search box, the finder's
+// outcomes; a default battle at 4× that ends with one ball standing – threads cut, lives lost, bounce notes on the pentatonic
+// ladder, plucks and shatter noise bursts (OscillatorNode / AudioBufferSourceNode.start instrumented), the badge, the HUD,
+// the winner banner, the slow motion on the final cut and a held end screen; the frame rate of the defaults; the neon style
+// (the painted moiré, the jelly ring, glitch bars, no HUD); a roster whose rigged Blue wins under the teams banner; and Find
+// Simulation's winner outcome.
+{
+  const res = await page.request.get(`${BASE}/modes/stringBattle.webp`);
+  check("asset /modes/stringBattle.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const card = await page.locator('img[src$="/modes/stringBattle.webp"]').count();
+  const heading = await page.getByRole("heading", { name: "Battle modes" }).count();
+  check("the String Battle card is on the landing page under the battle heading", card === 1 && heading === 1, `(cards=${card}, heading=${heading})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=5&sbl=6&sbm=20&sbr=touch&sbst=neon&sbd=60&sbf=2.4&sbw=0.3&sbb=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("string-battle-section");
+  const pick = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name: new RegExp(name) });
+  const toggle = (label) => section.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  {
+    const values = { sbn: await sliderValue("Fighters"), sbl: await sliderValue("Lives"), sbm: await sliderValue("Threads per Ball"), sbd: await sliderValue("Clip Limit"), sbf: await sliderValue("Finale Speed"), sbw: await sliderValue("Ring Wobble") };
+    const touch = await pick("Combat Rule", "Touch").getAttribute("aria-pressed");
+    const neon = await pick("Style", "Neon").getAttribute("aria-pressed");
+    const badge = await toggle("Warning Badge").getAttribute("aria-pressed");
+    const noHudToggle = (await toggle("WEB DOMINION HUD").count()) === 0;
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    check(
+      "string battle loads from URL",
+      values.sbn === "5" && values.sbl === "6" && values.sbm === "20" && values.sbd === "60" && values.sbf === "2.4" && values.sbw === "0.3" && touch === "true" && neon === "true" && badge === "false" && noHudToggle && noRingControls && options.join(",") === "duration,winner",
+      `(${JSON.stringify(values)}, touch=${touch}, neon=${neon}, badge=${badge}, hud toggle hidden=${noHudToggle}, finder outcomes=${options.join(",")})`,
+    );
+  }
+  await pick("Combat Rule", "Cut").click();
+  await pick("Style", "Web").click();
+  await page.locator('input[aria-label="Fighters"]').evaluate(setRangeValue, "3");
+  await toggle("Warning Badge").click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const hudShown = (await toggle("WEB DOMINION HUD").count()) === 1;
+    check(
+      "string battle mirrors into the URL",
+      query.get("mode") === "stringBattle" && query.get("sbn") === "3" && query.get("sbl") === "6" && !query.has("sbr") && !query.has("sbst") && !query.has("sbb") && query.get("sbd") === "60" && hudShown,
+      `(${query.toString()}, hud toggle=${hudShown})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("clip limit");
+  const found = await page.locator('input[aria-label="Clip Limit"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the string battle controls", found && hidden, `(clip limit=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // A default battle at 4×: four balls, four lives each, the cut rule, the web style.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const buffers = [];
+    window.__sbOsc = osc;
+    window.__sbBuffers = buffers;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const play = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function () {
+      buffers.push(this.buffer ? this.buffer.duration : 0);
+      return play.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // The frame rate of the defaults at 1×, before the finish.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    5000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle.png") });
+  check(
+    "simulator mode=stringBattle anchors threads and runs at 30+ fps",
+    early.sbBalls === "4" && Number(early.sbBounces) > 4 && Number(early.sbStrings) > 0 && early.sbBadge === "1" && early.sbHud === "1" && early.sbStyle === "web" && windows.length >= 8 && minWindow >= fpsFloor(30),
+    `(${JSON.stringify({ balls: early.sbBalls, bounces: early.sbBounces, strings: early.sbStrings, lives: early.sbLives })}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(800);
+  const data = await canvasData();
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-winner.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10_000 }).then(() => true).catch(() => false);
+  const lives = (data.sbLives || "").split(",").map(Number);
+  const winner = Number(data.sbWinner);
+  check(
+    "a default string battle ends with one ball standing, its winner banner held before the end screen",
+    ended && data.sbAlive === "1" && winner >= 0 && lives[winner] > 0 && lives.filter((l) => l === 0).length === 3 && Number(data.sbCuts) >= 12 && Number(data.sbLivesLost) >= 12 && data.sbSlowMos === "1" && data.sbBanner === "1" && !!data.sbWinnerName && held && endScreen,
+    `(${JSON.stringify({ alive: data.sbAlive, winner: data.sbWinner, name: data.sbWinnerName, lives: data.sbLives, kills: data.sbKills, cuts: data.sbCuts, lost: data.sbLivesLost, finale: data.sbFinale, speed: data.sbSpeed, strobe: data.sbStrobe })}, held=${held}, end screen=${endScreen})`,
+  );
+  const pitches = await page.evaluate(() => window.__sbOsc);
+  const buffers = await page.evaluate(() => window.__sbBuffers);
+  const notes = pitches.filter((f) => f < 1100).map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const ladder = [72, 74, 76, 79, 81, 84];
+  const tinkles = pitches.filter((f) => Math.abs(f - 2637.02) < 1 || Math.abs(f - 3520) < 1 || Math.abs(f - 4186.01) < 1).length;
+  check(
+    "string battle bounces play one pentatonic degree per ball, cuts pluck and shatters burst",
+    notes.length > 10 && notes.every((m) => ladder.includes(m)) && new Set(notes).size >= 3 && tinkles >= 9 && buffers.length >= 3 + 1,
+    `(${notes.length} notes, MIDI ${[...new Set(notes)].sort((a, b) => a - b).join("/")}, ${tinkles} shard tinkles, ${buffers.length} buffer sources)`,
+  );
+}
+{
+  // The neon style: endless lines painted into a layer that is never cleared, the jelly ring, glitch bars, no HUD.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=neon`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  const wobbled = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbWobble === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  const glitched = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbGlitches ?? 0) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-neon.png") });
+  const reduced = data.sbReducedMotion === "1";
+  check(
+    "the neon string battle paints moiré lines, wobbles its ring and glitches on a lost life",
+    data.sbStyle === "neon" && Number(data.sbPainted) > 100 && wobbled && (glitched || reduced) && data.sbHud === "0" && data.sbBadge === "1",
+    `(${JSON.stringify({ painted: data.sbPainted, glitches: data.sbGlitches, wobble: wobbled, hud: data.sbHud, lost: data.sbLivesLost, reduced: data.sbReducedMotion })})`,
+  );
+}
+{
+  // A roster: Red and Blue (the other two balls take the palette); Blue is the Forced Winner, and the teams banner crowns it.
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧";
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&teams=${encodeURIComponent(roster)}&fw=1`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-teams.png") });
+  check(
+    "a rigged string battle is won by the chosen roster ball under the teams banner",
+    won && data.teamWinner === "Blue" && data.sbWinner === "1" && data.sbWinnerName === "Blue" && data.teams === "4" && data.sbBanner === "0" && /Blue wins/.test(note),
+    `(winner=${data.teamWinner}, sb winner=${data.sbWinner} ${data.sbWinnerName}, teams=${data.teams}, stats=${data.teamStats}, own banner=${data.sbBanner}, note="${note}")`,
+  );
+}
+{
+  // Find Simulation: a battle ACID (the third ball) wins.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("2");
+  const button = page.getByRole("button", { name: /Find a Run ACID Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  check("Find Simulation finds a string battle the chosen ball wins", labelled && /Found! ACID wins/.test(text), `("${text}")`);
+}
+// --- end odd-string-battle ---
+
+// --- odd-power-layers ---
+// 27. Power Layers: the preview image and the card; URL → the Power layers block of the Mode row (layers, sequence, drift,
+// bounce speed, corner badge, rule pills), controls → URL and the search box; the finder (the default run's fixed 8.8 s –
+// 7 hits × 1 s + the finale – is explained at once, chaos seeds are searched and keep their promise); a default run at 1×
+// – a hit every bounce period, each level the next C-major degree (OscillatorNode.start is instrumented), the stack
+// emptied, freedom and the end screen, at 30+ fps; a chaos run of 800 layers at 8× to freedom; and a 1080×1920
+// recording of the mode that keeps 20+ fps (the software encoder's share of a headless frame) and downloads.
+{
+  const res = await page.request.get(`${BASE}/modes/powerLayers.webp`);
+  check("asset /modes/powerLayers.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Power Layers card is on the landing page", (await page.locator('img[src$="/modes/powerLayers.webp"]').count()) === 1);
+}
+/** Frame-time deltas (ms) of the page over `ms` of requestAnimationFrame, and the half-second windows' frame rates. */
+const plFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+{
+  const plToggle = (label) => page.getByTestId("power-layers").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const seqButton = (name) => page.getByRole("group", { name: "Power Sequence", exact: true }).getByRole("button", { name: new RegExp(name) });
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&pll=300&plq=fibonacci&pld=0.5&plsp=1.5&plb=warning&plp=0`, { waitUntil: "networkidle" });
+  {
+    const values = { pll: await sliderValue("Layers"), pld: await sliderValue("Drift"), plsp: await sliderValue("Bounce Speed") };
+    const fib = await seqButton("Fibonacci").getAttribute("aria-pressed");
+    const badge = await page.locator("#power-layers-badge").inputValue();
+    const pills = await plToggle("Rule Badges").getAttribute("aria-pressed");
+    const run = await page.getByTestId("power-layers-run").innerText();
+    const hint = await page.getByTestId("power-layers-sequence").innerText();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Balls"]').count()) === 0;
+    // Fibonacci against 300 layers: 1, 1, 2, 3, 5 … 144 – 12 hits, 2/3 s apart, + the 1.8 s finale = 9.8 s.
+    check(
+      "power layers load from the URL",
+      values.pll === "300" && values.pld === "0.5" && values.plsp === "1.5" && fib === "true" && badge === "warning" && pills === "false" && /\b12 hits\b/.test(run) && /9\.8s/.test(run) && /1, 1, 2, 3, 5, 8/.test(hint) && noRingControls,
+      `(${JSON.stringify(values)}, fibonacci=${fib}, badge=${badge}, pills=${pills}, "${run}", "${hint}")`,
+    );
+  }
+  await seqButton("Primes").click();
+  await page.locator('input[aria-label="Layers"]').evaluate(setRangeValue, "500");
+  await plToggle("Rule Badges").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check("power layers mirror into the URL", /(^|&)plq=primes(&|$)/.test(query) && /(^|&)pll=500(&|$)/.test(query) && !/(^|&)plp=/.test(query) && /(^|&)plb=warning(&|$)/.test(query) && /(^|&)plsp=1.5(&|$)/.test(query), `(${query})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("power sequence");
+  const found = await page.getByRole("group", { name: "Power Sequence", exact: true }).isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the power layers controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // The default run always lasts 7 hits × 1 s + the 1.8 s finale: the finder says so at once.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const shown = await page.getByText(/Power Layers always lasts exactly 8\.8s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("finder explains a fixed-length power layers run", shown);
+  if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+  // Chaos: the seed decides the hit count, so the finder searches – and the found run lasts hits × 1 s + 1.8 s.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&plq=random`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.plFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a chaos seed for 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.plFinished === "1" && Math.abs(Number(data.plTotalHits) * 1 + 1.8 - promised) < 0.05,
+    `(ready=${ready}, "${readyText}", hits ${data.plTotalHits}, finished=${data.plFinished})`,
+  );
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__plOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await plFrameRates(5500);
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-power-layers.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__plOsc);
+  const first = tones.slice(0, 4);
+  const midis = first.map((o) => Math.round(69 + 12 * Math.log2(o.f / 440)));
+  const gaps = first.slice(1).map((o, i) => Math.round(o.t - first[i].t));
+  check(
+    "power layers: a hit every bounce period, each level the next note of the scale, at 30+ fps",
+    Number(mid.plHits) >= 5 && midis.join(",") === "60,62,64,65" && gaps.every((g) => g > 800 && g < 1200) && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
+    `(hits ${mid.plHits}/${mid.plTotalHits}, first notes MIDI ${midis.join("/")} ${gaps.join("/")} ms apart, ${tones.length} tones, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  check(
+    "power layers empty the stack, fall to freedom and finish",
+    done && data.plGone === "120" && data.plHits === "7" && data.plFreed === "1" && data.plFinished === "1" && data.plBigHits === "3" && data.plPower === "128",
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("pl"))))})`,
+  );
+}
+{
+  // Chaos against 800 layers at 8×, with both corner badges.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&plq=random&pll=800&plb=both`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.plFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("a chaos run of 800 layers ends in freedom", done && data.plGone === "800" && data.plHits === data.plTotalHits && data.plFreed === "1" && data.plBadge === "both" && data.plSequence === "random", `(finished=${done}, hits ${data.plHits}/${data.plTotalHits}, gone ${data.plGone})`);
+  await page.screenshot({ path: path.join(outDir, "sim-power-layers-chaos.png") });
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default run.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await plFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `power-layers-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  // Headless Chromium encodes the 1080×1920 export in software on the CPU – the bulk of a recorded frame in every mode – so the
+  // floor is 20 fps here (scaled down on a busy machine like every frame-rate check), well above a mode that would stall it.
+  check("a 1080×1920 power layers recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+// --- end odd-power-layers ---
+
 // --- fast-render --- Fast export: a 500×500, 10 s Classic clip at 30 fps is rendered offline (WebCodecs) and downloads as an
 // MP4 or WebM with a video and an audio track of the clip's length, the progress bar runs meanwhile, a second export of the
 // same seed has the same frames (digest), and Cancel stops a long export without a download. Without WebCodecs the button
@@ -3232,7 +3590,7 @@ const instrumentOscillators = () =>
 }
 // --- end fast-render ---
 // --- project-files ---
-// 26. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
+// 28. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
 // bed downloads as <name>.viralballs.json holding the settings and the track as base64. Import on a fresh page (the
 // file input, then a drop on the panel) restores the settings and the track; a JSON file that is not a project is
 // refused with a message. Share: the share button copies a ?c= link (base64url); opening it applies the setup,
@@ -3355,7 +3713,7 @@ const instrumentOscillators = () =>
 }
 // --- end project-files ---
 // --- jdm-race ---
-// 26. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
+// 29. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
 // length, laps, obstacle mix, camera, standings, mini-map, cup and its title, the staged winner with its warnings), controls →
 // URL, the search box, the Teams tab's note; a default race at 30+ fps whose obstacle notes are the racers' notes
 // (OscillatorNode.start is instrumented) while the standings follow the overtakes (data-race-*); a short race at 8× that
@@ -3532,7 +3890,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 // --- end jdm-race ---
 // --- jdm-arena-games ---
-// 27. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
+// 30. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
 // row, controls → URL, the search box; a battle at 8× fought to the last square standing – every other square knocked
 // out, notes played, the winner banner held before the end screen; Find Simulation finds a 30 s battle and the found
 // seed replays to its length; a capture-the-flag game won on the score (captures counted, flags back home or carried);

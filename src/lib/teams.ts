@@ -194,6 +194,8 @@ interface BallCountFields {
   ballCount: number;
   twoBalls: boolean;
   teams: readonly TeamEntry[];
+  /** --- odd-string-battle --- The String Battle's own ball count (2–6): one team per ball, whatever the roster's size. */
+  sbBalls?: number;
 }
 
 /**
@@ -201,6 +203,8 @@ interface BallCountFields {
  * the old switch) – at most the mode's cap (Grow: two; a bigger roster keeps its teams, and the first ones play).
  */
 export function effectiveBallCount(settings: BallCountFields): number {
+  // --- odd-string-battle --- the String Battle plays its own number of balls (the roster colours and names the first ones)
+  if (settings.mode === "stringBattle" && settings.sbBalls !== undefined && Number.isFinite(settings.sbBalls)) return Math.max(2, Math.min(MAX_TEAMS, Math.round(settings.sbBalls)));
   const n = settings.teams.length > 0 ? settings.teams.length : Math.max(settings.ballCount, settings.twoBalls ? 2 : 1);
   return Math.min(modeBallCap(settings.mode), clampBallCount(n));
 }

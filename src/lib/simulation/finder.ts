@@ -21,6 +21,10 @@ import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcom
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
 import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettings } from "@/lib/physics/modes/illusion";
+// --- odd-string-battle ---
+import type { StringBattleSettings } from "@/lib/physics/modes/stringBattle";
+// --- odd-power-layers ---
+import { powerLayersFixedDurationSec, type PowerLayersSettings } from "@/lib/physics/modes/powerLayers";
 // --- jdm-race ---
 import type { RaceSettings } from "@/lib/physics/modes/race";
 // --- jdm-arena-games ---
@@ -73,6 +77,12 @@ export interface ModeSettings {
   // --- jdm-illusions ---
   /** Circle Illusion: type, counts, pattern, speed and cycles (see modes/illusion.ts); the defaults when left out. The whitespace type ends when its picture is revealed, so the finder searches it. */
   illusion?: Partial<IllusionSettings>;
+  // --- odd-string-battle ---
+  /** String Battle: balls, lives, threads, rule, clip limit and finale (see modes/stringBattle.ts); the defaults when left out. Every battle ends, so the finder searches it – by length or by winner. */
+  stringBattle?: Partial<StringBattleSettings>;
+  // --- odd-power-layers ---
+  /** Power Layers: layers, sequence, drift and bounce speed (see modes/powerLayers.ts); the defaults when left out. Every run ends in freedom after hits × the bounce period. */
+  powerLayers?: Partial<PowerLayersSettings>;
   // --- jdm-race ---
   /** Square Racing Grand Prix: racers, track length, laps, obstacle mix, the favourite and the cup (see modes/race.ts); the defaults when left out. Every race ends (a podium after the last racer home, or DNFs after a grace period), so the finder times it. */
   race?: Partial<RaceSettings>;
@@ -84,6 +94,10 @@ export interface ModeSettings {
   battle?: Partial<BattleSettings>;
   ctf?: Partial<CtfSettings>;
 }
+
+// --- odd-string-battle ---
+/** Seeds of the String Battle simulated per animation frame (a battle takes a few ms per simulated second). */
+export const STRING_BATTLE_FINDER_BATCH = 6;
 
 // --- jdm-race ---
 /** Seeds of the race simulated per animation frame (a seed runs a whole race of up to 16 racers). */
@@ -137,6 +151,8 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   }
   // --- jdm-illusions --- lines and rings: cycles × the cycle length, whatever the seed
   if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
+  // --- odd-power-layers --- every sequence but chaos: the plan's hit count × the bounce period (+ the celebration), whatever the seed
+  if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers);
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
@@ -230,6 +246,10 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "doublePendulum") engine.setDoublePendulumSettings(settings.doublePendulum ?? {});
   // --- jdm-illusions ---
   if (mode === "illusion") engine.setIllusionSettings(settings.illusion ?? {});
+  // --- odd-string-battle ---
+  if (mode === "stringBattle") engine.setStringBattleSettings(settings.stringBattle ?? {});
+  // --- odd-power-layers ---
+  if (mode === "powerLayers") engine.setPowerLayersSettings(settings.powerLayers ?? {});
   // --- jdm-race ---
   if (mode === "race") engine.setRaceSettings(settings.race ?? {});
   // --- jdm-arena-games ---
@@ -243,6 +263,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
 /** Simulates one seed headlessly and returns how long it ran (ms) before finishing. */
 export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: number): number {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  // --- odd-power-layers --- the run length is known as soon as the seed's plan is drawn: the hit count × the bounce period + the celebration
+  if (request.mode === "powerLayers") return Math.min(maxSimMs, engine.getPowerLayersProgress().plannedMs);
   const step = 1000 / 60;
   let elapsed = 0;
   while (elapsed < maxSimMs) {
@@ -313,7 +335,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed)
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -415,7 +437,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished)) break;
   }
-  const teams = engine.getTeamStats().slice(0, startBallCount(engine.config, request.mode)).map((t) => ({ ...t }));
+  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
+  const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
   return { durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
 }
 

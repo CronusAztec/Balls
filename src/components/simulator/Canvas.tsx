@@ -42,6 +42,12 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
+// --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
+import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
+import type { Ball } from "@/lib/physics/types";
+import type { TeamEntry } from "@/lib/teams";
+// --- odd-power-layers --- the Power Layers playfield, stack, particles, badges and rule pills
+import { DEFAULT_POWER_LAYERS_LABELS, PowerLayersLayer, type PowerLayersLabels, type PowerLayersRenderOptions } from "./powerLayersRenderer";
 // --- fast-render --- offline mode (the fast export's hidden instance) and the wrapper that mounts it
 import type { FastRenderHost, OfflineCanvasDriver } from "@/lib/recording/fastRender";
 import { withFastRender } from "./fastRenderCanvas";
@@ -115,6 +121,12 @@ export interface CanvasLabels {
   /** Circle Illusion: the whitespace picture is revealed; the cycles a lines / rings run finished after. */
   illusionRevealed?: string;
   illusionCycles?: (n: number) => string;
+  // --- odd-string-battle ---
+  /** String Battle: the HUD title and thread count, the warning badge, the winner banner. */
+  stringBattle?: StringBattleLabels;
+  // --- odd-power-layers ---
+  /** Power Layers: the rule pills, the badges, the layers left and the freedom banner. */
+  powerLayers?: PowerLayersLabels;
   // --- jdm-arena-games ---
   /** Battle Royale / Capture the Flag: KO, winner, draw, squares left, capture, time, the banner lines and the built-in names. */
   arena?: ArenaLabels;
@@ -215,6 +227,7 @@ export interface CanvasProps {
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
+const NO_ROSTER: readonly TeamEntry[] = []; // --- odd-string-battle ---
 
 const DEFAULT_LABELS: CanvasLabels = {
   escaped: "ESCAPED!",
@@ -266,6 +279,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   // --- jdm-illusions ---
   illusionRevealed: "REVEALED!",
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
+  powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -669,6 +683,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const illusionLayer = new IllusionLayer();
     const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr, nowMs: 0 };
     const illusionLabels: IllusionLabels = { revealed: DEFAULT_LABELS.illusionRevealed!, painted: DEFAULT_LABELS.painted };
+    // --- odd-string-battle --- the String Battle's layer, its per-frame options and the simulation time of the last frame
+    const sbLayer = new StringBattleLayer();
+    const sbRender: StringBattleRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: 0, simDtMs: 0, contacts: null, width: 0, height: 0 };
+    let sbLastMs = 0;
+    const sbBodyColor = (ball: Ball) => sbLayer.colorOf(ball.team ?? 0);
+    // --- odd-power-layers --- the Power Layers layer (cached stack, halos, gradients) and its per-frame options
+    const plLayer = new PowerLayersLayer();
+    const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr };
     // --- jdm-race --- the race's layer (row easing, sprite and text caches) and its per-frame options
     const raceLayer = new RaceLayer();
     const raceRender: RaceRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8 };
@@ -939,6 +961,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // --- jdm-illusions --- the Circle Illusion's view, and this frame's wobbly walls: new contacts, the simulation time, the amount
       const illusionView = engine.isIllusionMode() ? engine.getIllusionView() : null;
+      const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
@@ -1147,6 +1170,24 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionLayer.drawStage(ctx, illusionView, illusionRender, wobble);
       }
 
+      // --- odd-string-battle --- String Battle: the ring (the neon style's jelly ring and outline rings), the threads and the threads leaving.
+      const sbView = engine.isStringBattleMode() ? engine.getStringBattleView() : null;
+      if (sbView) {
+        const tr = teamsRef.current;
+        sbRender.roster = tr ? tr.roster : NO_ROSTER;
+        sbRender.showNames = !!tr && tr.showNames;
+        sbRender.wallThickness = p.wallThickness;
+        sbRender.labels = (labelsRef.current ?? DEFAULT_LABELS).stringBattle ?? DEFAULT_STRING_BATTLE_LABELS;
+        const simNow = engine.getElapsedMs();
+        sbRender.simDtMs = simNow >= sbLastMs ? simNow - sbLastMs : 0;
+        sbLastMs = simNow;
+        sbRender.nowMs = simNow;
+        sbRender.contacts = engine.getWallContacts();
+        sbRender.width = size.width;
+        sbRender.height = size.height;
+        sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
+      }
+
       // --- jdm-arena-games --- Battle Royale / Capture the Flag: the box or circle (and the shrinking zone), power-ups, bases and flags.
       const arenaView = engine.getArenaView();
       if (arenaView) {
@@ -1173,6 +1214,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
         glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- boris-multipliers --- the gate labels
         drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      }
+      // --- odd-power-layers --- Power Layers: the navy playfield, the rainbow stack, the ceiling bar and the ball's halo under the ball.
+      if (plView) {
+        plRender.wallColor = wallColor;
+        plRender.showWallGlow = p.showWallGlow;
+        plLayer.drawWorld(ctx, plView, drawnBalls, plRender);
       }
       // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
       if (raceView) {
@@ -1651,6 +1698,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
+      else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else balls.forEach((ball, index) => {
@@ -1844,6 +1892,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
+      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
@@ -1851,6 +1900,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -1961,6 +2011,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionLabels.painted = IL.painted;
         illusionLayer.drawOverlay(ctx, size.width, size.height, illusionView, engine.getElapsedMs(), illusionLabels);
       }
+      // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
+      if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
       // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
       if (arenaView) arenaLayer.drawOverlay(ctx, size.width, size.height, arenaView, arenaRender);
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
@@ -1974,6 +2026,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
         multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid);
       }
+
+      // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
+      if (sbView) sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
 
       // HUD: mode counters in the centre
       {
@@ -2176,6 +2231,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- jdm-illusions --- lines / rings run for a set number of cycles: the figure is back where it started.
         if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635");
+        // --- odd-power-layers --- Power Layers: the ball fell out of the bottom – freedom, with the hits and the time.
+        if (plView && plView.freed) {
+          const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
+          bigBanner(PL.freedom, PL.freedomSub(plView.hits, plView.freedSec.toFixed(1)), "#a3e635");
+        }
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
           const prog = engine.getGlassProgress();
@@ -2355,6 +2415,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
       const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
+      if (sbView) sbLayer.applyGlitch(ctx); // --- odd-string-battle --- the neon style's glitch bars over the finished frame
       ctx.restore();
 
       // Picture Paint: mirror what the HUD shows onto the element (data-paint-*) so tools and the smoke test can read it.
@@ -2456,6 +2517,44 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("wobblePeak", wobble.runPeak.toFixed(3));
       } else if (canvas.dataset.wobble !== undefined) for (const key of ["wobble", "wobbleMaxPx", "wobblePeak"]) delete canvas.dataset[key];
       // --- end jdm-illusions ---
+      // --- odd-string-battle --- String Battle (data-sb-*): balls, lives, kills, threads, the rule and style, the finale, the verdict, the rig and what was drawn
+      if (sbView) {
+        let lives = "";
+        let kills = "";
+        for (let i = 0; i < sbView.fighters.length; i++) {
+          lives += `${i > 0 ? "," : ""}${sbView.fighters[i].lives}`;
+          kills += `${i > 0 ? "," : ""}${sbView.fighters[i].kills}`;
+        }
+        setCanvasData("sbBalls", String(sbView.count));
+        setCanvasData("sbAlive", String(sbView.alive));
+        setCanvasData("sbLives", lives);
+        setCanvasData("sbKills", kills);
+        setCanvasData("sbStrings", String(sbView.liveStrings));
+        setCanvasData("sbCuts", String(sbView.cuts));
+        setCanvasData("sbLivesLost", String(sbView.livesLost));
+        setCanvasData("sbBounces", String(sbView.bounces));
+        setCanvasData("sbRule", sbView.settings.rule);
+        setCanvasData("sbStyle", sbView.settings.style);
+        setCanvasData("sbFinale", sbView.finale ? "1" : "0");
+        setCanvasData("sbSpeed", sbView.finaleFactor.toFixed(2));
+        setCanvasData("sbFinished", sbView.finished ? "1" : "0");
+        setCanvasData("sbWinner", String(sbView.winner));
+        setCanvasData("sbWinnerName", sbView.finished && sbView.winner >= 0 ? sbLayer.nameOf(sbView.winner) : "");
+        setCanvasData("sbRig", String(sbView.forcedWinner));
+        setCanvasData("sbShields", String(sbView.shields));
+        setCanvasData("sbSlowMos", String(sbView.slowMos));
+        setCanvasData("sbGlitches", String(sbLayer.glitches));
+        setCanvasData("sbStrobe", String(sbLayer.strobeFrames));
+        setCanvasData("sbPainted", String(sbLayer.painted));
+        setCanvasData("sbWobble", String(sbLayer.wobbling));
+        setCanvasData("sbBadge", sbLayer.badgeDrawn ? "1" : "0");
+        setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
+        setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
+        setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
+      } else if (canvas.dataset.sbBalls !== undefined) {
+        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion"]) delete canvas.dataset[key];
+      }
+      // --- end odd-string-battle ---
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
       // score, the flags, captures / drops / returns, notes and the result, for tools and the smoke test
       if (arenaView) {
@@ -2561,6 +2660,26 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
+      // --- odd-power-layers --- Power Layers: hits, layers gone, power, level, the last hit's layers, freedom and the particles drawn (data-pl-*)
+      if (plView) {
+        setCanvasData("plSequence", plView.sequence);
+        setCanvasData("plLayers", String(plView.layers));
+        setCanvasData("plHits", String(plView.hits));
+        setCanvasData("plTotalHits", String(plView.totalHits));
+        setCanvasData("plGone", String(plView.gone));
+        setCanvasData("plPower", String(plView.power));
+        setCanvasData("plLevel", String(plView.level));
+        setCanvasData("plLastDestroyed", String(plView.lastDestroyed));
+        setCanvasData("plBigHits", String(plView.bigHits));
+        setCanvasData("plPeriod", String(Math.round(1000 * plView.periodSec)));
+        setCanvasData("plFreed", plView.freed ? "1" : "0");
+        setCanvasData("plFinished", plView.finished ? "1" : "0");
+        setCanvasData("plParticles", String(plLayer.particlesDrawn));
+        setCanvasData("plBadge", plView.settings.badge);
+        setCanvasData("plPills", plView.settings.pills ? "1" : "0");
+      } else if (canvas.dataset.plHits !== undefined) {
+        for (const key of ["plSequence", "plLayers", "plHits", "plTotalHits", "plGone", "plPower", "plLevel", "plLastDestroyed", "plBigHits", "plPeriod", "plFreed", "plFinished", "plParticles", "plBadge", "plPills"]) delete canvas.dataset[key];
+      }
       // --- jdm-race --- racers, phase, leader, winner, finishers, passes, swaps, boosts, hits, lap, camera, order and callouts (data-race-*)
       if (raceView) writeRaceDataset(raceView, setCanvasData);
       else if (canvas.dataset.raceRacers !== undefined) for (const key of RACE_DATA_KEYS) delete canvas.dataset[key];

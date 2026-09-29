@@ -30,7 +30,10 @@ import { DoublePendulumMode, type DoublePendulumSettings, type DoublePendulumVie
 import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
 // --- jdm-illusions --- the Circle Illusion mode and the wall-contact log of the wobbly walls
 import { IllusionMode, type IllusionSettings, type IllusionView } from "./modes/illusion";
+// --- odd-power-layers --- the Power Layers mode (oddplayground)
+import { PowerLayersMode, type PowerLayersSettings, type PowerLayersView } from "./modes/powerLayers";
 import { WallContactLog, wobbleStrength } from "./wobble";
+import { StringBattleMode, type StringBattleSettings, type StringBattleView } from "./modes/stringBattle"; // --- odd-string-battle ---
 // --- jdm-race ---
 import { RaceMode, type RaceSettings, type RaceView } from "./modes/race";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
@@ -239,6 +242,10 @@ export class PhysicsEngine {
   // --- jdm-illusions --- the Circle Illusion mode, and every wall contact of the run for the canvas' wobbly walls (render-only)
   readonly illusionMode = new IllusionMode();
   private readonly wallContacts = new WallContactLog();
+  // --- odd-string-battle --- the String Battle (threads anchored on the ring, cut / touch / collide combat)
+  readonly stringBattleMode = new StringBattleMode();
+  // --- odd-power-layers --- the Power Layers mode: a ball smashing a stack of layers with a growing power
+  readonly powerLayersMode = new PowerLayersMode();
   // --- jdm-race --- the Square Racing Grand Prix (a seeded track, racers, standings, podium and cup)
   readonly raceMode = new RaceMode();
   // --- jdm-arena-games --- the two team games of bouncing squares
@@ -307,6 +314,16 @@ export class PhysicsEngine {
       getMultipliers: () => this.multipliers, // --- boris-multipliers ---
       isWallSealed: (ball, wallIndex) => this.rigOn && this.rigSeals(ball, wallIndex), // --- rigged ---
       recordWallContact: (wallIndex, angle, strength, timeMs) => this.wallContacts.record(wallIndex, angle, strength, timeMs ?? this._elapsedMs), // --- jdm-illusions ---
+      // --- odd-string-battle --- a battle mode's score (bounces, the win) and its camera moments (slow motion, shake)
+      creditBounce: (ball) => this.ballStats.bounce(ball),
+      creditEscape: (ball) => {
+        this.ballStats.escape(ball, this._elapsedMs);
+      },
+      noteNearMiss: () => this.cinematicDirector.noteRigNearMiss(),
+      noteImpact: () => {
+        this.wallBreakSerial++;
+      },
+      // --- end odd-string-battle ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -484,6 +501,14 @@ export class PhysicsEngine {
   initIllusion() {
     this.activateMode(this.illusionMode, "none");
   }
+  // --- odd-string-battle --- the mode owns its ring (like the rhythm modes own their playfields)
+  initStringBattle() {
+    this.activateMode(this.stringBattleMode, "none");
+  }
+  // --- odd-power-layers ---
+  initPowerLayers() {
+    this.activateMode(this.powerLayersMode, "none");
+  }
   // --- jdm-race ---
   initRace() {
     this.activateMode(this.raceMode, "none");
@@ -543,6 +568,12 @@ export class PhysicsEngine {
       // --- jdm-illusions ---
       case "illusion":
         return this.initIllusion();
+      // --- odd-string-battle ---
+      case "stringBattle":
+        return this.initStringBattle();
+      // --- odd-power-layers ---
+      case "powerLayers":
+        return this.initPowerLayers();
       // --- jdm-race ---
       case "race":
         return this.initRace();
@@ -1112,6 +1143,45 @@ export class PhysicsEngine {
     return this.wallContacts;
   }
   // --- end jdm-illusions ---
+  // --- odd-string-battle ---
+  isStringBattleMode() {
+    return this.currentMode === this.stringBattleMode;
+  }
+  getStringBattleSettings(): StringBattleSettings {
+    return this.stringBattleMode.getSettings();
+  }
+  /** Balls, lives, threads, rule, clip limit and finale speed of the String Battle apply on the next `initStringBattle()`; the style, HUD, badge and wobble at once. */
+  setStringBattleSettings(settings: Partial<StringBattleSettings>) {
+    this.stringBattleMode.setSettings(settings);
+  }
+  /** Live String Battle state (ring, fighters, threads, effects, finale, verdict) for the canvas and the HUD; the same object every call. */
+  getStringBattleView(): StringBattleView {
+    return this.stringBattleMode.getView();
+  }
+  getStringBattleProgress() {
+    return this.stringBattleMode.getProgress();
+  }
+  // --- end odd-string-battle ---
+  // --- odd-power-layers ---
+  isPowerLayersMode() {
+    return this.currentMode === this.powerLayersMode;
+  }
+  getPowerLayersSettings(): PowerLayersSettings {
+    return this.powerLayersMode.getSettings();
+  }
+  /** Layers, sequence, drift and bounce speed of Power Layers apply on the next `initPowerLayers()`; the badges and the scale at once. */
+  setPowerLayersSettings(settings: Partial<PowerLayersSettings>) {
+    this.powerLayersMode.setSettings(settings);
+  }
+  /** Live Power Layers state (field, stack, power, level, particles, freedom) for the canvas and the HUD; the same object every call. */
+  getPowerLayersView(): PowerLayersView {
+    return this.powerLayersMode.getView();
+  }
+  /** Hits, layers gone, power, level, freedom – and `plannedMs`, when the run finishes (the hit count × the bounce period + the celebration). */
+  getPowerLayersProgress() {
+    return this.powerLayersMode.getProgress();
+  }
+  // --- end odd-power-layers ---
   // --- jdm-race ---
   isRaceMode() {
     return this.currentMode === this.raceMode;

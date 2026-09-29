@@ -25,6 +25,7 @@ import { modeWallBreakSound } from "@/lib/audio/songs";
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { multipliersSettingsOf } from "@/lib/physics/modes/multipliers";
 import { illusionSettingsOf } from "@/lib/physics/modes/illusion"; // --- jdm-illusions ---
+import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -55,6 +56,7 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
 import { resolveFastExportFps, type EndHolds } from "@/lib/recording/fastRenderPlan";
@@ -103,6 +105,8 @@ const MULT_FINISH_HOLD_MS = 2000;
 const END_HOLD_FALLBACK_MS = 12000;
 /** --- jdm-illusions --- How long the Circle Illusion's revealed picture (whitespace) stays on screen before the end screen covers it (a recording keeps it). */
 const ILLUSION_REVEAL_HOLD_MS = 2000;
+/** --- odd-string-battle --- How long the String Battle's last shatter, ring flash and winner banner play before the end screen covers them (a recording keeps them). */
+const STRING_BATTLE_FINISH_HOLD_MS = 3000;
 /** --- jdm-race --- This page's prefix of the race run keys: a finished race is scored into the cup once. */
 const RACE_RUN_PREFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 /** --- jdm-arena-games --- How long the winner banner of an arena game and its confetti play before the end screen covers them (a recording keeps them). */
@@ -121,9 +125,11 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
       ? PAINT_FINISH_HOLD_MS
       : engine.isIllusionMode() && engine.getIllusionView().type === "whitespace"
         ? ILLUSION_REVEAL_HOLD_MS
-        : isArenaGameMode(engine.getCurrentModeName())
-          ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
-          : 0;
+        : engine.isStringBattleMode()
+          ? STRING_BATTLE_FINISH_HOLD_MS // --- odd-string-battle --- the last shatter, the ring flash and the winner banner, as the page holds them
+          : isArenaGameMode(engine.getCurrentModeName())
+            ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
+            : 0;
   const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
 }
@@ -235,6 +241,8 @@ export default function Simulator() {
     engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
+    engine.setStringBattleSettings(stringBattleSettingsOf(s)); // --- odd-string-battle ---
+    engine.setPowerLayersSettings(powerLayersSettingsOf(s)); // --- odd-power-layers ---
     engine.setRaceSettings(raceSettingsOf(s)); // --- jdm-race ---
     // --- jdm-arena-games ---
     engine.setBattleSettings(battleSettingsOf(s));
@@ -562,6 +570,47 @@ export default function Simulator() {
   }, [s.ballRadius]);
   const illusionRevealAtRef = useRef<number | null>(null);
   // --- end jdm-illusions ---
+  // --- odd-string-battle --- String Battle: a change of the fight (balls, lives, threads, rule, clip limit, finale speed) restarts
+  // it and drops a found seed; the style, the wobble, the badge and the HUD only change the drawing and follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStringBattleSettings(stringBattleSettingsOf(s));
+    if (s.mode === "stringBattle" && engine.getCurrentModeName() === "stringBattle") {
+      engine.initStringBattle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.sbBalls, s.sbLives, s.sbMaxStrings, s.sbRule, s.sbDuration, s.sbFinaleSpeed]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.sbBalls, s.sbLives, s.sbMaxStrings, s.sbRule, s.sbDuration, s.sbFinaleSpeed]);
+  useEffect(() => {
+    engineRef.current?.setStringBattleSettings({ style: s.sbStyle, wobble: s.sbWobble, badge: s.sbBadge, hud: s.sbHud });
+  }, [s.sbStyle, s.sbWobble, s.sbBadge, s.sbHud]);
+  const battleFinishAtRef = useRef<number | null>(null);
+  // --- end odd-string-battle ---
+  // --- odd-power-layers --- Power Layers: a change of the stack or the flight (layers, sequence, drift, bounce speed – and the
+  // Gravity, which shapes the arcs) restarts the run and drops a found seed; the badge, the pills and the Sound section's
+  // scale and root (the notes of the levels) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPowerLayersSettings(powerLayersSettingsOf(s));
+    if (s.mode === "powerLayers" && engine.getCurrentModeName() === "powerLayers") {
+      engine.initPowerLayers();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.plLayers, s.plSequence, s.plDrift, s.plSpeed, s.gravity]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.plLayers, s.plSequence, s.plDrift, s.plSpeed]);
+  useEffect(() => {
+    engineRef.current?.setPowerLayersSettings(powerLayersSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.plBadge, s.plPills, s.scale, s.rootNote]);
+  // --- end odd-power-layers ---
   // --- jdm-race --- Square Racing Grand Prix: a new track (racers, length, laps, obstacle mix) or favourite restarts the race and
   // drops a found seed; the camera and the shape follow live; the cup only lengthens the run (the cup table), so it drops the seed.
   useEffect(() => {
@@ -868,6 +917,11 @@ export default function Simulator() {
             audio.playBumper(ev.frequency);
             continue;
           }
+          // --- odd-string-battle --- a cut thread's pluck, a ball's shatter
+          if (ev.sbSound) {
+            audio.playStringBattle(ev.sbSound, ev.frequency);
+            continue;
+          }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
           else if (ev.type === "gap") audio.playGapPass();
@@ -903,6 +957,12 @@ export default function Simulator() {
           if (illusionRevealAtRef.current === null) illusionRevealAtRef.current = now;
           if (now - illusionRevealAtRef.current < ILLUSION_REVEAL_HOLD_MS) done = false;
         } else illusionRevealAtRef.current = null;
+        // --- odd-string-battle --- the last shatter, the ring flash and the winner banner play (and record) before the end screen
+        if (done && engine.isStringBattleMode()) {
+          const now = performance.now();
+          if (battleFinishAtRef.current === null) battleFinishAtRef.current = now;
+          if (now - battleFinishAtRef.current < STRING_BATTLE_FINISH_HOLD_MS) done = false;
+        } else battleFinishAtRef.current = null;
         // --- jdm-arena-games --- the winner banner and its confetti play (and record) before the end screen covers them
         if (done && isArenaGameMode(engine.getCurrentModeName())) {
           const now = performance.now();
@@ -1580,6 +1640,8 @@ export default function Simulator() {
           multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
+          stringBattle: stringBattleSettingsOf(settings), // --- odd-string-battle ---
+          powerLayers: powerLayersSettingsOf(settings), // --- odd-power-layers ---
           race: raceSettingsOf(settings), // --- jdm-race ---
           // --- jdm-arena-games --- (capture the flag searches with a time limit past the target, so a game won on the score can match it)
           battle: battleSettingsOf(settings),
@@ -1609,6 +1671,8 @@ export default function Simulator() {
       update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + hold / 1000))) });
       // --- jdm-double-pendulum --- the clip length is this mode's run length (its finale ends the clip): a found seed keeps it
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
+      // --- odd-string-battle --- a found battle is recorded with its finish hold (the last shatter and the winner banner)
+      if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000))) });
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
@@ -1696,6 +1760,36 @@ export default function Simulator() {
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
       illusionCycles: (n) => fill("Simulator.canvasIllusionCycles", { count: n }),
+      // --- odd-string-battle ---
+      stringBattle: {
+        title: t("Simulator.canvasSbTitle"),
+        web: (n) => fill("Simulator.canvasSbWeb", { count: n }),
+        badgeTop: t("Simulator.canvasSbBadgeTop"),
+        badgeBottom: t("Simulator.canvasSbBadgeBottom"),
+        wins: (name) => t("Simulator.canvasSbWins").replace("[name]", () => name), // a name may hold "$&"
+        kills: (n) => fill("Simulator.canvasSbKills", { count: n }),
+        draw: t("Simulator.canvasSbDraw"),
+        team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+      },
+      // --- odd-power-layers ---
+      powerLayers: {
+        rules: {
+          double: t("Simulator.canvasPlRuleDouble"),
+          fibonacci: t("Simulator.canvasPlRuleFibonacci"),
+          primes: t("Simulator.canvasPlRulePrimes"),
+          plusOne: t("Simulator.canvasPlRulePlusOne"),
+          random: t("Simulator.canvasPlRuleRandom"),
+        },
+        power: (n) => fill("Simulator.canvasPlPower", { n }),
+        level: (n) => fill("Simulator.canvasPlLevel", { n }),
+        newSound: t("Simulator.canvasPlNewSound"),
+        soundOn: t("Simulator.canvasPlSoundOn"),
+        warningTop: t("Simulator.canvasPlWarningTop"),
+        warningBottom: t("Simulator.canvasPlWarningBottom"),
+        layersLeft: (n) => fill("Simulator.canvasPlLayersLeft", { count: n }),
+        freedom: t("Simulator.canvasPlFreedom"),
+        freedomSub: (hits, seconds) => fill("Simulator.canvasPlFreedomSub", { hits, seconds }),
+      },
       // --- jdm-arena-games ---
       arena: {
         ko: t("ArenaGames.ko"),
@@ -1796,6 +1890,8 @@ export default function Simulator() {
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
+  // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
+  const plFinderFixedKey = settings.mode === "powerLayers" ? "Simulator.finderFixedPowerLayers" : finderFixedKey;
   // --- boris-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
   const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
@@ -1942,7 +2038,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
+                      {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(plFinderFixedKey /* --- odd-power-layers --- */, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}
@@ -2067,7 +2163,7 @@ export default function Simulator() {
                   <span className="text-sm">❌</span>
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
-                    <p className="text-[10px] text-zinc-500">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
+                    <p className="text-[10px] text-zinc-500">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕

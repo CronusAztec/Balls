@@ -38,6 +38,10 @@ export const MODE_IDS = [
   "doublePendulum",
   // --- jdm-illusions ---
   "illusion",
+  // --- odd-string-battle ---
+  "stringBattle",
+  // --- odd-power-layers ---
+  "powerLayers",
   // --- jdm-race ---
   "race",
   // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
@@ -208,6 +212,9 @@ export interface SoundEvent {
   // --- obstacle-editor ---
   /** A "hit" on a bumper of the obstacle editor: the page plays the pinball ding (`ToneGenerator.playBumper()`) at `frequency`. */
   bumper?: boolean;
+  // --- odd-string-battle ---
+  /** A String Battle effect instead of a bounce: a thread's pluck at `frequency` or a ball's shatter (`ToneGenerator.playStringBattle()`). */
+  sbSound?: "pluck" | "shatter";
   // --- jdm-race ---
   /** A "hit" that plays a tune of the race (`ToneGenerator.playRaceArpeggio()`): the rising chime of a pass, the winner's fanfare; rooted on `frequency`. */
   race?: "chime" | "fanfare";
@@ -347,6 +354,16 @@ export interface ModeContext {
    */
   recordWallContact?(wallIndex: number, angle: number, strength: number, timeMs?: number): void;
   // --- end jdm-illusions ---
+  // --- odd-string-battle --- a mode that keeps its own score and walls (the battle modes)
+  /** Credits `ball` with a wall bounce in the per-ball / per-team stats (a mode resolving its own walls). */
+  creditBounce?(ball: Pick<Ball, "id" | "team">): void;
+  /** Credits `ball` with an escape at the current simulation time – a battle mode's win: the teams banner and the finder's "winner" rank it first. */
+  creditEscape?(ball: Pick<Ball, "id" | "team">): void;
+  /** The camera's near-miss event (slow motion when that feature is on), for a mode's own dramatic moment. */
+  noteNearMiss?(): void;
+  /** The camera's impact event (a screen shake when that feature is on), like a wall break – without its sound. */
+  noteImpact?(): void;
+  // --- end odd-string-battle ---
 }
 
 export interface GameMode {

@@ -42,6 +42,8 @@ import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- time
 // --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
+import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
+import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
@@ -159,6 +161,10 @@ SECTION_KEYS.ball.push(...DOUBLE_PENDULUM_KEYS);
 // --- jdm-illusions --- the Circle Illusion block is searched with the Ball section, Wobbly Walls with the Visual section.
 SECTION_KEYS.ball.push(...ILLUSION_KEYS);
 SECTION_KEYS.visual.push(...WALL_WOBBLE_KEYS);
+// --- odd-string-battle --- the String Battle block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...STRING_BATTLE_KEYS);
+// --- odd-power-layers --- the Power layers block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...POWER_LAYERS_KEYS);
 SECTION_KEYS.recording.push(...FAST_EXPORT_KEYS); // --- fast-render --- the fast export's frame rate
 // --- jdm-race --- the "Race" block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...RACE_KEYS);
@@ -228,6 +234,10 @@ export default function Controls(props: ControlsProps) {
     doublePendulum: t("modeDoublePendulum"),
     // --- jdm-illusions ---
     illusion: t("modeIllusion"),
+    // --- odd-string-battle ---
+    stringBattle: t("modeStringBattle"),
+    // --- odd-power-layers ---
+    powerLayers: t("modePowerLayers"),
     // --- jdm-race ---
     race: t("modeRace"),
     // --- jdm-arena-games ---
@@ -300,6 +310,10 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "doublePendulum" && !!search && <DoublePendulumSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-illusions --- */}
       {s.mode === "illusion" && !!search && <IllusionSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- odd-string-battle --- */}
+      {s.mode === "stringBattle" && !!search && <StringBattleSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- odd-power-layers --- */}
+      {s.mode === "powerLayers" && !!search && <PowerLayersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-race --- */}
       {s.mode === "race" && !!search && <RaceSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-arena-games --- */}
@@ -383,10 +397,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode); // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls)
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring)
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1141,6 +1155,12 @@ export default function Controls(props: ControlsProps) {
       // --- jdm-illusions ---
       case "illusion":
         return <IllusionSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- odd-string-battle ---
+      case "stringBattle":
+        return <StringBattleSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- odd-power-layers ---
+      case "powerLayers":
+        return <PowerLayersSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- jdm-race ---
       case "race":
         return <RaceSection t={t} search={search} matches={matches} settings={s} update={update} />;

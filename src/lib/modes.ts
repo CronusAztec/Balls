@@ -13,6 +13,11 @@ MODE_CARD_ORDER.push("multipliers");
 }
 // --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Boris ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
+// --- odd-string-battle --- the oddplayground String Battle opens the battle family (its cards come after the others)
+MODE_CARD_ORDER.push("stringBattle");
+// --- odd-power-layers --- Power Layers (oddplayground) joins the escape family – a ball working its way out through the layers – right
+// before the multipliers board (which closes the escape cards)
+MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("multipliers") >= 0 ? MODE_CARD_ORDER.indexOf("multipliers") : MODE_CARD_ORDER.length, 0, "powerLayers");
 // --- jdm-race --- the Square Racing Grand Prix joins the project.jdm modes of the rhythm family (before the Boris family's Glass Smash)
 {
   const at = MODE_CARD_ORDER.indexOf("glass");
@@ -26,7 +31,7 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ct
  * working its way out of concentric walls), "rhythm" the project.jdm-style formats built around sound
  * (Ball Drop, Bouncing Shapes, Pendulum Wave) where every hit is a note and the physics writes a polyrhythm.
  */
-export const MODE_CATEGORY_IDS = ["escape", "rhythm"] as const;
+export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing)
 export type ModeCategory = (typeof MODE_CATEGORY_IDS)[number];
 
 export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
@@ -56,6 +61,10 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   doublePendulum: "rhythm",
   // --- jdm-illusions ---
   illusion: "rhythm",
+  // --- odd-string-battle --- balls fight until one is left: the battle family
+  stringBattle: "battle",
+  // --- odd-power-layers --- "800 layers between the ball and freedom": the ball escapes through the stack
+  powerLayers: "escape",
   // --- jdm-race --- every obstacle a racer hits is its note, every pass a chime
   race: "rhythm",
   // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag: every clash and bounce is a note
