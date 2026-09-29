@@ -9,6 +9,10 @@ import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSetti
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 // --- jdm-collisions ---
 import type { CollideSettings } from "@/lib/physics/modes/collide";
+// --- boris-glass ---
+import type { GlassSettings } from "@/lib/physics/modes/glass";
+// --- boris-multipliers ---
+import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } from "@/lib/physics/modes/multipliers";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -45,6 +49,12 @@ export interface ModeSettings {
   // --- teams ---
   /** Balls the multi-ball modes start with (1–6, a team roster's size); overrides `twoBalls` when set. */
   ballCount?: number;
+  // --- boris-glass ---
+  /** Glass Smash: rows, hit points, stages, sliding panes and holes (see modes/glass.ts); the defaults when left out. Every run ends at HOME, so the finder searches it. */
+  glass?: Partial<GlassSettings>;
+  // --- boris-multipliers ---
+  /** Multipliers board: rows, gate mix, start balls, ball cap and the count target (see modes/multipliers.ts); the defaults when left out. */
+  multipliers?: Partial<MultipliersSettings>;
 }
 
 /** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
@@ -101,6 +111,8 @@ export interface FinderProgress {
   currentSeed: number;
   bestDuration: number;
   bestSeed: number;
+  // --- boris-multipliers --- a count search (multipliers board with a target): the closest final count so far
+  bestCount?: number;
 }
 
 export interface FinderResult {
@@ -112,6 +124,9 @@ export interface FinderResult {
   endless?: boolean;
   /** The run always lasts `duration` with these settings, whatever the seed (see `fixedRunDurationSec()`), and that misses the target: nothing was simulated. */
   fixedDuration?: boolean;
+  // --- boris-multipliers ---
+  /** A count search (multipliers board with a target): the final count of the seed found – or of the closest one. */
+  count?: number;
 }
 
 /**
@@ -146,6 +161,10 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "polyrhythm") engine.setPolyrhythmSettings(settings.polyrhythm ?? {}); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   if (mode === "collide") engine.setCollideSettings(settings.collide ?? {});
+  // --- boris-glass ---
+  if (mode === "glass") engine.setGlassSettings(settings.glass ?? {});
+  // --- boris-multipliers ---
+  if (mode === "multipliers") engine.setMultipliersSettings(settings.multipliers ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -163,6 +182,31 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   }
   return maxSimMs;
 }
+
+// --- boris-multipliers ---
+/** The count target of a request (a multipliers board with `target` > 0), or 0 for a search by duration. */
+export function countTarget(request: Pick<FinderRequest, "mode" | "modeSettings">): number {
+  return request.mode === "multipliers" ? resolveMultipliersSettings(request.modeSettings.multipliers).target : 0;
+}
+
+/**
+ * Simulates one seed of the multipliers board headlessly and returns how long it ran and how many balls made it home.
+ * A run that has already sent more than `stopAbove` balls home is cut short (it can only end further off the target).
+ */
+export function simulateMultipliersSeed(seed: number, request: FinderRequest, maxSimMs: number, stopAbove = Infinity): { durationMs: number; count: number } {
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  while (elapsed < maxSimMs) {
+    engine.update(step, 0);
+    elapsed += step;
+    engine.consumeSoundEvents();
+    const home = engine.getMultipliersProgress().home;
+    if (engine.isSimulationFinished() || home > stopAbove) return { durationMs: elapsed, count: home };
+  }
+  return { durationMs: maxSimMs, count: engine.getMultipliersProgress().home };
+}
+// --- end boris-multipliers ---
 
 export function findSimulation(
   request: FinderRequest,
@@ -182,7 +226,14 @@ export function findSimulation(
     const targetMs = request.targetDurationSec * 1000;
     const toleranceMs = request.toleranceSec * 1000;
     const maxSimMs = request.maxSimTimeSec * 1000;
-    const batchSize = 50;
+    // --- boris-multipliers --- a board of hundreds of balls costs a lot per seed: one seed per frame, and a target
+    // count turns the search into "final count within 5 % of the target" (any run length)
+    const targetCount = countTarget(request);
+    if (targetCount > 0) {
+      findByCount(request, targetCount, onProgress, signal).then(resolve);
+      return;
+    }
+    const batchSize = request.mode === "multipliers" ? 1 : 50;
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -225,5 +276,37 @@ export function findSimulation(
       }
     };
     requestAnimationFrame(runBatch);
+  });
+}
+
+// --- boris-multipliers ---
+/** The count search of the multipliers board: seeds until one sends a number of balls home within 5 % of the target. */
+function findByCount(request: FinderRequest, target: number, onProgress: (p: FinderProgress) => void, signal?: AbortSignal): Promise<FinderResult> {
+  return new Promise((resolve) => {
+    const tolerance = countTolerance(target);
+    const maxSimMs = Math.max(request.maxSimTimeSec, 240) * 1000;
+    let tested = 0;
+    let best = { seed: 0, count: -1, durationMs: 0, diff: Infinity };
+    const base = Date.now() | 0;
+    const seedAt = (i: number) => (base + 0x9e3779b1 * i) | 0;
+    const runOne = () => {
+      if (signal?.aborted) {
+        resolve({ found: false, seed: best.seed, duration: best.durationMs / 1000, seedsTested: tested, count: Math.max(0, best.count) });
+        return;
+      }
+      const seed = seedAt(tested);
+      const { durationMs, count } = simulateMultipliersSeed(seed, request, maxSimMs, target + tolerance);
+      tested++;
+      const diff = Math.abs(count - target);
+      if (diff < best.diff) best = { seed, count, durationMs, diff };
+      if (diff <= tolerance) {
+        resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: tested, count });
+        return;
+      }
+      onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seed, bestDuration: best.durationMs / 1000, bestSeed: best.seed, bestCount: best.count });
+      if (tested >= request.maxSeeds) resolve({ found: false, seed: best.seed, duration: best.durationMs / 1000, seedsTested: tested, count: Math.max(0, best.count) });
+      else requestAnimationFrame(runOne);
+    };
+    requestAnimationFrame(runOne);
   });
 }

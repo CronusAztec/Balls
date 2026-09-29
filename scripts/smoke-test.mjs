@@ -1677,6 +1677,156 @@ const findAndRecordTeams = async (query, name) => {
   await findAndRecordTeams(`teams=${encodeURIComponent(roster)}&replay=1`, "Find + Record with teams and the escape replay keeps the replay and then the winner banner in the export");
 }
 // --- end teams + camera ---
+// --- boris-glass ---
+// 17. Glass Smash: the preview image and the glass clip, URL → the "Glass" block of the Mode row, controls → URL, the
+// search box, the finder shown (every run ends at HOME), the Sound section naming the mode's default wall-break clip,
+// a default run at 30+ fps whose pane hits are scale degrees of C major (OscillatorNode.start is instrumented) and whose
+// shatters play the glass clip (the only one-argument AudioBufferSourceNode.start), and a short run to HOME at 8×
+// (data-glass-*: stages, hits, shattered panes, camera, HOME) that ends with the finished overlay.
+for (const asset of ["/modes/glass.webp", "/wallBreak/glass.wav"]) {
+  const res = await page.request.get(`${BASE}${asset}`);
+  check(`asset ${asset}`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+/** The On/Off button of a toggle in the Glass block, by the start of its label. */
+const glassToggle = (label) => page.getByTestId("glass-smash").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+await page.goto(`${BASE}/en/simulator/?mode=glass&glr=9&glhp=3&gls=5&glm=0`, { waitUntil: "networkidle" });
+{
+  const values = { glr: await sliderValue("Panes per Stage"), glhp: await sliderValue("Hits per Pane"), gls: await sliderValue("Stages") };
+  const moving = await glassToggle("Sliding Panes").getAttribute("aria-pressed");
+  const holes = await glassToggle("Panes with Holes").getAttribute("aria-pressed");
+  const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  const runSize = await page.getByTestId("glass-run-size").innerText().catch(() => "");
+  check("glass smash loads from URL", values.glr === "9" && values.glhp === "3" && values.gls === "5" && moving === "false" && holes === "true" && finderShown && noRingControls && /\d+ panes/.test(runSize), `(${JSON.stringify(values)}, moving=${moving}, holes=${holes}, finder shown=${finderShown}, "${runSize}")`);
+}
+await page.locator('input[aria-label="Stages"]').evaluate(setRangeValue, "2");
+await glassToggle("Panes with Holes").click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  check("glass smash mirrors into the URL", /(^|&)gls=2(&|$)/.test(query) && /(^|&)glh=0(&|$)/.test(query) && /(^|&)glr=9(&|$)/.test(query) && /(^|&)glm=0(&|$)/.test(query), `(${query})`);
+}
+await page.getByPlaceholder("Search settings...").fill("hits per pane");
+check("search finds the glass smash controls", (await page.locator('input[aria-label="Hits per Pane"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.goto(`${BASE}/en/simulator/?mode=glass`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+{
+  const label = await page.locator("#wallbreak-select option").first().innerText();
+  check("the Sound section names the glass clip as the mode's wall-break sound", label === "Mode default (Glass)", `("${label}")`);
+}
+await page.evaluate(() => {
+  const osc = [];
+  const clips = [];
+  window.__glassOsc = osc;
+  window.__glassClips = clips;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) osc.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+  const bufferStart = AudioBufferSourceNode.prototype.start;
+  AudioBufferSourceNode.prototype.start = function () {
+    if (arguments.length === 1 && this.buffer) clips.push(this.buffer.duration);
+    return bufferStart.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(400);
+{
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    6000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__glassOsc);
+  const clips = await page.evaluate(() => window.__glassClips);
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const onScale = midis.length > 0 && midis.every((m) => m >= 48 && m <= 84 && [0, 2, 4, 5, 7, 9, 11].includes(m % 12));
+  check("simulator mode=glass smashes panes at 30+ fps", Number(data.glassHits) >= 8 && Number(data.glassShattered) >= 3 && data.glassPanes === "36" && data.glassStages === "4" && windows.length >= 10 && minWindow >= 30, `(${data.glassHits} hits, ${data.glassShattered}/${data.glassPanes} shattered, stage ${data.glassStage}/${data.glassStages}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps)`);
+  check("glass pane hits play scale degrees and shatters play the glass clip", onScale && new Set(midis).size >= 3 && clips.length >= 1 && clips.every((d) => d > 0.6 && d < 0.8), `(${pitches.length} tones, ${new Set(midis).size} distinct degrees, ${clips.length} glass clips)`);
+  await page.screenshot({ path: path.join(outDir, "sim-glass.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=glass&glr=3&glhp=1&gls=2&face=cute&bn=Boris`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("glass smash reaches HOME through every stage and finishes", done && data.glassHome === "1" && data.glassStage === "2" && Number(data.glassCamera) > 0 && Number(data.glassShattered) >= 3 && data.face === "cute", `(finished=${done}, home=${data.glassHome}, stage ${data.glassStage}/${data.glassStages}, camera ${data.glassCamera}, ${data.glassShattered}/${data.glassPanes} shattered, face=${data.face})`);
+  await page.screenshot({ path: path.join(outDir, "sim-glass-home.png") });
+}
+// --- end boris-glass ---
+// --- boris-multipliers ---
+// 18. Multipliers: the preview image; the "Multipliers" group of the Ball section (URL → controls); pickups in Classic
+// (three orbs per 10 s that float for 20 s) are taken and change the HUD badges – the canvas mirrors them into
+// data-mult-* –; the multipliers board shows its Mode-row block, counts arrivals HOME at 8× (data-mult-home grows) and
+// finishes with every ball home or gone.
+{
+  const res = await page.request.get(`${BASE}/modes/multipliers.webp`);
+  check("asset /modes/multipliers.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+await page.goto(`${BASE}/en/simulator/?mode=classic&mpk=1&mpr=3&mpl=20&mpty=speed%2Csize%2Cdamage`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Ball & Physics/ }).click();
+{
+  const section = page.getByTestId("multipliers-section");
+  const shown = await section.isVisible().catch(() => false);
+  const pressed = await section.getByRole("button", { name: /Speed/ }).first().getAttribute("aria-pressed").catch(() => null);
+  const ballsOff = await section.getByRole("button", { name: /Balls/ }).first().getAttribute("aria-pressed").catch(() => null);
+  check("multipliers group shows in the Ball section with the URL's pickups", shown && pressed === "true" && ballsOff === "false", `(shown=${shown}, speed=${pressed}, balls=${ballsOff})`);
+}
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const took = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.multPickups ?? 0) >= 1, null, { timeout: 45000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(200);
+  const data = await canvasData();
+  const product = Number(data.multSpeed) * Number(data.multSize) * Number(data.multDamage);
+  check("multiplier pickups in Classic change the HUD badges", took && product > 1, `(${data.multPickups} taken, speed x${data.multSpeed}, size x${data.multSize}, dmg x${data.multDamage}, ${data.multOrbs} orbs afloat)`);
+  await page.screenshot({ path: path.join(outDir, "sim-multipliers-pickups.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=multipliers&mprw=4&mpsb=3`, { waitUntil: "networkidle" });
+{
+  const block = await page.getByTestId("multipliers-board").isVisible().catch(() => false);
+  check("multipliers board controls show in the Mode row", block, "");
+}
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, "sim-multipliers.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const arrived = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.multHome ?? 0) > 0, null, { timeout: 40000 }).then(() => true).catch(() => false);
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.multDone === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("the multipliers board counts arrivals home and finishes", arrived && done && Number(data.multHome) > 0 && data.multActive === "0", `(home ${data.multHome}, clones ${data.multClones}, gate passes ${data.multGates}, in play ${data.multActive}, done ${data.multDone})`);
+  await page.screenshot({ path: path.join(outDir, "sim-multipliers-home.png") });
+}
+// --- end boris-multipliers ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

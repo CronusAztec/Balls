@@ -1,4 +1,5 @@
 import type { Ball, GameMode, ModeContext, Point, WallHitResult } from "../types";
+import { cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
 
 /** Grow: a single sealed ring; the ball grows with every bounce until it fills the space. */
 export class GrowMode implements GameMode {
@@ -110,7 +111,7 @@ export class GrowMode implements GameMode {
             ball.vx += 4 * tx * sign * orbit;
             ball.vy += 4 * nx * sign * orbit;
           }
-          const speed = ctx.config.ballSpeed || 400;
+          const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400); // --- boris-multipliers --- the speed multiplier
           const current = Math.hypot(ball.vx, ball.vy);
           if (current > 0) {
             ball.vx = (ball.vx / current) * speed;

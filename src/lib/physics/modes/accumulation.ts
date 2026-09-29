@@ -1,5 +1,6 @@
 import type { GameMode, ModeContext } from "../types";
 import { arenaRadius, TWO_PI } from "../types";
+import { cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
 
 export interface FrozenBall {
   x: number;
@@ -114,7 +115,7 @@ export class AccumulationMode implements GameMode {
             ball.vy -= 2 * dot * ny;
           }
           const mult = ctx.getBounceSpeedMultiplier();
-          const target = (ctx.config.ballSpeed || 400) * mult;
+          const target = cruiseSpeed(ball, ctx.config.ballSpeed || 400) * mult; // --- boris-multipliers --- the speed multiplier
           const speed = Math.hypot(ball.vx, ball.vy);
           if (speed > 0) {
             ball.vx = (ball.vx / speed) * target;

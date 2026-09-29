@@ -90,6 +90,10 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   polyrhythm: { samples: [[420160,265082],[447525,272562],[434918,279840],[447525,327438],[440320,300000],[400000,354877],[434918,320160],[352475,327438]], broken: [], walls: [] },
   // --- jdm-collisions --- Collision Playground: no rings; recorded when the mode was added (seed 12345, default playground: 300 orbs in a circle, gravity 0.3, restitution 1).
   collide: { samples: [[487111,370370],[324053,350598],[415811,486674],[350075,374418],[451355,560543],[439759,425664],[412621,562530],[541650,361374]], broken: [], walls: [] },
+  // --- boris-glass --- Glass Smash: no rings, one ball smashing down the shaft; recorded when the mode was added (seed 12345, default: 4 stages from 6 panes of 2 hits).
+  glass: { samples: [[485763,293145],[518834,716109],[453392,878579],[523658,1189406]], broken: [], walls: [] },
+  // --- boris-multipliers --- Multipliers board: no rings; recorded when the mode was added (seed 12345, default board: 8 rows, one ball).
+  multipliers: { samples: [[211640,191252],[266980,620146],[529953,990656],[362092,1570907],[620725,1348624],[611940,1608709],[447416,1810903],[350566,1720155]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

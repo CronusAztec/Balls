@@ -12,6 +12,8 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 import { DEFAULT_POLYRHYTHM_SETTINGS, POLYRHYTHM_RANGES, isPolyArcStyle, isPolyLayout, isPolyPitchBy, isPolyTempos, polyrhythmSettingFields, polyrhythmSettingsOf, resolvePolyrhythmSettings, sanitizeCustomRatios, type PolyArcStyle, type PolyLayout, type PolyPitchBy, type PolyTempos } from "@/lib/physics/modes/polyrhythm";
 // --- jdm-collisions ---
 import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide";
+// --- boris-glass ---
+import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -19,6 +21,9 @@ import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveC
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
 import { CAMERA_RANGES, DEFAULT_CAMERA_SETTINGS, cameraSettingsOf, resolveCameraSettings } from "@/lib/simulation/camera"; // --- camera
+// --- boris-multipliers ---
+import { DEFAULT_MULTIPLIER_CONFIG, MULTIPLIER_RANGES, multiplierConfigOf, resolveMultiplierConfig, sanitizePickupTypes } from "@/lib/physics/multipliers";
+import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFields, multipliersSettingsOf, resolveMultipliersSettings, sanitizeGateMix } from "@/lib/physics/modes/multipliers";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -210,6 +215,18 @@ export interface SimulatorSettings {
   cpAntiCollisionAt: number;
   /** Lollipops on a ring: bodies constrained to a circular track (URL `cpr`). */
   cpRing: boolean;
+  // --- boris-glass --- Glass Smash (lib/physics/modes/glass.ts): stages of glass panes between the ball and HOME
+  /** Panes in the first stage, 3–30; later stages add more (URL `glr`). */
+  glassRows: number;
+  /** Hits a pane of the first stage takes, 1–5; later stages get thicker (URL `glhp`). */
+  glassHp: number;
+  /** Stages from the top to HOME, 1–10 (URL `gls`). */
+  glassStages: number;
+  /** From the third stage on some panes slide left and right (URL `glm`). */
+  glassMoving: boolean;
+  /** From the second stage on some panes have a hole the ball must miss (URL `glh`). */
+  glassHoles: boolean;
+  // --- end boris-glass ---
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -304,6 +321,32 @@ export interface SimulatorSettings {
   /** When a ball escapes the outer wall, its last 2 s replay at half speed before the end screen (URL `replay`). */
   replayOnEscape: boolean;
   // --- end camera ---
+  // --- boris-multipliers --- stat multipliers (lib/physics/multipliers.ts) and the multipliers board (modes/multipliers.ts)
+  /** No cap on any stat multiplier (URL `mpu`). */
+  mpUnlimited: boolean;
+  /** With unlimited off: the highest a stat may stack to, 0 = unlimited (URL `mpc`). */
+  mpCap: number;
+  /** Damage from which a ball smashes the ring walls on contact (URL `wst`). */
+  wallSmashThreshold: number;
+  /** Floating multiplier orbs in the ring modes (URL `mpk`). */
+  multiplierPickups: boolean;
+  /** Orbs per 10 seconds, 0–3 (URL `mpr`). */
+  pickupRate: number;
+  /** The orb kinds that spawn, comma separated: speed, size, damage, balls, bounce, gravity (URL `mpty`). */
+  pickupTypes: string;
+  /** Seconds an orb floats (URL `mpl`). */
+  pickupLifetime: number;
+  /** Multipliers board: rows of gates, 4–20 (URL `mprw`). */
+  mpRows: number;
+  /** Weights of count / speed / size / damage / reverse / release gates, six digits (URL `mpgm`). */
+  mpGateMix: string;
+  /** Balls released at the top, 1–10 (URL `mpsb`). */
+  mpStartBalls: number;
+  /** Most balls in play, 50–2000 (URL `mpmb`). */
+  mpMaxBalls: number;
+  /** Rigging: the finder looks for a run whose final count is within 5 % of this, 0 = off (URL `mptg`). */
+  mpTarget: number;
+  // --- end boris-multipliers ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -363,6 +406,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS), // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     ...collideSettingFields(DEFAULT_COLLIDE_SETTINGS),
+    // --- boris-glass ---
+    ...glassSettingFields(DEFAULT_GLASS_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
@@ -394,6 +439,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...DEFAULT_CHARACTER, // --- boris-faces ---
     ...defaultTeamSettings(), // --- teams ---
     ...DEFAULT_CAMERA_SETTINGS, // --- camera ---
+    // --- boris-multipliers ---
+    ...DEFAULT_MULTIPLIER_CONFIG,
+    ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
   };
 }
 
@@ -438,6 +486,11 @@ export const RANGES = {
   ...COLLIDE_RANGES,
   ...TEAM_RANGES, // --- teams ---
   ...CAMERA_RANGES, // --- camera ---
+  // --- boris-glass ---
+  ...GLASS_RANGES,
+  // --- boris-multipliers ---
+  ...MULTIPLIER_RANGES,
+  ...MULTIPLIERS_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -533,6 +586,19 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   shake: "screenShake",
   slowf: "slowMoFactor",
   slowms: "slowMoMs",
+  // --- boris-glass --- Glass Smash
+  glr: "glassRows",
+  glhp: "glassHp",
+  gls: "glassStages",
+  // --- boris-multipliers ---
+  mpc: "mpCap",
+  wst: "wallSmashThreshold",
+  mpr: "pickupRate",
+  mpl: "pickupLifetime",
+  mprw: "mpRows",
+  mpsb: "mpStartBalls",
+  mpmb: "mpMaxBalls",
+  mptg: "mpTarget",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -579,6 +645,12 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   // --- camera --- Cinematic camera
   slow: "slowMoOnNearMiss",
   replay: "replayOnEscape",
+  // --- boris-glass --- Glass Smash
+  glm: "glassMoving",
+  glh: "glassHoles",
+  // --- boris-multipliers ---
+  mpu: "mpUnlimited",
+  mpk: "multiplierPickups",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -635,6 +707,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.ballFace !== base.ballFace) params.set("face", settings.ballFace); // --- boris-faces ---
   writeThemeParams(settings, base, params); // --- themes: theme, bgt, bg1, bg2, bgd, ps, trc
   writeTeamParams(settings, base, params); // --- teams ---: teams, nb, tn, tsb, tsp
+  // --- boris-multipliers --- the two list-like strings (validated on the way back in)
+  if (settings.pickupTypes !== base.pickupTypes) params.set("mpty", settings.pickupTypes);
+  if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   return params;
 }
 
@@ -710,6 +785,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const cpc = params.get("cpc");
   if (isCollideContainer(cpc)) settings.cpContainer = cpc;
   clampCollideSettings(settings);
+  clampGlassSettings(settings); // --- boris-glass ---
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -730,6 +806,12 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readThemeParams(params, settings); // --- themes
   readTeamParams(params, settings); // --- teams --- (after `two`: a roster or `nb` sets the ball count)
   clampCameraSettings(settings); // --- camera ---
+  // --- boris-multipliers ---
+  const mpty = params.get("mpty");
+  if (mpty !== null) settings.pickupTypes = sanitizePickupTypes(mpty);
+  const mpgm = params.get("mpgm");
+  if (mpgm !== null) settings.mpGateMix = sanitizeGateMix(mpgm);
+  clampMultiplierSettings(settings);
   return settings;
 }
 
@@ -787,6 +869,12 @@ function clampCollideSettings(settings: SimulatorSettings) {
   Object.assign(settings, collideSettingFields(resolveCollideSettings(collideSettingsOf(settings))));
 }
 
+// --- boris-glass ---
+/** Keeps the Glass Smash settings inside their ranges as whole numbers; a non-boolean flag falls back to the default (URL parameters and presets alike). */
+function clampGlassSettings(settings: SimulatorSettings) {
+  Object.assign(settings, glassSettingFields(resolveGlassSettings(glassSettingsOf(settings))));
+}
+
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampPicturePaint(settings: SimulatorSettings) {
   Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
@@ -804,6 +892,12 @@ function clampCameraSettings(settings: SimulatorSettings) {
   Object.assign(settings, resolveCameraSettings(cameraSettingsOf(settings)));
 }
 // --- end camera ---
+// --- boris-multipliers ---
+/** Keeps the multiplier settings (cap, smash threshold, pickups) and the multipliers board inside their ranges; bad values fall back to the defaults (URL parameters and presets alike). */
+function clampMultiplierSettings(settings: SimulatorSettings) {
+  Object.assign(settings, resolveMultiplierConfig(multiplierConfigOf(settings)));
+  Object.assign(settings, multipliersSettingFields(resolveMultipliersSettings(multipliersSettingsOf(settings))));
+}
 
 /* ------------------------------------------------------------------ presets */
 
@@ -866,11 +960,13 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPolyrhythmSettings(merged); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   clampCollideSettings(merged);
+  clampGlassSettings(merged); // --- boris-glass ---
   clampPicturePaint(merged);
   clampCharacter(merged); // --- boris-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
   Object.assign(merged, resolveTeamSettings({ ...merged, ballCount: preset.ballCount })); // --- teams --- (a preset without a ball count: `twoBalls` means two)
   clampCameraSettings(merged); // --- camera ---
+  clampMultiplierSettings(merged); // --- boris-multipliers ---
   return merged;
 }
 

@@ -10,6 +10,11 @@ import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulum
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 // --- jdm-collisions ---
 import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
+// --- boris-glass ---
+import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, type GlassRenderOptions } from "./glassRenderer";
+// --- boris-multipliers ---
+import { DEFAULT_MULTIPLIER_LABELS, MULTIPLIER_DATA_KEYS, drawMultiplierHud, drawMultipliersBalls, drawMultipliersBoard, drawPickupOrbs, writeMultiplierDataset, type MultiplierLabels, type MultiplierRenderOptions } from "./multiplierRenderer";
+import { formatMultiplier } from "@/lib/physics/multipliers";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 // --- boris-faces ---
 import { FaceLayer } from "./faceRenderer";
@@ -67,6 +72,21 @@ export interface CanvasLabels {
   collideAnti?: string;
   /** --- camera --- the badge over the escape replay. */
   replay?: string;
+  // --- boris-glass ---
+  /** Glass Smash: the stage banner and markers ("STAGE 3"), the sign over the door, and the banner at the end. */
+  glassStage?: (n: number) => string;
+  glassHome?: string;
+  glassHomeTitle?: string;
+  glassHomeSub?: (panes: number, stages: number) => string;
+  // --- boris-multipliers ---
+  /** Stat words, RELEASE, HOME and SLOW-MO of the multipliers HUD, gates and orbs. */
+  multipliers?: MultiplierLabels;
+  /** A ball outgrew the arena (the run is over), with its size multiplier. */
+  outgrew?: string;
+  outgrewSub?: (size: string) => string;
+  /** The multipliers board is done: "N Boris made it home", with the clones made along the way. */
+  madeItHome?: (n: number) => string;
+  madeItHomeSub?: (clones: number) => string;
 }
 
 export interface CanvasHandle {
@@ -171,6 +191,17 @@ const DEFAULT_LABELS: CanvasLabels = {
   // --- jdm-collisions ---
   collideAnti: "ANTI-COLLISION",
   replay: "REPLAY", // --- camera ---
+  // --- boris-glass ---
+  glassStage: (n) => `STAGE ${n}`,
+  glassHome: "HOME",
+  glassHomeTitle: "HOME!",
+  glassHomeSub: (panes, stages) => `${panes} panes smashed in ${stages} stage${stages !== 1 ? "s" : ""}`,
+  // --- boris-multipliers ---
+  multipliers: DEFAULT_MULTIPLIER_LABELS,
+  outgrew: "OUTGREW THE ARENA",
+  outgrewSub: (size) => `SIZE ${size}`,
+  madeItHome: (n) => `${n} Boris made it home`,
+  madeItHomeSub: (clones) => `${clones} clones along the way`,
 };
 
 const TWO_PI = Math.PI * 2;
@@ -515,6 +546,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
     const cam = new CinematicCamera();
     cinematicRef.current = cam;
+    // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
+    const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
+    // --- boris-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
+    const multRender: MultiplierRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, rainbowBall: false, time: 0 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -721,11 +756,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       ctx.lineWidth = p.wallThickness;
       ctx.globalAlpha = 0.6;
       ctx.save();
-      if (cam.applyView(ctx, engine, p.cameraFollow, cx, cy, arena, Math.min(size.width, size.height), camXRef.current, camYRef.current)) {
+      const isMult = engine.isMultipliersMode(); // --- boris-multipliers --- the board has its own scrolling camera (below)
+      if (!isMult && cam.applyView(ctx, engine, p.cameraFollow, cx, cy, arena, Math.min(size.width, size.height), camXRef.current, camYRef.current)) {
         // --- camera --- zoom, shake or the replay own the view; the classic follow picks up from where it is
         camXRef.current = -cam.view.offsetX;
         camYRef.current = -cam.view.offsetY;
-      } else if (p.cameraFollow) {
+      } else if (p.cameraFollow && !isMult) {
         const balls = drawnBalls;
         if (balls.length > 0) {
           const b = balls[0];
@@ -739,7 +775,29 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else {
         camXRef.current = 0;
         camYRef.current = 0;
+        if (isMult) {
+          // --- boris-multipliers --- no zoom or shake on the board: the view stays the board's own
+          cam.view.offsetX = 0;
+          cam.view.offsetY = 0;
+          cam.view.scale = 1;
+        }
       }
+      // --- boris-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
+      // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
+      const glassView = engine.isGlassMode() ? engine.getGlassView() : null;
+      if (glassView) {
+        ctx.restore();
+        ctx.save();
+        applyGlassCamera(ctx, glassView);
+      }
+      // --- boris-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
+      const multBoard = isMult ? engine.getMultipliersView() : null;
+      const multView = engine.getMultiplierView();
+      const multLabels = (labelsRef.current ?? DEFAULT_LABELS).multipliers ?? DEFAULT_MULTIPLIER_LABELS;
+      const multTop = multBoard ? multBoard.cameraY : 0;
+      const multBottom = multTop + size.height;
+      if (multBoard) ctx.translate(0, -multBoard.cameraY);
+      // --- end boris-multipliers ---
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
       const conicGradient = (alpha?: number) => {
@@ -906,6 +964,27 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         collideRender.trailThickness = p.trailThickness;
         drawCollideArena(ctx, engine.getCollideView(), collideRender);
       }
+
+      // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
+      if (glassView) {
+        const GL = labelsRef.current ?? DEFAULT_LABELS;
+        glassRender.wallColor = wallColor;
+        glassRender.wallThickness = p.wallThickness;
+        glassRender.showGlow = p.showGlow;
+        glassRender.stageLabel = GL.glassStage ?? DEFAULT_LABELS.glassStage!;
+        glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
+        drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      }
+      // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
+      multRender.wallColor = wallColor;
+      multRender.wallThickness = p.wallThickness;
+      multRender.showWallGlow = p.showWallGlow;
+      multRender.showGlow = p.showGlow;
+      multRender.showTrails = p.showTrails;
+      multRender.rainbowBall = p.rainbowBall;
+      multRender.time = time;
+      if (multBoard) drawMultipliersBoard(ctx, multBoard, multRender, multLabels, multTop, multBottom);
+      if (multView.orbs.length > 0) drawPickupOrbs(ctx, multView, engine.getElapsedMs(), multLabels, time);
 
       // Color Match segments
       if (engine.isColorMatchMode()) {
@@ -1358,6 +1437,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
+      else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1541,10 +1621,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       });
       // --- boris-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
       // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
-      if (faces.isActive() && (isBox || isPendulum || isPoly || isCollide)) {
+      if (faces.isActive() && (isBox || isPendulum || isPoly || isCollide || isMult)) {
         const boxView: BoxView | null = isBox ? engine.getBoxView() : null;
         faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0 } : null);
       }
+
+      // --- boris-glass --- the shards of shattered panes fly over the ball.
+      if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -1641,6 +1724,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
       // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
+      // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
+      if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
+      // --- boris-multipliers --- stat badges, SLOW-MO and the HOME counter, inside the square the recorder crops to (so exports have them)
+      if (multView.active) {
+        const sq = Math.min(size.width, size.height);
+        drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard);
+      }
 
       // HUD: mode counters in the centre
       {
@@ -1777,6 +1867,41 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             });
           }
         }
+        // --- boris-multipliers --- the outgrow finish and the "N Boris made it home" banner (auto-fitted to the square)
+        const fitBanner = (text: string, sub: string, color: string) => {
+          const base = Math.max(24, 0.08 * minDim);
+          ctx.font = `bold ${base}px sans-serif`;
+          const fs = Math.min(base, (0.9 * minDim * base) / Math.max(1, ctx.measureText(text).width));
+          const sfs = 0.4 * base;
+          blocks.push({
+            height: fs + 1.2 * sfs,
+            draw: (y) => {
+              ctx.save();
+              ctx.font = `bold ${fs}px sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              // A dark outline keeps the banner readable over a ball that fills the arena.
+              ctx.lineJoin = "round";
+              ctx.lineWidth = Math.max(3, 0.12 * fs);
+              ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+              ctx.strokeText(text, cx, y + 0.5 * fs);
+              ctx.fillStyle = color;
+              ctx.shadowColor = color;
+              ctx.shadowBlur = 20;
+              ctx.fillText(text, cx, y + 0.5 * fs);
+              ctx.shadowBlur = 0;
+              ctx.font = `${sfs}px sans-serif`;
+              ctx.lineWidth = Math.max(2, 0.15 * sfs);
+              ctx.strokeText(sub, cx, y + fs + 0.6 * sfs);
+              ctx.fillStyle = "#eee";
+              ctx.fillText(sub, cx, y + fs + 0.6 * sfs);
+              ctx.restore();
+            },
+          });
+        };
+        if (multView.outgrown) fitBanner(L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), "#c4b5fd");
+        else if (multBoard && multBoard.done) fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones), "#a3e635");
+        // --- end boris-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
           const prog = engine.getShatterProgress();
           bigBanner(L.shattered, L.segmentsDestroyed(prog.broken, prog.total), "#ef4444");
@@ -1797,6 +1922,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isPoly) {
           const prog = engine.getPolyrhythmProgress();
           if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635");
+        }
+        // --- boris-glass --- Glass Smash: Boris is HOME.
+        if (glassView && glassView.homeReached) {
+          const prog = engine.getGlassProgress();
+          bigBanner(L.glassHomeTitle ?? DEFAULT_LABELS.glassHomeTitle!, (L.glassHomeSub ?? DEFAULT_LABELS.glassHomeSub!)(prog.shattered, prog.stages), "#a3e635");
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
@@ -2024,6 +2154,26 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
       } else if (canvas.dataset.teams !== undefined) {
         for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard"]) delete canvas.dataset[key];
+      }
+      // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME and the camera (data-glass-*) for tools and the smoke test.
+      if (glassView) {
+        const prog = engine.getGlassProgress();
+        setCanvasData("glassStage", String(prog.stage));
+        setCanvasData("glassStages", String(prog.stages));
+        setCanvasData("glassHits", String(prog.hits));
+        setCanvasData("glassShattered", String(prog.shattered));
+        setCanvasData("glassPanes", String(prog.panes));
+        setCanvasData("glassHome", prog.home ? "1" : "0");
+        setCanvasData("glassCamera", String(Math.round(glassView.cameraY)));
+      } else if (canvas.dataset.glassStage !== undefined) {
+        for (const key of ["glassStage", "glassStages", "glassHits", "glassShattered", "glassPanes", "glassHome", "glassCamera"]) delete canvas.dataset[key];
+      }
+      // --- boris-multipliers --- the badges (data-mult-speed / -size / -damage / -balls …), pickups, slow-mo, outgrow and the board's counters
+      if (multView.active) {
+        if (!multBoard && canvas.dataset.multHome !== undefined) for (const key of ["multHome", "multActive", "multClones", "multGates", "multDone"]) delete canvas.dataset[key];
+        writeMultiplierDataset(multView, multBoard, setCanvasData);
+      } else if (canvas.dataset.multSpeed !== undefined) {
+        for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
 
       // FPS estimate

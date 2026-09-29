@@ -348,7 +348,8 @@ describe("PendulumMode in the engine", () => {
     expect(MODE_CATEGORIES.pendulum).toBe("rhythm");
     // The rhythm family starts with these three in card order (later project.jdm modes are appended after them).
     expect(modesInCategory("rhythm").slice(0, 3)).toEqual(["drop", "box", "pendulum"]);
-    expect(modesInCategory("escape")).toHaveLength(10);
+    // The escape family starts with the ten ring modes in card order (later escape modes – the multipliers board – are appended).
+    expect(modesInCategory("escape").slice(0, 10)).toEqual(["classic", "accumulation", "multiply", "lines", "paint", "target", "grow", "shatter", "colorMatch", "portal"]);
   });
 
   it("starts every bob in line on the seeded side, no rings, no obstacles, pass-through, and moves them analytically", () => {
