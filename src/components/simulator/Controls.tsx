@@ -45,6 +45,7 @@ import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSectio
 import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
+import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
 import type { ProjectPanelProps } from "./useProjectFiles";
@@ -125,6 +126,8 @@ export interface ControlsProps {
   fastExport?: FastExportPanelProps;
   /** --- project-files --- the page's side of Export / Import project (the block is left out without it). */
   project?: ProjectPanelProps;
+  /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
+  batch?: BatchPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -170,6 +173,8 @@ SECTION_KEYS.recording.push(...FAST_EXPORT_KEYS); // --- fast-render --- the fas
 SECTION_KEYS.ball.push(...RACE_KEYS);
 // --- jdm-arena-games --- the Arena games block is searched with the Ball section.
 SECTION_KEYS.ball.push(...ARENA_GAME_KEYS);
+// --- batch-render --- the Batch block (many fast exports in a row) closes the Recording section.
+SECTION_KEYS.recording.push(...BATCH_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -1034,6 +1039,7 @@ export default function Controls(props: ControlsProps) {
       )}
       {/* --- fast-render --- the fast export's frame rate */}
       <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
+      {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
     </div>
   );
 

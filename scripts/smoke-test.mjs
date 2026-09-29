@@ -4226,6 +4226,146 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 // --- end jdm-arena-games ---
 
+// --- batch-render --- Batch render (the Batch block at the end of the Recording section): a pasted list of two seeds and a
+// bad line renders two 500×500, 10 s Classic clips one after the other, each downloads as classic-<seed>-<duration>.mp4 /
+// .webm, "Download all as ZIP" packs exactly those files (read back entry by entry: STORE, UTF-8 flag, CRC-32, the same
+// bytes) and the definition survives a reload (localStorage). A mode variant – Portal and Shatter, rendered in card order –
+// stopped with "Stop after this clip" finishes its first clip in Shatter (the mode card's change), skips the Portal one and
+// gives the page its own mode back. Without WebCodecs the block says so and cannot start.
+{
+  const BATCH_KEY = "viralballs_batch_render";
+  /** CRC-32 (IEEE), as the ZIP stores it. */
+  const crc32 = (buf) => {
+    let c = ~0 >>> 0;
+    for (let i = 0; i < buf.length; i++) {
+      c ^= buf[i];
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    return ~c >>> 0;
+  };
+  /** The entries of a ZIP file (end record → central directory → local headers). */
+  const readZip = (zip) => {
+    const end = zip.length - 22;
+    if (end < 0 || zip.readUInt32LE(end) !== 0x06054b50) return null;
+    const count = zip.readUInt16LE(end + 10);
+    let at = zip.readUInt32LE(end + 16);
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+      if (zip.readUInt32LE(at) !== 0x02014b50) return null;
+      const flags = zip.readUInt16LE(at + 8);
+      const method = zip.readUInt16LE(at + 10);
+      const crc = zip.readUInt32LE(at + 16);
+      const size = zip.readUInt32LE(at + 24);
+      const nameLength = zip.readUInt16LE(at + 28);
+      const skip = zip.readUInt16LE(at + 30) + zip.readUInt16LE(at + 32);
+      const local = zip.readUInt32LE(at + 42);
+      const name = zip.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+      if (zip.readUInt32LE(local) !== 0x04034b50) return null;
+      const dataAt = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+      entries.push({ name, flags, method, crc, data: zip.subarray(dataAt, dataAt + size) });
+      at += 46 + nameLength + skip;
+    }
+    return entries;
+  };
+  const isVideo = (buf) => buf.length > 10000 && (buf.includes(Buffer.from("ftyp")) || buf.readUInt32BE(0) === 0x1a45dfa3);
+  const batchStatus = () => page.locator("[data-batch]").getAttribute("data-batch").catch(() => null);
+  const batchRows = () => page.locator("[data-batch-job]").evaluateAll((els) => els.map((e) => ({ status: e.getAttribute("data-batch-job"), file: e.getAttribute("data-batch-file"), seed: e.getAttribute("data-batch-seed") })));
+  const openBatch = async () => {
+    await page.getByRole("button", { name: /Recording/ }).click();
+    await page.locator("[data-batch]").waitFor({ timeout: 10000 });
+    return page.locator("[data-batch]");
+  };
+
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  await page.evaluate((key) => localStorage.removeItem(key), BATCH_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  let block = await openBatch();
+  await block.getByRole("button", { name: "Seed list", exact: true }).click();
+  await page.locator("#batch-list").fill("101\n202\nnot-a-seed");
+  const listRead = await block.locator("[data-batch-list]").innerText().catch(() => "");
+  const summary = await block.getByText(/clips? · 500×500 · 30 fps/).first().innerText().catch(() => "");
+  if (webCodecs) {
+    // 1. Two seeds, one after the other, each downloaded under its own name.
+    const downloads = [];
+    const onDownload = (d) => downloads.push(d);
+    page.on("download", onDownload);
+    const startedAt = Date.now();
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const finished = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "finished", null, { timeout: 300000 }).then(() => true).catch(() => false);
+    const ms = Date.now() - startedAt;
+    await page.waitForTimeout(1000);
+    page.off("download", onDownload);
+    const rows = await batchRows();
+    const files = {};
+    for (const d of downloads) {
+      const out = path.join(outDir, `batch-${d.suggestedFilename()}`);
+      await d.saveAs(out);
+      files[d.suggestedFilename()] = fs.readFileSync(out);
+    }
+    const names = Object.keys(files).sort();
+    const namesOk = names.length === 2 && /^classic-101-\d+(\.\d)?s\.(mp4|webm)$/.test(names[0]) && /^classic-202-\d+(\.\d)?s\.(mp4|webm)$/.test(names[1]);
+    check(
+      "batch render: a list of two seeds (and a bad line) renders two clips, each downloaded as mode-seed-duration",
+      finished && /2 jobs/.test(listRead) && /line 3 skipped/.test(listRead) && /^2 clips/.test(summary) && rows.length === 2 && rows.every((r) => r.status === "done") && namesOk && names.every((n) => isVideo(files[n])) && rows.map((r) => r.file).sort().join() === names.join(),
+      `(${names.join(", ") || "no downloads"}; rows ${JSON.stringify(rows)}; "${listRead}"; "${summary}"; ${ms} ms)`,
+    );
+    // 2. Download all as ZIP: exactly those clips, stored, with their checksums.
+    const zipWait = page.waitForEvent("download", { timeout: 60000 }).catch(() => null);
+    await block.getByRole("button", { name: /Download all as ZIP/ }).click();
+    const zipDownload = await zipWait;
+    let entries = null;
+    let zipName = "";
+    if (zipDownload) {
+      zipName = zipDownload.suggestedFilename();
+      const out = path.join(outDir, `batch-${zipName}`);
+      await zipDownload.saveAs(out);
+      entries = readZip(fs.readFileSync(out));
+    }
+    check(
+      "batch render: Download all as ZIP packs exactly the rendered clips (STORE, UTF-8 names, CRC-32, same bytes)",
+      /^viralballs-batch-\d{8}-\d{4}\.zip$/.test(zipName) && !!entries && entries.length === 2 && entries.map((e) => e.name).sort().join() === names.join() && entries.every((e) => e.method === 0 && (e.flags & 0x800) && files[e.name] && Buffer.compare(e.data, files[e.name]) === 0 && crc32(e.data) === e.crc),
+      `(${zipName || "no zip"}: ${entries ? entries.map((e) => `${e.name} ${e.data.length} B method ${e.method}`).join(", ") : "unreadable"})`,
+    );
+    // 3. The definition is remembered; a mode variant stopped after its first clip.
+    await page.reload({ waitUntil: "networkidle" });
+    block = await openBatch();
+    const kept = await page.locator("#batch-list").inputValue().catch(() => "");
+    check("batch render: the batch definition survives a reload (localStorage)", kept === "101\n202\nnot-a-seed", `(${JSON.stringify(kept)})`);
+    await page.locator("#batch-list").fill("303");
+    await block.getByRole("button", { name: "Every mode", exact: true }).click();
+    await block.getByRole("button", { name: "Clear", exact: true }).click();
+    const chips = block.getByRole("group", { name: "Every mode" });
+    await chips.getByRole("button", { name: "Portal", exact: true }).click();
+    await chips.getByRole("button", { name: "Shatter", exact: true }).click();
+    const modeDownloads = [];
+    const onModeDownload = (d) => modeDownloads.push(d.suggestedFilename());
+    page.on("download", onModeDownload);
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const stopButton = block.getByRole("button", { name: /Stop after this clip/ });
+    const canStop = await stopButton.waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+    if (canStop) await stopButton.click();
+    const stopping = await block.getByText(/Stopping after this clip/).first().isVisible().catch(() => false);
+    const stopped = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "stopped", null, { timeout: 180000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1000);
+    page.off("download", onModeDownload);
+    const modeRows = await batchRows();
+    const pageMode = new URL(page.url()).searchParams.get("mode");
+    const doneLine = await block.getByText(/Stopped – 1 of 2 clips rendered/).first().isVisible().catch(() => false);
+    check(
+      "batch render: every mode renders the clip in the picked mode; Stop after this clip finishes it, skips the rest and gives the page its mode back",
+      canStop && stopping && stopped && doneLine && modeRows.length === 2 && modeRows[0].status === "done" && /^shatter-303-/.test(modeRows[0].file || "") && modeRows[1].status === "skipped" && modeDownloads.length === 1 && /^shatter-303-/.test(modeDownloads[0]) && pageMode === "classic",
+      `(rows ${JSON.stringify(modeRows)}, downloads ${JSON.stringify(modeDownloads)}, page mode ${pageMode}, stopping=${stopping})`,
+    );
+  } else {
+    const disabled = await block.getByRole("button", { name: /Render batch/ }).isDisabled();
+    const note = await block.getByText(/needs WebCodecs/).first().isVisible().catch(() => false);
+    check("without WebCodecs the batch render says so and cannot start", disabled && note && (await batchStatus()) === "idle", `(disabled=${disabled}, note=${note})`);
+  }
+  await page.evaluate((key) => localStorage.removeItem(key), BATCH_KEY);
+}
+// --- end batch-render ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 
