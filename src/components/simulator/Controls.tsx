@@ -34,6 +34,8 @@ import ObstaclesSection, { OBSTACLE_KEYS } from "./sections/ObstaclesSection";
 import { defaultObstacleSettings, supportsObstacles } from "@/lib/physics/obstacleEditor";
 import CaptionsSection, { CAPTION_KEYS } from "./sections/CaptionsSection"; // --- captions ---
 import { defaultCaptionSettings } from "@/lib/captions"; // --- captions ---
+import TimelineSection, { TIMELINE_SECTION_KEYS, TimelineRangeInput, TimelineValueText } from "./sections/TimelineSection"; // --- timeline ---
+import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- timeline ---
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -49,7 +51,7 @@ import { ACCENT } from "@/lib/site";
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
 
-export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions")
+export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions" | "timeline"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions") --- timeline --- ("timeline")
 
 export interface ControlsProps {
   settings: SimulatorSettings;
@@ -121,6 +123,7 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   teams: TEAM_KEYS, // --- teams ---
   obstacles: OBSTACLE_KEYS, // --- obstacle-editor ---
   captions: CAPTION_KEYS, // --- captions ---
+  timeline: TIMELINE_SECTION_KEYS, // --- timeline ---
 };
 SECTION_KEYS.ball.push("ballCount"); // --- teams --- the ball count slider (it replaced the "Two balls" switch)
 // --- jdm-polyrhythm --- the Metronomes & Polyrhythms block is searched with the Ball section (like the Pendulum wave block).
@@ -204,6 +207,7 @@ export default function Controls(props: ControlsProps) {
   // --- obstacle-editor --- the Obstacles section, in the ring modes (the layout is kept, unused, in the others)
   if (supportsObstacles(s.mode)) sections.push({ id: "obstacles", icon: "🚧", label: t("obstaclesTab") });
   sections.push({ id: "captions", icon: "💬", label: t("captionsTab") }); // --- captions --- (every mode, after the playfield sections)
+  sections.push({ id: "timeline", icon: "⏱️", label: t("timelineTab") }); // --- timeline --- (every mode)
 
   /* ------------------------------------------------------------ sections */
 
@@ -357,18 +361,16 @@ export default function Controls(props: ControlsProps) {
                   <>
                     <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
                       <span>{t("rotationSpeed")}</span>
-                      <span className="text-zinc-500">{s.rotationSpeed.toFixed(1)}</span>
+                      {/* --- timeline --- the live value with the AUTO badge while keyframes drive the rotation speed */}
+                      <TimelineValueText t={t} labelKey="rotationSpeed" fallback={s.rotationSpeed.toFixed(1)} />
                     </label>
-                    <input
-                      type="range"
-                      min={RANGES.rotationSpeed.min}
-                      max={RANGES.rotationSpeed.max}
-                      step={RANGES.rotationSpeed.step}
+                    <TimelineRangeInput
+                      labelKey="rotationSpeed"
                       value={s.rotationSpeed}
-                      onChange={(e) => update({ rotationSpeed: Number(e.target.value) })}
+                      range={RANGES.rotationSpeed}
+                      onChange={(v) => update({ rotationSpeed: v })}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                      style={sliderStyle(s.rotationSpeed, RANGES.rotationSpeed.min, RANGES.rotationSpeed.max)}
-                      aria-label={t("rotationSpeed")}
+                      ariaLabel={t("rotationSpeed")}
                     />
                   </>
                 )}
@@ -989,6 +991,9 @@ export default function Controls(props: ControlsProps) {
       // --- captions ---
       case "captions":
         return <CaptionsSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
+      // --- timeline ---
+      case "timeline":
+        return <TimelineSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
     }
   };
 
@@ -1388,5 +1393,8 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     // --- captions --- no captions
     case "captions":
       return defaultCaptionSettings();
+    // --- timeline --- no keyframes
+    case "timeline":
+      return defaultTimelineSettings();
   }
 }

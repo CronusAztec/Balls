@@ -2263,6 +2263,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const bar = page.getByTestId("obstacle-ready-bar");
   const foundBar = ((await bar.innerText().catch(() => "")) || "").replace(/\s+/g, " ");
   const warned = await page.getByTestId("obstacle-ready-warning").isVisible().catch(() => false);
+  // --- timeline --- the Find button can sit below the fold (the panel's section list grew), and clicking it scrolls the page
+  // until the canvas is out of view: bring the canvas back before measuring where to drag.
+  await page.locator("main canvas").scrollIntoViewIfNeeded();
   const box = await page.locator("main canvas").boundingBox();
   const R = (Math.min(box.width, box.height) / 2) * 0.75;
   const at = (ax, ay) => ({ x: box.x + box.width / 2 + ax * R, y: box.y + box.height / 2 + ay * R });
@@ -2386,6 +2389,92 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("obstacles and captions both carry over a mode change", after.get("mode") === "portal" && after.get("obs") === layout && after.get("cap") === cap, `(mode=${after.get("mode")}, obs=${after.get("obs")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
 }
 // --- end obstacle-editor + captions ---
+
+// --- timeline ---
+// 22. Timeline keyframes: a link with keyframes fills the Timeline section (a row per keyframe) and the bar under the
+// canvas (a marker per keyframe); the sliders of the automated settings show the value the run starts with, locked, with an
+// AUTO badge; a run at 8× plays the keyframes on the simulation clock – the engine's values follow them (data-timeline-engine)
+// while the link keeps the settings as they were (the automation is never written back); a keyframe added from the panel at
+// the current time locks its slider, and it, an edited value and a removed keyframe land in the link; the search box finds
+// the section; the keyframes carry over a mode change.
+{
+  const kf = "g_0_0_4_1500*r_0_8_3_20";
+  const autoLabel = (name) => page.locator("label", { has: page.getByTestId("timeline-auto-badge") }).filter({ hasText: name }).first();
+  const labelText = async (name) => ((await autoLabel(name).innerText({ timeout: 5000 }).catch(() => "")) ?? "").replace(/\s+/g, " ");
+  const timelineTime = async () => Number((await page.getByTestId("timeline-bar").getAttribute("data-timeline-time")) ?? -1);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&kf=${kf}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Timeline/ }).first().click();
+  const rows = page.getByTestId("timeline-row");
+  const keys = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-key")));
+  const markers = await page.getByTestId("timeline-marker").count();
+  const barShown = await page.getByTestId("timeline-bar").isVisible();
+  check("keyframes from the link fill the Timeline section and the bar under the canvas", keys.join(",") === "gravity,ballRadius,ballRadius,gravity" && markers === 4 && barShown, `(rows=${keys.join(",")}, markers=${markers}, bar=${barShown})`);
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  const sizeSlider = page.getByRole("slider", { name: "Ball Size", exact: true });
+  const lockedBefore = await sizeSlider.isDisabled({ timeout: 5000 }).catch(() => false);
+  const startValue = await sizeSlider.inputValue({ timeout: 5000 }).catch(() => "");
+  const startText = await labelText("Ball Size");
+  check("an automated slider shows the value the run starts with, locked, with an AUTO badge", lockedBefore && startValue === "8" && /\b8px\s*AUTO\b/i.test(startText), `(locked=${lockedBefore}, value=${startValue}, label="${startText}")`);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const reached = await page.waitForFunction(() => Number(document.querySelector('[data-testid="timeline-bar"]')?.dataset.timelineTime ?? 0) > 4.5, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const bar = page.getByTestId("timeline-bar");
+  const engineValues = (await bar.getAttribute("data-timeline-engine")) ?? "";
+  const liveValues = (await bar.getAttribute("data-timeline-live")) ?? "";
+  const playhead = await page.getByTestId("timeline-playhead").evaluate((el) => parseFloat(el.style.left));
+  const sizeText = await labelText("Ball Size");
+  const linkAfterRun = new URL(page.url()).searchParams;
+  check(
+    "a run plays the keyframes on the simulation clock without writing them into the settings",
+    reached && engineValues === "gravity=1500,ballRadius=20" && liveValues === engineValues && playhead > 0 && /\b20px\s*AUTO\b/i.test(sizeText) && linkAfterRun.get("kf") === kf && !linkAfterRun.has("g") && !linkAfterRun.has("r"),
+    `(t>4.5 s=${reached}, engine: ${engineValues}, live: ${liveValues}, playhead ${playhead}%, slider: "${sizeText}", link kf=${linkAfterRun.get("kf")}, g=${linkAfterRun.get("g")}, r=${linkAfterRun.get("r")})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-timeline.png") });
+  // Pause (Space), pick Ball Speed, set the value the keyframe gets and add it at the current time.
+  await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+  await page.keyboard.press("Space");
+  await page.getByRole("button", { name: /Timeline/ }).first().click();
+  await page.getByTestId("timeline-setting").selectOption("ballSpeed");
+  await page.getByTestId("timeline-value-slider").evaluate(setRangeValue, "600");
+  const before = await timelineTime();
+  await page.getByTestId("timeline-add").click();
+  await page.waitForTimeout(400);
+  const afterAdd = await timelineTime();
+  const added = new URL(page.url()).searchParams.get("kf") ?? "";
+  const addedTime = Number(/\*s_([\d.]+)_600\*/.exec(added)?.[1] ?? NaN);
+  const rowsAfterAdd = await rows.count();
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  const speedLocked = await page.getByRole("slider", { name: "Ball Speed", exact: true }).isDisabled({ timeout: 5000 }).catch(() => false);
+  const speedText = await labelText("Ball Speed");
+  check(
+    "a keyframe added in the panel at the current time lands in the link and locks its slider",
+    addedTime >= before - 0.06 && addedTime <= afterAdd + 0.06 && rowsAfterAdd === 5 && added.startsWith("g_0_0_4_1500*s_") && added.endsWith("*r_0_8_3_20") && speedLocked && /\b600\s*AUTO\b/i.test(speedText),
+    `(kf=${added}, clock ${before}–${afterAdd} s, rows=${rowsAfterAdd}, Ball Speed locked=${speedLocked}, label "${speedText}")`,
+  );
+  // Edit the first keyframe's value (gravity at 0 s) and remove the gravity keyframe at 4 s (the fourth row).
+  await page.getByRole("button", { name: /Timeline/ }).first().click();
+  const firstValue = rows.first().getByTestId("timeline-value");
+  await firstValue.fill("300");
+  await firstValue.press("Enter");
+  await page.waitForTimeout(300);
+  await rows.nth(3).getByRole("button", { name: /Remove keyframe/ }).click();
+  await page.waitForTimeout(400);
+  const edited = new URL(page.url()).searchParams.get("kf") ?? "";
+  const rowsAfterEdit = await rows.count();
+  check("an edited value and a removed keyframe land in the link", /^g_0_300\*s_[\d.]+_600\*r_0_8_3_20$/.test(edited) && rowsAfterEdit === 4, `(kf=${edited}, rows=${rowsAfterEdit})`);
+  await page.getByPlaceholder("Search settings...").fill("keyframe");
+  const found = await page.getByTestId("timeline-section").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("the search box finds the Timeline section", found, `(visible=${found})`);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&kf=${kf}`, { waitUntil: "networkidle" });
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.waitForTimeout(500);
+  const after = new URL(page.url()).searchParams;
+  const markersAfter = await page.getByTestId("timeline-marker").count();
+  check("keyframes carry over a mode change", after.get("mode") === "portal" && after.get("kf") === kf && markersAfter === 4, `(mode=${after.get("mode")}, kf=${after.get("kf")}, markers=${markersAfter})`);
+}
+// --- end timeline ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

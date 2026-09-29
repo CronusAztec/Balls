@@ -45,6 +45,10 @@ import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObs
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
+// --- timeline ---
+import TimelineBar from "./TimelineBar";
+import { useTimelineLivePublisher } from "./timelineLive";
+import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import {
   RANGES,
   defaultSettings,
@@ -204,6 +208,7 @@ export default function Simulator() {
       ballCount: effectiveBallCount(s), // --- teams ---
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
+      timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -435,6 +440,22 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.obstacles, s.bumperBoost]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end obstacle-editor ---
+  // --- timeline --- the keyframes travel in the physics config: the engine plays them on the simulation clock and the seed finder
+  // copies them (the rotation speed's only while the rotation is on). New keyframes drop a found seed with its promise, like a new
+  // obstacle layout. The live values of the automated settings are published for the panel (sliders, Timeline section).
+  const timelineSignature = serializeKeyframes(engineTimelineOf(s));
+  const engineKeyframes = useMemo(() => engineTimelineOf(s), [timelineSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig({ timeline: engineKeyframes });
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [engineKeyframes]);
+  const readTimelineTime = useCallback(() => (engineRef.current?.getElapsedMs() ?? 0) / 1000, []);
+  const getTimelineEngine = useCallback(() => engineRef.current, []);
+  useTimelineLivePublisher(engineKeyframes, readTimelineTime);
+  // --- end timeline ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -587,6 +608,7 @@ export default function Simulator() {
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
       Object.assign(fresh, captionCarryOver(themeLookRef.current)); // --- captions --- the captions are overlays: they carry over
+      Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1120,6 +1142,7 @@ export default function Simulator() {
           ballCount: effectiveBallCount(loaded), // --- teams ---
           ...physicsExtrasOf(loaded),
           ...ballInteractionOf(loaded),
+          timeline: engineTimelineOf(loaded), // --- timeline --- (the preset's run starts from its own keyframes' values)
         });
         initEngineForMode(engine, loaded);
       }
@@ -1530,6 +1553,8 @@ export default function Simulator() {
                 </div>
               )}
             </div>
+            {/* --- timeline --- the keyframe markers and the playhead under the canvas */}
+            {s.keyframes.length > 0 && <TimelineBar keyframes={s.keyframes} clipSec={s.recordingDuration} getEngine={getTimelineEngine} />}
             <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
               <span>{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</span>
               <button type="button" onClick={copyShareLink} className="shrink-0 px-2.5 py-1 rounded-md bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 transition-colors cursor-pointer">

@@ -27,6 +27,7 @@ import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFie
 // --- obstacle-editor ---
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
+import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -362,6 +363,10 @@ export interface SimulatorSettings {
   /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
   captions: Caption[];
   // --- end captions ---
+  // --- timeline --- keyframes (lib/simulation/timeline.ts): numeric settings automated over the clip – none by default
+  /** `{ time, key, value }` keyframes of the settings the engine takes live; applied to the run only, never written back here (URL `kf`, e.g. `g_0_300_10_1200`). */
+  keyframes: Keyframe[];
+  // --- end timeline ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -459,6 +464,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
+    ...defaultTimelineSettings(), // --- timeline ---
   };
 }
 
@@ -510,6 +516,7 @@ export const RANGES = {
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
+  ...TIMELINE_RANGES, // --- timeline ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -732,6 +739,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
+  writeTimelineParams(settings, params); // --- timeline ---: kf
   return params;
 }
 
@@ -836,6 +844,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   clampMultiplierSettings(settings);
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
+  readTimelineParams(params, settings, RANGES); // --- timeline ---
   return settings;
 }
 
@@ -993,6 +1002,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampMultiplierSettings(merged); // --- boris-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
+  Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   return merged;
 }
 

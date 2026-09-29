@@ -1,6 +1,7 @@
 import type { Obstacle } from "./obstacles";
 import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
+import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -158,6 +159,13 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** Speed factor a bumper gives a ball on a hard hit, 1–2. */
   bumperBoost?: number;
   // --- end obstacle-editor ---
+  // --- timeline ---
+  /**
+   * Keyframed settings (lib/simulation/timeline.ts): the engine applies them at the start of every fixed step from the
+   * simulation clock, and the seed finder copies them with the rest of the config. Empty / absent = no automation.
+   */
+  timeline?: readonly Keyframe[];
+  // --- end timeline ---
 }
 
 export interface SoundEvent {

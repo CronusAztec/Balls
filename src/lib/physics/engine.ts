@@ -33,6 +33,7 @@ import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
 import { BallStatsBook, ESCAPE_MARGIN, MULTI_BALL_MODES, startBallAngle, startBallColor, startBallCount, type BallStats } from "./ballStats"; // --- teams ---
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
+import { TimelineRuntime, resizeGaps, type TimelineKey } from "@/lib/simulation/timeline"; // --- timeline ---
 import type {
   Ball,
   BallInteractionConfig,
@@ -203,6 +204,10 @@ export class PhysicsEngine {
   private pairRs = new Float64Array(0);
   // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners (obstacleEditor.ts), built from the config
   private readonly editorObstacles = new ObstacleField();
+  // --- timeline --- keyframed settings (lib/simulation/timeline.ts), applied at the start of every fixed step from the simulation clock
+  private readonly timeline = new TimelineRuntime();
+  /** True while the timeline writes the config itself (its values are not the page's, so they bypass `prepare()`). */
+  private timelineApplying = false;
 
   readonly ctx: ModeContext;
 
@@ -213,6 +218,7 @@ export class PhysicsEngine {
     this.interaction = resolveBallInteraction(config);
     this.multipliers.setConfig(config); // --- boris-multipliers ---
     this.editorObstacles.configure(config); // --- obstacle-editor ---
+    this.timeline.prepare({ timeline: config.timeline }, config); // --- timeline --- (the config's values become the automated settings' bases)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -1125,6 +1131,7 @@ export class PhysicsEngine {
     this.multipliers.reset(); // --- boris-multipliers ---
     this.ballStats.reset(); // --- teams ---
     this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
+    this.applyTimeline(0); // --- timeline --- every run starts from the keyframes' values at 0 s (before its rings and balls are built)
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1134,6 +1141,8 @@ export class PhysicsEngine {
   }
 
   setConfig(patch: Partial<PhysicsConfig>) {
+    // --- timeline --- keyframed settings keep following their keyframes; the rest of the patch applies as always
+    if (!this.timelineApplying && (patch.timeline !== undefined || this.timeline.active)) return this.setConfigWithTimeline(patch);
     const oldW = this._config.width;
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
@@ -1179,6 +1188,52 @@ export class PhysicsEngine {
     // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off.
     this.applyBreathing();
   }
+
+  // --- timeline ---
+  /**
+   * `setConfig()` while keyframes are in play or arrive (`patch.timeline`): `TimelineRuntime.prepare()` keeps the
+   * automated settings at their keyframed values (the page's values wait as their bases), gives a setting whose keyframes
+   * are gone its base back, and new keyframes apply at once, at the current simulation time.
+   */
+  private setConfigWithTimeline(patch: Partial<PhysicsConfig>) {
+    const { rest, gap, retimed } = this.timeline.prepare(patch, this._config);
+    this.timelineApplying = true;
+    try {
+      this.setConfig(rest);
+      if (gap !== null) this.setTimelineGap(gap);
+    } finally {
+      this.timelineApplying = false;
+    }
+    if (retimed) this.applyTimeline(this._elapsedMs);
+  }
+
+  /** Applies the keyframed values at simulation time `tMs` (the start of a fixed step, or 0 when a run starts). Allocates only when a value changes. */
+  private applyTimeline(tMs: number) {
+    if (!this.timeline.active) return;
+    const t = tMs / 1000;
+    const patch = this.timeline.patchAt(t, this._config);
+    const gap = this.timeline.gapAt(t, this._config);
+    if (!patch && gap === null) return;
+    this.timelineApplying = true;
+    try {
+      if (patch) this.setConfig(patch);
+      if (gap !== null) this.setTimelineGap(gap);
+    } finally {
+      this.timelineApplying = false;
+    }
+  }
+
+  /** A keyframed gap size: the config takes it and the rings' gaps resize in place – no rebuild, so broken rings stay broken (see `resizeGaps()`). */
+  private setTimelineGap(gap: number) {
+    this._config = { ...this._config, gapSize: gap };
+    resizeGaps(this.circularWalls, gap, this.currentMode?.name);
+  }
+
+  /** Whether the keyframes drive `key` (its config value is then the keyframed one; the page's own waits as its base). */
+  isTimelineAutomated(key: TimelineKey): boolean {
+    return this.timeline.isAutomated(key);
+  }
+  // --- end timeline ---
 
   // ---------------------------------------------------------------- breathing walls
 
@@ -1246,9 +1301,14 @@ export class PhysicsEngine {
     mult.setMode(modeName);
     // --- end boris-multipliers ---
     this.timeAccumulator += dt;
-    const extras = this.extras;
+    let extras = this.extras; // --- timeline --- (re-read below after keyframes move an extra)
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
       this.timeAccumulator -= this.FIXED_STEP_MS;
+      // --- timeline --- the keyframed settings at the start of this step, on the simulation clock (so the frame rate never matters)
+      if (this.timeline.active) {
+        this.applyTimeline(this._elapsedMs);
+        extras = this.extras;
+      }
       // --- boris-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
       // radius (≤ 4 px) per sub-step; past 64 sub-steps the step itself shrinks (time dilation, SLOW-MO in the HUD).
       // Without multipliers `plan` is null and the step is exactly the fixed step, as before.

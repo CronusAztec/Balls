@@ -130,7 +130,9 @@
     "finderMpClosestCount": "Más cercano: {count} en casa",
     "finderMpTestedClosest": "Se probaron {tested} semillas. El recuento final más cercano fue {closest} (objetivo: {target} ±5 %)",
     "canvasCaptionWall": "Pared [n]/[total]",
-    "canvasCaptionQuestion": "¿Escapará?"
+    "canvasCaptionQuestion": "¿Escapará?",
+    "timelineBar": "Fotogramas clave de la línea de tiempo",
+    "timelineMarker": "{setting}: {value} a los {time} s"
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los 12 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
@@ -865,7 +867,31 @@
     "captionBackgroundOf": "Fondo del subtítulo {n}",
     "captionBackgroundColorOf": "Color de fondo del subtítulo {n}",
     "captionEdit": "Editar subtítulo {n}",
-    "captionRemove": "Quitar subtítulo {n}"
+    "captionRemove": "Quitar subtítulo {n}",
+    "timelineTab": "Línea de tiempo",
+    "timeline": "Fotogramas clave de la línea de tiempo",
+    "timelineDesc": "Automatiza ajustes a lo largo del clip: elige un ajuste, fija su valor y añade un fotograma clave en el momento actual. Entre dos fotogramas clave el valor avanza en línea recta; antes del primero y después del último se mantiene.",
+    "timelineTip": "Los fotogramas clave siguen el reloj de la simulación: una pausa los detiene, 8× los reproduce más rápido y Reiniciar los vuelve a empezar, así que Buscar simulación y la grabación ven la misma partida. Solo controlan la partida: los valores de tus controles deslizantes no cambian y vuelven cuando quitas los fotogramas clave de un ajuste.",
+    "timelineSetting": "Ajuste",
+    "timelineSettingTip": "El ajuste que controla el siguiente fotograma clave. Mientras un ajuste tiene fotogramas clave, su control deslizante muestra el valor en directo con la etiqueta AUTO y queda bloqueado.",
+    "timelineRotationSpeed": "Velocidad de rotación de las paredes",
+    "timelineValue": "Valor",
+    "timelineValueTip": "El valor propio del ajuste: el que recibirá el siguiente fotograma clave (el mismo que su control deslizante en el panel).",
+    "timelineNow": "Ahora",
+    "timelineAdd": "Añadir fotograma clave en el momento actual",
+    "timelineAddAt": "Añadir fotograma clave en {time} s",
+    "timelineAddTip": "Añade un fotograma clave del ajuste elegido en el tiempo actual de la simulación (0 s antes de empezar) con el valor de arriba; si ya hay uno en ese momento, lo sustituye.",
+    "timelineLimit": "Como máximo {max} fotogramas clave.",
+    "timelineKeyframes": "Fotogramas clave",
+    "timelineEmpty": "Todavía no hay fotogramas clave: cada ajuste conserva el valor de su control deslizante.",
+    "timelineTimeOf": "Tiempo del fotograma clave {n} en segundos",
+    "timelineValueOf": "Valor del fotograma clave {n}",
+    "timelineRemove": "Quitar el fotograma clave {n}",
+    "timelineUnused": "No se usa en este modo",
+    "timelineRotationOff": "La rotación está desactivada en Ajustes de paredes",
+    "timelineClipNote": "La barra bajo el lienzo abarca el clip ({duration} s): una pista por cada ajuste automatizado con sus fotogramas clave y el cabezal en el reloj de la simulación. Los valores cambian suavemente entre fotogramas clave y se mantienen fuera de ellos.",
+    "timelineAuto": "Auto",
+    "timelineAutoTip": "Automatizado por la línea de tiempo: el valor sigue sus fotogramas clave. Edítalos en la sección Línea de tiempo."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },

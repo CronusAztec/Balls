@@ -130,7 +130,9 @@
     "finderMpClosestCount": "Closest: {count} home",
     "finderMpTestedClosest": "Tested {tested} seeds. The closest final count was {closest} (target: {target} ±5 %)",
     "canvasCaptionWall": "Wall [n]/[total]",
-    "canvasCaptionQuestion": "Will it escape?"
+    "canvasCaptionQuestion": "Will it escape?",
+    "timelineBar": "Timeline keyframes",
+    "timelineMarker": "{setting}: {value} at {time} s"
   },
   "HowItWorks": {
     "step1": {
@@ -874,7 +876,31 @@
     "captionBackgroundOf": "Caption {n} background",
     "captionBackgroundColorOf": "Caption {n} background colour",
     "captionEdit": "Edit caption {n}",
-    "captionRemove": "Remove caption {n}"
+    "captionRemove": "Remove caption {n}",
+    "timelineTab": "Timeline",
+    "timeline": "Timeline keyframes",
+    "timelineDesc": "Automate settings over the clip: pick a setting, set its value and add a keyframe at the current time. Between two keyframes the value glides in a straight line; before the first and after the last it holds.",
+    "timelineTip": "Keyframes run on the simulation clock: a pause holds them, 8× plays them faster and Restart starts them over, so Find Simulation and the recording see the same run. They drive the run only – your own slider values stay as they are and come back when a setting's keyframes are removed.",
+    "timelineSetting": "Setting",
+    "timelineSettingTip": "The setting the next keyframe drives. While a setting has keyframes, its slider shows the live value with an AUTO badge and is locked.",
+    "timelineRotationSpeed": "Wall Rotation Speed",
+    "timelineValue": "Value",
+    "timelineValueTip": "The setting's own value – the value the next keyframe gets (the same as its slider in the panel).",
+    "timelineNow": "Now",
+    "timelineAdd": "Add keyframe at current time",
+    "timelineAddAt": "Add keyframe at {time} s",
+    "timelineAddTip": "Adds a keyframe of the picked setting at the simulation's current time (0 s before the start) with the value above; one already at that time is replaced.",
+    "timelineLimit": "At most {max} keyframes.",
+    "timelineKeyframes": "Keyframes",
+    "timelineEmpty": "No keyframes yet – every setting keeps its slider value.",
+    "timelineTimeOf": "Keyframe {n} time in seconds",
+    "timelineValueOf": "Keyframe {n} value",
+    "timelineRemove": "Remove keyframe {n}",
+    "timelineUnused": "Not used in this mode",
+    "timelineRotationOff": "Rotation is switched off in the Wall Settings",
+    "timelineClipNote": "The bar under the canvas spans the clip ({duration} s): a lane per automated setting with its keyframes, and the playhead at the simulation clock. Values glide between keyframes and hold outside them.",
+    "timelineAuto": "Auto",
+    "timelineAutoTip": "Automated by the timeline: the value follows its keyframes. Edit them in the Timeline section."
   },
   "Modes": {
     "classic": {
