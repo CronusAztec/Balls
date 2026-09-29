@@ -7,6 +7,12 @@ import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
+// --- boris-faces ---
+import { FaceLayer } from "./faceRenderer";
+import type { CharacterRenderOptions } from "@/lib/character/character";
+import type { ChirpKind } from "@/lib/audio/characterVoice";
+import type { BoxView } from "@/lib/physics/modes";
+// --- end boris-faces ---
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 
@@ -50,6 +56,8 @@ export interface CanvasHandle {
   /** Song slicer position (0–1) for the HUD progress bar; null hides the bar. */
   setSongProgress: (v: number | null) => void;
   fpsRef: React.RefObject<number>;
+  /** --- boris-faces --- A wall broke (a "gap" sound event): the ball characters look shocked. */
+  noteWallBreak: () => void;
 }
 
 export interface CanvasProps {
@@ -84,6 +92,11 @@ export interface CanvasProps {
   paintPicture?: string | null;
   /** Opacity of the greyscale ghost of the unrevealed picture. */
   paintGhost?: number;
+  // --- boris-faces ---
+  /** Ball characters: face, name label and squash (null = none); see lib/character and faceRenderer.ts. */
+  character?: CharacterRenderOptions | null;
+  /** Called when a cat face chirps (an ouch, a breaking wall, an escape); the page plays it through the ToneGenerator. */
+  onCharacterChirp?: (kind: ChirpKind) => void;
 }
 
 const DEFAULT_LABELS: CanvasLabels = {
@@ -165,6 +178,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     labels,
     paintPicture = null,
     paintGhost = 0.12,
+    character = null,
+    onCharacterChirp,
   },
   ref,
 ) {
@@ -188,6 +203,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   /** Picture Paint: the decoded picture (null until it loads, or without one). */
   const paintImageRef = useRef<HTMLImageElement | null>(null);
   labelsRef.current = labels;
+  // --- boris-faces --- the characters' options and chirp callback, read by the draw loop; the face layer lives with the loop
+  const characterRef = useRef<CharacterRenderOptions | null>(character);
+  characterRef.current = character;
+  const chirpRef = useRef(onCharacterChirp);
+  chirpRef.current = onCharacterChirp;
+  const facesRef = useRef<FaceLayer | null>(null);
 
   const propsRef = useRef({
     showTrails,
@@ -287,6 +308,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       songProgressRef.current = v;
     },
     fpsRef,
+    noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- boris-faces ---
   }));
 
   useEffect(() => {
@@ -375,6 +397,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Pendulum Wave: the renderer's options and the scratch placement the trails are sampled into (one object each for the life of the loop).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     const pendulumTrailPoint = { x: 0, y: 0, angle: 0 };
+    // --- boris-faces --- ball characters (faces, name label, squash); the Box / Pendulum bodies get faces through drawOverlays()
+    const faces = new FaceLayer();
+    facesRef.current = faces;
+    const boxHueColors: string[] = [];
+    const boxBodyColor = (ball: { id: number }) => {
+      const st = engine.getBoxView().shapes.get(ball.id);
+      const hue = st ? ((Math.round(st.hue) % 360) + 360) % 360 : 0;
+      return (boxHueColors[hue] ??= `hsl(${hue}, 88%, 60%)`);
+    };
+    const bobBodyColor = (ball: { color: string }) => ball.color;
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -1166,6 +1198,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Picture Paint: the beat envelope scales the glow and draws a pulse ring around the ball.
       const paintBeat = engine.isPaintMode() ? engine.getPaintState() : null;
       const beatEnvelope = paintBeat && paintBeat.beatActive ? paintBeat.envelope : 1;
+      // --- boris-faces --- advance the characters on the simulation clock; a cat face may chirp
+      const chirp = faces.beginFrame(engine, characterRef.current, { started: p.isStarted });
+      if (chirp) chirpRef.current?.(chirp);
+      const hasSprite = !!emojiCanvasRef.current || (imageLoadedRef.current && !!imageRef.current);
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
@@ -1241,6 +1277,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.save();
           ctx.globalAlpha = ball.lifetime! / 1000;
         }
+        // --- boris-faces --- squash-and-stretch around the body, the cat's ears behind it
+        const squashed = faces.pushSquash(ctx, ball);
+        faces.drawBehind(ctx, ball, color, hasSprite, index);
         // Body: emoji, image or shaded disc
         if (emojiCanvasRef.current) {
           ctx.save();
@@ -1303,6 +1342,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.drawImage(sprite, ball.x - ball.radius, ball.y - ball.radius, 2 * ball.radius, 2 * ball.radius);
           }
         }
+        // --- boris-faces --- the face on the body (squashed with it), then the name label under the ball
+        faces.drawFront(ctx, ball, color, hasSprite, index);
+        if (squashed) ctx.restore();
+        faces.drawLabel(ctx, ball, index);
         // Personality ring (tension indicator)
         if (personality.state !== "calm" && !emojiCanvasRef.current) {
           const hue =
@@ -1325,6 +1368,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (fading) ctx.restore();
         ctx.globalAlpha = 1;
       });
+      // --- boris-faces --- faces on the shapes / bobs the Bouncing Shapes and Pendulum Wave renderers drew
+      if (faces.isActive() && (isBox || isPendulum)) {
+        const boxView: BoxView | null = isBox ? engine.getBoxView() : null;
+        faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0 } : null);
+      }
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -1724,6 +1772,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("pendulumCycles", String(view.cyclesDone));
       } else if (canvas.dataset.pendulumNotes !== undefined) {
         for (const key of ["pendulumNotes", "pendulumChords", "pendulumCycles"]) delete canvas.dataset[key];
+      }
+
+      // --- boris-faces --- the characters (face style, the first ball's expression, faces drawn, label) as data-face-* for tools and the smoke test
+      if (faces.isActive()) {
+        setCanvasData("face", faces.face());
+        setCanvasData("faceExpression", faces.primaryExpression());
+        setCanvasData("faceCount", String(faces.facesDrawn));
+        setCanvasData("nameLabel", faces.labelShown);
+      } else if (canvas.dataset.face !== undefined) {
+        for (const key of ["face", "faceExpression", "faceCount", "nameLabel"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

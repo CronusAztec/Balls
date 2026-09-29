@@ -23,6 +23,8 @@ import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
 import { findSimulation, runNeverFinishes, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
+import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
+import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
 import {
   RANGES,
   defaultSettings,
@@ -430,6 +432,7 @@ export default function Simulator() {
         musicDuckRelease: settings.musicDuckRelease,
         musicLoop: settings.musicLoop,
         musicStartOffset: settings.musicStartOffset,
+        ...characterOf(settings), // --- boris-faces --- the character follows the ball into every mode
       };
       setSettings(fresh);
       if (engine) {
@@ -451,7 +454,7 @@ export default function Simulator() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, settings.musicVolume, settings.musicDucking, settings.musicDuckRelease, settings.musicLoop, settings.musicStartOffset, settings.instrument, settings.melodyInstrument, settings.scale, settings.rootNote, settings.quantizeToBeat, settings.bpm, settings.quantizeGrid, initEngineForMode],
+    [settings.recordingResolution, settings.watermarkText, settings.wallBreakSound, settings.hitSoundMode, settings.hitSampleId, settings.hitSamplePitchByWall, settings.hitSampleVolume, settings.sliceSong, settings.sliceMs, settings.sliceLoop, settings.sliceFadeMs, settings.musicVolume, settings.musicDucking, settings.musicDuckRelease, settings.musicLoop, settings.musicStartOffset, settings.instrument, settings.melodyInstrument, settings.scale, settings.rootNote, settings.quantizeToBeat, settings.bpm, settings.quantizeGrid, initEngineForMode, settings.ballFace, settings.faceOverImage, settings.ballName, settings.nameLabel, settings.ballSquash, settings.faceSounds],
   );
 
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
@@ -489,6 +492,7 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
+          if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord);
           else if (ev.type === "gap") audio.playGapPass();
           else audio.playInteraction(ev.type);
@@ -1038,6 +1042,15 @@ export default function Simulator() {
     };
   }, [t]);
 
+  // --- boris-faces --- what the canvas needs to draw the ball characters, and the cat chirp through the ToneGenerator
+  const characterRender = useMemo(
+    () => characterRenderOptions(s),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.ballFace, s.faceOverImage, s.ballName, s.nameLabel, s.ballSquash, s.faceSounds, s.hitSoundMode],
+  );
+  const onCharacterChirp = useCallback((kind: ChirpKind) => audioRef.current?.playCharacterChirp(kind), []);
+  // --- end boris-faces ---
+
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings) });
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
@@ -1080,6 +1093,8 @@ export default function Simulator() {
                   labels={labels}
                   paintPicture={paintPicture?.url ?? null}
                   paintGhost={s.paintGhost}
+                  character={characterRender}
+                  onCharacterChirp={onCharacterChirp}
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">

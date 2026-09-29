@@ -859,6 +859,90 @@ await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
 
+// --- boris-faces ---
+// 9. Ball characters: no face by default; the "Character" group at the top of the Ball section shows a live preview,
+// "Meet Boris" sets the persona (face, name, squash) and everything mirrors into the URL; the running canvas draws the
+// face and the name label (mirrored into data-face / data-face-count / data-name-label), a custom emoji hides the face
+// until "Face on Image / Emoji" is on, the search box finds the controls, the URL restores a character on the bodies
+// of Bouncing Shapes, the label toggle hides the name, and the cat face chirps through the ToneGenerator
+// (OscillatorNode.start is instrumented: the chirp is the only sawtooth with the default triangle bounce voice).
+const canvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(600);
+{
+  const data = await canvasData();
+  check("no ball face by default", data.face === undefined && data.nameLabel === undefined && !/(^|&)face=/.test(page.url().split("?")[1] || ""), `(${JSON.stringify(data)})`);
+}
+await page.getByRole("button", { name: /Ball & Physics/ }).click();
+check("character group shows a live face preview", await page.getByTestId("face-preview").isVisible());
+await page.getByRole("button", { name: /Meet Boris/ }).click();
+await page.waitForTimeout(400);
+{
+  const query = page.url().split("?")[1] || "";
+  const cute = await page.getByRole("group", { name: "Face", exact: true }).getByRole("button", { name: /Cute/ }).getAttribute("aria-pressed");
+  const name = await page.locator("#ball-name-input").inputValue();
+  check("Meet Boris sets the persona and mirrors it into the URL", /(^|&)face=cute(&|$)/.test(query) && /(^|&)bn=Boris(&|$)/.test(query) && /(^|&)sq=0\.6(&|$)/.test(query) && cute === "true" && name === "Boris", `(${query})`);
+}
+await page.getByRole("group", { name: "Face", exact: true }).getByRole("button", { name: /Cat/ }).click();
+await page.locator('input[aria-label="Squash & Stretch"]').evaluate(setRangeValue, "0.8");
+await page.waitForTimeout(1200);
+{
+  const query = page.url().split("?")[1] || "";
+  const data = await canvasData();
+  const preview = await page.getByTestId("face-preview").getAttribute("data-face");
+  check(
+    "the canvas draws the face and the name label",
+    /(^|&)face=cat(&|$)/.test(query) && /(^|&)sq=0\.8(&|$)/.test(query) && data.face === "cat" && Number(data.faceCount) >= 1 && data.nameLabel === "Boris" && ["neutral", "ouch", "shock", "grin", "happy"].includes(data.faceExpression) && preview === "cat",
+    `(${JSON.stringify(data)}, preview=${preview})`,
+  );
+}
+await page.getByRole("button", { name: "🏀", exact: true }).click();
+await page.waitForTimeout(400);
+const faceOnEmojiBefore = (await canvasData()).faceCount;
+await page.locator('label:has-text("Face on Image / Emoji") + button').click();
+await page.waitForTimeout(400);
+{
+  const after = await canvasData();
+  check("a face goes over an emoji ball only with the overlay option", faceOnEmojiBefore === "0" && after.faceCount === "1" && after.nameLabel === "Boris" && /(^|&)fimg=1(&|$)/.test(page.url().split("?")[1] || ""), `(before ${faceOnEmojiBefore}, after ${after.faceCount})`);
+}
+await page.getByPlaceholder("Search settings...").fill("squash");
+check("search finds the character controls", (await page.locator('input[aria-label="Squash & Stretch"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.goto(`${BASE}/en/simulator/?mode=box&face=angry&bn=Tester&r=18`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(1200);
+{
+  const data = await canvasData();
+  check("a character from the URL shows on the Bouncing Shapes bodies", data.face === "angry" && Number(data.faceCount) === 3 && data.nameLabel === "Tester", `(${JSON.stringify(data)})`);
+}
+await page.goto(`${BASE}/en/simulator/?mode=classic&face=dot&bn=Boris&nl=0`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(800);
+{
+  const data = await canvasData();
+  check("the name label switches off", data.face === "dot" && data.faceCount === "1" && data.nameLabel === "", `(${JSON.stringify(data)})`);
+}
+await page.goto(`${BASE}/en/simulator/?mode=classic&face=cat&fsnd=1&r=20`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__oscTypes = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) log.push(this.type);
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(5000);
+{
+  const types = await page.evaluate(() => window.__oscTypes);
+  const chirps = types.filter((t) => t === "sawtooth").length;
+  check("the cat face chirps through the ToneGenerator", chirps >= 1 && types.includes("triangle"), `(${chirps} chirps, ${types.length} oscillators)`);
+  await page.screenshot({ path: path.join(outDir, "sim-character.png") });
+}
+// --- end boris-faces ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

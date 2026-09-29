@@ -1,6 +1,7 @@
 import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instruments";
 import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from "./interactionTones";
+import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // --- boris-faces ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -430,6 +431,31 @@ export class ToneGenerator {
       console.error(`Error playing ${kind} sound:`, err);
     }
   }
+
+  // --- boris-faces ---
+  /** Cat face: a meow-like chirp for an ouch, a breaking wall or an escape (see characterVoice.ts). */
+  playCharacterChirp(kind: ChirpKind) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleCharacterChirp(kind));
+      return;
+    }
+    this.scheduleCharacterChirp(kind);
+  }
+
+  private scheduleCharacterChirp(kind: ChirpKind) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      // On the beat grid and snapped to the scale like every other sound, and it ducks the music bed too.
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      scheduleChirp(this.audioContext, this.masterGain, CHIRPS[kind], time, (f) => this.snap(f));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error(`Error playing the ${kind} chirp:`, err);
+    }
+  }
+  // --- end boris-faces ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
