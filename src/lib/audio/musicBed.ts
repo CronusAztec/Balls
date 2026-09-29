@@ -197,6 +197,11 @@ export class MusicBed {
     return this.buffer !== null;
   }
 
+  /** --- fast-render --- The decoded track (null without one), for the fast export's offline copy of the bed. */
+  getBuffer(): AudioBuffer | null {
+    return this.buffer;
+  }
+
   /** Track length in seconds (0 without a track). */
   getDuration(): number {
     return this.buffer?.duration ?? 0;

@@ -3502,6 +3502,216 @@ const plFrameRates = async (ms) => {
 }
 // --- end odd-power-layers ---
 
+// --- fast-render --- Fast export: a 500×500, 10 s Classic clip at 30 fps is rendered offline (WebCodecs) and downloads as an
+// MP4 or WebM with a video and an audio track of the clip's length, the progress bar runs meanwhile, a second export of the
+// same seed has the same frames (digest), and Cancel stops a long export without a download. Without WebCodecs the button
+// must say so and start Record Video instead.
+{
+  /** Length (s) and tracks of an MP4 (mvhd, hdlr) or WebM (Segment Info Duration, CodecIDs) file. */
+  const probeVideoFile = (buf) => {
+    if (buf.includes(Buffer.from("ftyp"))) {
+      const at = buf.indexOf(Buffer.from("mvhd"));
+      if (at < 0) return { container: "mp4", duration: -1, video: false, audio: false };
+      const v1 = buf[at + 4] === 1;
+      const timescale = buf.readUInt32BE(at + (v1 ? 24 : 16));
+      const duration = v1 ? Number(buf.readBigUInt64BE(at + 28)) : buf.readUInt32BE(at + 20);
+      return { container: "mp4", duration: duration / timescale, video: buf.includes(Buffer.from("vide")), audio: buf.includes(Buffer.from("soun")) };
+    }
+    let duration = -1;
+    for (let i = buf.indexOf(Buffer.from([0x44, 0x89])); i >= 0 && i < buf.length - 10; i = buf.indexOf(Buffer.from([0x44, 0x89]), i + 1)) {
+      if (buf[i + 2] === 0x88) duration = buf.readDoubleBE(i + 3) / 1000;
+      else if (buf[i + 2] === 0x84) duration = buf.readFloatBE(i + 3) / 1000;
+      if (duration > 0) break;
+    }
+    return { container: "webm", duration, video: buf.includes(Buffer.from("V_VP")), audio: buf.includes(Buffer.from("A_OPUS")) };
+  };
+  const fastPanel = page.locator("[data-fast-export]");
+  const fastState = async () => ({ status: await fastPanel.getAttribute("data-fast-export"), digest: await fastPanel.getAttribute("data-fast-digest") });
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  const fastButton = page.getByRole("button", { name: /Fast export/ });
+  if (webCodecs) {
+    const exportOnce = async (label) => {
+      const downloadWait = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+      const startedAt = Date.now();
+      await fastButton.click();
+      const progress = await page.getByRole("progressbar", { name: /Fast export progress/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      const ms = Date.now() - startedAt;
+      const state = await fastState();
+      let file = null;
+      if (download) {
+        const out = path.join(outDir, `fast-${label}-${download.suggestedFilename()}`);
+        await download.saveAs(out);
+        const buf = fs.readFileSync(out);
+        file = { name: download.suggestedFilename(), bytes: buf.length, ...probeVideoFile(buf) };
+      }
+      return { progress, state, file, ms };
+    };
+    const first = await exportOnce("a");
+    const f = first.file;
+    const doneLine = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+    check(
+      "fast export renders a 10 s clip offline and downloads it with video and audio tracks",
+      first.progress && first.state.status === "done" && !!f && f.bytes > 10000 && f.video && f.audio && f.duration > 2 && f.duration <= 10.05 && /\.(mp4|webm)$/.test(f.name) && !!doneLine,
+      `(${f ? `${f.name}, ${f.container}, ${f.duration.toFixed(2)} s, ${f.bytes} bytes, video=${f.video}, audio=${f.audio}` : "no download"}, progress bar=${first.progress}, ${first.ms} ms, "${doneLine}")`,
+    );
+    const second = await exportOnce("b");
+    check(
+      "fast export is reproducible: the same seed renders the same frames",
+      second.state.status === "done" && !!first.state.digest && first.state.digest === second.state.digest && !!second.file && Math.abs(second.file.duration - (f?.duration ?? -1)) < 1e-6,
+      `(digests ${first.state.digest} / ${second.state.digest}, lengths ${f?.duration} / ${second.file?.duration} s)`,
+    );
+    // Cancel: a long 1080×1920 export stops on Cancel, reports it and downloads nothing; the page's run can start afterwards.
+    await page.goto(`${BASE}/en/simulator/?mode=classic&dur=60&res=1080x1920`, { waitUntil: "networkidle" });
+    let cancelDownload = false;
+    const onDownload = () => (cancelDownload = true);
+    page.on("download", onDownload);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const running = await page.getByRole("progressbar", { name: /Fast export progress/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1500);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    const cancelled = await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") === "cancelled", null, { timeout: 20000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1000);
+    page.off("download", onDownload);
+    const hiddenCanvases = await page.evaluate(() => document.querySelectorAll("canvas").length);
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(1500);
+    const liveRuns = await page.evaluate(() => document.querySelector("canvas")?.width > 0);
+    check("fast export cancels without a download and the page runs on", running && cancelled && !cancelDownload && liveRuns, `(running=${running}, cancelled=${cancelled}, download=${cancelDownload}, canvases=${hiddenCanvases})`);
+  } else {
+    await fastButton.click();
+    const note = await page.getByText(/can't encode video by itself/).first().waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    const recording = await page.getByRole("button", { name: /Stop & Export/ }).first().isVisible().catch(() => false);
+    check("without WebCodecs the fast export explains itself and records in real time", note && recording, `(note=${note}, recording=${recording})`);
+    if (recording) await page.getByRole("button", { name: /Stop & Export/ }).first().click();
+  }
+}
+// --- end fast-render ---
+// --- project-files ---
+// 26. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
+// bed downloads as <name>.viralballs.json holding the settings and the track as base64. Import on a fresh page (the
+// file input, then a drop on the panel) restores the settings and the track; a JSON file that is not a project is
+// refused with a message. Share: the share button copies a ?c= link (base64url); opening it applies the setup,
+// parameters after the code win, and a damaged code is reported under the canvas; the search box finds the block.
+{
+  const projectLink = "mode=shatter&g=700&top=Project+smoke&obs=p%3A0.2%2C-0.3%2C6%3Bb%3A-0.4%2C0.1%2C8%3Bp%3A0.5%2C0.5%2C5&kf=g_0_300_4_1200";
+  const linkParams = () => new URL(page.url()).searchParams;
+  const setupRestored = (p) => p.get("mode") === "shatter" && p.get("g") === "700" && p.get("top") === "Project smoke" && (p.get("obs") ?? "").split(";").length === 3 && p.get("kf") === "g_0_300_4_1200";
+  const openProjectBlock = async () => {
+    if (!(await page.getByTestId("project-section").isVisible().catch(() => false))) await page.getByRole("button", { name: /Project file/ }).click();
+    await page.getByTestId("project-section").waitFor({ timeout: 5000 });
+  };
+  const projectStatus = () =>
+    page
+      .getByTestId("project-status")
+      .waitFor({ timeout: 20000 })
+      .then(() => page.getByTestId("project-status").innerText())
+      .catch(() => "");
+
+  await page.goto(`${BASE}/en/simulator/?${projectLink}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const bedUploaded = await uploadMusicBed(2);
+  await openProjectBlock();
+  await page.locator("#project-name").fill("Smoke project");
+  const mediaText = (await page.getByTestId("project-media").innerText()).replace(/\s+/g, " ");
+  const [projectDownload] = await Promise.all([page.waitForEvent("download", { timeout: 20000 }), page.getByRole("button", { name: /Export project/ }).click()]);
+  const projectPath = path.join(outDir, projectDownload.suggestedFilename());
+  await projectDownload.saveAs(projectPath);
+  const projectText = fs.readFileSync(projectPath, "utf8");
+  let project = null;
+  try {
+    project = JSON.parse(projectText);
+  } catch {
+    /* reported below */
+  }
+  const bed = project?.assets?.musicBed;
+  check(
+    "Export project downloads <name>.viralballs.json with the settings and the uploaded media",
+    bedUploaded &&
+      /Background music\s*smoke-bed\.wav/.test(mediaText) &&
+      projectDownload.suggestedFilename() === "Smoke project.viralballs.json" &&
+      project?.format === "viralballs-project" &&
+      project?.version === 1 &&
+      project?.name === "Smoke project" &&
+      project?.settings?.mode === "shatter" &&
+      project?.settings?.gravity === 700 &&
+      project?.settings?.obstacles?.length === 3 &&
+      project?.settings?.keyframes?.length === 2 &&
+      bed?.name === "smoke-bed.wav" &&
+      bed?.size === makeWav(2).length &&
+      Buffer.from(bed?.data ?? "", "base64").equals(makeWav(2)),
+    `(${projectDownload.suggestedFilename()}, ${projectText.length} chars, media "${mediaText}", bed ${bed ? `${bed.name} ${bed.size} B` : "missing"})`,
+  );
+
+  // Import through the file input on a fresh page.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await openProjectBlock();
+  await page.locator("#project-file-input").setInputFiles(projectPath);
+  const importText = await projectStatus();
+  await page.waitForTimeout(300);
+  const importedParams = linkParams();
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const importedTrack = await page.getByTestId("music-track").innerText({ timeout: 10000 }).catch(() => "");
+  check(
+    "Import project restores the settings and the media",
+    /Opened .Smoke project./.test(importText) && setupRestored(importedParams) && importedTrack.includes("smoke-bed.wav") && (await page.locator("#project-name").inputValue().catch(() => "")) === "Smoke project",
+    `(status "${importText}", link ${importedParams.toString()}, track "${importedTrack.replace(/\s+/g, " ").trim()}")`,
+  );
+
+  // Drop the file on the panel: the outline shows while it is dragged, the drop imports it.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  const dropZone = page.getByTestId("project-drop-zone");
+  const dataTransfer = await page.evaluateHandle((text) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], "dropped.viralballs.json", { type: "application/json" }));
+    return dt;
+  }, projectText);
+  await dropZone.dispatchEvent("dragenter", { dataTransfer });
+  await dropZone.dispatchEvent("dragover", { dataTransfer });
+  const outlineShown = await page.getByText("Drop the project file to open it").isVisible().catch(() => false);
+  await dropZone.dispatchEvent("drop", { dataTransfer });
+  const dropText = await projectStatus();
+  await page.waitForTimeout(300);
+  check("dropping a project file on the panel imports it", outlineShown && /Opened/.test(dropText) && setupRestored(linkParams()), `(outline ${outlineShown}, status "${dropText}", link ${linkParams().toString()})`);
+
+  // A JSON file that is not a project is refused, and the page keeps its settings.
+  await page.goto(`${BASE}/en/simulator/?mode=lines&g=450`, { waitUntil: "networkidle" });
+  await openProjectBlock();
+  await page.locator("#project-file-input").setInputFiles({ name: "other.json", mimeType: "application/json", buffer: Buffer.from('{"hello":"world"}') });
+  const refusedText = await projectStatus();
+  check("a JSON file that is not a project is refused", /not a ViralBalls project/.test(refusedText) && linkParams().get("mode") === "lines" && linkParams().get("g") === "450", `(status "${refusedText}", link ${linkParams().toString()})`);
+
+  // Short share codes.
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin });
+  await page.goto(`${BASE}/en/simulator/?${projectLink}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600); // the short link is re-encoded 150 ms after the last change
+  const longLink = page.url();
+  await page.getByRole("button", { name: /Copy share link/ }).click();
+  await page.getByText("Link copied!").waitFor({ timeout: 5000 }).catch(() => {});
+  const shortLink = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+  const codeMatch = /\/en\/simulator\/\?c=([A-Za-z0-9_-]+)$/.exec(shortLink);
+  check("the share button copies a short ?c= link", !!codeMatch, `(${shortLink.length} chars, long link ${longLink.length}: ${shortLink.slice(0, 90)}…)`);
+  if (codeMatch) {
+    await page.goto(shortLink, { waitUntil: "networkidle" });
+    const opened = await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const openedParams = linkParams();
+    check("a ?c= link opens the shared setup (the address bar shows the long link)", opened && setupRestored(openedParams) && !openedParams.has("c"), `(${openedParams.toString()})`);
+    await page.goto(`${shortLink}&g=900&wc=4`, { waitUntil: "networkidle" });
+    const overridden = await page.waitForFunction(() => new URL(location.href).searchParams.get("top") === "Project smoke", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const overParams = linkParams();
+    check("parameters after the code win over the code", overridden && overParams.get("mode") === "shatter" && overParams.get("g") === "900" && overParams.get("wc") === "4" && overParams.get("kf") === "g_0_300_4_1200", `(${overParams.toString()})`);
+  }
+  await page.goto(`${BASE}/en/simulator/?c=not-a-real-code&g=450`, { waitUntil: "networkidle" });
+  const noticeShown = await page.getByTestId("share-code-notice").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("a damaged share code is reported under the canvas and the other parameters still apply", noticeShown && linkParams().get("g") === "450", `(notice ${noticeShown}, link ${linkParams().toString()})`);
+  await page.getByPlaceholder("Search settings...").fill("export");
+  const foundBySearch = await page.getByTestId("project-section").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("the search box finds the Project file block", foundBySearch);
+}
+// --- end project-files ---
 // --- jdm-race ---
 // 28. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
 // length, laps, obstacle mix, camera, standings, mini-map, cup and its title, the staged winner with its warnings), controls →

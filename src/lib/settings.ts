@@ -29,6 +29,7 @@ import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, re
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
 import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
+import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
@@ -484,6 +485,9 @@ export interface SimulatorSettings {
   /** The two rainbow rule pills at the top of the field (URL `plp`). */
   plPills: boolean;
   // --- end odd-power-layers ---
+  // --- fast-render --- Fast export (lib/recording/fastRender.ts): frames per second of the offline export, 30 or 60 (URL `xfps`)
+  fastExportFps: number;
+  // --- end fast-render ---
   // --- jdm-race --- Square Racing Grand Prix (lib/physics/modes/race.ts, lib/physics/raceTrack.ts, lib/raceCup.ts); names, colours and emoji come from the Teams roster
   /** Racers on the grid, 2–16 (URL `rcn`). */
   rcRacers: number;
@@ -633,6 +637,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- odd-power-layers --- the feature's fields, and the mode's own ball size (radius 10) in Power Layers only
     ...defaultPowerLayersFields(),
     ...powerLayersModeDefaults(mode),
+    ...DEFAULT_FAST_EXPORT_SETTINGS, // --- fast-render ---
     ...defaultRaceFields(), // --- jdm-race ---
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
   };
@@ -694,6 +699,7 @@ export const RANGES = {
   ...WOBBLE_RANGES,
   ...STRING_BATTLE_RANGES, // --- odd-string-battle ---
   ...POWER_LAYERS_RANGES, // --- odd-power-layers ---
+  ...FAST_EXPORT_RANGES, // --- fast-render ---
   ...RACE_RANGES, // --- jdm-race ---
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
 } as const;
@@ -805,6 +811,7 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   mpmb: "mpMaxBalls",
   mptg: "mpTarget",
   fw: "forcedWinner", // --- rigged ---
+  xfps: "fastExportFps", // --- fast-render ---
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -1037,6 +1044,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readIllusionParams(params, settings); // --- jdm-illusions ---
   readStringBattleParams(params, settings); // --- odd-string-battle ---
   readPowerLayersParams(params, settings); // --- odd-power-layers --- (clamped; unknown options fall back)
+  Object.assign(settings, resolveFastExportSettings(settings)); // --- fast-render --- (snapped to 30 or 60)
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   return settings;
@@ -1202,6 +1210,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveStringBattleFields(merged)); // --- odd-string-battle --- clamped numbers, known rule / style, real booleans
   Object.assign(merged, resolvePowerLayersFields(merged)); // --- odd-power-layers --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveFastExportSettings(merged)); // --- fast-render --- (snapped to 30 or 60)
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   return merged;

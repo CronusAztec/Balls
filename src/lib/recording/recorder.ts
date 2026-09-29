@@ -69,6 +69,54 @@ export function recordingTextLayout(width: number, height: number, textSize = 1,
   return out;
 }
 
+// --- fast-render ---
+/**
+ * One export frame, as the real-time recorder and the fast export (fastRender.ts) both draw it: the background (`bg`, then
+ * the theme's `drawBackground` so the letterbox bars continue a gradient or picture), the centred square of `source`
+ * scaled to fill the frame's shorter side, and the Top / Bottom Text at export resolution (`textLayout`).
+ */
+export function drawRecordingFrame(
+  ctx: CanvasRenderingContext2D,
+  source: HTMLCanvasElement,
+  width: number,
+  height: number,
+  bg: string,
+  options: Pick<RecordingOptions, "drawBackground" | "textOverlay">,
+  textLayout: RecordingTextLayout,
+) {
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+  const sw = source.width;
+  const sh = source.height;
+  const side = Math.min(sw, sh);
+  const sx = (sw - side) / 2;
+  const sy = (sh - side) / 2;
+  const scale = Math.min(width / side, height / side);
+  const dw = side * scale;
+  const dh = side * scale;
+  const dx = (width - dw) / 2;
+  const dy = (height - dh) / 2;
+  options.drawBackground?.(ctx, width, height, { sx, sy, side, dx, dy, dw, dh, sourceWidth: sw, sourceHeight: sh }); // --- themes
+  ctx.drawImage(source, sx, sy, side, side, dx, dy, dw, dh);
+
+  const overlay = options.textOverlay;
+  if (overlay && (overlay.topText || overlay.bottomText)) {
+    ctx.save();
+    ctx.font = `bold ${textLayout.fontSize}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.95;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+    ctx.shadowBlur = 8;
+    const centerX = width / 2;
+    if (overlay.topText) ctx.fillText(overlay.topText, centerX, textLayout.topY);
+    if (overlay.bottomText) ctx.fillText(overlay.bottomText, centerX, textLayout.bottomY);
+    ctx.restore();
+  }
+}
+// --- end fast-render ---
+
 const MIME_CANDIDATES = [
   "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
   "video/mp4;codecs=avc1.42E01E",
@@ -110,36 +158,7 @@ export class VideoRecorder {
 
     const drawFrame = () => {
       if (!this.sourceCanvas || !this.recordingCanvas || !ctx) return;
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, width, height);
-      const sw = this.sourceCanvas.width;
-      const sh = this.sourceCanvas.height;
-      const side = Math.min(sw, sh);
-      const sx = (sw - side) / 2;
-      const sy = (sh - side) / 2;
-      const scale = Math.min(width / side, height / side);
-      const dw = side * scale;
-      const dh = side * scale;
-      const dx = (width - dw) / 2;
-      const dy = (height - dh) / 2;
-      options.drawBackground?.(ctx, width, height, { sx, sy, side, dx, dy, dw, dh, sourceWidth: sw, sourceHeight: sh }); // --- themes
-      ctx.drawImage(this.sourceCanvas, sx, sy, side, side, dx, dy, dw, dh);
-
-      const overlay = options.textOverlay;
-      if (overlay && (overlay.topText || overlay.bottomText)) {
-        ctx.save();
-        ctx.font = `bold ${textLayout.fontSize}px sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = "#ffffff";
-        ctx.globalAlpha = 0.95;
-        ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
-        ctx.shadowBlur = 8;
-        const centerX = width / 2;
-        if (overlay.topText) ctx.fillText(overlay.topText, centerX, textLayout.topY);
-        if (overlay.bottomText) ctx.fillText(overlay.bottomText, centerX, textLayout.bottomY);
-        ctx.restore();
-      }
+      drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout); // --- fast-render --- (shared with the fast export)
       this.animationFrameId = requestAnimationFrame(drawFrame);
     };
     this.animationFrameId = requestAnimationFrame(drawFrame);

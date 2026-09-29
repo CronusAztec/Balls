@@ -44,6 +44,10 @@ import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
 import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
+import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
+// --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
+import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
+import type { ProjectPanelProps } from "./useProjectFiles";
 import RaceSection, { RACE_KEYS } from "./sections/RaceSection"; // --- jdm-race ---
 // --- jdm-arena-games --- the "Arena games" block of the Mode row (Battle Royale, Capture the Flag)
 import ArenaGamesSection, { ARENA_GAME_KEYS } from "./sections/ArenaGamesSection";
@@ -117,6 +121,10 @@ export interface ControlsProps {
   // --- themes: the background picture uploaded in this session (kept in memory) and how to change it
   themeImage: ThemeImageProps;
   // --- end themes
+  // --- fast-render --- the Fast export button under Record Video, its progress and how it went
+  fastExport?: FastExportPanelProps;
+  /** --- project-files --- the page's side of Export / Import project (the block is left out without it). */
+  project?: ProjectPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -157,6 +165,7 @@ SECTION_KEYS.visual.push(...WALL_WOBBLE_KEYS);
 SECTION_KEYS.ball.push(...STRING_BATTLE_KEYS);
 // --- odd-power-layers --- the Power layers block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...POWER_LAYERS_KEYS);
+SECTION_KEYS.recording.push(...FAST_EXPORT_KEYS); // --- fast-render --- the fast export's frame rate
 // --- jdm-race --- the "Race" block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...RACE_KEYS);
 // --- jdm-arena-games --- the Arena games block is searched with the Ball section.
@@ -1023,6 +1032,8 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
+      {/* --- fast-render --- the fast export's frame rate */}
+      <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
     </div>
   );
 
@@ -1164,7 +1175,7 @@ export default function Controls(props: ControlsProps) {
     }
   };
 
-  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id]));
+  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id])) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   return (
     <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-zinc-800">
@@ -1196,6 +1207,7 @@ export default function Controls(props: ControlsProps) {
           </>
         )}
       </button>
+      {props.fastExport && <FastExportButton {...props.fastExport} /> /* --- fast-render --- */}
 
       <div className="relative mb-1">
         <input
@@ -1225,6 +1237,7 @@ export default function Controls(props: ControlsProps) {
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
             {!anyResults && <p className="text-xs text-zinc-500 text-center py-4">{t("noSearchResults")}</p>}
             {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(SECTION_KEYS[id]) && <div key={id}>{renderSection(id)}</div>)}
+            {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
           </div>
         </div>
       ) : (
@@ -1344,6 +1357,7 @@ export default function Controls(props: ControlsProps) {
               </div>
             )}
           </div>
+          {props.project && <ProjectSection t={t} search="" matches={matches} project={props.project} /> /* --- project-files --- */}
         </>
       )}
 
@@ -1458,7 +1472,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         musicStartOffset: d.musicStartOffset,
       };
     case "recording":
-      return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
+      return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize, fastExportFps: d.fastExportFps }; // --- fast-render --- (fastExportFps)
     // --- teams --- no roster (the balls stay), names and scoreboard back on, top left
     case "teams": {
       const teams = defaultTeamSettings();
