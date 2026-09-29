@@ -34,7 +34,7 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   // --- jdm-collisions ---
   collide: "rhythm",
   // --- boris-glass --- Glass Smash: every pane hit is a note (the ASMR piano bounces of borisbounces), so it joins the
-  // sound-first family; "escape" stays the ten ring modes.
+  // sound-first family; "escape" keeps the ten ring modes (and the multipliers board after them).
   glass: "rhythm",
   // --- boris-multipliers ---
   multipliers: "escape",

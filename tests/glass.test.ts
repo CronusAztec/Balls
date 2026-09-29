@@ -337,11 +337,12 @@ describe("Glass Smash cracks", () => {
 });
 
 describe("GlassMode in the engine", () => {
-  it("is registered as a mode of the sound-first family, at the end of the cards", () => {
+  it("is registered as a mode of the sound-first family, at the end of its cards", () => {
     expect(MODE_IDS).toContain("glass");
-    expect(MODE_CARD_ORDER[MODE_CARD_ORDER.length - 1]).toBe("glass");
+    expect(MODE_CARD_ORDER).toContain("glass");
     expect(MODE_CATEGORIES.glass).toBe("rhythm");
-    expect(modesInCategory("rhythm")).toContain("glass");
+    // The escape family ends with the multipliers board (boris-multipliers); the sound-first family ends with Glass Smash.
+    expect(modesInCategory("rhythm").at(-1)).toBe("glass");
     expect(modesInCategory("escape")).not.toContain("glass");
   });
 
