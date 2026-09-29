@@ -1229,7 +1229,8 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
 // 12. Collision Playground: the preview image, URL → the "Collision playground" block of the Mode
 // row, controls → URL, the search box, the finder hidden for this endless mode, 300 orbs running 5 s without the frame
 // rate dropping below 30 fps in any half-second window while every collision note sits on the pentatonic size ladder
-// (OscillatorNode.start is instrumented again), the anti-collision switch and the lollipop ring (data-collide-*).
+// (OscillatorNode.start is instrumented again) and at most 12 of them start in any frame at 8× playback, the
+// anti-collision switch and the lollipop ring (data-collide-*).
 {
   const res = await page.request.get(`${BASE}/modes/collide.webp`);
   check("asset /modes/collide.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -1310,6 +1311,32 @@ await page.waitForTimeout(500);
   const distinct = new Set(midis);
   check("collision notes are pitched by orb size on the pentatonic ladder", Number(data.collideNotes) > 50 && onLadder && distinct.size >= 5, `(${data.collideNotes} notes, ${pitches.length} tones, ${distinct.size} distinct degrees)`);
   await page.screenshot({ path: path.join(outDir, "sim-collide.png") });
+  // The note budget is per rendered frame, not per 60 Hz step: at 8× every frame runs eight or more steps and still
+  // starts at most 12 oscillators (one per triangle note), instead of up to 12 per step piling up in one frame.
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForTimeout(300);
+  const perFrame = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const counts = [];
+        let seen = window.__oscLog.length;
+        const end = performance.now() + ms;
+        const frame = (t) => {
+          const n = window.__oscLog.length;
+          counts.push(n - seen);
+          seen = n;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(counts.slice(1));
+        };
+        requestAnimationFrame(frame);
+      }),
+    2000,
+  );
+  {
+    const total = perFrame.reduce((a, b) => a + b, 0);
+    const busiest = Math.max(...perFrame);
+    check("collision notes stay within 12 per frame at 8× playback", perFrame.length >= 20 && total >= perFrame.length && busiest <= 12, `(${perFrame.length} frames, ${total} tones, avg ${(total / Math.max(1, perFrame.length)).toFixed(1)}, busiest frame ${busiest})`);
+  }
 }
 await page.goto(`${BASE}/en/simulator/?mode=collide&cpac=2&cpg=0.8`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
