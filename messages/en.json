@@ -874,7 +874,17 @@
     "captionBackgroundOf": "Caption {n} background",
     "captionBackgroundColorOf": "Caption {n} background colour",
     "captionEdit": "Edit caption {n}",
-    "captionRemove": "Remove caption {n}"
+    "captionRemove": "Remove caption {n}",
+    "riggedGroup": "Rigged Outcomes",
+    "riggedGroupTip": "Guaranteed results for storytelling clips. The drama director enforces them on top of the physics – deterministically, so seeds, found simulations and recordings replay exactly the same.",
+    "riggedWarning": "For storytelling only: these switches decide how the run ends. Clips made with them are staged – don't pass them off as real physics.",
+    "neverEscape": "Never Escape",
+    "neverEscapeTip": "No ball ever leaves the outer wall: the director steers every rebound away from its gap – plenty of near misses – and the last wall holds even when a ball does reach the gap. The escape modes then never end, so set the clip length in the Recording section.",
+    "neverEscapeModes": "No effect in this mode – its balls cannot escape anyway. It works in Classic, Accumulation, Multiply, Portal, Shatter and Color Match.",
+    "forcedWinner": "Forced Winner",
+    "forcedWinnerTip": "The chosen ball – its team – always wins: the other balls cannot get through a wall before it has, and the director steers its rebounds toward the gaps. It breaks the walls first and escapes first, so it tops the scoreboard.",
+    "forcedWinnerOff": "Off – let physics decide",
+    "forcedWinnerModes": "Needs two balls or more (Ball Count or a team roster) in Classic, Multiply, Shatter or Color Match."
   },
   "Modes": {
     "classic": {
@@ -1448,5 +1458,39 @@
     "h2_4": "Where it is going",
     "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. On the <blog>blog</blog> we break down which settings tend to perform and why certain videos hook people, so the tool and the knowledge around it grow together. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
     "cta": "Open the simulator"
+  },
+  "Rigged": {
+    "outcome": "Outcome",
+    "outcomeTip": "What the found run must do: last the chosen time, keep every ball inside for the whole clip, have its first escape at a chosen second, or be won by the chosen team.",
+    "outcomeDuration": "Lasts exactly",
+    "outcomeNeverEscapes": "Never escapes",
+    "outcomeEscapesAt": "Escapes at",
+    "outcomeWinner": "Winner",
+    "hintDuration": "The run ends within ±0.5 s of the duration.",
+    "hintNeverEscapes": "No ball leaves the outer wall for the whole duration – the clip ends with every ball still inside.",
+    "hintEscapesAt": "The first ball leaves the outer wall within ±0.5 s of the chosen second; the duration is the clip length.",
+    "hintWinner": "The chosen team tops the scoreboard when the run ends – or when the duration is up: it escapes first or scores most.",
+    "escapeAt": "First escape at",
+    "winnerTeam": "Team to win",
+    "findNeverEscapes": "Find a {duration}s Run Without an Escape",
+    "findEscapesAt": "Find a Run That Escapes at {time}s",
+    "findWinner": "Find a Run {name} Wins",
+    "foundNeverEscapes": "Found! No escape in {duration}s",
+    "foundEscapesAt": "Found! First escape at {time}s",
+    "foundWinner": "Found! {name} wins ({duration}s)",
+    "missNeverEscapes": "Longest without an escape: {duration}s ({seeds} seeds)",
+    "missEscapesAt": "Closest first escape: {time}s ({seeds} seeds)",
+    "missNoEscape": "No ball escaped in time ({seeds} seeds)",
+    "missWinner": "{name} won none of {seeds} runs",
+    "progressNeverEscapes": "Longest without an escape: {duration}s",
+    "progressEscapesAt": "Closest first escape: {time}s",
+    "overlayNeverEscapes": "Tested {tested} seeds. The longest run without an escape lasted {closest}s (target: {target}s). Try a shorter duration, more walls or a smaller gap – or turn on Never Escape.",
+    "overlayEscapesAt": "Tested {tested} seeds. The closest first escape came at {closest}s (target: {target}s ±{tolerance}s).",
+    "overlayNoEscape": "Tested {tested} seeds and no ball escaped by {target}s. Try a later second or a bigger gap.",
+    "overlayWinner": "Tested {tested} seeds and {name} won none of them. Try a longer duration – or pick {name} as the Forced Winner.",
+    "teamN": "Team {n}",
+    "ballN": "Ball {n}",
+    "noteNeverEscape": "Rigged: no ball can escape",
+    "noteWinner": "Rigged: {name} wins"
   }
 }

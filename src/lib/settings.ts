@@ -27,6 +27,7 @@ import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFie
 // --- obstacle-editor ---
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
+import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -362,6 +363,12 @@ export interface SimulatorSettings {
   /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
   captions: Caption[];
   // --- end captions ---
+  // --- rigged --- guaranteed outcomes (lib/physics/rigged.ts): the director's hard constraints, off by default
+  /** No ball ever leaves the outermost intact wall – the escape modes then never finish (URL `ne`). */
+  neverEscape: boolean;
+  /** Team slot (0–5) the director makes win in the multi-ball escape modes; −1 = off (URL `fw`). */
+  forcedWinner: number;
+  // --- end rigged ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -459,6 +466,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
+    ...DEFAULT_RIGGED, // --- rigged ---
   };
 }
 
@@ -510,6 +518,7 @@ export const RANGES = {
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
+  ...RIGGED_RANGES, // --- rigged ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -618,6 +627,7 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   mpsb: "mpStartBalls",
   mpmb: "mpMaxBalls",
   mptg: "mpTarget",
+  fw: "forcedWinner", // --- rigged ---
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -671,6 +681,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   // --- boris-multipliers ---
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
+  ne: "neverEscape", // --- rigged ---
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -836,6 +847,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   clampMultiplierSettings(settings);
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
+  Object.assign(settings, resolveRiggedConfig(settings)); // --- rigged --- a bad team slot is off
   return settings;
 }
 
@@ -993,6 +1005,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampMultiplierSettings(merged); // --- boris-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
+  Object.assign(merged, resolveRiggedConfig(merged)); // --- rigged --- a non-boolean flag is off, a bad team slot too
   return merged;
 }
 

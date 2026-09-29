@@ -1,5 +1,6 @@
 import type { Gap, PersonalityState, PersonalityVisuals, Ball } from "./types";
 import { TWO_PI, normalizeAngle } from "./types";
+import { RigDirector } from "./rigged"; // --- rigged ---
 
 /**
  * The "cinematic director" subtly nudges rebounds so a run stays dramatic: it biases the
@@ -79,6 +80,13 @@ export class CinematicDirector {
   /** Near-miss events since the director was created (never reset; the cinematic camera slows the clock when it grows). */
   private nearMissSerial = 0;
   // --- end camera ---
+  // --- rigged ---
+  /**
+   * The rigged outcomes' hard constraints (rigged.ts): "never escape" and the forced winner. The engine refreshes the
+   * rig every step and asks it at gap passes, wall hits and rebounds. It acts whether the drama layer is on or off.
+   */
+  readonly rig = new RigDirector();
+  // --- end rigged ---
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
@@ -110,6 +118,7 @@ export class CinematicDirector {
     this.nearMissCountTotal = 0;
     this.nearMissSyncedAt = -1;
     this.currentVisuals = freshVisuals();
+    this.rig.reset(); // --- rigged --- a new run: nothing passed, nobody out
   }
 
   getPersonalityState(): PersonalityVisuals {
@@ -216,6 +225,21 @@ export class CinematicDirector {
   getNearMissSerial() {
     return this.nearMissSerial;
   }
+
+  // --- rigged ---
+  /**
+   * The rigged rebound: after the drama nudge, the rig turns the angle so the ball's next bounce misses the gaps closed
+   * to it (and the forced winner's through a gap it can pass). Runs with the drama layer on or off; no random numbers.
+   */
+  steerRigged(ball: Ball, wallIndex: number, inside: boolean, angle: number, speed: number): number {
+    return this.rig.steer(ball, wallIndex, inside, angle, speed);
+  }
+
+  /** A rigged near miss – a bounce off a closed wall right beside its gap: the camera's near-miss event (no drama state, no RNG). */
+  noteRigNearMiss() {
+    this.nearMissSerial++;
+  }
+  // --- end rigged ---
 
   /** The near-miss test of `adjustGapPass()` on its own, without touching the drama state. */
   private isNearMissPass(ball: Ball, wallRadius: number, wallRotation: number, gap: Gap, centerX: number, centerY: number): boolean {

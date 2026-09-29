@@ -33,6 +33,7 @@ import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
 import { BallStatsBook, ESCAPE_MARGIN, MULTI_BALL_MODES, startBallAngle, startBallColor, startBallCount, type BallStats } from "./ballStats"; // --- teams ---
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
+import type { RigView } from "./rigged"; // --- rigged ---
 import type {
   Ball,
   BallInteractionConfig,
@@ -150,6 +151,8 @@ export class PhysicsEngine {
   private pendingSoundEvents: SoundEvent[] = [];
   /** Wall breaks so far – every "gap" event, the engine's or a mode's (never reset). The cinematic camera shakes on it. */
   private wallBreakSerial = 0; // --- camera ---
+  /** --- rigged --- A rigged-outcome rule (never escape, forced winner) is in effect this step (see rigged.ts); false = the plain code path. */
+  private rigOn = false;
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
   private bounceSpeedMultiplier = 1;
@@ -263,6 +266,7 @@ export class PhysicsEngine {
       getObstacles: () => this.obstacles,
       setObstacles: (obstacles) => this.setObstacles(obstacles),
       getMultipliers: () => this.multipliers, // --- boris-multipliers ---
+      isWallSealed: (ball, wallIndex) => this.rigOn && this.rigSeals(ball, wallIndex), // --- rigged ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -966,7 +970,7 @@ export class PhysicsEngine {
       const limit = outer + ball.radius + ESCAPE_MARGIN;
       const dx = ball.x - cx;
       const dy = ball.y - cy;
-      if (dx * dx + dy * dy > limit * limit) this.ballStats.escape(ball, this._elapsedMs);
+      if (dx * dx + dy * dy > limit * limit && this.ballStats.escape(ball, this._elapsedMs)) this.cinematicDirector.rig.noteEscape(ball, this._elapsedMs); // --- rigged --- the run's first escape
     }
   }
   // --- end teams ---
@@ -1087,6 +1091,25 @@ export class PhysicsEngine {
     return this.cinematicDirector.getNearMissSerial();
   }
   // --- end camera ---
+  // --- rigged ---
+  /** The rigged outcomes in effect (never escape, the forced winner) and their counters, plus the run's first escape; the same object every call. */
+  getRigView(): RigView {
+    this.cinematicDirector.rig.refreshRules(this.currentMode?.name, this._config, this.circularWalls.length);
+    return this.cinematicDirector.rig.getView();
+  }
+  /** Simulation time (ms) of the run's first escape – a ball beyond the outermost wall – or −1 while there was none (tracked whether the rig is on or off). */
+  getFirstEscapeMs(): number {
+    return this.cinematicDirector.rig.getFirstEscapeMs();
+  }
+  /** `ball` is inside wall `w` and the rig keeps that wall closed to it. */
+  private rigSeals(ball: Ball, w: number): boolean {
+    const wall = this.circularWalls[w];
+    if (!wall) return false;
+    const dx = ball.x - this._config.width / 2;
+    const dy = ball.y - this._config.height / 2;
+    return dx * dx + dy * dy < wall.radius * wall.radius && this.cinematicDirector.rig.closes(ball, w);
+  }
+  // --- end rigged ---
   /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
   getPhysicsExtras(): PhysicsExtras {
     return this.extras;
@@ -1306,6 +1329,12 @@ export class PhysicsEngine {
       // The ring modes keep every ball at least at its base speed; a mode whose balls may rest (Ball Drop) opts out.
       const keepMoving = !this.currentMode?.ballsMayRest;
       const hasObstacles = this.obstacles.length > 0;
+      // --- rigged --- the director's hard constraints for this step (never escape, forced winner); both off = the plain path
+      this.rigOn = this.cinematicDirector.rig.beginStep(modeName, this._config, extras, this.circularWalls, this.wallRotations, this.brokenWalls, this.gravityAccel(audioIntensity), gDirX, gDirY, keepMoving, this._elapsedMs);
+      if (this.rigOn) {
+        for (let i = 0; i < this.balls.length; i++) this.cinematicDirector.rig.guide(this.balls[i]); // mid-flight guidance
+        this.cinematicDirector.rig.markInside(this.balls); // the backstop below keeps these balls in
+      }
 
       let subSteps =
         this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
@@ -1378,6 +1407,7 @@ export class PhysicsEngine {
         this.handleBallCollisions(multActive);
         this.currentMode?.onPostSubStep(this.ctx);
       }
+      if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
       if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- boris-multipliers --- orbs taken, grown balls refitted, HUD
       if (this.circularWalls.length > 0) this.scanEscapes(); // --- teams ---
@@ -1411,6 +1441,7 @@ export class PhysicsEngine {
   /** A ring breaks for good under a ball (a smash from damage, or a grown ball bursting it): effect, sound, split, director. */
   private smashWall(ball: Ball, wallIndex: number) {
     if (this.brokenWalls.has(wallIndex)) return;
+    if (this.rigOn && this.rigSeals(ball, wallIndex)) return; // --- rigged --- a wall closed to this ball never breaks under it
     this.spawnWallBreakByStyle(wallIndex, ball.x, ball.y);
     this.pendingSoundEvents.push({ type: "gap", wallIndex });
     this.reportWallBreak(ball, wallIndex);
@@ -1503,7 +1534,8 @@ export class PhysicsEngine {
     const isShatter = this.currentMode?.name === "shatter";
     let collided = false;
     for (let w = 0; w < this.circularWalls.length; w++) {
-      if (this.brokenWalls.has(w)) continue;
+      // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
+      if (this.brokenWalls.has(w) && !(this.rigOn && dist < this.circularWalls[w].radius && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const wall = this.circularWalls[w];
       const rotation = this.wallRotations[w];
       const inner = dist - ball.radius - 2;
@@ -1550,9 +1582,18 @@ export class PhysicsEngine {
 
       const nx = dx / dist;
       const ny = dy / dist;
+      // --- rigged --- a wall closed to this ball (never escape's barrier, a forced winner's locked walls): its gaps do not
+      // let the ball out – it rebounds as off the wall (the safety net under the director's steering)
+      let sealedGap = false;
+      if (inGap && this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) {
+        inGap = false;
+        sealedGap = true;
+        if (ball.vx * nx + ball.vy * ny > 0 || crossed) this.cinematicDirector.rig.noteSeal();
+      }
       if (inGap) {
         const movingOut = ball.vx * nx + ball.vy * ny > 0;
         if (!inside || movingOut || crossed) {
+          if (this.rigOn) this.cinematicDirector.rig.notePass(ball, w); // --- rigged --- the forced winner's passes open the wall
           const gap = wall.gaps.length > 0 ? wall.gaps[0] : null;
           if (gap) {
             const adj = this.cinematicDirector.adjustGapPass(ball, wall.radius, rotation, gap, cx, cy);
@@ -1576,12 +1617,12 @@ export class PhysicsEngine {
         }
       } else {
         // --- boris-multipliers --- enough damage smashes the ring on contact: no gap needed
-        if (ball.mult && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) {
+        if (ball.mult && !(this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
           this.smashWall(ball, w);
           this.multipliers.noteSmash();
           continue;
         }
-        const push = isShatter ? ball.radius + 0.5 : ball.radius + 3;
+        const push = isShatter && !sealedGap ? ball.radius + 0.5 : ball.radius + 3; // --- rigged --- a refused pass clears the gap
         if (inside) {
           ball.x = cx + nx * (wall.radius - push);
           ball.y = cy + ny * (wall.radius - push);
@@ -1596,6 +1637,8 @@ export class PhysicsEngine {
         }
         const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
+        // --- rigged --- a bounce off a closed wall right beside its gap: a near miss (the camera's slow motion follows it)
+        if (this.rigOn && inside && this.cinematicDirector.rig.nearMissAt(ball, w, angle, wall.radius, rotation)) this.cinematicDirector.noteRigNearMiss();
         this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
         this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
@@ -1609,6 +1652,12 @@ export class PhysicsEngine {
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
+          // --- rigged --- the director turns the rebound so the next bounce misses the gaps closed to this ball (and the
+          // forced winner's through a gap it can pass)
+          if (this.rigOn) {
+            this.cinematicDirector.rig.syncWalls(this.circularWalls, this.wallRotations);
+            outAngle = this.cinematicDirector.steerRigged(ball, w, inside, outAngle, speed);
+          }
           // A mode may steer the rebound further (Paint's guided coverage); it draws no random numbers.
           if (this.currentMode?.adjustRebound) outAngle = this.currentMode.adjustRebound(this.ctx, ball, w, outAngle);
           ball.vx = Math.cos(outAngle) * speed;

@@ -158,6 +158,12 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** Speed factor a bumper gives a ball on a hard hit, 1–2. */
   bumperBoost?: number;
   // --- end obstacle-editor ---
+  // --- rigged --- guaranteed outcomes (rigged.ts): the director's hard constraints, off by default
+  /** No ball ever leaves the outermost intact wall (the modes that end with an escape then never finish). */
+  neverEscape?: boolean;
+  /** Team slot (0–5) the director makes win in the multi-ball escape modes; −1 or absent = off. */
+  forcedWinner?: number;
+  // --- end rigged ---
 }
 
 export interface SoundEvent {
@@ -306,6 +312,12 @@ export interface ModeContext {
   // --- boris-multipliers ---
   /** The run's stat multipliers (cap, pickups, outgrow): modes stack multipliers through it (see multipliers.ts). */
   getMultipliers?(): MultiplierRuntime;
+  // --- rigged ---
+  /**
+   * True while the rigged outcomes keep wall `wallIndex` closed to `ball` (a ball inside it): a mode that breaks walls
+   * itself must not break it open for that ball (Shatter takes no damage, Color Match keeps its last segment).
+   */
+  isWallSealed?(ball: Ball, wallIndex: number): boolean;
 }
 
 export interface GameMode {
