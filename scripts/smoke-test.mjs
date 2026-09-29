@@ -2016,6 +2016,41 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
 }
 // --- end obstacle-editor ---
 
+// --- obstacle-editor + captions ---
+// 21. Obstacles and captions together: one link fills both sections and, before the start, the ready bar keeps the
+// obstacles editable; a run draws the captions over the obstacles in play (hits counted, editing off); a mode change
+// keeps both in the link.
+{
+  const layout = "p:0.5,0,6;b:0.22,0,12;s:0,-0.5,50,0,30";
+  const cap = ["cd*t*0*0*p*1.2*ffffff*000000", "wc*t*0*0*s*1*93d119*000000"].join(",");
+  const link = `${BASE}/en/simulator/?mode=classic&dur=30&obs=${encodeURIComponent(layout)}&cap=${encodeURIComponent(cap)}`;
+  await page.goto(link, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Obstacles/ }).first().click();
+  const obstacleRows = await page.getByTestId("obstacle-row").count();
+  await page.getByRole("button", { name: /Captions/ }).first().click();
+  const captionRows = await page.getByTestId("caption-row").count();
+  const readyBar = await page.getByTestId("obstacle-ready-bar").isVisible();
+  const editing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.obstacleEditing === "1", null, { timeout: 5000 }).then(() => true).catch(() => false);
+  check("one link fills the Obstacles and the Captions sections; the obstacles stay editable before the start", obstacleRows === 3 && captionRows === 2 && readyBar && editing, `(obstacle rows=${obstacleRows}, caption rows=${captionRows}, bar=${readyBar}, editing=${editing})`);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const hit = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.obstacleHits ?? 0) > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const texts = data.captionTexts ?? "";
+  check(
+    "a run draws the captions over the obstacles in play",
+    hit && Number(data.captions) === 2 && /Wall \d\/7/.test(texts) && /\b\d:\d\d\b/.test(texts) && data.obstacles === "3" && data.obstacleEditing === "0",
+    `(hits=${data.obstacleHits}, ${data.captions} captions: "${texts}", obstacles=${data.obstacles}, editing=${data.obstacleEditing})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-obstacles-captions.png") });
+  await page.goto(link, { waitUntil: "networkidle" });
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.waitForTimeout(500);
+  const after = new URL(page.url()).searchParams;
+  check("obstacles and captions both carry over a mode change", after.get("mode") === "portal" && after.get("obs") === layout && after.get("cap") === cap, `(mode=${after.get("mode")}, obs=${after.get("obs")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
+}
+// --- end obstacle-editor + captions ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 
