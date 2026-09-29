@@ -645,7 +645,8 @@ export default function Simulator() {
       const engine = engineRef.current;
       if (!engine || !engine.isRaceMode()) return;
       const view = engine.getRaceView();
-      if (view.phase === "podium" || view.phase === "cup" || view.phase === "done") raceCupStore.addRace(raceResultOf(view), runKey(RACE_RUN_PREFIX, view));
+      // A race nobody finished scores nothing and is not counted (a safeguard: the time limit's backstop places the racers).
+      if ((view.phase === "podium" || view.phase === "cup" || view.phase === "done") && view.finishOrder.length > 0) raceCupStore.addRace(raceResultOf(view), runKey(RACE_RUN_PREFIX, view));
     }, 200);
     return () => clearInterval(id);
   }, [isStarted, s.mode, s.rcCup]);

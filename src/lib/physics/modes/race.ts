@@ -238,11 +238,14 @@ export const STUCK_MS = 2000;
 export const STUCK_PROGRESS = 0.02;
 /**
  * After the winner, the others have DNF_AFTER_MS – or DNF_AFTER_SHARE of the winner's time on a long track – to finish
- * (then they are DNF); no race lasts longer than MAX_RACE_MS.
+ * (then they are DNF); no race lasts longer than its time limit, `raceTimeLimitMs()`: RACE_MS_PER_SCREEN per screen of
+ * track at the default Ball Speed and Gravity (a racer needs about 2–2.5 s a screen), proportionally more at a slower
+ * tempo or a weaker gravity, and never less than MAX_RACE_MS.
  */
 export const DNF_AFTER_MS = 12000;
 export const DNF_AFTER_SHARE = 0.5;
 export const MAX_RACE_MS = 240000;
+export const RACE_MS_PER_SCREEN = 8000;
 /** The podium screen, then (with the cup) the cup table, before the run is finished. */
 export const PODIUM_MS = 3500;
 export const CUP_MS = 4000;
@@ -284,6 +287,16 @@ export function raceGravityFactor(gravity: number): number {
   return Number.isFinite(gravity) ? Math.max(0.3, Math.min(3, gravity / 300)) : 1;
 }
 
+/**
+ * The time limit (ms after the gun) of a race over `screens` screens of track (the track length × the laps) at this Ball
+ * Speed and Gravity: the racers' speeds scale with `raceTempo() × raceGravityFactor()`, so the limit scales with its
+ * inverse – a long or slow race is never cut off before anybody finishes.
+ */
+export function raceTimeLimitMs(screens: number, ballSpeed: number, gravity: number): number {
+  const n = Number.isFinite(screens) && screens > 0 ? screens : 1;
+  return Math.max(MAX_RACE_MS, (RACE_MS_PER_SCREEN * n) / (raceTempo(ballSpeed) * raceGravityFactor(gravity)));
+}
+
 /** Gravity (px/s²) and terminal speed (px/s) for a field `size` px wide. */
 export function raceMotion(gravity: number, ballSpeed: number, size: number): { g: number; vmax: number; drag: number } {
   const k = raceTempo(ballSpeed);
@@ -319,6 +332,11 @@ export interface RaceView {
   phase: RacePhase;
   /** Simulation ms the gate opens. */
   goAtMs: number;
+  /**
+   * The race's time limit (ms after the gun): `raceTimeLimitMs()` for the track at the slowest Ball Speed and Gravity seen
+   * this run. The stragglers are DNF by then; with nobody home the racers are placed where they are (a backstop).
+   */
+  timeLimitMs: number;
   /** World offset the renderer scrolls by: screen y = world y − cameraY. */
   cameraY: number;
   racers: number;
@@ -370,6 +388,7 @@ function createView(): RaceView {
     timeMs: 0,
     phase: "countdown",
     goAtMs: COUNTDOWN_MS,
+    timeLimitMs: MAX_RACE_MS,
     cameraY: 0,
     racers: 0,
     favoured: -1,
@@ -508,6 +527,8 @@ export class RaceMode implements GameMode {
     v.timeMs = 0;
     v.phase = "countdown";
     v.goAtMs = COUNTDOWN_MS;
+    // updateMotion() sets the limit for this track and tempo (it only ever grows during the run).
+    v.timeLimitMs = 0;
     v.racers = n;
     v.favoured = favouredRacer(this.settings);
     v.ballIds.fill(-1);
@@ -571,6 +592,10 @@ export class RaceMode implements GameMode {
     this.unit = this.motion.vmax / RACE_VMAX;
     this.hitSpeed = HIT_SPEED * this.unit;
     this.hysteresis = Math.max(1, track.racerRadius);
+    // The time limit for this track at this tempo: a live (or keyframed) slow-down lengthens it, a speed-up never shortens it.
+    const v = this.view;
+    const limit = raceTimeLimitMs(v.settings.trackLength * v.settings.laps, ctx.config.ballSpeed || 400, ctx.config.gravity);
+    if (limit > v.timeLimitMs) v.timeLimitMs = limit;
   }
 
   private queueNote(ctx: ModeContext, event: SoundEvent, always: boolean) {
@@ -988,9 +1013,15 @@ export class RaceMode implements GameMode {
       // The end of the race: everybody home, the stragglers DNF after the winner's grace period, or the time limit.
       let racing = 0;
       for (let i = 0; i < n; i++) if (v.place[i] === 0) racing++;
-      const timeUp = (v.winner >= 0 && t - v.winnerAtMs >= dnfGraceMs(v.finishMs[v.winner])) || t - v.goAtMs >= MAX_RACE_MS;
+      const timeUp = (v.winner >= 0 && t - v.winnerAtMs >= dnfGraceMs(v.finishMs[v.winner])) || t - v.goAtMs >= v.timeLimitMs;
       if (racing === 0 || timeUp) {
         if (racing > 0) {
+          // A backstop (the limit grows with the track and the tempo): with nobody home at the time limit the racers are
+          // placed where they are – the favourite first – so there is always a winner, a podium and a fanfare.
+          if (v.winner < 0) {
+            if (v.favoured >= 0 && v.favoured < n && v.place[v.favoured] === 0) this.finish(ctx, v.favoured, t);
+            for (const i of v.order) if (v.place[i] === 0) this.finish(ctx, i, t);
+          }
           for (const i of v.order) if (v.place[i] === 0) v.place[i] = -1;
           rankRacers(v.order, n, v.progress, v.place, this.hysteresis);
         }

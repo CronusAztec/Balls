@@ -104,6 +104,15 @@ export function exportRaceOptions(race: CanvasRaceOptions | null | undefined, pa
   return race && pageRunKey ? { ...race, runKey: pageRunKey } : race;
 }
 
+/**
+ * The standings listed under the podium: everybody the podium steps do not show (the first three finishers), in order –
+ * fewer than three finishers leave the DNFs right after them –, at most `max`; `firstPlace` numbers the first of them.
+ */
+export function podiumRest(view: Pick<RaceView, "order" | "finishOrder">, max = 8): { firstPlace: number; racers: number[] } {
+  const shown = Math.min(3, view.finishOrder.length);
+  return { firstPlace: shown + 1, racers: view.order.slice(shown, shown + max) };
+}
+
 /** The finished race as a cup result (finishers in order; DNFs score nothing). */
 export function raceResultOf(view: Pick<RaceView, "racers" | "finishOrder">): RaceResult {
   return { racers: view.racers, order: view.finishOrder };
@@ -966,7 +975,7 @@ export class RaceLayer {
       ctx.fillText(time, x, baseY + 0.07 * S);
     });
     // The rest of the order, two columns.
-    const rest = view.order.slice(3, 11);
+    const { firstPlace, racers: rest } = podiumRest(view);
     if (rest.length > 0) {
       ctx.font = `${0.022 * S}px sans-serif`;
       ctx.textAlign = "left";
@@ -979,7 +988,7 @@ export class RaceLayer {
         ctx.fillStyle = race?.colors[i] ?? "#fff";
         ctx.fillRect(x, y - 0.008 * S, 0.016 * S, 0.016 * S);
         ctx.fillStyle = "#e4e4e7";
-        const text = `${4 + k}. ${race?.names[i] ?? `#${i + 1}`}  ${place < 0 ? labels.dnf : formatGap(view.finishMs[i] - view.finishMs[order[0]])}`;
+        const text = `${firstPlace + k}. ${race?.names[i] ?? `#${i + 1}`}  ${place < 0 ? labels.dnf : formatGap(view.finishMs[i] - view.finishMs[order[0]])}`;
         ctx.fillText(this.fit(ctx, text, 0.36 * S, 0.022 * S), x + 0.025 * S, y);
       });
     }
@@ -1051,7 +1060,7 @@ export class RaceLayer {
 }
 
 /** The data-race-* attributes the canvas mirrors for tools and the smoke test. */
-export const RACE_DATA_KEYS = ["raceRacers", "racePhase", "raceLeader", "raceWinner", "raceFinished", "racePasses", "raceSwaps", "raceBoosts", "raceHits", "raceLap", "raceCamera", "raceOrder", "raceCallouts"];
+export const RACE_DATA_KEYS = ["raceRacers", "racePhase", "raceLeader", "raceWinner", "raceFinished", "racePasses", "raceSwaps", "raceBoosts", "raceHits", "raceLap", "raceCamera", "raceOrder", "raceCallouts", "raceTimeLimit"];
 
 export function writeRaceDataset(view: RaceView, set: (key: string, value: string) => void) {
   let finished = 0;
@@ -1069,4 +1078,5 @@ export function writeRaceDataset(view: RaceView, set: (key: string, value: strin
   set("raceCamera", String(Math.round(view.cameraY)));
   set("raceOrder", view.order.join(","));
   set("raceCallouts", String(view.calloutCount));
+  set("raceTimeLimit", String(Math.round(view.timeLimitMs / 1000)));
 }
