@@ -1,4 +1,4 @@
-import { isUsableGrid, type BeatClockConfig } from "./beatClock";
+import { isUsableGrid, type BeatClockConfig, type BeatGrid } from "./beatClock";
 
 /**
  * Beat schedule (feature jdm-rhythm-runner): the *times* of the beats of a beat clock (lib/simulation/beatClock.ts – the
@@ -82,6 +82,27 @@ export function firstBeatAtOrAfter(config: BeatClockConfig, t: number): number {
   const period = 60 / grid.bpm;
   const after = Math.ceil((song - beats[n - 1]) / period);
   return n - 1 + Math.max(1, after);
+}
+
+/**
+ * True when two configurations schedule the same beats: the same source in effect (a "song" source without a usable grid
+ * follows the manual BPM) and then, for a song, the same grid (the same analysis or equal beats), offset and loop, for the
+ * manual BPM the same tempo. An input the schedule does not follow – the BPM while it follows a song's grid, a song (its
+ * grid, offset or loop) while it follows the BPM – is left out, so a change there leaves every beat where it was.
+ */
+export function sameBeatSchedule(a: BeatClockConfig, b: BeatClockConfig): boolean {
+  const song = followsSongGrid(a);
+  if (song !== followsSongGrid(b)) return false;
+  if (!song) return schedulePeriod(a) === schedulePeriod(b);
+  return a.offset === b.offset && a.loop === b.loop && sameGrid(a.grid!, b.grid!);
+}
+
+function sameGrid(a: BeatGrid, b: BeatGrid): boolean {
+  if (a === b) return true;
+  if (a.bpm !== b.bpm || a.duration !== b.duration || a.beatTimes.length !== b.beatTimes.length) return false;
+  if (a.beatTimes === b.beatTimes) return true;
+  for (let i = 0; i < a.beatTimes.length; i++) if (a.beatTimes[i] !== b.beatTimes[i]) return false;
+  return true;
 }
 
 /** The first `count` beat times at or after `t` (for tests, previews and tools). */

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CUBE_PAD,
   DEFAULT_RUNNER_SETTINGS,
@@ -27,12 +27,14 @@ import {
   runnerDegree,
   runnerMaxSpikes,
   runnerPhysics,
+  runnerPlanOf,
   runnerSettingsOf,
+  sameRunnerPlan,
   takeOffSec,
   type RunnerCourse,
   type RunnerSettings,
 } from "@/lib/physics/modes/runner";
-import { beatTimeSec, beatTimesFrom, firstBeatAtOrAfter, scheduleBpm, schedulePeriod } from "@/lib/simulation/beatSchedule";
+import { beatTimeSec, beatTimesFrom, firstBeatAtOrAfter, sameBeatSchedule, scheduleBpm, schedulePeriod } from "@/lib/simulation/beatSchedule";
 import { BeatClock, DEFAULT_BEAT_CLOCK, type BeatClockConfig, type BeatGrid } from "@/lib/simulation/beatClock";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
@@ -40,6 +42,10 @@ import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, se
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { frequencyToMidi } from "@/lib/audio/scales";
 import { isJdmRhythmMode, rhythmDegreeMidi } from "@/lib/physics/modes/jdmRhythm";
+import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
+import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
+import { playSoundEvent } from "@/lib/recording/fastRender";
+import { fakeGraph } from "./fakeAudio";
 
 /**
  * Beat Runner (feature jdm-rhythm-runner): the jump-timing solver, the beat schedule it plans on (the beat clock of
@@ -584,6 +590,16 @@ describe("Beat Runner settings", () => {
     expect(resolveRunnerSettings({ grid: { bpm: 0, beatTimes: [], duration: 0 } }).grid).toBeNull();
   });
 
+  it("say when the run is played by hand (the fast export and the batch render leave it to Record Video)", () => {
+    expect(jdmRhythmPlayedByHand(defaultSettings("runner"))).toBe(false);
+    expect(jdmRhythmPlayedByHand({ ...defaultSettings("runner"), runnerAutoJump: false })).toBe(true);
+    expect(jdmRhythmPlayedByHand(defaultSettings("paddle"))).toBe(false);
+    expect(jdmRhythmPlayedByHand({ ...defaultSettings("paddle"), pdAuto: false })).toBe(true);
+    expect(jdmRhythmPlayedByHand({ ...defaultSettings("classic"), runnerAutoJump: false, pdAuto: false })).toBe(false);
+    expect(jdmRhythmPlayedByHand({ ...defaultSettings("paddle"), runnerAutoJump: false })).toBe(false);
+    expect(jdmRhythmPlayedByHand(settingsFromSearchParams(new URLSearchParams("mode=runner&rra=0&rrm=spikes&rrn=6")))).toBe(true);
+  });
+
   it("carry the Sound section's BPM, scale and root and the song's grid into the mode's settings", () => {
     const s = { ...defaultSettings("runner"), bpm: 140, scale: "blues" as const, rootNote: 5 };
     const grid = songGrid();
@@ -619,5 +635,108 @@ describe("Beat Runner and the finder", () => {
     } finally {
       globalThis.requestAnimationFrame = raf;
     }
+  });
+});
+
+/* ------------------------------------------------------------------ a loaded melody (the page's sound path) */
+
+describe("Beat Runner with a melody", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("a crash's low note accompanies the tune (melody: false): after two crashes the first landing still plays the melody's first note, and every landing the next", async () => {
+    const graph = fakeGraph();
+    vi.stubGlobal("window", { AudioContext: function FakeAudioContext() { return graph.ctx; } });
+    const tone = new ToneGenerator();
+    await tone.start();
+    // The melody's own voice (square) tells its notes from the bounce instrument (triangle) and the break arpeggio (sine).
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, melodyInstrument: "square" });
+    const melody = [261.63, 293.66, 329.63, 349.23, 392];
+    tone.setCustomNotes(melody);
+    const engine = engineFor({ autoJump: false, mix: "spikes", obstacles: 8 }, 3);
+    const view = engine.getRunnerView();
+    const starts = view.course.events.filter((e) => e.kind !== "drop").map((e) => e.startSec);
+    const crashes = view.course.events.length;
+    let next = -1;
+    let landings = 0;
+    const landingsAt: number[] = [];
+    let crossedAt = Infinity;
+    for (let i = 0; i < 60 * 180 && !engine.isSimulationFinished(); i++) {
+      // Two crashes with no jump at all; from the restart after the second one Space goes down at the planned take-offs
+      // (on the track's clock, which the restarts shifted by whole beats).
+      if (next < 0 && view.deaths >= 2 && view.alive) next = starts.findIndex((s) => s > view.trackSec);
+      if (next >= 0)
+        while (next < starts.length && starts[next] <= view.trackSec + STEP / 1000) {
+          if (starts[next] > view.trackSec) engine.runnerJump();
+          next++;
+        }
+      engine.update(STEP, 0);
+      graph.ctx.currentTime = engine.getElapsedMs() / 1000;
+      if (view.landings !== landings) {
+        landings = view.landings;
+        landingsAt.push(graph.ctx.currentTime);
+      }
+      if (view.crossed && crossedAt === Infinity) crossedAt = graph.ctx.currentTime;
+      for (const ev of engine.consumeSoundEvents()) playSoundEvent(tone, ev, () => undefined);
+    }
+    expect(view.deaths).toBe(2);
+    expect(view.cleared).toBe(crashes);
+    expect(view.finished).toBe(true);
+    // The two crashes: the low note with the bounce instrument, no melody note used up.
+    expect(graph.oscillators.filter((o) => o.type === "triangle").length).toBe(2);
+    const notes = graph.oscillators.filter((o) => o.type === "square" && o.startAt < crossedAt - 1e-9);
+    expect(notes.length).toBe(view.landings);
+    expect(notes.map((n) => n.frequency)).toEqual(landingsAt.map((_, i) => melody[i % melody.length]));
+    for (const [i, n] of notes.entries()) expect(n.startAt).toBeCloseTo(landingsAt[i], 9);
+  });
+});
+
+/* ------------------------------------------------------------------ when the page re-plans (Simulator.tsx) */
+
+describe("Beat Runner re-plans", () => {
+  const runner = defaultSettings("runner");
+  const plan = (patch: Partial<typeof runner> = {}, beat: { grid: BeatGrid; offset: number; loop: boolean } | null = null, gravity = 300) => runnerPlanOf(runnerSettingsOf({ ...runner, ...patch }, beat), gravity);
+
+  it("compares beat schedules by what they follow: the BPM without a song (or on the BPM source), else the song's grid, offset and loop", () => {
+    const grid = songGrid(128, 0.25, 150);
+    const bpm = (manualBpm: number, source: "song" | "bpm" = "bpm"): BeatClockConfig => ({ ...DEFAULT_BEAT_CLOCK, source, manualBpm, grid: null });
+    const song = (g: BeatGrid, offset = 0, loop = true, manualBpm = 120): BeatClockConfig => ({ ...DEFAULT_BEAT_CLOCK, source: "song", grid: g, offset, loop, manualBpm });
+    expect(sameBeatSchedule(bpm(120), bpm(120, "song"))).toBe(true); // a song source without a grid follows the BPM
+    expect(sameBeatSchedule(bpm(120), bpm(128))).toBe(false);
+    expect(sameBeatSchedule(bpm(120), { ...bpm(120), grid, offset: 3, loop: false })).toBe(true); // the BPM source ignores the song
+    expect(sameBeatSchedule(bpm(120), song(grid))).toBe(false);
+    expect(sameBeatSchedule(song(grid, 0, true, 120), song(grid, 0, true, 90))).toBe(true); // a song's grid ignores the BPM
+    expect(sameBeatSchedule(song(grid), song({ ...grid, beatTimes: grid.beatTimes.slice() }))).toBe(true); // the same beats in a new object
+    expect(sameBeatSchedule(song(grid), song(songGrid(128, 0.3, 150)))).toBe(false);
+    expect(sameBeatSchedule(song(grid), song(grid, 1.5))).toBe(false);
+    expect(sameBeatSchedule(song(grid), song(grid, 0, false))).toBe(false);
+  });
+
+  it("re-plans for a change of the course, the auto jump, the Gravity or the beat the course follows – not for an input it does not follow", () => {
+    const grid = songGrid(128, 0.25, 150);
+    const onSong = { grid, offset: 0, loop: true };
+    const base = plan();
+    expect(sameRunnerPlan(base, plan())).toBe(true);
+    // Every course setting and the auto jump.
+    for (const patch of [{ runnerObstacles: 30 }, { runnerSpeed: 12 }, { runnerJump: 3 }, { runnerDensity: 0.9 }, { runnerMix: "gaps" as const }, { runnerAutoJump: false }]) expect(sameRunnerPlan(base, plan(patch))).toBe(false);
+    // The Gravity, by the factor the course uses (0.5×–2×).
+    expect(sameRunnerPlan(base, plan({}, null, 450))).toBe(false);
+    expect(sameRunnerPlan(plan({}, null, 700), plan({}, null, 900))).toBe(true);
+    // The scale and the root follow live.
+    expect(sameRunnerPlan(base, plan({ scale: "minor", rootNote: 5 }))).toBe(true);
+    // The BPM: only while the course follows it.
+    expect(sameRunnerPlan(base, plan({ bpm: 128 }))).toBe(false);
+    expect(sameRunnerPlan(plan({}, onSong), plan({ bpm: 128 }, onSong))).toBe(true);
+    // A song finishing its analysis: only when the course follows the song.
+    expect(sameRunnerPlan(base, plan({}, onSong))).toBe(false);
+    expect(sameRunnerPlan(plan({ runnerBeatSource: "bpm" }), plan({ runnerBeatSource: "bpm" }, onSong))).toBe(true);
+    // The music bed's start offset and loop move the song's beats.
+    expect(sameRunnerPlan(plan({}, onSong), plan({}, { ...onSong, offset: 2 }))).toBe(false);
+    expect(sameRunnerPlan(plan({}, onSong), plan({}, { ...onSong, loop: false }))).toBe(false);
+    // The beat source without a song: the BPM either way.
+    expect(sameRunnerPlan(base, plan({ runnerBeatSource: "bpm" }))).toBe(true);
+    // What the plan resolves is what the engine plans with.
+    const engine = createEngineForSettings(config, "runner", { ...modeSettings, runner: runnerSettingsOf({ ...runner, bpm: 140 }, onSong) }, 7);
+    expect(sameRunnerPlan(runnerPlanOf(engine.getRunnerSettings(), config.gravity), plan({ bpm: 140 }, onSong))).toBe(true);
+    expect(engine.getRunnerView().course.song).toBe(true);
   });
 });

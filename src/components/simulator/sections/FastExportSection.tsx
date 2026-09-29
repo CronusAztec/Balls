@@ -30,6 +30,11 @@ export interface FastExportPanelProps {
   supported: boolean | null;
   /** Record Video or Find Simulation is busy, or a project file is being opened. */
   disabled: boolean;
+  /**
+   * --- jdm-rhythm-runner --- The run is played by hand (a Beat Runner without Auto Jump, a Paddle Keep-Up without Auto
+   * Platform): the export would render it without the player's input, so the button is off and says to use Record Video.
+   */
+  handPlay?: boolean;
   onStart: () => void;
   onCancel: () => void;
 }
@@ -37,12 +42,16 @@ export interface FastExportPanelProps {
 const one = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
 
 /** The "Fast export" button (or, while it runs, the progress bar with Cancel) and the line saying how it went. */
-export function FastExportButton({ state, supported, disabled, onStart, onCancel }: FastExportPanelProps) {
+export function FastExportButton({ state, supported, disabled, handPlay = false, onStart, onCancel }: FastExportPanelProps) {
   const t = useTranslations("FastExport");
   const running = state.status === "running";
   let message: string | null = null;
   let tone = "text-zinc-400";
-  if (state.status === "done") {
+  if (handPlay && !running) {
+    // Why the button is off – it outranks how the last export went.
+    message = t("handPlayNote");
+    tone = "text-amber-300";
+  } else if (state.status === "done") {
     message = t("done", { seconds: one(state.durationSec), format: state.extension.toUpperCase(), wall: one(state.wallMs / 1000), speed: one(realtimeFactor(state.durationSec, state.wallMs)) });
     tone = "text-[#93d119]";
   } else if (state.status === "fallback") {
@@ -68,7 +77,13 @@ export function FastExportButton({ state, supported, disabled, onStart, onCancel
           : t("preparing");
   const speed = running ? realtimeFactor(state.clipSec, state.elapsedMs) : 0;
   return (
-    <div className="-mt-2 mb-4 space-y-2" data-fast-export={state.status} data-fast-digest={state.status === "done" ? state.digest : undefined} data-fast-bytes={state.status === "done" ? state.bytes : undefined}>
+    <div
+      className="-mt-2 mb-4 space-y-2"
+      data-fast-export={state.status}
+      data-fast-digest={state.status === "done" ? state.digest : undefined}
+      data-fast-bytes={state.status === "done" ? state.bytes : undefined}
+      data-fast-hand-play={handPlay ? "1" : undefined}
+    >
       {running ? (
         <div className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
           <div className="flex items-center justify-between text-xs text-zinc-300">
@@ -90,7 +105,7 @@ export function FastExportButton({ state, supported, disabled, onStart, onCancel
           <button
             type="button"
             onClick={onStart}
-            disabled={disabled}
+            disabled={disabled || handPlay}
             className="flex-1 px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#93d119]/60 text-[#93d119] bg-zinc-900/40 hover:bg-[#93d119]/10 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span aria-hidden="true">⚡</span> {t("button")}

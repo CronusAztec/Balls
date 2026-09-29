@@ -8,8 +8,10 @@ import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep
  * bottom. A ball falls onto it under real gravity; every catch launches it back up (a centre hit higher – up to the
  * ceiling –, an edge hit lower) and the platform imparts sideways velocity and spin depending on where it was hit (and a
  * little of its own motion), so the ball wanders over the whole field, off the walls and the ceiling. Every platform hit
- * plays the next note (the next melody note while a melody is loaded – the ToneGenerator decides). A ball that gets past
- * the platform is a miss; after `misses` allowed misses the next one is GAME OVER and the run ends.
+ * plays the next note (the next melody note while a melody is loaded – the ToneGenerator decides); the walls, the ceiling,
+ * the streak chime, a miss and the game over only accompany the tune (`SoundEvent.melody` false), so the song advances on
+ * the catches alone. A ball that gets past the platform is a miss; after `misses` allowed misses the next one is GAME OVER
+ * and the run ends.
  *
  * pdAuto drives the platform with a deterministic controller (`planCatch()`): at every launch it predicts where the ball
  * will come down (`predictLanding()`: the exact ballistic flight with the ceiling bounce and the wall reflections folded
@@ -697,7 +699,7 @@ export class PaddleMode implements GameMode {
         v.wallHits++;
         v.lastWallSec = t;
         this.spin *= 0.7;
-        this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(12 + (v.wallHits % 3), v.settings.scale, v.settings.rootNote), level: 0.3 });
+        this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(12 + (v.wallHits % 3), v.settings.scale, v.settings.rootNote), level: 0.3, melody: false });
         continue;
       }
       if (dt === tc && tc <= rem) {
@@ -706,7 +708,7 @@ export class PaddleMode implements GameMode {
         v.ceilingHits++;
         v.lastCeilingSec = t;
         v.lastCeilingX = v.bx;
-        this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(16, v.settings.scale, v.settings.rootNote), level: 0.45 });
+        this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(16, v.settings.scale, v.settings.rootNote), level: 0.45, melody: false });
         continue;
       }
       if (dt === tp && tp <= rem) {
@@ -745,8 +747,10 @@ export class PaddleMode implements GameMode {
       v.lastHitOffset = off;
       this.spawnSparks(v.bx, PD_PLATFORM, t, off);
       ctx.addWallHit(0, (((v.hits % 12) + 12) % 12) * (Math.PI / 6), 0); // the reactive background flashes on a catch
+      // The catch is the next note of the tune (a loaded melody's next note); everything else the game sounds – the walls,
+      // the ceiling, the streak chime, a miss, the game over – accompanies it (`melody: false`) and never uses one up.
       this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch((v.hits - 1) % 15, scale, rootNote), ...(Math.abs(off) < 0.12 ? { accent: true } : {}) });
-      if (v.streak % STREAK_CHIME === 0) this.sound(ctx, { type: "multiplier", wallIndex: 0, multiplier: v.streak });
+      if (v.streak % STREAK_CHIME === 0) this.sound(ctx, { type: "multiplier", wallIndex: 0, multiplier: v.streak, melody: false });
       this.plan(t);
       return;
     }
@@ -757,12 +761,12 @@ export class PaddleMode implements GameMode {
     v.lastMissSec = t;
     v.lastMissX = v.bx;
     ctx.noteImpact?.();
-    this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(-7, scale, rootNote), level: 0.9 });
+    this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(-7, scale, rootNote), level: 0.9, melody: false });
     if (v.misses > v.settings.misses) {
       v.over = true;
       v.overSec = t;
       const chord = rhythmChord(-7, scale, rootNote);
-      this.sound(ctx, { type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true });
+      this.sound(ctx, { type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
       this.sound(ctx, { type: "gap", wallIndex: 0 });
     } else this.respawnAt = t + RESPAWN_SEC;
   }

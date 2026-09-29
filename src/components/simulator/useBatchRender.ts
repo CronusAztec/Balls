@@ -25,6 +25,7 @@ import {
   type BatchVariant,
 } from "@/lib/recording/batch";
 import { zipBlobs } from "@/lib/recording/zip";
+import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
 import type { FastExportState } from "./sections/FastExportSection";
 
 /*
@@ -54,8 +55,12 @@ export type BatchExportOutcome = { result: FastRenderResult } | { cancelled: tru
 
 export type BatchJobStatus = "queued" | "preparing" | "rendering" | "done" | "failed" | "cancelled" | "skipped";
 
-/** Why a job failed: a link that is not a simulator link, a share code this browser cannot read, the page was busy, no encoder. */
-export type BatchJobError = "link" | "code" | "busy" | "unsupported" | { message: string };
+/**
+ * Why a job failed: a link that is not a simulator link, a share code this browser cannot read, the page was busy, no encoder,
+ * --- jdm-rhythm-runner --- a run played by hand (a Beat Runner without Auto Jump, a Paddle Keep-Up without Auto Platform:
+ * only Record Video captures its player).
+ */
+export type BatchJobError = "link" | "code" | "busy" | "unsupported" | "handPlay" | { message: string };
 
 export interface BatchJobState {
   id: number;
@@ -262,6 +267,11 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
         const s = latest.current.settings;
         const mode = s.mode;
         patchJob(job.id, { mode });
+        // --- jdm-rhythm-runner --- a run played by hand has no player in an export (it would crash / miss on its own).
+        if (jdmRhythmPlayedByHand(s)) {
+          patchJob(job.id, { status: "failed", error: "handPlay", wallMs: performance.now() - t0 });
+          continue;
+        }
         // 2. An encoder for this job's format (the page's export would fall back to Record Video without one).
         const size = resolutionToSize(s.recordingResolution);
         if (!fastRenderSupported() || !(await pickExportFormat(size.width, size.height, resolveFastExportFps(s.fastExportFps)))) {

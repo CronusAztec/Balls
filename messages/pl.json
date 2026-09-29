@@ -1760,6 +1760,7 @@
     "fallbackWebCodecs": "Ta przeglądarka nie potrafi sama kodować wideo (brak WebCodecs), więc klip jest nagrywany w czasie rzeczywistym przez Nagraj wideo.",
     "fallbackCodecs": "Ta przeglądarka nie ma kodera H.264, VP9 ani VP8 z dźwiękiem AAC lub Opus do szybkiego eksportu, więc klip jest nagrywany w czasie rzeczywistym przez Nagraj wideo.",
     "unsupportedNote": "Szybki eksport wymaga WebCodecs (aktualny Chrome, Edge, Safari lub Firefox); tutaj nagrywa w czasie rzeczywistym.",
+    "handPlayNote": "Przebiegu sterowanego ręcznie nie da się wyeksportować szybko – eksport rozegrałby go bez ciebie. Nagraj go w czasie rzeczywistym przez Nagraj wideo albo włącz z powrotem automatyczny skok / automatyczną platformę.",
     "error": "Szybki eksport nie powiódł się ({message}). Nagraj wideo nadal działa."
   },
   "ArenaGames": {
@@ -1855,6 +1856,7 @@
     "errorCode": "ta przeglądarka nie potrafi odczytać kodu udostępniania",
     "errorBusy": "trwało nagrywanie, wyszukiwanie lub inny eksport",
     "errorUnsupported": "brak kodera dla tej rozdzielczości i liczby klatek",
+    "errorHandPlay": "sterowany ręcznie (automatyczny skok / automatyczna platforma wyłączone) – nagraj go przez Nagraj wideo",
     "errorOther": "{message}",
     "downloadJob": "Pobierz {name}",
     "downloadAll": "Pobierz wszystko jako ZIP",

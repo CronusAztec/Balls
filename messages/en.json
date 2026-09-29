@@ -1983,6 +1983,7 @@
     "fallbackWebCodecs": "This browser can't encode video by itself (no WebCodecs), so the clip is being recorded in real time with Record Video instead.",
     "fallbackCodecs": "This browser has no H.264, VP9 or VP8 encoder with AAC or Opus sound for the fast export, so the clip is being recorded in real time with Record Video instead.",
     "unsupportedNote": "Fast export needs WebCodecs (a recent Chrome, Edge, Safari or Firefox); here it records in real time instead.",
+    "handPlayNote": "A run played by hand can't be exported fast – the export would play it without you. Record it in real time with Record Video, or switch Auto Jump / Auto Platform back on.",
     "error": "Fast export failed ({message}). Record Video still works."
   },
   "ArenaGames": {
@@ -2078,6 +2079,7 @@
     "errorCode": "this browser can't read the share code",
     "errorBusy": "a recording, search or another export was running",
     "errorUnsupported": "no encoder for this resolution and frame rate",
+    "errorHandPlay": "played by hand (Auto Jump / Auto Platform off) – record it with Record Video",
     "errorOther": "{message}",
     "downloadJob": "Download {name}",
     "downloadAll": "Download all as ZIP",

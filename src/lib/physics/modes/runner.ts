@@ -1,6 +1,6 @@
 import { BPM_MAX, BPM_MIN, isScaleId, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import { BeatClock, DEFAULT_BEAT_CLOCK, freshBeatSample, isUsableGrid, type BeatClockConfig, type BeatGrid } from "@/lib/simulation/beatClock";
-import { beatTimeSec, firstBeatAtOrAfter, followsSongGrid, scheduleBpm, schedulePeriod } from "@/lib/simulation/beatSchedule";
+import { beatTimeSec, firstBeatAtOrAfter, followsSongGrid, sameBeatSchedule, scheduleBpm, schedulePeriod } from "@/lib/simulation/beatSchedule";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep } from "./jdmRhythm";
 
@@ -29,6 +29,7 @@ import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep
  *
  * Every landing plays the next note (a scale degree of the Sound section's scale – or the next melody note while a
  * melody is loaded, the ToneGenerator decides), with dust particles; the finish plays a chord and the rising arpeggio.
+ * A crash's low note only accompanies the tune (`SoundEvent.melody` false), so a melody moves on with the landings alone.
  * Deterministic: the course is drawn at init from `ctx.random()`; the particles use their own generator.
  */
 
@@ -226,6 +227,42 @@ export function runnerBeatConfig(settings: Pick<RunnerSettings, "beatSource" | "
     offset: song ? Math.max(0, settings.offset) : 0,
     loop: song ? settings.loop : true,
   };
+}
+
+/**
+ * What a run is planned from besides the seed (the course `buildRunnerCourse()` lays out at init, and whether the square
+ * jumps by itself): the course settings, the beat the course follows – resolved (`runnerBeatConfig()`), so an input it does
+ * not follow is not part of it – and the Gravity's factor. The page re-plans (restarts) a run only when this changes.
+ */
+export interface RunnerPlan {
+  autoJump: boolean;
+  obstacles: number;
+  speed: number;
+  jumpHeight: number;
+  density: number;
+  mix: RunnerMix;
+  beat: BeatClockConfig;
+  gravityFactor: number;
+}
+
+/** The plan of `settings` (resolved like the mode resolves them) under the Gravity setting `gravitySetting`. */
+export function runnerPlanOf(settings: Partial<RunnerSettings>, gravitySetting: number): RunnerPlan {
+  const s = resolveRunnerSettings(settings);
+  return { autoJump: s.autoJump, obstacles: s.obstacles, speed: s.speed, jumpHeight: s.jumpHeight, density: s.density, mix: s.mix, beat: runnerBeatConfig(s), gravityFactor: runnerGravityFactor(gravitySetting) };
+}
+
+/** True when two plans lay out the same run (the same course on the same beats, the same jumping). */
+export function sameRunnerPlan(a: RunnerPlan, b: RunnerPlan): boolean {
+  return (
+    a.autoJump === b.autoJump &&
+    a.obstacles === b.obstacles &&
+    a.speed === b.speed &&
+    a.jumpHeight === b.jumpHeight &&
+    a.density === b.density &&
+    a.mix === b.mix &&
+    a.gravityFactor === b.gravityFactor &&
+    sameBeatSchedule(a.beat, b.beat)
+  );
 }
 
 /* ------------------------------------------------------------------ physics and the jump solver */
@@ -1210,7 +1247,8 @@ export class RunnerMode implements GameMode {
     this.spawnDebris(v.x, v.y, sim);
     const { scale, rootNote } = v.settings;
     ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: rhythmPitch(-7, scale, rootNote), level: 0.8 });
+    // The crash's low note accompanies the tune (`melody: false`): a loaded melody keeps its next note for the next landing.
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: rhythmPitch(-7, scale, rootNote), level: 0.8, melody: false });
   }
 
   private respawn(sim: number) {

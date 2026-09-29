@@ -36,6 +36,15 @@ export function jdmRhythmFinderSettingsOf(s: JdmRhythmFields & { bpm?: number; s
   return { runner: runnerSettingsOf(s, beat), paddle: paddleSettingsOf(s) };
 }
 
+/**
+ * True while the current run is played by hand: a Beat Runner without Auto Jump, a Paddle Keep-Up without Auto Platform.
+ * The player's input is part of such a run and only the real-time recorder (Record Video) captures it – the fast export
+ * and the batch render build a fresh engine from the seed that nobody would play – so the page leaves it to Record Video.
+ */
+export function jdmRhythmPlayedByHand(s: { mode: ModeId | string } & Pick<JdmRhythmFields, "runnerAutoJump" | "pdAuto">): boolean {
+  return (s.mode === "runner" && !s.runnerAutoJump) || (s.mode === "paddle" && !s.pdAuto);
+}
+
 /** True when a run of the mode can never end: a runner played by hand (the finder cannot play it), a manual or perfect paddle. */
 export function jdmRhythmNeverFinishes(mode: ModeId, settings: { runner?: Partial<RunnerSettings>; paddle?: Partial<PaddleSettings> }): boolean {
   if (mode === "runner") return !resolveRunnerSettings(settings.runner).autoJump;
