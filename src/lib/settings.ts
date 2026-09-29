@@ -24,6 +24,7 @@ import { CAMERA_RANGES, DEFAULT_CAMERA_SETTINGS, cameraSettingsOf, resolveCamera
 // --- boris-multipliers ---
 import { DEFAULT_MULTIPLIER_CONFIG, MULTIPLIER_RANGES, multiplierConfigOf, resolveMultiplierConfig, sanitizePickupTypes } from "@/lib/physics/multipliers";
 import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFields, multipliersSettingsOf, resolveMultipliersSettings, sanitizeGateMix } from "@/lib/physics/modes/multipliers";
+import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -347,6 +348,10 @@ export interface SimulatorSettings {
   /** Rigging: the finder looks for a run whose final count is within 5 % of this, 0 = off (URL `mptg`). */
   mpTarget: number;
   // --- end boris-multipliers ---
+  // --- captions --- animated captions (lib/captions.ts): overlays drawn on the canvas – render-only, none by default
+  /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
+  captions: Caption[];
+  // --- end captions ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -442,6 +447,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- boris-multipliers ---
     ...DEFAULT_MULTIPLIER_CONFIG,
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
+    ...defaultCaptionSettings(), // --- captions ---
   };
 }
 
@@ -491,6 +497,7 @@ export const RANGES = {
   // --- boris-multipliers ---
   ...MULTIPLIER_RANGES,
   ...MULTIPLIERS_RANGES,
+  ...CAPTION_RANGES, // --- captions ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -710,6 +717,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   // --- boris-multipliers --- the two list-like strings (validated on the way back in)
   if (settings.pickupTypes !== base.pickupTypes) params.set("mpty", settings.pickupTypes);
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
+  writeCaptionParams(settings, params); // --- captions ---: cap
   return params;
 }
 
@@ -812,6 +820,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const mpgm = params.get("mpgm");
   if (mpgm !== null) settings.mpGateMix = sanitizeGateMix(mpgm);
   clampMultiplierSettings(settings);
+  readCaptionParams(params, settings); // --- captions ---
   return settings;
 }
 
@@ -967,6 +976,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveTeamSettings({ ...merged, ballCount: preset.ballCount })); // --- teams --- (a preset without a ball count: `twoBalls` means two)
   clampCameraSettings(merged); // --- camera ---
   clampMultiplierSettings(merged); // --- boris-multipliers ---
+  Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
   return merged;
 }
 
