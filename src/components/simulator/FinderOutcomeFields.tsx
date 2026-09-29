@@ -32,6 +32,11 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   winner: "hintWinner",
 };
 
+/** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint). */
+function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined): string {
+  return battle && outcome === "winner" ? "hintWinnerBattle" : OUTCOME_HINTS[outcome];
+}
+
 /**
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
@@ -55,13 +60,15 @@ export interface FinderOutcomeSelectProps {
   outcome: FinderOutcomeKind;
   onOutcome: (outcome: FinderOutcomeKind) => void;
   disabled?: boolean;
+  /** --- odd-string-battle --- a battle mode (`BATTLE_WINNER_MODES`): the winner is the last ball standing. */
+  battle?: boolean;
 }
 
 /**
  * The compact Outcome select in the Find Simulation panel's title row (so the classic panel keeps its height); nothing
  * when the run length is all the finder can search in this mode.
  */
-export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled }: FinderOutcomeSelectProps) {
+export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, battle }: FinderOutcomeSelectProps) {
   const r = useTranslations("Rigged");
   if (outcomes.length === 0 || (outcomes.length === 1 && outcomes[0] === "duration")) return null;
   return (
@@ -74,7 +81,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled }: 
         id="find-outcome"
         value={outcome}
         aria-label={r("outcome")}
-        title={r(OUTCOME_HINTS[outcome])}
+        title={r(hintKey(outcome, battle))}
         disabled={disabled}
         onChange={(e) => onOutcome(e.target.value as FinderOutcomeKind)}
         className="min-w-0 max-w-[11rem] px-2 py-1 bg-zinc-800 text-white text-xs rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none cursor-pointer disabled:opacity-50"
@@ -100,16 +107,18 @@ export interface FinderOutcomeFieldsProps {
   onWinner: (team: number) => void;
   teamNames: readonly string[];
   disabled?: boolean;
+  /** --- odd-string-battle --- a battle mode (`BATTLE_WINNER_MODES`): the winner is the last ball standing, the battle played to its end. */
+  battle?: boolean;
 }
 
 /** An outcome search's one-line explanation and its own field (the escape second, the team to win); nothing for the classic run-length search. */
-export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled }: FinderOutcomeFieldsProps) {
+export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle }: FinderOutcomeFieldsProps) {
   const r = useTranslations("Rigged");
   if (outcome === "duration") return null;
   const range = RANGES.findEscapeAt;
   return (
     <div className="space-y-3" data-testid="finder-outcome-fields">
-      <p className="text-[11px] text-zinc-500 leading-relaxed">{r(OUTCOME_HINTS[outcome])}</p>
+      <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle))}</p>
       {outcome === "escapes-at" && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">

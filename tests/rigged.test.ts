@@ -32,6 +32,7 @@ import {
   outcomeMiss,
   outcomeSettled,
   survivalSec,
+  winnerNeedsEnd,
   type FinderOutcome,
   type RunSummary,
 } from "@/lib/simulation/outcomes";
@@ -192,6 +193,34 @@ describe("finder outcome predicates", () => {
     expect(outcomeSettled(win, 45_000, -1, false)).toBe(true);
     expect(outcomeSettled(win, 20_000, -1, true)).toBe(true);
     expect(outcomeHorizonMs(win, 1_000)).toBe(45_000);
+    expect(outcomeHorizonMs(win, 90_000, "classic")).toBe(45_000);
+
+    // --- odd-string-battle --- a battle's winner is the last ball standing: followed past the clip to the battle's end.
+    expect(winnerNeedsEnd(win, "stringBattle")).toBe(true);
+    expect(winnerNeedsEnd(win, "classic")).toBe(false);
+    expect(winnerNeedsEnd(win, undefined)).toBe(false);
+    expect(winnerNeedsEnd(never, "stringBattle")).toBe(false);
+    expect(outcomeHorizonMs(win, 75_000, "stringBattle")).toBe(75_000);
+    expect(outcomeHorizonMs(win, 1_000, "stringBattle")).toBe(45_000); // never shorter than the clip
+    expect(outcomeSettled(win, 45_000, -1, false, "stringBattle")).toBe(false); // the clip is no verdict
+    expect(outcomeSettled(win, 60_000, -1, false, "stringBattle")).toBe(false);
+    expect(outcomeSettled(win, 52_000, -1, true, "stringBattle")).toBe(true); // the battle's end is
+  });
+
+  it("winner in a battle mode: only a finished battle that crowned the chosen ball matches", () => {
+    const outcome: FinderOutcome = { kind: "winner", clipSec: 30, team: 1 };
+    // Ahead on kills at the clip's end, the battle still on: no winner yet (the other modes judge the scoreboard then).
+    const running = summary({ mode: "stringBattle", durationMs: 30_000, teams: [stats(20, 0, 0), stats(18, 2, 0), stats(25, 1, 0)] });
+    expect(outcomeMatches(outcome, running)).toBe(false);
+    expect(outcomeMatches(outcome, { ...running, mode: "multiply" })).toBe(true);
+    expect(outcomeMiss(outcome, running)).toBe(1);
+    // Finished, and it is the last one standing (its escape): a match, recorded for the whole battle.
+    const won = summary({ mode: "stringBattle", durationMs: 37_400, finished: true, teams: [stats(20, 0, 0), stats(30, 2, 1, 37_400), stats(25, 1, 0)] });
+    expect(outcomeMatches(outcome, won)).toBe(true);
+    expect(outcomeClipSec(outcome, won)).toBeCloseTo(37.4, 9);
+    // Finished, but another ball was crowned – or the run stopped before the end.
+    expect(outcomeMatches(outcome, summary({ ...won, teams: [stats(20, 3, 1, 37_400), stats(30, 2, 0), stats(25, 1, 0)] }))).toBe(false);
+    expect(outcomeMatches(outcome, { ...won, finished: false })).toBe(false);
   });
 
   it("give the clip to record: the clip for never-escapes and a run that goes on, the run itself when it ended", () => {

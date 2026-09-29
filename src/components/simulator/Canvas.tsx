@@ -2551,8 +2551,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
         setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
         setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
+        // Where the cut rule tests each fighter's next move from (its previous position) against its ball – the largest
+        // gap, 0 between steps – and whether every ball is inside the ring: a resize must keep both.
+        let stalePx = 0;
+        let inRing = true;
+        for (const b of engine.getBalls()) {
+          const t = b.team;
+          if (t === undefined || t < 0 || t >= sbView.fighters.length) continue;
+          const f = sbView.fighters[t];
+          if (!f.alive || f.id !== b.id) continue;
+          const gap = Math.hypot(b.x - f.px, b.y - f.py);
+          if (gap > stalePx) stalePx = gap;
+          if (Math.hypot(b.x - sbView.cx, b.y - sbView.cy) + b.radius > sbView.radius + 1) inRing = false;
+        }
+        setCanvasData("sbStalePx", stalePx.toFixed(1));
+        setCanvasData("sbInRing", inRing ? "1" : "0");
       } else if (canvas.dataset.sbBalls !== undefined) {
-        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion"]) delete canvas.dataset[key];
+        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
