@@ -1801,8 +1801,10 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   await page.screenshot({ path: path.join(outDir, "sim-glass-home.png") });
 }
 // --- boris-multipliers --- Glass Smash with its multiplier gates (glg=1): the switch in the Glass block, the Ball section's
-// Multipliers group (the cap), and a run at 8× in which the gate row of every stage stacks its multiplier on the ball – the
-// HUD mirrors it into data-mult-* – on its way HOME.
+// Multipliers group (the cap), and a run in which the gate row of every stage stacks its multiplier on the ball – the HUD
+// mirrors it into data-mult-* – on its way HOME. The first row is read at normal speed, then the run goes on at 8×: a ball
+// that falls fast through the first stage meets the next row within a second of simulation – about a tenth of a second at
+// 8× –, so read at 8× "after the first row" often held both rows already.
 await page.goto(`${BASE}/en/simulator/?mode=glass&glg=1&gls=2&glr=4`, { waitUntil: "networkidle" });
 {
   const gates = await glassToggle("Multiplier Gates").getAttribute("aria-pressed").catch(() => null);
@@ -1814,11 +1816,11 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.waitForTimeout(300);
 {
   const hud = await canvasData();
-  await page.getByRole("button", { name: "8x", exact: true }).click();
   const through = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.glassGates ?? 0) >= 1, null, { timeout: 20000 }).then(() => true).catch(() => false);
   await page.waitForTimeout(100);
   const first = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-glass-gates.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
   const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
   const data = await canvasData();
   const product = Number(data.multSpeed) * Number(data.multSize) * Number(data.multDamage);
@@ -1826,7 +1828,7 @@ await page.waitForTimeout(300);
   check(
     "glass smash gates stack a multiplier on the ball at every stage on its way HOME",
     hud.multSpeed !== undefined && through && firstProduct > 1 && done && data.glassHome === "1" && data.glassGates === "2" && product > firstProduct && data.multBalls === "1",
-    `(HUD from the start=${hud.multSpeed !== undefined}, after the first row speed x${first.multSpeed} size x${first.multSize} dmg x${first.multDamage}; at HOME=${data.glassHome} rows ${data.glassGates}, speed x${data.multSpeed} size x${data.multSize} dmg x${data.multDamage})`,
+    `(HUD from the start=${hud.multSpeed !== undefined}, after the first row (rows ${first.glassGates}) speed x${first.multSpeed} size x${first.multSize} dmg x${first.multDamage}; at HOME=${data.glassHome} rows ${data.glassGates}, speed x${data.multSpeed} size x${data.multSize} dmg x${data.multDamage})`,
   );
 }
 // --- end boris-glass ---
@@ -2263,6 +2265,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const bar = page.getByTestId("obstacle-ready-bar");
   const foundBar = ((await bar.innerText().catch(() => "")) || "").replace(/\s+/g, " ");
   const warned = await page.getByTestId("obstacle-ready-warning").isVisible().catch(() => false);
+  // --- timeline --- the Find button can sit below the fold (the panel's section list grew), and clicking it scrolls the page
+  // until the canvas is out of view: bring the canvas back before measuring where to drag.
+  await page.locator("main canvas").scrollIntoViewIfNeeded();
   const box = await page.locator("main canvas").boundingBox();
   const R = (Math.min(box.width, box.height) / 2) * 0.75;
   const at = (ax, ay) => ({ x: box.x + box.width / 2 + ax * R, y: box.y + box.height / 2 + ay * R });
@@ -2709,6 +2714,195 @@ const instrumentOscillators = () =>
   check("Wobbly Walls make the rings of Classic wobble (and are off by default)", wobbled && plain.wobble === undefined, `(wobbled=${wobbled}, default data-wobble=${plain.wobble})`);
 }
 // --- end jdm-illusions ---
+// --- rigged ---
+// 24. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
+// warning and the note under the canvas, controls → URL, the search box; a Never Escape run at 8× in which the rig acts
+// and no ball escapes; a three-team race won by the Forced Winner; Find Simulation's Outcome select – a run without an
+// escape in Classic, a first escape at a chosen second in Multiply (whose finder shows now) and a won race.
+{
+  const rigQuery = () => new URLSearchParams(page.url().split("?")[1] || "");
+  const finderResult = async (timeout = 120_000) => {
+    const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout }).then(() => true).catch(() => false);
+    return done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  };
+  await page.goto(`${BASE}/en/simulator/?mode=classic&ne=1&wc=3&gap=0.6`, { waitUntil: "networkidle" });
+  await page.getByLabel("Show advanced options").check();
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  const section = page.getByTestId("rigged-section");
+  const neverToggle = section.locator('label:has-text("Never Escape") + button');
+  {
+    const shown = await section.isVisible();
+    const pressed = await neverToggle.getAttribute("aria-pressed").catch(() => null);
+    const warning = await page.getByTestId("rigged-warning").isVisible();
+    const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    check("rigged outcomes load from the URL", shown && pressed === "true" && warning && /no ball can escape/.test(note), `(section=${shown}, never escape=${pressed}, warning=${warning}, note="${note}")`);
+  }
+  await neverToggle.click();
+  await page.waitForTimeout(300);
+  const offQuery = rigQuery();
+  const noteGone = (await page.getByTestId("rigged-note").count()) === 0;
+  await neverToggle.click();
+  await page.waitForTimeout(300);
+  check("never escape mirrors into the URL", !offQuery.has("ne") && noteGone && rigQuery().get("ne") === "1", `(off: ne=${offQuery.get("ne")}, note gone=${noteGone}; on: ne=${rigQuery().get("ne")})`);
+  await page.getByPlaceholder("Search settings...").fill("forced winner");
+  check("search finds the forced winner", (await page.locator("#forced-winner-select").isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForTimeout(12_000);
+  {
+    const data = await canvasData();
+    const ended = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible();
+    const acted = Number(data.rigSteers) + Number(data.rigGuides) + Number(data.rigSeals);
+    await page.screenshot({ path: path.join(outDir, "sim-rigged-never-escape.png") });
+    check(
+      "a Never Escape run at 8× keeps every ball in while the rig steers",
+      data.rigNeverEscape === "1" && data.firstEscape === "-1" && !ended && acted > 0,
+      `(${JSON.stringify({ never: data.rigNeverEscape, firstEscape: data.firstEscape, steers: data.rigSteers, guides: data.rigGuides, seals: data.rigSeals, nearMisses: data.rigNearMisses })}, ended=${ended})`,
+    );
+  }
+  // A three-team race – three rings with wide gaps and fast balls, as in section 14 – that Green is set to win.
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Green*22c55e*🍀";
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&fw=2&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
+  const winnerNote = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 45_000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    await page.screenshot({ path: path.join(outDir, "sim-rigged-winner.png") });
+    check("a Forced Winner race is won by the chosen team", won && data.teamWinner === "Green" && data.rigWinner === "2" && /Green wins/.test(winnerNote), `(winner=${data.teamWinner}, rig winner=${data.rigWinner}, stats=${data.teamStats}, note="${winnerNote}")`);
+  }
+  // The story carries over a mode change, with the roster it belongs to.
+  await page.locator('[role="button"]', { hasText: "Shatter" }).first().click();
+  await page.waitForTimeout(500);
+  {
+    const after = rigQuery();
+    check("the rig carries over a mode change", after.get("mode") === "shatter" && after.get("fw") === "2" && after.get("teams") === roster, `(mode=${after.get("mode")}, fw=${after.get("fw")}, teams=${after.get("teams")})`);
+  }
+  // Find Simulation: a Classic run without an escape for the whole clip.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  {
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    await page.locator("#find-outcome").selectOption("never-escapes");
+    const button = page.getByRole("button", { name: /Find a 30s Run Without an Escape/ });
+    const labelled = await button.isVisible();
+    await button.click();
+    const text = await finderResult();
+    const ready = await page.getByText(/Ready to start simulation for 30\.0s/).first().isVisible().catch(() => false);
+    check("Find Simulation finds a run without an escape", options.join(",") === "duration,never-escapes,escapes-at" && labelled && /Found! No escape in 30\.0s/.test(text) && ready, `(options=${options.join(",")}, "${text}", ready=${ready})`);
+  }
+  // Multiply never ends, so it had no finder; its outcomes give it one: the first escape at a chosen second.
+  await page.goto(`${BASE}/en/simulator/?mode=multiply`, { waitUntil: "networkidle" });
+  {
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    await page.locator("#find-outcome").selectOption("escapes-at");
+    await page.locator("#find-escape-at").evaluate(setRangeValue, "4");
+    const button = page.getByRole("button", { name: /Find a Run That Escapes at 4\.0s/ });
+    const labelled = await button.isVisible();
+    await button.click();
+    const text = await finderResult();
+    const at = Number((/First escape at ([\d.]+)s/.exec(text) || [])[1]);
+    check("Find Simulation finds a first escape at a chosen second in Multiply", options.join(",") === "never-escapes,escapes-at" && labelled && Math.abs(at - 4) <= 0.52, `(options=${options.join(",")}, "${text}")`);
+  }
+  // A won race, searched for: Blue wins.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
+  {
+    await page.locator("#find-outcome").selectOption("winner");
+    await page.locator("#find-winner").selectOption("1");
+    const button = page.getByRole("button", { name: /Find a Run Blue Wins/ });
+    const labelled = await button.isVisible();
+    await button.click();
+    const text = await finderResult();
+    check("Find Simulation finds a race the chosen team wins", labelled && /Found! Blue wins/.test(text), `("${text}")`);
+  }
+}
+// --- end rigged ---
+// --- timeline ---
+// 25. Timeline keyframes: a link with keyframes fills the Timeline section (a row per keyframe) and the bar under the
+// canvas (a marker per keyframe); the sliders of the automated settings show the value the run starts with, locked, with an
+// AUTO badge; a run at 8× plays the keyframes on the simulation clock – the engine's values follow them (data-timeline-engine)
+// while the link keeps the settings as they were (the automation is never written back); a keyframe added from the panel at
+// the current time locks its slider, and it, an edited value and a removed keyframe land in the link; the search box finds
+// the section; the keyframes carry over a mode change.
+{
+  const kf = "g_0_0_4_1500*r_0_8_3_20";
+  const autoLabel = (name) => page.locator("label", { has: page.getByTestId("timeline-auto-badge") }).filter({ hasText: name }).first();
+  const labelText = async (name) => ((await autoLabel(name).innerText({ timeout: 5000 }).catch(() => "")) ?? "").replace(/\s+/g, " ");
+  const timelineTime = async () => Number((await page.getByTestId("timeline-bar").getAttribute("data-timeline-time")) ?? -1);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&kf=${kf}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Timeline/ }).first().click();
+  const rows = page.getByTestId("timeline-row");
+  const keys = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-key")));
+  const markers = await page.getByTestId("timeline-marker").count();
+  const barShown = await page.getByTestId("timeline-bar").isVisible();
+  check("keyframes from the link fill the Timeline section and the bar under the canvas", keys.join(",") === "gravity,ballRadius,ballRadius,gravity" && markers === 4 && barShown, `(rows=${keys.join(",")}, markers=${markers}, bar=${barShown})`);
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  const sizeSlider = page.getByRole("slider", { name: "Ball Size", exact: true });
+  const lockedBefore = await sizeSlider.isDisabled({ timeout: 5000 }).catch(() => false);
+  const startValue = await sizeSlider.inputValue({ timeout: 5000 }).catch(() => "");
+  const startText = await labelText("Ball Size");
+  check("an automated slider shows the value the run starts with, locked, with an AUTO badge", lockedBefore && startValue === "8" && /\b8px\s*AUTO\b/i.test(startText), `(locked=${lockedBefore}, value=${startValue}, label="${startText}")`);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const reached = await page.waitForFunction(() => Number(document.querySelector('[data-testid="timeline-bar"]')?.dataset.timelineTime ?? 0) > 4.5, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const bar = page.getByTestId("timeline-bar");
+  const engineValues = (await bar.getAttribute("data-timeline-engine")) ?? "";
+  const liveValues = (await bar.getAttribute("data-timeline-live")) ?? "";
+  const playhead = await page.getByTestId("timeline-playhead").evaluate((el) => parseFloat(el.style.left));
+  const sizeText = await labelText("Ball Size");
+  const linkAfterRun = new URL(page.url()).searchParams;
+  check(
+    "a run plays the keyframes on the simulation clock without writing them into the settings",
+    reached && engineValues === "gravity=1500,ballRadius=20" && liveValues === engineValues && playhead > 0 && /\b20px\s*AUTO\b/i.test(sizeText) && linkAfterRun.get("kf") === kf && !linkAfterRun.has("g") && !linkAfterRun.has("r"),
+    `(t>4.5 s=${reached}, engine: ${engineValues}, live: ${liveValues}, playhead ${playhead}%, slider: "${sizeText}", link kf=${linkAfterRun.get("kf")}, g=${linkAfterRun.get("g")}, r=${linkAfterRun.get("r")})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-timeline.png") });
+  // Pause (Space), pick Ball Speed, set the value the keyframe gets and add it at the current time.
+  await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+  await page.keyboard.press("Space");
+  await page.getByRole("button", { name: /Timeline/ }).first().click();
+  await page.getByTestId("timeline-setting").selectOption("ballSpeed");
+  await page.getByTestId("timeline-value-slider").evaluate(setRangeValue, "600");
+  const before = await timelineTime();
+  await page.getByTestId("timeline-add").click();
+  await page.waitForTimeout(400);
+  const afterAdd = await timelineTime();
+  const added = new URL(page.url()).searchParams.get("kf") ?? "";
+  const addedTime = Number(/\*s_([\d.]+)_600\*/.exec(added)?.[1] ?? NaN);
+  const rowsAfterAdd = await rows.count();
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  const speedLocked = await page.getByRole("slider", { name: "Ball Speed", exact: true }).isDisabled({ timeout: 5000 }).catch(() => false);
+  const speedText = await labelText("Ball Speed");
+  check(
+    "a keyframe added in the panel at the current time lands in the link and locks its slider",
+    addedTime >= before - 0.06 && addedTime <= afterAdd + 0.06 && rowsAfterAdd === 5 && added.startsWith("g_0_0_4_1500*s_") && added.endsWith("*r_0_8_3_20") && speedLocked && /\b600\s*AUTO\b/i.test(speedText),
+    `(kf=${added}, clock ${before}–${afterAdd} s, rows=${rowsAfterAdd}, Ball Speed locked=${speedLocked}, label "${speedText}")`,
+  );
+  // Edit the first keyframe's value (gravity at 0 s) and remove the gravity keyframe at 4 s (the fourth row).
+  await page.getByRole("button", { name: /Timeline/ }).first().click();
+  const firstValue = rows.first().getByTestId("timeline-value");
+  await firstValue.fill("300");
+  await firstValue.press("Enter");
+  await page.waitForTimeout(300);
+  await rows.nth(3).getByRole("button", { name: /Remove keyframe/ }).click();
+  await page.waitForTimeout(400);
+  const edited = new URL(page.url()).searchParams.get("kf") ?? "";
+  const rowsAfterEdit = await rows.count();
+  check("an edited value and a removed keyframe land in the link", /^g_0_300\*s_[\d.]+_600\*r_0_8_3_20$/.test(edited) && rowsAfterEdit === 4, `(kf=${edited}, rows=${rowsAfterEdit})`);
+  await page.getByPlaceholder("Search settings...").fill("keyframe");
+  const found = await page.getByTestId("timeline-section").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("the search box finds the Timeline section", found, `(visible=${found})`);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&kf=${kf}`, { waitUntil: "networkidle" });
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.waitForTimeout(500);
+  const after = new URL(page.url()).searchParams;
+  const markersAfter = await page.getByTestId("timeline-marker").count();
+  check("keyframes carry over a mode change", after.get("mode") === "portal" && after.get("kf") === kf && markersAfter === 4, `(mode=${after.get("mode")}, kf=${after.get("kf")}, markers=${markersAfter})`);
+}
+// --- end timeline ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

@@ -63,6 +63,7 @@ export class ShatterMode implements GameMode {
   onWallHit(ctx: ModeContext, ball: Ball, wallIndex: number, angle: number) {
     const wallSegments = this.segments[wallIndex];
     if (!wallSegments) return;
+    if (ctx.isWallSealed?.(ball, wallIndex)) return; // --- rigged --- a wall the rig keeps closed to this ball takes no damage from it
     let local = (angle - (ctx.getWallRotations()[wallIndex] || 0)) % TWO_PI;
     if (local < 0) local += TWO_PI;
     const segment = wallSegments[Math.floor(local / (TWO_PI / this.segmentsPerWall))];

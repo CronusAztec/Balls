@@ -27,6 +27,8 @@ import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFie
 // --- obstacle-editor ---
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
+import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
+import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
@@ -367,6 +369,16 @@ export interface SimulatorSettings {
   /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
   captions: Caption[];
   // --- end captions ---
+  // --- rigged --- guaranteed outcomes (lib/physics/rigged.ts): the director's hard constraints, off by default
+  /** No ball ever leaves the outermost intact wall – the escape modes then never finish (URL `ne`). */
+  neverEscape: boolean;
+  /** Team slot (0–5) the director makes win in the multi-ball escape modes; −1 = off (URL `fw`). */
+  forcedWinner: number;
+  // --- end rigged ---
+  // --- timeline --- keyframes (lib/simulation/timeline.ts): numeric settings automated over the clip – none by default
+  /** `{ time, key, value }` keyframes of the settings the engine takes live; applied to the run only, never written back here (URL `kf`, e.g. `g_0_300_10_1200`). */
+  keyframes: Keyframe[];
+  // --- end timeline ---
   // --- jdm-double-pendulum --- Double Pendulum Harp & sparring (lib/physics/modes/doublePendulum.ts); URL keys in DP_URL_KEYS
   /** Pendulums sharing the pivot, 1–4 (URL `dpn`; sparring always uses two). */
   dpCount: number;
@@ -524,6 +536,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
+    ...DEFAULT_RIGGED, // --- rigged ---
+    ...defaultTimelineSettings(), // --- timeline ---
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
   };
@@ -577,6 +591,8 @@ export const RANGES = {
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
+  ...RIGGED_RANGES, // --- rigged ---
+  ...TIMELINE_RANGES, // --- timeline ---
   ...DOUBLE_PENDULUM_RANGES, // --- jdm-double-pendulum ---
   // --- jdm-illusions ---
   ...ILLUSION_RANGES,
@@ -689,6 +705,7 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   mpsb: "mpStartBalls",
   mpmb: "mpMaxBalls",
   mptg: "mpTarget",
+  fw: "forcedWinner", // --- rigged ---
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -742,6 +759,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   // --- boris-multipliers ---
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
+  ne: "neverEscape", // --- rigged ---
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -803,6 +821,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
+  writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   return params;
@@ -909,6 +928,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   clampMultiplierSettings(settings);
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
+  Object.assign(settings, resolveRiggedConfig(settings)); // --- rigged --- a bad team slot is off
+  readTimelineParams(params, settings, RANGES); // --- timeline ---
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
   return settings;
@@ -1068,6 +1089,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampMultiplierSettings(merged); // --- boris-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
+  Object.assign(merged, resolveRiggedConfig(merged)); // --- rigged --- a non-boolean flag is off, a bad team slot too
+  Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   return merged;

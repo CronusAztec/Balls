@@ -83,7 +83,9 @@ export class ColorMatchMode implements GameMode {
     if (local < 0) local += TWO_PI;
     const segment = this.segments[Math.floor(local / (TWO_PI / this.segmentCount))];
     if (!segment || segment.broken) return;
-    if (segment.hue === COLOR_MATCH_COLORS[this.ballColorIndex].hue) {
+    // --- rigged --- the last intact segment of a ring the rig keeps closed to this ball does not break: the ring never opens
+    const lastHeld = this.matchCount >= this.segments.length - 1 && ctx.isWallSealed?.(ball, wallIndex) === true;
+    if (segment.hue === COLOR_MATCH_COLORS[this.ballColorIndex].hue && !lastHeld) {
       segment.broken = true;
       this.matchCount++;
       ctx.setBounceSpeedMultiplier(1);

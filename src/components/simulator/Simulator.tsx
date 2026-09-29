@@ -46,6 +46,14 @@ import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObs
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
+// --- rigged ---
+import FinderOutcomeFields, { FinderOutcomeSelect, outcomeButtonText, outcomeFoundText, outcomeMissText, outcomeOverlayText, outcomeProgressText, teamChoiceNames } from "./FinderOutcomeFields";
+import { forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged";
+import { availableOutcomes, effectiveOutcome, type FinderOutcome, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
+// --- timeline ---
+import TimelineBar from "./TimelineBar";
+import { useTimelineLivePublisher } from "./timelineLive";
+import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
 import {
   RANGES,
@@ -152,6 +160,11 @@ export default function Simulator() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchProgress, setSearchProgress] = useState<FinderProgress | null>(null);
   const [searchResult, setSearchResult] = useState<FinderResult | null>(null);
+  // --- rigged --- Find Simulation's outcome (duration, never escapes, escapes at, winner), its fields and the outcome of the running search
+  const [findOutcome, setFindOutcome] = useState<FinderOutcomeKind>("duration");
+  const [findEscapeAt, setFindEscapeAt] = useState(10);
+  const [findWinner, setFindWinner] = useState(0);
+  const [searchOutcome, setSearchOutcome] = useState<FinderOutcomeKind>("duration");
   const [shareCopied, setShareCopied] = useState(false);
   const recordingSupported = useMemo(() => VideoRecorder.isSupported(), []);
 
@@ -210,6 +223,7 @@ export default function Simulator() {
       ballCount: effectiveBallCount(s), // --- teams ---
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
+      timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -462,6 +476,22 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.obstacles, s.bumperBoost]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end obstacle-editor ---
+  // --- timeline --- the keyframes travel in the physics config: the engine plays them on the simulation clock and the seed finder
+  // copies them (the rotation speed's only while the rotation is on). New keyframes drop a found seed with its promise, like a new
+  // obstacle layout. The live values of the automated settings are published for the panel (sliders, Timeline section).
+  const timelineSignature = serializeKeyframes(engineTimelineOf(s));
+  const engineKeyframes = useMemo(() => engineTimelineOf(s), [timelineSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig({ timeline: engineKeyframes });
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [engineKeyframes]);
+  const readTimelineTime = useCallback(() => (engineRef.current?.getElapsedMs() ?? 0) / 1000, []);
+  const getTimelineEngine = useCallback(() => engineRef.current, []);
+  useTimelineLivePublisher(engineKeyframes, readTimelineTime);
+  // --- end timeline ---
   // --- jdm-illusions --- Circle Illusion: a change of the type, the counts, the picture, the speed or the cycles restarts it with
   // a fresh seed (so the figure starts in line); the tracks and the reveal only change the drawing and follow live.
   useEffect(() => {
@@ -594,6 +624,26 @@ export default function Simulator() {
     engine.setBallCount(ballCount);
   }, [ballCount, s.mode]);
 
+  // --- rigged --- never escape and the forced winner travel in the physics config (the finder's engines copy it); a change
+  // drops a found seed, and its promise with it
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig(riggedConfigOf(s));
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
+  // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s) }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
+  const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
+  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
+  const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
+  const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "" };
+  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner) ? t("Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
+  // --- end rigged ---
+
   // Mirror settings into the URL so any setup can be bookmarked or shared.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -641,6 +691,8 @@ export default function Simulator() {
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
       Object.assign(fresh, captionCarryOver(themeLookRef.current)); // --- captions --- the captions are overlays: they carry over
+      Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
+      Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1180,6 +1232,7 @@ export default function Simulator() {
           ballCount: effectiveBallCount(loaded), // --- teams ---
           ...physicsExtrasOf(loaded),
           ...ballInteractionOf(loaded),
+          timeline: engineTimelineOf(loaded), // --- timeline --- (the preset's run starts from its own keyframes' values)
         });
         initEngineForMode(engine, loaded);
       }
@@ -1229,6 +1282,11 @@ export default function Simulator() {
     setSearchProgress(null);
     const controller = new AbortController();
     finderAbortRef.current = controller;
+    // --- rigged --- an outcome search (never escapes, escapes at, winner) instead of the run length
+    // (a first escape later than the clip gets a clip that runs a few seconds past it)
+    const clipSec = finderOutcome === "escapes-at" ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
+    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
+    setSearchOutcome(finderOutcome ?? "duration");
     const result = await findSimulation(
       {
         targetDurationSec: findDuration,
@@ -1263,6 +1321,7 @@ export default function Simulator() {
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
         },
+        outcome, // --- rigged ---
       },
       (p) => setSearchProgress(p),
       controller.signal,
@@ -1281,13 +1340,15 @@ export default function Simulator() {
       // --- teams --- the recording also keeps the winner banner's hold after the run (--- boris-multipliers --- and the
       // board's "made it home", which ends every board run)
       const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0);
-      update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + holdMs / 1000)) });
+      // --- rigged --- a found outcome run that goes on past its clip (never escapes; Multiply) has no end to hold for
+      const hold = result.outcome && !result.finished ? 0 : holdMs;
+      update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + hold / 1000))) });
       // --- jdm-double-pendulum --- the clip length is this mode's run length (its finale ends the clip): a found seed keeps it
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode]);
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam]); // --- rigged --- (the outcome)
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
@@ -1544,7 +1605,7 @@ export default function Simulator() {
                           <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
                         </div>
                         <p className="text-xs text-slate-400 font-mono">{t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
-                        {searchProgress.bestDuration > 0 && <p className="text-xs text-slate-500">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
+                        {searchOutcome !== "duration" /* --- rigged --- */ ? <p className="text-xs text-slate-500">{outcomeProgressText(t, searchOutcome, searchProgress)}</p> : searchProgress.bestDuration > 0 && <p className="text-xs text-slate-500">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
                       </div>
                     )}
                     <button type="button" onClick={cancelFinder} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
@@ -1559,7 +1620,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
+                      {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}
@@ -1603,6 +1664,8 @@ export default function Simulator() {
                 </div>
               )}
             </div>
+            {/* --- timeline --- the keyframe markers and the playhead under the canvas */}
+            {s.keyframes.length > 0 && <TimelineBar keyframes={s.keyframes} clipSec={s.recordingDuration} getEngine={getTimelineEngine} />}
             <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
               <span>{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</span>
               <button type="button" onClick={copyShareLink} className="shrink-0 px-2.5 py-1 rounded-md bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 transition-colors cursor-pointer">
@@ -1615,14 +1678,24 @@ export default function Simulator() {
                 ✋ {t("Controls.obstacleHint")}
               </p>
             )}
+            {/* --- rigged --- the rig is on: said here, outside the canvas, so the recording never shows it */}
+            {riggedNote && (
+              <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="rigged-note">
+                🎭 {riggedNote}
+              </p>
+            )}
           </div>
 
-          {showFinder && (
+          {(showFinder || finderOutcome !== null) /* --- rigged --- (the outcomes) */ && (
             <div className="mt-6 max-w-[800px] mx-auto w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-xl flex-1 flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-zinc-300">🔍 {t("Controls.findSimulation")}</span>
                 <Tooltip text={t("Controls.findSimulationTip")} />
+                {/* --- rigged --- the outcome to search for */}
+                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} />}
               </div>
+              {/* --- rigged --- an outcome search's explanation and fields */}
+              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} />}
               <div className="flex-1 flex flex-col justify-center">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -1655,7 +1728,7 @@ export default function Simulator() {
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-zinc-500">
                     <span className="font-mono">{t("Controls.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</span>
-                    {searchProgress.bestDuration > 0 && <span>{t("Controls.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</span>}
+                    {searchOutcome !== "duration" /* --- rigged --- */ ? <span>{outcomeProgressText(t, searchOutcome, searchProgress)}</span> : searchProgress.bestDuration > 0 && <span>{t("Controls.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</span>}
                   </div>
                 </div>
               )}
@@ -1664,7 +1737,7 @@ export default function Simulator() {
                   <span className="text-sm">❌</span>
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
-                    <p className="text-[10px] text-zinc-500">{searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested })}</p>
+                    <p className="text-[10px] text-zinc-500">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕
@@ -1675,7 +1748,7 @@ export default function Simulator() {
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">
                   <span className="text-sm">✅</span>
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-emerald-400">{mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) })}</p>
+                    <p className="text-xs font-semibold text-emerald-400">{outcomeFoundText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) }))}</p>
                     <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
@@ -1698,7 +1771,7 @@ export default function Simulator() {
                     <span className="animate-pulse">🔍</span> {t("Controls.cancelSearch")}
                   </>
                 ) : (
-                  <>🔍 {mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration })}</>
+                  <>🔍 {outcomeButtonText(t, finderOutcome, outcomeText) /* --- rigged --- */ ?? (mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration }))}</>
                 )}
               </button>
             </div>

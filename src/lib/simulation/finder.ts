@@ -13,6 +13,10 @@ import type { CollideSettings } from "@/lib/physics/modes/collide";
 import type { GlassSettings } from "@/lib/physics/modes/glass";
 // --- boris-multipliers ---
 import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } from "@/lib/physics/modes/multipliers";
+// --- rigged ---
+import { startBallCount } from "@/lib/physics/ballStats";
+import { rigNeverFinishes } from "@/lib/physics/rigged";
+import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -128,6 +132,9 @@ export interface FinderRequest {
   physicsConfig: PhysicsConfig;
   mode: ModeId;
   modeSettings: ModeSettings;
+  // --- rigged ---
+  /** What the found run must do (see outcomes.ts); absent or "duration": last `targetDurationSec` ± `toleranceSec`. */
+  outcome?: FinderOutcome;
 }
 
 export interface FinderProgress {
@@ -152,6 +159,17 @@ export interface FinderResult {
   // --- boris-multipliers ---
   /** A count search (multipliers board with a target): the final count of the seed found – or of the closest one. */
   count?: number;
+  // --- rigged ---
+  /**
+   * An outcome search (never-escapes, escapes-at, winner): the outcome searched for. `duration` is then the clip to
+   * record for a found run (`outcomeClipSec()`) – and for the closest run the figure the page shows (`outcomeFigure()`:
+   * its survival, its first escape or its length).
+   */
+  outcome?: FinderOutcomeKind;
+  /** The first escape (seconds) of the run found – or of the closest one – when it had one. */
+  escapeAt?: number;
+  /** An outcome search: the run found ended (the mode's own finish) within the clip – the page holds its end screen. */
+  finished?: boolean;
 }
 
 /**
@@ -243,7 +261,17 @@ export function findSimulation(
   signal?: AbortSignal,
 ): Promise<FinderResult> {
   return new Promise((resolve) => {
+    // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length
+    if (request.outcome && request.outcome.kind !== "duration") {
+      findByOutcome(request, request.outcome, onProgress, signal).then(resolve);
+      return;
+    }
     if (runNeverFinishes(request.mode, request.modeSettings)) {
+      resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
+      return;
+    }
+    // --- rigged --- "never escape" keeps a mode that ends with an escape from ever ending: no length to search for either
+    if (rigNeverFinishes(request.mode, request.physicsConfig)) {
       resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
       return;
     }
@@ -339,3 +367,74 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
     requestAnimationFrame(runOne);
   });
 }
+
+// --- rigged ---
+/** Real time (ms) the outcome search spends per animation frame before it yields (a long run still takes one seed a frame). */
+const OUTCOME_FRAME_BUDGET_MS = 30;
+
+/**
+ * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
+ * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
+ * soon as the outcome is settled (`outcomeSettled()`), so a failing seed costs little.
+ */
+export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome: FinderOutcome): RunSummary {
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000);
+  const step = 1000 / 60;
+  let elapsed = 0;
+  let firstEscape = -1;
+  let finished = false;
+  while (elapsed < horizonMs - 1e-6) {
+    engine.update(step, 0);
+    elapsed += step;
+    engine.consumeSoundEvents();
+    if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
+    finished = engine.isSimulationFinished();
+    if (outcomeSettled(outcome, elapsed, firstEscape, finished)) break;
+  }
+  const teams = engine.getTeamStats().slice(0, startBallCount(engine.config, request.mode)).map((t) => ({ ...t }));
+  return { durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
+}
+
+/** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
+function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgress: (p: FinderProgress) => void, signal?: AbortSignal): Promise<FinderResult> {
+  return new Promise((resolve) => {
+    let tested = 0;
+    let best: { seed: number; run: RunSummary; miss: number } | null = null;
+    const base = Date.now() | 0;
+    const seedAt = (i: number) => (base + 0x9e3779b1 * i) | 0;
+    const result = (found: boolean, seed: number, run: RunSummary | null): FinderResult => ({
+      found,
+      seed,
+      duration: run ? (found ? outcomeClipSec(outcome, run) : outcomeFigure(outcome, run)) : 0,
+      seedsTested: tested,
+      outcome: outcome.kind,
+      finished: run?.finished ?? false,
+      ...(run && run.firstEscapeMs >= 0 ? { escapeAt: run.firstEscapeMs / 1000 } : {}),
+    });
+    const runBatch = () => {
+      if (signal?.aborted) {
+        resolve(result(false, best?.seed ?? 0, best?.run ?? null));
+        return;
+      }
+      const start = performance.now();
+      while (tested < request.maxSeeds) {
+        const seed = seedAt(tested);
+        const run = simulateOutcomeRun(seed, request, outcome);
+        tested++;
+        if (outcomeMatches(outcome, run)) {
+          resolve(result(true, seed, run));
+          return;
+        }
+        const miss = outcomeMiss(outcome, run);
+        if (!best || miss < best.miss) best = { seed, run, miss };
+        if (performance.now() - start > OUTCOME_FRAME_BUDGET_MS) break;
+      }
+      onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seedAt(tested - 1), bestDuration: best ? outcomeFigure(outcome, best.run) : 0, bestSeed: best?.seed ?? 0 });
+      if (tested >= request.maxSeeds) resolve(result(false, best?.seed ?? 0, best?.run ?? null));
+      else requestAnimationFrame(runBatch);
+    };
+    requestAnimationFrame(runBatch);
+  });
+}
+// --- end rigged ---
