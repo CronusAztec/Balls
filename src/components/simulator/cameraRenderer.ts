@@ -15,12 +15,14 @@ import {
   replayEligible,
   replayTimeAt,
   shakeAmplitude,
+  slowViewEligible,
   shakeOffset,
   stepCameraView,
   type CameraSettings,
   type CameraTransform,
 } from "@/lib/simulation/camera";
 import { ReplayBuffer, type ReplayView } from "@/lib/simulation/replay";
+import { StepInterpolator, type StepView } from "@/lib/simulation/stepInterpolation";
 import { ACCENT } from "@/lib/site";
 
 /**
@@ -32,7 +34,7 @@ export type ReplayPhase = "idle" | "postroll" | "playing" | "done";
 /** Balls (besides the followed one) that the zoom keeps in frame. */
 const FIT_BALLS = 8;
 const TWO_PI = Math.PI * 2;
-const DATA_KEYS = ["cameraReplay", "cameraScale", "cameraTimeScale", "cameraShakes", "cameraSlowMo", "cameraReplays"] as const;
+const DATA_KEYS = ["cameraReplay", "cameraScale", "cameraTimeScale", "cameraShakes", "cameraSlowMo", "cameraReplays", "cameraSlowFrames", "cameraSlowStill"] as const;
 /** The replay speed next to the label ("½×" at half speed). */
 const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
 
@@ -42,10 +44,14 @@ const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
  *
  *  - `timeScale()` before feeding the engine: the slow-motion factor for this frame (the engine still runs
  *    its fixed 60 Hz steps, it just gets less wall-clock time, so the physics stay deterministic);
- *  - `afterStep()` after every `engine.update()`: records the step into the replay buffer;
+ *  - `afterStep()` after every `engine.update()`: records the step into the replay buffer (and, with the slow
+ *    motion on, keeps the step before it for the interpolation);
  *  - `frame()` once the physics are done: new wall breaks kick the shake, new near misses start the slow
  *    motion, and the end of an escape run starts the replay;
  *  - `replayView()` while drawing: the recorded walls and balls to draw instead of the live ones;
+ *  - `slowView()` while drawing in slow motion: the balls and walls between the last two physics steps (the
+ *    engine moves in whole 60 Hz steps, which a slowed clock runs only every few frames), so they glide instead
+ *    of standing still and jumping;
  *  - `applyView()` in place of the classic camera follow: zoom + follow + shake, or false to let the
  *    classic follow run untouched when no camera feature needs the view;
  *  - `drawOverlay()` last, in screen space: the "REPLAY" badge (so it is part of recordings too);
@@ -60,6 +66,9 @@ export class CinematicCamera {
   readonly view = createCameraView();
   readonly slowMo = new SlowMotion();
   readonly replay = new ReplayBuffer();
+  /** The step before the latest one, for drawing the live slow motion between steps. */
+  readonly steps = new StepInterpolator();
+  private slow: StepView | null = null;
   private readonly frameIn = createCameraFrame();
   private readonly transform: CameraTransform = { scale: 1, tx: 0, ty: 0 };
   private readonly shake = { x: 0, y: 0 };
@@ -81,6 +90,13 @@ export class CinematicCamera {
   /** Shakes, slow-motion windows and replays in this run (mirrored onto the canvas as data-camera-* for tools and the smoke test). */
   private shakes = 0;
   private replays = 0;
+  /** Frames drawn in a slow-motion window while the run plays, and those that drew the first ball exactly where the frame before did (a stutter). */
+  private slowFrames = 0;
+  private slowStill = 0;
+  private running = false;
+  private drawnId = NaN;
+  private drawnX = NaN;
+  private drawnY = NaN;
 
   /** Real → simulation time factor for this frame: the slow-motion window, 1 otherwise (and around the replay). */
   timeScale(): number {
@@ -107,12 +123,42 @@ export class CinematicCamera {
     return this.phase === "playing" ? this.current : null;
   }
 
+  /**
+   * With the slow motion switched on: the balls, walls and rotations `alpha` (the canvas' leftover accumulator ÷ one
+   * step) of the way from the step before the latest one to the latest one, to draw instead of the engine's
+   * whole-step positions – in a 0.2× window a step comes only every fifth frame, and the balls glide instead of
+   * standing still and jumping. It draws one step behind the engine all the time the switch is on, not only inside a
+   * window, so the view never jumps back or ahead by a step when a window opens or closes. Null with the switch off,
+   * around the replay, or before two consecutive steps were captured – the canvas then draws the engine's state as
+   * it always did. Call it after `frame()`.
+   */
+  slowView(engine: PhysicsEngine, alpha: number): StepView | null {
+    this.slow = null;
+    if (!this.interpolating(engine)) return null;
+    this.slow = this.steps.sample(engine.getElapsedMs(), engine.getBalls(), engine.getCircularWalls(), engine.getWallRotations(), alpha);
+    // Count the slow-motion frames that drew the first ball where it already was (mirrored for the smoke test).
+    const balls = this.slow ? this.slow.balls : engine.getBalls();
+    if (balls.length > 0) {
+      const b = balls[0];
+      if (this.running && this.scaleNow < 1 && b.id === this.drawnId) {
+        this.slowFrames++;
+        if (b.x === this.drawnX && b.y === this.drawnY) this.slowStill++;
+      }
+      this.drawnId = b.id;
+      this.drawnX = b.x;
+      this.drawnY = b.y;
+    }
+    return this.slow;
+  }
+
   /** A restart or a mode change sends the engine clock back (or draws a new seed): forget the replay and the running effects. */
   private checkRestart(engine: PhysicsEngine) {
     const elapsed = engine.getElapsedMs();
     const seed = engine.getSeed();
     if (elapsed < this.lastElapsed || seed !== this.lastSeed) {
       this.replay.clear();
+      this.steps.reset();
+      this.slow = null;
       this.phase = "idle";
       this.current = null;
       this.replayElapsed = 0;
@@ -121,6 +167,9 @@ export class CinematicCamera {
       this.shakeAge = Infinity;
       this.shakes = 0;
       this.replays = 0;
+      this.slowFrames = 0;
+      this.slowStill = 0;
+      this.drawnId = NaN;
       this.lastBreaks = engine.getWallBreakSerial();
       this.lastMisses = engine.getNearMissSerial();
     }
@@ -128,17 +177,26 @@ export class CinematicCamera {
     this.lastSeed = seed;
   }
 
+  /** The live view is drawn between steps: slow motion on, a ring mode, and no replay around. */
+  private interpolating(engine: PhysicsEngine) {
+    return this.settings.slowMoOnNearMiss && this.phase === "idle" && slowViewEligible(engine.getCurrentModeName());
+  }
+
   private recording(engine: PhysicsEngine) {
     return this.settings.replayOnEscape && (this.phase === "idle" || this.phase === "postroll") && replayEligible(engine.getCurrentModeName());
   }
 
-  /** After every engine.update(): records the step for the escape replay (only while a replay can follow). */
+  /**
+   * After every engine.update(): keeps the step for the slow motion's interpolation (while it is on) and records it
+   * for the escape replay (only while a replay can follow).
+   */
   afterStep(engine: PhysicsEngine) {
     this.checkRestart(engine);
-    if (!this.recording(engine)) return;
     const t = engine.getElapsedMs();
     const walls = engine.getCircularWalls();
     const balls = engine.getBalls();
+    if (this.interpolating(engine)) this.steps.capture(t, balls, walls, engine.getWallRotations());
+    if (!this.recording(engine)) return;
     this.replay.record(t, balls, walls, engine.getWallRotations(), engine.getBrokenWalls(), engine.getWallBreakSerial());
     let outer = 0;
     for (let i = 0; i < walls.length; i++) if (walls[i].radius > outer) outer = walls[i].radius;
@@ -157,6 +215,8 @@ export class CinematicCamera {
    */
   frame(engine: PhysicsEngine, frameMs: number, running: boolean) {
     this.checkRestart(engine);
+    this.slow = null; // set again by this frame's slowView()
+    this.running = running;
     const s = this.settings;
     const live = this.phase === "idle";
     const breaks = engine.getWallBreakSerial();
@@ -271,7 +331,7 @@ export class CinematicCamera {
     const s = this.settings;
     const f = this.frameIn;
     const replay = this.replayView();
-    const balls = replay ? replay.balls : engine.getBalls();
+    const balls = replay ? replay.balls : this.slow ? this.slow.balls : engine.getBalls();
     f.centerX = cx;
     f.centerY = cy;
     f.arena = arena;
@@ -379,8 +439,8 @@ export class CinematicCamera {
 
   /**
    * Mirrors the camera state onto the canvas element (data-camera-*) while any camera feature is on, for tools
-   * and the smoke test: the replay phase, the view scale, the time scale and the shake / slow-motion / replay
-   * counts. Removed again when the camera is off.
+   * and the smoke test: the replay phase, the view scale, the time scale, the shake / slow-motion / replay
+   * counts and the slow-motion frames drawn (and how many of them stood still). Removed again when the camera is off.
    */
   syncData(canvas: HTMLCanvasElement) {
     const data = canvas.dataset;
@@ -394,6 +454,8 @@ export class CinematicCamera {
     setData(data, "cameraShakes", String(this.shakes));
     setData(data, "cameraSlowMo", String(this.slowMo.started));
     setData(data, "cameraReplays", String(this.replays));
+    setData(data, "cameraSlowFrames", String(this.slowFrames));
+    setData(data, "cameraSlowStill", String(this.slowStill));
   }
 }
 

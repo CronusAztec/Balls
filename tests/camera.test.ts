@@ -29,12 +29,14 @@ import {
   shakeEnvelope,
   shakeOffset,
   slowMoTimeScale,
+  slowViewEligible,
   stepCameraView,
   worldToScreen,
   zoomScale,
   type CameraSettings,
 } from "@/lib/simulation/camera";
 import { REPLAY_MAX_BALLS, REPLAY_TRAIL, ReplayBuffer } from "@/lib/simulation/replay";
+import { INTERP_MAX_BALLS, INTERP_SNAP_PX, StepInterpolator } from "@/lib/simulation/stepInterpolation";
 import { CinematicCamera } from "@/components/simulator/cameraRenderer";
 import { CinematicDirector } from "@/lib/physics/director";
 import { PhysicsEngine } from "@/lib/physics/engine";
@@ -88,15 +90,17 @@ const ALL_ON: CameraSettings = { cameraZoom: 0.8, screenShake: 1, slowMoOnNearMi
 /**
  * Drives an engine the way Canvas.tsx does: every 16.666 ms frame adds `frameMs × timeScale` to an accumulator
  * that is spent in 16.666 ms engine updates, the camera recording after each and running its frame logic after
- * the physics. Returns one fingerprint per physics step (the step's clock and every ball's position).
+ * the physics, then taking the balls to draw (the replayed ones, the ones between steps in slow motion, or the
+ * engine's). Returns one fingerprint per physics step (the step's clock and every ball's position).
  */
-function driveWithCamera(engine: PhysicsEngine, cam: CinematicCamera, frames: number, onFrame?: (frame: number) => void) {
+function driveWithCamera(engine: PhysicsEngine, cam: CinematicCamera, frames: number, onFrame?: (frame: number, drawn: readonly Ball[], scale: number) => void) {
   const steps: string[] = [];
   let accumulator = 0;
   let last = engine.getElapsedMs();
   const ctx = fakeCtx();
   for (let f = 0; f < frames; f++) {
-    accumulator += 16.666 * cam.timeScale();
+    const scale = cam.timeScale();
+    accumulator += 16.666 * scale;
     if (accumulator > 250) accumulator = 250;
     while (accumulator >= 16.666) {
       engine.update(16.666, 0);
@@ -108,8 +112,11 @@ function driveWithCamera(engine: PhysicsEngine, cam: CinematicCamera, frames: nu
       }
     }
     cam.frame(engine, 16.666, true);
+    const replay = cam.replayView();
+    const slow = replay ? null : cam.slowView(engine, accumulator / 16.666);
+    const drawn = replay ? replay.balls : slow ? slow.balls : engine.getBalls();
     cam.applyView(ctx, engine, false, 400, 300, 255, 600, 0, 0);
-    onFrame?.(f);
+    onFrame?.(f, drawn, scale);
   }
   return steps;
 }
@@ -723,5 +730,194 @@ describe("CinematicCamera", () => {
     expect(cam.getPhase()).toBe("idle");
     expect(cam.replay.size).toBeGreaterThan(0);
     expect(cam.replay.startTime()).toBeLessThan(STEP * 2);
+  });
+});
+
+/* ------------------------------------------------------------------ live slow motion between steps */
+
+describe("StepInterpolator", () => {
+  const walls = (radius = 100): CircularWall[] => [{ radius, gaps: [{ startAngle: 0, endAngle: 0.4 }] }];
+  const withTrail = (b: Ball, points: [number, number][]) => {
+    b.trail = points.map(([x, y]) => ({ x, y }));
+    b.trailIndex = 0;
+    return b;
+  };
+
+  it("draws the balls and walls between the step before the latest one and the latest one", () => {
+    const interp = new StepInterpolator();
+    interp.capture(STEP, [ball(1, 10, 20)], walls(100), [0.1]);
+    const now = [withTrail({ ...ball(1, 20, 40, 10), angle: 0.4 }, [[10, 20], [20, 40]])];
+    const w = walls(110);
+    interp.capture(2 * STEP, now, w, [0.3]);
+    const v = interp.sample(2 * STEP, now, w, [0.3], 0.5)!;
+    expect(v.balls[0]).toMatchObject({ id: 1, x: 15, y: 30, radius: 9 });
+    expect(v.balls[0].angle).toBeCloseTo(0.2, 12);
+    // The trail is the engine's, oldest first, its newest point where the ball is drawn.
+    expect(v.balls[0].trail.map((p) => [p.x, p.y])).toEqual([[10, 20], [15, 30]]);
+    expect(v.walls[0].radius).toBeCloseTo(105, 12);
+    expect(v.walls[0].gaps).toBe(w[0].gaps);
+    expect(v.rotations[0]).toBeCloseTo(0.2, 12);
+    expect(interp.sample(2 * STEP, now, w, [0.3], 0)!.balls[0]).toMatchObject({ x: 10, y: 20 });
+    expect(interp.sample(2 * STEP, now, w, [0.3], 1)!.balls[0]).toMatchObject({ x: 20, y: 40 });
+    // The live ball itself is never touched.
+    expect(now[0]).toMatchObject({ x: 20, y: 40, radius: 10, angle: 0.4 });
+  });
+
+  it("only interpolates two consecutive steps whose latest is the engine's state", () => {
+    const interp = new StepInterpolator();
+    const now = [ball(1, 20, 0)];
+    expect(interp.sample(STEP, now, walls(), [0], 0.5)).toBeNull();
+    interp.capture(STEP, [ball(1, 10, 0)], walls(), [0]);
+    expect(interp.sample(STEP, now, walls(), [0], 0.5), "one step only").toBeNull();
+    interp.capture(2 * STEP, now, walls(), [0]);
+    interp.capture(2 * STEP, [ball(1, 99, 99)], walls(), [0]); // no step ran: ignored
+    expect(interp.sample(2 * STEP, now, walls(), [0], 0.5)!.balls[0].x).toBe(15);
+    expect(interp.sample(3 * STEP, now, walls(), [0], 0.5), "the engine stepped without a capture").toBeNull();
+    interp.capture(5 * STEP, now, walls(), [0]);
+    expect(interp.sample(5 * STEP, now, walls(), [0], 0.5), "steps missed in between").toBeNull();
+    interp.capture(6 * STEP, now, walls(), [0]);
+    expect(interp.sample(6 * STEP, now, walls(), [0], 0.5)).not.toBeNull();
+    interp.reset();
+    expect(interp.sample(6 * STEP, now, walls(), [0], 0.5)).toBeNull();
+  });
+
+  it("follows balls by id, draws new ones where they are and snaps a teleport instead of sliding it", () => {
+    const interp = new StepInterpolator();
+    interp.capture(STEP, [ball(1, 0, 0), ball(2, 100, 0), ball(3, 200, 0)], walls(), [0]);
+    // Ball 1 gone (the others shift down a slot), ball 3 teleported, ball 4 new.
+    const now = [ball(2, 110, 0), ball(3, 200 + INTERP_SNAP_PX + 50, 0), ball(4, 50, 50)];
+    interp.capture(2 * STEP, now, walls(), [0]);
+    const v = interp.sample(2 * STEP, now, walls(), [0], 0.5)!;
+    expect(v.balls.map((b) => [b.id, b.x, b.y])).toEqual([
+      [2, 105, 0],
+      [3, 200 + INTERP_SNAP_PX + 50, 0],
+      [4, 50, 50],
+    ]);
+  });
+
+  it("keeps each ball's live look and draws any balls beyond its cap as they are", () => {
+    const interp = new StepInterpolator();
+    const many = (x: number) => Array.from({ length: INTERP_MAX_BALLS + 3 }, (_, i) => ball(i, x, i));
+    interp.capture(STEP, many(0), walls(), [0]);
+    const now = many(10);
+    now[0] = { ...now[0], color: "#123456", team: 2, lifetime: 500 };
+    interp.capture(2 * STEP, now, walls(), [0]);
+    const v = interp.sample(2 * STEP, now, walls(), [0], 0.5)!;
+    expect(v.balls).toHaveLength(INTERP_MAX_BALLS + 3);
+    expect(v.balls[0]).toMatchObject({ x: 5, color: "#123456", team: 2, lifetime: 500 });
+    expect(v.balls[INTERP_MAX_BALLS - 1].x).toBe(5);
+    expect(v.balls[INTERP_MAX_BALLS]).toBe(now[INTERP_MAX_BALLS]);
+  });
+
+  it("turns the walls the short way round and samples into the same objects every time", () => {
+    const interp = new StepInterpolator();
+    interp.capture(STEP, [ball(1, 0, 0)], walls(), [2 * Math.PI - 0.1]);
+    const now = [ball(1, 10, 0)];
+    interp.capture(2 * STEP, now, walls(), [0.1]);
+    const a = interp.sample(2 * STEP, now, walls(), [0.1], 0.5)!;
+    expect(Math.abs(a.rotations[0])).toBeLessThan(1e-9);
+    const b0 = a.balls[0];
+    const t0 = a.balls[0].trail;
+    const w0 = a.walls[0];
+    const b = interp.sample(2 * STEP, now, walls(), [0.1], 0.25)!;
+    expect(b).toBe(a);
+    expect(b.balls[0]).toBe(b0);
+    expect(b.balls[0].trail).toBe(t0);
+    expect(b.walls[0]).toBe(w0);
+  });
+});
+
+describe("live slow motion", () => {
+  /**
+   * Runs seeded Classic 4242 with slow motion at `factor` (1.5 s windows) the way the canvas draws it and returns, for
+   * the frames inside a slow-motion window, how many redraw the first ball exactly where the previous frame drew it,
+   * the longest such run, and the same two for the engine's raw whole-step positions.
+   */
+  function stutter(factor: number) {
+    const engine = makeEngine("classic", 4242);
+    const cam = new CinematicCamera();
+    cam.settings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true, slowMoFactor: factor, slowMoMs: 1500 };
+    let slowFrames = 0;
+    let frozen = 0;
+    let rawFrozen = 0;
+    let run = 0;
+    let longest = 0;
+    let rawRun = 0;
+    let rawLongest = 0;
+    let prev: { id: number; x: number; y: number } | null = null;
+    let rawPrev: { x: number; y: number } | null = null;
+    let deepMove = 0;
+    let deepRawMove = 0;
+    driveWithCamera(engine, cam, 60 * 30, (_f, drawn, scale) => {
+      if (engine.isSimulationFinished() || drawn.length === 0) return;
+      const b = drawn[0];
+      const raw = engine.getBalls()[0];
+      if (scale < 1 && prev && rawPrev && prev.id === b.id) {
+        slowFrames++;
+        const same = b.x === prev.x && b.y === prev.y;
+        frozen += same ? 1 : 0;
+        run = same ? run + 1 : 0;
+        longest = Math.max(longest, run);
+        const rawSame = raw.x === rawPrev.x && raw.y === rawPrev.y;
+        rawFrozen += rawSame ? 1 : 0;
+        rawRun = rawSame ? rawRun + 1 : 0;
+        rawLongest = Math.max(rawLongest, rawRun);
+        // Deep in the window: how far the drawn ball moves per frame, against the raw whole-step jumps.
+        if (scale <= factor + 0.02) {
+          deepMove = Math.max(deepMove, Math.hypot(b.x - prev.x, b.y - prev.y));
+          deepRawMove = Math.max(deepRawMove, Math.hypot(raw.x - rawPrev.x, raw.y - rawPrev.y));
+        }
+      }
+      prev = { id: b.id, x: b.x, y: b.y };
+      rawPrev = { x: raw.x, y: raw.y };
+    });
+    const canvas = fakeCanvas();
+    cam.syncData(canvas);
+    return { slowFrames, frozen, longest, rawFrozen, rawLongest, deepMove, deepRawMove, windows: cam.slowMo.started, data: { frames: canvas.dataset.cameraSlowFrames, still: canvas.dataset.cameraSlowStill } };
+  }
+
+  it("draws the balls between physics steps: they glide instead of standing still for frames and then jumping", () => {
+    for (const factor of [0.2, 0.4]) {
+      const r = stutter(factor);
+      const label = `${factor}×: ${JSON.stringify(r)}`;
+      expect(r.windows, label).toBeGreaterThan(0);
+      expect(r.slowFrames, label).toBeGreaterThan(60);
+      // The engine's positions stand still for most slow-motion frames (one step every 1 / factor frames)…
+      expect(r.rawFrozen / r.slowFrames, label).toBeGreaterThan(factor === 0.2 ? 0.6 : 0.4);
+      expect(r.rawLongest, label).toBeGreaterThanOrEqual(factor === 0.2 ? 3 : 1);
+      // …the drawn ones move every frame, by about the factor of a step instead of a whole step at once.
+      expect(r.frozen, label).toBe(0);
+      expect(r.longest, label).toBe(0);
+      expect(r.deepMove, label).toBeLessThan((factor + 0.25) * r.deepRawMove);
+      // The canvas mirrors the same count for the smoke test (every slow-motion frame, the finished run's included).
+      expect(Number(r.data.frames), label).toBeGreaterThanOrEqual(r.slowFrames);
+      expect(r.data.still, label).toBe("0");
+    }
+  });
+
+  it("only takes over the ring modes' live view with the slow motion on, and never changes the run", () => {
+    expect(slowViewEligible("classic")).toBe(true);
+    expect(slowViewEligible("grow")).toBe(true);
+    for (const mode of ["drop", "box", "pendulum", "polyrhythm", "collide"] as ModeId[]) expect(slowViewEligible(mode), mode).toBe(false);
+    const engine = makeEngine("classic", 4242);
+    const cam = new CinematicCamera();
+    let views = 0;
+    driveWithCamera(engine, cam, 120, () => {
+      if (cam.slowView(engine, 0.5)) views++;
+    });
+    expect(views, "slow motion off").toBe(0);
+    cam.settings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true };
+    driveWithCamera(engine, cam, 120, () => {
+      if (cam.slowView(engine, 0.5)) views++;
+    });
+    expect(views).toBeGreaterThan(100);
+    // Same seed, same steps with the slow view drawn every frame (driveWithCamera takes it) as without the camera.
+    const plain = drivePlain(makeEngine("classic", 4242), 60 * 20);
+    const slowCam = new CinematicCamera();
+    slowCam.settings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true, slowMoFactor: 0.2, slowMoMs: 1500 };
+    const steps = driveWithCamera(makeEngine("classic", 4242), slowCam, 60 * 40);
+    const n = Math.min(plain.length, steps.length);
+    expect(n).toBeGreaterThan(600);
+    expect(steps.slice(0, n)).toEqual(plain.slice(0, n));
   });
 });

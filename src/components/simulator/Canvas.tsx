@@ -644,11 +644,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
-      // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones
+      // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones;
+      // with slow motion on, the balls and walls between the last two physics steps (a slowed clock runs a step only
+      // every few frames, so the raw positions would stand still and jump)
       const replay = cam.replayView();
-      const walls = replay ? replay.walls : engine.getCircularWalls();
-      const rotations = replay ? replay.rotations : engine.getWallRotations();
+      const slow = replay ? null : cam.slowView(engine, accumulator / 16.666);
+      const walls = replay ? replay.walls : slow ? slow.walls : engine.getCircularWalls();
+      const rotations = replay ? replay.rotations : slow ? slow.rotations : engine.getWallRotations();
       const broken = replay ? replay.broken : engine.getBrokenWalls();
+      const drawnBalls = replay ? replay.balls : slow ? slow.balls : engine.getBalls();
       const circleAlpha = (a: number) => {
         const { r, g, b } = circleRgbRef.current;
         return `rgba(${r}, ${g}, ${b}, ${a})`;
@@ -722,7 +726,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         camXRef.current = -cam.view.offsetX;
         camYRef.current = -cam.view.offsetY;
       } else if (p.cameraFollow) {
-        const balls = engine.getBalls();
+        const balls = drawnBalls;
         if (balls.length > 0) {
           const b = balls[0];
           const limit = 0.5 * arena;
@@ -1254,7 +1258,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // Lines mode strings
       const drawStrings = (points: { x: number; y: number }[]) => {
-        const balls = engine.getBalls();
+        const balls = drawnBalls; // --- camera: the strings end at the ball where it is drawn (replayed or between steps)
         const ball = balls.length > 0 ? balls[0] : null;
         const colorAt = (i: number) => {
           if (!p.rainbowLines) return p.lineColor;
@@ -1328,7 +1332,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Balls
-      const balls = replay ? replay.balls : engine.getBalls(); // --- camera: the replayed balls and trails during the escape replay
+      const balls = drawnBalls; // --- camera: the replayed balls and trails during the escape replay, or the balls between steps in slow motion
       const isColorMatch = engine.isColorMatchMode();
       const matchColor = isColorMatch ? engine.getColorMatchBallColor() : null;
       const rainbowColors: string[] = [];

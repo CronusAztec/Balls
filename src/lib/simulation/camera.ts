@@ -328,6 +328,17 @@ export class SlowMotion {
   }
 }
 
+/**
+ * The ring modes, whose balls the canvas draws between the last two physics steps while the slow motion is on (see
+ * stepInterpolation.ts). The rhythm modes draw their own bodies from their own state – and have no gaps to squeeze
+ * past, so no near misses and no slow motion either – so they keep the engine's positions.
+ */
+export const SLOW_VIEW_MODES: readonly ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow"];
+
+export function slowViewEligible(mode: ModeId | null | undefined): boolean {
+  return !!mode && SLOW_VIEW_MODES.includes(mode);
+}
+
 /* ------------------------------------------------------------------ escape replay */
 
 /** Simulation time kept for the replay. */

@@ -1590,6 +1590,16 @@ const findAndRecordTeams = async (query, name) => {
       `(slowed=${slowed}, scale ${data.cameraScale}, time scale ${data.cameraTimeScale}, shakes ${data.cameraShakes}, slow-mo windows ${data.cameraSlowMo})`,
     );
   }
+  {
+    // The slowed run is drawn between physics steps: at 0.2× (0.4 steps a frame at 2×) the engine's whole-step
+    // positions stand still in most frames, the drawn ball moves in every one (the canvas counts the slow-motion
+    // frames and those that drew the ball where it already was).
+    const counted = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.cameraSlowFrames) >= 30, null, { timeout: 45000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const frames = Number(data.cameraSlowFrames);
+    const still = Number(data.cameraSlowStill);
+    check("live slow motion glides: the ball moves in every slowed frame", counted && still <= Math.max(1, 0.05 * frames), `(${frames} slow-motion frames, ${still} with the ball standing still)`);
+  }
 
   await page.goto(`${BASE}/en/simulator/?mode=classic&wc=2&gap=0.9&replay=1&shake=0.6&res=500x500&dur=60`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();
