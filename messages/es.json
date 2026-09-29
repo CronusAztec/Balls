@@ -1004,7 +1004,11 @@
     "ilCycleInfo": "Un ciclo dura {seconds}s",
     "wallWobble": "Paredes gelatina",
     "wallWobbleTip": "Las paredes circulares se abomban donde las golpea una pelota; el bulto recorre la pared y se apaga como gelatina. Solo visual: la física, las semillas y Buscar simulación no cambian.",
-    "wallWobbleOff": "No"
+    "wallWobbleOff": "No",
+    "fastExportFps": "Fotogramas de la exportación rápida",
+    "fastExportFpsTip": "Fotogramas por segundo de la ⚡ exportación rápida: 60 es lo más fluido, 30 da un archivo más pequeño y termina antes. La física siempre calcula 60 pasos por segundo, así que la partida y sus sonidos son iguales en ambos casos.",
+    "fastExportFps30": "30 fps",
+    "fastExportFps60": "60 fps"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1408,5 +1412,22 @@
     "ballN": "Pelota {n}",
     "noteNeverEscape": "Amañado: ninguna pelota puede escapar",
     "noteWinner": "Amañado: gana {name}"
+  },
+  "FastExport": {
+    "button": "Exportación rápida",
+    "buttonTip": "Genera el clip fotograma a fotograma desde el inicio de la partida actual en lugar de grabar la pantalla: normalmente más rápido que en tiempo real, sin perder fotogramas, y la misma semilla siempre da el mismo vídeo. Usa la resolución, la duración y los fotogramas de la sección Grabación; mientras tanto la simulación se pausa.",
+    "preparing": "Preparando la exportación…",
+    "rendering": "Renderizando el fotograma {frame} de {frames}",
+    "mixing": "Mezclando y codificando el sonido…",
+    "finishing": "Escribiendo el archivo…",
+    "progressLabel": "Progreso de la exportación rápida",
+    "speed": "{speed}× tiempo real",
+    "cancel": "Cancelar",
+    "done": "Exportado un {format} de {seconds} s en {wall} s ({speed}× tiempo real).",
+    "cancelled": "Exportación rápida cancelada: no se guardó nada.",
+    "fallbackWebCodecs": "Este navegador no puede codificar vídeo por sí mismo (no tiene WebCodecs), así que el clip se graba en tiempo real con Grabar vídeo.",
+    "fallbackCodecs": "Este navegador no tiene un codificador H.264, VP9 ni VP8 con sonido AAC u Opus para la exportación rápida, así que el clip se graba en tiempo real con Grabar vídeo.",
+    "unsupportedNote": "La exportación rápida necesita WebCodecs (Chrome, Edge, Safari o Firefox recientes); aquí se graba en tiempo real.",
+    "error": "La exportación rápida falló ({message}). Grabar vídeo sigue funcionando."
   }
 }

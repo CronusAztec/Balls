@@ -1004,7 +1004,11 @@
     "ilCycleInfo": "Jeden cykl trwa {seconds}s",
     "wallWobble": "Falujące ściany",
     "wallWobbleTip": "Okrągłe ściany wybrzuszają się tam, gdzie uderzy piłka; wybrzuszenie obiega ścianę i gaśnie jak galaretka. Tylko efekt wizualny – fizyka, ziarna i Znajdź symulację się nie zmieniają.",
-    "wallWobbleOff": "Wył."
+    "wallWobbleOff": "Wył.",
+    "fastExportFps": "Klatki szybkiego eksportu",
+    "fastExportFpsTip": "Liczba klatek na sekundę w ⚡ szybkim eksporcie: 60 daje najpłynniejszy obraz, 30 – mniejszy plik i krótsze renderowanie. Fizyka zawsze liczy 60 kroków na sekundę, więc przebieg i dźwięki są w obu przypadkach takie same.",
+    "fastExportFps30": "30 kl./s",
+    "fastExportFps60": "60 kl./s"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1408,5 +1412,22 @@
     "ballN": "Piłka {n}",
     "noteNeverEscape": "Ustawione: żadna piłka nie ucieknie",
     "noteWinner": "Ustawione: wygrywa {name}"
+  },
+  "FastExport": {
+    "button": "Szybki eksport",
+    "buttonTip": "Tworzy klip klatka po klatce od początku bieżącego przebiegu zamiast nagrywać ekran – zwykle szybciej niż w czasie rzeczywistym, bez gubienia klatek, a to samo ziarno zawsze daje ten sam film. Używa rozdzielczości, czasu trwania i liczby klatek z sekcji Nagrywanie; symulacja jest w tym czasie wstrzymana.",
+    "preparing": "Przygotowywanie eksportu…",
+    "rendering": "Renderowanie klatki {frame} z {frames}",
+    "mixing": "Miksowanie i kodowanie dźwięku…",
+    "finishing": "Zapisywanie pliku…",
+    "progressLabel": "Postęp szybkiego eksportu",
+    "speed": "{speed}× czasu rzeczywistego",
+    "cancel": "Anuluj",
+    "done": "Wyeksportowano {seconds} s wideo {format} w {wall} s ({speed}× czasu rzeczywistego).",
+    "cancelled": "Szybki eksport anulowany – nic nie zostało zapisane.",
+    "fallbackWebCodecs": "Ta przeglądarka nie potrafi sama kodować wideo (brak WebCodecs), więc klip jest nagrywany w czasie rzeczywistym przez Nagraj wideo.",
+    "fallbackCodecs": "Ta przeglądarka nie ma kodera H.264, VP9 ani VP8 z dźwiękiem AAC lub Opus do szybkiego eksportu, więc klip jest nagrywany w czasie rzeczywistym przez Nagraj wideo.",
+    "unsupportedNote": "Szybki eksport wymaga WebCodecs (aktualny Chrome, Edge, Safari lub Firefox); tutaj nagrywa w czasie rzeczywistym.",
+    "error": "Szybki eksport nie powiódł się ({message}). Nagraj wideo nadal działa."
   }
 }

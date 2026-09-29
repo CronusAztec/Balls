@@ -101,6 +101,8 @@ const CACHE_LIMIT = 6;
 interface Voice {
   source: AudioBufferSourceNode;
   gain: GainNode;
+  /** --- fast-render --- Context time the voice has played out by (its `ended` event may come later, or – offline – after the whole clip is scheduled). */
+  end: number;
 }
 
 export class HitSampler {
@@ -217,6 +219,7 @@ export class HitSampler {
     const rate = Math.max(0.125, Math.min(8, playbackRate));
     const level = Math.min(1, this.volume * Math.max(0, gainScale));
     try {
+      this.dropFinishedVoices(now); // --- fast-render ---
       while (this.voices.length >= MAX_VOICES) this.release(this.voices.shift()!, now);
       const duration = Math.min(buffer.duration / rate, MAX_VOICE_SEC);
       const fade = Math.min(VOICE_FADE_SEC, duration / 2);
@@ -230,7 +233,7 @@ export class HitSampler {
       gain.gain.linearRampToValueAtTime(0, now + duration);
       source.connect(gain);
       gain.connect(this.destination);
-      const voice: Voice = { source, gain };
+      const voice: Voice = { source, gain, end: now + duration };
       source.onended = () => {
         const i = this.voices.indexOf(voice);
         if (i >= 0) this.voices.splice(i, 1);
@@ -250,6 +253,18 @@ export class HitSampler {
       return false;
     }
   }
+
+  // --- fast-render ---
+  /**
+   * Forgets the voices that have played out by `now`, so only voices that really overlap are stolen – also when their
+   * `ended` event has not fired yet (a fast export schedules the whole clip into an OfflineAudioContext before any of it plays).
+   */
+  private dropFinishedVoices(now: number) {
+    let kept = 0;
+    for (const voice of this.voices) if (voice.end > now) this.voices[kept++] = voice;
+    this.voices.length = kept;
+  }
+  // --- end fast-render ---
 
   /** Fades a voice out quickly instead of cutting it (voice stealing). */
   private release(voice: Voice, now: number) {

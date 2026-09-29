@@ -42,6 +42,7 @@ import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- time
 // --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
+import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -111,6 +112,8 @@ export interface ControlsProps {
   // --- themes: the background picture uploaded in this session (kept in memory) and how to change it
   themeImage: ThemeImageProps;
   // --- end themes
+  // --- fast-render --- the Fast export button under Record Video, its progress and how it went
+  fastExport?: FastExportPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -147,6 +150,7 @@ SECTION_KEYS.ball.push(...DOUBLE_PENDULUM_KEYS);
 // --- jdm-illusions --- the Circle Illusion block is searched with the Ball section, Wobbly Walls with the Visual section.
 SECTION_KEYS.ball.push(...ILLUSION_KEYS);
 SECTION_KEYS.visual.push(...WALL_WOBBLE_KEYS);
+SECTION_KEYS.recording.push(...FAST_EXPORT_KEYS); // --- fast-render --- the fast export's frame rate
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -992,6 +996,8 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
+      {/* --- fast-render --- the fast export's frame rate */}
+      <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
     </div>
   );
 
@@ -1152,6 +1158,7 @@ export default function Controls(props: ControlsProps) {
           </>
         )}
       </button>
+      {props.fastExport && <FastExportButton {...props.fastExport} /> /* --- fast-render --- */}
 
       <div className="relative mb-1">
         <input
@@ -1414,7 +1421,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         musicStartOffset: d.musicStartOffset,
       };
     case "recording":
-      return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
+      return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize, fastExportFps: d.fastExportFps }; // --- fast-render --- (fastExportFps)
     // --- teams --- no roster (the balls stay), names and scoreboard back on, top left
     case "teams": {
       const teams = defaultTeamSettings();

@@ -55,6 +55,10 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+// --- fast-render ---
+import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
+import { resolveFastExportFps, type EndHolds } from "@/lib/recording/fastRenderPlan";
+import type { FastExportState } from "./sections/FastExportSection";
 import {
   RANGES,
   defaultSettings,
@@ -92,6 +96,17 @@ const ILLUSION_REVEAL_HOLD_MS = 2000;
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
   return { instrument: s.instrument, melodyInstrument: s.melodyInstrument, scale: s.scale, rootNote: s.rootNote, quantizeToBeat: s.quantizeToBeat, bpm: s.bpm, quantizeGrid: s.quantizeGrid };
 }
+
+// --- fast-render ---
+/** The page's holds between a finished run and its end screen (the finish detection in the sound loop), for the fast export. */
+function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds {
+  const preMs = engine.isPaintMode() && engine.getPaintState().picture ? PAINT_FINISH_HOLD_MS : engine.isIllusionMode() && engine.getIllusionView().type === "whitespace" ? ILLUSION_REVEAL_HOLD_MS : 0;
+  const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
+  return { preMs, postMs };
+}
+/** How often (ms) the fast export's progress re-renders the page. */
+const FAST_PROGRESS_MS = 120;
+// --- end fast-render ---
 
 export default function Simulator() {
   const t = useTranslations();
@@ -693,6 +708,7 @@ export default function Simulator() {
       Object.assign(fresh, captionCarryOver(themeLookRef.current)); // --- captions --- the captions are overlays: they carry over
       Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
       Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
+      fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -954,6 +970,100 @@ export default function Simulator() {
     const id = setTimeout(() => void stopRecordingAndDownload(), 500);
     return () => clearTimeout(id);
   }, [isRecording, finished, stopRecordingAndDownload]);
+
+  /* ------------------------------------------------------------ fast export */
+  // --- fast-render --- "Fast export" renders the clip offline (lib/recording/fastRender.ts): a fresh engine set up like the page's
+  // for the current run's seed, drawn by a hidden instance of the canvas (fastRenderHost), encoded with WebCodecs and downloaded.
+  // The page's run pauses meanwhile and resumes afterwards. Without WebCodecs (or a usable encoder) the button says so and
+  // Record Video takes over.
+  const fastRenderHost = useMemo(() => new FastRenderHost(), []);
+  const [fastExport, setFastExport] = useState<FastExportState>({ status: "idle" });
+  const [fastSupported, setFastSupported] = useState<boolean | null>(null);
+  useEffect(() => setFastSupported(fastRenderSupported()), []);
+  const fastAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => fastAbortRef.current?.abort(), []); // an export stops with the page
+  const fastRunning = fastExport.status === "running";
+  const startFastExport = useCallback(async () => {
+    const page = engineRef.current;
+    if (!page || fastAbortRef.current || isRecording || isSearching) return;
+    const s = settings;
+    const resolution = resolutionToSize(s.recordingResolution);
+    const fps = resolveFastExportFps(s.fastExportFps);
+    if (!fastRenderSupported()) {
+      setFastExport({ status: "fallback", reason: "webcodecs" });
+      void toggleRecording();
+      return;
+    }
+    const controller = new AbortController();
+    fastAbortRef.current = controller;
+    setFastExport({ status: "running", phase: "prepare", progress: 0, frame: 0, frames: Math.round(s.recordingDuration * fps), clipSec: 0, elapsedMs: 0 });
+    if (!(await pickExportFormat(resolution.width, resolution.height, fps))) {
+      fastAbortRef.current = null;
+      setFastExport({ status: "fallback", reason: "codecs" });
+      void toggleRecording();
+      return;
+    }
+    const seed = page.getSeed();
+    const resume = isStarted && !isPaused;
+    if (resume) setIsPaused(true);
+    // Everything the page engine got from its settings effects beyond the config and the mode's settings (initEngineForMode).
+    const paintOptions = page.getPaintOptions();
+    const paintBeat = {
+      source: s.paintBeatSource,
+      manualBpm: s.bpm,
+      grid: activeBeats ? { bpm: activeBeats.beats.bpm, beatTimes: activeBeats.beats.beatTimes, duration: activeBeats.beats.duration } : null,
+      offset: activeBeats?.offset ?? 0,
+      loop: activeBeats?.loop ?? true,
+    };
+    const teamsPlay = teamsPlayRef.current;
+    let lastProgress = 0;
+    try {
+      const result = await renderFast({
+        host: fastRenderHost,
+        seed,
+        createEngine: () => {
+          const engine = new PhysicsEngine({ ...page.config });
+          engine.setSeed(seed);
+          engine.setParticleStyle(s.particleStyle, particlePalette(s));
+          engine.setPaintOptions(paintOptions);
+          engine.setPaintBeat(paintBeat);
+          initEngineForMode(engine, s);
+          return engine;
+        },
+        world: { width: page.config.width, height: page.config.height },
+        resolution,
+        durationSec: s.recordingDuration,
+        fps,
+        audio: audioRef.current,
+        endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
+        textOverlay: { topText: s.topText, bottomText: s.bottomText, textSize: s.textSize, watermarkText: s.watermarkText },
+        backgroundColor: s.backgroundColors[0],
+        onProgress: (p) => {
+          const now = performance.now();
+          if (p.phase === "frames" && now - lastProgress < FAST_PROGRESS_MS) return;
+          lastProgress = now;
+          setFastExport({ status: "running", ...p });
+        },
+        signal: controller.signal,
+      });
+      if (!result) setFastExport({ status: "cancelled" });
+      else {
+        downloadExport(result.blob, result.format.extension);
+        setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
+      }
+    } catch (err) {
+      if (err instanceof FastRenderUnsupportedError) setFastExport({ status: "fallback", reason: "codecs" });
+      else {
+        console.warn("Fast export failed:", err);
+        setFastExport({ status: "error", message: err instanceof Error ? err.message : String(err) });
+      }
+    } finally {
+      fastAbortRef.current = null;
+      if (resume) setIsPaused(false);
+    }
+  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording]);
+  const cancelFastExport = useCallback(() => fastAbortRef.current?.abort(), []);
+  // --- end fast-render ---
 
   /* ------------------------------------------------------------ custom media */
 
@@ -1539,6 +1649,7 @@ export default function Simulator() {
                   onObstaclesChange={onObstaclesChange}
                   captions={captionRender} // --- captions ---
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
+                  fastRender={fastRenderHost} // --- fast-render ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -1784,7 +1895,7 @@ export default function Simulator() {
             update={update}
             onResetSection={onResetSection}
             isRecording={isRecording}
-            recordingSupported={recordingSupported}
+            recordingSupported={recordingSupported && !fastRunning} // --- fast-render --- (not while a fast export runs)
             simulationFound={!!searchResult?.found}
             onRecordToggle={toggleRecording}
             ballImage={ballImage}
@@ -1826,6 +1937,7 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
+            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render ---
           />
         </div>
       </div>
