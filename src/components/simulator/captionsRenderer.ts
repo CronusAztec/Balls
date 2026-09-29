@@ -3,7 +3,9 @@ import {
   CaptionTracker,
   MAX_CAPTIONS,
   animateCaption,
+  captionClock,
   captionPhase,
+  captionStackStarts,
   holdsForAnswer,
   countdownPulse,
   countdownSeconds,
@@ -19,6 +21,7 @@ import {
   wallCounterText,
   wrapCaptionText,
   type Caption,
+  type CaptionBounds,
   type CaptionEngineView,
   type CaptionRenderOptions,
 } from "@/lib/captions";
@@ -26,9 +29,11 @@ import {
 /**
  * Drawing of the animated captions (lib/captions.ts), created once with the canvas loop. `draw()` runs in screen
  * space after the HUD and lays the captions out inside the centred square the recorder exports – top ones stacked
- * downwards from the top edge, bottom ones upwards from the bottom edge, center ones around the middle – so every
- * recording has them. Their timing is the simulation clock (`CaptionTracker`): a paused run holds them, 8× plays
- * them eight times faster, and a restart starts them over.
+ * downwards from the top edge, bottom ones upwards from the bottom edge (both clear of the page's Top / Bottom Text),
+ * center ones around the middle – so every recording has them. Their timing is the simulation clock
+ * (`CaptionTracker`): a paused run holds them, 8× plays them eight times faster, and a restart starts them over –
+ * except the countdown and the progress bar while a clip is being recorded, which count the clip itself
+ * (`captionClock()`: real seconds since Record).
  *
  * Steady-state frames do not allocate: the wrapped lines and their widths, the fonts and the countdown / counter
  * strings are cached per caption slot and rebuilt only when their input changes.
@@ -36,16 +41,14 @@ import {
 
 export type CanvasCaptionOptions = CaptionRenderOptions;
 
-export interface CaptionView {
+/** The view a frame is drawn in: its size, what the stacks keep clear of (`CaptionBounds`) and the clocks. */
+export interface CaptionView extends CaptionBounds {
   width: number;
   height: number;
-  /** Live view: room left for the page's buttons over the top and bottom edges of the square (0 in a recording). */
-  insetTop: number;
-  insetBottom: number;
-  /** Screen y the top captions stay below (the teams' scoreboard); 0 = none. */
-  topMin: number;
   /** Real milliseconds of this frame while the run plays (0 while paused), for the answer's end-screen hold. */
   dtMs: number;
+  /** Real seconds since Record while a clip is being recorded, else −1 (see `captionClock()`). */
+  clipTimeSec: number;
 }
 
 const FONT_FAMILY = "sans-serif";
@@ -166,6 +169,8 @@ export class CaptionLayer {
   usesBottom = false;
   /** Real milliseconds since the answer was revealed (0 before). */
   private msSinceReveal = 0;
+  /** Where the top stack starts (its first caption's upper edge) and the bottom stack (its first caption's lower edge) this frame, screen px. */
+  readonly starts = { top: 0, bottom: 0 };
 
   /** True while a finished run should wait so the question's answer can be seen (see `holdsForAnswer()`). */
   holdsEndScreen(): boolean {
@@ -190,12 +195,11 @@ export class CaptionLayer {
     const run = this.tracker.update(engine, wantsReveal);
     const t = run.timeSec;
     const clip = options.clipSec;
+    // The countdown and the progress bar count the clip while one is recorded, the run otherwise.
+    const clock = captionClock(t, view.clipTimeSec);
     const side = Math.min(view.width, view.height);
     const cx = view.width / 2;
     const cy = view.height / 2;
-    const sqTop = cy - side / 2;
-    const sqBottom = cy + side / 2;
-    const margin = 0.035 * side;
     const baseFs = Math.max(12, 0.045 * side);
     const maxTextW = 0.84 * side;
     this.revealed = wantsReveal && run.revealAtSec >= 0;
@@ -227,12 +231,12 @@ export class CaptionLayer {
       const padX = 0.55 * fs;
       let text = "";
       if (c.type === "countdown") {
-        const secs = countdownSeconds(clip, t);
+        const secs = countdownSeconds(clip, clock);
         if (secs !== slot.valueKey || slot.valueLabel !== c.text || slot.valueType !== c.type) {
           slot.valueType = c.type;
           slot.valueKey = secs;
           slot.valueLabel = c.text;
-          slot.valueText = countdownText(c, clip, t);
+          slot.valueText = countdownText(c, clip, clock);
           this.summaryDirty = true;
         }
         text = slot.valueText;
@@ -254,7 +258,7 @@ export class CaptionLayer {
           continue;
         }
       } else if (c.type === "progress") {
-        const pct = Math.round(100 * progressFraction(clip, t));
+        const pct = Math.round(100 * progressFraction(clip, clock));
         if (pct !== slot.valueKey || slot.valueLabel !== c.text || slot.valueType !== c.type) {
           slot.valueType = c.type;
           slot.valueKey = pct;
@@ -310,8 +314,9 @@ export class CaptionLayer {
     this.usesBottom = bottomRoom > 0;
 
     // Lay out: every caption takes room in its stack as it enters, so the others make way smoothly.
-    let topY = Math.max(sqTop + margin + view.insetTop, view.topMin > 0 ? view.topMin + 0.5 * margin : 0);
-    let bottomY = sqBottom - margin - view.insetBottom;
+    const starts = captionStackStarts(view.width, view.height, view, this.starts);
+    let topY = starts.top;
+    let bottomY = starts.bottom;
     let centerY = cy - centerRoom / 2;
     for (let i = 0; i < count; i++) {
       const slot = this.slots[i];
@@ -334,7 +339,7 @@ export class CaptionLayer {
     // Draw.
     for (let i = 0; i < count; i++) {
       const slot = this.slots[i];
-      if (slot.visible) this.drawCaption(ctx, captions[i], slot, cx, clip, t);
+      if (slot.visible) this.drawCaption(ctx, captions[i], slot, cx, clip, clock);
     }
 
     if (this.summaryDirty) {
@@ -349,13 +354,14 @@ export class CaptionLayer {
     }
   }
 
-  private drawCaption(ctx: CanvasRenderingContext2D, c: Caption, slot: CaptionSlot, cx: number, clip: number, t: number) {
+  /** Draws one caption; `clock` is the countdown's and the progress bar's clock (`captionClock()`). */
+  private drawCaption(ctx: CanvasRenderingContext2D, c: Caption, slot: CaptionSlot, cx: number, clip: number, clock: number) {
     const f = slot.frame;
     if (f.alpha <= 0.001 || f.scale <= 0.001) return;
     const fs = slot.fs;
     const h = slot.height;
     const w = slot.boxWidth;
-    const pulse = c.type === "countdown" ? countdownPulse(clip, t) : 1;
+    const pulse = c.type === "countdown" ? countdownPulse(clip, clock) : 1;
     ctx.save();
     ctx.translate(cx, slot.y + f.dy * h);
     const scale = f.scale * pulse;
@@ -385,7 +391,7 @@ export class CaptionLayer {
       ctx.moveTo(-barW / 2, barY);
       ctx.lineTo(barW / 2, barY);
       ctx.stroke();
-      const fraction = progressFraction(clip, t);
+      const fraction = progressFraction(clip, clock);
       if (fraction > 0) {
         ctx.strokeStyle = c.style.color;
         ctx.shadowColor = c.style.color;

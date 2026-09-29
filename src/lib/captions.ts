@@ -450,6 +450,110 @@ export function progressLabel(caption: Pick<Caption, "text">, fraction: number):
   return text.replace(/\[pct\]/g, pct);
 }
 
+/* ------------------------------------------------------------------ the clip clock and the layout */
+
+/**
+ * The clock (seconds) the countdown and the progress bar run on. While a clip is being recorded it is the real time
+ * since Record was pressed (`clipSec` ≥ 0): the recorder stops after the recording duration of real time, so the
+ * countdown reaches 0:00 and the bar fills as the clip ends – also when Record was pressed in a run that had already
+ * started, at 2×–8× or in the camera's slow motion. Otherwise (`clipSec` < 0: the live preview) it is the run's own
+ * clock, `runSec`. The caption windows (start, end) and the answer's reveal always follow the run.
+ */
+export function captionClock(runSec: number, clipSec: number): number {
+  return clipSec >= 0 ? clipSec : runSec;
+}
+
+/** Room between the caption stacks and the edges of the exported square, as a share of its side. */
+export const CAPTION_MARGIN = 0.035;
+
+/** Font size (px) of the page's Top / Bottom Text in a live view whose exported square is `side` px (Canvas.tsx draws it at this size). */
+export function edgeTextFontSize(side: number, textSize: number): number {
+  return Math.max(14, 0.045 * side) * textSize;
+}
+
+/** Distance (px) from the arena centre to the centre of the live Top / Bottom Text line: the ring's radius `arena` plus 0.6 font sizes. */
+export function edgeTextDistance(arena: number, fontSize: number): number {
+  return arena + 0.6 * fontSize;
+}
+
+/** The page's Top / Bottom Text as drawn over a view (screen px): which lines are shown, their centres and their font size. */
+export interface EdgeTextLines {
+  top: boolean;
+  bottom: boolean;
+  topY: number;
+  bottomY: number;
+  fontSize: number;
+}
+
+export function emptyEdgeTextLines(): EdgeTextLines {
+  return { top: false, bottom: false, topY: 0, bottomY: 0, fontSize: 0 };
+}
+
+/** The lines as the canvas draws them live: centred `edgeTextDistance()` above and below the arena centre `cy`. */
+export function liveEdgeTextLines(side: number, cy: number, arena: number, textSize: number, top: boolean, bottom: boolean, out: EdgeTextLines): EdgeTextLines {
+  const fontSize = edgeTextFontSize(side, textSize);
+  const d = edgeTextDistance(arena, fontSize);
+  out.top = top;
+  out.bottom = bottom;
+  out.topY = cy - d;
+  out.bottomY = cy + d;
+  out.fontSize = fontSize;
+  return out;
+}
+
+/**
+ * The lines the recorder draws into an export frame of `exportWidth` × `exportHeight` – `layout` in export px, see
+ * `recordingTextLayout()` in recording/recorder.ts: a little smaller than live, and kept inside the frame – mapped back
+ * into the view it records, whose exported square is `side` px with its top edge at `squareTop`.
+ */
+export function exportEdgeTextLines(layout: { fontSize: number; topY: number; bottomY: number }, exportWidth: number, exportHeight: number, side: number, squareTop: number, top: boolean, bottom: boolean, out: EdgeTextLines): EdgeTextLines {
+  const square = Math.min(exportWidth, exportHeight);
+  const k = square > 0 ? side / square : 1;
+  const dy = (exportHeight - square) / 2;
+  out.top = top;
+  out.bottom = bottom;
+  out.topY = squareTop + (layout.topY - dy) * k;
+  out.bottomY = squareTop + (layout.bottomY - dy) * k;
+  out.fontSize = layout.fontSize * k;
+  return out;
+}
+
+/** What the caption stacks keep clear of, in screen px. */
+export interface CaptionBounds {
+  /** Live view: room left for the page's buttons over the top and bottom edges of the square (0 in a recording). */
+  insetTop: number;
+  insetBottom: number;
+  /** Screen y the top captions stay below (the teams' scoreboard, the Top Text); 0 = none. */
+  topMin: number;
+  /** Screen y the bottom captions stay above (the Bottom Text); Infinity = none. */
+  bottomMax: number;
+}
+
+/**
+ * Sets `out.topMin` and `out.bottomMax` for the Top / Bottom Text `lines`: a line's glyphs reach about half a font size
+ * around its centre, and the limits keep another 0.2 font sizes clear of them. `topMin` is at least `scoreboardBottom`
+ * (the teams' scoreboard, 0 = none) – and just that without a Top Text; `bottomMax` is Infinity without a Bottom Text.
+ */
+export function edgeTextBounds(lines: EdgeTextLines, scoreboardBottom: number, out: CaptionBounds): CaptionBounds {
+  out.topMin = lines.top ? Math.max(scoreboardBottom, lines.topY + 0.7 * lines.fontSize) : scoreboardBottom;
+  out.bottomMax = lines.bottom ? lines.bottomY - 0.7 * lines.fontSize : Infinity;
+  return out;
+}
+
+/**
+ * Where the caption stacks start in a view of `width` × `height`: `top` is the upper edge of the first top caption (the
+ * stack grows downwards), `bottom` the lower edge of the first bottom caption (it grows upwards) – a margin inside the
+ * centred square the recorder crops, clear of the page's buttons (live), the scoreboard and the Top / Bottom Text.
+ */
+export function captionStackStarts(width: number, height: number, bounds: CaptionBounds, out: { top: number; bottom: number }): { top: number; bottom: number } {
+  const side = Math.min(width, height);
+  const cy = height / 2;
+  const margin = CAPTION_MARGIN * side;
+  out.top = Math.max(cy - side / 2 + margin + bounds.insetTop, bounds.topMin > 0 ? bounds.topMin + 0.5 * margin : 0);
+  out.bottom = Math.min(cy + side / 2 - margin - bounds.insetBottom, bounds.bottomMax - 0.5 * margin);
+  return out;
+}
+
 /**
  * Greedy word wrap into at most `maxLines` lines no wider than `maxWidth` (by `measure`): a word wider than the line
  * gets a line of its own, and what does not fit on the last line is cut with an ellipsis.
@@ -495,12 +599,18 @@ export interface CaptionEngineView {
   getBalls(): readonly { id: number }[];
   hasBallEscaped(id: number): boolean;
   getStatsGeneration(): number;
+  /** Shatter builds its walls out of segments with hit points (see `CaptionTracker.update()`). */
+  isShatterMode(): boolean;
+  getShatterSegments(): readonly (readonly { hp: number }[])[];
 }
 
 export interface CaptionRunState {
   /** Simulation seconds since the run started. */
   timeSec: number;
-  /** Walls broken this run (the most seen – Multiply rebuilds its ring after every escape) and walls in play. */
+  /**
+   * Walls broken this run (the most seen – Multiply rebuilds its ring after every escape; in Shatter every wall with a
+   * destroyed segment, the hole the ball escapes through) and walls in play.
+   */
   wallsBroken: number;
   wallsTotal: number;
   finished: boolean;
@@ -540,7 +650,24 @@ export class CaptionTracker {
     s.timeSec = engine.getElapsedMs() / 1000;
     const total = engine.getCircularWalls().length;
     s.wallsTotal = total;
-    s.wallsBroken = Math.min(total, Math.max(s.wallsBroken, engine.getBrokenWalls().size));
+    let broken = engine.getBrokenWalls().size;
+    // Shatter only counts a wall broken once every segment of it is gone, while the ball escapes through the first hole
+    // it digs: there a wall is broken as soon as any of its segments is.
+    if (total > 0 && engine.isShatterMode()) {
+      const walls = engine.getShatterSegments();
+      let breached = 0;
+      for (let w = 0; w < walls.length; w++) {
+        const segments = walls[w];
+        for (let i = 0; i < segments.length; i++) {
+          if (segments[i].hp <= 0) {
+            breached++;
+            break;
+          }
+        }
+      }
+      if (breached > broken) broken = breached;
+    }
+    s.wallsBroken = Math.min(total, Math.max(s.wallsBroken, broken));
     s.finished = engine.isSimulationFinished();
     if (!s.escaped && watchEscapes && total > 0) {
       const balls = engine.getBalls();

@@ -797,11 +797,13 @@ export default function Simulator() {
     if (!isStarted) await start();
     recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
     await audioRef.current?.start();
-    canvasRef.current?.setRecording(true);
+    const resolution = resolutionToSize(settings.recordingResolution);
+    // The canvas starts the captions' clip clock here and keeps them clear of the text lines the recorder draws.
+    canvasRef.current?.setRecording(true, resolution);
     setIsRecording(true);
     const ok = await recorderRef.current.startRecording({
       mimeType: "video/mp4",
-      resolution: resolutionToSize(settings.recordingResolution),
+      resolution,
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
       // --- themes: the letterbox bars of the export continue the gradient / picture background

@@ -1878,6 +1878,70 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
   const after = new URL(page.url()).searchParams;
   check("captions carry over a mode change", after.get("mode") === "portal" && after.get("cap") === cap, `(mode=${after.get("mode")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
 }
+// 19b. Captions in Shatter and with the Top / Bottom Text: Shatter's wall counter counts every wall the ball dug through
+// (all of them at the escape, not only the walls whose every segment is gone); the top and bottom stacks start clear of
+// the Top / Bottom Text lines, live and – against the lines the recorder draws into the export frame – while recording;
+// and a clip recorded from the middle of a run counts its own time: its countdown starts at the recording duration and
+// its progress bar at 0 %, whatever the run's clock (here 8×) says.
+{
+  const shatterCap = ["wc*t*0*0*s*1*93d119*000000", "q*c*0*0*p*1.3*ffffff*000000*Will it escape?*YES!"].join(",");
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&cap=${encodeURIComponent(shatterCap)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const escaped = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.captionReveal === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const shatterTexts = (await canvasData()).captionTexts ?? "";
+  const walls = /Wall (\d+)\/(\d+)/.exec(shatterTexts);
+  check("Shatter's wall counter counts every wall the ball broke through (all of them at the escape)", escaped && !!walls && walls[1] === walls[2] && Number(walls[2]) === 10, `(escaped=${escaped}, "${shatterTexts}")`);
+
+  /** "top,bottom[,font size]" data attribute → numbers. */
+  const nums = (v) => (v ?? "").split(",").map(Number);
+  /** The stacks start beyond the text lines: a line's glyphs reach about half a font size around its centre. */
+  const clearOfText = (d) => {
+    const [stackTop, stackBottom] = nums(d.captionStack);
+    const [textTop, textBottom, fs] = nums(d.edgeText);
+    return { ok: Number.isFinite(stackTop) && Number.isFinite(fs) && fs > 0 && stackTop > textTop + 0.5 * fs && stackBottom < textBottom - 0.5 * fs, info: `stack ${d.captionStack}, text lines ${d.edgeText}` };
+  };
+  const textCap = ["cd*t*0*0*p*1.2*ffffff*000000", "pg*b*0*0*f*1*93d119*27272a"].join(",");
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=30&res=1080x1920&top=${encodeURIComponent("CAN IT ESCAPE?")}&bottom=${encodeURIComponent("follow for more")}&cap=${encodeURIComponent(textCap)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(600);
+  const live = await canvasData();
+  const liveClear = clearOfText(live);
+  check("the top and bottom captions start clear of the Top / Bottom Text (live)", Number(live.captions) === 2 && liveClear.ok, `(${liveClear.info})`);
+  await page.screenshot({ path: path.join(outDir, "sim-captions-text.png") });
+  // Let the run's clock race ahead at 8×, then record: the clip's countdown and progress bar start from its own zero.
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForTimeout(800);
+  const before = (await canvasData()).captionTexts ?? "";
+  let recorded = null;
+  const [clipDownload] = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(900);
+      recorded = await canvasData();
+      // (A run that finished meanwhile stops and exports on its own.)
+      await page.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 5000 }).catch(() => {});
+    })(),
+  ]);
+  const clipTexts = recorded?.captionTexts ?? "";
+  const clipClock = /\b0:(\d\d)\b/.exec(clipTexts);
+  const clipPct = /(\d+)%/.exec(clipTexts);
+  const runClock = /\b0:(\d\d)\b/.exec(before);
+  check(
+    "a clip recorded mid-run counts its own time: the countdown starts at the duration, the progress bar at 0 %",
+    !!clipClock && Number(clipClock[1]) >= 28 && !!clipPct && Number(clipPct[1]) <= 5 && !!runClock && Number(runClock[1]) < 26,
+    `(run before Record: "${before}", 0.9 s into the clip: "${clipTexts}")`,
+  );
+  const recClear = recorded ? clearOfText(recorded) : { ok: false, info: "no data" };
+  const liveLines = nums(live.edgeText);
+  const recLines = nums(recorded?.edgeText);
+  check(
+    "while recording, the captions keep clear of the text lines the recorder draws into the export frame",
+    recClear.ok && recLines.length === 3 && Math.abs(recLines[2] - liveLines[2]) > 0.05 && !!clipDownload,
+    `(${recClear.info}; live lines ${live.edgeText}; download=${clipDownload ? clipDownload.suggestedFilename() : "none"})`,
+  );
+}
 // --- end captions ---
 
 // --- obstacle-editor ---
