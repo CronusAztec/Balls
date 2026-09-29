@@ -312,9 +312,10 @@ export class CinematicCamera {
 
   /**
    * The "REPLAY" badge – a blinking red dot, the label, the speed and a progress bar – centred at the top
-   * of the square the recorder exports, or at its bottom when the top text is in use there.
+   * of the square the recorder exports, or at its bottom when the top text is in use there. `topMin` (screen
+   * px) keeps a badge at the top below something already drawn there – the teams' scoreboard.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, label: string, atBottom: boolean) {
+  drawOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, label: string, atBottom: boolean, topMin = 0) {
     if (this.phase !== "playing") return;
     const minDim = Math.min(width, height);
     const fs = Math.max(11, 0.034 * minDim);
@@ -333,7 +334,7 @@ export class CinematicCamera {
     const h = 1.8 * fs;
     const margin = 0.6 * fs;
     const x = width / 2 - w / 2;
-    const y = atBottom ? height / 2 + minDim / 2 - margin - h - 0.35 * fs - 2 : height / 2 - minDim / 2 + margin;
+    const y = atBottom ? height / 2 + minDim / 2 - margin - h - 0.35 * fs - 2 : Math.max(height / 2 - minDim / 2 + margin, topMin > 0 ? topMin + 0.5 * margin : 0);
     // Pill
     ctx.globalAlpha = 0.62;
     ctx.fillStyle = "#000000";

@@ -691,7 +691,7 @@
     "cameraGroupDesc": "Zoom in on the ball, shake the view when a wall breaks, slow down on near misses and replay the escape – in the preview and in recordings.",
     "cameraOff": "Off",
     "cameraZoom": "Camera Zoom",
-    "cameraZoomTip": "How far the view zooms toward the ball, following it around the arena. 0 keeps today's view (with Camera Follow on, the gentle classic follow). In the two-ball modes the zoom stays wide enough to keep both balls in frame.",
+    "cameraZoomTip": "How far the view zooms toward the ball, following it around the arena. 0 keeps today's view (with Camera Follow on, the gentle classic follow). With several balls (Ball Count) the zoom stays wide enough to keep them all in frame.",
     "screenShake": "Screen Shake",
     "screenShakeTip": "Shakes the view every time a wall breaks; the shake dies out over 300 ms. Higher values shake harder.",
     "slowMoOnNearMiss": "Slow-Mo on Near Miss",

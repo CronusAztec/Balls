@@ -451,6 +451,25 @@ describe("ReplayBuffer", () => {
     ]);
   });
 
+  // --- teams --- a team ball keeps its team slot in the replay (its colour, emoji and name are drawn from it)
+  it("keeps each ball's team slot", () => {
+    const buf = new ReplayBuffer();
+    const teamBall = (id: number, x: number, team?: number) => ({ ...ball(id, x, 0), team });
+    record(buf, 1, [teamBall(1, 0, 0), teamBall(2, 50, 3), teamBall(3, 90)]);
+    record(buf, 2, [teamBall(2, 60, 3), teamBall(1, 10, 0), teamBall(3, 95)]);
+    const teams = (v: { balls: Ball[] }) => v.balls.map((b) => [b.id, b.team]);
+    expect(teams(buf.sample(1.5 * STEP, WALLS)!)).toEqual([
+      [1, 0],
+      [2, 3],
+      [3, undefined],
+    ]);
+    expect(teams(buf.sample(2 * STEP, WALLS)!)).toEqual([
+      [2, 3],
+      [1, 0],
+      [3, undefined],
+    ]);
+  });
+
   it("caps the balls it records", () => {
     const buf = new ReplayBuffer();
     const many = Array.from({ length: REPLAY_MAX_BALLS + 10 }, (_, i) => ball(i, i, 0));

@@ -682,7 +682,7 @@
     "cameraGroupDesc": "Acerca la cámara a la pelota, sacude la vista cuando se rompe una pared, ralentiza los casi-escapes y repite la fuga, en la vista previa y en las grabaciones.",
     "cameraOff": "No",
     "cameraZoom": "Zoom de cámara",
-    "cameraZoomTip": "Cuánto se acerca la vista a la pelota mientras la sigue por la arena. 0 mantiene la vista de siempre (con «Cámara que sigue» activada, el seguimiento suave clásico). En los modos de dos pelotas el zoom se mantiene lo bastante abierto para que ambas queden en el encuadre.",
+    "cameraZoomTip": "Cuánto se acerca la vista a la pelota mientras la sigue por la arena. 0 mantiene la vista de siempre (con «Cámara que sigue» activada, el seguimiento suave clásico). Con varias pelotas (Número de pelotas) el zoom se mantiene lo bastante abierto para que todas queden en el encuadre.",
     "screenShake": "Sacudida de pantalla",
     "screenShakeTip": "Sacude la vista cada vez que se rompe una pared; la sacudida se apaga en 300 ms. Los valores altos sacuden con más fuerza.",
     "slowMoOnNearMiss": "Cámara lenta en casi-escapes",

@@ -3,7 +3,7 @@ import { REPLAY_POST_ROLL_MS, REPLAY_WINDOW_MS } from "./camera";
 
 /**
  * The escape replay's memory: a ring buffer of the last ~2 s of simulation, one frame per 60 Hz physics
- * step – every ball's position, size, id, sprite angle and colour, every wall's rotation and radius, which
+ * step – every ball's position, size, id, sprite angle, team slot and colour, every wall's rotation and radius, which
  * walls are broken and the wall-break count. Everything lives in typed arrays allocated once, and
  * sampling writes into pooled objects, so recording and replaying allocate nothing per frame.
  *
@@ -25,7 +25,7 @@ export const REPLAY_MAX_WALLS = 32;
 /** Points in a replayed ball's trail – the engine's trail length. */
 export const REPLAY_TRAIL = 20;
 
-const BALL_FIELDS = 5; // x, y, radius, id, angle
+const BALL_FIELDS = 6; // x, y, radius, id, angle, team (−1 = none; the team balls keep their colours and names in the replay)
 const TWO_PI = Math.PI * 2;
 const NO_GAPS: Gap[] = [];
 
@@ -163,6 +163,7 @@ export class ReplayBuffer {
       this.ballData[o + 2] = b.radius;
       this.ballData[o + 3] = b.id;
       this.ballData[o + 4] = b.angle;
+      this.ballData[o + 5] = b.team ?? -1;
       this.ballColors[bBase + k] = b.color;
     }
     const nw = Math.min(walls.length, REPLAY_MAX_WALLS);
@@ -257,6 +258,8 @@ export class ReplayBuffer {
       ball.y = y;
       ball.radius = radius;
       ball.angle = angle;
+      const team = data[o + 5];
+      ball.team = team >= 0 ? team : undefined;
       ball.color = this.ballColors[f * REPLAY_MAX_BALLS + k];
       // Trail: the ball's positions in the frames up to this one (oldest first), then – between two frames –
       // where it is now.

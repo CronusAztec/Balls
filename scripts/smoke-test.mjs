@@ -1547,6 +1547,38 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
 }
 // --- end camera ---
 
+// --- teams + camera ---
+// 16. Teams with the escape replay: a Classic run of three teams with Replay on Escape replays the escape first – the
+// replayed balls keep their teams (names drawn on them), the winner banner waits – then the banner is held before the
+// end screen.
+{
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Green*22c55e*🍀";
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700&replay=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const playing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "playing", null, { timeout: 60000, polling: "raf" }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const during = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-teams-replay.png") });
+  const won = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.cameraReplay === "done" && !!d.teamWinner;
+    }, null, { timeout: 20000, polling: "raf" })
+    .then(() => true)
+    .catch(() => false);
+  const wonAt = Date.now();
+  const endScreenEarly = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible();
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+  const heldMs = Date.now() - wonAt;
+  check(
+    "with teams the escape replay plays first (team names on the replayed balls), then the winner banner, then the end screen",
+    playing && during.cameraReplay === "playing" && !during.teamWinner && Number(during.teamLabels) >= 1 && won && !endScreenEarly && endScreen && heldMs >= 2000,
+    `(playing=${playing}, during replay: winner="${during.teamWinner}", labels=${during.teamLabels}; won=${won}, end screen early=${endScreenEarly}, held ${heldMs} ms)`,
+  );
+}
+// --- end teams + camera ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

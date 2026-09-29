@@ -1886,6 +1886,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           // Live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners.
           inset: !recordingRef.current && (size.width - side) / 2 < 170 ? 52 : 0,
           modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()),
+          holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
         });
       }
 
@@ -1941,8 +1942,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.arc(cx, cy, arena + 20 * intensity, 0, TWO_PI);
         ctx.stroke();
       }
-      // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text is there
-      cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", !!p.topText && !p.bottomText);
+      // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
+      // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
+      const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
+      const replayAtBottom = (!!p.topText || scoreboardBottom > 0) && !p.bottomText;
+      cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       ctx.restore();
 
       // Picture Paint: mirror what the HUD shows onto the element (data-paint-*) so tools and the smoke test can read it.

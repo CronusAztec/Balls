@@ -682,7 +682,7 @@
     "cameraGroupDesc": "Przybliż piłkę, potrząśnij obrazem, gdy pęka ściana, zwolnij przy otarciach o krawędź szczeliny i powtórz ucieczkę – w podglądzie i w nagraniach.",
     "cameraOff": "Wył.",
     "cameraZoom": "Zoom kamery",
-    "cameraZoomTip": "Jak mocno widok przybliża się do piłki, podążając za nią po arenie. 0 zostawia dotychczasowy widok (z włączoną opcją „Kamera podąża” – łagodne klasyczne śledzenie). W trybach z dwiema piłkami zoom pozostaje na tyle szeroki, by obie były w kadrze.",
+    "cameraZoomTip": "Jak mocno widok przybliża się do piłki, podążając za nią po arenie. 0 zostawia dotychczasowy widok (z włączoną opcją „Kamera podąża” – łagodne klasyczne śledzenie). Przy kilku piłkach (Liczba piłek) zoom pozostaje na tyle szeroki, by wszystkie były w kadrze.",
     "screenShake": "Wstrząs ekranu",
     "screenShakeTip": "Potrząsa obrazem za każdym razem, gdy pęka ściana; wstrząs wygasa w ciągu 300 ms. Wyższe wartości trzęsą mocniej.",
     "slowMoOnNearMiss": "Zwolnienie przy otarciu",

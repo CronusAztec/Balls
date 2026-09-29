@@ -118,11 +118,16 @@ export class TeamLayer {
   private labelled = 0;
   /** Team names drawn this frame (for the data attribute). */
   labelsDrawn = 0;
+  /** Screen y of the scoreboard's bottom edge this frame (0 when none is drawn): the camera's REPLAY badge keeps clear of it. */
+  scoreboardBottom = 0;
   // Run state: the stats generation shown, the frozen result and stats of a finished run, the banner.
   private generation = -1;
   private result: TeamResult | null = null;
   private readonly frozen: BallStats[] = Array.from({ length: MAX_TEAMS }, emptyStats);
   private bannerMs = 0;
+  /** The banner (and its confetti) waits: the cinematic camera's escape replay plays first. */
+  private bannerHeld = false;
+  private confettiPending = false;
   private bannerTitle = "";
   private bannerSub = "";
   private bannerWidths = { side: -1, title: 0, sub: 0 };
@@ -166,6 +171,7 @@ export class TeamLayer {
       this.result = null;
       this.bannerMs = 0;
       this.confettiCount = 0;
+      this.confettiPending = false;
     }
   }
 
@@ -269,9 +275,12 @@ export class TeamLayer {
    * Screen space, after the HUD: the scoreboard and – once the run has finished – the winner banner and its
    * confetti. The scoreboard sits in a corner of the centred square the recorder exports; `dtMs` advances the
    * banner and the confetti (0 while paused); `inset` moves the scoreboard below the page's overlay buttons;
-   * `modeBanner` (the mode shows its own banner in the middle) moves the winner banner lower.
+   * `modeBanner` (the mode shows its own banner in the middle) moves the winner banner lower; `holdBanner`
+   * (the cinematic camera's escape replay is on) keeps the banner and its confetti back – the result is still
+   * frozen when the run ends – until the replay is over.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, engine: PhysicsEngine, view: { width: number; height: number; dtMs: number; inset: number; modeBanner: boolean }) {
+  drawOverlay(ctx: CanvasRenderingContext2D, engine: PhysicsEngine, view: { width: number; height: number; dtMs: number; inset: number; modeBanner: boolean; holdBanner?: boolean }) {
+    this.scoreboardBottom = 0;
     if (!this.active) return;
     const o = this.options!;
     const side = Math.min(view.width, view.height);
@@ -286,17 +295,23 @@ export class TeamLayer {
       this.result = teamResult(this.frozen, this.count);
       this.bannerMs = 0;
       this.makeBannerTexts();
-      if (this.result.winner >= 0) this.spawnConfetti(sx, sy, side, bannerY);
+      this.confettiPending = this.result.winner >= 0;
     } else if (!finished && this.result) {
       this.result = null;
       this.confettiCount = 0;
+      this.confettiPending = false;
+    }
+    this.bannerHeld = !!view.holdBanner;
+    if (this.confettiPending && !this.bannerHeld) {
+      this.confettiPending = false;
+      this.spawnConfetti(sx, sy, side, bannerY);
     }
     const stats = this.result ? this.frozen : engine.getTeamStats();
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     if (o.showScoreboard && this.count > 0) this.drawScoreboard(ctx, stats, sx, sy + view.inset, side);
-    if (this.result && this.result.winner >= 0) {
+    if (this.result && this.result.winner >= 0 && !this.bannerHeld) {
       this.bannerMs += view.dtMs;
       this.drawBanner(ctx, sx + side / 2, bannerY, side);
     }
@@ -312,10 +327,10 @@ export class TeamLayer {
     return out;
   }
 
-  /** The winner's name, "tie", or "" while the run goes on. */
+  /** The winner's name, "tie", or "" while the run goes on (or its banner waits for the escape replay). */
   winnerText(): string {
     const r = this.result;
-    if (!r || r.winner < 0) return "";
+    if (!r || r.winner < 0 || this.bannerHeld) return "";
     return r.tie ? "tie" : this.texts.names[r.winner];
   }
 
@@ -384,6 +399,7 @@ export class TeamLayer {
     const order = rankTeams(stats, this.count, this.order);
     const x0 = o.position === "top-right" ? sx + side - lay.margin - width : sx + lay.margin;
     const y0 = sy + lay.margin;
+    this.scoreboardBottom = y0 + height;
     ctx.fillStyle = "rgba(9, 9, 11, 0.66)";
     roundRect(ctx, x0, y0, width, height, 0.55 * fs);
     ctx.fill();
