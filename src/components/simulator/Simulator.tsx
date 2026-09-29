@@ -25,6 +25,7 @@ import { modeWallBreakSound } from "@/lib/audio/songs";
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { multipliersSettingsOf } from "@/lib/physics/modes/multipliers";
 import { illusionSettingsOf } from "@/lib/physics/modes/illusion"; // --- jdm-illusions ---
+import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -87,6 +88,8 @@ const MULT_FINISH_HOLD_MS = 2000;
 const END_HOLD_FALLBACK_MS = 12000;
 /** --- jdm-illusions --- How long the Circle Illusion's revealed picture (whitespace) stays on screen before the end screen covers it (a recording keeps it). */
 const ILLUSION_REVEAL_HOLD_MS = 2000;
+/** --- odd-string-battle --- How long the String Battle's last shatter, ring flash and winner banner play before the end screen covers them (a recording keeps them). */
+const STRING_BATTLE_FINISH_HOLD_MS = 3000;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -196,6 +199,7 @@ export default function Simulator() {
     engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
+    engine.setStringBattleSettings(stringBattleSettingsOf(s)); // --- odd-string-battle ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -519,6 +523,26 @@ export default function Simulator() {
   }, [s.ballRadius]);
   const illusionRevealAtRef = useRef<number | null>(null);
   // --- end jdm-illusions ---
+  // --- odd-string-battle --- String Battle: a change of the fight (balls, lives, threads, rule, clip limit, finale speed) restarts
+  // it and drops a found seed; the style, the wobble, the badge and the HUD only change the drawing and follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStringBattleSettings(stringBattleSettingsOf(s));
+    if (s.mode === "stringBattle" && engine.getCurrentModeName() === "stringBattle") {
+      engine.initStringBattle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.sbBalls, s.sbLives, s.sbMaxStrings, s.sbRule, s.sbDuration, s.sbFinaleSpeed]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.sbBalls, s.sbLives, s.sbMaxStrings, s.sbRule, s.sbDuration, s.sbFinaleSpeed]);
+  useEffect(() => {
+    engineRef.current?.setStringBattleSettings({ style: s.sbStyle, wobble: s.sbWobble, badge: s.sbBadge, hud: s.sbHud });
+  }, [s.sbStyle, s.sbWobble, s.sbBadge, s.sbHud]);
+  const battleFinishAtRef = useRef<number | null>(null);
+  // --- end odd-string-battle ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -757,6 +781,11 @@ export default function Simulator() {
             audio.playBumper(ev.frequency);
             continue;
           }
+          // --- odd-string-battle --- a cut thread's pluck, a ball's shatter
+          if (ev.sbSound) {
+            audio.playStringBattle(ev.sbSound, ev.frequency);
+            continue;
+          }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
           else if (ev.type === "gap") audio.playGapPass();
@@ -792,6 +821,12 @@ export default function Simulator() {
           if (illusionRevealAtRef.current === null) illusionRevealAtRef.current = now;
           if (now - illusionRevealAtRef.current < ILLUSION_REVEAL_HOLD_MS) done = false;
         } else illusionRevealAtRef.current = null;
+        // --- odd-string-battle --- the last shatter, the ring flash and the winner banner play (and record) before the end screen
+        if (done && engine.isStringBattleMode()) {
+          const now = performance.now();
+          if (battleFinishAtRef.current === null) battleFinishAtRef.current = now;
+          if (now - battleFinishAtRef.current < STRING_BATTLE_FINISH_HOLD_MS) done = false;
+        } else battleFinishAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -1320,6 +1355,7 @@ export default function Simulator() {
           multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
+          stringBattle: stringBattleSettingsOf(settings), // --- odd-string-battle ---
         },
         outcome, // --- rigged ---
       },
@@ -1345,6 +1381,8 @@ export default function Simulator() {
       update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + hold / 1000))) });
       // --- jdm-double-pendulum --- the clip length is this mode's run length (its finale ends the clip): a found seed keeps it
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
+      // --- odd-string-battle --- a found battle is recorded with its finish hold (the last shatter and the winner banner)
+      if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000))) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
     }
@@ -1430,6 +1468,17 @@ export default function Simulator() {
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
       illusionCycles: (n) => fill("Simulator.canvasIllusionCycles", { count: n }),
+      // --- odd-string-battle ---
+      stringBattle: {
+        title: t("Simulator.canvasSbTitle"),
+        web: (n) => fill("Simulator.canvasSbWeb", { count: n }),
+        badgeTop: t("Simulator.canvasSbBadgeTop"),
+        badgeBottom: t("Simulator.canvasSbBadgeBottom"),
+        wins: (name) => t("Simulator.canvasSbWins").replace("[name]", () => name), // a name may hold "$&"
+        kills: (n) => fill("Simulator.canvasSbKills", { count: n }),
+        draw: t("Simulator.canvasSbDraw"),
+        team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+      },
     };
   }, [t]);
 

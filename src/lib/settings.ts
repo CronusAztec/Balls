@@ -34,6 +34,8 @@ import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulu
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
+// --- odd-string-battle --- the String Battle mode (oddplayground's WEB DOMINION)
+import { STRING_BATTLE_RANGES, defaultStringBattleFields, readStringBattleParams, resolveStringBattleFields, writeStringBattleParams, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -439,6 +441,28 @@ export interface SimulatorSettings {
   /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
   wallWobble: number;
   // --- end jdm-illusions ---
+  // --- odd-string-battle --- String Battle (lib/physics/modes/stringBattle.ts)
+  /** Balls in the battle, 2–6 (URL `sbn`). */
+  sbBalls: number;
+  /** Lives every ball starts with, 1–9 (URL `sbl`). */
+  sbLives: number;
+  /** Threads a ball drags at most, 3–40 (URL `sbm`). */
+  sbMaxStrings: number;
+  /** cut | touch | collide (URL `sbr`). */
+  sbRule: SbRule;
+  /** web | neon (URL `sbst`). */
+  sbStyle: SbStyle;
+  /** Clip limit in seconds, 0 = until one ball remains (URL `sbd`). */
+  sbDuration: number;
+  /** 1–3: the finale's top speed (URL `sbf`). */
+  sbFinaleSpeed: number;
+  /** 0–1: the neon ring's wobble (URL `sbw`). */
+  sbWobble: number;
+  /** The "FLASHING LIGHTS" warning badge (URL `sbb`). */
+  sbBadge: boolean;
+  /** The WEB DOMINION HUD (URL `sbh`). */
+  sbHud: boolean;
+  // --- end odd-string-battle ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -540,6 +564,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultTimelineSettings(), // --- timeline ---
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
+    ...defaultStringBattleFields(), // --- odd-string-battle ---
   };
 }
 
@@ -597,6 +622,7 @@ export const RANGES = {
   // --- jdm-illusions ---
   ...ILLUSION_RANGES,
   ...WOBBLE_RANGES,
+  ...STRING_BATTLE_RANGES, // --- odd-string-battle ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -824,6 +850,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
+  writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh
   return params;
 }
 
@@ -932,6 +959,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readTimelineParams(params, settings, RANGES); // --- timeline ---
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
+  readStringBattleParams(params, settings); // --- odd-string-battle ---
   return settings;
 }
 
@@ -1093,6 +1121,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveStringBattleFields(merged)); // --- odd-string-battle --- clamped numbers, known rule / style, real booleans
   return merged;
 }
 

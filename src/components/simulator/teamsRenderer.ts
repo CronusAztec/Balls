@@ -4,6 +4,7 @@ import type { Ball } from "@/lib/physics/types";
 import { rankTeams, teamDisplayName, teamResult, type TeamRenderOptions, type TeamResult } from "@/lib/teams";
 import { ACCENT } from "@/lib/site";
 import { nameLabelSize } from "./faceRenderer";
+import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 
 /**
  * Drawing of the "Team balls with scoreboard" feature (lib/teams.ts, physics/ballStats.ts), created once with
@@ -143,6 +144,10 @@ export class TeamLayer {
   private readonly pcolor = new Uint8Array(CONFETTI_MAX);
   private confettiColors: string[] = [];
   private confettiCount = 0;
+  // --- odd-string-battle --- the roster as the String Battle plays it (padded to its balls), rebuilt when an input changes
+  private battleSource: CanvasTeamOptions | null = null;
+  private battleKey = "";
+  private battleOptions: CanvasTeamOptions | null = null;
 
   isActive() {
     return this.active;
@@ -169,7 +174,12 @@ export class TeamLayer {
 
   /** Once per frame, before the balls. */
   beginFrame(engine: PhysicsEngine, options: CanvasTeamOptions | null | undefined) {
-    const next = options ?? null;
+    let next = options ?? null;
+    // --- odd-string-battle --- the String Battle plays the roster too: one team per ball – the palette's names and colours for
+    // balls beyond the roster – and its WEB DOMINION HUD takes the scoreboard's place (its winner banner is this layer's)
+    const battle = next && next.roster.length > 0 && engine.isStringBattleMode() ? engine.getStringBattleView() : null;
+    if (battle && next) next = this.battleTeams(next, battle.count, sbHudShown(battle.settings));
+    // --- end odd-string-battle ---
     if (next !== this.options) {
       this.options = next;
       this.layout = null;
@@ -178,8 +188,8 @@ export class TeamLayer {
     this.labelled = 0;
     this.labelsDrawn = 0;
     const mode = engine.getCurrentModeName();
-    this.active = !!next && next.roster.length > 0 && MULTI_BALL_MODES.includes(mode);
-    const count = this.active ? Math.min(next!.roster.length, startBallCount(engine.config, mode)) : 0;
+    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle); // --- odd-string-battle --- (battle)
+    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : startBallCount(engine.config, mode)) : 0;
     if (count !== this.count) {
       this.count = count;
       this.layout = null;
@@ -193,6 +203,20 @@ export class TeamLayer {
       this.confettiPending = false;
     }
   }
+
+  // --- odd-string-battle ---
+  /** The roster padded to `count` teams with the String Battle's palette, the scoreboard off while its HUD shows (the same object while nothing changed). */
+  private battleTeams(options: CanvasTeamOptions, count: number, hud: boolean): CanvasTeamOptions {
+    const key = `${count}|${hud ? 1 : 0}`;
+    if (this.battleOptions && this.battleSource === options && this.battleKey === key) return this.battleOptions;
+    const roster = options.roster.slice(0, count).map((t) => ({ ...t }));
+    for (let i = roster.length; i < count; i++) roster.push({ name: stringBattleBallName(i), color: SB_PALETTE[i % SB_PALETTE.length].color, emoji: "" });
+    this.battleSource = options;
+    this.battleKey = key;
+    this.battleOptions = { ...options, roster, showScoreboard: options.showScoreboard && !hud };
+    return this.battleOptions;
+  }
+  // --- end odd-string-battle ---
 
   private rebuildTexts() {
     const o = this.options;

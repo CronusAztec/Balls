@@ -21,6 +21,8 @@ import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcom
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
 import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettings } from "@/lib/physics/modes/illusion";
+// --- odd-string-battle ---
+import type { StringBattleSettings } from "@/lib/physics/modes/stringBattle";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -69,7 +71,14 @@ export interface ModeSettings {
   // --- jdm-illusions ---
   /** Circle Illusion: type, counts, pattern, speed and cycles (see modes/illusion.ts); the defaults when left out. The whitespace type ends when its picture is revealed, so the finder searches it. */
   illusion?: Partial<IllusionSettings>;
+  // --- odd-string-battle ---
+  /** String Battle: balls, lives, threads, rule, clip limit and finale (see modes/stringBattle.ts); the defaults when left out. Every battle ends, so the finder searches it – by length or by winner. */
+  stringBattle?: Partial<StringBattleSettings>;
 }
+
+// --- odd-string-battle ---
+/** Seeds of the String Battle simulated per animation frame (a battle takes a few ms per simulated second). */
+export const STRING_BATTLE_FINDER_BATCH = 6;
 
 // --- jdm-illusions ---
 /** Seeds of the Circle Illusion simulated per animation frame (a whitespace seed paints a grid for tens of seconds). */
@@ -212,6 +221,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "doublePendulum") engine.setDoublePendulumSettings(settings.doublePendulum ?? {});
   // --- jdm-illusions ---
   if (mode === "illusion") engine.setIllusionSettings(settings.illusion ?? {});
+  // --- odd-string-battle ---
+  if (mode === "stringBattle") engine.setStringBattleSettings(settings.stringBattle ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -290,7 +301,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed)
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -392,7 +403,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished)) break;
   }
-  const teams = engine.getTeamStats().slice(0, startBallCount(engine.config, request.mode)).map((t) => ({ ...t }));
+  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
+  const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
   return { durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
 }
 

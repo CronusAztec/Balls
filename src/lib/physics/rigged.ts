@@ -74,6 +74,12 @@ export const ESCAPE_FINISH_MODES: readonly ModeId[] = ["classic", "accumulation"
 
 /** Multi-ball modes whose balls race out of the arena: where a forced winner can be made. */
 export const WINNER_MODES: readonly ModeId[] = MULTI_BALL_MODES.filter((m) => RIG_ESCAPE_MODES.includes(m));
+// --- odd-string-battle ---
+/**
+ * Battle modes: the winner is the last ball standing. The forced winner acts there too – enforced by the mode itself (the
+ * String Battle's chosen ball never loses its last life), not by the director, whose rules stay off without rings.
+ */
+export const BATTLE_WINNER_MODES: readonly ModeId[] = ["stringBattle"];
 
 /** Modes whose run never ends: there the other teams stay in for good, so the chosen team keeps the lead. */
 const LOCKED_FOR_GOOD: readonly ModeId[] = ["multiply"];
@@ -93,7 +99,7 @@ export function neverEscapeApplies(mode: ModeId | undefined): boolean {
 
 /** Whether a forced winner `team` acts in `mode` with `ballCount` balls: a multi-ball escape mode, two balls or more, a team that plays. */
 export function forcedWinnerApplies(mode: ModeId | undefined, ballCount: number, team: number): boolean {
-  return !!mode && WINNER_MODES.includes(mode) && ballCount >= 2 && Number.isInteger(team) && team >= 0 && team < ballCount;
+  return !!mode && (WINNER_MODES.includes(mode) || BATTLE_WINNER_MODES.includes(mode)) /* --- odd-string-battle --- */ && ballCount >= 2 && Number.isInteger(team) && team >= 0 && team < ballCount;
 }
 
 /** True when the rig keeps a run of `mode` from ever finishing: "never escape" in a mode that ends with an escape. */

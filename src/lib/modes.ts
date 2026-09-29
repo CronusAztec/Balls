@@ -13,13 +13,15 @@ MODE_CARD_ORDER.push("multipliers");
 }
 // --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Boris ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
+// --- odd-string-battle --- the oddplayground String Battle opens the battle family (its cards come after the others)
+MODE_CARD_ORDER.push("stringBattle");
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
  * working its way out of concentric walls), "rhythm" the project.jdm-style formats built around sound
  * (Ball Drop, Bouncing Shapes, Pendulum Wave) where every hit is a note and the physics writes a polyrhythm.
  */
-export const MODE_CATEGORY_IDS = ["escape", "rhythm"] as const;
+export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing)
 export type ModeCategory = (typeof MODE_CATEGORY_IDS)[number];
 
 export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
@@ -49,6 +51,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   doublePendulum: "rhythm",
   // --- jdm-illusions ---
   illusion: "rhythm",
+  // --- odd-string-battle --- balls fight until one is left: the battle family
+  stringBattle: "battle",
 };
 
 /** The modes of a category in card order. */

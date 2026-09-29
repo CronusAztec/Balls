@@ -1,5 +1,5 @@
 import { MULTI_BALL_MODES, type BallStats } from "@/lib/physics/ballStats";
-import { RIG_ESCAPE_MODES, neverEscapeApplies } from "@/lib/physics/rigged";
+import { BATTLE_WINNER_MODES, RIG_ESCAPE_MODES, neverEscapeApplies } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import type { ModeId } from "@/lib/physics/types";
 import { teamResult } from "@/lib/teams";
 
@@ -183,6 +183,8 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
     if (!(ctx.neverEscape && neverEscapeApplies(mode))) out.push("escapes-at");
   }
   if (MULTI_BALL_MODES.includes(mode) && ctx.ballCount >= 2) out.push("winner");
+  // --- odd-string-battle --- a battle's winner is the last ball standing (every ball is a team)
+  if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
   return out;
 }
 

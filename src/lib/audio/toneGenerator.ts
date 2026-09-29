@@ -4,6 +4,7 @@ import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from
 import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // --- boris-faces ---
 import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- boris-multipliers ---
 import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // --- obstacle-editor ---
+import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -548,6 +549,45 @@ export class ToneGenerator {
   }
   // --- end obstacle-editor ---
 
+  // --- odd-string-battle ---
+  private readonly noiseCache = new NoiseCache();
+
+  /**
+   * A String Battle effect (stringBattleTones.ts): a cut thread's pluck at `frequency` – a Karplus–Strong string, or the
+   * hit sample transposed to it in sample mode – or a ball's shatter – the chosen wall-break clip when there is one, else
+   * a glassy noise burst. Snapped to the scale, on the beat grid when the beat lock is on, ducking the music bed – an
+   * effect like the gap arpeggio and the bumper ding, so it never steals a bounce's slot.
+   */
+  playStringBattle(kind: "pluck" | "shatter", frequency?: number) {
+    if (kind === "shatter" && this.wallBreakSoundUrl) {
+      this.playWallBreakBuffer();
+      return;
+    }
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleStringBattle(kind, frequency));
+      return;
+    }
+    this.scheduleStringBattle(kind, frequency);
+  }
+
+  private scheduleStringBattle(kind: "pluck" | "shatter", frequency?: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      if (kind === "pluck") {
+        const pitch = frequency !== undefined && frequency > 0 ? frequency : 440;
+        if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, this.snap(pitch)), time, 0.9);
+        else scheduleStringPluck(this.audioContext, this.masterGain, pitch, time, (f) => this.snap(f), this.pluckCache);
+      } else scheduleShatterBurst(this.audioContext, this.masterGain, time, this.noiseCache.get(this.audioContext));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error(`Error playing the string battle ${kind}:`, err);
+    }
+  }
+  // --- end odd-string-battle ---
+
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
     this.wallBreakBuffer = null;
@@ -619,6 +659,7 @@ export class ToneGenerator {
     this.mediaStreamDestination = null;
     this.masterGain = null;
     this.pluckCache.clear();
+    this.noiseCache.clear(); // --- odd-string-battle ---
     this.lastSlotTime = -1;
     this.isInitialized = false;
     this.isPlaying = false;

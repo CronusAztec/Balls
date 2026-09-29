@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, Toggle, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { teamChoiceNames } from "../FinderOutcomeFields";
-import { WINNER_MODES, forcedWinnerApplies, neverEscapeApplies } from "@/lib/physics/rigged";
+import { BATTLE_WINNER_MODES, WINNER_MODES, forcedWinnerApplies, neverEscapeApplies } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import type { SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 
@@ -29,7 +29,7 @@ export default function RiggedSection({ t, search, matches, settings: s, update 
   const root = useTranslations();
   const count = effectiveBallCount(s);
   const names = teamChoiceNames(s, (kind, n) => root(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
-  const winnerPlays = WINNER_MODES.includes(s.mode) && count >= 2;
+  const winnerPlays = (WINNER_MODES.includes(s.mode) || BATTLE_WINNER_MODES.includes(s.mode)) /* --- odd-string-battle --- */ && count >= 2;
   const winner = s.forcedWinner >= 0 && s.forcedWinner < count ? s.forcedWinner : -1;
   const body = (
     <>
