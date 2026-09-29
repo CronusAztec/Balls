@@ -7,6 +7,7 @@ import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, ra
 import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
 import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
 import BoxArenaSection, { BOX_ARENA_KEYS } from "./sections/BoxArenaSection";
+import CharacterSection, { CHARACTER_KEYS } from "./sections/CharacterSection"; // --- boris-faces ---
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import PendulumWaveSection, { PENDULUM_WAVE_KEYS } from "./sections/PendulumWaveSection";
@@ -18,6 +19,7 @@ import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { characterOf } from "@/lib/character/character"; // --- boris-faces ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { ACCENT } from "@/lib/site";
@@ -86,7 +88,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS, ...CHARACTER_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
@@ -165,6 +167,8 @@ export default function Controls(props: ControlsProps) {
   const ballSection = () => (
     <div className="space-y-4">
       <ResetButton search={search} t={t} section="ball" onReset={props.onResetSection} />
+      {/* --- boris-faces --- the "Character" group: face, name label, squash, Boris persona */}
+      <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
       <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} left="🐢" right="🚀" />
       <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} left="🌑" right="🌕" />
       {showAdvanced && (
@@ -1231,6 +1235,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         windY: d.windY,
         spinStrength: d.spinStrength,
         rotatingGravity: d.rotatingGravity,
+        ...characterOf(d), // --- boris-faces ---
       };
     case "wall":
       return {

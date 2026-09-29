@@ -11,6 +11,7 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
+import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- boris-faces ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -196,6 +197,20 @@ export interface SimulatorSettings {
   quantizeToBeat: boolean;
   bpm: number;
   quantizeGrid: QuantizeGrid;
+  // --- boris-faces --- Ball characters (lib/character): a face, a name label and squash-and-stretch – all render-only
+  /** none | dot | cute | cool | cat | angry (URL `face`). */
+  ballFace: FaceStyle;
+  /** Draw the face over a custom ball image or emoji too (URL `fimg`). */
+  faceOverImage: boolean;
+  /** Name shown under the ball, e.g. "Boris" (URL `bn`). */
+  ballName: string;
+  /** Show the name label (URL `nl`). */
+  nameLabel: boolean;
+  /** 0–1: squash on impact and stretch back (URL `sq`). */
+  ballSquash: number;
+  /** Cat face: a meow-like chirp on ouch / surprise / escape while no hit sample is used (URL `fsnd`). */
+  faceSounds: boolean;
+  // --- end boris-faces ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -279,6 +294,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     quantizeToBeat: false,
     bpm: 120,
     quantizeGrid: "1/8",
+    ...DEFAULT_CHARACTER, // --- boris-faces ---
   };
 }
 
@@ -316,6 +332,7 @@ export const RANGES = {
   ...BOX_RANGES,
   ...PENDULUM_RANGES,
   ...PICTURE_PAINT_RANGES,
+  ...CHARACTER_RANGES, // --- boris-faces ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -391,6 +408,8 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   pbr: "paintBrush",
   pgh: "paintGhost",
   pbp: "paintBeatPulse",
+  // --- boris-faces ---
+  sq: "ballSquash",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -424,6 +443,10 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   pbeat: "paintBeatSync",
   pgd: "paintGuided",
   pps: "paintPaceToSong",
+  // --- boris-faces ---
+  fimg: "faceOverImage",
+  nl: "nameLabel",
+  fsnd: "faceSounds",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -434,6 +457,7 @@ const STRING_URL_KEYS: Record<string, StringKey> = {
   top: "topText",
   bottom: "bottomText",
   wm: "watermarkText",
+  bn: "ballName", // --- boris-faces ---
 };
 
 /** Serialises only the settings that differ from the defaults for the current mode. */
@@ -468,6 +492,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.melodyInstrument !== base.melodyInstrument) params.set("minst", settings.melodyInstrument);
   if (settings.scale !== base.scale) params.set("scale", settings.scale);
   if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
+  if (settings.ballFace !== base.ballFace) params.set("face", settings.ballFace); // --- boris-faces ---
   return params;
 }
 
@@ -540,6 +565,10 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isQuantizeGrid(grid)) settings.quantizeGrid = grid;
   if (!inRange(settings.rootNote, RANGES.rootNote) || !Number.isInteger(settings.rootNote)) settings.rootNote = 0;
   if (!inRange(settings.bpm, RANGES.bpm)) settings.bpm = defaultSettings(mode).bpm;
+  // --- boris-faces ---
+  const face = params.get("face");
+  if (isFaceStyle(face)) settings.ballFace = face;
+  clampCharacter(settings);
   return settings;
 }
 
@@ -588,6 +617,12 @@ function clampPendulumSettings(settings: SimulatorSettings) {
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampPicturePaint(settings: SimulatorSettings) {
   Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
+}
+
+// --- boris-faces ---
+/** Validates the character settings: an unknown face or a non-boolean flag falls back, the name is trimmed, the squash clamped (URL parameters and presets alike). */
+function clampCharacter(settings: SimulatorSettings) {
+  Object.assign(settings, resolveCharacterSettings(characterOf(settings)));
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -649,6 +684,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampBoxSettings(merged);
   clampPendulumSettings(merged);
   clampPicturePaint(merged);
+  clampCharacter(merged); // --- boris-faces ---
   return merged;
 }
 
