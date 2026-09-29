@@ -3624,6 +3624,35 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
     replay = Number((await canvasData()).arenaFinishSec);
   }
   check("find simulation finds a 30 s battle that replays to its length", /Found! (29\.[5-9]|30\.[0-5])s/.test(text) && Math.abs(replay - foundSec) <= 0.051 && dur === String(Math.ceil(replay + 3 - 1e-9)), `(${text}, dur=${dur}, replay ${replay}s)`);
+  // The found seed fights the same battle on another canvas: after a resize (a phone rotation, a smaller window) Restart
+  // replays it to the same end with the same winner – the battle's margins scale with the field, like its speeds.
+  if (replay > 0) {
+    const first = await canvasData();
+    const boxBefore = await page.locator("main canvas").boundingBox();
+    const restartButton = page.getByRole("button", { name: /Restart Simulation/ });
+    const ended = await restartButton.waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    await page.setViewportSize({ width: 760, height: 1040 });
+    await page.waitForTimeout(600);
+    const boxAfter = await page.locator("main canvas").boundingBox();
+    let again = NaN;
+    let winner = "";
+    if (ended) {
+      await restartButton.click();
+      await page.getByRole("button", { name: "8x", exact: true }).click().catch(() => {});
+      await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "0", null, { timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).catch(() => {});
+      const data = await canvasData();
+      again = Number(data.arenaFinishSec);
+      winner = data.arenaWinner;
+    }
+    const resized = !!boxBefore && !!boxAfter && (Math.abs(boxBefore.width - boxAfter.width) > 20 || Math.abs(boxBefore.height - boxAfter.height) > 20);
+    check(
+      "a found battle replays the same on a resized canvas (same end, same winner)",
+      ended && resized && again === replay && winner === first.arenaWinner,
+      `(canvas ${boxBefore ? `${Math.round(boxBefore.width)}×${Math.round(boxBefore.height)}` : "?"} → ${boxAfter ? `${Math.round(boxAfter.width)}×${Math.round(boxAfter.height)}` : "?"}, end ${replay}s → ${again}s, winner ${first.arenaWinner} → ${winner})`,
+    );
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
 }
 {
   // Capture the flag, first to two: captures are counted and the score decides (or the clock, if nobody gets there).

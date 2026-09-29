@@ -104,7 +104,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library); recorded when the mode was added.
   race: { samples: [[366652,232223],[410818,232223],[516984,1191014],[544677,780631],[458837,2078020],[360939,1556027],[612916,2583260],[551558,2261944]], broken: [], walls: [] },
   // --- jdm-arena-games --- Battle Royale and Capture the Flag: no rings; recorded when the modes were added (seed 12345, defaults: 8 squares in a box / 2 – 2).
-  battle: { samples: [[418067,342619],[596728,158971],[520852,194653],[601961,404820],[362002,547436],[405269,525570],[268108,185655],[290011,288507]], broken: [], walls: [] },
+  // Re-recorded when the battle's fixed margins became reference pixels scaled with the field (a seed plays the same on any canvas).
+  battle: { samples: [[374459,349977],[329182,250770],[338535,110954],[267052,343771],[595188,183924],[337396,292032],[459252,122349],[517487,427594]], broken: [], walls: [] },
   ctf: { samples: [[464260,193076],[653920,237007],[304817,457518],[313243,546485],[446150,169209],[271083,282839],[314906,501106],[633347,562433]], broken: [], walls: [] },
 };
 

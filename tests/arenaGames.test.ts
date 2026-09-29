@@ -52,6 +52,7 @@ import {
   applyPowerUp,
   battleOutcome,
   battleSquareHalf,
+  battleUnit,
   collisionDamage,
   createFighter,
   zoneScaleAt,
@@ -462,6 +463,30 @@ describe("battle in the engine", () => {
         expect(Math.hypot(cornerX, cornerY)).toBeLessThanOrEqual(f.radius * v.zone + 1);
       }
     }
+  });
+
+  it("plays a seed the same on any canvas: the same start, winner, KOs and end at 900×900, 450×450, 540×960 and 1200×700", () => {
+    // Every fixed margin (spawn, spacing, zone reach, power-up room, the smallest square) is in reference pixels × the
+    // field's unit, as the speeds are, so a found seed replays after a resize or a phone rotation.
+    const run = (seed: number, width: number, height: number, settings: Parameters<typeof resolveBattleSettings>[0]) => {
+      const engine = battleEngine(settings, seed, { width, height });
+      const f = engine.getArenaView()!.field!;
+      const start = engine.getBalls().map((b) => [(b.x - f.cx) / f.side, (b.y - f.cy) / f.side, b.radius / f.side].map((n) => n.toFixed(9)).join(","));
+      play(engine, 240);
+      const v = engine.getArenaView()!;
+      return { start, winner: v.winner, kos: v.kos.map((k) => `${k.index}@${Math.round(k.timeMs)}`).join(","), end: v.finishMs };
+    };
+    for (const [seed, settings] of [[3, {}], [4, {}], [5, { arena: "circle" }], [6, { count: 20 }]] as const) {
+      const ref = run(seed, 900, 900, settings);
+      expect(ref.winner).toBeGreaterThanOrEqual(0);
+      for (const [w, h] of [[450, 450], [540, 960], [1200, 700]]) expect(run(seed, w, h, settings), `seed ${seed} ${JSON.stringify(settings)} at ${w}×${h}`).toEqual(ref);
+    }
+    // The unit and the square size follow the field.
+    const small = buildArenaField(800, 800, "box");
+    const big = buildArenaField(1600, 1000, "box");
+    expect(battleUnit(small)).toBe(1);
+    expect(battleUnit(big)).toBe(1.25);
+    for (const n of [2, 8, 20]) expect(battleSquareHalf(big, n, 8) / battleSquareHalf(small, n, 8)).toBeCloseTo(1.25, 9);
   });
 
   it("battles last long enough to be searched: run lengths vary with the seed", () => {

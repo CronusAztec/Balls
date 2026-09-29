@@ -1,5 +1,6 @@
 import type { Ball, GameMode, ModeContext } from "../types";
 import {
+  ARENA_REFERENCE_SIDE,
   ArenaSoundBudget,
   DEFAULT_BATTLE_SETTINGS,
   KO_CHORD,
@@ -176,12 +177,20 @@ export function zoneScaleAt(tSec: number, fit: number, previous = 1): number {
   return Math.min(previous, Math.max(schedule, Math.min(1, fit)));
 }
 
+/**
+ * The field's length unit: its side over ARENA_REFERENCE_SIDE. Every fixed margin of the battle is given in pixels of the
+ * reference square and scaled by it, so a seed plays the same battle on any canvas (the speeds scale the same way).
+ */
+export function battleUnit(field: ArenaField): number {
+  return field.side / ARENA_REFERENCE_SIDE;
+}
+
 /** Half-size of the squares at the start: `count` squares cover BATTLE_FILL of the field at Ball Size 8, capped so they fit. */
 export function battleSquareHalf(field: ArenaField, count: number, ballRadius: number): number {
   const n = Math.max(1, count);
   const scale = Math.max(0.5, Math.min(2.5, (ballRadius || 8) / 8));
   const base = 0.5 * Math.sqrt((BATTLE_FILL * zoneArea(field)) / n) * scale;
-  return Math.max(4, Math.min(base, maxSquareHalf(field) * 0.9));
+  return Math.max(4 * battleUnit(field), Math.min(base, maxSquareHalf(field) * 0.9));
 }
 
 /* ------------------------------------------------------------------ the mode */
@@ -250,7 +259,9 @@ export class BattleMode implements GameMode {
     this.tempo = new Float64Array(n);
     this.byIndex = new Array(n).fill(null);
     const half = battleSquareHalf(field, n, this.lastBallRadius);
-    // Spots that overlap nothing placed so far (up to 60 tries each), launched away from the axes.
+    // Spots that overlap nothing placed so far (up to 60 tries each), launched away from the axes. The margins are in
+    // reference pixels (× the field's unit), so the same seed finds the same spots – relative to the field – on any canvas.
+    const u = battleUnit(field);
     const xs = new Float64Array(n);
     const ys = new Float64Array(n);
     for (let k = 0; k < n; k++) {
@@ -258,17 +269,17 @@ export class BattleMode implements GameMode {
       let y = field.cy;
       for (let attempt = 0; attempt < 60; attempt++) {
         if (field.kind === "circle") {
-          const room = Math.max(0, field.radius - half * Math.SQRT2 - 4);
+          const room = Math.max(0, field.radius - half * Math.SQRT2 - 4 * u);
           const rho = room * Math.sqrt(ctx.random());
           const a = 2 * Math.PI * ctx.random();
           x = field.cx + rho * Math.cos(a);
           y = field.cy + rho * Math.sin(a);
         } else {
-          x = field.cx + (2 * ctx.random() - 1) * Math.max(0, field.halfW - half - 4);
-          y = field.cy + (2 * ctx.random() - 1) * Math.max(0, field.halfH - half - 4);
+          x = field.cx + (2 * ctx.random() - 1) * Math.max(0, field.halfW - half - 4 * u);
+          y = field.cy + (2 * ctx.random() - 1) * Math.max(0, field.halfH - half - 4 * u);
         }
         let free = true;
-        for (let j = 0; j < k && free; j++) if (Math.abs(xs[j] - x) < 2 * half + 6 && Math.abs(ys[j] - y) < 2 * half + 6) free = false;
+        for (let j = 0; j < k && free; j++) if (Math.abs(xs[j] - x) < 2 * half + 6 * u && Math.abs(ys[j] - y) < 2 * half + 6 * u) free = false;
         if (free) break;
       }
       xs[k] = x;
@@ -345,7 +356,7 @@ export class BattleMode implements GameMode {
       }
       // The survivors cover at most ZONE_FIT of the zone, and the biggest keeps 2.5 times its reach of room.
       const fitArea = Math.sqrt(area / (ZONE_FIT * zoneArea(field)));
-      const reach = biggest * (field.kind === "circle" ? Math.SQRT2 : 1) + 8;
+      const reach = biggest * (field.kind === "circle" ? Math.SQRT2 : 1) + 8 * battleUnit(field);
       const fitSize = (2.5 * reach) / (field.kind === "circle" ? field.radius : Math.min(field.halfW, field.halfH));
       const next = zoneScaleAt(t, Math.max(fitArea, fitSize), v.zone);
       v.zoneShrinking = next < v.zone - 1e-9;
@@ -370,16 +381,17 @@ export class BattleMode implements GameMode {
     const w = ctx.random();
     if (v.powerUps.length >= MAX_POWER_UPS) return;
     const r = 0.55 * battleSquareHalf(field, v.count, this.lastBallRadius);
+    const margin = 6 * battleUnit(field);
     let x: number;
     let y: number;
     if (field.kind === "circle") {
-      const room = Math.max(0, field.radius * v.zone - r - 6);
+      const room = Math.max(0, field.radius * v.zone - r - margin);
       const rho = room * Math.sqrt(u);
       x = field.cx + rho * Math.cos(2 * Math.PI * w);
       y = field.cy + rho * Math.sin(2 * Math.PI * w);
     } else {
-      x = field.cx + (2 * u - 1) * Math.max(0, field.halfW * v.zone - r - 6);
-      y = field.cy + (2 * w - 1) * Math.max(0, field.halfH * v.zone - r - 6);
+      x = field.cx + (2 * u - 1) * Math.max(0, field.halfW * v.zone - r - margin);
+      y = field.cy + (2 * w - 1) * Math.max(0, field.halfH * v.zone - r - margin);
     }
     const p: ArenaPowerUp = { kind, x, y, r, spawnMs: now, expireMs: now + 1000 * POWER_UP_LIFE_SEC };
     v.powerUps.push(p);
