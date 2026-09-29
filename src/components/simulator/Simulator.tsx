@@ -49,7 +49,7 @@ import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
 // --- rigged ---
 import FinderOutcomeFields, { FinderOutcomeSelect, outcomeButtonText, outcomeFoundText, outcomeMissText, outcomeOverlayText, outcomeProgressText, teamChoiceNames } from "./FinderOutcomeFields";
-import { forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged";
+import { BATTLE_WINNER_MODES, forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import { availableOutcomes, effectiveOutcome, type FinderOutcome, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 // --- timeline ---
 import TimelineBar from "./TimelineBar";
@@ -2145,10 +2145,10 @@ export default function Simulator() {
                 <span className="text-sm font-bold text-zinc-300">🔍 {t("Controls.findSimulation")}</span>
                 <Tooltip text={t("Controls.findSimulationTip")} />
                 {/* --- rigged --- the outcome to search for */}
-                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} />}
+                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
               </div>
               {/* --- rigged --- an outcome search's explanation and fields */}
-              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} />}
+              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
               <div className="flex-1 flex flex-col justify-center">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">

@@ -8,6 +8,8 @@ import {
   SB_FINALE_RAMP_MS,
   SB_INVULN_MS,
   SB_PALETTE,
+  SB_SPEED_SCALE,
+  SB_SPEED_SPREAD,
   STRING_BATTLE_RANGES,
   StringBattleMode,
   anchorPoint,
@@ -38,7 +40,8 @@ import { MODE_IDS, arenaRadius, type Ball, type ModeContext, type NewBall, type 
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
-import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
+import { availableOutcomes, outcomeClipSec, outcomeMatches } from "@/lib/simulation/outcomes";
+import { emptyStats } from "@/lib/physics/ballStats";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
 
@@ -307,17 +310,24 @@ describe("thread geometry", () => {
     expect(q.x).toBeCloseTo(70, 9);
     expect(threadDistanceSq(0, 0, 100, 0, -10, 0, 30, undefined, 1)).toBeCloseTo(100, 9);
     expect(threadDistanceSq(0, 0, 20, 0, 5, 0, 30, undefined, 1)).toBe(Infinity); // too short to cut
-    // By default only the taut part pinned to the ring – the anchor-side share – cuts or burns.
-    expect(SB_CUT_SPAN).toBeGreaterThan(0);
-    expect(SB_CUT_SPAN).toBeLessThan(1);
-    expect(cuttableSpan(200, 30)).toBeCloseTo(200 * SB_CUT_SPAN, 9);
-    expect(cuttableSpan(40, 30)).toBeCloseTo(Math.min(10, 40 * SB_CUT_SPAN), 9);
-    expect(threadDistanceSq(0, 0, 200, 0, 150, 0, 30, q)).toBeCloseTo((150 - 200 * SB_CUT_SPAN) ** 2, 6);
-    expect(q.x).toBeCloseTo(200 * SB_CUT_SPAN, 9);
+    // By default the whole thread cuts and burns – up to the stub next to its ball.
+    expect(SB_CUT_SPAN).toBe(1);
+    expect(cuttableSpan(200, 30)).toBeCloseTo(170, 9);
+    expect(cuttableSpan(40, 30)).toBeCloseTo(10, 9);
+    expect(threadDistanceSq(0, 0, 200, 0, 150, 0, 30, q)).toBeCloseTo(0, 9);
+    expect(q.x).toBeCloseTo(150, 9);
+    expect(threadDistanceSq(0, 0, 200, 0, 190, 0, 30, q)).toBeCloseTo(400, 9); // clamped to x = 170
+    // A smaller share is a ring-side-only variant: the rest passes through.
+    expect(cuttableSpan(200, 30, 0.35)).toBeCloseTo(70, 9);
+    expect(threadDistanceSq(0, 0, 200, 0, 150, 0, 30, q, 0.35)).toBeCloseTo(80 ** 2, 6);
+    expect(q.x).toBeCloseTo(70, 9);
     // The touch rule: a ball of radius 10 at 8 px from the thread touches it; at 12 px it does not; next to the owner never.
     expect(touchesThread(0, 0, 200, 0, 12, 60, 8, 10)).toBe(true);
     expect(touchesThread(0, 0, 200, 0, 12, 60, 12, 10)).toBe(false);
     expect(touchesThread(0, 0, 200, 0, 12, 190, 3, 10)).toBe(false);
+    // Anywhere along the thread burns, the ball-side part too (up to the owner's stub: 12 + 10 + SB_REACH_GAP short of it).
+    expect(touchesThread(0, 0, 200, 0, 12, 160, 8, 10)).toBe(true);
+    expect(touchesThread(0, 0, 200, 0, 12, 160, 8, 10, 0.35)).toBe(false);
   });
 
   it("cuts only when the ball's own move crosses the thread", () => {
@@ -336,9 +346,10 @@ describe("thread geometry", () => {
     // Touching the thread from one side (landing on it) is not yet a cut; going through is.
     expect(cutsThread(0, 0, 200, 0, 30, 50, -3, 50, 0)).toBe(true);
     expect(cutsThread(0, 0, 200, 0, 30, 50, 0, 50, 3)).toBe(false);
-    // Beyond the anchor-side share the thread swings with its ball: no cut – unless the whole thread counts.
-    expect(cutsThread(0, 0, 200, 0, 30, 120, -3, 120, 3)).toBe(false);
-    expect(cutsThread(0, 0, 200, 0, 30, 120, -3, 120, 3, undefined, 1)).toBe(true);
+    // The whole thread cuts, its ball-side part too – a ring-side-only share would let the ball pass there.
+    expect(cutsThread(0, 0, 200, 0, 30, 120, -3, 120, 3)).toBe(true);
+    expect(cutsThread(0, 0, 200, 0, 30, 160, -3, 160, 3)).toBe(true);
+    expect(cutsThread(0, 0, 200, 0, 30, 120, -3, 120, 3, undefined, 0.35)).toBe(false);
   });
 
   it("extends a thread to the infinite line through its anchor and ball inside the canvas (the neon style)", () => {
@@ -466,6 +477,19 @@ describe("the combat rules", () => {
     expect(mode.isFinished()).toBe(true);
   });
 
+  it("cut: crossing an enemy thread next to its ball – not only near the ring – cuts it too", () => {
+    const { mode, pr, view } = fight({ balls: 2, lives: 2, rule: "cut" });
+    anchorAt(mode, pr, 1, 0, 200); // ball 1 hangs 200 px in from its anchor
+    const B = pr.balls.find((b) => b.team === 1)!;
+    const reach = 2 * B.radius + 2;
+    // 80 % of the way from the anchor to the ball, clear of the stub next to the ball.
+    const x = view.cx + view.radius - 0.8 * 200;
+    expect(view.cx + view.radius - 200 + reach).toBeLessThan(x);
+    sweep(mode, pr, 0, x, view.cy - 30, x, view.cy + 30);
+    expect(view.fighters[1].lives).toBe(1);
+    expect(view.cuts).toBe(1);
+  });
+
   it("cut: a ball never cuts its own threads, nor an enemy's next to the enemy's body", () => {
     const { mode, pr, view } = fight({ balls: 2, rule: "cut" });
     anchorAt(mode, pr, 0, 0, 150);
@@ -520,6 +544,28 @@ describe("the combat rules", () => {
     other.view.fighters[0].preSpeed = 1;
     other.mode.onBallCollision(other.pr.ctx, other.pr.balls[0], other.pr.balls[1]);
     expect(other.view.fighters[0].lives).toBe(DEFAULT_STRING_BATTLE_SETTINGS.lives);
+  });
+
+  it("collide: every ring bounce draws the cruising speed afresh, so the slower ball changes from clash to clash", () => {
+    const { mode, pr, view } = fight({ balls: 2, rule: "collide" });
+    const ball = pr.balls[0];
+    const f = view.fighters[0];
+    const factors = new Set<number>();
+    for (let k = 0; k < 12; k++) {
+      const angle = k * 0.5;
+      ball.x = view.cx + Math.cos(angle) * (view.radius - ball.radius + 2);
+      ball.y = view.cy + Math.sin(angle) * (view.radius - ball.radius + 2);
+      ball.vx = Math.cos(angle) * 150;
+      ball.vy = Math.sin(angle) * 150;
+      mode.onBallStep(pr.ctx, ball, 1 / 240);
+      factors.add(f.cruise);
+      expect(f.cruise).toBeGreaterThanOrEqual(1 - SB_SPEED_SPREAD);
+      expect(f.cruise).toBeLessThanOrEqual(1 + SB_SPEED_SPREAD);
+      // It leaves the ring at its new cruising speed, and that is the speed a clash compares.
+      expect(Math.hypot(ball.vx, ball.vy)).toBeCloseTo(config.ballSpeed * SB_SPEED_SCALE * f.cruise, 6);
+      expect(f.preSpeed).toBeCloseTo(Math.hypot(ball.vx, ball.vy), 9);
+    }
+    expect(factors.size).toBe(12);
   });
 
   it("the forced winner never loses its last life and never falls behind", () => {
@@ -685,6 +731,70 @@ describe("the String Battle in the engine", () => {
     expect(engine.getCircularWalls()).toEqual([]);
     for (const f of view.fighters) for (const s of f.strings) expect(Math.hypot(s.ax - 600, s.ay - 450)).toBeCloseTo(view.radius, 6);
   });
+
+  it("a resize mid-battle keeps every ball where it was in the ring and costs no thread and no life", () => {
+    const portrait = { ...config, width: 1080, height: 1920 };
+    const sizes = [
+      { width: 1920, height: 1080 }, // a phone turned: the same ring, the canvas stretched the other way
+      { width: 450, height: 800 }, // a smaller window: the ring shrinks
+      { width: 1400, height: 900 },
+    ];
+    let resized = 0;
+    for (let seed = 1; seed <= 24; seed++) {
+      const size = sizes[seed % sizes.length];
+      const engine = battle({}, seed, portrait);
+      for (let i = 0; i < 90 + 11 * seed; i++) engine.update(STEP, 0);
+      const view = engine.getStringBattleView();
+      if (view.finished) continue;
+      const before = new Map(engine.getBalls().map((b) => [b.id, { u: (b.x - view.cx) / view.radius, w: (b.y - view.cy) / view.radius }]));
+      engine.setConfig(size);
+      resized++;
+      for (const b of engine.getBalls()) {
+        const f = view.fighters[b.team!];
+        // Where it was in the ring (a ball keeps its size: in a smaller ring it is kept just inside), inside the ring,
+        // and its previous position (the cut rule's move) moved with it.
+        const was = before.get(b.id)!;
+        const rho = Math.hypot(was.u, was.w) * view.radius;
+        const k = rho > view.radius - b.radius ? (view.radius - b.radius) / rho : 1;
+        expect((b.x - view.cx) / view.radius, `seed ${seed}`).toBeCloseTo(was.u * k, 9);
+        expect((b.y - view.cy) / view.radius, `seed ${seed}`).toBeCloseTo(was.w * k, 9);
+        expect(Math.hypot(b.x - view.cx, b.y - view.cy) + b.radius, `seed ${seed}`).toBeLessThanOrEqual(view.radius + 1e-6);
+        expect([f.x, f.y, f.px, f.py]).toEqual([b.x, b.y, b.x, b.y]);
+      }
+      const { cuts, livesLost } = view;
+      engine.update(STEP, 0);
+      expect([view.cuts, view.livesLost], `seed ${seed}`).toEqual([cuts, livesLost]);
+    }
+    expect(resized).toBeGreaterThan(20);
+    // The same battle turned from portrait to landscape (the ring's size unchanged) plays on exactly as if nothing happened.
+    const trace = (turn: boolean) => {
+      const engine = battle({}, 13, portrait);
+      for (let i = 0; i < 200; i++) engine.update(STEP, 0);
+      if (turn) engine.setConfig({ width: 1920, height: 1080 });
+      runBattle(engine);
+      const v = engine.getStringBattleView();
+      return [v.winner, v.cuts, v.livesLost, v.bounces, Math.round(v.finishedMs)];
+    };
+    expect(trace(true)).toEqual(trace(false));
+  });
+
+  it("collide: the ball that spawned fastest does not win nearly every battle (chaos, not a verdict at spawn)", () => {
+    let fastestWins = 0;
+    let battles = 0;
+    for (let seed = 1; seed <= 24; seed++) {
+      const engine = battle({ rule: "collide", lives: 3 }, seed, { ...config, width: 450, height: 800 });
+      const view = engine.getStringBattleView();
+      const spawn = view.fighters.map((f) => f.cruise);
+      const fastest = spawn.indexOf(Math.max(...spawn));
+      runBattle(engine, 300_000);
+      if (!view.finished) continue;
+      battles++;
+      if (view.winner === fastest) fastestWins++;
+    }
+    expect(battles).toBeGreaterThanOrEqual(20);
+    // About one in four of a four-ball battle; spawn-fixed it was 59 of 60.
+    expect(fastestWins / battles).toBeLessThan(0.5);
+  });
 });
 
 /* ------------------------------------------------------------------ the finder and the rig */
@@ -722,15 +832,61 @@ describe("Find Simulation and the forced winner", () => {
   });
 
   it("judges the winner outcome by the last ball standing", () => {
-    const outcome = { kind: "winner" as const, clipSec: 90, team: 0 };
+    const engine = battle({}, 4);
+    const length = runBattle(engine);
+    const winner = engine.getStringBattleView().winner;
+    const outcome = { kind: "winner" as const, clipSec: 90, team: winner };
     const run = simulateOutcomeRun(4, request(), outcome);
     expect(run.teams.length).toBe(4);
     expect(run.finished).toBe(true);
-    const engine = battle({}, 4);
-    runBattle(engine);
-    const winner = engine.getStringBattleView().winner;
-    expect(outcomeMatches({ ...outcome, team: winner }, run)).toBe(true);
+    expect(run.durationMs).toBeCloseTo(length, 6);
+    expect(outcomeMatches(outcome, run)).toBe(true);
     expect(outcomeMatches({ ...outcome, team: (winner + 1) % 4 }, run)).toBe(false);
+    // A search for another ball gives the battle up as soon as that ball is out.
+    const loser = simulateOutcomeRun(4, request(), { ...outcome, team: (winner + 1) % 4 });
+    expect(loser.finished).toBe(false);
+    expect(loser.durationMs).toBeLessThan(length);
+    expect(outcomeMatches({ ...outcome, team: (winner + 1) % 4 }, loser)).toBe(false);
+  });
+
+  it("judges a battle's winner at its end, not the clip's: lives 9 and a 30 s clip", () => {
+    const req = request({ maxSimTimeSec: 60, modeSettings: { ...modeSettings, stringBattle: { lives: 9 } } });
+    let matched = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const engine = battle({ lives: 9 }, seed);
+      const length = runBattle(engine, 300_000);
+      const winner = engine.getStringBattleView().winner;
+      for (let team = 0; team < 4; team++) {
+        const outcome = { kind: "winner" as const, clipSec: 30, team };
+        const run = simulateOutcomeRun(seed, req, outcome);
+        const ok = outcomeMatches(outcome, run);
+        if (ok) {
+          matched++;
+          // A match is a finished battle the chosen ball won – the same battle the page plays.
+          expect(run.finished, `seed ${seed} team ${team}`).toBe(true);
+          expect(team, `seed ${seed}`).toBe(winner);
+          expect(run.durationMs).toBeCloseTo(length, 6);
+          expect(outcomeClipSec(outcome, run)).toBeCloseTo(length / 1000, 6);
+        } else if (length <= 60_000) expect(team === winner, `seed ${seed} team ${team}`).toBe(false);
+      }
+    }
+    expect(matched).toBeGreaterThan(0);
+    // Mid-battle at the clip's end the leader is no winner yet.
+    const unfinished = { mode: "stringBattle" as const, durationMs: 30_000, finished: false, firstEscapeMs: -1, teams: [0, 1, 2, 3].map((i) => ({ ...emptyStats(), bounces: 10 + i, walls: i === 2 ? 1 : 0 })) };
+    expect(outcomeMatches({ kind: "winner", clipSec: 30, team: 2 }, unfinished)).toBe(false);
+    expect(outcomeMatches({ kind: "winner", clipSec: 30, team: 2 }, { ...unfinished, mode: undefined })).toBe(true); // any other mode: the scoreboard at the clip's end
+  });
+
+  it("finds a battle a chosen ball wins with lives 9 and a 30 s clip – and the found seed plays out that way", { timeout: 60_000 }, async () => {
+    const stringBattle = { lives: 9 };
+    const outcome = { kind: "winner" as const, clipSec: 30, team: 2 };
+    const found = await withFrames(() => findSimulation(request({ maxSimTimeSec: 60, outcome, modeSettings: { ...modeSettings, stringBattle } }), () => undefined));
+    expect(found.found).toBe(true);
+    expect(found.finished).toBe(true);
+    const engine = battle(stringBattle, found.seed);
+    const length = runBattle(engine, 300_000);
+    expect(engine.getStringBattleView().winner).toBe(2);
+    expect(found.duration).toBeCloseTo(length / 1000, 6); // the clip the page records: the whole battle
   });
 
   it("the forced winner wins every battle, under every rule and with a clip limit", () => {

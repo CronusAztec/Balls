@@ -3327,6 +3327,65 @@ const instrumentOscillators = () =>
   const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
   check("Find Simulation finds a string battle the chosen ball wins", labelled && /Found! ACID wins/.test(text), `("${text}")`);
 }
+{
+  // Find Simulation with nine lives: a battle outlasts the 30 s duration, so the finder follows every one to its end (the
+  // last ball standing – not whoever leads when the duration is up). The found battle, played to its end at 8×, is really
+  // ACID's, and the recording length covers all of it plus the winner banner's hold.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbl=9`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("2");
+  const hint = await page.getByTestId("finder-outcome-hint").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Find a Run ACID Wins/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 180_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/\(([\d.]+)s\)/.exec(text) || [])[1]);
+  await page.waitForTimeout(500);
+  const dur = Number(new URLSearchParams(page.url().split("?")[1] || "").get("dur") ?? 30); // the link leaves out the default 30 s
+  let data = {};
+  if (/Found! ACID wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    data = await canvasData();
+  }
+  check(
+    "Find Simulation follows a nine-life string battle to its end: the found battle is really ACID's, recorded whole",
+    /last one standing/.test(hint) && /Found! ACID wins/.test(text) && foundSec > 0 && data.sbFinished === "1" && data.sbWinner === "2" && data.sbWinnerName === "ACID" && data.sbAlive === "1" && dur >= Math.min(120, foundSec + 3 - 0.05) && dur < foundSec + 4.05,
+    `("${text}", dur=${dur}, played: ${JSON.stringify({ finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, alive: data.sbAlive, lives: data.sbLives })}, hint="${hint}")`,
+  );
+}
+{
+  // A resize mid-battle (a phone turned, a window dragged narrower), paused so the frame shows the resized battle before
+  // the next step: every ball stays where it was in the ring (data-sb-in-ring) and every fighter's previous position –
+  // where the cut rule tests its next move from – moved with its ball (data-sb-stale-px, the largest gap: 0), so the
+  // resize itself cuts no thread and costs no life.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbStrings ?? 0) >= 8, null, { timeout: 15_000 }).catch(() => {});
+  const trials = [];
+  for (const size of [{ width: 760, height: 1040 }, { width: 1400, height: 900 }, { width: 980, height: 640 }, { width: 1400, height: 900 }]) {
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(200);
+    const before = await canvasData();
+    const box0 = await page.locator("main canvas").boundingBox();
+    await page.setViewportSize(size);
+    await page.waitForTimeout(400);
+    const box1 = await page.locator("main canvas").boundingBox();
+    const held = await canvasData();
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(600);
+    const after = await canvasData();
+    const resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
+    trials.push({ resized, running: before.sbFinished === "0" && held.sbFinished === "0", stale: Number(held.sbStalePx), inRing: held.sbInRing === "1", lost: Number(after.sbLivesLost) - Number(held.sbLivesLost), size: `${box0 ? Math.round(box0.width) : "?"}×${box0 ? Math.round(box0.height) : "?"}→${box1 ? Math.round(box1.width) : "?"}×${box1 ? Math.round(box1.height) : "?"}` });
+  }
+  await page.setViewportSize({ width: 1400, height: 900 });
+  check(
+    "a resize mid string battle keeps the balls in the ring and leaves no stale move for the cut rule",
+    trials.length === 4 && trials.every((t) => t.resized && t.running && t.stale <= 0.5 && t.inRing),
+    `(${JSON.stringify(trials)})`,
+  );
+}
 // --- end odd-string-battle ---
 
 // --- odd-power-layers ---

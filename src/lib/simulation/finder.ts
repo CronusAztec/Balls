@@ -16,7 +16,7 @@ import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } 
 // --- rigged ---
 import { startBallCount } from "@/lib/physics/ballStats";
 import { rigNeverFinishes } from "@/lib/physics/rigged";
-import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
+import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -420,11 +420,14 @@ const OUTCOME_FRAME_BUDGET_MS = 30;
 /**
  * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
  * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
- * soon as the outcome is settled (`outcomeSettled()`), so a failing seed costs little.
+ * soon as the outcome is settled (`outcomeSettled()`), so a failing seed costs little. A battle's winner search follows
+ * the battle to its end (`winnerNeedsEnd()`) – and gives up on it as soon as the chosen ball is out.
  */
 export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome: FinderOutcome): RunSummary {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
-  const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000);
+  const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode);
+  // --- odd-string-battle --- the chosen ball of a battle's winner search (−1: none to watch)
+  const battleTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "stringBattle" ? (outcome.team ?? -1) : -1;
   const step = 1000 / 60;
   let elapsed = 0;
   let firstEscape = -1;
@@ -435,11 +438,12 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     engine.consumeSoundEvents();
     if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
     finished = engine.isSimulationFinished();
-    if (outcomeSettled(outcome, elapsed, firstEscape, finished)) break;
+    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode)) break;
+    if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
-  return { durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
