@@ -3231,6 +3231,129 @@ const instrumentOscillators = () =>
   }
 }
 // --- end fast-render ---
+// --- project-files ---
+// 26. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
+// bed downloads as <name>.viralballs.json holding the settings and the track as base64. Import on a fresh page (the
+// file input, then a drop on the panel) restores the settings and the track; a JSON file that is not a project is
+// refused with a message. Share: the share button copies a ?c= link (base64url); opening it applies the setup,
+// parameters after the code win, and a damaged code is reported under the canvas; the search box finds the block.
+{
+  const projectLink = "mode=shatter&g=700&top=Project+smoke&obs=p%3A0.2%2C-0.3%2C6%3Bb%3A-0.4%2C0.1%2C8%3Bp%3A0.5%2C0.5%2C5&kf=g_0_300_4_1200";
+  const linkParams = () => new URL(page.url()).searchParams;
+  const setupRestored = (p) => p.get("mode") === "shatter" && p.get("g") === "700" && p.get("top") === "Project smoke" && (p.get("obs") ?? "").split(";").length === 3 && p.get("kf") === "g_0_300_4_1200";
+  const openProjectBlock = async () => {
+    if (!(await page.getByTestId("project-section").isVisible().catch(() => false))) await page.getByRole("button", { name: /Project file/ }).click();
+    await page.getByTestId("project-section").waitFor({ timeout: 5000 });
+  };
+  const projectStatus = () =>
+    page
+      .getByTestId("project-status")
+      .waitFor({ timeout: 20000 })
+      .then(() => page.getByTestId("project-status").innerText())
+      .catch(() => "");
+
+  await page.goto(`${BASE}/en/simulator/?${projectLink}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const bedUploaded = await uploadMusicBed(2);
+  await openProjectBlock();
+  await page.locator("#project-name").fill("Smoke project");
+  const mediaText = (await page.getByTestId("project-media").innerText()).replace(/\s+/g, " ");
+  const [projectDownload] = await Promise.all([page.waitForEvent("download", { timeout: 20000 }), page.getByRole("button", { name: /Export project/ }).click()]);
+  const projectPath = path.join(outDir, projectDownload.suggestedFilename());
+  await projectDownload.saveAs(projectPath);
+  const projectText = fs.readFileSync(projectPath, "utf8");
+  let project = null;
+  try {
+    project = JSON.parse(projectText);
+  } catch {
+    /* reported below */
+  }
+  const bed = project?.assets?.musicBed;
+  check(
+    "Export project downloads <name>.viralballs.json with the settings and the uploaded media",
+    bedUploaded &&
+      /Background music\s*smoke-bed\.wav/.test(mediaText) &&
+      projectDownload.suggestedFilename() === "Smoke project.viralballs.json" &&
+      project?.format === "viralballs-project" &&
+      project?.version === 1 &&
+      project?.name === "Smoke project" &&
+      project?.settings?.mode === "shatter" &&
+      project?.settings?.gravity === 700 &&
+      project?.settings?.obstacles?.length === 3 &&
+      project?.settings?.keyframes?.length === 2 &&
+      bed?.name === "smoke-bed.wav" &&
+      bed?.size === makeWav(2).length &&
+      Buffer.from(bed?.data ?? "", "base64").equals(makeWav(2)),
+    `(${projectDownload.suggestedFilename()}, ${projectText.length} chars, media "${mediaText}", bed ${bed ? `${bed.name} ${bed.size} B` : "missing"})`,
+  );
+
+  // Import through the file input on a fresh page.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await openProjectBlock();
+  await page.locator("#project-file-input").setInputFiles(projectPath);
+  const importText = await projectStatus();
+  await page.waitForTimeout(300);
+  const importedParams = linkParams();
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const importedTrack = await page.getByTestId("music-track").innerText({ timeout: 10000 }).catch(() => "");
+  check(
+    "Import project restores the settings and the media",
+    /Opened .Smoke project./.test(importText) && setupRestored(importedParams) && importedTrack.includes("smoke-bed.wav") && (await page.locator("#project-name").inputValue().catch(() => "")) === "Smoke project",
+    `(status "${importText}", link ${importedParams.toString()}, track "${importedTrack.replace(/\s+/g, " ").trim()}")`,
+  );
+
+  // Drop the file on the panel: the outline shows while it is dragged, the drop imports it.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  const dropZone = page.getByTestId("project-drop-zone");
+  const dataTransfer = await page.evaluateHandle((text) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], "dropped.viralballs.json", { type: "application/json" }));
+    return dt;
+  }, projectText);
+  await dropZone.dispatchEvent("dragenter", { dataTransfer });
+  await dropZone.dispatchEvent("dragover", { dataTransfer });
+  const outlineShown = await page.getByText("Drop the project file to open it").isVisible().catch(() => false);
+  await dropZone.dispatchEvent("drop", { dataTransfer });
+  const dropText = await projectStatus();
+  await page.waitForTimeout(300);
+  check("dropping a project file on the panel imports it", outlineShown && /Opened/.test(dropText) && setupRestored(linkParams()), `(outline ${outlineShown}, status "${dropText}", link ${linkParams().toString()})`);
+
+  // A JSON file that is not a project is refused, and the page keeps its settings.
+  await page.goto(`${BASE}/en/simulator/?mode=lines&g=450`, { waitUntil: "networkidle" });
+  await openProjectBlock();
+  await page.locator("#project-file-input").setInputFiles({ name: "other.json", mimeType: "application/json", buffer: Buffer.from('{"hello":"world"}') });
+  const refusedText = await projectStatus();
+  check("a JSON file that is not a project is refused", /not a ViralBalls project/.test(refusedText) && linkParams().get("mode") === "lines" && linkParams().get("g") === "450", `(status "${refusedText}", link ${linkParams().toString()})`);
+
+  // Short share codes.
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin });
+  await page.goto(`${BASE}/en/simulator/?${projectLink}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600); // the short link is re-encoded 150 ms after the last change
+  const longLink = page.url();
+  await page.getByRole("button", { name: /Copy share link/ }).click();
+  await page.getByText("Link copied!").waitFor({ timeout: 5000 }).catch(() => {});
+  const shortLink = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+  const codeMatch = /\/en\/simulator\/\?c=([A-Za-z0-9_-]+)$/.exec(shortLink);
+  check("the share button copies a short ?c= link", !!codeMatch, `(${shortLink.length} chars, long link ${longLink.length}: ${shortLink.slice(0, 90)}…)`);
+  if (codeMatch) {
+    await page.goto(shortLink, { waitUntil: "networkidle" });
+    const opened = await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const openedParams = linkParams();
+    check("a ?c= link opens the shared setup (the address bar shows the long link)", opened && setupRestored(openedParams) && !openedParams.has("c"), `(${openedParams.toString()})`);
+    await page.goto(`${shortLink}&g=900&wc=4`, { waitUntil: "networkidle" });
+    const overridden = await page.waitForFunction(() => new URL(location.href).searchParams.get("top") === "Project smoke", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const overParams = linkParams();
+    check("parameters after the code win over the code", overridden && overParams.get("mode") === "shatter" && overParams.get("g") === "900" && overParams.get("wc") === "4" && overParams.get("kf") === "g_0_300_4_1200", `(${overParams.toString()})`);
+  }
+  await page.goto(`${BASE}/en/simulator/?c=not-a-real-code&g=450`, { waitUntil: "networkidle" });
+  const noticeShown = await page.getByTestId("share-code-notice").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("a damaged share code is reported under the canvas and the other parameters still apply", noticeShown && linkParams().get("g") === "450", `(notice ${noticeShown}, link ${linkParams().toString()})`);
+  await page.getByPlaceholder("Search settings...").fill("export");
+  const foundBySearch = await page.getByTestId("project-section").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("the search box finds the Project file block", foundBySearch);
+}
+// --- end project-files ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

@@ -140,7 +140,10 @@
     "finderFixedDoublePendulum": "A Double Pendulum run always lasts exactly {duration}s – the clip length (the Duration of the Recording section), whatever the seed. Set the Duration to the length you want, or switch Endless on in the Double pendulum block.",
     "canvasIllusionRevealed": "REVEALED!",
     "canvasIllusionCycles": "Back where it started after [count] cycle(s)",
-    "finderFixedIllusion": "The Circle Illusion always lasts exactly {duration}s with these settings (the cycles × the cycle length), whatever the seed. Change the speed or the number of cycles in the Mode row to hit the target – or try the white spaces, whose length depends on the seed."
+    "finderFixedIllusion": "The Circle Illusion always lasts exactly {duration}s with these settings (the cycles × the cycle length), whatever the seed. Change the speed or the number of cycles in the Mode row to hit the target – or try the white spaces, whose length depends on the seed.",
+    "shareCodeInvalid": "The share code in this link could not be read, so the shared settings were not applied.",
+    "shareCodeUnsupported": "This browser cannot open short share links (?c=…). Open the link in a current Chrome, Edge, Firefox or Safari, or ask for the long link.",
+    "shareCodeDismiss": "Dismiss"
   },
   "HowItWorks": {
     "step1": {
@@ -1017,7 +1020,40 @@
     "fastExportFps": "Fast export frame rate",
     "fastExportFpsTip": "Frames per second of the ⚡ Fast export: 60 is the smoothest, 30 makes a smaller file and renders sooner. The physics always runs 60 steps a second, so the run and its sounds are the same either way.",
     "fastExportFps30": "30 fps",
-    "fastExportFps60": "60 fps"
+    "fastExportFps60": "60 fps",
+    "projectFiles": "Project file",
+    "projectFilesDesc": "Save the whole setup – every setting with its obstacles, keyframes, captions and teams, plus the pictures and sounds you uploaded – in one .viralballs.json file, and open it again later or on another computer.",
+    "projectName": "Project name",
+    "projectNamePlaceholder": "e.g. boris-vs-glass",
+    "projectMediaNone": "No uploaded media – the file holds the settings only.",
+    "projectMediaTotal": "Media in the file",
+    "projectMediumBallImage": "Ball image",
+    "projectMediumHitSample": "Hit sample",
+    "projectMediumWallBreakSound": "Wall-break sound",
+    "projectMediumSliceSong": "Song slicer",
+    "projectMediumMusicBed": "Background music",
+    "projectMediumMidi": "MIDI melody",
+    "projectMediumPaintPicture": "Paint picture",
+    "projectMediumBackgroundImage": "Background picture",
+    "projectLargeWarning": "{size} of media is more than {limit}: the file will be slow to save and to send. Shorter or compressed songs make it smaller.",
+    "projectLargeConfirm": "The media in this project add up to {size}, more than {limit}. Export it anyway?",
+    "projectTooLarge": "The media add up to {size}; a project holds at most {max}. Remove the largest song or picture and try again.",
+    "exportProject": "Export project",
+    "importProject": "Import project",
+    "projectDropHint": "You can also drop a .viralballs.json file anywhere on this panel.",
+    "projectDropHere": "Drop the project file to open it",
+    "projectExporting": "Packing the project…",
+    "projectImporting": "Opening the project…",
+    "projectExported": "Saved {file} ({size}).",
+    "projectImported": "Opened “{name}”.",
+    "projectImportedSkipped": "Opened “{name}”, but {count} damaged media file(s) were left out.",
+    "projectErrorNotJson": "This file is not a project file (it is not valid JSON).",
+    "projectErrorNotProject": "This file is not a ViralBalls project.",
+    "projectErrorNewer": "This project was saved by a newer version of the simulator. Reload the page to get the latest version and try again.",
+    "projectErrorTooLarge": "This project is too large to open (at most {max} of media).",
+    "projectErrorNotFile": "“{file}” is not a project file – choose a .viralballs.json file.",
+    "projectErrorRead": "The project could not be opened.",
+    "projectExportError": "The project could not be saved."
   },
   "Modes": {
     "classic": {

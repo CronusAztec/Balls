@@ -43,6 +43,9 @@ import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- time
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
+// --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
+import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
+import type { ProjectPanelProps } from "./useProjectFiles";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -114,6 +117,8 @@ export interface ControlsProps {
   // --- end themes
   // --- fast-render --- the Fast export button under Record Video, its progress and how it went
   fastExport?: FastExportPanelProps;
+  /** --- project-files --- the page's side of Export / Import project (the block is left out without it). */
+  project?: ProjectPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -1126,7 +1131,7 @@ export default function Controls(props: ControlsProps) {
     }
   };
 
-  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id]));
+  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id])) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   return (
     <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-zinc-800">
@@ -1188,6 +1193,7 @@ export default function Controls(props: ControlsProps) {
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
             {!anyResults && <p className="text-xs text-zinc-500 text-center py-4">{t("noSearchResults")}</p>}
             {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(SECTION_KEYS[id]) && <div key={id}>{renderSection(id)}</div>)}
+            {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
           </div>
         </div>
       ) : (
@@ -1307,6 +1313,7 @@ export default function Controls(props: ControlsProps) {
               </div>
             )}
           </div>
+          {props.project && <ProjectSection t={t} search="" matches={matches} project={props.project} /> /* --- project-files --- */}
         </>
       )}
 
