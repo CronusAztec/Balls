@@ -2397,8 +2397,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 // URL, the search box, the finder (Endless hides it; the clip length decides the run length, so a matching target is
 // found with the first seed – keeping the clip length – and a missing one is explained), a default run at 30+ fps whose
 // notes all belong to the harp's C major ladder (OscillatorNode.start is instrumented) with the energy held
-// (data-dp-drift), a sparring run whose mirrored pendulums hit each other, a triple pendulum on a radial harp and a
-// 10 s clip at 8× that finishes after its finale.
+// (data-dp-drift), a sparring run whose mirrored pendulums hit each other, a triple pendulum on a radial harp, a
+// 10 s clip at 8× that finishes after its finale and, restarted, plucks the harp through the whole clip again, and a
+// stiff light-over-heavy rig at 8× whose energy holds within 10 ppm.
 {
   const res = await page.request.get(`${BASE}/modes/doublePendulum.webp`);
   check("asset /modes/doublePendulum.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -2539,6 +2540,37 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const data = await canvasData();
   const time = await page.locator("span.tabular-nums").first().innerText();
   check("a double pendulum run finishes at the clip length after its finale", done && data.dpDone === "1" && Number(data.dpPlucks) > 20 && Number(data.dpDrift) < 100, `(finished=${done}, elapsed ${time}, ${JSON.stringify(data)})`);
+  // Restart Simulation re-inits the same mode instance: the new run starts with still strings and plucks the harp
+  // through the whole clip again (the previous run's pluck times, on its own clock, used to mute every string for as
+  // long as that run had lasted – the restarted clip played a pluck or two).
+  if (done) {
+    const restartButton = page.getByRole("button", { name: /Restart Simulation/ });
+    await restartButton.click();
+    await restartButton.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+    const again = await restartButton.waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    const second = await canvasData();
+    check("a restarted double pendulum run plucks the harp again", again && second.dpDone === "1" && Number(second.dpPlucks) > 20, `(first run ${data.dpPlucks} plucks, restarted run ${second.dpPlucks} plucks, finished=${again})`);
+  }
+}
+// A light bob over a heavy one (masses 0.2 over 5, arms 0.2 and 1, gravity 3) is stiff – its light joint whips round at
+// hundreds of rad/s – yet without friction the energy holds (data-dp-drift, ppm of Σm·g·L; sub-steps sized from the
+// rates at the start of a step alone let this rig lose percents of its energy within a minute) and the harp plays on.
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpm1=0.2&dpm2=5&dpl1=0.2&dpg=3&dpen=1`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  let worst = 0;
+  let samples = 0;
+  for (let i = 0; i < 24; i++) {
+    await page.waitForTimeout(250);
+    const d = await canvasData();
+    if (d.dpDrift !== undefined) {
+      worst = Math.max(worst, Number(d.dpDrift));
+      samples++;
+    }
+  }
+  const data = await canvasData();
+  check("a light-over-heavy double pendulum holds its energy without friction", samples >= 20 && worst <= 10 && Number(data.dpPlucks) > 20 && data.dpDone !== "1", `(worst drift ${worst} ppm over ${samples} samples, ${JSON.stringify(data)})`);
 }
 // --- end jdm-double-pendulum ---
 // --- jdm-illusions ---
@@ -2678,6 +2710,24 @@ const instrumentOscillators = () =>
   );
 }
 {
+  // Few painters or big ones reach every pocket: two painters on the cross (once stuck at 84–97 % for minutes) and a smile
+  // painted with Ball Size 16 (once 97.7 % forever) are revealed – rebounds steer toward white they can reach, and from
+  // 90 % a run in which no new cell is found for 6 s is revealed as well.
+  const outcomes = {};
+  for (const [name, query] of [
+    ["cross, 2 painters", "ilpt=cross&ilp=2"],
+    ["smile, ball size 16", "ilpt=smile&ilp=5&r=16"],
+  ]) {
+    await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=whitespace&${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    const revealed = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.illusionFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+    const d = await canvasData();
+    outcomes[name] = { revealed, coverage: d.illusionCoverage, pattern: d.illusionPattern };
+  }
+  check("white spaces reach every pocket: two painters on a cross, big painters on a smile", Object.values(outcomes).every((o) => o.revealed && Number(o.coverage) >= 90), `(${JSON.stringify(outcomes)})`);
+}
+{
   // The defaults of every type keep the frame rate (headless Chromium; 30+ fps on average over 3 s, fpsFloor() on a busy machine).
   const rates = {};
   for (const type of ["lines", "rings", "nested", "whitespace"]) {
@@ -2712,6 +2762,41 @@ const instrumentOscillators = () =>
   await page.waitForTimeout(1500);
   const plain = await canvasData();
   check("Wobbly Walls make the rings of Classic wobble (and are off by default)", wobbled && plain.wobble === undefined, `(wobbled=${wobbled}, default data-wobble=${plain.wobble})`);
+}
+{
+  // The cap: a Shatter ball wedged between two rings touches both every step, yet no ring moves further than its full
+  // amplitude (data-wobble-peak ≤ 1 of it, data-wobble-max-px ≤ WOBBLE_MAX_PX = 30 px at Wobbly Walls 1) – one wave per
+  // contact once piled up into bulges bent across the neighbouring rings.
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&wob=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  let wobbled = false;
+  for (let i = 0; i < 24; i++) {
+    await page.waitForTimeout(250);
+    if (Number((await canvasData()).wobble ?? 0) >= 1) wobbled = true;
+  }
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-shatter-wobble.png") });
+  check("Wobbly Walls never bend a Shatter ring past its amplitude", wobbled && Number(data.wobbleMaxPx) > 0 && Number(data.wobbleMaxPx) <= 30 && Number(data.wobblePeak) <= 1, `(largest ${data.wobbleMaxPx} px, ${data.wobblePeak} of the amplitude, wobbled=${wobbled})`);
+}
+{
+  // The Collision Playground's circle container is a wall the orbs hit: Wobbly Walls is offered there (not for the box,
+  // which has no circular wall) and the circle bulges where an orb hits it (wall 0 of data-wobble).
+  await page.goto(`${BASE}/en/simulator/?mode=collide&cpc=box&wob=0.6`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  const boxSlider = await page.locator('input[aria-label="Wobbly Walls"]').count();
+  await page.goto(`${BASE}/en/simulator/?mode=collide&wob=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  const circleSlider = await sliderValue("Wobbly Walls").catch(() => null);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const wobbled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.wobble ?? 0) >= 1, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-collide-wobble.png") });
+  check(
+    "Wobbly Walls in the Collision Playground: offered for the circle container (not the box), which wobbles where orbs hit it",
+    boxSlider === 0 && circleSlider === "1" && wobbled && Number(data.wobblePeak) <= 1,
+    `(box slider ${boxSlider}, circle slider ${circleSlider}, wobbled=${wobbled}, data-wobble ${data.wobble}, peak ${data.wobblePeak}, ${data.wobbleMaxPx} px)`,
+  );
 }
 // --- end jdm-illusions ---
 // --- rigged ---

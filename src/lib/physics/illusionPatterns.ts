@@ -405,23 +405,42 @@ export class CoverageGrid {
     return this.paintable[idx] === 1 && this.painted[idx] === 0;
   }
 
+  /** True when the cell under (x, y) px is paintable (a ball can reach it: not the picture, not outside the arena). */
+  isPaintable(x: number, y: number): boolean {
+    const i = Math.floor((x - this.x0) / this.cell);
+    const j = Math.floor((y - this.y0) / this.cell);
+    if (i < 0 || j < 0 || i >= this.size || j >= this.size) return false;
+    return this.paintable[j * this.size + i] === 1;
+  }
+
   /**
    * How much unpainted area a ball starting at (x, y) and heading along the unit vector (ux, uy) would cross within
-   * `length` px: unpainted paintable cells sampled every cell along the centre line and two lines `spread` px to either
-   * side. Used to steer a rebound toward what is left to paint.
+   * `length` px before it is stopped: unpainted cells sampled every cell along the centre line and two lines `spread` px
+   * to either side. Each line ends at its first cell the paint cannot reach (the picture, the rim) and the centre line's
+   * end ends all three – white behind the picture or across the rim does not count, as the ball would bounce first.
+   * Used to steer a rebound toward what is left to paint.
    */
   rayScore(x: number, y: number, ux: number, uy: number, length: number, spread: number): number {
     const step = this.cell;
     const n = Math.floor(length / step);
     const ox = -uy * spread;
     const oy = ux * spread;
+    let left = true;
+    let right = true;
     let score = 0;
     for (let k = 1; k <= n; k++) {
       const px = x + ux * k * step;
       const py = y + uy * k * step;
+      if (!this.isPaintable(px, py)) break;
       if (this.isUnpainted(px, py)) score++;
-      if (this.isUnpainted(px + ox, py + oy)) score++;
-      if (this.isUnpainted(px - ox, py - oy)) score++;
+      if (left) {
+        if (!this.isPaintable(px + ox, py + oy)) left = false;
+        else if (this.isUnpainted(px + ox, py + oy)) score++;
+      }
+      if (right) {
+        if (!this.isPaintable(px - ox, py - oy)) right = false;
+        else if (this.isUnpainted(px - ox, py - oy)) score++;
+      }
     }
     return score;
   }

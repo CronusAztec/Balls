@@ -1,5 +1,6 @@
 import { HUE_BUCKETS, SQUASH_MS, squashAt, squashScaleAcross, squashScaleAlong, type CollideView } from "@/lib/physics/modes/collide";
 import type { Ball } from "@/lib/physics/types";
+import type { WobbleLayer } from "./wobbleRenderer";
 
 /**
  * Canvas drawing of the Collision Playground mode (lib/physics/modes/collide.ts): the container (a circle or a
@@ -70,7 +71,7 @@ export function bucketFill(bucket: number, blend: number): string {
 }
 
 /** The container (or, for the ring, the track and the hub), glowing briefly after a hit. */
-export function drawCollideArena(ctx: CanvasRenderingContext2D, view: CollideView, o: CollideRenderOptions) {
+export function drawCollideArena(ctx: CanvasRenderingContext2D, view: CollideView, o: CollideRenderOptions, wobble?: WobbleLayer) {
   const f = view.field;
   if (!f) return;
   const thickness = Math.max(1.5, o.wallThickness);
@@ -87,8 +88,11 @@ export function drawCollideArena(ctx: CanvasRenderingContext2D, view: CollideVie
   }
   const path = () => {
     ctx.beginPath();
-    if (f.kind === "circle") ctx.arc(f.cx, f.cy, f.radius, 0, TWO_PI);
-    else {
+    // The circle container is wall 0 of the Wobbly Walls: it bulges where an orb hits it (a plain circle while still).
+    if (f.kind === "circle") {
+      if (wobble) wobble.traceCircle(ctx, 0, f.cx, f.cy, f.radius);
+      else ctx.arc(f.cx, f.cy, f.radius, 0, TWO_PI);
+    } else {
       const r = Math.min(10, 0.03 * f.side);
       const x = f.left;
       const y = f.top;

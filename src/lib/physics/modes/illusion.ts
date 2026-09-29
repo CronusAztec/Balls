@@ -27,8 +27,9 @@ import { buildPendulumField, pendulumPitch, type PendulumField } from "./pendulu
  *    collisions between each circle and its container (masses ∝ radius, momentum and energy conserved), integrated in
  *    fixed sub-steps from seeded initial velocities; every layer's wall wobbles where it is hit (render-only).
  *  - `whitespace` – balls paint the white arena black wherever they go and bounce off invisible shapes they can never
- *    enter; the white spaces left are the hidden picture (a heart, a star, a smile… chosen by the seed), revealed with a
- *    flash when the paintable area is covered (see illusionPatterns.ts).
+ *    enter, every rebound steered toward the white they can still reach; the white spaces left are the hidden picture (a
+ *    heart, a star, a smile… chosen by the seed), revealed with a flash when the paintable area is covered – or, from
+ *    90 %, once the painters have found no new white for six seconds (see illusionPatterns.ts).
  *
  * Deterministic: lines and rings are analytic in the step counter (touches are counted exactly per step with the same
  * boundary values in consecutive steps, so none is missed or doubled), nested and whitespace integrate in fixed
@@ -401,10 +402,27 @@ export const NESTED_SUBSTEPS = 8;
 export const PAINTER_SUBSTEPS = 4;
 /** Random turn (radians, ±) a painter's rebound off the rim gets – keeps the paint from settling into a fixed pattern. */
 export const RIM_SCATTER = 0.12;
-/** Turns (radians) a painter's rebound off the rim may take toward the most unpainted area – the mirror rebound first. */
+/** Turns (radians) a painter's rebound – off the rim or the picture – may take toward the most unpainted area it can reach, the mirror rebound first. */
 export const STEER_ANGLES = [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9];
 /** Share of the paintable arena that reveals the picture. */
 export const WHITESPACE_DONE = 0.98;
+/**
+ * The stall rule: once this share is painted, a run in which no painter has found a single new cell for
+ * `WHITESPACE_STALL_SEC` (at speed 1; steps, so the finder and replays agree) is revealed as well – the last pockets can
+ * sit where a painter barely fits (a big Ball Size) or where one or two painters take minutes to come back.
+ */
+export const WHITESPACE_STALL_COVERAGE = 0.9;
+export const WHITESPACE_STALL_SEC = 6;
+
+/** Steps without a newly painted cell after which a white-spaces run at `speed` (`sps` steps a second) has stalled. */
+export function whitespaceStallSteps(sps: number, speed: number): number {
+  return Math.max(1, Math.round((WHITESPACE_STALL_SEC * sps) / Math.max(0.01, speed)));
+}
+
+/** Is the picture due: `WHITESPACE_DONE` painted, or from `WHITESPACE_STALL_COVERAGE` on no new cell for the stall window? */
+export function whitespaceRevealDue(coverage: number, stepsSincePaint: number, sps: number, speed: number): boolean {
+  return coverage >= WHITESPACE_DONE || (coverage >= WHITESPACE_STALL_COVERAGE && stepsSincePaint >= whitespaceStallSteps(sps, speed));
+}
 /** A nested collision slower than this (arena radii per second) is a resting contact: no note, no wobble. */
 export const NESTED_HIT_SPEED = 0.03;
 
@@ -518,6 +536,8 @@ export class IllusionMode implements GameMode {
   private readonly grid = new CoverageGrid();
   private pvx = new Float64Array(0);
   private pvy = new Float64Array(0);
+  /** The step after which a painter last painted a new cell (the stall rule counts from it). */
+  private lastPaintStep = 0;
   private painterSpeed = 0;
   private patternId: IllusionPatternId = "heart";
   private patternOffsetX = 0;
@@ -1139,6 +1159,7 @@ export class IllusionMode implements GameMode {
       this.grid.markSegment(px, py, px, py, rp);
     }
     v.coverage = this.grid.coverage();
+    this.lastPaintStep = 0;
   }
 
   /** Appends a point to painter j's path (growing the buffer when needed). */
@@ -1157,13 +1178,14 @@ export class IllusionMode implements GameMode {
     v.pathLen[j] = len + 2;
   }
 
-  /** Paints the grid along painter j's last path segment and records the new point. */
-  private paintTo(j: number, x: number, y: number) {
+  /** Paints the grid along painter j's last path segment and records the new point; returns the cells newly painted. */
+  private paintTo(j: number, x: number, y: number): number {
     const v = this.view;
     const len = v.pathLen[j];
     const path = v.paths[j];
-    this.grid.markSegment(path[len - 2], path[len - 1], x, y, v.painterRadius);
+    const added = this.grid.markSegment(path[len - 2], path[len - 1], x, y, v.painterRadius);
     this.pushPath(j, x, y);
+    return added;
   }
 
   private stepWhitespace(ctx: ModeContext, step: number, stepSec: number) {
@@ -1178,6 +1200,7 @@ export class IllusionMode implements GameMode {
     const ball = this.scratch;
     ball.radius = rp;
     let bounced = false;
+    let painted = 0;
     for (let sub = 0; sub < PAINTER_SUBSTEPS; sub++) {
       for (let j = 0; j < n; j++) {
         ball.x = v.x[j] + this.pvx[j] * dt;
@@ -1186,6 +1209,24 @@ export class IllusionMode implements GameMode {
         ball.vy = this.pvy[j];
         let hit = false;
         for (const o of pattern.obstacles) if (resolveBallObstacle(ball, o, dt, 1) > 0.05 * speed) hit = true;
+        if (hit) {
+          // Guided off the picture too: the rebound turns toward the most unpainted white it can reach. The wall's
+          // normal (into the picture) is the direction the bounce took speed away along.
+          const dvx = this.pvx[j] - ball.vx;
+          const dvy = this.pvy[j] - ball.vy;
+          const dl = Math.hypot(dvx, dvy);
+          const sp = Math.hypot(ball.vx, ball.vy);
+          if (dl > 1e-9 * speed && sp > 1e-9 * speed) {
+            const turn = this.steerAngle(ball.x, ball.y, ball.vx / sp, ball.vy / sp, dvx / dl, dvy / dl);
+            if (turn !== 0) {
+              const c = Math.cos(turn);
+              const s = Math.sin(turn);
+              const tx = ball.vx * c - ball.vy * s;
+              ball.vy = ball.vx * s + ball.vy * c;
+              ball.vx = tx;
+            }
+          }
+        }
         const dx = ball.x - v.cx;
         const dy = ball.y - v.cy;
         const dist = Math.hypot(dx, dy);
@@ -1227,14 +1268,15 @@ export class IllusionMode implements GameMode {
         if (hit) {
           bounced = true;
           v.lastHitStep[j] = step + 1;
-          this.paintTo(j, ball.x, ball.y);
+          painted += this.paintTo(j, ball.x, ball.y);
         }
       }
     }
-    for (let j = 0; j < n; j++) this.paintTo(j, v.x[j], v.y[j]);
+    for (let j = 0; j < n; j++) painted += this.paintTo(j, v.x[j], v.y[j]);
+    if (painted > 0) this.lastPaintStep = step + 1;
     v.coverage = this.grid.coverage();
     if (bounced) this.queueNote(whitespacePitch(v.coverage), 0.8, false);
-    if (v.coverage >= WHITESPACE_DONE) {
+    if (whitespaceRevealDue(v.coverage, step + 1 - this.lastPaintStep, this.sps, v.settings.speed)) {
       v.finished = true;
       v.revealStep = step + 1;
       v.revealAtMs = (1000 * (step + 1)) / this.sps;
@@ -1248,14 +1290,16 @@ export class IllusionMode implements GameMode {
   }
 
   /**
-   * The turn (radians) that points a painter leaving the rim at (x, y) along (ux, uy) – n is the rim's outward normal –
-   * at the most unpainted area: the candidates of `STEER_ANGLES` that still head well inside are scored by the unpainted
-   * cells along their chord (`CoverageGrid.rayScore()`); the first best one wins (0 first, so a tie keeps the mirror
-   * rebound). Pure grid reads: no random number, no allocation.
+   * The turn (radians) that points a painter bouncing at (x, y) along (ux, uy) – n is the normal into the wall it
+   * bounced off, the rim or the picture – at the most unpainted area it can reach: the candidates of `STEER_ANGLES` that
+   * still head well away from the wall are scored by the unpainted cells along their path up to the first cell the
+   * paint cannot reach (`CoverageGrid.rayScore()`: the picture or the rim, so white behind the picture does not lure a
+   * painter into it); the first best one wins (0 first, so a tie keeps the mirror rebound). Pure grid reads: no random
+   * number, no allocation.
    */
   private steerAngle(x: number, y: number, ux: number, uy: number, nx: number, ny: number): number {
     const rp = this.view.painterRadius;
-    const rho = this.view.radius - rp;
+    const reach = 2 * this.view.radius;
     let best = 0;
     let bestScore = 0;
     for (const delta of STEER_ANGLES) {
@@ -1265,7 +1309,7 @@ export class IllusionMode implements GameMode {
       const dy = ux * s + uy * c;
       const inward = -(dx * nx + dy * ny);
       if (inward < 0.25) continue;
-      const score = this.grid.rayScore(x, y, dx, dy, 2 * rho * inward, 0.6 * rp);
+      const score = this.grid.rayScore(x, y, dx, dy, reach, 0.6 * rp);
       if (score > bestScore) {
         bestScore = score;
         best = delta;

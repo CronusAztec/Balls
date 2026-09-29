@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { PendulumChain, collideBobs, createContactScratch, solveSpd, wrapAngle } from "@/lib/physics/pendulumChain";
+import { ChainStepper, MAX_ANGLE_PER_SUBSTEP, MAX_SUBSTEPS, MIN_SUBSTEPS, PendulumChain, STEP_TOLERANCE, collideBobs, createContactScratch, solveSpd, wrapAngle } from "@/lib/physics/pendulumChain";
 import {
   BUTTERFLY_OFFSET_DEG,
   DEFAULT_DOUBLE_PENDULUM_SETTINGS,
@@ -8,8 +8,6 @@ import {
   DP_GRAVITY,
   DP_URL_KEYS,
   HIT_ACCENT_STRENGTH,
-  MAX_SUBSTEPS,
-  MIN_SUBSTEPS,
   SPAR_PIVOT_DISTANCE,
   bobModelRadius,
   buildDpField,
@@ -29,7 +27,6 @@ import {
   pluckLevel,
   resolveDoublePendulumSettings,
   sparHitPitch,
-  subStepsFor,
   wrapDelta,
   type DoublePendulumSettings,
 } from "@/lib/physics/modes/doublePendulum";
@@ -41,12 +38,13 @@ import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, se
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, type ModeSettings } from "@/lib/simulation/finder";
 
 /**
- * Double Pendulum (lib/physics/modes/doublePendulum.ts, lib/physics/pendulumChain.ts): the RK4 chain integrator (the
- * equations against the normal modes, the energy drift over two minutes without friction, friction only ever removing
- * energy, elastic bob collisions), the string-crossing detection (exactly once per crossing across sub-steps, vertical and
- * radial), the harp tuning, the mode in the engine (plucks and their pitches, the butterfly start, sparring, the finish,
- * live changes, determinism, resizes), the finder (fixed run length, endless), the settings (URL, presets, ranges) and
- * the renderer's pure helpers.
+ * Double Pendulum (lib/physics/modes/doublePendulum.ts, lib/physics/pendulumChain.ts): the chain integrator (the
+ * equations against the normal modes, the energy drift over two minutes without friction – light bobs over heavy ones
+ * included –, the error-controlled Dormand–Prince sub-steps, friction only ever removing energy, elastic bob
+ * collisions), the string-crossing detection (exactly once per crossing across sub-steps, vertical and radial), the harp
+ * tuning, the mode in the engine (plucks and their pitches, the butterfly start, sparring, the finish, live changes,
+ * restarts, determinism, resizes), the finder (fixed run length, endless), the settings (URL, presets, ranges) and the
+ * renderer's pure helpers.
  */
 
 const config: PhysicsConfig = {
@@ -98,11 +96,13 @@ function run(engine: PhysicsEngine, frames: number): SoundEvent[] {
   return events;
 }
 
-/** Steps a chain the way the mode does: sub-steps from its fastest rod. */
+/** Steps a chain the way the mode does: error-controlled Dormand–Prince sub-steps from a `ChainStepper`. */
 function advance(chain: PendulumChain, steps: number, stepSec = 1 / 60, each?: () => void) {
+  const stepper = new ChainStepper();
+  const chains = [chain];
   for (let i = 0; i < steps; i++) {
-    const sub = subStepsFor(chain.maxRate(), stepSec);
-    for (let k = 0; k < sub; k++) chain.step(stepSec / sub);
+    stepper.begin(stepSec);
+    while (stepper.subStep(chains) > 0);
     each?.();
   }
 }
@@ -162,29 +162,63 @@ describe("chain integrator", () => {
   });
 
   it("keeps the energy of a chaotic double and triple pendulum within 1e-5 of Σm·g·L over two minutes without friction", () => {
+    // `whips`: a light bob over a heavy one – the stiff rigs whose light joints whip round at hundreds of rad/s for a
+    // few milliseconds; sub-steps sized from the rates at the start of a step let those drain 1–10 % of the energy.
     const cases = [
-      { links: 2, lengths: [0.5, 0.5], masses: [1, 1], start: [2.0, -0.5] },
-      { links: 2, lengths: [0.3, 0.7], masses: [3, 0.5], start: [2.6, 1.0] },
-      { links: 3, lengths: [1 / 3, 1 / 3, 1 / 3], masses: [1, 1, 1], start: [2.0, -0.5, 1.0] },
-      { links: 3, lengths: [0.4, 0.35, 0.25], masses: [5, 1, 0.2], start: [2.8, -2.0, 0.5] },
+      { links: 2, lengths: [0.5, 0.5], masses: [1, 1], g: 1, start: [2.0, -0.5] },
+      { links: 2, lengths: [0.3, 0.7], masses: [3, 0.5], g: 1, start: [2.6, 1.0] },
+      { links: 3, lengths: [1 / 3, 1 / 3, 1 / 3], masses: [1, 1, 1], g: 1, start: [2.0, -0.5, 1.0] },
+      { links: 3, lengths: [0.4, 0.35, 0.25], masses: [5, 1, 0.2], g: 1, start: [2.8, -2.0, 0.5] },
+      { links: 2, lengths: [0.5, 0.5], masses: [0.2, 5], g: 1, start: [2.4, -1.0], whips: true },
+      { links: 2, lengths: [1 / 6, 5 / 6], masses: [0.2, 5], g: 3, start: [2.6, -1.5], whips: true },
+      { links: 3, lengths: [1 / 7, 1 / 7, 5 / 7], masses: [0.2, 0.2, 5], g: 3, start: [2.4, -1.2, 0.6], whips: true },
+      { links: 3, lengths: [1 / 3, 1 / 3, 1 / 3], masses: [0.2, 5, 0.2], g: 3, start: [2.0, -0.5, 1.0], whips: true },
     ];
     for (const c of cases) {
-      const chain = new PendulumChain({ links: c.links, lengths: c.lengths, masses: c.masses, gravity: DP_GRAVITY, damping: 0 });
+      const chain = new PendulumChain({ links: c.links, lengths: c.lengths, masses: c.masses, gravity: DP_GRAVITY * c.g, damping: 0 });
       chain.setState(c.start);
-      const scale = chain.totalMass() * DP_GRAVITY * chain.reach();
+      const scale = chain.totalMass() * DP_GRAVITY * c.g * chain.reach();
       const e0 = chain.energy();
       let worst = 0;
       let flips = 0;
-      let prev = chain.theta[c.links - 1];
+      let fastest = 0;
+      const prev = Array.from(chain.theta);
       advance(chain, 7200, 1 / 60, () => {
         worst = Math.max(worst, Math.abs(chain.energy() - e0) / scale);
-        const now = chain.theta[c.links - 1];
-        if (Math.abs(now - prev) > Math.PI) flips++;
-        prev = now;
+        fastest = Math.max(fastest, chain.maxRate());
+        for (let k = 0; k < c.links; k++) {
+          if (Math.abs(chain.theta[k] - prev[k]) > Math.PI) flips++;
+          prev[k] = chain.theta[k];
+        }
       });
       expect(worst, JSON.stringify(c)).toBeLessThan(1e-5);
-      // It really is the chaotic regime: the last rod goes over the top again and again.
+      // It really is the chaotic regime: rods go over the top again and again – and the stiff rigs whip.
       expect(flips, JSON.stringify(c)).toBeGreaterThan(5);
+      if (c.whips) expect(fastest, JSON.stringify(c)).toBeGreaterThan(40);
+    }
+  });
+
+  it("holds the energy of light-over-heavy rigs through the engine, like the default rig's", () => {
+    // What the mode runs: settings → createEngineForSettings, no friction, endless, two minutes (the drift the canvas
+    // mirrors into data-dp-drift). These rigs lost 0.2–47 % of Σm·g·L before the sub-steps were error-controlled.
+    for (const [dp, seed] of [
+      [{ mass1: 0.2, mass2: 5, length1: 0.2, length2: 1, gravity: 3 }, 4],
+      [{ segments: 3, mass1: 0.2, mass2: 0.2, mass3: 5, length1: 0.2, length2: 0.2, length3: 1, gravity: 3 }, 1],
+      [{ count: 2, segments: 3, mass1: 0.2, mass2: 5, mass3: 0.2, gravity: 3 }, 2],
+    ] as [Partial<DoublePendulumSettings>, number][]) {
+      const engine = dpEngine({ ...dp, damping: 0, endless: true, strings: 0 }, seed);
+      const view = engine.getDoublePendulumView();
+      let worst = 0;
+      let most = 0;
+      for (let i = 0; i < 7200; i++) {
+        engine.update(STEP, 0);
+        worst = Math.max(worst, Math.abs(view.energy - view.energy0) / view.energyScale);
+        most = Math.max(most, view.subSteps);
+      }
+      expect(worst, JSON.stringify(dp)).toBeLessThan(1e-5);
+      // The whips took far more sub-steps than the rates at the start of a step would have asked for.
+      expect(most, JSON.stringify(dp)).toBeGreaterThan(60);
+      expect(most, JSON.stringify(dp)).toBeLessThanOrEqual(MAX_SUBSTEPS + 1);
     }
   });
 
@@ -244,13 +278,83 @@ describe("chain integrator", () => {
     expect(single.inverseMassAlong(0, Math.sin(0.3), Math.cos(0.3), scratch.a)).toBeCloseTo(0, 12);
   });
 
-  it("picks 8–96 sub-steps so that no rod turns more than 0.015 rad per sub-step", () => {
-    expect(subStepsFor(0, 1 / 60)).toBe(MIN_SUBSTEPS);
-    expect(subStepsFor(1e6, 1 / 60)).toBe(MAX_SUBSTEPS);
-    expect(subStepsFor(NaN, 1 / 60)).toBe(MAX_SUBSTEPS);
-    for (const rate of [5, 12, 20, 40]) {
-      const n = subStepsFor(rate, 1 / 60);
-      expect((rate / 60) / n).toBeLessThanOrEqual(0.015 + 1e-12);
+  it("sub-steps every step in at least eight pieces that end on it exactly, no rod turning more than 0.015 rad in one, shorter where the error estimate asks", () => {
+    const stepSec = 1 / 60;
+    const plain = new PendulumChain({ links: 2, lengths: [0.5, 0.5], masses: [1, 1], gravity: DP_GRAVITY, damping: 0 });
+    plain.setState([2.0, -0.5]);
+    const stiff = new PendulumChain({ links: 3, lengths: [1 / 7, 1 / 7, 5 / 7], masses: [0.2, 0.2, 5], gravity: 3 * DP_GRAVITY, damping: 0 });
+    stiff.setState([2.4, -1.2, 0.6]);
+    const counts: Record<string, { most: number; total: number; shortened: number }> = {};
+    for (const [name, chain] of [
+      ["plain", plain],
+      ["stiff", stiff],
+    ] as const) {
+      const stepper = new ChainStepper();
+      const chains = [chain];
+      const tally = { most: 0, total: 0, shortened: 0, tooLong: 0, tooFar: 0, badEnd: 0, tooFew: 0, tooMany: 0 };
+      for (let i = 0; i < 1800; i++) {
+        stepper.begin(stepSec);
+        let sum = 0;
+        for (;;) {
+          const rate = chain.maxRate();
+          const h = stepper.subStep(chains);
+          if (h === 0) break;
+          sum += h;
+          if (h > stepSec / MIN_SUBSTEPS + 1e-15) tally.tooLong++;
+          if (rate * h > MAX_ANGLE_PER_SUBSTEP + 1e-12) tally.tooFar++;
+          // Shorter than half of what the caps allow: the error control (evenly splitting the rest halves at most).
+          if (h < 0.5 * Math.min(stepSec / MIN_SUBSTEPS, rate > 0 ? MAX_ANGLE_PER_SUBSTEP / rate : Infinity)) tally.shortened++;
+        }
+        if (stepper.done !== stepSec || Math.abs(sum - stepSec) > 1e-12) tally.badEnd++;
+        if (stepper.count < MIN_SUBSTEPS) tally.tooFew++;
+        if (stepper.count > MAX_SUBSTEPS + 1) tally.tooMany++;
+        tally.most = Math.max(tally.most, stepper.count);
+        tally.total += stepper.count;
+      }
+      expect({ tooLong: tally.tooLong, tooFar: tally.tooFar, badEnd: tally.badEnd, tooFew: tally.tooFew, tooMany: tally.tooMany }, name).toEqual({ tooLong: 0, tooFar: 0, badEnd: 0, tooFew: 0, tooMany: 0 });
+      counts[name] = tally;
+    }
+    // The default rig needs about ten a step and never more than the rate cap; the stiff one gets hundreds in its whips.
+    expect(counts.plain.total / 1800).toBeLessThan(14);
+    expect(counts.plain.shortened).toBe(0);
+    expect(counts.stiff.shortened).toBeGreaterThan(100);
+    expect(counts.stiff.most).toBeGreaterThan(100);
+    // Nothing to do: no sub-step at all.
+    const idle = new ChainStepper();
+    idle.begin(stepSec);
+    expect(idle.subStep([])).toBe(0);
+  });
+
+  it("estimates its own error: trying leaves the state alone, accepting moves it, and the steps follow the solution of fine fixed RK4 steps", () => {
+    const chain = new PendulumChain({ links: 3, lengths: [0.4, 0.35, 0.25], masses: [1, 2, 0.5], gravity: DP_GRAVITY, damping: 0 });
+    chain.setState([2.2, -0.4, 1.1], [1.5, -3.0, 4.0]);
+    const theta = Array.from(chain.theta);
+    const omega = Array.from(chain.omega);
+    // A long step is far outside the tolerance, a short one well inside; neither changes the state.
+    expect(chain.tryStep(0.05, STEP_TOLERANCE)).toBeGreaterThan(1);
+    const small = chain.tryStep(1e-4, STEP_TOLERANCE);
+    expect(small).toBeLessThan(1);
+    expect(Array.from(chain.theta)).toEqual(theta);
+    expect(Array.from(chain.omega)).toEqual(omega);
+    // The error estimate falls like h⁵ (a fifth-order pair: halving the step divides it by about 32).
+    const e1 = chain.tryStep(4e-3, STEP_TOLERANCE);
+    const e2 = chain.tryStep(2e-3, STEP_TOLERANCE);
+    expect(e1 / e2).toBeGreaterThan(20);
+    expect(e1 / e2).toBeLessThan(50);
+    chain.tryStep(1e-4, STEP_TOLERANCE);
+    chain.acceptStep();
+    for (let i = 0; i < 3; i++) expect(chain.theta[i]).toBeCloseTo(wrapAngle(chain.nextTheta[i]), 15);
+    expect(chain.omega[2]).toBe(chain.nextOmega[2]);
+    // One second of the default-sized chain: the adaptive sub-steps and 12 000 fixed RK4 steps agree.
+    const a = new PendulumChain({ links: 2, lengths: [0.5, 0.5], masses: [1, 1], gravity: DP_GRAVITY, damping: 0 });
+    const b = new PendulumChain({ links: 2, lengths: [0.5, 0.5], masses: [1, 1], gravity: DP_GRAVITY, damping: 0 });
+    a.setState([2.0, -0.5]);
+    b.setState([2.0, -0.5]);
+    advance(a, 60);
+    for (let i = 0; i < 12000; i++) b.step(1 / 12000);
+    for (let i = 0; i < 2; i++) {
+      expect(Math.abs(wrapAngle(a.theta[i] - b.theta[i]))).toBeLessThan(1e-7);
+      expect(Math.abs(a.omega[i] - b.omega[i])).toBeLessThan(1e-6);
     }
   });
 });
@@ -666,6 +770,36 @@ describe("DoublePendulumMode in the engine", () => {
       const eb = run(b, 900);
       expect(ea).toEqual(eb);
       expect(a.getBalls().map((x) => [x.x, x.y])).toEqual(b.getBalls().map((x) => [x.x, x.y]));
+    }
+  });
+
+  it("starts every run with still strings: a restart plays exactly what a fresh engine plays", () => {
+    // The page keeps one engine (so one mode instance) for its whole life: Restart, R, the end screen, a rig change, a
+    // found seed, a preset and switching back to the mode all re-init it. The previous run's pluck times sit on its own
+    // clock, so carried over they would mute every string until the new clock passed them.
+    for (const seed of [5, 11]) {
+      const clip = dpEngine({ clipSeconds: 5 }, seed);
+      run(clip, 5 * 60 + 10);
+      expect(clip.isSimulationFinished()).toBe(true);
+      clip.setSeed(seed);
+      clip.initDoublePendulum();
+      const view = clip.getDoublePendulumView();
+      expect(view.strings.every((s) => s.pluckTime === -Infinity && s.amp === 0 && s.plucks === 0)).toBe(true);
+      const again = run(clip, 600);
+      const fresh = run(dpEngine({ clipSeconds: 5 }, seed), 600);
+      expect(again.length).toBeGreaterThan(40);
+      expect(again).toEqual(fresh);
+      expect(view.strings.reduce((n, s) => n + s.plucks, 0)).toBe(view.plucks);
+      // A restart in the middle of a longer clip, and a switch back from another mode, start clean too.
+      const mid = dpEngine({}, seed);
+      run(mid, 720);
+      mid.setSeed(seed);
+      mid.initDoublePendulum();
+      expect(run(mid, 600)).toEqual(run(dpEngine({}, seed), 600));
+      mid.initMode("classic");
+      run(mid, 60);
+      mid.initMode("doublePendulum");
+      expect(run(mid, 600)).toEqual(run(dpEngine({}, seed), 600));
     }
   });
 

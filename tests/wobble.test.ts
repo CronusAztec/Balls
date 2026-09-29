@@ -8,8 +8,11 @@ import {
   WOBBLE_FRACTION,
   WOBBLE_HALF_WIDTH,
   WOBBLE_HITS_PER_WALL,
+  WOBBLE_KNEE,
   WOBBLE_MAX_AGE_SEC,
   WOBBLE_MAX_PX,
+  WOBBLE_MERGE_MS,
+  WOBBLE_MERGE_RAD,
   WOBBLE_MODES,
   WOBBLE_SAMPLES,
   WOBBLE_STEP,
@@ -18,6 +21,8 @@ import {
   WobbleField,
   resolveWallWobble,
   sampleAt,
+  saturateWobble,
+  wallWobbleOffered,
   wobbleAmplitudePx,
   wobbleBound,
   wobbleBump,
@@ -26,7 +31,7 @@ import {
   wobbleStrength,
   wrapAngle,
 } from "@/lib/physics/wobble";
-import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
+import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 
 /**
@@ -183,6 +188,74 @@ describe("wobble field", () => {
     expect(field.isLive(0, 0)).toBe(false);
   });
 
+  it("merges the contacts of one push into one hit: eight at the same wall, angle and time bulge like one", () => {
+    const stacked = new WobbleField();
+    const single = new WobbleField();
+    for (let i = 0; i < 8; i++) stacked.addHit(2, 1.3, 1, 1000);
+    single.addHit(2, 1.3, 1, 1000);
+    const a = new Float32Array(WOBBLE_SAMPLES);
+    const b = new Float32Array(WOBBLE_SAMPLES);
+    for (const now of [1000, 1016, 1100, 1400]) {
+      const peakStacked = stacked.sample(2, now, a);
+      expect(peakStacked).toBeLessThanOrEqual(1);
+      expect(peakStacked).toBe(single.sample(2, now, b));
+      expect(Array.from(a)).toEqual(Array.from(b));
+    }
+    // A ball leaning on the wall – a contact every step, drifting a little – keeps one bulge that follows it: the
+    // stronger strength, the newest time and angle.
+    const leaning = new WobbleField();
+    leaning.addHit(0, 2.0, 0.4, 1000);
+    leaning.addHit(0, 2.05, 1.2, 1016);
+    leaning.addHit(0, 2.1, 0.3, 1033);
+    const expected = new WobbleField();
+    expected.addHit(0, 2.1, 1.2, 1033);
+    for (const now of [1033, 1080, 1300]) {
+      leaning.sample(0, now, a);
+      expected.sample(0, now, b);
+      expect(Array.from(a)).toEqual(Array.from(b));
+    }
+    // Contacts further apart in time or round the wall are separate hits whose waves add up.
+    const apart = new WobbleField();
+    apart.addHit(1, 0.5, 0.3, 1000);
+    apart.addHit(1, 0.5 + WOBBLE_MERGE_RAD + 0.1, 0.3, 1000);
+    apart.addHit(1, 3.5, 0.3, 1000);
+    apart.addHit(1, 3.5, 0.3, 1000 + WOBBLE_MERGE_MS + 10);
+    const now = 1100;
+    apart.sample(1, now, a);
+    for (let k = 0; k < WOBBLE_SAMPLES; k++) {
+      const phi = k * WOBBLE_STEP;
+      const sum =
+        wobbleDisplacement(phi, 0.5, 0.1, 0.3) + wobbleDisplacement(phi, 0.5 + WOBBLE_MERGE_RAD + 0.1, 0.1, 0.3) + wobbleDisplacement(phi, 3.5, 0.1, 0.3) + wobbleDisplacement(phi, 3.5, (now - 1000 - WOBBLE_MERGE_MS - 10) / 1000, 0.3);
+      expect(a[k]).toBeCloseTo(saturateWobble(sum), 5);
+    }
+  });
+
+  it("saturates a wall's summed waves: unchanged up to the knee, never beyond the full amplitude", () => {
+    expect(saturateWobble(0)).toBe(0);
+    expect(saturateWobble(0.5)).toBe(0.5);
+    expect(saturateWobble(-WOBBLE_KNEE)).toBe(-WOBBLE_KNEE);
+    let last = 0;
+    for (let d = 0; d <= 20; d += 0.01) {
+      const v = saturateWobble(d);
+      expect(v).toBeLessThanOrEqual(1);
+      if (d < 4) expect(v).toBeLessThan(1);
+      expect(v).toBeGreaterThanOrEqual(last);
+      expect(saturateWobble(-d)).toBe(-v);
+      last = v;
+    }
+    // It joins the identity smoothly: the same slope either side of the knee.
+    const e = 1e-6;
+    expect((saturateWobble(WOBBLE_KNEE + e) - saturateWobble(WOBBLE_KNEE)) / e).toBeCloseTo(1, 4);
+    // Twelve distinct hits piling up at one point (each more than the merge window apart) still stay inside it.
+    const field = new WobbleField();
+    for (let i = 0; i < WOBBLE_HITS_PER_WALL; i++) field.addHit(0, 0.7, MAX_WOBBLE_STRENGTH, 1000 + (WOBBLE_MERGE_MS + 5) * i);
+    const out = new Float32Array(WOBBLE_SAMPLES);
+    let worst = 0;
+    for (let now = 1000; now < 1000 + 12 * (WOBBLE_MERGE_MS + 5) + 500; now += 5) worst = Math.max(worst, field.sample(0, now, out));
+    expect(worst).toBeGreaterThan(WOBBLE_KNEE);
+    expect(worst).toBeLessThanOrEqual(1);
+  });
+
   it("copies the new contacts of a log, starting over with every new run", () => {
     const log = new WallContactLog();
     const field = new WobbleField();
@@ -246,6 +319,43 @@ describe("wobbly walls in the engine", () => {
     expect(log.oldestSerial()).toBe(log.serial);
   });
 
+  it("never moves a wall further than its full amplitude, even where balls wedge between rings or grow into them", () => {
+    // What the canvas does every frame: copy the new contacts, sample every live wall, scale by the wall's amplitude.
+    // Shatter in a small arena (a ball wedged between two rings touches both every step), Grow (the ball grows back
+    // into its wall) and Multiply (a crowd of balls) once bulged 3–12× the amplitude, far across the next rings.
+    const out = new Float32Array(WOBBLE_SAMPLES);
+    for (const [mode, width, height, seeds] of [
+      ["shatter", 790, 445, [1, 2]],
+      ["grow", 800, 600, [1]],
+      ["multiply", 800, 600, [2]],
+    ] as [ModeId, number, number, number[]][]) {
+      let worstPx = 0;
+      let worstShare = 0;
+      let live = 0;
+      for (const seed of seeds) {
+        const engine = createEngineForSettings({ ...config, width, height }, mode, modeSettings, seed);
+        const field = new WobbleField();
+        for (let i = 0; i < 1800 && !engine.isSimulationFinished(); i++) {
+          engine.update(1000 / 60, 0);
+          engine.consumeSoundEvents();
+          field.sync(engine.getWallContacts());
+          const walls = engine.getCircularWalls();
+          const now = engine.getElapsedMs();
+          for (let w = 0; w < walls.length; w++) {
+            if (!field.isLive(w, now)) continue;
+            live++;
+            const share = field.sample(w, now, out);
+            worstShare = Math.max(worstShare, share);
+            worstPx = Math.max(worstPx, share * wobbleAmplitudePx(1, walls[w].radius));
+          }
+        }
+      }
+      expect(live, mode).toBeGreaterThan(100);
+      expect(worstShare, mode).toBeLessThanOrEqual(1);
+      expect(worstPx, mode).toBeLessThanOrEqual(WOBBLE_MAX_PX);
+    }
+  });
+
   it("the setting: off by default, clamped, offered in the circular modes", () => {
     expect(DEFAULT_WALL_WOBBLE).toBe(0);
     expect(resolveWallWobble(0.4)).toBe(0.4);
@@ -256,8 +366,58 @@ describe("wobbly walls in the engine", () => {
     expect(resolveWallWobble(undefined)).toBe(0);
     expect(WOBBLE_MODES).toContain("classic");
     expect(WOBBLE_MODES).toContain("illusion");
+    expect(WOBBLE_MODES).toContain("collide");
     expect(WOBBLE_MODES).not.toContain("drop");
+    expect(WOBBLE_MODES).not.toContain("box");
+    // The slider shows while a circular wall is in play: the Collision Playground only with its circle container.
+    expect(wallWobbleOffered({ mode: "classic" })).toBe(true);
+    expect(wallWobbleOffered({ mode: "illusion" })).toBe(true);
+    expect(wallWobbleOffered({ mode: "collide", cpContainer: "circle", cpRing: false })).toBe(true);
+    expect(wallWobbleOffered({ mode: "collide", cpContainer: "box", cpRing: false })).toBe(false);
+    expect(wallWobbleOffered({ mode: "collide", cpContainer: "circle", cpRing: true })).toBe(false);
+    expect(wallWobbleOffered({ mode: "drop" })).toBe(false);
     const engine = new PhysicsEngine(config);
     expect(engine.getWallContacts().serial).toBe(0);
+  });
+
+  it("logs the Collision Playground's circle container hits as wall 0, pushed outward where the orb hit – never the box's", () => {
+    const run = (container: "circle" | "box", ring = false) => {
+      const engine = createEngineForSettings(config, "collide", { ...modeSettings, collide: { container, ring } }, 5);
+      const log = engine.getWallContacts();
+      const angles: number[] = [];
+      let misplaced = 0;
+      for (let i = 0; i < 300; i++) {
+        const before = log.serial;
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        // A contact's angle points from the container's centre at an orb touching the wall in that step.
+        const view = engine.getCollideView();
+        const f = view.field!;
+        for (let s = Math.max(before, log.oldestSerial()); s < log.serial; s++) {
+          const k = log.indexOf(s);
+          angles.push(log.angle[k]);
+          expect(log.wall[k]).toBe(0);
+          expect(log.strength[k]).toBeGreaterThan(0);
+          expect(log.strength[k]).toBeLessThanOrEqual(MAX_WOBBLE_STRENGTH);
+          const near = engine.getBalls().some((b) => {
+            const d = Math.hypot(b.x - f.cx, b.y - f.cy);
+            const off = Math.abs(wrapAngle(Math.atan2(b.y - f.cy, b.x - f.cx) - log.angle[k]));
+            return d + b.radius > f.radius - 0.2 * f.radius && off < 0.5;
+          });
+          if (!near) misplaced++;
+        }
+      }
+      return { engine, contacts: log.serial - log.runStart, wallHits: engine.getCollideView().wallHits, misplaced, angles };
+    };
+    const circle = run("circle");
+    expect(circle.wallHits).toBeGreaterThan(5);
+    // Every real impact of the circle (the ones that sound and squash) is a wobble contact; resting orbs are not.
+    expect(circle.contacts).toBe(circle.wallHits);
+    expect(circle.misplaced).toBe(0);
+    expect(new Set(circle.angles.map((a) => Math.round(a))).size).toBeGreaterThan(2);
+    const box = run("box");
+    expect(box.wallHits).toBeGreaterThan(5);
+    expect(box.contacts).toBe(0);
+    expect(run("circle", true).contacts).toBe(0);
   });
 });
