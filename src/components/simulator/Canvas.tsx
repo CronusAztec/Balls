@@ -20,6 +20,7 @@ import type { BoxView } from "@/lib/physics/modes";
 import { BackgroundPainter, drawStyledParticle, drawThemedTrail, trailColorTable, type BackgroundLook } from "./themeRenderer"; // --- themes
 import type { RecordingCrop } from "@/lib/recording/recorder"; // --- themes
 import { DEFAULT_BACKGROUND_COLORS, type BackgroundType } from "@/lib/themes"; // --- themes
+import { TeamLayer, type CanvasTeamOptions } from "./teamsRenderer"; // --- teams ---
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 
@@ -124,6 +125,8 @@ export interface CanvasProps {
   /** Two colours the colour trail cycles between instead of the rainbow (empty = rainbow). */
   trailColors?: readonly string[];
   // --- end themes
+  // --- teams --- team colours, emoji and names on the balls, the scoreboard and the winner banner (null = no roster); see teamsRenderer.ts
+  teams?: CanvasTeamOptions | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -220,6 +223,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     backgroundImage = null,
     trailColors = NO_TRAIL_COLORS,
     // --- end themes
+    teams = null, // --- teams ---
   },
   ref,
 ) {
@@ -249,6 +253,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const chirpRef = useRef(onCharacterChirp);
   chirpRef.current = onCharacterChirp;
   const facesRef = useRef<FaceLayer | null>(null);
+  // --- teams --- the roster options, read by the draw loop
+  const teamsRef = useRef<CanvasTeamOptions | null>(teams);
+  teamsRef.current = teams;
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -476,6 +483,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- boris-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
+    const teamLayer = new TeamLayer(); // --- teams ---
     const boxHueColors: string[] = [];
     const boxBodyColor = (ball: { id: number }) => {
       const st = engine.getBoxView().shapes.get(ball.id);
@@ -1309,6 +1317,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const chirp = faces.beginFrame(engine, characterRef.current, { started: p.isStarted });
       if (chirp) chirpRef.current?.(chirp);
       const hasSprite = !!emojiCanvasRef.current || (imageLoadedRef.current && !!imageRef.current);
+      teamLayer.beginFrame(engine, teamsRef.current); // --- teams ---
+      const customImage = imageLoadedRef.current && !!imageRef.current; // --- teams --- a custom picture beats the team emoji
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
@@ -1316,7 +1326,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
       else balls.forEach((ball, index) => {
-        const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
+        // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
+        const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
+        const teamSprite = isColorMatch || customImage ? null : teamLayer.spriteOf(ball);
+        const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall ? rainbowColors[index] : ball.color);
         // Trail
         if (p.showTrails && index < 30 && ball.trail.length > 1) {
           const intensity = personality.trailIntensity;
@@ -1391,9 +1404,20 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- boris-faces --- squash-and-stretch around the body, the cat's ears behind it
         const squashed = faces.pushSquash(ctx, ball);
-        faces.drawBehind(ctx, ball, color, hasSprite, index);
+        faces.drawBehind(ctx, ball, color, hasSprite || !!teamSprite, index);
         // Body: emoji, image or shaded disc
-        if (emojiCanvasRef.current) {
+        if (teamSprite) {
+          // --- teams --- the team's emoji, turned by the spin like the custom emoji
+          ctx.save();
+          ctx.translate(ball.x, ball.y);
+          if (ball.angle !== 0) ctx.rotate(ball.angle);
+          ctx.beginPath();
+          ctx.arc(0, 0, ball.radius, 0, TWO_PI);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(teamSprite, -ball.radius, -ball.radius, 2 * ball.radius, 2 * ball.radius);
+          ctx.restore();
+        } else if (emojiCanvasRef.current) {
           ctx.save();
           ctx.translate(ball.x, ball.y);
           if (ball.angle !== 0) ctx.rotate(ball.angle); // the "spin" physics extra turns the sprite
@@ -1455,9 +1479,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         }
         // --- boris-faces --- the face on the body (squashed with it), then the name label under the ball
-        faces.drawFront(ctx, ball, color, hasSprite, index);
+        faces.drawFront(ctx, ball, color, hasSprite || !!teamSprite, index);
         if (squashed) ctx.restore();
         faces.drawLabel(ctx, ball, index);
+        // --- teams --- a ring in the team colour where the body does not wear it, and the team's name above its first ball
+        if (teamLayer.isActive()) teamLayer.drawBallExtras(ctx, ball, !isColorMatch && !teamSprite && !hasSprite, !!teamSprite);
         // Personality ring (tension indicator)
         if (personality.state !== "calm" && !emojiCanvasRef.current) {
           const hue =
@@ -1820,6 +1846,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
 
+      // --- teams --- the scoreboard in a corner of the exported square and, when the run is over, the winner banner with confetti
+      if (teamLayer.isActive()) {
+        const side = Math.min(size.width, size.height);
+        teamLayer.drawOverlay(ctx, engine, {
+          width: size.width,
+          height: size.height,
+          dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
+          // Live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners.
+          inset: !recordingRef.current && (size.width - side) / 2 < 170 ? 52 : 0,
+          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()),
+        });
+      }
+
       // Top / bottom text (the recorder draws its own copy at export resolution)
       if ((p.topText || p.bottomText) && !recordingRef.current) {
         ctx.save();
@@ -1932,6 +1971,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("collideAnti", view.antiActive ? "1" : "0");
       } else if (canvas.dataset.collideBodies !== undefined) {
         for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
+      }
+
+      // --- teams --- teams in play, per-team "bounces/walls/escapes", the winner, the names drawn and the scoreboard (data-team-*) for tools and the smoke test
+      if (teamLayer.isActive()) {
+        const o = teamsRef.current;
+        setCanvasData("teams", String(teamLayer.teamsInPlay()));
+        setCanvasData("teamStats", teamLayer.statsText(engine));
+        setCanvasData("teamWinner", teamLayer.winnerText());
+        setCanvasData("teamLabels", String(teamLayer.labelsDrawn));
+        setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
+      } else if (canvas.dataset.teams !== undefined) {
+        for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

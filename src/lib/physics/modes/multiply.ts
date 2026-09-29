@@ -45,7 +45,9 @@ export class MultiplyMode implements GameMode {
             vx: Math.cos(a) * speed,
             vy: Math.sin(a) * speed,
             radius: ctx.config.ballRadius || 8,
-            color: ctx.config.ballColor || "#FFFFFF",
+            // --- teams --- the new balls play for the team of the ball that escaped (the other slots keep their colour)
+            color: ball.team ? ball.color : ctx.config.ballColor || "#FFFFFF",
+            ...(ball.team !== undefined ? { team: ball.team } : {}),
           });
         }
         spawned = true;

@@ -102,7 +102,13 @@
     "canvasPolyrhythmDone": "IN PHASE!",
     "canvasPolyrhythmAligned": "All [count] voices back in phase after [cycles] cycle(s)",
     "finderFixedPolyrhythm": "Metronomes & Polyrhythms always lasts exactly {duration}s with these settings (the cycles × the cycle length), whatever the seed. Change the cycle length, the tempos or the number of cycles in the Mode row to hit the target.",
-    "canvasCollideAnti": "ANTI-COLLISION"
+    "canvasCollideAnti": "ANTI-COLLISION",
+    "canvasTeamBounces": "Bounces",
+    "canvasTeamWalls": "Walls",
+    "canvasTeamEscapes": "Escapes",
+    "canvasTeamWins": "[name] wins!",
+    "canvasTeamTie": "It's a tie!",
+    "canvasTeamFallback": "Team [n]"
   },
   "HowItWorks": {
     "step1": {
@@ -652,7 +658,33 @@
     "cpAntiCollisionAtTip": "Second of the run at which the collision system switches off: the orbs change colour and pass straight through each other (they still bounce off the container). Off keeps them colliding forever.",
     "cpAntiOff": "Off",
     "cpRing": "Lollipops on a Ring",
-    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom."
+    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom.",
+    "teamsTab": "Teams & Scoreboard",
+    "ballCount": "Ball Count",
+    "ballCountTip": "How many balls start in the arena, flying out in evenly spread directions (Classic, Multiply, Lines, Shatter, Color Match and Grow; Multiply multiplies them from there). Two is the old two-ball setup; with teams, every ball is a team.",
+    "teams": "Teams",
+    "teamsTip": "Give every ball a team: a name, a colour and an emoji. The canvas labels the balls, keeps score per team (bounces, walls broken, escapes) and crowns a winner when the run ends – in the recording too. Winner: most escapes, then most walls broken, then most bounces.",
+    "teamsModeNote": "Teams play in the modes with several balls: Classic, Multiply, Lines, Shatter, Color Match and Grow.",
+    "teamName": "Team {n} name",
+    "teamColor": "Team {n} colour",
+    "teamEmoji": "Team {n} emoji",
+    "teamRemove": "Remove team {n}",
+    "teamAdd": "Add Team",
+    "teamNamePlaceholder": "Team {n}",
+    "showBallNames": "Ball Names",
+    "showBallNamesTip": "Show each team's name above its ball.",
+    "showScoreboard": "Scoreboard",
+    "showScoreboardTip": "Bounces, walls broken and escapes of every team in a corner of the video, the leader on top.",
+    "scoreboardPosition": "Scoreboard Position",
+    "scoreboardPositionTip": "The corner of the exported square the scoreboard sits in.",
+    "scoreboardTopLeft": "Top left",
+    "scoreboardTopRight": "Top right",
+    "teamDefault1": "Red",
+    "teamDefault2": "Blue",
+    "teamDefault3": "Green",
+    "teamDefault4": "Gold",
+    "teamDefault5": "Purple",
+    "teamDefault6": "Orange"
   },
   "Modes": {
     "classic": {
