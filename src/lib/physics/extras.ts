@@ -89,10 +89,27 @@ export function gravityAngle(rotatingGravity: number, tSec: number): number {
   return Math.PI / 2 + rotatingGravity * DEG * tSec;
 }
 
+/**
+ * Direction of gravity in radians after it has turned `turnedDeg` degrees from straight down – the angle for a turning
+ * rate that changes over time (timeline keyframes), where `turnedDeg` is the rate integrated since t = 0.
+ */
+export function gravityAngleTurned(turnedDeg: number): number {
+  return Math.PI / 2 + turnedDeg * DEG;
+}
+
 /** Wall radius multiplier at simulation time `tSec`: 1 ± amplitude, `speedHz` pulses per second, 1 at t = 0. */
 export function breathingScale(amplitude: number, speedHz: number, tSec: number): number {
   if (amplitude === 0) return 1;
   return 1 + amplitude * Math.sin(TWO_PI * speedHz * tSec);
+}
+
+/**
+ * Wall radius multiplier after `cycles` pulses (1 ± amplitude, 1 at 0 cycles) – for a pulse speed that changes over
+ * time (timeline keyframes), where `cycles` is the speed integrated since t = 0.
+ */
+export function breathingScaleAtPhase(amplitude: number, cycles: number): number {
+  if (amplitude === 0) return 1;
+  return 1 + amplitude * Math.sin(TWO_PI * cycles);
 }
 
 /**

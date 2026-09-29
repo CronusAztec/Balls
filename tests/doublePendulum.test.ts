@@ -220,7 +220,7 @@ describe("chain integrator", () => {
       expect(most, JSON.stringify(dp)).toBeGreaterThan(60);
       expect(most, JSON.stringify(dp)).toBeLessThanOrEqual(MAX_SUBSTEPS + 1);
     }
-  });
+  }, 30_000); // three rigs for two simulated minutes each: ~3 s here, over the 5 s default on the CI runner
 
   it("only ever removes energy with friction, and a per-step loss d keeps (1 − d) of the speed per 60 Hz step", () => {
     expect(dampingRate(0)).toBe(0);

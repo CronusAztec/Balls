@@ -2802,8 +2802,10 @@ const instrumentOscillators = () =>
 // --- rigged ---
 // 24. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
 // warning and the note under the canvas, controls → URL, the search box; a Never Escape run at 8× in which the rig acts
-// and no ball escapes; a three-team race won by the Forced Winner; Find Simulation's Outcome select – a run without an
-// escape in Classic, a first escape at a chosen second in Multiply (whose finder shows now) and a won race.
+// and no ball escapes; a three-team race won by the Forced Winner – in Classic, in Shatter (nobody else gets out), with
+// merging balls (the run ends) and with x2 BALLS orbs (the rivals do not out-escape it); Never Escape switching the Forced
+// Winner off in Shatter but not in Classic; Find Simulation's Outcome select – a run without an escape in Classic, a
+// first escape at a chosen second in Multiply (whose finder shows now) and a won race.
 {
   const rigQuery = () => new URLSearchParams(page.url().split("?")[1] || "");
   const finderResult = async (timeout = 120_000) => {
@@ -2865,6 +2867,54 @@ const instrumentOscillators = () =>
     const after = rigQuery();
     check("the rig carries over a mode change", after.get("mode") === "shatter" && after.get("fw") === "2" && after.get("teams") === roster, `(mode=${after.get("mode")}, fw=${after.get("fw")}, teams=${after.get("teams")})`);
   }
+  /** Plays the linked race at 8× until the winner banner and returns the canvas data (per-team "bounces/walls/escapes" in teamStats). */
+  const rigRace = async (query, timeout = 60_000) => {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const escapes = (data.teamStats || "").split(",").map((t) => Number(t.split("/")[2]));
+    return { won, data, escapes };
+  };
+  // Shatter ends with the first escape: the way out stays shut to the others until the run is over (not only until the
+  // chosen ball enters its gap or is counted out), so nobody else escapes and Green wins.
+  {
+    const { won, data, escapes } = await rigRace(`mode=shatter&teams=${encodeURIComponent(roster)}&fw=2&s=700`);
+    check("a Forced Winner Shatter race is won by the chosen team and nobody else gets out", won && data.teamWinner === "Green" && data.rigWinner === "2" && escapes[2] >= 1 && escapes[0] === 0 && escapes[1] === 0, `(winner=${data.teamWinner}, stats=${data.teamStats})`);
+  }
+  // The merge interaction fuses balls: the chosen ball is never merged out of the story (the merged ball plays on for
+  // Green), so the run ends – it used to hold the others in forever once Green's ball was absorbed.
+  {
+    const { won, data } = await rigRace(`mode=classic&teams=${encodeURIComponent(roster)}&fw=2&wc=3&gap=0.8&s=700&bi=merge`);
+    check("a Forced Winner race with merging balls ends, won by the chosen team", won && data.teamWinner === "Green", `(winner=${data.teamWinner || "none – the run did not end"}, stats=${data.teamStats})`);
+  }
+  // x2 BALLS orbs clone only the chosen team's balls in Classic, where every ball escapes: the rivals cannot out-escape it.
+  {
+    const { won, data, escapes } = await rigRace(`mode=classic&teams=${encodeURIComponent(roster)}&fw=2&wc=3&gap=0.8&s=700&mpk=1&mpty=balls&mpr=3`);
+    check("x2 BALLS orbs do not let the rivals out-escape a Forced Winner", won && data.teamWinner === "Green" && escapes[0] <= 1 && escapes[1] <= 1, `(winner=${data.teamWinner}, stats=${data.teamStats})`);
+  }
+  // Never Escape keeps everyone in: where the chosen team can only win by escaping (Shatter) the Forced Winner is off –
+  // the note under the canvas does not claim the win, the panel says why and the rig mirrors no winner. Classic keeps both.
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&teams=${encodeURIComponent(roster)}&fw=2&ne=1`, { waitUntil: "networkidle" });
+  {
+    const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    await page.getByLabel("Show advanced options").check();
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    const why = await page.getByTestId("forced-winner-never-escape").isVisible().catch(() => false);
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(800);
+    const data = await canvasData();
+    await page.locator('[role="button"]', { hasText: "Classic" }).first().click();
+    await page.waitForTimeout(500);
+    const classicNote = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    const whyInClassic = await page.getByTestId("forced-winner-never-escape").isVisible().catch(() => false);
+    check(
+      "Never Escape switches the Forced Winner off where the win needs an escape (Shatter), not in Classic",
+      /no ball can escape/.test(note) && !/wins/.test(note) && why && data.rigWinner === "-1" && data.rigNeverEscape === "1" && /no ball can escape/.test(classicNote) && /Green wins/.test(classicNote) && !whyInClassic,
+      `(Shatter note "${note}", hint=${why}, rig winner=${data.rigWinner}; Classic note "${classicNote}", hint=${whyInClassic})`,
+    );
+  }
   // Find Simulation: a Classic run without an escape for the whole clip.
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
   {
@@ -2909,7 +2959,10 @@ const instrumentOscillators = () =>
 // AUTO badge; a run at 8× plays the keyframes on the simulation clock – the engine's values follow them (data-timeline-engine)
 // while the link keeps the settings as they were (the automation is never written back); a keyframe added from the panel at
 // the current time locks its slider, and it, an edited value and a removed keyframe land in the link; the search box finds
-// the section; the keyframes carry over a mode change.
+// the section; the keyframes carry over a mode change. Then the engine side: a seed found mid-run with breathing walls and
+// keyframes replays as found (the restart re-builds the rings from their base radii); a keyframed gravity rotation turns
+// gravity by its integral (never backwards, data-timeline-phase); a breathing speed ramp keeps every ball in Lines' gapless
+// ring; a Ball Size ramp scales Grow's growing ball instead of holding it at the keyframed size (data-timeline-ball-radius).
 {
   const kf = "g_0_0_4_1500*r_0_8_3_20";
   const autoLabel = (name) => page.locator("label", { has: page.getByTestId("timeline-auto-badge") }).filter({ hasText: name }).first();
@@ -2986,6 +3039,108 @@ const instrumentOscillators = () =>
   const after = new URL(page.url()).searchParams;
   const markersAfter = await page.getByTestId("timeline-marker").count();
   check("keyframes carry over a mode change", after.get("mode") === "portal" && after.get("kf") === kf && markersAfter === 4, `(mode=${after.get("mode")}, kf=${after.get("kf")}, markers=${markersAfter})`);
+
+  /** Waits (at most `timeout` ms) until the bar's simulation clock reaches `sec`; returns the clock it read, −1 on a timeout. */
+  const reachTime = (sec, timeout = 60_000) =>
+    page
+      .waitForFunction((s) => Number(document.querySelector('[data-testid="timeline-bar"]')?.dataset.timelineTime ?? -1) >= s, sec, { timeout })
+      .then(timelineTime)
+      .catch(() => -1);
+  const barData = async () => page.getByTestId("timeline-bar").evaluate((el) => ({ ...el.dataset }));
+  const valuesOf = (text) => Object.fromEntries((text || "").split(",").filter(Boolean).map((pair) => pair.split("=")).map(([k, v]) => [k, Number(v)]));
+
+  // A restart re-builds breathing rings from their base radii whatever the old run's clock: a seed found mid-run (3 s
+  // in, rotation-speed keyframes, breathing walls) replays on the page's engine exactly as the finder ran it – still
+  // going a second before the found length, over a second after it.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bw=0.15&bws=0.5&kf=rs_0_1_20_1.2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const midRun = await reachTime(3.3);
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const foundText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 180_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  const foundSec = Number((/Found! ([\d.]+)s/.exec(foundText) || [])[1]);
+  let beforeEnd = -1;
+  let runningBefore = false;
+  let afterEnd = -1;
+  let endedAfter = false;
+  if (Number.isFinite(foundSec)) {
+    await page.getByRole("button", { name: /Resume/ }).first().click();
+    beforeEnd = await reachTime(foundSec - 1.2, 90_000);
+    runningBefore = beforeEnd > 0 && !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+    afterEnd = await reachTime(foundSec + 1.2, 30_000);
+    endedAfter = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+  }
+  check(
+    "a seed found mid-run with breathing walls and keyframes replays as found",
+    midRun >= 3.3 && Number.isFinite(foundSec) && runningBefore && afterEnd > 0 && endedAfter,
+    `(found at ${midRun}s: "${foundText}"; running at ${beforeEnd}s: ${runningBefore}; ended by ${afterEnd}s: ${endedAfter})`,
+  );
+
+  // A keyframed turning rate turns gravity by its integral: 90 °/s, easing to 0 °/s between 10 and 20 s, turns it
+  // 900° + 450° – never backwards – and leaves it there (data-timeline-phase: the degrees the engine has turned it).
+  await page.goto(`${BASE}/en/simulator/?mode=classic&kf=rg_10_90_20_0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const turns = [];
+  const turnStart = Date.now();
+  while (Date.now() - turnStart < 30_000) {
+    const d = await barData().catch(() => ({}));
+    const t = Number(d.timelineTime ?? -1);
+    const turned = valuesOf(d.timelinePhase).rotatingGravity;
+    if (Number.isFinite(turned)) turns.push({ t, turned });
+    if (t >= 23) break;
+    await page.waitForTimeout(150);
+  }
+  {
+    const early = turns.filter((s) => s.t > 1 && s.t < 9.5);
+    const monotone = turns.every((s, i) => i === 0 || s.turned >= turns[i - 1].turned - 1e-6);
+    const last = turns[turns.length - 1];
+    const live = valuesOf((await barData().catch(() => ({}))).timelineLive).rotatingGravity;
+    check(
+      "a keyframed gravity rotation turns gravity by its integral, never backwards",
+      turns.length > 5 && monotone && early.length > 0 && early.every((s) => Math.abs(s.turned - 90 * s.t) < 1) && last.t >= 20 && last.turned === 1350 && live === 0,
+      `(${turns.length} samples, monotone=${monotone}, early ${early.map((s) => `${s.t}s:${s.turned}°`).slice(0, 3).join(" ")}, last ${last ? `${last.t}s:${last.turned}°` : "none"}, live rate ${live})`,
+    );
+  }
+
+  // A pulse speed ramp (0.5 → 3 Hz between 2 and 8 s) at the widest pulse keeps every ball inside Lines' gapless ring –
+  // the phase is integrated, so the walls never pulse faster than the keyframes say (no first escape is ever recorded).
+  await page.goto(`${BASE}/en/simulator/?mode=lines&bw=0.3&bws=0.5&kf=bws_2_0.5_8_3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const at = await reachTime(12);
+    const d = await barData().catch(() => ({}));
+    const t = Number(d.timelineTime ?? -1);
+    const pulses = valuesOf(d.timelinePhase).breathingSpeed;
+    const data = await canvasData();
+    check(
+      "a keyframed breathing speed pulses at its keyframed rate and never lets a ball through a gapless ring",
+      at >= 12 && data.firstEscape === "-1" && Math.abs(pulses - (11.5 + 3 * (t - 8))) < 0.05,
+      `(t=${t}s, pulses=${pulses} (expected ${(11.5 + 3 * (t - 8)).toFixed(3)}), first escape=${data.firstEscape})`,
+    );
+  }
+
+  // A keyframed Ball Size scales Grow's growing ball instead of holding it at the keyframed size (8 → 12 px over 10 s,
+  // the fastest growth): half-way through the ramp the ball is far bigger than the Ball Size, and at its end still growing.
+  await page.goto(`${BASE}/en/simulator/?mode=grow&gr=10&kf=r_0_8_10_12`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const mid = await reachTime(6);
+    const m = await barData().catch(() => ({}));
+    const midSize = Number(m.timelineBallRadius ?? 0);
+    const midBall = valuesOf(m.timelineEngine).ballRadius;
+    const end = await reachTime(10.2);
+    const d = await barData().catch(() => ({}));
+    const size = Number(d.timelineBallRadius ?? 0);
+    const engineValues = valuesOf(d.timelineEngine);
+    check(
+      "a keyframed Ball Size scales a growing ball instead of resetting it",
+      mid >= 6 && midBall < 12 && midSize > 3 * midBall && end >= 10.2 && engineValues.ballRadius === 12 && size >= midSize,
+      `(t=${mid}s: Ball Size ${midBall}px, largest ball ${midSize}px; t=${end}s: Ball Size ${engineValues.ballRadius}px, largest ball ${size}px)`,
+    );
+  }
 }
 // --- end timeline ---
 
