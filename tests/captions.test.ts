@@ -9,6 +9,7 @@ import {
   CAPTION_RANGES,
   CAPTION_REVEAL_SEC,
   CAPTION_TYPES,
+  CAPTION_MARGIN,
   CaptionTracker,
   MAX_CAPTIONS,
   MAX_CAPTION_ANSWER_LENGTH,
@@ -16,16 +17,24 @@ import {
   SLIDE_DISTANCE,
   animateCaption,
   captionCarryOver,
+  captionClock,
   captionPhase,
   captionRenderOptions,
+  captionStackStarts,
   countdownPulse,
   countdownSeconds,
   countdownText,
   defaultCaption,
+  edgeTextBounds,
+  edgeTextDistance,
+  edgeTextFontSize,
+  emptyEdgeTextLines,
+  exportEdgeTextLines,
   fillLabel,
   formatClock,
   holdsForAnswer,
   isOpenEnded,
+  liveEdgeTextLines,
   parseCaptions,
   phaseVisible,
   progressFraction,
@@ -37,11 +46,13 @@ import {
   wallCounterText,
   wrapCaptionText,
   type Caption,
+  type CaptionBounds,
   type CaptionEngineView,
 } from "@/lib/captions";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig } from "@/lib/physics/types";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { recordingTextLayout } from "@/lib/recording/recorder";
+import { RANGES, RESOLUTIONS, defaultSettings, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 
 /**
@@ -396,6 +407,8 @@ describe("caption tracker", () => {
         return true;
       },
       getStatsGeneration: () => 1,
+      isShatterMode: () => false,
+      getShatterSegments: () => [],
     };
     const t2 = new CaptionTracker();
     expect(t2.update(view, false)).toMatchObject({ escaped: false, revealAtSec: -1, wallsBroken: 1, wallsTotal: 3 });
@@ -425,5 +438,152 @@ describe("caption tracker", () => {
   it("works with the real engine type", () => {
     const view: CaptionEngineView = new PhysicsEngine({ ...config });
     expect(new CaptionTracker().update(view).timeSec).toBe(0);
+  });
+
+  it("counts every Shatter wall the ball broke through: all of them at the escape", () => {
+    for (const seed of [1, 7, 99, 2024, 4242, 12345]) {
+      const engine = createEngineForSettings(config, "shatter", modeSettings, seed);
+      const tracker = new CaptionTracker();
+      let atEscape = -1;
+      let midRun = false;
+      for (let i = 0; i < 60 * 180 && !engine.isSimulationFinished(); i++) {
+        engine.update(STEP, 0);
+        const s = tracker.update(engine);
+        if (s.wallsBroken > 0 && s.wallsBroken < s.wallsTotal) midRun = true;
+        if (s.escaped && atEscape < 0) {
+          atEscape = s.wallsBroken;
+          // Shatter itself only calls a wall broken once every one of its segments is gone.
+          expect(engine.getBrokenWalls().size).toBeLessThan(s.wallsTotal);
+        }
+      }
+      expect(tracker.state.escaped).toBe(true);
+      expect(tracker.state.wallsTotal).toBe(7);
+      expect(atEscape).toBe(7);
+      expect(tracker.state.wallsBroken).toBe(7);
+      expect(midRun).toBe(true); // it counts up wall by wall
+    }
+  });
+
+  it("reads Shatter's segments only in Shatter: a wall with a destroyed segment is broken, and the count never drops", () => {
+    let shatter = true;
+    let segments = [[{ hp: 1 }, { hp: 0 }], [{ hp: 1 }, { hp: 1 }], [{ hp: 0 }, { hp: 0 }]];
+    const view: CaptionEngineView = {
+      getElapsedMs: () => 500,
+      isSimulationFinished: () => false,
+      getCircularWalls: () => [1, 2, 3],
+      getBrokenWalls: () => new Set([2]),
+      getBalls: () => [],
+      hasBallEscaped: () => false,
+      getStatsGeneration: () => 3,
+      isShatterMode: () => shatter,
+      getShatterSegments: () => segments,
+    };
+    const tracker = new CaptionTracker();
+    expect(tracker.update(view).wallsBroken).toBe(2);
+    segments = [[{ hp: 1 }, { hp: 1 }], [{ hp: 1 }, { hp: 1 }], [{ hp: 1 }, { hp: 1 }]]; // a rebuilt board: the most seen stays
+    expect(tracker.update(view).wallsBroken).toBe(2);
+    shatter = false; // another mode's leftover segments are not read
+    const other = new CaptionTracker();
+    segments = [[{ hp: 0 }], [{ hp: 0 }], [{ hp: 0 }]];
+    expect(other.update(view).wallsBroken).toBe(1);
+  });
+});
+
+describe("caption clip clock and layout", () => {
+  it("counts the countdown and the progress bar on the clip while recording, on the run otherwise", () => {
+    const cd = defaultCaption("countdown");
+    // Live preview: the run's clock.
+    expect(captionClock(4.5, -1)).toBe(4.5);
+    expect(countdownText(cd, 30, captionClock(4.5, -1))).toBe("0:26");
+    // Record pressed 4.5 s into a running run (or at 8×, or in slow motion): 0.6 s into the clip it is still 0:30 and 2 %,
+    // not 0:25 and 17 % – the recorder stops after 30 s of real time.
+    const clip = captionClock(5.1, 0.6);
+    expect(clip).toBe(0.6);
+    expect(countdownText(cd, 30, clip)).toBe("0:30");
+    expect(Math.round(100 * progressFraction(30, clip))).toBe(2);
+    // The clip's last second: 0:01, full bar only at its end – where the run clock (34.5 s) had been at 0:00 for 4.5 s.
+    expect(countdownText(cd, 30, captionClock(33.9, 29.4))).toBe("0:01");
+    expect(progressFraction(30, captionClock(34.5, 30))).toBe(1);
+    expect(countdownPulse(30, captionClock(40, 29))).toBeCloseTo(1.2, 9);
+    expect(countdownText(cd, 30, captionClock(26, 0))).toBe("0:30");
+  });
+
+  const bounds = (): CaptionBounds => ({ insetTop: 0, insetBottom: 0, topMin: 0, bottomMax: Infinity });
+
+  it("keeps the stacks where they were without a Top / Bottom Text", () => {
+    const b = bounds();
+    edgeTextBounds(emptyEdgeTextLines(), 0, b);
+    expect(b).toEqual({ insetTop: 0, insetBottom: 0, topMin: 0, bottomMax: Infinity });
+    const starts = captionStackStarts(800, 600, b, { top: 0, bottom: 0 });
+    expect(starts.top).toBeCloseTo(CAPTION_MARGIN * 600, 9);
+    expect(starts.bottom).toBeCloseTo(600 - CAPTION_MARGIN * 600, 9);
+    // The scoreboard alone still pushes the top stack down.
+    edgeTextBounds(emptyEdgeTextLines(), 120, b);
+    expect(b.topMin).toBe(120);
+    expect(captionStackStarts(800, 600, b, { top: 0, bottom: 0 }).top).toBeCloseTo(120 + 0.5 * CAPTION_MARGIN * 600, 9);
+  });
+
+  /** A text line's glyphs reach about half a font size around its centre: the stacks must start beyond that. */
+  function expectClear(width: number, height: number, lines: ReturnType<typeof emptyEdgeTextLines>, b: CaptionBounds, label: string) {
+    edgeTextBounds(lines, 0, b);
+    const starts = captionStackStarts(width, height, b, { top: 0, bottom: 0 });
+    expect(starts.top, `${label}: top stack below the Top Text`).toBeGreaterThan(lines.topY + 0.5 * lines.fontSize);
+    expect(starts.bottom, `${label}: bottom stack above the Bottom Text`).toBeLessThan(lines.bottomY - 0.5 * lines.fontSize);
+  }
+
+  it("starts the top stack below the Top Text and the bottom stack above the Bottom Text, live", () => {
+    for (const [w, h] of [
+      [790, 444],
+      [800, 800],
+      [400, 700],
+      [1200, 900],
+      [360, 640],
+      [250, 250],
+    ]) {
+      for (const textSize of [0.5, 1, 1.5, 2, 3]) {
+        const side = Math.min(w, h);
+        const arena = (side / 2) * 0.85;
+        const lines = liveEdgeTextLines(side, h / 2, arena, textSize, true, true, emptyEdgeTextLines());
+        expect(lines.fontSize).toBeCloseTo(edgeTextFontSize(side, textSize), 12);
+        expect(lines.topY).toBeCloseTo(h / 2 - edgeTextDistance(arena, lines.fontSize), 9);
+        const live = (w - side) / 2 < 170;
+        expectClear(w, h, lines, { ...bounds(), insetTop: live ? 52 : 0, insetBottom: live ? 56 : 0 }, `live ${w}×${h} text ${textSize}`);
+      }
+    }
+    // The review's case: 790×444, "CAN IT ESCAPE?" over a countdown pill – the pill now starts below the line.
+    const lines = liveEdgeTextLines(444, 222, 188.7, 1, true, false, emptyEdgeTextLines());
+    const b = edgeTextBounds(lines, 0, { ...bounds(), insetTop: 52, insetBottom: 56 });
+    expect(b.bottomMax).toBe(Infinity);
+    expect(captionStackStarts(790, 444, b, { top: 0, bottom: 0 }).top).toBeGreaterThan(lines.topY + 0.5 * lines.fontSize);
+  });
+
+  it("keeps clear of the lines the recorder draws into every export frame while recording", () => {
+    for (const res of RESOLUTIONS) {
+      const { width: W, height: H } = resolutionToSize(res);
+      for (const [w, h] of [
+        [790, 444],
+        [800, 800],
+        [400, 700],
+      ]) {
+        for (const textSize of [0.5, 1, 2, 3]) {
+          const side = Math.min(w, h);
+          const layout = recordingTextLayout(W, H, textSize);
+          const lines = exportEdgeTextLines(layout, W, H, side, h / 2 - side / 2, true, true, emptyEdgeTextLines());
+          expectClear(w, h, lines, bounds(), `export ${res} of ${w}×${h}, text ${textSize}`);
+          // The same in export pixels: the first caption's edge, mapped into the frame, is clear of the drawn line.
+          const square = Math.min(W, H);
+          const k = square / side;
+          const starts = captionStackStarts(w, h, edgeTextBounds(lines, 0, bounds()), { top: 0, bottom: 0 });
+          const toFrame = (y: number) => (H - square) / 2 + (y - (h / 2 - side / 2)) * k;
+          expect(toFrame(starts.top)).toBeGreaterThan(layout.topY + 0.5 * layout.fontSize);
+          expect(toFrame(starts.bottom)).toBeLessThan(layout.bottomY - 0.5 * layout.fontSize);
+        }
+      }
+    }
+    // A 1080×1920 export: 4 % of the square, the lines 0.6 font sizes outside the ring.
+    const portrait = recordingTextLayout(1080, 1920, 1);
+    expect(portrait.fontSize).toBeCloseTo(43.2, 9);
+    expect(portrait.topY).toBeCloseTo(960 - 459 - 0.6 * 43.2, 9);
+    expect(portrait.bottomY).toBeCloseTo(960 + 459 + 0.6 * 43.2, 9);
   });
 });

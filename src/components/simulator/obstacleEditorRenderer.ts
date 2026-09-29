@@ -45,6 +45,22 @@ export interface ObstacleRenderOptions {
   editing: boolean;
 }
 
+/** Input types that take no typed text: Backspace / Delete mean nothing to them, so they still delete the selected obstacle. */
+const NON_TEXT_INPUTS = new Set(["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image"]);
+
+/**
+ * True when a key event on `target` edits text – a text-like input, a textarea or editable content – so Backspace /
+ * Delete belong to it and must not delete the selected obstacle. A slider, a toggle, a dropdown or a button the panel
+ * left focused does not count: the key deletes the obstacle selected on the canvas.
+ */
+export function isTextEntryTarget(target: { tagName?: string; type?: string; isContentEditable?: boolean } | null | undefined): boolean {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = (target.tagName ?? "").toUpperCase();
+  if (tag === "TEXTAREA") return true;
+  return tag === "INPUT" && !NON_TEXT_INPUTS.has((target.type ?? "text").toLowerCase());
+}
+
 /** What the layer needs from the engine to show a drag live. */
 export interface ObstacleEngine {
   setConfig(patch: Partial<PhysicsConfig>): void;

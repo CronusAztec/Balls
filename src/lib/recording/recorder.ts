@@ -45,6 +45,30 @@ export interface RecordingCrop {
 }
 // --- end themes
 
+/** Where the recorder draws the Top / Bottom Text in an export frame (px): the font size and the centres of the two lines. */
+export interface RecordingTextLayout {
+  fontSize: number;
+  topY: number;
+  bottomY: number;
+}
+
+/**
+ * The Top / Bottom Text of a `width` × `height` export frame: 4 % of the exported square (the centred square the canvas
+ * is cropped to) × `textSize`, 0.6 font sizes outside the arena ring (85 % of the half square), kept inside the frame.
+ * The canvas keeps its bottom and top captions clear of these lines while it records (captions.ts `exportEdgeTextLines()`).
+ */
+export function recordingTextLayout(width: number, height: number, textSize = 1, out: RecordingTextLayout = { fontSize: 0, topY: 0, bottomY: 0 }): RecordingTextLayout {
+  const square = Math.min(width, height);
+  const fontSize = Math.max(16, 0.04 * square) * textSize;
+  const centerY = (height - square) / 2 + square / 2;
+  const arena = (square / 2) * 0.85;
+  const pad = 0.6 * fontSize;
+  out.fontSize = fontSize;
+  out.topY = Math.max(0.6 * fontSize, centerY - arena - pad);
+  out.bottomY = Math.min(height - 0.6 * fontSize, centerY + arena + pad);
+  return out;
+}
+
 const MIME_CANDIDATES = [
   "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
   "video/mp4;codecs=avc1.42E01E",
@@ -82,6 +106,7 @@ export class VideoRecorder {
     const ctx = this.recordingCanvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get recording canvas context");
     const bg = options.backgroundColor ?? "#0a0a0a";
+    const textLayout = recordingTextLayout(width, height, options.textOverlay?.textSize ?? 1);
 
     const drawFrame = () => {
       if (!this.sourceCanvas || !this.recordingCanvas || !ctx) return;
@@ -103,8 +128,7 @@ export class VideoRecorder {
       const overlay = options.textOverlay;
       if (overlay && (overlay.topText || overlay.bottomText)) {
         ctx.save();
-        const fontSize = Math.max(16, 0.04 * Math.min(width, height)) * (overlay.textSize ?? 1);
-        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.font = `bold ${textLayout.fontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#ffffff";
@@ -112,11 +136,8 @@ export class VideoRecorder {
         ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
         ctx.shadowBlur = 8;
         const centerX = width / 2;
-        const centerY = dy + dh / 2;
-        const arena = (Math.min(dw, dh) / 2) * 0.85;
-        const pad = 0.6 * fontSize;
-        if (overlay.topText) ctx.fillText(overlay.topText, centerX, Math.max(0.6 * fontSize, centerY - arena - pad));
-        if (overlay.bottomText) ctx.fillText(overlay.bottomText, centerX, Math.min(height - 0.6 * fontSize, centerY + arena + pad));
+        if (overlay.topText) ctx.fillText(overlay.topText, centerX, textLayout.topY);
+        if (overlay.bottomText) ctx.fillText(overlay.bottomText, centerX, textLayout.bottomY);
         ctx.restore();
       }
       this.animationFrameId = requestAnimationFrame(drawFrame);
