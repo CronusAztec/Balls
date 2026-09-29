@@ -101,8 +101,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   doublePendulum: { samples: [[346027,416241],[466095,461058],[522054,260913],[597547,364478],[287915,237856],[311924,363747],[507973,369042],[380583,383070]], broken: [], walls: [] },
   // --- jdm-illusions --- Circle Illusion: analytic motion, no rings; recorded when the mode was added (seed 12345, default: 8 balls on diameters, a 4 s cycle).
   illusion: { samples: [[400000,477173],[311414,513866],[400000,300000],[436694,211414],[400000,122827],[436694,211414],[400000,550560],[311414,513866]], broken: [], walls: [] },
-  // --- odd-string-battle --- String Battle: its own ring, no engine walls; recorded when the mode was added (seed 12345, default: 4 balls, 4 lives, the cut rule).
-  stringBattle: { samples: [[417665,406085],[428524,181206],[556227,250939],[296541,379279],[390286,410465],[477204,296087],[518668,264143],[317078,234247]], broken: [], walls: [] },
+  // --- odd-string-battle --- String Battle: its own ring, no engine walls; recorded when the mode was added (seed 12345, default: 4 balls, 4 lives, the cut rule);
+  // re-recorded when every ring bounce began to draw the ball's cruising factor afresh and the whole thread became cuttable.
+  stringBattle: { samples: [[449763,486112],[452897,216383],[588135,373311],[337304,357704],[242658,331390],[431619,300066],[541439,211811],[318923,247284]], broken: [], walls: [] },
   // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
   // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
   powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
@@ -112,6 +113,10 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // Re-recorded when the battle's fixed margins became reference pixels scaled with the field (a seed plays the same on any canvas).
   battle: { samples: [[374459,349977],[329182,250770],[338535,110954],[267052,343771],[595188,183924],[337396,292032],[459252,122349],[517487,427594]], broken: [], walls: [] },
   ctf: { samples: [[464260,193076],[653920,237007],[304817,457518],[313243,546485],[446150,169209],[271083,282839],[314906,501106],[633347,562433]], broken: [], walls: [] },
+  // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up: no rings; recorded when the modes were added (seed 12345, defaults: 24 obstacles
+  // on a 120 BPM beat with auto jump / the auto platform at skill 0.7).
+  runner: { samples: [[943750,351750],[1787500,314250],[2631250,363948],[3475000,314250]], broken: [], walls: [] },
+  paddle: { samples: [[314390,202273],[331052,238645],[387168,186813],[518968,322737]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

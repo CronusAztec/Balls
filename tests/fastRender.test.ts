@@ -306,9 +306,9 @@ describe("fast export: sound", () => {
     const calls: string[] = [];
     const audio = {
       playBumper: (f?: number) => calls.push(`bumper ${f}`),
-      playWallHit: (w: number, f?: number, accent?: boolean, chord?: readonly number[], level?: number) => calls.push(`hit ${w} ${f} ${accent} ${chord?.join("/")} ${level}`),
+      playWallHit: (w: number, f?: number, accent?: boolean, chord?: readonly number[], level?: number, melody?: boolean) => calls.push(`hit ${w} ${f} ${accent} ${chord?.join("/")} ${level}${melody ? "" : " accompaniment"}`),
       playGapPass: () => calls.push("gap"),
-      playMultiplier: (n: number) => calls.push(`multiplier ${n}`),
+      playMultiplier: (n: number, melody?: boolean) => calls.push(`multiplier ${n}${melody ? "" : " accompaniment"}`),
       playInteraction: (kind: string) => calls.push(`interaction ${kind}`),
       playRaceArpeggio: (kind: string, root?: number) => calls.push(`race ${kind} ${root}`), // --- jdm-race ---
       playStringBattle: (kind: string, f?: number) => calls.push(`sb ${kind} ${f}`), // --- odd-string-battle ---
@@ -326,9 +326,25 @@ describe("fast export: sound", () => {
       { type: "hit", wallIndex: 0, frequency: 262, race: "fanfare" }, // --- jdm-race --- the winner
       { type: "hit", wallIndex: 0, frequency: 523, sbSound: "pluck" }, // --- odd-string-battle --- a cut thread
       { type: "hit", wallIndex: 0, sbSound: "shatter" }, // --- odd-string-battle --- a ball at 0 lives
+      { type: "hit", wallIndex: 0, frequency: 1047, level: 0.3, melody: false }, // --- jdm-rhythm-runner --- a paddle's wall bounce
+      { type: "multiplier", wallIndex: 0, multiplier: 10, melody: false }, // --- jdm-rhythm-runner --- the paddle's streak chime
     ];
     for (const ev of events) playSoundEvent(audio, ev, () => breaks++);
-    expect(calls).toEqual(["hit 2 440 true 440/550 0.5", "bumper 700", "gap", "multiplier 2", "multiplier 8", "interaction merge", "interaction split", "race chime 330", "race fanfare 262", "sb pluck 523", "sb shatter undefined"]);
+    expect(calls).toEqual([
+      "hit 2 440 true 440/550 0.5",
+      "bumper 700",
+      "gap",
+      "multiplier 2",
+      "multiplier 8",
+      "interaction merge",
+      "interaction split",
+      "race chime 330",
+      "race fanfare 262",
+      "sb pluck 523",
+      "sb shatter undefined",
+      "hit 0 1047 undefined undefined 0.3 accompaniment",
+      "multiplier 10 accompaniment",
+    ]);
     expect(breaks).toBe(1);
   });
 

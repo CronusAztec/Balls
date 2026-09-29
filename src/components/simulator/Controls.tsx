@@ -45,6 +45,7 @@ import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSectio
 import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
+import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
 import type { ProjectPanelProps } from "./useProjectFiles";
@@ -52,6 +53,9 @@ import RaceSection, { RACE_KEYS } from "./sections/RaceSection"; // --- jdm-race
 // --- jdm-arena-games --- the "Arena games" block of the Mode row (Battle Royale, Capture the Flag)
 import ArenaGamesSection, { ARENA_GAME_KEYS } from "./sections/ArenaGamesSection";
 import { isArenaGameMode } from "@/lib/physics/modes/arenaGames";
+// --- jdm-rhythm-runner --- the "Beat runner" and "Paddle keep-up" blocks of the Mode row
+import { JDM_RHYTHM_KEYS, PaddleSection, RunnerSection } from "./sections/JdmRhythmSection";
+import { isJdmRhythmMode } from "@/lib/physics/modes/jdmRhythm";
 // --- split-screen --- the "Split screen" section: arena count, layout, sound and the per-arena overrides
 import ArenasSection, { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { defaultSplitScreenFields } from "@/lib/splitScreen";
@@ -128,6 +132,8 @@ export interface ControlsProps {
   fastExport?: FastExportPanelProps;
   /** --- project-files --- the page's side of Export / Import project (the block is left out without it). */
   project?: ProjectPanelProps;
+  /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
+  batch?: BatchPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -174,6 +180,10 @@ SECTION_KEYS.recording.push(...FAST_EXPORT_KEYS); // --- fast-render --- the fas
 SECTION_KEYS.ball.push(...RACE_KEYS);
 // --- jdm-arena-games --- the Arena games block is searched with the Ball section.
 SECTION_KEYS.ball.push(...ARENA_GAME_KEYS);
+// --- batch-render --- the Batch block (many fast exports in a row) closes the Recording section.
+SECTION_KEYS.recording.push(...BATCH_KEYS);
+// --- jdm-rhythm-runner --- the Beat runner and Paddle keep-up blocks are searched with the Ball section.
+SECTION_KEYS.ball.push(...JDM_RHYTHM_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -247,6 +257,9 @@ export default function Controls(props: ControlsProps) {
     // --- jdm-arena-games ---
     battle: t("modeBattle"),
     ctf: t("modeCtf"),
+    // --- jdm-rhythm-runner ---
+    runner: t("modeRunner"),
+    paddle: t("modePaddle"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -323,6 +336,9 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "race" && !!search && <RaceSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-arena-games --- */}
       {isArenaGameMode(s.mode) && !!search && <ArenaGamesSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- jdm-rhythm-runner --- */}
+      {s.mode === "runner" && !!search && <RunnerSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} />}
+      {s.mode === "paddle" && !!search && <PaddleSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
@@ -402,8 +418,8 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
     const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring)
     return (
@@ -1039,6 +1055,7 @@ export default function Controls(props: ControlsProps) {
       )}
       {/* --- fast-render --- the fast export's frame rate */}
       <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
+      {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
     </div>
   );
 
@@ -1176,6 +1193,11 @@ export default function Controls(props: ControlsProps) {
       case "battle":
       case "ctf":
         return <ArenaGamesSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- jdm-rhythm-runner ---
+      case "runner":
+        return <RunnerSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} />;
+      case "paddle":
+        return <PaddleSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

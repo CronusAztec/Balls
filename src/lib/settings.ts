@@ -1,5 +1,5 @@
 import type { BallInteraction, ModeId, WallBreakStyle } from "@/lib/physics/types";
-import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
+import { CUSTOM_HIT_SAMPLE_ID, DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
 import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
 import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
@@ -44,6 +44,9 @@ import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writ
 import type { RaceFeature } from "@/lib/physics/raceTrack";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_GAME_RANGES, defaultArenaGameFields, readArenaGameParams, resolveArenaGameFields, writeArenaGameParams, type BattleArena } from "@/lib/physics/modes/arenaGames";
+// --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
+import { JDM_RHYTHM_RANGES, defaultJdmRhythmFields, readJdmRhythmParams, resolveJdmRhythmFields, writeJdmRhythmParams } from "@/lib/physics/modes/jdmRhythmFields";
+import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 // --- split-screen --- 2 or 4 arenas racing on one canvas (lib/splitScreen.ts, lib/simulation/multi.ts)
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 
@@ -534,6 +537,34 @@ export interface SimulatorSettings {
   /** Both games: 0–1, how far the director turns a wall rebound toward the action (URL `arn`). */
   arenaNudge: number;
   // --- end jdm-arena-games ---
+  // --- jdm-rhythm-runner --- Beat Runner (lib/physics/modes/runner.ts) and Paddle Keep-Up (lib/physics/modes/paddle.ts)
+  /** Runner: the square jumps by itself at the planned times (URL `rra`; off = Space jumps). */
+  runnerAutoJump: boolean;
+  /** Runner: obstacles on the course, 4–120 (URL `rrn`). */
+  runnerObstacles: number;
+  /** Runner: speed in cube lengths per second, 6–16 (URL `rrsp`). */
+  runnerSpeed: number;
+  /** Runner: jump height in cube lengths, 1.8–4 (URL `rrj`). */
+  runnerJump: number;
+  /** Runner: 0–1, how often an obstacle takes the earliest beat it fits (URL `rrd`). */
+  runnerDensity: number;
+  /** Runner: mixed | spikes | blocks | gaps (URL `rrm`). */
+  runnerMix: RunnerMix;
+  /** Runner: song (the loaded song's beat, the BPM without one) | bpm (URL `rrbs`). */
+  runnerBeatSource: RunnerBeatSource;
+  /** Paddle: a deterministic controller drives the platform (URL `pda`; off = pointer / arrow keys). */
+  pdAuto: boolean;
+  /** Paddle: 0–1, how well the controller plays (URL `pdsk`). */
+  pdSkill: number;
+  /** Paddle: misses allowed before game over, 0–9 (URL `pdm`). */
+  pdMisses: number;
+  /** Paddle: platform width, 0.12–0.5 of the field (URL `pdw`). */
+  pdWidth: number;
+  /** Paddle: 0–1, the sideways kick and spin of an off-centre hit (URL `pdsp`). */
+  pdSpin: number;
+  /** Paddle: 0–0.1, every catch runs faster (URL `pdu`). */
+  pdSpeedUp: number;
+  // --- end jdm-rhythm-runner ---
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, components/simulator/splitScreenCanvas.tsx)
   /** Arenas on the canvas: 1 (the single view), 2 or 4 (URL `ac`). */
   arenaCount: ArenaCount;
@@ -652,6 +683,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...DEFAULT_FAST_EXPORT_SETTINGS, // --- fast-render ---
     ...defaultRaceFields(), // --- jdm-race ---
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
+    ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
   };
 }
@@ -715,6 +747,7 @@ export const RANGES = {
   ...FAST_EXPORT_RANGES, // --- fast-render ---
   ...RACE_RANGES, // --- jdm-race ---
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
+  ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
 } as const;
 
@@ -948,6 +981,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
+  writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   return params;
 }
@@ -1062,6 +1096,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   Object.assign(settings, resolveFastExportSettings(settings)); // --- fast-render --- (snapped to 30 or 60)
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
+  readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   return settings;
 }
@@ -1229,8 +1264,28 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveFastExportSettings(merged)); // --- fast-render --- (snapped to 30 or 60)
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
+  Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   return merged;
+}
+
+/** The uploads the page holds right now: whether a hit sample was uploaded, and the blob: URL of the uploaded wall-break sound. */
+export interface LiveUploads {
+  hitSample: boolean;
+  wallBreakSound: string | null;
+}
+
+/**
+ * `presetToSettings()` for settings put on the page while it still holds its uploads (a saved preset, an imported project,
+ * a share code, a batch job and the batch's way back to the page's own settings): a "custom" hit sample stays selected
+ * while a sample is uploaded, and an uploaded wall-break sound (a blob: URL, which `presetToSettings()` drops) while it
+ * is the page's live upload. A dead blob: URL or "custom" without an upload still falls back.
+ */
+export function presetToLiveSettings(preset: Partial<SimulatorSettings>, uploads: LiveUploads): SimulatorSettings {
+  const loaded = presetToSettings(preset);
+  if (preset.hitSampleId === CUSTOM_HIT_SAMPLE_ID && uploads.hitSample) loaded.hitSampleId = CUSTOM_HIT_SAMPLE_ID;
+  if (preset.wallBreakSound && preset.wallBreakSound === uploads.wallBreakSound) loaded.wallBreakSound = preset.wallBreakSound;
+  return loaded;
 }
 
 export function resolutionToSize(resolution: string): { width: number; height: number } {

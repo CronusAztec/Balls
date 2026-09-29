@@ -49,7 +49,7 @@ import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
 // --- rigged ---
 import FinderOutcomeFields, { FinderOutcomeSelect, outcomeButtonText, outcomeFoundText, outcomeMissText, outcomeOverlayText, outcomeProgressText, teamChoiceNames } from "./FinderOutcomeFields";
-import { forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged";
+import { BATTLE_WINNER_MODES, forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import { availableOutcomes, effectiveOutcome, type FinderOutcome, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 // --- timeline ---
 import TimelineBar from "./TimelineBar";
@@ -73,6 +73,12 @@ import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
 import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
+import { useBatchRender, type BatchExportRequest } from "./useBatchRender"; // --- batch-render ---
+// --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
+import { runnerPlanOf, runnerSettingsOf, sameRunnerPlan, type RunnerBeatInput, type RunnerPlan } from "@/lib/physics/modes/runner";
+import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
+import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
+import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 // --- split-screen --- 2 or 4 arenas racing on one canvas and one recording
 import { useSyncExternalStore } from "react";
 import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaHooks } from "@/lib/simulation/multi";
@@ -82,7 +88,7 @@ import {
   RANGES,
   defaultSettings,
   loadPresets,
-  presetToSettings,
+  presetToLiveSettings,
   resolutionToSize,
   savePresets,
   settingsFromSearchParams,
@@ -150,6 +156,8 @@ export default function Simulator() {
   const audioRef = useRef<ToneGenerator | null>(null);
   const recorderRef = useRef<VideoRecorder | null>(null);
   const canvasRef = useRef<CanvasHandle | null>(null);
+  /** --- jdm-rhythm-runner --- The loaded song's beat grid the Beat Runner plans its course on (null: the manual BPM). */
+  const rhythmBeatRef = useRef<RunnerBeatInput | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
   const timeLabelRef = useRef<HTMLSpanElement | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -252,6 +260,9 @@ export default function Simulator() {
     // --- jdm-arena-games ---
     engine.setBattleSettings(battleSettingsOf(s));
     engine.setCtfSettings(ctfSettingsOf(s));
+    // --- jdm-rhythm-runner ---
+    engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
+    engine.setPaddleSettings(paddleSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -291,22 +302,37 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Restarts the current mode from scratch: the run and everything that plays along with it – the melody from its first
+   * note, the slicer from the start of its song, the beat grid, the music bed from its start offset. The R key and the
+   * Restart button resume a paused run (`keepPaused` false); --- jdm-rhythm-runner --- a setting that re-plans the Beat
+   * Runner, whose course lands on the music bed's beats, restarts it with `keepPaused`: a paused run stays paused, and its
+   * bed starts from its start offset when it resumes.
+   */
+  const restartRun = useCallback(
+    (keepPaused: boolean) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const paused = keepPaused && isPaused;
+      setFinished(false);
+      if (!paused) setIsPaused(false);
+      audioRef.current?.resetCustomNoteIndex();
+      audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
+      // The music bed starts over from its start offset with the run (the lifecycle effect below
+      // cannot tell a restart from "still running", so it is done here).
+      if (isStarted && !paused) audioRef.current?.getMusicBed().restart();
+      else audioRef.current?.getMusicBed().stop();
+      engine.setConfig({ ballRadius: settings.ballRadius });
+      initEngineForMode(engine, settings);
+    },
+    [settings, isStarted, isPaused, initEngineForMode],
+  );
   /** Restart the current mode from scratch (R key / Restart button). */
-  const restart = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    setFinished(false);
-    setIsPaused(false);
-    audioRef.current?.resetCustomNoteIndex();
-    audioRef.current?.getSlicer().reset();
-    audioRef.current?.resetBeatGrid();
-    // The music bed starts over from its start offset with the run (the lifecycle effect below
-    // cannot tell a restart from "still running", so it is done here).
-    if (isStarted) audioRef.current?.getMusicBed().restart();
-    else audioRef.current?.getMusicBed().stop();
-    engine.setConfig({ ballRadius: settings.ballRadius });
-    initEngineForMode(engine, settings);
-  }, [settings, isStarted, initEngineForMode]);
+  const restart = useCallback(() => restartRun(false), [restartRun]);
+  /** --- jdm-rhythm-runner --- The latest `restartRun()`, for the effect that re-plans the Beat Runner (it runs on setting changes only). */
+  const restartRunRef = useRef(restartRun);
+  restartRunRef.current = restartRun;
 
   // Keep the engine in sync with the settings object.
   const s = settings;
@@ -765,6 +791,112 @@ export default function Simulator() {
     () => ({ bpm: activeBeats && activeBeats.beats.bpm > 0 ? activeBeats.beats.bpm : null, analyzing: beatJobs > 0, hasSong: !!musicTrack || !!sliceSongInfo, source: activeBeats?.source ?? null }),
     [activeBeats, beatJobs, musicTrack, sliceSongInfo],
   );
+  // --- jdm-rhythm-runner --- Beat Runner: the course is planned for the beat it follows (the loaded song's detected grid, the
+  // same one Picture Paint follows, else the Sound section's BPM) and lands on the music bed's beats, which play from the bed's
+  // start offset with the run. So a change of what the run is planned from (`runnerPlanOf()`: auto jump, obstacles, speed,
+  // jump height, density, mix, the beat the course follows, the Gravity) restarts the whole run – the course and the music
+  // it lands on, the melody, the slicer and the beat grid (`restartRun()`) – and a change of the beat it follows drops a found
+  // seed; an input the course does not follow (the BPM of a run on a song's grid, a song finishing its analysis under a run
+  // on the BPM) changes nothing, and neither the BPM nor a song touches a seed in any other mode. A change of a Beat Runner
+  // or Paddle Keep-Up setting drops a found seed whatever the mode (like every mode's settings), before either re-plans.
+  // Paddle Keep-Up restarts on a change of the game (or of the Gravity / Ball Size its flight is scaled with). The Sound
+  // section's scale and root – the notes – follow live in both.
+  const rhythmBeat = useMemo<RunnerBeatInput | null>(
+    () => (activeBeats ? { grid: { bpm: activeBeats.beats.bpm, beatTimes: activeBeats.beats.beatTimes, duration: activeBeats.beats.duration }, offset: activeBeats.offset, loop: activeBeats.loop } : null),
+    [activeBeats],
+  );
+  rhythmBeatRef.current = rhythmBeat;
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp]);
+  /** What the page engine's Beat Runner course was last planned from (null until the first settings pass). */
+  const runnerPlanRef = useRef<RunnerPlan | null>(null);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeat));
+    const plan = runnerPlanOf(engine.getRunnerSettings(), s.gravity);
+    const before = runnerPlanRef.current;
+    runnerPlanRef.current = plan;
+    // The engine was created with these settings, or nothing the course is planned from changed.
+    if (!before || sameRunnerPlan(before, plan)) return;
+    if (s.mode !== "runner" || engine.getCurrentModeName() !== "runner") return;
+    if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
+    restartRunRef.current(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, rhythmBeat]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPaddleSettings(paddleSettingsOf(s));
+    if (s.mode === "paddle" && engine.getCurrentModeName() === "paddle") {
+      engine.initPaddle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp, s.gravity, s.ballRadius]);
+  useEffect(() => {
+    engineRef.current?.setRunnerSettings({ scale: s.scale, rootNote: s.rootNote });
+    engineRef.current?.setPaddleSettings({ scale: s.scale, rootNote: s.rootNote });
+  }, [s.scale, s.rootNote]);
+  // Played by hand: Space (or ↑ / W) jumps in the Beat Runner – instead of pausing, Escape pauses there – and ← → (A / D) or
+  // the pointer over the canvas move the paddle; a tap on the canvas jumps too. Only while the run is going.
+  const handPlayed = jdmRhythmPlayedByHand(s); // (the fast export and the batch render leave such a run to Record Video)
+  const handPlay = isStarted && !isPaused && !finished && handPlayed;
+  useEffect(() => {
+    if (!handPlay) return;
+    const engine = engineRef.current;
+    const canvas = canvasRef.current?.getCanvas() ?? null;
+    if (!engine) return;
+    const typing = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    };
+    const held = new Set<string>();
+    const direction = () => (held.has("ArrowRight") || held.has("KeyD") ? 1 : 0) - (held.has("ArrowLeft") || held.has("KeyA") ? 1 : 0);
+    const onDown = (e: KeyboardEvent) => {
+      if (typing(e)) return;
+      if (s.mode === "runner") {
+        if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (!e.repeat) engine.runnerJump();
+        } else if (e.code === "Escape") setIsPaused(true);
+      } else if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "KeyA" || e.code === "KeyD") {
+        e.preventDefault();
+        held.add(e.code);
+        engine.setPaddleInput({ direction: direction() });
+      }
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (!held.delete(e.code)) return;
+      engine.setPaddleInput({ direction: direction() });
+    };
+    const onPointerDown = () => {
+      if (s.mode === "runner") engine.runnerJump();
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (s.mode !== "paddle" || !canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const f = engine.getPaddleView().field;
+      engine.setPaddleInput({ target: (e.clientX - rect.left - f.left) / Math.max(1, f.width) });
+    };
+    const onPointerLeave = () => engine.setPaddleInput({ target: null });
+    window.addEventListener("keydown", onDown, true);
+    window.addEventListener("keyup", onUp, true);
+    canvas?.addEventListener("pointerdown", onPointerDown);
+    canvas?.addEventListener("pointermove", onPointerMove);
+    canvas?.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      window.removeEventListener("keydown", onDown, true);
+      window.removeEventListener("keyup", onUp, true);
+      canvas?.removeEventListener("pointerdown", onPointerDown);
+      canvas?.removeEventListener("pointermove", onPointerMove);
+      canvas?.removeEventListener("pointerleave", onPointerLeave);
+      engine.setPaddleInput({ direction: 0 });
+    };
+  }, [handPlay, s.mode]);
+  // --- end jdm-rhythm-runner ---
 
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
@@ -794,7 +926,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s) }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
@@ -1039,9 +1171,10 @@ export default function Simulator() {
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
-          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
+          // --- jdm-rhythm-runner --- `melody: false` accompanies the tune (a paddle's wall bounce, a runner's crash): no melody note used up
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
           else if (ev.type === "gap") audio.playGapPass();
-          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2); // --- boris-multipliers --- the rising arpeggio
+          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2, ev.melody !== false); // --- boris-multipliers --- the rising arpeggio
           else audio.playInteraction(ev.type);
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
@@ -1275,10 +1408,17 @@ export default function Simulator() {
   const fastAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => fastAbortRef.current?.abort(), []); // an export stops with the page
   const fastRunning = fastExport.status === "running";
+  // --- batch-render --- a batch job for the next export: its seed, and the file handed back instead of downloaded (useBatchRender.ts)
+  const batchExportRef = useRef<BatchExportRequest | null>(null);
   const startFastExport = useCallback(async () => {
+    const batchJob = batchExportRef.current; // --- batch-render ---
+    batchExportRef.current = null;
     const page = engineRef.current;
     if (!page || fastAbortRef.current || isRecording || isSearching) return;
     const s = settings;
+    // --- jdm-rhythm-runner --- a run played by hand needs its player: the export's fresh engine would run it with no input
+    // (the button is off and says so; the batch render fails such a job with its own reason before it gets here).
+    if (jdmRhythmPlayedByHand(s)) return;
     const resolution = resolutionToSize(s.recordingResolution);
     const fps = resolveFastExportFps(s.fastExportFps);
     if (!fastRenderSupported()) {
@@ -1295,7 +1435,7 @@ export default function Simulator() {
       void toggleRecording();
       return;
     }
-    const seed = page.getSeed();
+    const seed = batchJob?.seed ?? page.getSeed(); // --- batch-render --- (a batch job renders its own seed)
     const resume = isStarted && !isPaused;
     if (resume) setIsPaused(true);
     // Everything the page engine got from its settings effects beyond the config and the mode's settings (initEngineForMode).
@@ -1310,6 +1450,7 @@ export default function Simulator() {
     const teamsPlay = teamsPlayRef.current;
     // The export's engine is new, so its race's run serial starts at 1: its cup table scores the race under the page's key.
     const raceKey = page.isRaceMode() ? runKey(RACE_RUN_PREFIX, page.getRaceView()) : undefined;
+    const exportRaceKey = batchJob && raceKey ? `${RACE_RUN_PREFIX}:batch-${batchJob.key}` : raceKey; // --- batch-render --- (a batch job's race is a race of its own)
     let lastProgress = 0;
     try {
       const result = await renderFast({
@@ -1330,7 +1471,7 @@ export default function Simulator() {
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
-        raceKey,
+        raceKey: exportRaceKey, // --- batch-render ---
         textOverlay: { topText: s.topText, bottomText: s.bottomText, textSize: s.textSize, watermarkText: s.watermarkText },
         backgroundColor: s.backgroundColors[0],
         onProgress: (p) => {
@@ -1341,12 +1482,14 @@ export default function Simulator() {
         },
         signal: controller.signal,
       });
+      batchJob?.settle(result ? { result } : { cancelled: true }); // --- batch-render --- the batch names, downloads and zips its files
       if (!result) setFastExport({ status: "cancelled" });
       else {
-        downloadExport(result.blob, result.format.extension);
+        if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
       }
     } catch (err) {
+      batchJob?.settle({ error: err instanceof Error ? err.message : String(err) }); // --- batch-render ---
       if (err instanceof FastRenderUnsupportedError) setFastExport({ status: "fallback", reason: "codecs" });
       else {
         console.warn("Fast export failed:", err);
@@ -1621,9 +1764,10 @@ export default function Simulator() {
       finderAbortRef.current = null;
       setIsSearching(false);
       setSearchResult(null);
-      const loaded = presetToSettings(preset);
-      // A preset saved with an uploaded clip can only use it while that upload is still in memory.
-      if (preset.hitSampleId === CUSTOM_HIT_SAMPLE_ID && customHitSample) loaded.hitSampleId = CUSTOM_HIT_SAMPLE_ID;
+      // A preset saved with an uploaded clip can only use it while that upload is still in memory: the custom hit sample and
+      // the uploaded wall-break sound stay while they are the page's live uploads (--- batch-render --- every batch job and the
+      // batch's return to the page's own settings come through here too).
+      const loaded = presetToLiveSettings(preset, { hitSample: !!customHitSample, wallBreakSound: wallBreakObjectUrlRef.current });
       setSettings(loaded);
       const engine = engineRef.current;
       if (engine) {
@@ -1707,6 +1851,46 @@ export default function Simulator() {
   const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
+  // --- batch-render --- a batch that puts other settings on the page drops a found simulation on the way (the preset loader
+  // clears the result, the physics effects the seed): the batch keeps its seed and result as it starts and, once the page has
+  // its own settings again, sets the found run up once more – exactly as Find Simulation left it (paused at its start)
+  const keepFoundSimulation = useCallback(() => {
+    const found = searchResult?.found ? searchResult : null;
+    const seed = engineRef.current?.getSeed();
+    if (!found || seed === undefined) return null;
+    return () => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const own = themeLookRef.current; // the page's settings as committed (the batch waited for its effects)
+      engine.setSeed(seed);
+      setFinished(false);
+      setIsPaused(true);
+      audioRef.current?.resetCustomNoteIndex();
+      audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
+      audioRef.current?.getMusicBed().stop();
+      engine.setConfig({ ballRadius: own.ballRadius });
+      initEngineForMode(engine, own);
+      setSearchResult(found);
+    };
+  }, [searchResult, initEngineForMode]);
+  // --- batch-render --- the Batch block of the Recording section: the fast export job after job, each with its seed, link,
+  // mode or swept value put on the page first (loadPresetSettings / changeMode); the page gets its settings back afterwards
+  const batchRender = useBatchRender({
+    settings,
+    exportRef: batchExportRef,
+    startFastExport,
+    applySettings: loadPresetSettings,
+    keepFound: keepFoundSimulation,
+    changeMode,
+    update,
+    pageRunning: isStarted && !isPaused,
+    setPaused: setIsPaused,
+    fastExport,
+    supported: fastSupported,
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import",
+  });
+  // --- end batch-render ---
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -1781,6 +1965,7 @@ export default function Simulator() {
           // --- jdm-arena-games --- (capture the flag searches with a time limit past the target, so a game won on the score can match it)
           battle: battleSettingsOf(settings),
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
+          ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
         },
         outcome, // --- rigged ---
       },
@@ -1941,6 +2126,21 @@ export default function Simulator() {
         zone: t("ArenaGames.zone"),
         names: Array.from({ length: 20 }, (_, i) => t(`ArenaGames.name${i + 1}`)),
       },
+      // --- jdm-rhythm-runner ---
+      jdmRhythm: {
+        complete: t("JdmRhythm.complete"),
+        completeSub: (jumps, onBeat, landings) => fill("JdmRhythm.completeSub", { jumps, onBeat, landings }),
+        attempt: (n) => fill("JdmRhythm.attempt", { n }),
+        auto: t("JdmRhythm.auto"),
+        jumpHint: t("JdmRhythm.jumpHint"),
+        bpm: (bpm) => fill("JdmRhythm.bpm", { bpm }),
+        score: t("JdmRhythm.score"),
+        miss: t("JdmRhythm.miss"),
+        gameOver: t("JdmRhythm.gameOver"),
+        gameOverSub: (hits, best) => fill("JdmRhythm.gameOverSub", { hits, best }),
+        streak: (n) => fill("JdmRhythm.streak", { n }),
+        moveHint: t("JdmRhythm.moveHint"),
+      },
     };
   }, [t]);
 
@@ -2025,7 +2225,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
@@ -2257,10 +2457,10 @@ export default function Simulator() {
                 <span className="text-sm font-bold text-zinc-300">🔍 {t("Controls.findSimulation")}</span>
                 <Tooltip text={t("Controls.findSimulationTip")} />
                 {/* --- rigged --- the outcome to search for */}
-                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} />}
+                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
               </div>
               {/* --- rigged --- an outcome search's explanation and fields */}
-              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} />}
+              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
               <div className="flex-1 flex flex-col justify-center">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -2349,7 +2549,7 @@ export default function Simulator() {
             update={update}
             onResetSection={onResetSection}
             isRecording={isRecording}
-            recordingSupported={recordingSupported && !fastRunning} // --- fast-render --- (not while a fast export runs)
+            recordingSupported={recordingSupported && !fastRunning && !batchRender.running} // --- fast-render --- (not while a fast export runs) --- batch-render --- (or a batch)
             simulationFound={!!searchResult?.found}
             onRecordToggle={toggleRecording}
             ballImage={ballImage}
@@ -2391,8 +2591,9 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
-            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || splitRender !== null, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders)
+            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
             project={projectFiles.panel} // --- project-files ---
+            batch={batchRender.panel} // --- batch-render ---
           />
         </ProjectDropZone>
       </div>

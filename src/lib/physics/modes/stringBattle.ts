@@ -15,11 +15,13 @@ import { teamResult } from "@/lib/teams";
  *  - `cut` (default): a ball crossing an enemy thread cuts it and the thread's owner loses a life (the thread snaps and
  *    plays a pluck pitched by its length);
  *  - `touch`: a ball touching an enemy thread loses a life itself (the threads are lasers – the one it touched snaps);
- *  - `collide`: ball-to-ball collisions cost the slower ball a life (the threads are decoration).
+ *  - `collide`: ball-to-ball collisions cost the slower ball a life (the threads are decoration). Every ring bounce draws
+ *    the ball's cruising speed afresh (`SB_SPEED_SPREAD`), so which ball is the slower one changes from clash to clash.
  *
- * A thread cuts and burns along its taut part pinned to the ring – the anchor-side `SB_CUT_SPAN` of it, drawn brighter;
- * the part near its ball swings with the ball – and only a ball's own move across it cuts (`cutsThread()`), never the
- * thread sweeping over a ball as its owner flies past.
+ * A thread cuts and burns along its whole length, from its anchor on the ring up to its ball (`SB_CUT_SPAN`; only the
+ * stub `SB_REACH_GAP` past the two balls' bodies next to its owner is spared, so touching a ball never cuts its whole
+ * fan) – and only a ball's own move across it cuts (`cutsThread()`), never the thread sweeping over a ball as its owner
+ * flies past.
  *
  * After a lost life a ball is shielded for a moment (`SB_INVULN_MS`: its web cannot be cut, it passes through lasers,
  * it takes no collision damage), so one slash through a fan costs one life and the battle gets its rhythm. A
@@ -247,7 +249,10 @@ export const SB_BALL_SCALE = 2;
 export const SB_SPAWN_RADIUS = 0.45;
 /** The balls cruise at this fraction of the Ball Speed setting (the reels' duels are unhurried: a ball crosses the ring in two to three seconds). */
 export const SB_SPEED_SCALE = 0.4;
-/** Each ball cruises at the Ball Speed times a seeded factor in [1 − SPREAD, 1 + SPREAD] (the collide rule needs a slower ball). */
+/**
+ * Each ball cruises at the Ball Speed times a seeded factor in [1 − SPREAD, 1 + SPREAD], drawn afresh at every ring bounce
+ * (the collide rule needs a slower ball – and a different one from clash to clash, not the one that spawned slowest).
+ */
 export const SB_SPEED_SPREAD = 0.1;
 /** Largest random turn (radians) added to a mirror rebound off the ring. */
 export const SB_SCATTER = 0.3;
@@ -264,11 +269,12 @@ export const SB_REACH_GAP = 2;
  */
 export const SB_INVULN_MS: Record<SbRule, number> = { cut: 2500, touch: 2500, collide: 800 };
 /**
- * The share of a thread, from its anchor, that can be cut or burns (the taut part pinned to the ring – the part near the
- * ball swings with it): a ball crossing the rest passes through. It keeps a dense fan from being a certain death, so a
- * battle of the defaults lasts about 15–30 s and every seed plays out differently.
+ * The share of a thread, from its anchor, that can be cut or burns: the whole thread (`cuttableSpan()` still spares the
+ * stub next to its ball, `SB_REACH_GAP` past the two bodies). The shield after a lost life (`SB_INVULN_MS`) sets the
+ * battle's pace – a battle of the defaults lasts about 10–20 s and every seed plays out differently. The helpers take a
+ * smaller share as an argument (a ring-side-only variant).
  */
-export const SB_CUT_SPAN = 0.35;
+export const SB_CUT_SPAN = 1;
 /** Lifetimes (simulation ms) of a detached thread's fade, a snapped thread's recoil, a dissolving fan and a shatter burst. */
 export const SB_FADE_MS = 450;
 export const SB_SNAP_MS = 380;
@@ -321,8 +327,8 @@ export function anchorPoint(cx: number, cy: number, r: number, px: number, py: n
 }
 
 /**
- * The cuttable length of a thread of `len` px: its anchor-side `share` (`SB_CUT_SPAN`), and never closer than `reach` px
- * to its ball (the part next to the ball's body – an enemy touching the ball must not cut its whole fan at once).
+ * The cuttable length of a thread of `len` px: its anchor-side `share` (`SB_CUT_SPAN`: all of it), and never closer than
+ * `reach` px to its ball (the part next to the ball's body – an enemy touching the ball must not cut its whole fan at once).
  */
 export function cuttableSpan(len: number, reach: number, share = SB_CUT_SPAN): number {
   return Math.min(len - reach, share * len);
@@ -518,7 +524,7 @@ export interface SbFighter {
   eliminatedMs: number;
   /** Simulation time (ms) of its last hit (a lost life or a hit the rig absorbed): the invulnerability window and the blink. */
   hurtMs: number;
-  /** Cruising speed as a multiple of the Ball Speed (seeded). */
+  /** Cruising speed as a multiple of the Ball Speed (seeded; drawn afresh at every ring bounce). */
   cruise: number;
   /** Speed (px/s) after its latest move, before the sub-step's collisions (the collide rule compares it). */
   preSpeed: number;
@@ -735,8 +741,9 @@ export class StringBattleMode implements GameMode {
     const f = this.fighterOf(ball);
     if (!f) return;
     const v = this.view;
-    const base = (ctx.config.ballSpeed || 400) * SB_SPEED_SCALE;
-    const cruise = base * f.cruise * v.finaleFactor * (ball.mult ? ball.mult.speed : 1);
+    // The cruising speed without the ball's own factor (the finale, a speed pickup), and with it.
+    const scale = (ctx.config.ballSpeed || 400) * SB_SPEED_SCALE * v.finaleFactor * (ball.mult ? ball.mult.speed : 1);
+    const cruise = scale * f.cruise;
     // A ball a collision slowed down picks its speed up again (no random numbers: the seed decides only at the ring).
     const speed = Math.hypot(ball.vx, ball.vy);
     if (speed > 0 && speed < cruise) {
@@ -754,7 +761,7 @@ export class StringBattleMode implements GameMode {
       ball.x = v.cx + nx * Math.max(0, limit);
       ball.y = v.cy + ny * Math.max(0, limit);
       const vn = ball.vx * nx + ball.vy * ny;
-      if (vn > 0) this.bounce(ctx, ball, f, nx, ny, vn, cruise);
+      if (vn > 0) this.bounce(ctx, ball, f, nx, ny, vn, scale);
     }
     f.x = ball.x;
     f.y = ball.y;
@@ -762,8 +769,11 @@ export class StringBattleMode implements GameMode {
     f.preSpeed = Math.hypot(ball.vx, ball.vy);
   }
 
-  /** A rebound off the ring: mirror + seeded scatter at the cruising speed, a new thread, a note, a wobble. */
-  private bounce(ctx: ModeContext, ball: Ball, f: SbFighter, nx: number, ny: number, vn: number, cruise: number) {
+  /**
+   * A rebound off the ring: mirror + seeded scatter at a freshly drawn cruising speed (`scale` × the ball's new factor –
+   * the collide rule's slower ball changes from clash to clash), a new thread, a note, a wobble.
+   */
+  private bounce(ctx: ModeContext, ball: Ball, f: SbFighter, nx: number, ny: number, vn: number, scale: number) {
     const v = this.view;
     const now = ctx.getElapsedMs();
     const rvx = ball.vx - 2 * vn * nx;
@@ -776,7 +786,8 @@ export class StringBattleMode implements GameMode {
     if (off > maxOff) off = maxOff;
     else if (off < -maxOff) off = -maxOff;
     a = inward + off;
-    const out = cruise * ctx.getPhysicsExtras().wallBounciness;
+    f.cruise = 1 - SB_SPEED_SPREAD + 2 * SB_SPEED_SPREAD * ctx.random();
+    const out = scale * f.cruise * ctx.getPhysicsExtras().wallBounciness;
     ball.vx = Math.cos(a) * out;
     ball.vy = Math.sin(a) * out;
     const angle = Math.atan2(ny, nx);
@@ -1060,7 +1071,12 @@ export class StringBattleMode implements GameMode {
     return true;
   }
 
-  /** A resize: the ring, its anchors and the effects follow the arena (the engine moved the balls). */
+  /**
+   * A resize: the ring, its anchors, the balls and the effects follow the arena, all scaled with the ring. The engine
+   * stretched the balls with the canvas (x and y apart – a portrait-to-landscape turn would push them out of the ring),
+   * so they are put back where they were in the ring; and a ball's previous position moves with it, so the cut rule
+   * never sees the resize as a move across the arena (a slash through every thread on its way).
+   */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     if (!sizeChanged) return true;
     const v = this.view;
@@ -1080,6 +1096,29 @@ export class StringBattleMode implements GameMode {
       }
       f.x = mx(f.x);
       f.y = my(f.y);
+      f.px = mx(f.px);
+      f.py = my(f.py);
+    }
+    // The balls: undo the engine's stretch (it scaled x by width / old width about the canvas centre, y likewise), then
+    // scale with the ring (a ball keeps its size, so in a smaller ring it is kept inside) – every fighter and its previous
+    // position on its ball.
+    const ux = v.cx > 0 && oldCx > 0 ? oldCx / v.cx : 1;
+    const uy = v.cy > 0 && oldCy > 0 ? oldCy / v.cy : 1;
+    for (const b of ctx.getBalls()) {
+      const f = this.fighterOf(b);
+      if (!f) continue;
+      b.x = mx(oldCx + (b.x - v.cx) * ux);
+      b.y = my(oldCy + (b.y - v.cy) * uy);
+      const dx = b.x - v.cx;
+      const dy = b.y - v.cy;
+      const d = Math.hypot(dx, dy);
+      const limit = Math.max(0, v.radius - b.radius);
+      if (d > limit) {
+        b.x = v.cx + (dx / d) * limit;
+        b.y = v.cy + (dy / d) * limit;
+      }
+      f.x = f.px = b.x;
+      f.y = f.py = b.y;
     }
     for (let i = 0; i < v.ghostCount; i++) {
       const g = v.ghosts[i];

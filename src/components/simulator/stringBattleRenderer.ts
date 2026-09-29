@@ -1,6 +1,6 @@
 import type { Ball } from "@/lib/physics/types";
 import type { WallContactLog } from "@/lib/physics/wobble";
-import { SB_INVULN_MS, SB_BURST_MS, SB_PALETTE, SB_REACH_GAP, cuttableSpan, ghostLifeMs, lineThroughRect, sbHudShown, stringBattleBallName, type StringBattleView } from "@/lib/physics/modes/stringBattle";
+import { SB_INVULN_MS, SB_BURST_MS, SB_PALETTE, ghostLifeMs, lineThroughRect, sbHudShown, stringBattleBallName, type StringBattleView } from "@/lib/physics/modes/stringBattle";
 import type { TeamEntry } from "@/lib/teams";
 import { WobbleLayer } from "./wobbleRenderer";
 
@@ -364,26 +364,12 @@ export class StringBattleLayer {
         ctx.stroke();
         ctx.globalCompositeOperation = "source-over";
       } else {
-        // The whole thread, fine and dim (the part near the ball swings with it)…
+        // The whole thread cuts and burns (SB_CUT_SPAN), so all of it glows – up to its ball, whose body hides the stub
+        // next to it that is spared.
         ctx.beginPath();
         for (const s of f.strings) {
           ctx.moveTo(s.ax, s.ay);
           ctx.lineTo(B.x, B.y);
-        }
-        ctx.strokeStyle = this.rgba(f.slot, 0.45 * flicker);
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        // …and its taut part pinned to the ring, the one that cuts and burns, glowing.
-        ctx.beginPath();
-        const reach = 2 * B.radius + SB_REACH_GAP;
-        for (const s of f.strings) {
-          const dx = B.x - s.ax;
-          const dy = B.y - s.ay;
-          const len = Math.hypot(dx, dy);
-          const span = cuttableSpan(len, reach);
-          if (!(span > 0)) continue;
-          ctx.moveTo(s.ax, s.ay);
-          ctx.lineTo(s.ax + (dx / len) * span, s.ay + (dy / len) * span);
         }
         ctx.strokeStyle = this.rgba(f.slot, 0.22 * flicker);
         ctx.lineWidth = 6;
