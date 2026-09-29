@@ -206,6 +206,24 @@ describe("ToneGenerator wall-hit dispatch", () => {
     tone.playWallHit(0, 400, false, [400, 800]);
     expect(graph.sources.map((s) => s.playbackRate)).toEqual([0.5, 1]);
     expect(heard(chordGain(2))).toBe(true);
+    // Not pitched by wall, every copy would sound the same (and n identical copies only add up √n times louder,
+    // taking every voice): the clip plays once for the whole chord, at the level of one hit (an accent still counts).
+    tone.setHitSamplePitchByWall(false);
+    tone.setHitSampleVolume(0.5);
+    graph.sources.length = 0;
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 7;
+    tone.playWallHit(0, 261.63, false, [261.63, 329.63, 392, 523.25]);
+    expect(graph.sources.map((s) => s.playbackRate)).toEqual([1]);
+    expect(heard(0.5)).toBe(true);
+    graph.sources.length = 0;
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 8;
+    tone.playWallHit(0, 261.63, true, [261.63, 329.63, 392]);
+    expect(graph.sources).toHaveLength(1);
+    expect(heard(0.5 * ACCENT_GAIN)).toBe(true);
+    tone.setHitSamplePitchByWall(true);
+    tone.setHitSampleVolume(1);
     tone.setHitSoundMode("tones");
   });
 

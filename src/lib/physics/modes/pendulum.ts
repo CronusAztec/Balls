@@ -536,6 +536,28 @@ export function placeBob(rig: PendulumRig, i: number, c: number, u: number, fram
   }
 }
 
+/** Rotation (radians) of the polygon outline – and of the galaxy's frame – at simulation time `t`: one turn per cycle, in the seeded direction. */
+export function pendulumTurn(t: number, cycleSeconds: number, rotationDir: number): number {
+  return (rotationDir * TWO_PI * t) / cycleSeconds;
+}
+
+/** What `placeBobAt()` needs besides the rig: the applied settings and the seeded start side / rotation direction (a `PendulumView` has them). */
+export type PendulumTiming = { settings: Pick<PendulumSettings, "layout" | "polygon" | "cycleSeconds">; startSign: number; rotationDir: number };
+
+/**
+ * Where bob `i` (frequency `f`) is at simulation time `t` (seconds): the analytic swing, bounce and rotations fed to
+ * `placeBob()`. The mode writes it into the balls at every sub-step and the canvas samples the trails from it, so a
+ * trail is exactly the path the bob took. Written into `out` (no allocation).
+ */
+export function placeBobAt(rig: PendulumRig, timing: PendulumTiming, i: number, f: number, t: number, out: BobPlacement): BobPlacement {
+  const s = timing.settings;
+  const phase = f * t;
+  const c = timing.startSign * Math.cos(TWO_PI * phase);
+  const u = phase - Math.floor(phase);
+  const turn = pendulumTurn(t, s.cycleSeconds, timing.rotationDir);
+  return placeBob(rig, i, c, u, s.layout === "galaxy" ? turn : 0, turn, s.polygon, out);
+}
+
 /* ------------------------------------------------------------------ the mode */
 
 /** Per-pendulum state the renderer reads (index order; also looked up by ball id). */
@@ -557,10 +579,11 @@ export interface PendulumBobState {
 export interface PendulumView {
   field: PendulumField | null;
   rig: PendulumRig | null;
+  /** The settings of the running rig (applied by `init()`; only the visual `trails` follows a change live). */
   settings: PendulumSettings;
   bobs: PendulumBobState[];
   byId: Map<number, PendulumBobState>;
-  /** Simulation time of the last completed step (seconds). */
+  /** Simulation time of the last completed step (seconds); it stops at the end of the last cycle, where the row holds its final alignment. */
   timeSec: number;
   /** Sub-steps simulated so far in this run and the length of one (ms; 0 until the first step). */
   tick: number;
@@ -580,7 +603,7 @@ export interface PendulumView {
   /** Tick and size of the last chord (for the flash), −Infinity / 0 before the first. */
   lastChordTick: number;
   lastChordSize: number;
-  /** Incremented by every init, so the canvas knows when to clear its trail layer. */
+  /** Incremented by every init (a new run). */
   generation: number;
 }
 
@@ -622,6 +645,8 @@ export class PendulumMode implements GameMode {
   private stepStartSec = 0;
   private sub = 0;
   private lastBallRadius = 0;
+  /** Simulation time the run finishes at (cycles × cycle length), Infinity when it never does. */
+  private endSec = Infinity;
   private soundsThisStep = 0;
   /** Notes waiting to be grouped into chords (sorted by time when flushed). */
   private pending: PendulumNote[] = [];
@@ -630,9 +655,13 @@ export class PendulumMode implements GameMode {
   getSettings(): PendulumSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Pendulum Wave setting changes). */
+  /**
+   * Applied on the next init (the Simulator re-inits the mode when a Pendulum Wave setting changes), except the
+   * trails: they only change how the canvas draws the run, so they follow at once without restarting it.
+   */
   setSettings(patch: Partial<PendulumSettings>) {
     this.settings = resolvePendulumSettings({ ...this.settings, ...patch });
+    this.view.settings.trails = this.settings.trails;
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): PendulumView {
@@ -640,12 +669,14 @@ export class PendulumMode implements GameMode {
   }
   getProgress() {
     const v = this.view;
-    return { cycles: v.cyclesDone, total: this.settings.cycles, notes: v.noteCount, chords: v.chordCount, count: this.settings.count, finished: v.finished };
+    return { cycles: v.cyclesDone, total: v.settings.cycles, notes: v.noteCount, chords: v.chordCount, count: v.settings.count, finished: v.finished };
   }
-  /** Seconds until the row is next in line (the end of the current cycle); Infinity with phasing on, which never realigns. */
+  /** Seconds until the row is next in line (the end of the current cycle; 0 once a finished row holds its alignment); Infinity with phasing on, which never realigns. */
   secondsToAlignment(): number {
-    if (this.settings.phasing) return Infinity;
-    const T = this.settings.cycleSeconds;
+    const s = this.view.settings;
+    if (s.phasing) return Infinity;
+    if (this.view.finished) return 0;
+    const T = s.cycleSeconds;
     const t = this.view.timeSec;
     return Math.max(0, (Math.floor(t / T + 1e-9) + 1) * T - t);
   }
@@ -676,6 +707,7 @@ export class PendulumMode implements GameMode {
     this.stepStartSec = 0;
     this.sub = 0;
     this.soundsThisStep = 0;
+    this.endSec = s.cycles > 0 ? s.cycles * s.cycleSeconds : Infinity;
     // The only random decisions: the side every bob starts on and the direction the frame / polygon turns.
     v.startSign = ctx.random() < 0.5 ? -1 : 1;
     v.rotationDir = ctx.random() < 0.5 ? -1 : 1;
@@ -706,13 +738,16 @@ export class PendulumMode implements GameMode {
     }
   }
 
-  /** The engine moved the bob by its (zero) velocity; put it where the analytic swing says it is at this sub-step's time. */
+  /**
+   * The engine moved the bob by its velocity (zero, plus any wind or spin); put it where the analytic swing says it
+   * is at this sub-step's time. The clock stops at the end of the last cycle, so a finished row holds its alignment.
+   */
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     const rig = this.view.rig;
     const st = this.byId.get(ball.id);
     if (!rig || !st) return;
     this.view.tickMs = dtSec * 1000;
-    const t = this.stepStartSec + (this.sub + 1) * dtSec;
+    const t = Math.min(this.stepStartSec + (this.sub + 1) * dtSec, this.endSec);
     const p = this.placeIndex(rig, st.index, t);
     ball.x = p.x;
     ball.y = p.y;
@@ -726,20 +761,25 @@ export class PendulumMode implements GameMode {
     this.view.tick++;
   }
 
-  /** Solves the events of the step, finishes the run at the end of the last cycle and queues the notes / chords. */
+  /**
+   * Solves the events of the step, finishes the run at the end of the last cycle and queues the notes / chords.
+   * Once finished nothing moves or sounds any more: the row holds the final alignment under the end screen.
+   */
   onPostUpdate(ctx: ModeContext, dtMs: number) {
-    const s = this.settings;
     const v = this.view;
+    if (v.finished) return;
+    const s = v.settings;
     const from = this.stepStartSec;
     this.steps++;
     const to = this.steps * (dtMs / 1000);
-    v.timeSec = to;
-    const turn = (v.rotationDir * TWO_PI * to) / s.cycleSeconds;
+    const end = this.endSec;
+    const finishing = to >= end - 1e-6;
+    const now = Math.min(to, end);
+    v.timeSec = now;
+    const turn = pendulumTurn(now, s.cycleSeconds, v.rotationDir);
     v.polygonAngle = turn;
     v.frameAngle = s.layout === "galaxy" ? turn : 0;
-    v.cyclesDone = Math.floor(to / s.cycleSeconds + 1e-6);
-    const end = s.cycles > 0 ? s.cycles * s.cycleSeconds : Infinity;
-    const finishing = to >= end - 1e-6;
+    v.cyclesDone = Math.floor(now / s.cycleSeconds + 1e-6);
     // The events of every bob inside this step (up to the end of the run, so the final alignment is heard).
     const windowEnd = finishing ? Math.max(to, end + 1e-6) : to;
     const times = this.times;
@@ -749,7 +789,7 @@ export class PendulumMode implements GameMode {
       for (let k = 0; k < times.length; k++) this.pending.push({ time: times[k], index: i });
     }
     if (this.pending.length > 0) this.flushNotes(ctx, to, finishing);
-    if (finishing && !v.finished) {
+    if (finishing) {
       v.finished = true;
       v.cyclesDone = s.cycles;
       if (v.field) ctx.spawnConfetti(v.field.cx, v.field.cy);
@@ -763,7 +803,7 @@ export class PendulumMode implements GameMode {
    * it every note goes out on its own.
    */
   private flushNotes(ctx: ModeContext, now: number, all: boolean) {
-    const s = this.settings;
+    const s = this.view.settings;
     const pending = this.pending;
     pending.sort((a, b) => a.time - b.time || a.index - b.index);
     if (!s.waveChord) {
@@ -809,7 +849,7 @@ export class PendulumMode implements GameMode {
     }
     pitches.sort((a, b) => a - b);
     const event: SoundEvent = { type: "hit", wallIndex: 0, frequency: pitches[0], chord: pitches };
-    if (notes.length >= Math.max(3, ACCENT_CHORD_FRACTION * this.settings.count)) event.accent = true;
+    if (notes.length >= Math.max(3, ACCENT_CHORD_FRACTION * this.view.settings.count)) event.accent = true;
     ctx.addPendingSoundEvent(event);
   }
 
@@ -839,7 +879,7 @@ export class PendulumMode implements GameMode {
 
   private rebuildRig(ctx: ModeContext): PendulumRig {
     const field = buildPendulumField(ctx.config.width, ctx.config.height);
-    const rig = buildPendulumRig(field, this.settings, ctx.config.ballRadius || 8, this.frequencies);
+    const rig = buildPendulumRig(field, this.view.settings, ctx.config.ballRadius || 8, this.frequencies);
     this.view.field = field;
     this.view.rig = rig;
     return rig;
@@ -864,14 +904,7 @@ export class PendulumMode implements GameMode {
 
   /** The analytic position of bob `i` at time `t` (seconds), in the shared scratch placement. */
   private placeIndex(rig: PendulumRig, i: number, t: number): BobPlacement {
-    const s = this.settings;
-    const v = this.view;
-    const f = this.frequencies[i];
-    const phase = f * t;
-    const c = v.startSign * Math.cos(TWO_PI * phase);
-    const u = phase - Math.floor(phase);
-    const turn = (v.rotationDir * TWO_PI * t) / s.cycleSeconds;
-    return placeBob(rig, i, c, u, s.layout === "galaxy" ? turn : 0, turn, s.polygon, PLACEMENT);
+    return placeBobAt(rig, this.view, i, this.frequencies[i], t, PLACEMENT);
   }
 }
 

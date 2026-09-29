@@ -1,12 +1,12 @@
-import type { PendulumView } from "@/lib/physics/modes/pendulum";
+import { placeBobAt, type BobPlacement, type PendulumView } from "@/lib/physics/modes/pendulum";
 import type { Ball } from "@/lib/physics/types";
 
 /**
  * Canvas drawing of the Pendulum Wave mode (lib/physics/modes/pendulum.ts): the rig of the chosen layout (the
  * bar and pivots of the row, the pivot ring of the arc, the radial guides and the circle / polygon outline of
  * the radial layouts, the rails, the floor), the strings, the bobs in their rainbow colours with a flash on
- * every note, a fading trail layer the bobs paint into (the spiral arms of the galaxy live there) and the
- * screen flash of a big chord. Called from Canvas.tsx inside the camera transform (trails, rig, bobs) and
+ * every note, the fading trails sampled from the analytic swing (the spiral arms of the galaxy live there) and
+ * the screen flash of a big chord. Called from Canvas.tsx inside the camera transform (trails, rig, bobs) and
  * outside it (the flash); nothing is allocated per frame beyond the fill strings, so sixty bobs at 1080×1920
  * stay inside the frame budget.
  */
@@ -36,87 +36,112 @@ export function trailTimeConstant(trails: number): number {
   return 0.12 + 3 * trails * trails;
 }
 
-/** The fraction of the trail layer to erase after `dtMs` of simulation time (frame-rate independent, nothing while paused). */
-export function trailFade(dtMs: number, trails: number): number {
-  if (!(dtMs > 0)) return 0;
-  return 1 - Math.exp(-dtMs / 1000 / trailTimeConstant(trails));
+/** Opacity of a trail where it leaves its bob. */
+export const TRAIL_ALPHA = 0.8;
+/** A trail is drawn back to the point where it has faded to this opacity (and not a pixel further). */
+export const TRAIL_MIN_ALPHA = 0.02;
+/** Steps of opacity along a trail (one stroke each). */
+export const TRAIL_BANDS = 16;
+/** Points per swing a trail is traced at (and at least 30 per second of simulation time for the slow bobs). */
+export const TRAIL_POINTS_PER_SWING = 24;
+/** Most trail points all the bobs together are traced at per frame: sixty fast bobs with the longest trails share it. */
+export const MAX_TRAIL_POINTS = 8000;
+
+/** How far back (seconds of simulation time) a trail reaches with the `trails` setting: until its opacity has faded to `TRAIL_MIN_ALPHA`; 0 with the trails off. */
+export function trailWindowSec(trails: number): number {
+  return trails > 0 ? trailTimeConstant(trails) * Math.log(TRAIL_ALPHA / TRAIL_MIN_ALPHA) : 0;
 }
 
-/** An offscreen layer the bobs paint their trails into; faded every frame by the simulation time that passed. */
-export interface PendulumTrailLayer {
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  /** Size in CSS pixels (the layer itself is `dpr` times bigger). */
-  width: number;
-  height: number;
-  /** The run the layer belongs to (`PendulumView.generation`) and the tick it was last updated at. */
-  generation: number;
-  lastTick: number;
-  /** Where every bob was at the last update, so each frame adds a segment instead of a dot. */
-  prevX: Float64Array;
-  prevY: Float64Array;
-  count: number;
+/** Opacity of a trail `ageSec` seconds of simulation time behind its bob, for a fade time constant. */
+export function trailAlpha(ageSec: number, timeConstant: number): number {
+  return TRAIL_ALPHA * Math.exp(-Math.max(0, ageSec) / timeConstant);
 }
 
-export function createPendulumTrailLayer(width: number, height: number, dpr: number): PendulumTrailLayer | null {
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * dpr));
-  canvas.height = Math.max(1, Math.round(height * dpr));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { canvas, ctx, width, height, generation: -1, lastTick: -1, prevX: new Float64Array(64), prevY: new Float64Array(64), count: 0 };
+/** Spacing (seconds of simulation time) of the points a bob of `frequency` is traced at: `TRAIL_POINTS_PER_SWING` per swing, at least 30 per second. */
+export function trailStepSec(frequency: number): number {
+  return Math.min(1 / 30, 1 / (Math.max(frequency, 1e-6) * TRAIL_POINTS_PER_SWING));
+}
+
+/** How far back one bob's trail reaches and how fast it fades (see `trailReach()`). */
+export interface TrailReach {
+  windowSec: number;
+  timeConstant: number;
 }
 
 /**
- * Fades the layer by the simulation time since the last update and draws a segment from each bob's previous
- * position to its current one (round caps, so a resting bob leaves a dot). A new run (generation) clears it.
+ * The trail of one bob of a rig of `bobs`: the setting's window and fade, unless its share of `MAX_TRAIL_POINTS` cannot
+ * trace that window swing by swing (many fast bobs with long trails) – then the trail is shorter and fades over the
+ * shorter window, so it still ends at `TRAIL_MIN_ALPHA` instead of being cut off, and it never degrades into long
+ * aliased chords that would only paint over the whole rig.
  */
-export function updatePendulumTrailLayer(layer: PendulumTrailLayer, view: PendulumView, balls: Ball[]) {
-  const g = layer.ctx;
-  if (layer.generation !== view.generation) {
-    g.save();
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-    g.restore();
-    layer.generation = view.generation;
-    layer.lastTick = -1;
-    layer.count = 0;
+export function trailReach(trails: number, frequency: number, bobs: number, out: TrailReach): TrailReach {
+  const full = trailWindowSec(trails);
+  const budget = Math.max(2, Math.floor(MAX_TRAIL_POINTS / Math.max(1, bobs)));
+  const reach = (budget - 1) * trailStepSec(frequency);
+  if (full <= reach) {
+    out.windowSec = full;
+    out.timeConstant = trailTimeConstant(trails);
+  } else {
+    out.windowSec = reach;
+    out.timeConstant = reach / Math.log(TRAIL_ALPHA / TRAIL_MIN_ALPHA);
   }
-  if (balls.length > layer.prevX.length) {
-    layer.prevX = new Float64Array(balls.length + 16);
-    layer.prevY = new Float64Array(balls.length + 16);
-    layer.count = 0;
+  return out;
+}
+
+/** Points (at least 2; 0 for an empty span) a bob of `frequency` is traced at over `spanSec` – at most its share of the budget for a span within its `trailReach()`. */
+export function trailPointCount(spanSec: number, frequency: number): number {
+  if (!(spanSec > 0)) return 0;
+  return Math.max(2, Math.ceil(spanSec / trailStepSec(frequency) - 1e-9) + 1);
+}
+
+const REACH: TrailReach = { windowSec: 0, timeConstant: 1 };
+
+/**
+ * The fading trails, traced from the analytic swing (`placeBobAt()`) over the last `trailReach()` seconds of
+ * simulation time – exactly the path every bob took, whatever the frame rate or speed – and drawn in
+ * `TRAIL_BANDS` strokes of falling opacity per bob. Nothing accumulates between frames, so a trail fades out
+ * completely (an offscreen layer faded by `destination-out` keeps an 8-bit residue of every path forever), it
+ * freezes with a pause, follows a resize and starts empty on a restart.
+ */
+export function drawPendulumTrails(ctx: CanvasRenderingContext2D, view: PendulumView, scratch: BobPlacement) {
+  const rig = view.rig;
+  const trails = view.settings.trails;
+  const n = view.bobs.length;
+  const now = view.timeSec;
+  if (!rig || !(trails > 0) || n === 0 || !(now > 0)) return;
+  ctx.save();
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(1, 0.7 * rig.bobRadius);
+  for (let b = 0; b < n; b++) {
+    const st = view.bobs[b];
+    const reach = trailReach(trails, st.frequency, n, REACH);
+    const span = Math.min(reach.windowSec, now);
+    const points = trailPointCount(span, st.frequency);
+    if (points < 2) continue;
+    const dt = span / (points - 1);
+    const perBand = Math.max(1, Math.ceil((points - 1) / TRAIL_BANDS));
+    ctx.strokeStyle = `hsl(${Math.round(st.hue)}, 90%, 60%)`;
+    placeBobAt(rig, view, st.index, st.frequency, now, scratch);
+    let x = scratch.x;
+    let y = scratch.y;
+    // Bands of one opacity each, from the bob backwards; neighbouring bands share their end point.
+    for (let k = 0; k < points - 1; ) {
+      const kEnd = Math.min(points - 1, k + perBand);
+      ctx.globalAlpha = trailAlpha(0.5 * (k + kEnd) * dt, reach.timeConstant);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let j = k + 1; j <= kEnd; j++) {
+        placeBobAt(rig, view, st.index, st.frequency, now - j * dt, scratch);
+        ctx.lineTo(scratch.x, scratch.y);
+      }
+      ctx.stroke();
+      x = scratch.x;
+      y = scratch.y;
+      k = kEnd;
+    }
   }
-  const dtMs = layer.lastTick < 0 ? 0 : (view.tick - layer.lastTick) * view.tickMs;
-  if (dtMs <= 0 && layer.count === balls.length) return; // paused: nothing moved, nothing fades
-  layer.lastTick = view.tick;
-  const fade = trailFade(dtMs, view.settings.trails);
-  if (fade > 0) {
-    g.globalCompositeOperation = "destination-out";
-    g.fillStyle = `rgba(0, 0, 0, ${fade.toFixed(4)})`;
-    g.fillRect(0, 0, layer.width, layer.height);
-    g.globalCompositeOperation = "source-over";
-  }
-  g.lineCap = "round";
-  g.lineJoin = "round";
-  const width = Math.max(1, 0.7 * (view.rig?.bobRadius ?? 4));
-  g.lineWidth = width;
-  for (let i = 0; i < balls.length; i++) {
-    const ball = balls[i];
-    const st = view.byId.get(ball.id);
-    if (!st) continue;
-    const px = i < layer.count ? layer.prevX[i] : ball.x;
-    const py = i < layer.count ? layer.prevY[i] : ball.y;
-    g.strokeStyle = `hsla(${Math.round(st.hue)}, 90%, 60%, 0.8)`;
-    g.beginPath();
-    g.moveTo(px, py);
-    g.lineTo(ball.x, ball.y);
-    g.stroke();
-    layer.prevX[i] = ball.x;
-    layer.prevY[i] = ball.y;
-  }
-  layer.count = balls.length;
+  ctx.restore();
 }
 
 function line(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {

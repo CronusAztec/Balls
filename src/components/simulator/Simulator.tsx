@@ -294,7 +294,11 @@ export default function Simulator() {
       setFinished(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwTrails, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
+  }, [s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
+  // The trails only change the drawing: they follow at once and the run goes on.
+  useEffect(() => {
+    engineRef.current?.setPendulumSettings({ trails: s.pwTrails });
+  }, [s.pwTrails]);
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);

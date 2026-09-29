@@ -5,7 +5,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
-import { createPendulumTrailLayer, drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, updatePendulumTrailLayer, type PendulumRenderOptions, type PendulumTrailLayer } from "./pendulumRenderer";
+import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
@@ -372,9 +372,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const ends: SegmentEnds = { x1: 0, y1: 0, x2: 0, y2: 0 };
     // Bouncing Shapes: the renderer's options, refreshed per frame (one object for the life of the loop).
     const boxRender: BoxRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
-    // Pendulum Wave: the renderer's options and the fading trail layer (device pixels; rebuilt when the canvas size changes).
+    // Pendulum Wave: the renderer's options and the scratch placement the trails are sampled into (one object each for the life of the loop).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
-    let pendulumTrails: PendulumTrailLayer | null = null;
+    const pendulumTrailPoint = { x: 0, y: 0, angle: 0 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -723,15 +723,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         pendulumRender.wallThickness = p.wallThickness;
         pendulumRender.showGlow = p.showGlow;
         const view = engine.getPendulumView();
-        if (view.settings.trails > 0) {
-          if (!pendulumTrails || pendulumTrails.width !== size.width || pendulumTrails.height !== size.height) pendulumTrails = createPendulumTrailLayer(size.width, size.height, dpr);
-          if (pendulumTrails) {
-            updatePendulumTrailLayer(pendulumTrails, view, engine.getBalls());
-            ctx.drawImage(pendulumTrails.canvas, 0, 0, size.width, size.height);
-          }
-        } else pendulumTrails = null;
+        drawPendulumTrails(ctx, view, pendulumTrailPoint);
         drawPendulumRig(ctx, view, pendulumRender);
-      } else if (pendulumTrails) pendulumTrails = null;
+      }
 
       // Color Match segments
       if (engine.isColorMatchMode()) {

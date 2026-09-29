@@ -22,6 +22,7 @@ import {
   pendulumSettingFields,
   pendulumSettingsOf,
   placeBob,
+  placeBobAt,
   polygonRadius,
   relativeLengths,
   resolvePendulumSettings,
@@ -30,6 +31,21 @@ import {
   type PendulumSettings,
 } from "@/lib/physics/modes/pendulum";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
+import {
+  MAX_TRAIL_POINTS,
+  TRAIL_ALPHA,
+  TRAIL_BANDS,
+  TRAIL_MIN_ALPHA,
+  TRAIL_POINTS_PER_SWING,
+  drawPendulumTrails,
+  trailAlpha,
+  trailPointCount,
+  trailReach,
+  trailStepSec,
+  trailTimeConstant,
+  trailWindowSec,
+  type TrailReach,
+} from "@/components/simulator/pendulumRenderer";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { midiToFrequency } from "@/lib/audio/scales";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -474,6 +490,56 @@ describe("PendulumMode in the engine", () => {
     expect(endless.getPendulumView().cyclesDone).toBe(2);
   });
 
+  it("holds the final alignment once the last cycle is done: no more notes and no movement, even with wind and spin on", () => {
+    const engine = pendulumEngine({ ...SHORT, layout: "galaxy", polygon: 5, soundOn: "both" });
+    const events = run(engine, 600);
+    expect(engine.isSimulationFinished()).toBe(true);
+    expect(events.length).toBeGreaterThan(0);
+    const view = engine.getPendulumView();
+    const notes = view.noteCount;
+    const pose = engine.getBalls().map((b) => [b.x, b.y]);
+    const turn = view.polygonAngle;
+    engine.setConfig({ windX: 0.3, windY: -0.2, spinStrength: 1 });
+    // Five more seconds under the end screen: silence, and the row stays exactly where the last cycle left it.
+    expect(run(engine, 300)).toEqual([]);
+    expect(view.noteCount).toBe(notes);
+    expect(view.timeSec).toBeCloseTo(10, 9);
+    expect(view.cyclesDone).toBe(1);
+    expect(view.polygonAngle).toBe(turn);
+    expect(view.frameAngle).toBe(turn);
+    expect(engine.getPendulumSecondsToAlignment()).toBe(0);
+    const rig = view.rig!;
+    const out: BobPlacement = { x: 0, y: 0, angle: 0 };
+    engine.getBalls().forEach((b, i) => {
+      expect(b.x).toBeCloseTo(pose[i][0], 9);
+      expect(b.y).toBeCloseTo(pose[i][1], 9);
+      // In line: every bob at the extreme of its start side (c = startSign), on the frame of the end of the cycle.
+      placeBob(rig, i, view.startSign, 0, turn, turn, 5, out);
+      expect(b.x).toBeCloseTo(out.x, 6);
+      expect(b.y).toBeCloseTo(out.y, 6);
+    });
+    // The sub-step clock goes on, so the note flashes still fade.
+    expect(view.tick).toBe(900 * 4);
+  });
+
+  it("takes a trails change live without restarting the run; every other change waits for the next init", () => {
+    const engine = pendulumEngine({ ...SHORT, cycles: 0 });
+    run(engine, 300);
+    const view = engine.getPendulumView();
+    const before = [view.timeSec, view.noteCount, view.generation, view.tick];
+    engine.setPendulumSettings({ trails: 0.9 });
+    expect(view.settings.trails).toBe(0.9);
+    expect([view.timeSec, view.noteCount, view.generation, view.tick]).toEqual(before);
+    engine.setPendulumSettings({ count: 9, cycleSeconds: 20, layout: "sliding" });
+    run(engine, 60);
+    expect(view.settings).toMatchObject({ count: 5, cycleSeconds: 10, layout: "row", trails: 0.9 });
+    expect(engine.getBalls()).toHaveLength(5);
+    expect(engine.getPendulumProgress().count).toBe(5);
+    engine.initPendulum();
+    expect(view.settings).toMatchObject({ count: 9, cycleSeconds: 20, layout: "sliding", trails: 0.9 });
+    expect(engine.getBalls()).toHaveLength(9);
+  });
+
   it("counts down to the next alignment, forever with phasing on", () => {
     const engine = pendulumEngine(SHORT);
     expect(engine.getPendulumSecondsToAlignment()).toBeCloseTo(10, 9);
@@ -544,6 +610,144 @@ describe("PendulumMode in the engine", () => {
     const events = run(engine, 1);
     expect(events.length).toBeLessThanOrEqual(24);
     expect(engine.getPendulumView().noteCount).toBe(60);
+  });
+});
+
+/** A 2D context stand-in that records every stroke of the trails: its points and its opacity. */
+function recordingContext() {
+  const strokes: { alpha: number; style: string; points: [number, number][] }[] = [];
+  let points: [number, number][] = [];
+  const ctx = {
+    globalAlpha: 1,
+    strokeStyle: "",
+    lineWidth: 1,
+    lineCap: "butt",
+    lineJoin: "miter",
+    save() {},
+    restore() {},
+    beginPath() {
+      points = [];
+    },
+    moveTo(x: number, y: number) {
+      points.push([x, y]);
+    },
+    lineTo(x: number, y: number) {
+      points.push([x, y]);
+    },
+    stroke() {
+      strokes.push({ alpha: ctx.globalAlpha, style: ctx.strokeStyle, points });
+    },
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes };
+}
+
+describe("trails", () => {
+  it("reach back until they have faded to 2 % and no further, longer with the setting", () => {
+    expect(trailWindowSec(0)).toBe(0);
+    let last = 0;
+    for (const trails of [0.05, 0.3, 0.6, 1]) {
+      const window = trailWindowSec(trails);
+      const tc = trailTimeConstant(trails);
+      expect(window).toBeGreaterThan(last);
+      last = window;
+      expect(trailAlpha(0, tc)).toBe(TRAIL_ALPHA);
+      expect(trailAlpha(window, tc)).toBeCloseTo(TRAIL_MIN_ALPHA, 12);
+      expect(trailAlpha(window / 2, tc)).toBeLessThan(TRAIL_ALPHA);
+    }
+  });
+
+  it("trace every bob swing by swing within one budget of points, shortening only the trails the budget cannot cover", () => {
+    const reach: TrailReach = { windowSec: 0, timeConstant: 0 };
+    expect(trailPointCount(0, 1)).toBe(0);
+    expect(trailPointCount(1e-4, 1)).toBe(2);
+    expect(trailStepSec(10)).toBeCloseTo(1 / (10 * TRAIL_POINTS_PER_SWING), 12);
+    expect(trailStepSec(0.5)).toBeCloseTo(1 / 30, 12);
+    // The default row keeps the full window and fade of the setting for every bob.
+    for (const f of pendulumFrequencies(DEFAULT_PENDULUM_SETTINGS)) {
+      trailReach(DEFAULT_PENDULUM_SETTINGS.trails, f, 15, reach);
+      expect(reach.windowSec).toBe(trailWindowSec(DEFAULT_PENDULUM_SETTINGS.trails));
+      expect(reach.timeConstant).toBe(trailTimeConstant(DEFAULT_PENDULUM_SETTINGS.trails));
+    }
+    // Sixty fast bobs with the longest trails: every trail within its share, the fast ones shorter – still fading to 2 %.
+    const fast = pendulumFrequencies({ count: 60, baseOscillations: 80, cycleSeconds: 10, phasing: false });
+    let total = 0;
+    for (const f of fast) {
+      trailReach(1, f, 60, reach);
+      expect(reach.windowSec).toBeLessThan(trailWindowSec(1));
+      expect(trailAlpha(reach.windowSec, reach.timeConstant)).toBeCloseTo(TRAIL_MIN_ALPHA, 12);
+      // At least TRAIL_POINTS_PER_SWING points per swing: no aliased chords across the swing.
+      const points = trailPointCount(reach.windowSec, f);
+      expect(points - 1).toBeGreaterThanOrEqual(reach.windowSec * f * TRAIL_POINTS_PER_SWING - 1e-6);
+      total += points;
+    }
+    expect(total).toBeLessThanOrEqual(MAX_TRAIL_POINTS);
+  });
+
+  it("trace exactly the path every bob took, fading out completely, without any state between frames", () => {
+    const engine = pendulumEngine({ ...SHORT, layout: "galaxy", polygon: 5, count: 8, trails: 0.3, cycles: 0 });
+    const view = engine.getPendulumView();
+    const scratch: BobPlacement = { x: 0, y: 0, angle: 0 };
+    // Before the first step there is nothing to draw, and nothing is drawn with the trails off.
+    const empty = recordingContext();
+    drawPendulumTrails(empty.ctx, view, scratch);
+    expect(empty.strokes).toHaveLength(0);
+    // Where every bob was at the end of each of the last 90 steps.
+    const history: { t: number; pos: [number, number][] }[] = [];
+    for (let k = 0; k < 600; k++) {
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+      if (k >= 510) history.push({ t: view.timeSec, pos: engine.getBalls().map((b) => [b.x, b.y]) });
+    }
+    const rig = view.rig!;
+    // The trail function puts every bob exactly where the engine had it at that time.
+    for (const { t, pos } of history) {
+      view.bobs.forEach((st, i) => {
+        placeBobAt(rig, view, st.index, st.frequency, t, scratch);
+        expect(scratch.x).toBeCloseTo(pos[i][0], 6);
+        expect(scratch.y).toBeCloseTo(pos[i][1], 6);
+      });
+    }
+    const { ctx, strokes } = recordingContext();
+    drawPendulumTrails(ctx, view, scratch);
+    const window = trailWindowSec(0.3);
+    const balls = engine.getBalls();
+    let bob = -1;
+    let previousAlpha = Infinity;
+    for (const stroke of strokes) {
+      expect(stroke.alpha).toBeGreaterThanOrEqual(TRAIL_MIN_ALPHA);
+      expect(stroke.alpha).toBeLessThanOrEqual(TRAIL_ALPHA);
+      if (stroke.alpha > previousAlpha) {
+        bob++;
+        previousAlpha = Infinity;
+      }
+      if (previousAlpha === Infinity) {
+        if (bob < 0) bob = 0;
+        // Every trail starts at its bob.
+        expect(stroke.points[0][0]).toBeCloseTo(balls[bob].x, 9);
+        expect(stroke.points[0][1]).toBeCloseTo(balls[bob].y, 9);
+      }
+      previousAlpha = stroke.alpha;
+    }
+    expect(bob).toBe(7);
+    expect(strokes.length).toBeLessThanOrEqual(8 * TRAIL_BANDS);
+    // Its far end is where the bob was one window ago – and nothing older is drawn.
+    const tail = strokes[strokes.length - 1].points.at(-1)!;
+    placeBobAt(rig, view, 7, view.bobs[7].frequency, view.timeSec - window, scratch);
+    expect(tail[0]).toBeCloseTo(scratch.x, 6);
+    expect(tail[1]).toBeCloseTo(scratch.y, 6);
+    // Drawing again gives the same picture: nothing accumulates from frame to frame.
+    const again = recordingContext();
+    drawPendulumTrails(again.ctx, view, scratch);
+    expect(again.strokes).toEqual(strokes);
+    // A restart starts with no trail at all.
+    engine.initPendulum();
+    const fresh = recordingContext();
+    drawPendulumTrails(fresh.ctx, view, scratch);
+    expect(fresh.strokes).toHaveLength(0);
+    engine.setPendulumSettings({ trails: 0 });
+    run(engine, 60);
+    drawPendulumTrails(fresh.ctx, view, scratch);
+    expect(fresh.strokes).toHaveLength(0);
   });
 });
 

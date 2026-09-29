@@ -502,7 +502,7 @@ await page.goto(`${BASE}/en/simulator/?mode=box`, { waitUntil: "networkidle" });
 // 4b''. Pendulum Wave: URL → the Pendulum wave controls in the Mode row, controls → URL, the cycles at "never" hide
 // the seed finder, the search box finds the controls, a fixed-length run makes the finder say so instead of testing seeds,
 // and the run plays scale-degree notes and chords (OscillatorNode.start is instrumented again; the canvas mirrors the
-// counts into data-pendulum-notes / data-pendulum-chords)
+// counts into data-pendulum-notes / data-pendulum-chords), keeps going through a trails change and falls silent once finished
 await page.goto(`${BASE}/en/simulator/?mode=pendulum&pwl=arc&pwn=8&pwk=6&pwt=12&pwc=0&pws=both`, { waitUntil: "networkidle" });
 await page.evaluate(() => {
   const log = [];
@@ -553,6 +553,28 @@ await page.waitForTimeout(4000);
   const distinct = new Set(midis);
   check("simulator runs the pendulum wave with scale-degree notes and chords", /\d/.test(time) && time !== "0.0s" && notes >= 8 && chords >= 1 && onScale && distinct.size >= 4, `(elapsed ${time}, ${notes} notes, ${chords} chords, ${pitches.length} tones, ${distinct.size} distinct degrees)`);
   await page.screenshot({ path: path.join(outDir, "sim-pendulum.png") });
+}
+// The trails only change the drawing: the run goes on (the note count keeps growing instead of starting over).
+{
+  const canvas = page.locator("canvas").first();
+  const before = Number(await canvas.getAttribute("data-pendulum-notes"));
+  await page.locator('input[aria-label="Trails"]').evaluate(setRangeValue, "0.8");
+  await page.waitForTimeout(500);
+  const after = Number(await canvas.getAttribute("data-pendulum-notes"));
+  check("a pendulum trails change keeps the run going", before > 0 && after >= before, `(${before} → ${after} notes)`);
+}
+// Two cycles later the run finishes and the row holds its final alignment in silence under the end screen.
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const canvas = page.locator("canvas").first();
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const notes = Number(await canvas.getAttribute("data-pendulum-notes"));
+  const tones = await page.evaluate(() => window.__oscLog.length);
+  await page.waitForTimeout(1500);
+  const notesLater = Number(await canvas.getAttribute("data-pendulum-notes"));
+  const tonesLater = await page.evaluate(() => window.__oscLog.length);
+  const cycles = await canvas.getAttribute("data-pendulum-cycles");
+  check("a finished pendulum wave holds its alignment in silence", done && cycles === "2" && notes > 0 && notesLater === notes && tonesLater === tones, `(finished=${done}, cycles ${cycles}, notes ${notes} → ${notesLater}, tones ${tones} → ${tonesLater})`);
 }
 
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
