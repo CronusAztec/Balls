@@ -41,6 +41,10 @@ import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
+import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
+// --- captions ---
+import type { CanvasCaptionOptions } from "./captionsRenderer";
+import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
 import {
   RANGES,
   defaultSettings,
@@ -419,6 +423,15 @@ export default function Simulator() {
   const ballNameRef = useRef(s.ballName);
   ballNameRef.current = s.ballName;
   // --- end boris-multipliers ---
+  // --- obstacle-editor --- the creator's obstacles and the bumper boost travel in the physics config (so the seed finder copies
+  // them with it); a new layout invalidates a found seed. A drag on the canvas shows live through the engine and lands here on release.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig(obstacleConfigOf(s));
+    engine.setSeed(null);
+  }, [s.obstacles, s.bumperBoost]); // eslint-disable-line react-hooks/exhaustive-deps
+  // --- end obstacle-editor ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -569,6 +582,8 @@ export default function Simulator() {
       };
       Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
+      Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
+      Object.assign(fresh, captionCarryOver(themeLookRef.current)); // --- captions --- the captions are overlays: they carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -628,6 +643,11 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
+          // --- obstacle-editor --- a bumper kick plays the pinball ding instead of a bounce tone
+          if (ev.bumper) {
+            audio.playBumper(ev.frequency);
+            continue;
+          }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
           else if (ev.type === "gap") audio.playGapPass();
@@ -1307,12 +1327,23 @@ export default function Simulator() {
   }, [settings.teams, settings.mode]);
   // --- end teams ---
 
+  // --- captions --- the captions, the clip length their countdown / progress run to and the translated canvas words (null without captions)
+  const captionRender = useMemo<CanvasCaptionOptions | null>(
+    () => captionRenderOptions(s, { wall: t("Simulator.canvasCaptionWall"), question: t("Simulator.canvasCaptionQuestion") }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.captions, s.recordingDuration, t],
+  );
+
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings) });
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : "Simulator.finderFixed";
   // --- boris-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
   const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
+  // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
+  const obstacleEditing = supportsObstacles(s.mode) && s.obstacles.length > 0 && (!isStarted || isPaused) && !finished && !isRecording && !isSearching;
+  const onObstaclesChange = useCallback((obstacles: EditorObstacle[]) => update({ obstacles }), [update]);
+  // --- end obstacle-editor ---
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
@@ -1365,6 +1396,10 @@ export default function Simulator() {
                   teams={teamRender} // --- teams ---
                   // --- camera ---
                   camera={cameraSettingsOf(s)}
+                  // --- obstacle-editor ---
+                  obstacleEditing={obstacleEditing}
+                  onObstaclesChange={onObstaclesChange}
+                  captions={captionRender} // --- captions ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -1454,7 +1489,7 @@ export default function Simulator() {
                   </div>
                 </div>
               )}
-              {!isStarted && !isSearching && !(searchResult && !searchResult.found) && (
+              {!isStarted && !isSearching && !(searchResult && !searchResult.found) && !obstacleEditing && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40 backdrop-blur-2xl">
                   <div className="text-center space-y-6 px-4">
                     <div className="text-7xl drop-shadow-[0_0_20px_rgba(34,211,238,0.3)]">⚡</div>
@@ -1468,6 +1503,19 @@ export default function Simulator() {
                   </div>
                 </div>
               )}
+              {/* --- obstacle-editor --- with a layout in play the ready screen shrinks to a bar at the top, so the obstacles stay visible and draggable */}
+              {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
+                <div className="absolute inset-x-0 top-0 flex justify-center p-3 sm:p-4 pointer-events-none" data-testid="obstacle-ready-bar">
+                  <div className="pointer-events-auto flex items-center justify-center gap-4 p-1.5 sm:px-4 sm:py-2.5 bg-slate-950/75 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl shadow-cyan-500/10">
+                    <span className="hidden sm:inline text-sm font-medium text-slate-300">
+                      {searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}
+                    </span>
+                    <button type="button" onClick={start} className="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-sm transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
+                      {t("Simulator.startSimulator")}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
               <span>{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</span>
@@ -1475,6 +1523,12 @@ export default function Simulator() {
                 {shareCopied ? `✅ ${t("Simulator.shareLinkCopied")}` : `🔗 ${t("Simulator.shareLink")}`}
               </button>
             </div>
+            {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}
+            {obstacleEditing && (
+              <p className="mt-1.5 text-[11px] text-[#93d119]/80 leading-relaxed" data-testid="obstacle-canvas-hint">
+                ✋ {t("Controls.obstacleHint")}
+              </p>
+            )}
           </div>
 
           {showFinder && (

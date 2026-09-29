@@ -31,6 +31,10 @@ import { ACCENT } from "@/lib/site";
 // --- camera --- zoom, screen shake, slow motion on near misses and the escape replay (lib/simulation/camera.ts)
 import { CinematicCamera } from "./cameraRenderer";
 import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
+// --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
+import { ObstacleEditorLayer, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
+import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
+import { CaptionLayer, type CanvasCaptionOptions } from "./captionsRenderer"; // --- captions ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -156,6 +160,13 @@ export interface CanvasProps {
   teams?: CanvasTeamOptions | null;
   /** --- camera --- Cinematic camera: zoom, shake, slow motion on near misses, escape replay (all off by default). */
   camera?: CameraSettings;
+  // --- obstacle-editor ---
+  /** The obstacles can be edited on the canvas (the run is not going and a layout is in play): drag to move, Backspace to delete. */
+  obstacleEditing?: boolean;
+  /** A drag (on release) or a delete on the canvas changed the obstacle list. */
+  onObstaclesChange?: (obstacles: EditorObstacle[]) => void;
+  /** --- captions --- Animated captions drawn in the exported square on the simulation clock (null = none); see captionsRenderer.ts. */
+  captions?: CanvasCaptionOptions | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -266,6 +277,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- end themes
     teams = null, // --- teams ---
     camera = DEFAULT_CAMERA_SETTINGS, // --- camera ---
+    obstacleEditing = false, // --- obstacle-editor ---
+    onObstaclesChange,
+    captions = null, // --- captions ---
   },
   ref,
 ) {
@@ -303,6 +317,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   cameraRef.current = camera;
   const cinematicRef = useRef<CinematicCamera | null>(null);
   // --- end camera ---
+  // --- obstacle-editor --- the editing layer (selection, drag) shared by the draw loop and the pointer handlers, and the props it reads
+  const obstacleLayerRef = useRef<ObstacleEditorLayer | null>(null);
+  const obstacleEditingRef = useRef(obstacleEditing);
+  obstacleEditingRef.current = obstacleEditing;
+  const onObstaclesChangeRef = useRef(onObstaclesChange);
+  onObstaclesChangeRef.current = onObstaclesChange;
+  // --- end obstacle-editor ---
+  // --- captions --- the caption options, read by the draw loop
+  const captionsRef = useRef<CanvasCaptionOptions | null>(captions);
+  captionsRef.current = captions;
+  const captionLayerRef = useRef<CaptionLayer | null>(null);
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -439,7 +464,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
     },
     // --- end themes
-    holdsEndScreen: () => cinematicRef.current?.holdsEndScreen() ?? false, // --- camera ---
+    holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
   }));
 
   useEffect(() => {
@@ -548,10 +573,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
     const cam = new CinematicCamera();
     cinematicRef.current = cam;
+    const captionLayer = new CaptionLayer(); // --- captions ---
+    captionLayerRef.current = captionLayer;
     // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
     const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
     // --- boris-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
     const multRender: MultiplierRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, rainbowBall: false, time: 0 };
+    // --- obstacle-editor --- the editor obstacles' renderer options, refreshed per frame, and the layer that draws and edits them
+    const obstacleRender: ObstacleRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, gradient: false, editing: false };
+    const obstacleLayer = (obstacleLayerRef.current ??= new ObstacleEditorLayer());
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -922,6 +952,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
         ctx.globalAlpha = 1;
       }
+
+      // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners (ring modes), under the balls; editable while the run is not going
+      const editorField = engine.getEditorObstacles();
+      if (editorField) {
+        obstacleRender.wallColor = wallColor;
+        obstacleRender.wallThickness = p.wallThickness;
+        obstacleRender.showWallGlow = p.showWallGlow;
+        obstacleRender.gradient = p.rainbowWalls && p.rainbowWallMode === "gradient";
+        obstacleRender.editing = obstacleEditingRef.current && !replay;
+        obstacleLayer.draw(ctx, editorField, engine.getElapsedMs(), obstacleRender);
+      }
+      // --- end obstacle-editor ---
 
       // Bouncing Shapes: the box, its walls glowing on recent hits like the rings do.
       const isBox = engine.isBoxMode();
@@ -2049,6 +2091,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
       }
 
+      // --- captions --- countdown, wall counter, progress bar, question and text captions inside the exported square (so
+      // recordings have them), animated on the simulation clock; live, they keep clear of the page's buttons and the scoreboard
+      const captionOptions = captionsRef.current;
+      if (captionOptions) {
+        const side = Math.min(size.width, size.height);
+        const live = !recordingRef.current && (size.width - side) / 2 < 170;
+        captionLayer.draw(ctx, engine, captionOptions, { width: size.width, height: size.height, insetTop: live ? 52 : 0, insetBottom: live ? 56 : 0, topMin: teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 });
+      } else captionLayer.clear();
+
       // Song slicer: thin progress bar along the bottom edge (part of the recording too)
       const songProgress = songProgressRef.current;
       if (songProgress !== null) {
@@ -2087,7 +2138,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
       // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
       const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
-      const replayAtBottom = (!!p.topText || scoreboardBottom > 0) && !p.bottomText;
+      const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       ctx.restore();
 
@@ -2151,6 +2202,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
       }
       cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
+      // --- obstacle-editor --- obstacles in play, editing, the selection, hits, bumper kicks and the first spinner's angle (data-obstacle*) for tools and the smoke test
+      if (editorField) {
+        setCanvasData("obstacles", String(editorField.count));
+        setCanvasData("obstacleEditing", obstacleRender.editing ? "1" : "0");
+        setCanvasData("obstacleSelected", String(obstacleLayer.selected));
+        setCanvasData("obstacleHits", String(editorField.hitCount));
+        setCanvasData("bumperHits", String(editorField.bumpCount));
+        const spinner = editorField.kinds.indexOf("spinner");
+        const spinItem = spinner >= 0 ? editorField.items[spinner] : null;
+        setCanvasData("spinnerAngle", spinItem && spinItem.kind === "segment" ? String(Math.round((spinItem.angle * 180) / Math.PI)) : "");
+      } else if (canvas.dataset.obstacles !== undefined) {
+        for (const key of ["obstacles", "obstacleEditing", "obstacleSelected", "obstacleHits", "bumperHits", "spinnerAngle"]) delete canvas.dataset[key];
+      }
 
       // --- teams --- teams in play, per-team "bounces/walls/escapes", the winner, the names drawn and the scoreboard (data-team-*) for tools and the smoke test
       if (teamLayer.isActive()) {
@@ -2163,6 +2227,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("scoreboardBottom", String(Math.round(teamLayer.scoreboardBottom))); // --- boris-multipliers --- the HUD starts below it
       } else if (canvas.dataset.teams !== undefined) {
         for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard", "scoreboardBottom"]) delete canvas.dataset[key];
+      }
+      // --- captions --- captions drawn, the values they show ("0:27 | Wall 2/7 | Will it escape? → YES!") and the answer's reveal (data-caption-*)
+      if (captionOptions) {
+        setCanvasData("captions", String(captionLayer.drawn));
+        setCanvasData("captionTexts", captionLayer.summary);
+        setCanvasData("captionReveal", captionLayer.revealed ? "1" : "0");
+      } else if (canvas.dataset.captions !== undefined) {
+        for (const key of ["captions", "captionTexts", "captionReveal"]) delete canvas.dataset[key];
       }
       // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME, the camera and the gate rows gone through (data-glass-*) for tools and the smoke test.
       if (glassView) {
@@ -2201,7 +2273,56 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     };
   }, [physicsEngine]);
 
-  return <canvas ref={canvasRef} className="w-full h-full rounded-lg" style={{ display: "block" }} />;
+  // --- obstacle-editor --- Backspace / Delete remove the selected obstacle while the run is not going; the selection goes when it starts
+  useEffect(() => {
+    if (!obstacleEditing) {
+      obstacleLayerRef.current?.clear(canvasRef.current, onObstaclesChangeRef.current);
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace" && e.key !== "Delete") return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      const commit = onObstaclesChangeRef.current;
+      if (commit && obstacleLayerRef.current?.deleteSelected(physicsEngine.getEditorObstacles(), commit)) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [obstacleEditing, physicsEngine]);
+  /** Pointer editing (mouse, pen, touch): press on an obstacle to select and drag it; the move is committed on release. */
+  const onObstaclePointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const layer = obstacleLayerRef.current;
+    if (!canvas || !layer || !obstacleEditingRef.current) return;
+    const field = physicsEngine.getEditorObstacles();
+    if (e.type === "pointerdown") {
+      if (layer.pointerDown(e.nativeEvent, canvas, field)) e.preventDefault();
+    } else if (e.type === "pointermove") {
+      layer.pointerMove(e.nativeEvent, canvas, field, physicsEngine);
+    } else if (e.type === "pointerleave") {
+      if (!layer.isDragging()) {
+        layer.hover = -1;
+        canvas.style.cursor = "";
+      }
+    } else {
+      const commit = onObstaclesChangeRef.current;
+      if (commit) layer.pointerUp(e.nativeEvent, canvas, commit);
+    }
+  };
+  // --- end obstacle-editor ---
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full rounded-lg"
+      style={{ display: "block", touchAction: obstacleEditing ? "none" : undefined }}
+      onPointerDown={onObstaclePointer}
+      onPointerMove={onObstaclePointer}
+      onPointerUp={onObstaclePointer}
+      onPointerCancel={onObstaclePointer}
+      onPointerLeave={onObstaclePointer}
+    />
+  );
 });
 
 export default Canvas;

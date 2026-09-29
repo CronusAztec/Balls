@@ -3,6 +3,7 @@ import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from
 import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from "./interactionTones";
 import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // --- boris-faces ---
 import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- boris-multipliers ---
+import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // --- obstacle-editor ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -516,6 +517,36 @@ export class ToneGenerator {
     }
   }
   // --- end boris-multipliers ---
+
+  // --- obstacle-editor ---
+  /**
+   * A bumper of the obstacle editor kicked a ball: the pinball ding (bumperTone.ts) at `frequency`, snapped to the
+   * scale, on the beat grid when the beat lock is on (sharing the one-sound-per-slot rule of the bounces) and ducking
+   * the music bed. It is an effect like the gap-pass arpeggio, so it plays whatever the hit sound mode is.
+   */
+  playBumper(frequency = DEFAULT_BUMPER_FREQUENCY) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleBumper(frequency));
+      return;
+    }
+    this.scheduleBumper(frequency);
+  }
+
+  private scheduleBumper(frequency: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
+      this.lastSlotTime = time;
+      scheduleBumperTone(this.audioContext, this.masterGain, frequency, time, (f) => this.snap(f));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the bumper sound:", err);
+    }
+  }
+  // --- end obstacle-editor ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

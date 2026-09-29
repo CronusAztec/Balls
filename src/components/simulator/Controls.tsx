@@ -29,6 +29,11 @@ import GlassSection, { GLASS_KEYS } from "./sections/GlassSection";
 import MultipliersSection, { MULTIPLIER_KEYS, showsMultipliersSection } from "./sections/MultipliersSection";
 import MultipliersModeSection, { MULTIPLIERS_MODE_KEYS } from "./sections/MultipliersModeSection";
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
+// --- obstacle-editor ---
+import ObstaclesSection, { OBSTACLE_KEYS } from "./sections/ObstaclesSection";
+import { defaultObstacleSettings, supportsObstacles } from "@/lib/physics/obstacleEditor";
+import CaptionsSection, { CAPTION_KEYS } from "./sections/CaptionsSection"; // --- captions ---
+import { defaultCaptionSettings } from "@/lib/captions"; // --- captions ---
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -44,7 +49,7 @@ import { ACCENT } from "@/lib/site";
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
 
-export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams"; // --- teams --- ("teams")
+export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions")
 
 export interface ControlsProps {
   settings: SimulatorSettings;
@@ -114,6 +119,8 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
   teams: TEAM_KEYS, // --- teams ---
+  obstacles: OBSTACLE_KEYS, // --- obstacle-editor ---
+  captions: CAPTION_KEYS, // --- captions ---
 };
 SECTION_KEYS.ball.push("ballCount"); // --- teams --- the ball count slider (it replaced the "Two balls" switch)
 // --- jdm-polyrhythm --- the Metronomes & Polyrhythms block is searched with the Ball section (like the Pendulum wave block).
@@ -194,6 +201,9 @@ export default function Controls(props: ControlsProps) {
     { id: "recording", icon: "🎬", label: t("recordingTab") },
     { id: "teams", icon: "🏆", label: t("teamsTab") }, // --- teams ---
   ];
+  // --- obstacle-editor --- the Obstacles section, in the ring modes (the layout is kept, unused, in the others)
+  if (supportsObstacles(s.mode)) sections.push({ id: "obstacles", icon: "🚧", label: t("obstaclesTab") });
+  sections.push({ id: "captions", icon: "💬", label: t("captionsTab") }); // --- captions --- (every mode, after the playfield sections)
 
   /* ------------------------------------------------------------ sections */
 
@@ -973,6 +983,12 @@ export default function Controls(props: ControlsProps) {
       // --- teams ---
       case "teams":
         return <TeamsSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
+      // --- obstacle-editor ---
+      case "obstacles":
+        return <ObstaclesSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
+      // --- captions ---
+      case "captions":
+        return <CaptionsSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
     }
   };
 
@@ -1366,5 +1382,11 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
       const teams = defaultTeamSettings();
       return { teams: teams.teams, showBallNames: teams.showBallNames, showScoreboard: teams.showScoreboard, scoreboardPosition: teams.scoreboardPosition };
     }
+    // --- obstacle-editor --- no obstacles, the default bumper boost
+    case "obstacles":
+      return defaultObstacleSettings();
+    // --- captions --- no captions
+    case "captions":
+      return defaultCaptionSettings();
   }
 }

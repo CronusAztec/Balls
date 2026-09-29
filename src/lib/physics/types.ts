@@ -1,5 +1,6 @@
 import type { Obstacle } from "./obstacles";
 import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
+import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -151,6 +152,12 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   // --- teams ---
   /** Balls the multi-ball modes start with (1–6); overrides `twoBalls` when set (see ballStats.ts `startBallCount()`). */
   ballCount?: number;
+  // --- obstacle-editor ---
+  /** The creator's pegs, bumpers, blockers and spinners (arena-relative; obstacleEditor.ts), in play in the ring modes. */
+  editorObstacles?: readonly EditorObstacle[];
+  /** Speed factor a bumper gives a ball on a hard hit, 1–2. */
+  bumperBoost?: number;
+  // --- end obstacle-editor ---
 }
 
 export interface SoundEvent {
@@ -175,6 +182,9 @@ export interface SoundEvent {
   // --- boris-multipliers ---
   /** A "multiplier" event: the stat's new total (or the ball count), which the arpeggio climbs with. */
   multiplier?: number;
+  // --- obstacle-editor ---
+  /** A "hit" on a bumper of the obstacle editor: the page plays the pinball ding (`ToneGenerator.playBumper()`) at `frequency`. */
+  bumper?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

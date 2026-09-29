@@ -28,6 +28,7 @@ import { MultipliersMode, type MultipliersSettings, type MultipliersView } from 
 import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
+import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
 import { BallStatsBook, ESCAPE_MARGIN, MULTI_BALL_MODES, startBallAngle, startBallColor, startBallCount, type BallStats } from "./ballStats"; // --- teams ---
@@ -200,6 +201,8 @@ export class PhysicsEngine {
   private pairXs = new Float64Array(0);
   private pairYs = new Float64Array(0);
   private pairRs = new Float64Array(0);
+  // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners (obstacleEditor.ts), built from the config
+  private readonly editorObstacles = new ObstacleField();
 
   readonly ctx: ModeContext;
 
@@ -209,6 +212,7 @@ export class PhysicsEngine {
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(config);
     this.multipliers.setConfig(config); // --- boris-multipliers ---
+    this.editorObstacles.configure(config); // --- obstacle-editor ---
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -993,6 +997,23 @@ export class PhysicsEngine {
   getObstacleHits() {
     return this.obstacleHits;
   }
+  // --- obstacle-editor ---
+  /** The creator's obstacles while they are in play (a ring mode with a non-empty layout), else null; the canvas draws and edits them. */
+  getEditorObstacles(): ObstacleField | null {
+    return this.editorObstaclesLive() ? this.editorObstacles : null;
+  }
+  private editorObstaclesLive(): boolean {
+    return this.editorObstacles.count > 0 && supportsObstacles(this.currentMode?.name);
+  }
+  /** Resolves `ball` against the creator's obstacles after it moved, before the ring walls (see `ObstacleField.collide()`). */
+  private handleEditorObstacles(ball: Ball, dtSec: number) {
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness;
+    const baseSpeed = this._config.ballSpeed || 400;
+    // A ball pressed onto a bar by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
+    const resting = (3 * this._config.gravity * baseSpeed * dtSec * (ball.gravityScale ?? 1)) / 300;
+    this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents);
+  }
+  // --- end obstacle-editor ---
   getElapsedMs() {
     return this._elapsedMs;
   }
@@ -1067,6 +1088,7 @@ export class PhysicsEngine {
     this.setObstacles([]);
     this.multipliers.reset(); // --- boris-multipliers ---
     this.ballStats.reset(); // --- teams ---
+    this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1085,6 +1107,7 @@ export class PhysicsEngine {
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(this._config);
     this.multipliers.setConfig(this._config); // --- boris-multipliers ---
+    this.editorObstacles.configure(this._config); // --- obstacle-editor --- (rebuilt only when the list or the canvas size changed)
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
@@ -1256,6 +1279,9 @@ export class PhysicsEngine {
       const spinDecay = spinning ? spinDecayFactor(subSec) : 1;
       const stepStartMs = this._elapsedMs - stepMs;
       if (hasObstacles) this.subStepGravity = (this._config.gravity * (this._config.ballSpeed || 400) * subSec) / 300;
+      // --- obstacle-editor --- the creator's obstacles (ring modes only)
+      const editorLive = this.editorObstaclesLive();
+      if (editorLive) this.editorObstacles.beginStep();
       for (let s = 0; s < subSteps; s++) {
         // Breathing walls move once per sub-step (a quarter of the per-step jump or less) and the collision
         // pass below sweeps each wall over that move, so even the fastest, widest pulse cannot step over a
@@ -1263,6 +1289,7 @@ export class PhysicsEngine {
         // `setConfig()` recomputes) are the same values the per-step pulse produced.
         if (this.breathing) this.applyBreathing(s === subSteps - 1 ? this._elapsedMs : stepStartMs + (s + 1) * subMs);
         if (this.obstaclesSpin) advanceObstacles(this.obstacles, subSec);
+        if (editorLive) this.editorObstacles.advance(subSec); // --- obstacle-editor ---
         for (let i = this.balls.length - 1; i >= 0; i--) {
           const ball = this.balls[i];
           const baseSpeed = this._config.ballSpeed || 400;
@@ -1309,6 +1336,7 @@ export class PhysicsEngine {
             }
           }
           if (hasObstacles) this.handleObstacleCollisions(ball, subSec);
+          if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
           if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
         }
         this.handleBallCollisions(multActive);
