@@ -55,6 +55,8 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+// --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 import {
   RANGES,
   defaultSettings,
@@ -87,6 +89,8 @@ const MULT_FINISH_HOLD_MS = 2000;
 const END_HOLD_FALLBACK_MS = 12000;
 /** --- jdm-illusions --- How long the Circle Illusion's revealed picture (whitespace) stays on screen before the end screen covers it (a recording keeps it). */
 const ILLUSION_REVEAL_HOLD_MS = 2000;
+/** --- jdm-arena-games --- How long the winner banner of an arena game and its confetti play before the end screen covers them (a recording keeps them). */
+const ARENA_WIN_HOLD_MS = 1000 * ARENA_WIN_HOLD_SEC;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -196,6 +200,9 @@ export default function Simulator() {
     engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
+    // --- jdm-arena-games ---
+    engine.setBattleSettings(battleSettingsOf(s));
+    engine.setCtfSettings(ctfSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -519,6 +526,28 @@ export default function Simulator() {
   }, [s.ballRadius]);
   const illusionRevealAtRef = useRef<number | null>(null);
   // --- end jdm-illusions ---
+  // --- jdm-arena-games --- Battle Royale / Capture the Flag: a change of the game (squares, hit points, damage, arena, zone,
+  // power-ups, team size, score to win, the director's nudge) restarts it and drops a found seed; the clip length is capture
+  // the flag's time limit and follows live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBattleSettings(battleSettingsOf(s));
+    engine.setCtfSettings(ctfSettingsOf(s));
+    if (isArenaGameMode(s.mode) && engine.getCurrentModeName() === s.mode) {
+      engine.initMode(s.mode);
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.btCount, s.btHp, s.btDamage, s.btArena, s.btShrink, s.btPowerUps, s.ctfPerTeam, s.ctfScoreToWin, s.arenaNudge]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.btCount, s.btHp, s.btDamage, s.btArena, s.btShrink, s.btPowerUps, s.ctfPerTeam, s.ctfScoreToWin, s.arenaNudge]);
+  useEffect(() => {
+    engineRef.current?.setCtfSettings({ clipSeconds: s.recordingDuration });
+  }, [s.recordingDuration]);
+  const arenaWinAtRef = useRef<number | null>(null);
+  // --- end jdm-arena-games ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -792,6 +821,12 @@ export default function Simulator() {
           if (illusionRevealAtRef.current === null) illusionRevealAtRef.current = now;
           if (now - illusionRevealAtRef.current < ILLUSION_REVEAL_HOLD_MS) done = false;
         } else illusionRevealAtRef.current = null;
+        // --- jdm-arena-games --- the winner banner and its confetti play (and record) before the end screen covers them
+        if (done && isArenaGameMode(engine.getCurrentModeName())) {
+          const now = performance.now();
+          if (arenaWinAtRef.current === null) arenaWinAtRef.current = now;
+          if (now - arenaWinAtRef.current < ARENA_WIN_HOLD_MS) done = false;
+        } else arenaWinAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -1320,6 +1355,9 @@ export default function Simulator() {
           multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
+          // --- jdm-arena-games --- (capture the flag searches with a time limit past the target, so a game won on the score can match it)
+          battle: battleSettingsOf(settings),
+          ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
         },
         outcome, // --- rigged ---
       },
@@ -1345,6 +1383,8 @@ export default function Simulator() {
       update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + hold / 1000))) });
       // --- jdm-double-pendulum --- the clip length is this mode's run length (its finale ends the clip): a found seed keeps it
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
+      // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
+      if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
     }
@@ -1430,6 +1470,19 @@ export default function Simulator() {
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
       illusionCycles: (n) => fill("Simulator.canvasIllusionCycles", { count: n }),
+      // --- jdm-arena-games ---
+      arena: {
+        ko: t("ArenaGames.ko"),
+        wins: (name) => t("ArenaGames.wins").replace("[name]", () => name),
+        draw: t("ArenaGames.draw"),
+        left: (n) => fill("ArenaGames.left", { count: n }),
+        capture: t("ArenaGames.capture"),
+        time: t("ArenaGames.time"),
+        battleSub: (kos, hp) => fill("ArenaGames.battleSub", { kos, hp }),
+        ctfSub: (a, b) => fill("ArenaGames.ctfSub", { a, b }),
+        zone: t("ArenaGames.zone"),
+        names: Array.from({ length: 20 }, (_, i) => t(`ArenaGames.name${i + 1}`)),
+      },
     };
   }, [t]);
 

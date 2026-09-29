@@ -1012,7 +1012,34 @@
     "ilCycleInfo": "One cycle lasts {seconds}s",
     "wallWobble": "Wobbly Walls",
     "wallWobbleTip": "Circular walls bulge where a ball hits them; the bulge travels round the wall and dies away like jelly. Visual only – the physics, seeds and Find Simulation stay the same.",
-    "wallWobbleOff": "Off"
+    "wallWobbleOff": "Off",
+    "modeBattle": "Battle Royale",
+    "modeCtf": "Capture the Flag",
+    "arenaTitle": "Arena games",
+    "btDesc": "Squares with hit points bounce and clash in the style of project.jdm: the faster square deals the damage, hit squares flash and shrink, and at 0 HP they are knocked out. The last square standing wins – every clash and bounce is a note.",
+    "ctfDesc": "Two teams of bouncing squares in the style of project.jdm: touch the enemy flag to carry it and bring it to your base to score. A carrier hit by an enemy drops the flag where it is – every capture plays a goal fanfare.",
+    "btCount": "Squares",
+    "btCountTip": "How many squares fight, 2–20. Each one is its own team; they are sized automatically to fill the arena (Ball Size makes them bigger).",
+    "btHp": "Hit Points",
+    "btHpTip": "The HP every square starts with, 3–20. More HP means longer battles.",
+    "btDamage": "Damage",
+    "btDamageTip": "Damage multiplier: a clash deals this much times the closing speed over the Ball Speed, so a head-on crash hurts far more than a graze.",
+    "btArena": "Arena",
+    "btArenaTip": "Fight in a box or in a circle, both filling the centre of the video under the scoreboard.",
+    "btArenaBox": "Box",
+    "btArenaCircle": "Circle",
+    "btShrink": "Shrinking Zone",
+    "btShrinkTip": "From the eighth second the safe zone closes in over 30 s and pushes the squares together – never tighter than the survivors need.",
+    "btPowerUps": "Power-ups",
+    "btPowerUpsTip": "Heal (+35 % HP), shield (blocks the next hit) and speed (1.5× for 5 s) appear at seeded times and places; the square that touches one takes it.",
+    "ctfPerTeam": "Squares per Team",
+    "ctfPerTeamTip": "Team size, 1–4 a side (2 – 2 is the classic).",
+    "ctfScoreToWin": "Captures to Win",
+    "ctfScoreToWinTip": "The first team to bring the enemy flag home this many times wins; otherwise the better score wins when the clip ends.",
+    "ctfTimeInfo": "Time limit: {seconds}s (the clip length minus the winner banner)",
+    "arenaNudge": "Director Nudge",
+    "arenaNudgeTip": "How far the director turns a wall rebound toward the action – the nearest opponent, the enemy flag or home with it. 0 is pure physics; it is seeded, so every run stays reproducible.",
+    "arenaTeamsHint": "Names and colours come from the Teams roster when you set one (Teams & Scoreboard section); otherwise every square gets a colour name."
   },
   "Modes": {
     "classic": {
@@ -1090,6 +1117,14 @@
     "illusion": {
       "name": "Circle Illusion",
       "description": "Balls sliding on straight lines that secretly roll a circle, rings of bouncing balls rippling in spirals, circles bouncing inside circles with wobbly walls, and balls painting the arena until only a hidden picture stays white – every touch is a note."
+    },
+    "battle": {
+      "name": "Square Battle Royale",
+      "description": "Up to 20 squares with health bars bounce around a box or a circle and smash into each other: the faster square deals the damage, hit squares flash and shrink, and at zero HP they explode with a KO. A shrinking safe zone and heal, shield and speed power-ups keep it tense until the last square standing wins."
+    },
+    "ctf": {
+      "name": "Capture the Flag",
+      "description": "Two teams of bouncing squares and a base with a flag at each end: touch the enemy flag to carry it, bring it home to score – get tackled on the way and the flag drops where you are. First to the target score, or the better score when the clip ends, wins, with a goal fanfare for every capture."
     }
   },
   "Features": {
@@ -1335,7 +1370,9 @@
     "modeGlass": "The borisbounces glass format, no rings: a portrait shaft of horizontal glass panes stands between the ball and a doorway marked HOME. The ball falls and every landing cracks the pane below it – a procedural crack grows from the impact point – and plays the next note of your melody or, without one, a scale degree by row; on its last hit a pane shatters into shards with an accented note and a glass-break sound, and the ball crashes through to the next pane. After the last pane of a stage the camera scrolls down to the next one: more panes, thicker glass, panes that slide left and right and panes with holes the ball must miss. The final stage ends with the ball rolling into the doorway and a celebration. Every run is deterministic, so Find Simulation can pick a seed for your clip length.",
     "modeMultipliers": "A tall board the camera scrolls down, always following the lowest ball. Every row is split into 2–4 gates: count gates (x2, x3, x5) clone each ball that passes – up to a ball cap you choose, from 50 to 2000 –, speed, size and damage gates stack multipliers on it with no upper limit, ÷2 gates absorb every second ball and release gates hold a pile on a door that opens in bursts. Splitter pegs, kicking bumpers, funnels and blockers with hit points (the damage multiplier wears them down faster) sit between the rows, every hit is a note on a pentatonic plinko piano, and the HOME zone at the bottom counts the arrivals live until the final “N Boris made it home”. A ball that grows wider than the board outgrows it and ends the run with a celebration. Set a target count and Find Simulation looks for a seed whose final count lands within 5 % of it. The same multipliers float as pickup orbs in the ring modes (Ball section → Multipliers).",
     "modeDoublePendulum": "No rings: one to four double pendulums – or triple pendulums – swing from a pivot in the middle of the video, integrated step by step (an adaptive fifth-order Runge–Kutta scheme whose sub-steps shorten wherever the swing gets violent), so the chaos is real physics and the energy holds for the whole clip. Up to 24 harp strings stand across the playfield, vertical or radial; every bob that crosses one plucks it – the string vibrates and plays its note, tuned to the scale of the Custom Sound section across one to four octaves – while the last bob draws a long rainbow trail. Several pendulums start a hair apart and fly apart after a few seconds (the butterfly effect); sparring hangs two side by side whose bobs collide elastically, every hit a percussive note and a flash. Arm lengths, masses, gravity, friction and the start angles (or a seeded random start) are all adjustable, and the run ends with the clip or never.",
-    "modeIllusion": "No rings to escape: four project.jdm illusions. Lines – N balls each slide back and forth on a diameter of the big circle, ball i at the angle i·π/N with the phase offset i·π/N, so together they form a smaller circle rolling around inside; each ball plays its note when it touches the rim. Rings – concentric rings with one bouncing ball each; the rings turn at different speeds, so the bounces ripple outward in spirals and line up again every cycle. Nested – a circle bouncing inside a circle inside a circle (2–5 layers) with elastic collisions and walls that wobble where they are hit. White spaces – the balls paint the white arena black but bounce off shapes they can never enter, so a hidden picture chosen by the seed is revealed at the end. Everything is deterministic, and the Wobbly Walls slider of the Visual section makes the walls of every ring mode bounce like jelly too."
+    "modeIllusion": "No rings to escape: four project.jdm illusions. Lines – N balls each slide back and forth on a diameter of the big circle, ball i at the angle i·π/N with the phase offset i·π/N, so together they form a smaller circle rolling around inside; each ball plays its note when it touches the rim. Rings – concentric rings with one bouncing ball each; the rings turn at different speeds, so the bounces ripple outward in spirals and line up again every cycle. Nested – a circle bouncing inside a circle inside a circle (2–5 layers) with elastic collisions and walls that wobble where they are hit. White spaces – the balls paint the white arena black but bounce off shapes they can never enter, so a hidden picture chosen by the seed is revealed at the end. Everything is deterministic, and the Wobbly Walls slider of the Visual section makes the walls of every ring mode bounce like jelly too.",
+    "modeBattle": "No rings: 2–20 squares with hit points bounce around a box or a circle and into each other. When two collide, the faster one deals damage in proportion to their closing speed; the square that is hit flashes and shrinks a little, and at 0 HP it explodes into shards with a KO callout. An optional safe zone closes in from the eighth second and pushes the survivors together, and heal, shield and speed power-ups appear at seeded times. The last square standing wins under a banner with confetti. Seeded and deterministic, so Find Simulation can search for a battle of a given length.",
+    "modeCtf": "No rings: two teams of one to four squares play capture the flag in a box with a base and a flag at each end. A square that touches the enemy flag carries it and scores when it reaches its own base; a carrier hit by an enemy drops the flag where it is – the enemy can grab it again, its own team sends it home. The director nudges rebounds toward each square's goal, the scoreboard shows the captures and the clock, and every capture plays a goal fanfare. The first team to the target score wins, otherwise the better score when the clip ends."
   },
   "Footer": {
     "about": "About",
@@ -1630,5 +1667,36 @@
     "ballN": "Ball {n}",
     "noteNeverEscape": "Rigged: no ball can escape",
     "noteWinner": "Rigged: {name} wins"
+  },
+  "ArenaGames": {
+    "ko": "KO!",
+    "wins": "[name] WINS!",
+    "draw": "DRAW!",
+    "left": "[count] LEFT",
+    "capture": "CAPTURE!",
+    "time": "TIME!",
+    "battleSub": "[kos] KOs · [hp] HP left",
+    "ctfSub": "[a] – [b]",
+    "zone": "ZONE CLOSING",
+    "name1": "Red",
+    "name2": "Blue",
+    "name3": "Green",
+    "name4": "Gold",
+    "name5": "Purple",
+    "name6": "Orange",
+    "name7": "Pink",
+    "name8": "Cyan",
+    "name9": "Lime",
+    "name10": "Teal",
+    "name11": "Coral",
+    "name12": "Indigo",
+    "name13": "Mint",
+    "name14": "Violet",
+    "name15": "Amber",
+    "name16": "Sky",
+    "name17": "Rose",
+    "name18": "Olive",
+    "name19": "Navy",
+    "name20": "Snow"
   }
 }

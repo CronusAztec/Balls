@@ -38,6 +38,9 @@ export const MODE_IDS = [
   "doublePendulum",
   // --- jdm-illusions ---
   "illusion",
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+  "battle",
+  "ctf",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

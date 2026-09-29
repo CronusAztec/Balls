@@ -13,6 +13,8 @@ MODE_CARD_ORDER.push("multipliers");
 }
 // --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Boris ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
+// --- jdm-arena-games --- the two team games join the rhythm family after the other project.jdm modes (before the Boris ones)
+MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ctf");
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -49,6 +51,9 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   doublePendulum: "rhythm",
   // --- jdm-illusions ---
   illusion: "rhythm",
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag: every clash and bounce is a note
+  battle: "rhythm",
+  ctf: "rhythm",
 };
 
 /** The modes of a category in card order. */
