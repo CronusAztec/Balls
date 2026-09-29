@@ -243,7 +243,7 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "glass" && !!search && <GlassSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- boris-multipliers --- pickups, cap and smash threshold; the board block while searching */}
       {s.mode === "multipliers" && !!search && <MultipliersModeSection t={t} search={search} matches={matches} settings={s} update={update} />}
-      {(showsMultipliersSection(s.mode) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />

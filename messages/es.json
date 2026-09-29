@@ -727,6 +727,8 @@
     "glassMovingTip": "Desde la tercera etapa, algunos paneles son más estrechos y se deslizan a izquierda y derecha: la pelota puede esquivar uno y caer por el lado —una escapada con suerte— o chocar con él desde abajo.",
     "glassHoles": "Paneles con agujeros",
     "glassHolesTip": "Desde la segunda etapa, algunos paneles tienen un agujero que la pelota debe esquivar para seguir rompiendo. Si cae por él, se salta ese panel (aún puede agrietarlo desde abajo).",
+    "glassGates": "Puertas multiplicadoras",
+    "glassGatesTip": "Una fila de tres puertas sobre el cristal de cada etapa – x2 DAÑO (un panel pierde dos puntos de vida por golpe), x1.5 VELOCIDAD (cada salto va más rápido) y x1.25 TAMAÑO – en un orden según la semilla. La puerta por la que cae Boris le suma su multiplicador (sin límite, salvo que lo pongas en el grupo Multiplicadores de la sección Pelota) y el HUD lo muestra.",
     "glassRunSize": "Recorrido completo: {panes} paneles y hasta {hits} golpes en {stages} etapa(s), y después CASA.",
     "wallBreakSoundModeDefault": "Por defecto del modo ({name})",
     "modeMultipliers": "Multiplicadores",

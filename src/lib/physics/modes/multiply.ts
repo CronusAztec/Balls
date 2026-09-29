@@ -2,6 +2,15 @@ import type { Ball, GameMode, ModeContext } from "../types";
 import { arenaRadius } from "../types";
 import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
 
+/**
+ * --- boris-multipliers --- Most balls a Multiply run grows to while multipliers are in play (pickups on, or any ball
+ * carrying one): the new balls inherit the escaped ball's multipliers – its speed too –, faster balls escape sooner and
+ * every escape adds more of them, so without a bound the count, and with it the ball pass and up to 64 sub-steps a step,
+ * explodes within seconds. Past it an escape still counts (sound, confetti, scoreboard) but spawns nothing. A run
+ * without multipliers is untouched: it levels off well below this on its own.
+ */
+export const MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS = 200;
+
 /** Multiply: every ball that escapes the single ring spawns several new balls. */
 export class MultiplyMode implements GameMode {
   readonly name = "multiply";
@@ -29,6 +38,8 @@ export class MultiplyMode implements GameMode {
     const cy = ctx.config.height / 2;
     const balls = ctx.getBalls();
     let spawned = false;
+    // --- boris-multipliers --- with multipliers in play the escalation stops at MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS
+    const bounded = ctx.getMultipliers?.()?.isActive(this.name) ?? false;
     for (const ball of balls) {
       if (this.escapedBalls.has(ball.id)) continue;
       if (Math.hypot(ball.x - cx, ball.y - cy) > wall.radius + ball.radius + 10) {
@@ -38,6 +49,7 @@ export class MultiplyMode implements GameMode {
         ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
         ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
+          if ((bounded || ball.mult) && balls.length >= MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS) break; // --- boris-multipliers ---
           const a = ctx.random() * Math.PI * 2;
           // --- boris-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);

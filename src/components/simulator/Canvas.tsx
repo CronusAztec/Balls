@@ -532,6 +532,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const faces = new FaceLayer();
     facesRef.current = faces;
     const teamLayer = new TeamLayer(); // --- teams ---
+    const scoreboardBox = { x: 0, y: 0, w: 0, h: 0 }; // --- boris-multipliers --- where the scoreboard goes this frame (the HUD keeps clear)
+    let multHudTop = -1;
     const boxHueColors: string[] = [];
     const boxBodyColor = (ball: { id: number }) => {
       const st = engine.getBoxView().shapes.get(ball.id);
@@ -973,6 +975,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         glassRender.showGlow = p.showGlow;
         glassRender.stageLabel = GL.glassStage ?? DEFAULT_LABELS.glassStage!;
         glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
+        glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- boris-multipliers --- the gate labels
         drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       }
       // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
@@ -1726,10 +1729,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
       // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
-      // --- boris-multipliers --- stat badges, SLOW-MO and the HOME counter, inside the square the recorder crops to (so exports have them)
+      // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
+      // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
+      const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
+      // --- boris-multipliers --- stat badges, SLOW-MO and the HOME counter, inside the square the recorder crops to (so exports
+      // have them), clear of the teams' scoreboard in a top corner of the same square
+      multHudTop = -1;
       if (multView.active) {
         const sq = Math.min(size.width, size.height);
-        drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard);
+        const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
+        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid);
       }
 
       // HUD: mode counters in the centre
@@ -2012,14 +2021,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // --- teams --- the scoreboard in a corner of the exported square and, when the run is over, the winner banner with confetti
       if (teamLayer.isActive()) {
-        const side = Math.min(size.width, size.height);
         teamLayer.drawOverlay(ctx, engine, {
           width: size.width,
           height: size.height,
           dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
-          // Live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners.
-          inset: !recordingRef.current && (size.width - side) / 2 < 170 ? 52 : 0,
-          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()),
+          inset: teamInset,
+          // The mode's own banner in the middle – an escape, or --- boris-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
+          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
         });
       }
@@ -2152,10 +2160,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("teamWinner", teamLayer.winnerText());
         setCanvasData("teamLabels", String(teamLayer.labelsDrawn));
         setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
+        setCanvasData("scoreboardBottom", String(Math.round(teamLayer.scoreboardBottom))); // --- boris-multipliers --- the HUD starts below it
       } else if (canvas.dataset.teams !== undefined) {
-        for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard"]) delete canvas.dataset[key];
+        for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard", "scoreboardBottom"]) delete canvas.dataset[key];
       }
-      // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME and the camera (data-glass-*) for tools and the smoke test.
+      // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME, the camera and the gate rows gone through (data-glass-*) for tools and the smoke test.
       if (glassView) {
         const prog = engine.getGlassProgress();
         setCanvasData("glassStage", String(prog.stage));
@@ -2165,13 +2174,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("glassPanes", String(prog.panes));
         setCanvasData("glassHome", prog.home ? "1" : "0");
         setCanvasData("glassCamera", String(Math.round(glassView.cameraY)));
+        setCanvasData("glassGates", String(prog.gates)); // --- boris-multipliers ---
       } else if (canvas.dataset.glassStage !== undefined) {
-        for (const key of ["glassStage", "glassStages", "glassHits", "glassShattered", "glassPanes", "glassHome", "glassCamera"]) delete canvas.dataset[key];
+        for (const key of ["glassStage", "glassStages", "glassHits", "glassShattered", "glassPanes", "glassHome", "glassCamera", "glassGates"]) delete canvas.dataset[key];
       }
       // --- boris-multipliers --- the badges (data-mult-speed / -size / -damage / -balls …), pickups, slow-mo, outgrow and the board's counters
       if (multView.active) {
         if (!multBoard && canvas.dataset.multHome !== undefined) for (const key of ["multHome", "multActive", "multClones", "multGates", "multDone"]) delete canvas.dataset[key];
         writeMultiplierDataset(multView, multBoard, setCanvasData);
+        setCanvasData("multHudTop", String(Math.round(multHudTop))); // the first badge row (−1: none shown), clear of the scoreboard
       } else if (canvas.dataset.multSpeed !== undefined) {
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }

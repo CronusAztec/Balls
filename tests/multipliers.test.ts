@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PhysicsEngine } from "@/lib/physics/engine";
+import { HASHED_PAIRS_FROM, PhysicsEngine } from "@/lib/physics/engine";
+import { MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS } from "@/lib/physics/modes/multiply";
 import {
   DEFAULT_MULTIPLIER_CONFIG,
   MAX_EFFECTIVE_BOUNCE,
@@ -357,11 +358,29 @@ describe("stat multipliers in the engine", () => {
   it("outgrows a single-ring arena (Grow) at once instead of glitching", () => {
     const engine = engineFor("grow", 3);
     const b = engine.getBalls()[0];
+    expect(engine.endsWithMultiplierFinish()).toBe(false);
     engine.applyBallMultiplier(b, "size", 40);
     engine.update(1000 / 60, 0);
     expect(engine.getMultiplierView().outgrown).toBe(true);
     expect(engine.isSimulationFinished()).toBe(true);
+    // The page holds this celebration on screen (and in a recording) before its end screen covers it.
+    expect(engine.endsWithMultiplierFinish()).toBe(true);
     expect(engine.consumeSoundEvents().some((e) => e.type === "multiplier")).toBe(true);
+  });
+
+  it("tells an ordinary finish from a multipliers celebration", () => {
+    // A Classic escape through one wide gap, with and without pickups on: finished, but nothing for the multipliers to hold.
+    for (const pickups of [false, true]) {
+      const engine = engineFor("classic", 4, { wallCount: 1, gapSize: 1.4, multiplierPickups: pickups, pickupTypes: "damage" });
+      for (let f = 0; f < 60 * 60 && !engine.isSimulationFinished(); f++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        expect(engine.endsWithMultiplierFinish()).toBe(false);
+      }
+      expect(engine.isSimulationFinished(), `pickups ${pickups}`).toBe(true);
+      expect(engine.getMultiplierView().outgrown).toBe(false);
+      expect(engine.endsWithMultiplierFinish()).toBe(false);
+    }
   });
 
   it("wears Shatter segments down by the damage multiplier and clears Target numbers with it", () => {
@@ -479,6 +498,110 @@ describe("stat multipliers in the engine", () => {
     for (let f = 0; f < 60 * 30 && split.getBalls().length < 2; f++) split.update(1000 / 60, 0);
     expect(split.getBalls().length).toBeGreaterThan(1);
     for (const x of split.getBalls()) expect(x.mult?.damage).toBe(2);
+  });
+});
+
+describe("Multiply with multipliers in play", () => {
+  /**
+   * Runs `seconds` of frames and returns the peak ball count and the median and mean wall-clock ms of a frame's physics
+   * once past `warmSec` (the median shrugs off the odd garbage collection or a busy machine).
+   */
+  function crowdRun(engine: PhysicsEngine, seconds: number, warmSec = 0) {
+    let peak = 0;
+    const times: number[] = [];
+    for (let f = 0; f < seconds * 60; f++) {
+      const t0 = performance.now();
+      engine.update(1000 / 60, 0);
+      const ms = performance.now() - t0;
+      engine.consumeSoundEvents();
+      peak = Math.max(peak, engine.getBalls().length);
+      if (f >= warmSec * 60) times.push(ms);
+    }
+    times.sort((a, b) => a - b);
+    const medianMs = times.length > 0 ? times[Math.floor(times.length / 2)] : 0;
+    const avgMs = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+    return { peak, medianMs, avgMs };
+  }
+
+  it("stops multiplying at the cap: inherited speed would otherwise explode the ball count and the frame cost", () => {
+    // Speed pickups (?mpk=1&mpr=3&mpty=speed): every orb doubles the speed, faster balls escape sooner and each escape
+    // adds three balls that inherit it – this used to peak at 767–900 balls and 20–36 ms of physics a frame.
+    const pickups = engineFor("multiply", 1, { width: 800, height: 800, gapSize: 0.3, multiplierPickups: true, pickupRate: 3, pickupTypes: "speed" });
+    const a = crowdRun(pickups, 40, 25);
+    expect(pickups.getMultiplierView().speed).toBeGreaterThanOrEqual(4);
+    expect(a.peak).toBeGreaterThan(HASHED_PAIRS_FROM);
+    expect(a.peak).toBeLessThanOrEqual(MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS);
+    // A ball at x16 speed from the start (it used to reach 1540 balls in 8 s, at 105 ms a frame).
+    const fast = engineFor("multiply", 1, { width: 800, height: 800, gapSize: 0.3 });
+    fast.applyBallMultiplier(fast.getBalls()[0], "speed", 16);
+    const b = crowdRun(fast, 10, 5);
+    expect(b.peak).toBeLessThanOrEqual(MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS);
+    expect(b.peak).toBeGreaterThan(HASHED_PAIRS_FROM);
+    // Well inside the 60 fps frame budget: the physics of a frame measures ~2–4 ms here (it used to be 20–100 ms); the
+    // bound is generous for a busy machine.
+    for (const run of [a, b]) expect(run.medianMs, `peak ${run.peak}, mean ${run.avgMs.toFixed(2)} ms`).toBeLessThan(1000 / 60);
+  });
+
+  it("caps only the multiplier runs: an ordinary Multiply run spawns as many as it always did", () => {
+    const escapes = (withMultipliers: boolean) => {
+      const engine = engineFor("multiply", 5);
+      if (withMultipliers) engine.applyBallMultiplier(engine.getBalls()[0], "damage", 2);
+      // 210 balls outside the ring: each escapes in the next step and would spawn three more.
+      for (let i = 0; i < 210; i++) engine.addBall({ x: 2400 + 3 * i, y: 300, vx: 0, vy: 0, radius: 8, color: "#fff" });
+      engine.update(1000 / 60, 0);
+      return engine.getBalls().length;
+    };
+    expect(escapes(false)).toBe(211 + 3 * 210);
+    expect(escapes(true)).toBe(211);
+    // Below the cap the multiplier run spawns as usual.
+    const engine = engineFor("multiply", 5);
+    engine.applyBallMultiplier(engine.getBalls()[0], "damage", 2);
+    for (let i = 0; i < 10; i++) engine.addBall({ x: 2400 + 3 * i, y: 300, vx: 0, vy: 0, radius: 8, color: "#fff" });
+    engine.update(1000 / 60, 0);
+    expect(engine.getBalls().length).toBe(11 + 3 * 10);
+  });
+
+  it("resolves the ball pairs of a big multiplier run through the spatial hash exactly like the pair loop", () => {
+    // 50 isolated pairs, each overlapping and closing in: the order of the pass cannot matter, so the hashed pass (100
+    // balls, multipliers in play) must end bit for bit where the plain pair loop (no multipliers) ends.
+    const build = (touched: boolean) => {
+      const engine = engineFor("multiply", 9, { width: 1080, height: 1080, gravity: 0, rotationSpeed: 0 });
+      engine.getBalls().length = 0;
+      for (let row = 0; row < 10; row++) {
+        for (let col = 0; col < 5; col++) {
+          const x = 540 - 200 + 100 * col;
+          const y = 540 - 225 + 50 * row;
+          engine.addBall({ x: x - 7, y, vx: 90, vy: 10 * (col - 2), radius: 8, color: "#fff" });
+          engine.addBall({ x: x + 7, y: y + 1, vx: -90, vy: -10 * (row - 5), radius: 8, color: "#fff" });
+        }
+      }
+      if (touched) engine.applyBallMultiplier(engine.getBalls()[0], "speed", 1);
+      return engine;
+    };
+    const plain = build(false);
+    const hashed = build(true);
+    expect(hashed.getBalls().length).toBeGreaterThan(HASHED_PAIRS_FROM);
+    for (let f = 0; f < 3; f++) {
+      plain.update(1000 / 60, 0);
+      hashed.update(1000 / 60, 0);
+    }
+    expect(hashed.getMultiplierView().active).toBe(true);
+    expect(plain.getMultiplierView().active).toBe(false);
+    const state = (e: PhysicsEngine) => e.getBalls().map((b) => [b.x, b.y, b.vx, b.vy]);
+    expect(state(hashed)).toEqual(state(plain));
+    // Every pair bounced apart.
+    const balls = hashed.getBalls();
+    for (let i = 0; i < balls.length; i += 2) expect(balls[i + 1].x - balls[i].x).toBeGreaterThan(16);
+    // Balls flung far off the canvas still meet each other (they are clamped into the grid's border cells).
+    const far = build(true);
+    far.addBall({ x: -6000, y: 20000, vx: 50, vy: 0, radius: 8, color: "#fff" });
+    far.addBall({ x: -5990, y: 20000, vx: -50, vy: 0, radius: 8, color: "#fff" });
+    const [p, q] = far.getBalls().slice(-2);
+    far.update(1000 / 60, 0);
+    expect(far.getBalls()).toContain(p);
+    expect(q.x - p.x).toBeGreaterThanOrEqual(16 - 1e-9);
+    expect(p.vx).toBeLessThan(0);
+    expect(q.vx).toBeGreaterThan(0);
   });
 });
 

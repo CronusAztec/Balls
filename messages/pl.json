@@ -727,6 +727,8 @@
     "glassMovingTip": "Od trzeciego etapu część tafli jest węższa i jeździ w lewo i w prawo: piłka może ją minąć i spaść obok – szczęśliwa ucieczka – albo uderzyć w nią od spodu.",
     "glassHoles": "Tafle z dziurami",
     "glassHolesTip": "Od drugiego etapu część tafli ma dziurę, którą piłka musi ominąć, żeby dalej tłuc szkło. Wpadając w dziurę, pomija taflę (od spodu wciąż może ją pęknąć).",
+    "glassGates": "Bramki mnożników",
+    "glassGatesTip": "Rząd trzech bramek nad szkłem każdego etapu – x2 OBRAŻ. (tafla traci dwa punkty wytrzymałości na uderzenie), x1.5 PRĘDKOŚĆ (każdy podskok jest szybszy) i x1.25 ROZMIAR – w kolejności zależnej od ziarna. Bramka, przez którą przeleci Boris, dokłada mu swój mnożnik (bez limitu, chyba że ustawisz go w grupie Mnożniki w sekcji Piłka), a HUD go pokazuje.",
     "glassRunSize": "Cały bieg: tafle – {panes}, uderzenia – do {hits}, etapy – {stages}, a na końcu DOM.",
     "wallBreakSoundModeDefault": "Domyślny dla trybu ({name})",
     "modeMultipliers": "Mnożniki",

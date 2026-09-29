@@ -1,5 +1,6 @@
 import { resolveBallSegment, segmentBetween, segmentObstacle, type Obstacle, type SegmentObstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
+import { applyMultiplier, hitDamage } from "../multipliers"; // --- boris-multipliers ---
 
 /**
  * Glass Smash ("glass" mode, the borisbounces "Boris is determined to smash all of the glass" format): no rings. A
@@ -28,6 +29,12 @@ import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from 
  * Geometry is in canvas pixels: stage 0 starts at the top of the visible field and the stages continue below the
  * canvas; `GlassView.cameraY` is the world offset the renderer scrolls by (advanced per 60 Hz step, so it freezes
  * with a pause and replays in recordings).
+ *
+ * --- boris-multipliers --- The ball's stat multipliers (lib/physics/multipliers.ts) act here too: damage takes that many
+ * hit points off a pane per hit (`hitDamage()`), a speed multiplier k runs the whole flight k× faster (the same hops
+ * under k² the gravity), size grows the ball. With `gates` on, a row of multiplier gates – x2 DMG, x1.5 SPEED,
+ * x1.25 SIZE in a seeded order – spans the shaft above the glass of every stage; the slot the ball falls through
+ * stacks its multiplier on it through the run's cap (`ctx.getMultipliers()`), with the HUD badges and the arpeggio.
  */
 
 export interface GlassSettings {
@@ -41,6 +48,8 @@ export interface GlassSettings {
   moving: boolean;
   /** From the second stage on, some panes have a hole the ball must miss. */
   holes: boolean;
+  /** --- boris-multipliers --- A row of multiplier gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) above the glass of every stage. */
+  gates: boolean;
 }
 
 export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
@@ -49,6 +58,7 @@ export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
   stages: 4,
   moving: true,
   holes: true,
+  gates: false,
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -58,13 +68,14 @@ export const GLASS_RANGES = {
   glassStages: { min: 1, max: 10, step: 1 },
 } as const;
 
-/** The Glass Smash fields of the SimulatorSettings object (URL keys glr, glhp, gls, glm, glh). */
+/** The Glass Smash fields of the SimulatorSettings object (URL keys glr, glhp, gls, glm, glh, glg). */
 export interface GlassSettingFields {
   glassRows: number;
   glassHp: number;
   glassStages: number;
   glassMoving: boolean;
   glassHoles: boolean;
+  glassGates: boolean;
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -81,17 +92,18 @@ export function resolveGlassSettings(config: Partial<GlassSettings> | null | und
   if (config.stages !== undefined) out.stages = Math.round(clampNumber(config.stages, GLASS_RANGES.glassStages, out.stages));
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (typeof config.holes === "boolean") out.holes = config.holes;
+  if (typeof config.gates === "boolean") out.gates = config.gates;
   return out;
 }
 
 /** Picks the Glass Smash settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setGlassSettings()`. */
 export function glassSettingsOf(source: GlassSettingFields): GlassSettings {
-  return { rows: source.glassRows, hp: source.glassHp, stages: source.glassStages, moving: source.glassMoving, holes: source.glassHoles };
+  return { rows: source.glassRows, hp: source.glassHp, stages: source.glassStages, moving: source.glassMoving, holes: source.glassHoles, gates: source.glassGates };
 }
 
 /** Writes resolved Glass Smash settings back into the SimulatorSettings field names. */
 export function glassSettingFields(settings: GlassSettings): GlassSettingFields {
-  return { glassRows: settings.rows, glassHp: settings.hp, glassStages: settings.stages, glassMoving: settings.moving, glassHoles: settings.holes };
+  return { glassRows: settings.rows, glassHp: settings.hp, glassStages: settings.stages, glassMoving: settings.moving, glassHoles: settings.holes, glassGates: settings.gates };
 }
 
 /* ------------------------------------------------------------------ progression */
@@ -281,10 +293,101 @@ export interface GlassHome {
   doorHeight: number;
 }
 
+/* --- boris-multipliers --- multiplier gates (settings.gates) */
+
+/** The stats a gate row multiplies – the board's gate kinds of the same names – and by how much. */
+export const GLASS_GATE_KINDS = ["damage", "speed", "size"] as const;
+export type GlassGateKind = (typeof GLASS_GATE_KINDS)[number];
+/** x2 DMG (a pane loses two hit points a hit), x1.5 SPEED (the whole flight runs 1.5× faster), x1.25 SIZE. */
+export const GLASS_GATE_FACTORS: Record<GlassGateKind, number> = { damage: 2, speed: 1.5, size: 1.25 };
+/** Where a stage's gate row sits, in view heights below the stage's top: under its "STAGE n" banner, over its first pane. */
+export const GATE_Y = 0.205;
+/** A size gate never grows the ball wider than this fraction of the shaft (radius), whatever room the panes leave. */
+export const MAX_BALL_OF_SHAFT = 0.15;
+
+/** One slot of a gate row: the stat it multiplies, by how much, and its x range (world px). */
+export interface GlassGate {
+  kind: GlassGateKind;
+  factor: number;
+  x0: number;
+  x1: number;
+}
+
+/** A row of gates across the shaft above the glass of a stage; the ball's x picks the slot it goes through, once. */
+export interface GlassGateRow {
+  stage: number;
+  /** World y of the gate line. */
+  y: number;
+  slots: GlassGate[];
+  /** The slot the ball went through (−1 before), when (simulation ms) and the factor it got (a size gate may give less, a cap too). */
+  passedSlot: number;
+  passedAtMs: number;
+  applied: number;
+}
+
+/** The slot of `row` that world x `x` falls into (the nearest one beyond the walls). */
+export function gateSlotAt(row: GlassGateRow, x: number): number {
+  const slots = row.slots;
+  for (let i = 0; i < slots.length - 1; i++) if (x < slots[i].x1) return i;
+  return slots.length - 1;
+}
+
+/**
+ * The gate rows of a level: one per stage, `GATE_Y` view heights below its top, with a slot of each kind across the
+ * shaft in an order drawn from `random` (two numbers per row, drawn after everything else, so the glass is the same
+ * with or without gates).
+ */
+export function buildGlassGates(field: GlassField, stages: readonly GlassStage[], random: () => number): GlassGateRow[] {
+  const rows: GlassGateRow[] = [];
+  const n = GLASS_GATE_KINDS.length;
+  const w = field.width / n;
+  for (const st of stages) {
+    const order: GlassGateKind[] = [...GLASS_GATE_KINDS];
+    // A seeded Fisher–Yates shuffle of the three kinds.
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.min(i, Math.floor(random() * (i + 1)));
+      const k = order[i];
+      order[i] = order[j];
+      order[j] = k;
+    }
+    rows.push({
+      stage: st.index,
+      y: st.top + GATE_Y * field.height,
+      slots: order.map((kind, i) => ({ kind, factor: GLASS_GATE_FACTORS[kind], x0: field.left + i * w, x1: i === n - 1 ? field.right : field.left + (i + 1) * w })),
+      passedSlot: -1,
+      passedAtMs: -Infinity,
+      applied: 1,
+    });
+  }
+  return rows;
+}
+
+/**
+ * The largest radius the ball may grow to from stage `fromStage` on and still get between the panes and through the
+ * holes of every stage left (a pixel to spare on either side), and never more than `MAX_BALL_OF_SHAFT` of the shaft –
+ * but never less than the radius the level was laid out for.
+ */
+export function glassMaxBallRadius(level: GlassLevel, fromStage: number): number {
+  let max = MAX_BALL_OF_SHAFT * level.field.width;
+  for (let s = Math.max(0, fromStage); s < level.stages.length; s++) {
+    const st = level.stages[s];
+    const first = level.panes[st.firstPane];
+    if (st.rows > 1 && first) max = Math.min(max, (st.spacing - first.thickness) / 2 - 1);
+    for (let j = st.firstPane; j < st.firstPane + st.rows && j < level.panes.length; j++) {
+      const pane = level.panes[j];
+      if (pane.kind === "hole" && pane.holeHalf > 0) max = Math.min(max, pane.holeHalf - 1);
+    }
+  }
+  return Math.max(level.ballRadius, max);
+}
+/* --- end boris-multipliers --- */
+
 export interface GlassLevel {
   field: GlassField;
   stages: GlassStage[];
   panes: GlassPane[];
+  /** --- boris-multipliers --- The multiplier gate rows, top-down (empty unless `settings.gates`). */
+  gates: GlassGateRow[];
   home: GlassHome;
   /** World y of the lowest thing (just below the ground). */
   worldBottom: number;
@@ -340,7 +443,8 @@ export const GROUND_RESTITUTION = 0.45;
  * Lays out a whole level for a canvas of `width` × `height`: the stages one under the other (stage 0 at the top of
  * the visible field), each with its panes, then the HOME area with the ground and the door. `random` is the
  * engine's seeded generator: the tempo, the door side, the ball's start and, per pane, three numbers (its kind, then
- * where its hole sits or how it slides) – always three, so one pane's kind never shifts the next pane's numbers.
+ * where its hole sits or how it slides) – always three, so one pane's kind never shifts the next pane's numbers –
+ * and last, with `settings.gates`, the order of every gate row's slots.
  */
 export function buildGlassLevel(width: number, height: number, settingsIn: Partial<GlassSettings>, ballRadius: number, random: () => number): GlassLevel {
   const settings = resolveGlassSettings(settingsIn);
@@ -423,10 +527,13 @@ export function buildGlassLevel(width: number, height: number, settingsIn: Parti
   const doorWidth = Math.max(3.4 * r, 0.2 * field.width);
   const doorHeight = Math.min(0.3 * viewH, Math.max(4.5 * r, 0.17 * viewH));
   const doorX = field.left + (doorLeft ? 0.25 : 0.75) * field.width;
+  // --- boris-multipliers --- the gate rows draw their numbers last, so the glass is the same with or without them
+  const gates = settings.gates ? buildGlassGates(field, stages, random) : [];
   return {
     field,
     stages,
     panes,
+    gates,
     home: { top, groundY, doorX, doorWidth, doorHeight },
     worldBottom: groundY + 0.04 * viewH,
     tempo,
@@ -455,6 +562,11 @@ export function solidSpan(pane: GlassPane, x: number): [number, number] {
   const a = pane.holeX - pane.holeHalf;
   const b = pane.holeX + pane.holeHalf;
   return x < pane.holeX ? [-hw, a] : [b, hw];
+}
+
+/** How far a pane is broken, 0–1: the hit points it lost (a damage multiplier takes several a hit). */
+export function paneDamage(pane: Pick<GlassPane, "hp" | "maxHp">): number {
+  return pane.maxHp > 0 ? Math.max(0, Math.min(1, (pane.maxHp - pane.hp) / pane.maxHp)) : 0;
 }
 
 /* ------------------------------------------------------------------ cracks */
@@ -575,6 +687,14 @@ export function hopSpeed(g: number, height: number): number {
   return Math.sqrt(2 * Math.max(0, g) * Math.max(0, height));
 }
 
+/**
+ * --- boris-multipliers --- How much faster the ball's flight runs: its speed multiplier (1 for a plain ball). The mode
+ * scales its gravity by the square and its hops, kicks and walk by it, so the ball flies the same arcs that much faster.
+ */
+export function glassTempo(ball: Pick<Ball, "mult">): number {
+  return ball.mult ? ball.mult.speed : 1;
+}
+
 /** The stage a world y belongs to: 0 … stages − 1, or `stages` in the HOME area below the last one. */
 export function stageAt(level: GlassLevel, y: number): number {
   const stages = level.stages;
@@ -617,6 +737,8 @@ export interface GlassView {
   homeReached: boolean;
   homeAtMs: number;
   finished: boolean;
+  /** --- boris-multipliers --- Gate rows the ball went through. */
+  gatesPassed: number;
   /** Shards: a pool of `MAX_SHARDS`, `shardCount` of them alive (positions in world px). */
   shardCount: number;
   shardX: Float64Array;
@@ -649,6 +771,7 @@ function createView(): GlassView {
     homeReached: false,
     homeAtMs: -Infinity,
     finished: false,
+    gatesPassed: 0,
     shardCount: 0,
     shardX: new Float64Array(MAX_SHARDS),
     shardY: new Float64Array(MAX_SHARDS),
@@ -676,6 +799,9 @@ export class GlassMode implements GameMode {
   private ballId = -1;
   /** First pane the ball has not passed yet (panes are sorted top-down). */
   private passCursor = 0;
+  /** --- boris-multipliers --- First gate row the ball has not gone through yet, and first one gone through but not applied (they apply at the end of the step). */
+  private gateCursor = 0;
+  private gateApplied = 0;
   private landedHome = false;
   private confettiDone = 0;
   private soundsThisStep = 0;
@@ -700,7 +826,7 @@ export class GlassMode implements GameMode {
   }
   getProgress() {
     const v = this.view;
-    return { stage: Math.min(v.stage, this.settings.stages - 1) + 1, stages: this.settings.stages, hits: v.hits, shattered: v.shattered, panes: v.panes, home: v.homeReached, finished: v.finished };
+    return { stage: Math.min(v.stage, this.settings.stages - 1) + 1, stages: this.settings.stages, hits: v.hits, shattered: v.shattered, panes: v.panes, home: v.homeReached, finished: v.finished, gates: v.gatesPassed };
   }
 
   init(ctx: ModeContext) {
@@ -733,8 +859,11 @@ export class GlassMode implements GameMode {
     v.homeReached = false;
     v.homeAtMs = -Infinity;
     v.finished = false;
+    v.gatesPassed = 0;
     v.shardCount = 0;
     this.passCursor = 0;
+    this.gateCursor = 0;
+    this.gateApplied = 0;
     this.landedHome = false;
     this.confettiDone = 0;
     this.soundsThisStep = 0;
@@ -752,6 +881,8 @@ export class GlassMode implements GameMode {
       gravityScale: 0,
     });
     this.ballId = ctx.getNextId() - 1;
+    // --- boris-multipliers --- gates on: the run plays with multipliers from the start (HUD, adaptive sub-steps)
+    if (level.gates.length > 0) ctx.getMultipliers?.()?.markTouched();
   }
 
   onPreUpdate(ctx: ModeContext) {
@@ -783,12 +914,14 @@ export class GlassMode implements GameMode {
       ball.y = home.groundY - ball.radius - 0.5;
       return;
     }
-    const g = glassGravity(ctx.config.gravity, level.field.height);
+    // --- boris-multipliers --- a speed multiplier k runs the whole flight k× faster: the same hops under k² the gravity
+    const k = glassTempo(ball);
+    const g = glassGravity(ctx.config.gravity, level.field.height) * k * k;
     ball.vy += g * dtSec;
     if (this.landedHome) {
       // On the ground: roll to the door.
       const dx = home.doorX - ball.x;
-      const walk = WALK_SPEED * level.field.height;
+      const walk = WALK_SPEED * level.field.height * k;
       ball.vx = Math.abs(dx) < walk * dtSec ? dx / dtSec : Math.sign(dx) * walk;
       if (Math.abs(dx) < 0.22 * home.doorWidth && ball.y + ball.radius > home.groundY - 0.5 * home.doorHeight) this.reachHome(ctx, ball);
       return;
@@ -813,12 +946,12 @@ export class GlassMode implements GameMode {
     const v = this.view;
     const level = v.level!;
     const fromAbove = ball.y < pane.y;
-    pane.hp--;
+    pane.hp = Math.max(0, pane.hp - hitDamage(ball)); // --- boris-multipliers --- a damage multiplier takes more off
     pane.hits++;
     pane.lastHitMs = v.timeMs;
     v.hits++;
     const impactX = ball.x - pane.x;
-    pane.cracks.push(makeCrack(pane, impactX, fromAbove, pane.hits / pane.maxHp, v.timeMs, () => ctx.random()));
+    pane.cracks.push(makeCrack(pane, impactX, fromAbove, paneDamage(pane), v.timeMs, () => ctx.random()));
     ctx.addWallHit(0, (pane.index * 0.9) % (2 * Math.PI), 0);
     const viewH = level.field.height;
     if (pane.hp <= 0) {
@@ -841,8 +974,9 @@ export class GlassMode implements GameMode {
       const stage = level.stages[pane.stage];
       ball.vy = -hopSpeed(g, stage.bounceHeight);
       const speedScale = (ctx.config.ballSpeed || 400) / 400;
-      const drift = DRIFT * viewH * speedScale;
-      const cap = MAX_DRIFT * viewH * Math.max(0.5, speedScale);
+      const k = glassTempo(ball); // --- boris-multipliers --- the sideways drift speeds up with the hop
+      const drift = DRIFT * viewH * speedScale * k;
+      const cap = MAX_DRIFT * viewH * Math.max(0.5, speedScale) * k;
       ball.vx = Math.max(-cap, Math.min(cap, 0.5 * ball.vx + (2 * ctx.random() - 1) * drift));
     }
     this.queueSound(ctx, { type: "hit", wallIndex: 0, frequency: pane.pitch }, false);
@@ -937,6 +1071,36 @@ export class GlassMode implements GameMode {
       }
       this.passCursor++;
     }
+    // --- boris-multipliers --- gate rows the ball's centre has fallen through: its x picks the slot (applied at the end of the step)
+    const gates = level.gates;
+    while (this.gateCursor < gates.length && ball.y >= gates[this.gateCursor].y) {
+      const row = gates[this.gateCursor++];
+      row.passedSlot = gateSlotAt(row, ball.x);
+      row.passedAtMs = v.timeMs;
+    }
+  }
+
+  /**
+   * --- boris-multipliers --- The ball went through a gate: its stat stacks through the run's multipliers (the cap in
+   * effect, the HUD badges) – a size gate only as far as the ball still fits between the panes below – with the
+   * rising arpeggio.
+   */
+  private applyGate(ctx: ModeContext, ball: Ball, row: GlassGateRow) {
+    const v = this.view;
+    const level = v.level!;
+    const slot = row.slots[row.passedSlot];
+    let factor = slot.factor;
+    if (slot.kind === "size") factor = Math.min(factor, glassMaxBallRadius(level, row.stage) / ball.radius);
+    const runtime = ctx.getMultipliers?.();
+    runtime?.markTouched();
+    row.applied = factor > 1 ? (runtime ? runtime.apply(ball, slot.kind, factor) : applyMultiplier(ball, slot.kind, factor)) : 1;
+    v.gatesPassed++;
+    if (slot.kind === "size" && row.applied !== 1) {
+      // Grown next to a wall: moved clear of it at once (the obstacle walls would only push it out on the next step).
+      const f = level.field;
+      ball.x = Math.max(f.left + ball.radius, Math.min(f.right - ball.radius, ball.x));
+    }
+    if (row.applied !== 1 && ball.mult) this.queueSound(ctx, { type: "multiplier", wallIndex: 0, multiplier: ball.mult[slot.kind] }, true);
   }
 
   onPostUpdate(ctx: ModeContext, dtMs: number) {
@@ -945,6 +1109,11 @@ export class GlassMode implements GameMode {
     if (!level) return;
     const ball = this.findBall(ctx);
     const dt = dtMs / 1000;
+    // --- boris-multipliers --- the gates gone through during the step take effect now, so the step's sub-step plan covered its speeds
+    while (this.gateApplied < this.gateCursor) {
+      const row = level.gates[this.gateApplied++];
+      if (ball && row.passedSlot >= 0) this.applyGate(ctx, ball, row);
+    }
     if (ball) {
       // The stage the ball is in: entering a new one shows its banner.
       const stage = stageAt(level, ball.y);
@@ -1081,7 +1250,7 @@ export class GlassMode implements GameMode {
   }
   getState() {
     const v = this.view;
-    return { stage: v.stage, hits: v.hits, shattered: v.shattered, cleared: v.cleared, panes: v.panes, homeReached: v.homeReached, finished: v.finished, cameraY: v.cameraY };
+    return { stage: v.stage, hits: v.hits, shattered: v.shattered, cleared: v.cleared, panes: v.panes, homeReached: v.homeReached, finished: v.finished, cameraY: v.cameraY, gates: v.gatesPassed };
   }
 
   /**
@@ -1133,6 +1302,13 @@ export class GlassMode implements GameMode {
         for (let i = 0; i < crack.count; i++) for (let c = 0; c < 5; c++) crack.segs[5 * i + c] *= k;
       }
       updatePaneSegments(pane);
+    }
+    for (const row of level.gates) {
+      row.y = my(row.y);
+      for (const slot of row.slots) {
+        slot.x0 = mx(slot.x0);
+        slot.x1 = mx(slot.x1);
+      }
     }
     const home = level.home;
     home.top = my(home.top);
