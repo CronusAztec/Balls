@@ -1257,7 +1257,54 @@
     "batchRender": "Renderowanie seryjne",
     "batchRenderTip": "Ustaw w kolejce wiele szybkich eksportów: N losowych ziaren albo wklejoną listę ziaren i linków do udostępniania, opcjonalnie w każdym trybie albo z jednym ustawieniem zmienianym od A do B. Klipy renderują się jeden po drugim z ustawieniami tego panelu (strona pokazuje każdy z nich podczas renderowania, a na końcu przywraca Twoje ustawienia), pobierają się jako pliki tryb-ziarno-długość, a na końcu także razem jako ZIP. Ostatnia seria jest zapamiętywana w tej przeglądarce.",
     "batchDownloadEach": "Pobieraj każdy klip",
-    "batchDownloadEachTip": "Zapisuje każdy klip zaraz po wyrenderowaniu (przeglądarka może raz zapytać o zgodę na pobieranie wielu plików). Tak czy inaczej na końcu wszystkie klipy można pobrać razem jako ZIP."
+    "batchDownloadEachTip": "Zapisuje każdy klip zaraz po wyrenderowaniu (przeglądarka może raz zapytać o zgodę na pobieranie wielu plików). Tak czy inaczej na końcu wszystkie klipy można pobrać razem jako ZIP.",
+    "modeRunner": "Bieg w rytmie",
+    "modePaddle": "Piłka na platformie",
+    "rrTitle": "Bieg w rytmie",
+    "rrDesc": "Kwadrat biegnie po podłodze pod przewijaną kamerą; kolce, dziury i bloki stoją na bitach wczytanej piosenki (albo tempa BPM z sekcji Własny dźwięk), więc każdy skok z prawdziwą grawitacją ląduje dokładnie na bicie i gra kolejną nutę.",
+    "rrAutoJump": "Automatyczny skok",
+    "rrAutoJumpTip": "Włączone: kwadrat skacze sam w chwilach wyliczonych przez solver skoków – nigdy się nie myli, a każde lądowanie wypada na bicie. Wyłączone: skaczesz Spacją (albo ↑ lub stuknięciem w płótno); zderzenie wznawia odcinek od punktu kontrolnego, a Escape włącza pauzę.",
+    "rrObstacles": "Przeszkody",
+    "rrObstaclesTip": "Ile przeszkód ma trasa przed metą (przy domyślnym tempie bieg trwa około półtorej sekundy na przeszkodę).",
+    "rrSpeed": "Prędkość biegu",
+    "rrSpeedTip": "Prędkość pozioma kwadratu w długościach kostki na sekundę. Szybciej – dłuższe skoki i szersze przeszkody.",
+    "rrJump": "Wysokość skoku",
+    "rrJumpTip": "Jak wysoko sięga skok, w długościach kostki. Razem z Grawitacją z sekcji Piłka i fizyka wyznacza prędkość wybicia i czas lotu, według którego solver ustawia każdy skok.",
+    "rrDensity": "Gęstość",
+    "rrDensityTip": "Jak często przeszkoda zajmuje najwcześniejszy bit, na którym się mieści. Niżej – od czasu do czasu wolny bit lub dwa (wybiera ziarno).",
+    "rrMix": "Rodzaj przeszkód",
+    "rrMixTip": "Z czego zbudowana jest trasa: mieszanka, same rzędy kolców, bloki, na które się wskakuje i z których się zeskakuje, albo dziury.",
+    "rrMixMixed": "Mieszane",
+    "rrMixSpikes": "Kolce",
+    "rrMixBlocks": "Bloki",
+    "rrMixGaps": "Dziury",
+    "rrBeatSource": "Bit",
+    "rrBeatSourceTip": "Piosenka: przeszkody idą za wykrytym bitem wczytanej piosenki (Muzyka w tle albo Piosenka po kawałku – detektor z Malowania obrazka), a bez piosenki za tempem BPM. BPM: zawsze tempo BPM z sekcji Własny dźwięk.",
+    "rrBeatSong": "Piosenka",
+    "rrBeatBpm": "BPM",
+    "rrBeatInfoSong": "Za bitem piosenki: {bpm} BPM.",
+    "rrBeatInfoNoSong": "Brak wczytanej piosenki – za tempem z sekcji Własny dźwięk: {bpm} BPM.",
+    "rrBeatInfoBpm": "Za tempem z sekcji Własny dźwięk: {bpm} BPM.",
+    "rrBeatAnalyzing": "Wykrywanie bitu piosenki…",
+    "rrRunInfo": "Przeszkody: {obstacles} na bicie {bpm} BPM – bieg na około {seconds}s (ziarno przesuwa go o kilka bitów).",
+    "rrManualInfo": "Przeszkody: {obstacles} – skacz Spacją (albo stuknij w płótno). Zderzenie wznawia odcinek; Znajdź symulację wymaga automatycznego skoku.",
+    "pdTitle": "Piłka na platformie",
+    "pdDesc": "Piłka spada na platformę, która jeździ w lewo i w prawo. Każde złapanie gra kolejną nutę i wyrzuca piłkę z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – od ścian i sufitu. Za dużo pudeł i koniec gry.",
+    "pdAuto": "Automatyczna platforma",
+    "pdAutoTip": "Włączone: deterministyczny sterownik przewiduje każde lądowanie i przesuwa tam platformę (jak dobrze – decyduje suwak Umiejętność). Wyłączone: przesuwasz ją wskaźnikiem albo ← → (A / D).",
+    "pdSkill": "Umiejętność",
+    "pdSkillTip": "Jak dobrze gra sterownik. Poniżej 100% planuje niektóre złapania odrobinę za wcześnie lub za późno, celuje trochę obok i reaguje później – wszystko z ziarna, więc pudła i koniec gry wypadają dla danego ziarna zawsze w tych samych chwilach. Przy 100% nigdy nie pudłuje.",
+    "pdMisses": "Dozwolone pudła",
+    "pdMissesTip": "Ile pudeł, zanim następne zakończy grę (serca nad polem).",
+    "pdWidth": "Szerokość platformy",
+    "pdWidthTip": "Szerokość platformy jako część szerokości pola.",
+    "pdSpin": "Podkręcenie",
+    "pdSpinTip": "Jak mocno uderzenie poza środkiem platformy wybija piłkę w bok i ją podkręca (ruch samej platformy dokłada trochę).",
+    "pdSpeedUp": "Przyspieszanie",
+    "pdSpeedUpTip": "Każde złapanie przyspiesza lot o tyle (najwyżej dwukrotnie): im dłużej trwa gra, tym jest trudniej.",
+    "pdInfoPerfect": "Przy 100% umiejętności sterownik nigdy nie pudłuje – gra się nie kończy (Znajdź symulację wymaga niższej umiejętności).",
+    "pdInfoAuto": "Życia: {lives} – pudła sterownika wynikają z ziarna, więc Znajdź symulację może trafić w chwilę końca gry.",
+    "pdInfoManual": "Przesuwaj platformę wskaźnikiem albo ← →. Znajdź symulację wymaga automatycznej platformy."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1322,6 +1369,14 @@
     "ctf": {
       "name": "Zdobądź flagę",
       "description": "Dwie drużyny odbijających się kwadratów i baza z flagą na każdym końcu: dotknij flagi rywala, by ją nieść, zanieś ją do siebie, by zdobyć punkt – a gdy ktoś cię po drodze staranuje, flaga spada tam, gdzie jesteś. Wygrywa pierwsza drużyna z wymaganym wynikiem albo ta z lepszym wynikiem na koniec klipu, a każde zdobycie flagi wita fanfara."
+    },
+    "runner": {
+      "name": "Bieg w rytmie",
+      "description": "Kwadrat w stylu Geometry Dash biegnie pod przewijaną kamerą; kolce, dziury i bloki stoją na bitach twojej piosenki, a każdy skok z prawdziwą grawitacją ląduje dokładnie na bicie i gra kolejną nutę. Automatyczny skok nigdy się nie myli – albo graj sam Spacją."
+    },
+    "paddle": {
+      "name": "Piłka na platformie",
+      "description": "Utrzymaj piłkę w grze platformą, która jeździ w lewo i w prawo: każde złapanie to nuta, uderzenia poza środkiem posyłają ją w bok z podkręceniem, od ścian i sufitu – aż skończą się pudła i nadejdzie koniec gry."
     }
   },
   "Features": {
@@ -1474,7 +1529,9 @@
     "modePowerLayers": "Format warstw mocy z oddplayground, bez pierścieni: granatowa pionowa plansza ze świecącą belką sufitu w górnej jednej trzeciej i – od połowy ekranu w dół – gęstym stosem 20–800 cienkich tęczowych warstw, które dzielą piłkę od wolności. Jedna biała piłka odbija się między sufitem a wierzchem stosu z lekkim dryfem wyznaczonym przez ziarno. Każde uderzenie niszczy tyle warstw, ile wynosi bieżąca moc – rozpryskują się w kolorowe cząstki, a stos opada – po czym moc się podwaja, rośnie według Fibonacciego lub liczb pierwszych, o jeden albo jest losowana z ziarna (chaos: jedne uderzenia niszczą dziesiątki warstw, inne niczego nie zmieniają). Dwie tęczowe plakietki pokazują zasadę, moc i poziom, każdy poziom gra kolejną nutę Twojej skali, duże uderzenie dokłada akord i świst, a gdy zniknie ostatnia warstwa, piłka wypada dołem na wolność. Każde odbicie trwa tyle samo, więc bieg trwa liczbę uderzeń razy okres odbicia – Znajdź symulację mówi to wprost albo przeszukuje ziarna chaosu pod długość Twojego klipu.",
     "modeRace": "Format wyścigu kulek z project.jdm, bez pierścieni: od 2 do 16 zawodników – z nazwami, kolorami i emoji z listy drużyn – rusza z pól startowych w dół długiego, pionowego toru wygenerowanego z ziarna. Rzędy kołków, lejków, obrotowych belek, flipperowych odbijaczy, turbo-pól, wąskich bramek i stref zamiany (pierwszy zawodnik ją uzbraja, drugi zamienia się z nim miejscami) mieszają kolejność; każda przeszkoda, w którą ktoś uderzy, gra jego własną nutę, a każde wyprzedzenie – rosnący dzwonek. Kamera śledzi lidera albo obejmuje całą stawkę, minimapa pokazuje cały tor, klasyfikacja – pozycje i straty, a meta to fanfara, podium i konfetti. Zapętl tor na kilka okrążeń, włącz puchar, by zbierać punkty F1 przez kolejne wyścigi, albo wybierz ustawionego zwycięzcę.",
     "modeBattle": "Bez pierścieni: od 2 do 20 kwadratów z punktami życia odbija się w pudełku lub w kole i wpada na siebie. Przy zderzeniu szybszy kwadrat zadaje obrażenia proporcjonalne do prędkości zbliżania; trafiony kwadrat błyska i trochę się kurczy, a przy 0 HP rozpada się na odłamki z napisem KO. Opcjonalna bezpieczna strefa zamyka się od ósmej sekundy i spycha ocalałych do siebie, a bonusy – leczenie, tarcza i przyspieszenie – pojawiają się w chwilach wyznaczonych przez ziarno. Ostatni kwadrat na placu boju wygrywa pod banerem z konfetti. Przebieg zależy tylko od ziarna, więc Znajdź symulację potrafi wyszukać bitwę o zadanej długości.",
-    "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu."
+    "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu.",
+    "modeRunner": "Rytmiczny bieg w stylu project.jdm „realistyczna grawitacja w Geometry Dash”, bez pierścieni: kwadrat biegnie po podłodze ze stałą prędkością pod przewijaną kamerą. Trasa jest planowana na bitach wczytanej piosenki (jej wykryty bit – ten sam detektor co w Malowaniu obrazka) albo tempa BPM: dla każdej przeszkody – rzędu kolców, dziury, bloku, na który się wskakuje, a potem z niego zeskakuje – solver skoków bierze czas lotu skoku z prawdziwą grawitacją i stałą prędkością wybicia i ustawia wybicie tak, żeby lądowanie wypadło dokładnie na bicie. Z automatycznym skokiem kwadrat skacze w tych chwilach i nigdy się nie myli; bez niego skaczesz Spacją, a zderzenie wznawia odcinek. Każde lądowanie gra kolejną nutę i wzbija obłoczek kurzu; meta gra akord.",
+    "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie."
   },
   "Footer": {
     "about": "O nas",
@@ -1805,5 +1862,19 @@
     "zipFailed": "Nie udało się utworzyć pliku ZIP (za duży dla tej przeglądarki?) – pobierz klipy pojedynczo przyciskiem ⬇.",
     "clear": "Wyczyść listę",
     "progressLabel": "Postęp klipu z serii"
+  },
+  "JdmRhythm": {
+    "complete": "POZIOM UKOŃCZONY!",
+    "completeSub": "Skoki: [jumps] · na bicie: [onBeat]/[landings]",
+    "attempt": "PODEJŚCIE [n]",
+    "auto": "AUTO",
+    "jumpHint": "SPACJA – skok",
+    "bpm": "♩ [bpm] BPM",
+    "score": "WYNIK",
+    "miss": "PUDŁO!",
+    "gameOver": "KONIEC GRY",
+    "gameOverSub": "Wynik [hits] · najdłuższa seria [best]",
+    "streak": "[n] z rzędu",
+    "moveHint": "← → albo wskaźnik przesuwa platformę"
   }
 }

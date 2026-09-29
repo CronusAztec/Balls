@@ -1257,7 +1257,54 @@
     "batchRender": "Renderizado por lotes",
     "batchRenderTip": "Pon en cola muchas exportaciones rápidas: N semillas aleatorias o una lista pegada de semillas y enlaces para compartir, opcionalmente en todos los modos o con un ajuste que va de A a B. Los clips se renderizan uno tras otro con los ajustes de este panel (la página muestra cada uno mientras se renderiza y al final recupera tus ajustes), se descargan como archivos modo-semilla-duración y, al final, todos juntos en un ZIP. El último lote se recuerda en este navegador.",
     "batchDownloadEach": "Descargar cada clip",
-    "batchDownloadEachTip": "Guarda cada clip en cuanto se renderiza (el navegador puede pedir una vez permiso para descargar varios archivos). En cualquier caso, al final puedes descargar todos los clips juntos en un ZIP."
+    "batchDownloadEachTip": "Guarda cada clip en cuanto se renderiza (el navegador puede pedir una vez permiso para descargar varios archivos). En cualquier caso, al final puedes descargar todos los clips juntos en un ZIP.",
+    "modeRunner": "Carrera al ritmo",
+    "modePaddle": "Pelota en la plataforma",
+    "rrTitle": "Carrera al ritmo",
+    "rrDesc": "Un cuadrado corre por el suelo bajo una cámara que se desplaza; los pinchos, los fosos y los bloques caen sobre los pulsos de la canción cargada (o del BPM de la sección Sonido personalizado), así que cada salto con gravedad real aterriza justo en un pulso y toca la siguiente nota.",
+    "rrAutoJump": "Salto automático",
+    "rrAutoJumpTip": "Activado: el cuadrado salta solo en los momentos que calculó el solucionador de saltos; nunca falla y cada aterrizaje cae en el pulso. Desactivado: saltas con Espacio (o ↑ o un toque en el lienzo); un choque reinicia el tramo desde su punto de control y Escape pausa.",
+    "rrObstacles": "Obstáculos",
+    "rrObstaclesTip": "Cuántos obstáculos tiene el recorrido antes de la meta (con el tempo por defecto, una carrera dura aproximadamente un segundo y medio por obstáculo).",
+    "rrSpeed": "Velocidad de carrera",
+    "rrSpeedTip": "Velocidad horizontal del cuadrado en longitudes de cubo por segundo. Más rápido alarga los saltos y ensancha los obstáculos.",
+    "rrJump": "Altura del salto",
+    "rrJumpTip": "Qué altura alcanza un salto, en longitudes de cubo. Junto con la Gravedad de la sección Pelota y física fija la velocidad de despegue y el tiempo de vuelo con el que el solucionador sincroniza cada salto.",
+    "rrDensity": "Densidad",
+    "rrDensityTip": "Con qué frecuencia un obstáculo ocupa el primer pulso en el que cabe. Más bajo deja de vez en cuando uno o dos pulsos libres (según la semilla).",
+    "rrMix": "Tipo de obstáculos",
+    "rrMixTip": "De qué se construye el recorrido: una mezcla, solo filas de pinchos, bloques a los que subir y de los que bajar, o fosos.",
+    "rrMixMixed": "Mezcla",
+    "rrMixSpikes": "Pinchos",
+    "rrMixBlocks": "Bloques",
+    "rrMixGaps": "Fosos",
+    "rrBeatSource": "Pulso",
+    "rrBeatSourceTip": "Canción: los obstáculos siguen el pulso detectado de la canción cargada (Música de fondo o Canción a trozos: el detector de Pintar una imagen), o el BPM si no hay canción. BPM: siempre el BPM de la sección Sonido personalizado.",
+    "rrBeatSong": "Canción",
+    "rrBeatBpm": "BPM",
+    "rrBeatInfoSong": "Siguiendo el pulso de la canción: {bpm} BPM.",
+    "rrBeatInfoNoSong": "No hay ninguna canción cargada: se sigue el BPM de la sección Sonido personalizado ({bpm}).",
+    "rrBeatInfoBpm": "Siguiendo el BPM de la sección Sonido personalizado: {bpm}.",
+    "rrBeatAnalyzing": "Detectando el pulso de la canción…",
+    "rrRunInfo": "{obstacles} obstáculos sobre un pulso de {bpm} BPM: una carrera de unos {seconds}s (la semilla la desplaza unos pulsos).",
+    "rrManualInfo": "{obstacles} obstáculos: pulsa Espacio (o toca el lienzo) para saltar. Un choque reinicia el tramo; Buscar simulación necesita el salto automático.",
+    "pdTitle": "Pelota en la plataforma",
+    "pdDesc": "Una pelota cae sobre una plataforma que se desliza a izquierda y derecha. Cada atrapada toca la siguiente nota y lanza la pelota de nuevo hacia arriba (más alto desde el centro, más bajo y de lado con efecto desde los bordes) contra las paredes y el techo. Si fallas demasiado, se acaba el juego.",
+    "pdAuto": "Plataforma automática",
+    "pdAutoTip": "Activado: un controlador determinista predice cada aterrizaje y lleva allí la plataforma (lo bien que lo hace lo decide el control Habilidad). Desactivado: la mueves con el puntero o con ← → (A / D).",
+    "pdSkill": "Habilidad",
+    "pdSkillTip": "Lo bien que juega el controlador. Por debajo del 100% planea algunas atrapadas un poco antes o después, apunta algo desviado y reacciona más tarde, todo según la semilla, así que los fallos y el fin del juego llegan siempre en los mismos momentos para una semilla. Al 100% nunca falla.",
+    "pdMisses": "Fallos permitidos",
+    "pdMissesTip": "Fallos antes de que el siguiente termine el juego (los corazones sobre el campo).",
+    "pdWidth": "Ancho de la plataforma",
+    "pdWidthTip": "Ancho de la plataforma como fracción del campo.",
+    "pdSpin": "Efecto",
+    "pdSpinTip": "Cuánto un golpe fuera del centro de la plataforma lanza la pelota de lado y le da efecto (el propio movimiento de la plataforma añade un poco).",
+    "pdSpeedUp": "Aceleración",
+    "pdSpeedUpTip": "Cada atrapada hace el vuelo un poco más rápido (hasta el doble): cuanto más dura el juego, más difícil se vuelve.",
+    "pdInfoPerfect": "Con un 100% de habilidad el controlador nunca falla: el juego no termina (Buscar simulación necesita una habilidad menor).",
+    "pdInfoAuto": "{lives} vidas: los fallos del controlador salen de la semilla, así que Buscar simulación puede cronometrar el fin del juego.",
+    "pdInfoManual": "Mueve la plataforma con el puntero o con ← →. Buscar simulación necesita la plataforma automática."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1322,6 +1369,14 @@
     "ctf": {
       "name": "Captura la bandera",
       "description": "Dos equipos de cuadrados que rebotan y una base con bandera en cada extremo: toca la bandera rival para llevarla y llévala a casa para anotar; si te placan por el camino, la bandera cae donde estés. Gana el primero en llegar a la puntuación objetivo, o el que vaya ganando cuando acabe el clip, con una fanfarria en cada captura."
+    },
+    "runner": {
+      "name": "Carrera al ritmo",
+      "description": "Un cuadrado al estilo Geometry Dash corre bajo una cámara que se desplaza; los pinchos, fosos y bloques caen sobre los pulsos de tu canción, y cada salto con gravedad real aterriza justo en un pulso y toca la siguiente nota. El salto automático nunca falla, o juega tú con Espacio."
+    },
+    "paddle": {
+      "name": "Pelota en la plataforma",
+      "description": "Mantén la pelota en juego con una plataforma que se desliza a izquierda y derecha: cada atrapada es una nota y los golpes fuera del centro la mandan de lado con efecto contra las paredes y el techo, hasta que se acaban los fallos y llega el fin del juego."
     }
   },
   "Features": {
@@ -1474,7 +1529,9 @@
     "modePowerLayers": "El formato de capas de poder de oddplayground, sin anillos: un campo vertical azul marino con una barra de techo luminosa en su tercio superior y, desde la mitad de la pantalla hacia abajo, una pila densa de 20 a 800 capas arcoíris finas: las capas entre la pelota y la libertad. Una pelota blanca rebota entre el techo y la cima de la pila con una ligera deriva sembrada. Cada impacto destruye tantas capas como el poder actual (se rompen en partículas de colores y la pila baja) y después el poder se duplica, sigue a Fibonacci o a los primos, crece de uno en uno o se sortea con la semilla (caos: algunos golpes destruyen decenas de capas y otros no cambian nada). Dos píldoras arcoíris muestran la regla, el poder y el nivel, cada nivel toca la siguiente nota de tu escala, un golpe grande añade un acorde y un silbido, y cuando desaparece la última capa la pelota cae por abajo hacia la libertad. Cada rebote dura lo mismo, así que un recorrido dura el número de golpes por el periodo de rebote: Buscar simulación lo dice o busca entre las semillas del caos la duración de tu clip.",
     "modeRace": "El formato de carrera de canicas de project.jdm, sin anillos: de 2 a 16 corredores —con los nombres, colores y emojis de la lista de equipos— salen de una parrilla y bajan por una larga pista vertical generada a partir de la semilla. Filas de clavijas, embudos, aspas giratorias, bumpers de pinball, turbos, puertas estrechas y zonas de intercambio (el primer corredor la arma y el segundo intercambia su posición con él) revuelven el orden; cada obstáculo que golpea un corredor suena con su propia nota y cada adelantamiento con un timbre ascendente. La cámara sigue al líder o encuadra al pelotón, un minimapa muestra toda la pista, la clasificación muestra posiciones y diferencias, y la meta trae fanfarria, podio y confeti. Repite la pista varias vueltas, activa una copa para sumar puntos de F1 entre carreras o elige un ganador amañado.",
     "modeBattle": "Sin anillos: de 2 a 20 cuadrados con puntos de vida rebotan en una caja o un círculo y chocan entre sí. Cuando dos se golpean, el más rápido hace un daño proporcional a la velocidad con la que se acercan; el cuadrado golpeado parpadea y encoge un poco, y a 0 PV estalla en pedazos con un cartel de KO. Una zona segura opcional se cierra desde el octavo segundo y empuja a los supervivientes unos contra otros, y los potenciadores de curación, escudo y velocidad aparecen en momentos marcados por la semilla. El último cuadrado en pie gana bajo un cartel con confeti. Todo depende de la semilla, así que Buscar simulación puede encontrar una batalla de la duración que quieras.",
-    "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip."
+    "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip.",
+    "modeRunner": "El corredor rítmico de project.jdm «gravedad realista en Geometry Dash», sin anillos: un cuadrado corre por el suelo a velocidad constante bajo una cámara que se desplaza. El recorrido se planifica sobre los pulsos de la canción cargada (su pulso detectado, el mismo detector que Pintar una imagen) o del BPM: para cada obstáculo (una fila de pinchos, un foso, un bloque al que subir y del que luego bajar) el solucionador de saltos toma el tiempo de vuelo de un salto con gravedad real y velocidad de despegue fija y ajusta el despegue para que el aterrizaje caiga justo en un pulso. Con el salto automático el cuadrado salta en esos momentos y nunca falla; sin él saltas con Espacio y un choque reinicia el tramo. Cada aterrizaje toca la siguiente nota con una nube de polvo; la meta toca un acorde.",
+    "modePaddle": "El formato «Ball Bounce Game with Moving Platform», sin anillos: una pelota cae con gravedad real sobre una plataforma que se desliza a izquierda y derecha; al atraparla sale despedida hacia arriba (más alto desde el centro, más bajo y de lado con efecto desde los bordes), así que recorre las paredes y el techo, y cada atrapada toca la siguiente nota. El controlador automático predice cada aterrizaje y va hacia allí; su Habilidad decide cuántas veces llega antes o después de tiempo, así que los fallos (y el fin del juego tras los permitidos) son deterministas para una semilla. También puedes mover la plataforma tú."
   },
   "Footer": {
     "about": "Acerca de",
@@ -1805,5 +1862,19 @@
     "zipFailed": "No se pudo crear el ZIP (¿demasiado grande para este navegador?): descarga los clips uno a uno con ⬇.",
     "clear": "Vaciar la lista",
     "progressLabel": "Progreso del clip del lote"
+  },
+  "JdmRhythm": {
+    "complete": "¡NIVEL COMPLETADO!",
+    "completeSub": "[jumps] saltos · [onBeat]/[landings] aterrizajes en el pulso",
+    "attempt": "INTENTO [n]",
+    "auto": "AUTO",
+    "jumpHint": "ESPACIO para saltar",
+    "bpm": "♩ [bpm] BPM",
+    "score": "PUNTOS",
+    "miss": "¡FALLO!",
+    "gameOver": "FIN DEL JUEGO",
+    "gameOverSub": "Puntos: [hits] · mejor racha: [best]",
+    "streak": "[n] seguidas",
+    "moveHint": "← → o el puntero mueven la plataforma"
   }
 }
