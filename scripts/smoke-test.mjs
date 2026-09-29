@@ -943,7 +943,7 @@ await page.waitForTimeout(5000);
 }
 // --- end boris-faces ---
 // --- themes
-// 9. Themes and backgrounds: the Theme block opens the Visual section; a theme card applies its look (URL, gradient
+// 10. Themes and backgrounds: the Theme block opens the Visual section; a theme card applies its look (URL, gradient
 // background read back from the canvas pixels, particle style handed to the engine); its colours stay editable (the
 // card then reads "edited"); a picture generated in the page becomes the cover-fitted, dimmed background (never in
 // the URL); the reactive background still flashes on top of it during a run; a portrait export with the picture
