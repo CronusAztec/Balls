@@ -3676,6 +3676,67 @@ const plFrameRates = async (ms) => {
   await page.waitForTimeout(300);
   check("dropping a project file on the panel imports it", outlineShown && /Opened/.test(dropText) && setupRestored(linkParams()), `(outline ${outlineShown}, status "${dropText}", link ${linkParams().toString()})`);
 
+  // A project dropped on one of the panel's own drop zones (the hit sample, the wall-break sound) still opens as a project –
+  // it is not loaded as a sound – while an audio file dropped there still goes to that zone.
+  const dropOn = async (target, name, type, content) => {
+    const dt = await page.evaluateHandle(
+      ({ name, type, content }) => {
+        const d = new DataTransfer();
+        const bytes = typeof content === "string" ? content : new Uint8Array(content);
+        d.items.add(new File([bytes], name, { type }));
+        return d;
+      },
+      { name, type, content },
+    );
+    await target.dispatchEvent("dragenter", { dataTransfer: dt });
+    await target.dispatchEvent("dragover", { dataTransfer: dt });
+    await target.dispatchEvent("drop", { dataTransfer: dt });
+  };
+  const decodeErrors = [];
+  const onDecodeError = (msg) => {
+    if (msg.type() === "error" || /decode/i.test(msg.text())) decodeErrors.push(msg.text());
+  };
+  page.on("console", onDecodeError);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&hsm=sample&hs=kick`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const hitZone = page.locator("label:has(#hit-sample-input)");
+  await hitZone.waitFor({ timeout: 10000 });
+  await dropOn(hitZone, "my.viralballs.json", "application/json", projectText);
+  const hitDropText = await projectStatus();
+  await page.waitForTimeout(300);
+  const hitDropParams = linkParams();
+  check(
+    "a project dropped on the hit-sample drop zone opens as a project, not as a sample",
+    /Opened/.test(hitDropText) && setupRestored(hitDropParams) && !hitDropParams.has("hsm") && !decodeErrors.some((e) => /decode/i.test(e)),
+    `(status "${hitDropText}", link ${hitDropParams.toString()}, errors ${JSON.stringify(decodeErrors.slice(0, 2))})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=classic&g=450`, { waitUntil: "networkidle" });
+  // The search shows the wall-break picker and its drop zone together.
+  await page.getByPlaceholder("Search settings...").fill("Wall Break");
+  const wallBreakZone = page.locator('label:has-text("Import Custom Wall Break Sound") + label');
+  await wallBreakZone.waitFor({ timeout: 10000 });
+  decodeErrors.length = 0;
+  await dropOn(wallBreakZone, "my.viralballs.json", "application/json", projectText);
+  await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const wallBreakValue = await page.locator("#wallbreak-select").inputValue({ timeout: 5000 }).catch(() => "(missing)");
+  const wallBreakProjectOption = await page.locator("#wallbreak-select option", { hasText: "my.viralballs.json" }).count().catch(() => -1);
+  await page.getByPlaceholder("Search settings...").fill(""); // the search hides the Project file block and its status
+  const wallDropText = await projectStatus();
+  check(
+    "a project dropped on the wall-break drop zone opens as a project, not as a wall-break sound",
+    /Opened/.test(wallDropText) && setupRestored(linkParams()) && wallBreakValue !== "(missing)" && !wallBreakValue.startsWith("blob:") && wallBreakProjectOption === 0 && !decodeErrors.some((e) => /decode/i.test(e)),
+    `(status "${wallDropText}", wall break "${wallBreakValue.slice(0, 40)}", project option ${wallBreakProjectOption}, link ${linkParams().toString()}, errors ${JSON.stringify(decodeErrors.slice(0, 2))})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=classic&hsm=sample&hs=kick`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await hitZone.waitFor({ timeout: 10000 });
+  await dropOn(hitZone, "dropped-hit.wav", "audio/wav", [...makeWav(1)]);
+  const hitTaken = await page.waitForFunction(() => document.querySelector("#hit-sample-select")?.value === "custom", null, { timeout: 10000 }).then(() => true).catch(() => false);
+  const noProject = !(await page.getByTestId("project-status").isVisible().catch(() => false));
+  check("an audio file dropped on the hit-sample zone still loads as the hit sample", hitTaken && noProject && linkParams().get("hsm") === "sample", `(custom=${hitTaken}, project status=${!noProject}, link ${linkParams().toString()})`);
+  page.off("console", onDecodeError);
+
   // A JSON file that is not a project is refused, and the page keeps its settings.
   await page.goto(`${BASE}/en/simulator/?mode=lines&g=450`, { waitUntil: "networkidle" });
   await openProjectBlock();

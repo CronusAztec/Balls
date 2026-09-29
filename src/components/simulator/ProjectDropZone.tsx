@@ -5,8 +5,10 @@ import { looksLikeProjectFile } from "@/lib/project";
 
 /**
  * --- project-files --- Wraps the controls panel so a `.viralballs.json` file dropped anywhere on it is imported.
- * The panel's own drop zones (MIDI, songs, samples, pictures) handle their drops first – a drop they took is left
- * alone – and the outline only shows while a JSON file is dragged, so they keep their own highlight.
+ * A project file is caught in the capture phase, before the panel's own drop zones (MIDI, songs, samples, pictures,
+ * wall-break sound, theme background) see it: none of them takes JSON, and each passes whatever it is given to its
+ * upload handler, so a project dropped on one of them must still open as a project. Other files go through to them.
+ * The outline only shows while a JSON file is dragged, so the inner zones keep their own highlight for their files.
  */
 export default function ProjectDropZone({ className, label, onFile, children }: { className?: string; label: string; onFile: (file: File) => void; children: ReactNode }) {
   const [active, setActive] = useState(false);
@@ -29,19 +31,27 @@ export default function ProjectDropZone({ className, label, onFile, children }: 
         depth.current -= 1;
         if (depth.current === 0) setActive(false);
       }}
-      onDragOver={(e) => {
-        if (!carriesJson(e) || e.isDefaultPrevented()) return;
+      // Capture phase: a project file never reaches an inner drop zone (it would load it as a sound, a MIDI or a picture).
+      onDragOverCapture={(e) => {
+        if (!carriesJson(e)) return;
         e.preventDefault();
+        e.stopPropagation();
         e.dataTransfer.dropEffect = "copy";
       }}
-      onDrop={(e) => {
-        depth.current = 0;
-        setActive(false);
-        if (e.isDefaultPrevented()) return; // an inner drop zone took it
+      onDropCapture={(e) => {
+        // The names are known on drop: a `.json` whose type the browser left empty is caught here too.
         const file = Array.from(e.dataTransfer?.files ?? []).find((f) => looksLikeProjectFile(f));
         if (!file) return;
         e.preventDefault();
+        e.stopPropagation();
+        depth.current = 0;
+        setActive(false);
         onFile(file);
+      }}
+      onDrop={() => {
+        // Another file, dropped on an inner zone (which took it) or on the panel: the drag is over.
+        depth.current = 0;
+        setActive(false);
       }}
     >
       {children}
