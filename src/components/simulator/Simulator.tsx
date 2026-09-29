@@ -7,9 +7,10 @@ import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
 import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
 import type { MusicTrackInfo } from "./sections/MusicSection";
 import Tooltip from "./Tooltip";
-import { PhysicsEngine } from "@/lib/physics/engine";
+import { PhysicsEngine, TWO_BALL_MODES } from "@/lib/physics/engine";
 import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
+import { dropSettingsOf } from "@/lib/physics/modes/drop";
 import type { ModeId } from "@/lib/physics/types";
 import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from "@/lib/audio/sampler";
 import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
@@ -30,7 +31,7 @@ import {
   type SimulatorSettings,
 } from "@/lib/settings";
 
-/** Modes where "Find Simulation" makes no sense because the run never "finishes". */
+/** Modes where "Find Simulation" makes no sense because the run never "finishes" (Ball Drop only while its rain loops). */
 const NO_FINDER_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
 const SPEEDS = [1, 2, 4, 8];
 
@@ -113,6 +114,7 @@ export default function Simulator() {
     engine.setGrowCenterDotEnabled(s.growCenterDot);
     engine.setGrowLinesEnabled(s.growLines);
     engine.setLinesCenterDotEnabled(s.linesCenterDot);
+    engine.setDropSettings(dropSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -245,6 +247,17 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.colorMatchColorCount]);
+  // Ball Drop: a change of the board (ball count, spreads, rows, release interval, rain) restarts it, like Target does.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setDropSettings(dropSettingsOf(s));
+    if (s.mode === "drop" && engine.getCurrentModeName() === "drop") {
+      engine.initDrop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop]);
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -291,14 +304,15 @@ export default function Simulator() {
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls]);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop]);
 
-  // Live add/remove of the second ball.
+  // Live add/remove of the second ball (only in the two-ball modes: Ball Drop starts with many balls of its own).
   const prevTwoBallsRef = useRef(s.twoBalls);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine || prevTwoBallsRef.current === s.twoBalls) return;
     prevTwoBallsRef.current = s.twoBalls;
+    if (!TWO_BALL_MODES.includes(s.mode)) return;
     const balls = engine.getBalls();
     if (s.twoBalls && balls.length === 1) {
       const b = balls[0];
@@ -307,7 +321,7 @@ export default function Simulator() {
     } else if (!s.twoBalls && balls.length > 1) {
       engine.setBalls(balls.slice(0, 1));
     }
-  }, [s.twoBalls, s.ballSpeed, s.ballColor2]);
+  }, [s.twoBalls, s.ballSpeed, s.ballColor2, s.mode]);
 
   // Mirror settings into the URL so any setup can be bookmarked or shared.
   useEffect(() => {
@@ -409,7 +423,7 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
-          if (ev.type === "hit") audio.playWallHit(ev.wallIndex);
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency);
           else if (ev.type === "gap") audio.playGapPass();
           else audio.playInteraction(ev.type);
         }
@@ -819,6 +833,7 @@ export default function Simulator() {
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
+          drop: dropSettingsOf(settings),
         },
       },
       (p) => setSearchProgress(p),
@@ -877,10 +892,12 @@ export default function Simulator() {
       complete: t("Simulator.canvasComplete"),
       segmentsHitInOrder: (total) => fill("Simulator.canvasSegmentsHitInOrder", { total }),
       ballsLabel: t("Simulator.canvasBalls"),
+      settled: t("Simulator.canvasSettled"),
+      ballsAtRest: (n) => fill("Simulator.canvasBallsAtRest", { count: n }),
     };
   }, [t]);
 
-  const showFinder = !NO_FINDER_MODES.includes(settings.mode);
+  const showFinder = !NO_FINDER_MODES.includes(settings.mode) && !(settings.mode === "drop" && settings.dropLoop);
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 

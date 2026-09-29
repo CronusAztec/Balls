@@ -43,6 +43,7 @@ const modeSettings: ModeSettings = {
   growRate: 5,
   portalCount: 3,
   twoBalls: false,
+  drop: {},
 };
 
 const ALL_EXTRAS_ON: PhysicsExtras = {
@@ -78,7 +79,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   portal: { samples: [[240955,409218],[332979,471847],[563286,397283],[335122,277545]], broken: [], walls: [225000] },
   shatter: { samples: [[394180,350193],[391982,373187],[308416,175087],[271269,179878]], broken: [], walls: [80143,109286,138429,167571,196714,225857,255000] },
   colorMatch: { samples: [[543609,300177],[596383,347033],[600656,287224],[285153,381609]], broken: [], walls: [225000] },
-  grow: { samples: [[384329,184131],[334553,260481],[250197,392467],[321890,452798]], broken: [], walls: [225000] },
+  grow: { samples: [[384329,184131],[334553,260481],[250197,392467],[321890,452798]], broken: [], walls: [225000] },  // Ball Drop has no rings; recorded when the mode was added (seed 12345, default board: 12 balls released 0.4 s apart).
+  drop: { samples: [[386190,181061],[179964,230492],[420973,497548],[219878,230933],[209300,577112],[293286,420857],[177302,577112],[361866,554952]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

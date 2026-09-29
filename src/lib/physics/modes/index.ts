@@ -14,3 +14,5 @@ export type { ShatterSegment } from "./shatter";
 export { ColorMatchMode, COLOR_MATCH_COLORS } from "./colorMatch";
 export type { ColorMatchSegment } from "./colorMatch";
 export { GrowMode } from "./grow";
+export { DropMode } from "./drop";
+export type { DropSettings, DropLayout, DropField } from "./drop";

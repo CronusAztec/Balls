@@ -50,6 +50,7 @@ const modeSettings: ModeSettings = {
   growRate: 5,
   portalCount: 3,
   twoBalls: false,
+  drop: {},
 };
 
 const STEP = 1000 / 60;

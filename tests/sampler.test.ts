@@ -48,6 +48,14 @@ describe("hit sample playback-rate mapping", () => {
     expect(hitSamplePlaybackRate(-3, true)).toBe(1);
     expect(hitSamplePlaybackRate(2.7, true)).toBe(hitSamplePlaybackRate(2, true));
   });
+
+  it("transposes the clip to a pitch supplied by the mode (Ball Drop) relative to the innermost-wall tone", () => {
+    expect(hitSamplePlaybackRate(0, true, 400)).toBeCloseTo(0.5);
+    expect(hitSamplePlaybackRate(5, true, 1600)).toBeCloseTo(2);
+    expect(hitSamplePlaybackRate(5, false, 1600)).toBe(1);
+    expect(hitSamplePlaybackRate(5, true, 0)).toBe(hitSamplePlaybackRate(5, true));
+    expect(hitSamplePlaybackRate(5, true, undefined)).toBe(hitSamplePlaybackRate(5, true));
+  });
 });
 
 describe("hit sound dispatch", () => {

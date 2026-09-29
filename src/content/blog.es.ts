@@ -6,11 +6,11 @@ export const POSTS_ES: BlogPost[] = [
     slug: "every-viralballs-mode-explained",
     locale: "es",
     title: "Todos los modos de ViralBalls explicados — y cuál consigue más visualizaciones",
-    description: "Un recorrido por los 10 modos de juego con ajustes recomendados, qué hace que cada uno funcione en pantalla y cómo elegir el modo adecuado para tu próximo clip.",
+    description: "Un recorrido por los 11 modos de juego con ajustes recomendados, qué hace que cada uno funcione en pantalla y cómo elegir el modo adecuado para tu próximo clip.",
     date: "2026-03-28",
     readingTime: "10 min de lectura",
     tags: ["guía", "modos de juego", "tutorial", "contenido viral", "ajustes", "consejos"],
-    content: `ViralBalls incluye **10 modos de juego**, y cada uno produce un tipo de vídeo visiblemente distinto. Elegir el modo, y después ajustar un puñado de parámetros, es la palanca más importante que tienes sobre el rendimiento de un clip. Esta guía recorre cada modo, explica la mecánica que hay detrás y lista los ajustes que suelen funcionar en vídeo corto.
+    content: `ViralBalls incluye **11 modos de juego**, y cada uno produce un tipo de vídeo visiblemente distinto. Elegir el modo, y después ajustar un puñado de parámetros, es la palanca más importante que tienes sobre el rendimiento de un clip. Esta guía recorre cada modo, explica la mecánica que hay detrás y lista los ajustes que suelen funcionar en vídeo corto.
 
 ## 1. Clásico
 
@@ -157,6 +157,23 @@ La pelota está encerrada en un gran anillo sin salida. Cada rebote la hace un p
 
 **Consejo:** el texto *«¿Cuánto puede crecer?»* dispara la tasa de finalización porque el espectador necesita ver la respuesta.
 
+## 11. Caída de pelotas
+
+Esta vez sin anillos. Un tablero alto de clavijas y barras cortas llena el lienzo, y pelotas de distintos tamaños y pesos se sueltan desde arriba una tras otra. Cada golpe contra una clavija, una barra o una pared toca una nota cuyo tono depende del tamaño de la pelota, graves las grandes y agudas las pequeñas, así que la simulación compone su propia polirritmia hasta que la última pelota queda en reposo.
+
+**Por qué funciona:** es el modo donde manda el sonido. El espectador mira con el volumen alto porque la imagen explica la música: una pelota pesada bajando por el tablero toca la línea de bajo mientras las pequeñas salpican notas agudas por encima. Activa Lluvia y la pieza no termina nunca.
+
+**Ajustes sugeridos:**
+
+- **Número de pelotas:** 12 a 20. Más pelotas, música más densa.
+- **Variación de tamaño:** 60 a 80%, para que los tonos se repartan en un par de octavas.
+- **Variación de gravedad:** 50% o más. Es lo que desincroniza el ritmo.
+- **Escala:** Pentatónica en la sección Sonido. Cada nota cae en la tonalidad sean cuales sean los tamaños.
+- **Intervalo de salida:** 0,3 a 0,5 s para una apertura clara; 0 para una ráfaga.
+- **Duración:** 20 a 30 segundos, o Lluvia activada para un bucle.
+
+**Consejo:** el texto *«Sube el volumen»* es aquí todo el gancho.
+
 ## ¿Qué modo deberías usar?
 
 - **Máximas visualizaciones:** Clásico o Multiplicar, los formatos más probados y de mayor alcance.
@@ -165,10 +182,11 @@ La pelota está encerrada en un gran anillo sin salida. Cada rebote la hace un p
 - **Destacar:** Acumulación o Crecer, que todavía se usan poco.
 - **Nostalgia arcade:** Fragmentación.
 - **Repeticiones:** Portal.
+- **Música y ritmo:** Caída de pelotas, donde cada golpe es una nota.
 
 La jugada real es **rotar**. Publica un clip Clásico el lunes, Multiplicar el miércoles y Coincidir color el viernes. La variedad mantiene fresco tu perfil, y cada modo atrae a una audiencia ligeramente distinta, lo que hace crecer tu alcance total más rápido que repetir un solo formato.
 
-[Prueba los 10 modos ahora →](/es/simulator)`,
+[Prueba los 11 modos ahora →](/es/simulator)`,
   },
   {
     slug: "10-satisfying-ball-physics-video-ideas-that-go-viral",
@@ -305,6 +323,7 @@ Ajusta la gravedad desde ligera como una pluma hasta aplastante, fija la velocid
 - **Fragmentación**: las paredes son ladrillos con puntos de vida.
 - **Coincidir color**: solo los colores coincidentes rompen segmentos.
 - **Crecer**: la pelota crece con cada rebote.
+- **Caída de pelotas**: las pelotas caen entre clavijas y barras y cada golpe toca una nota según su tamaño.
 
 ### Efectos visuales
 

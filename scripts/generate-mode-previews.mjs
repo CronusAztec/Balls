@@ -5,6 +5,7 @@
  * Requires the exported site to be served (BASE_URL, default http://localhost:3000 plus
  * NEXT_PUBLIC_BASE_PATH; see `npm start`) and Playwright.
  * Run: node scripts/generate-mode-previews.mjs
+ * MODES=drop,classic renders only those modes (e.g. the card image of a new mode without re-rendering the others).
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -24,7 +25,9 @@ const MODES = {
   shatter: { wait: 5000, query: "" },
   colorMatch: { wait: 8000, query: "" },
   grow: { wait: 12000, query: "glines=1&rlines=1&glow=1" },
+  drop: { wait: 7000, query: "dbc=16&dsi=0.2&dsv=0.7&glow=1" },
 };
+const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -34,6 +37,7 @@ const browser = await chromium.launch(launchOpts);
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
 
 for (const [mode, cfg] of Object.entries(MODES)) {
+  if (only && !only.includes(mode)) continue;
   await page.goto(`${BASE}/en/simulator/?mode=${mode}&wm=&${cfg.query}`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(cfg.wait);

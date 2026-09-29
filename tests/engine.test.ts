@@ -32,6 +32,7 @@ const settings = {
   growRate: 5,
   portalCount: 3,
   twoBalls: false,
+  drop: {},
 };
 
 function run(engine: PhysicsEngine, frames: number) {

@@ -1,5 +1,6 @@
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { resolvePhysicsExtras } from "@/lib/physics/extras";
+import type { DropSettings } from "@/lib/physics/modes";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 
 /**
@@ -22,6 +23,8 @@ export interface ModeSettings {
   growRate: number;
   portalCount: number;
   twoBalls: boolean;
+  /** Ball Drop: ball count, size / gravity spread, rows, release interval and rain (see modes/drop.ts). */
+  drop: Partial<DropSettings>;
 }
 
 export interface FinderRequest {
@@ -75,6 +78,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   }
   if (mode === "grow") engine.setGrowRate(settings.growRate);
   if (mode === "portal") engine.setPortalCount(settings.portalCount);
+  if (mode === "drop") engine.setDropSettings(settings.drop);
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

@@ -5,6 +5,7 @@ import {
   AccumulationMode,
   ClassicMode,
   ColorMatchMode,
+  DropMode,
   GrowMode,
   LinesMode,
   MultiplyMode,
@@ -13,6 +14,8 @@ import {
   ShatterMode,
   TargetMode,
 } from "./modes";
+import type { DropSettings } from "./modes";
+import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type {
   Ball,
   BallInteractionConfig,
@@ -21,6 +24,7 @@ import type {
   ModeContext,
   ModeId,
   NewBall,
+  ObstacleHit,
   Particle,
   PhysicsConfig,
   PhysicsExtras,
@@ -31,6 +35,13 @@ import type {
   WallHit,
 } from "./types";
 import { TWO_PI } from "./types";
+
+/**
+ * Approach speed (px/s) from which an obstacle contact counts as a hit (sound + glow); resting contacts stay
+ * silent. A resting ball is pushed into its support by one sub-step of gravity every step, so under heavy
+ * gravity the threshold rises to three times that per-sub-step speed (see `handleObstacleCollisions()`).
+ */
+export const OBSTACLE_HIT_SPEED = 40;
 
 /**
  * The physics engine. It is deliberately framework-free so it can run in the page,
@@ -54,11 +65,24 @@ import { TWO_PI } from "./types";
  * classic pair rebound, "merge" fuses touching balls in `mergeBallPair()`, "pass" skips the pair loop
  * and "split" halves a ball at the end of the step in which it broke a wall (`reportWallBreak()` →
  * `flushSplits()`), whether the engine's own gap pass or a mode reported the break.
+ *
+ * Obstacles (obstacles.ts) – pegs, bars and straight walls a mode places anywhere – are resolved for
+ * every ball in every sub-step (`handleObstacleCollisions()`), before the ring walls; a hit above
+ * `OBSTACLE_HIT_SPEED` is reported to the mode (`onObstacleHit`), queued as a "hit" sound (with the
+ * pitch the mode chose) and remembered for the canvas glow. Ball Drop is built entirely out of them.
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
   private _config: PhysicsConfig;
   private extras: PhysicsExtras;
+  /** Pegs, bars and straight walls in play (empty in the ring modes); see obstacles.ts. */
+  private obstacles: Obstacle[] = [];
+  /** True while any bar spins, i.e. while `advanceObstacles()` has work to do each sub-step. */
+  private obstaclesSpin = false;
+  /** Recent obstacle contacts for the canvas glow (visual only). */
+  private obstacleHits: ObstacleHit[] = [];
+  /** Speed (px/s) one sub-step of gravity adds to a ball of normal weight in the current step; sets the hit threshold. */
+  private subStepGravity = 0;
   /** Unpulsed wall radii (breathing walls); kept in step with `circularWalls` by `syncWallBaseRadii()`. */
   private wallBaseRadii: number[] = [];
   /** The breathing multiplier currently applied to `circularWalls` (1 = base radii). */
@@ -109,6 +133,7 @@ export class PhysicsEngine {
   readonly shatterMode = new ShatterMode();
   readonly colorMatchMode = new ColorMatchMode();
   readonly growMode = new GrowMode();
+  readonly dropMode = new DropMode();
 
   readonly ctx: ModeContext;
 
@@ -162,6 +187,8 @@ export class PhysicsEngine {
       getElapsedMs: () => this._elapsedMs,
       getWallBaseRadii: () => this.wallBaseRadii,
       getPhysicsExtras: () => this.extras,
+      getObstacles: () => this.obstacles,
+      setObstacles: (obstacles) => this.setObstacles(obstacles),
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -200,7 +227,7 @@ export class PhysicsEngine {
 
   // ---------------------------------------------------------------- mode activation
 
-  private activateMode(mode: GameMode, layout: "classic" | "single-gap" | "solid") {
+  private activateMode(mode: GameMode, layout: "classic" | "single-gap" | "solid" | "none") {
     this.clear();
     this._elapsedMs = 0;
     this._seed = this._customSeed !== null ? this._customSeed : Math.floor(0x7fffffff * Math.random());
@@ -209,6 +236,10 @@ export class PhysicsEngine {
     this.cinematicDirector.reset();
     if (layout === "classic") {
       this.initializeCircularWalls();
+    } else if (layout === "none") {
+      // No rings at all: the mode builds its playfield out of obstacles in init().
+      this.circularWalls = [];
+      this.wallRotations = [];
     } else if (layout === "single-gap") {
       const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
       const gap = this._config.gapSize || 0.3;
@@ -296,6 +327,9 @@ export class PhysicsEngine {
   initGrow() {
     this.activateMode(this.growMode, "solid");
   }
+  initDrop() {
+    this.activateMode(this.dropMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -320,6 +354,8 @@ export class PhysicsEngine {
         return this.initColorMatch();
       case "grow":
         return this.initGrow();
+      case "drop":
+        return this.initDrop();
     }
   }
 
@@ -579,6 +615,30 @@ export class PhysicsEngine {
   getLinesState() {
     return this.linesMode.getState() as { centerDotEnabled: boolean; centerDotRadius: number };
   }
+  isDropMode() {
+    return this.currentMode === this.dropMode;
+  }
+  getDropSettings(): DropSettings {
+    return this.dropMode.getSettings();
+  }
+  /** Ball count, size / gravity spread, rows, release interval and rain; applied by the next `initDrop()`. */
+  setDropSettings(settings: Partial<DropSettings>) {
+    this.dropMode.setSettings(settings);
+  }
+  getDropProgress() {
+    return this.dropMode.getProgress();
+  }
+  getDropLayout() {
+    return this.dropMode.getLayout();
+  }
+  /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
+  getObstacles() {
+    return this.obstacles;
+  }
+  /** Obstacle contacts of the last second, for the canvas glow. */
+  getObstacleHits() {
+    return this.obstacleHits;
+  }
   getElapsedMs() {
     return this._elapsedMs;
   }
@@ -636,6 +696,13 @@ export class PhysicsEngine {
     this.pendingSoundEvents = [];
     this.pendingSplits = [];
     this.breathScale = 1;
+    this.setObstacles([]);
+  }
+
+  private setObstacles(obstacles: Obstacle[]) {
+    this.obstacles = obstacles;
+    this.obstaclesSpin = hasSpinningObstacles(obstacles);
+    this.obstacleHits = [];
   }
 
   setConfig(patch: Partial<PhysicsConfig>) {
@@ -648,7 +715,8 @@ export class PhysicsEngine {
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(this._config);
     if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
-    if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius;
+    // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is.
+    if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
     const sizeChanged =
       (patch.width !== undefined && patch.width !== oldW) || (patch.height !== undefined && patch.height !== oldH);
     if (sizeChanged && oldW > 0 && oldH > 0) {
@@ -786,6 +854,9 @@ export class PhysicsEngine {
       const wind = extras.windX !== 0 || extras.windY !== 0;
       const spinning = extras.spinStrength > 0;
       const magnus = extras.spinStrength * MAGNUS_COEFFICIENT;
+      // The ring modes keep every ball at least at its base speed; a mode whose balls may rest (Ball Drop) opts out.
+      const keepMoving = !this.currentMode?.ballsMayRest;
+      const hasObstacles = this.obstacles.length > 0;
 
       const subSteps =
         this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
@@ -793,16 +864,19 @@ export class PhysicsEngine {
       const subSec = subMs / 1000;
       const spinDecay = spinning ? spinDecayFactor(subSec) : 1;
       const stepStartMs = this._elapsedMs - stepMs;
+      if (hasObstacles) this.subStepGravity = (this._config.gravity * (this._config.ballSpeed || 400) * subSec) / 300;
       for (let s = 0; s < subSteps; s++) {
         // Breathing walls move once per sub-step (a quarter of the per-step jump or less) and the collision
         // pass below sweeps each wall over that move, so even the fastest, widest pulse cannot step over a
         // ball. The last sub-step lands exactly on the step's end time, so the radii a frame renders (and
         // `setConfig()` recomputes) are the same values the per-step pulse produced.
         if (this.breathing) this.applyBreathing(s === subSteps - 1 ? this._elapsedMs : stepStartMs + (s + 1) * subMs);
+        if (this.obstaclesSpin) advanceObstacles(this.obstacles, subSec);
         for (let i = this.balls.length - 1; i >= 0; i--) {
           const ball = this.balls[i];
           const baseSpeed = this._config.ballSpeed || 400;
-          const gravityScale = (baseSpeed / 300) * (1 + 0.5 * audioIntensity);
+          // A ball's own weight (Ball Drop) multiplies the gravity; 1 for every other ball, which leaves the value untouched.
+          const gravityScale = (baseSpeed / 300) * (1 + 0.5 * audioIntensity) * (ball.gravityScale ?? 1);
           if (rotatingGravity) {
             const g = this._config.gravity * subSec * gravityScale;
             ball.vx += g * gDirX;
@@ -823,11 +897,13 @@ export class PhysicsEngine {
             if (ball.angle > TWO_PI || ball.angle < -TWO_PI) ball.angle %= TWO_PI;
             ball.spin *= spinDecay;
           }
-          const speed = Math.hypot(ball.vx, ball.vy);
-          if (speed > 0 && speed < baseSpeed) {
-            const boost = 1 + 0.5 * subSec;
-            ball.vx *= boost;
-            ball.vy *= boost;
+          if (keepMoving) {
+            const speed = Math.hypot(ball.vx, ball.vy);
+            if (speed > 0 && speed < baseSpeed) {
+              const boost = 1 + 0.5 * subSec;
+              ball.vx *= boost;
+              ball.vy *= boost;
+            }
           }
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
@@ -839,6 +915,7 @@ export class PhysicsEngine {
               continue;
             }
           }
+          if (hasObstacles) this.handleObstacleCollisions(ball, subSec);
           if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
         }
         this.handleBallCollisions();
@@ -856,6 +933,38 @@ export class PhysicsEngine {
       }
     }
     this.updateParticles(frameMs / 1000);
+  }
+
+  /**
+   * Resolves the ball against every obstacle (obstacles.ts): the push-out and rebound always happen; a
+   * contact at `OBSTACLE_HIT_SPEED` or more is reported to the mode, queued as a "hit" sound (with the
+   * pitch the mode returns, otherwise the innermost-wall tone) and remembered for the glow. The wall
+   * bounciness extra scales the obstacle restitution like it scales every other rebound.
+   */
+  private handleObstacleCollisions(ball: Ball, dtSec: number) {
+    const obstacles = this.obstacles;
+    const scale = this.extras.wallBounciness;
+    // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
+    const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
+    const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
+    for (let i = 0; i < obstacles.length; i++) {
+      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, scale);
+      if (impact < hitSpeed) continue; // no contact (−1) or a soft, resting one
+      const result = this.currentMode?.onObstacleHit?.(this.ctx, ball, obstacles[i], i, impact);
+      if (!result?.suppressGlow) this.addObstacleHit(i, ball.x, ball.y);
+      if (result?.suppressSound) continue;
+      if (result?.frequency !== undefined) this.pendingSoundEvents.push({ type: "hit", wallIndex: 0, frequency: result.frequency });
+      else this.pendingSoundEvents.push({ type: "hit", wallIndex: 0 });
+    }
+  }
+
+  private addObstacleHit(index: number, x: number, y: number) {
+    const now = Date.now();
+    this.obstacleHits.push({ index, x, y, timestamp: now });
+    const cutoff = now - 1000;
+    let drop = 0;
+    while (drop < this.obstacleHits.length && this.obstacleHits[drop].timestamp < cutoff) drop++;
+    if (drop > 0) this.obstacleHits.splice(0, drop);
   }
 
   private handleCircularWallCollisions(ball: Ball) {
@@ -1132,7 +1241,7 @@ export class PhysicsEngine {
       ball.vx = first.vx;
       ball.vy = first.vy;
       ball.radius = first.radius;
-      this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime });
+      this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime, gravityScale: ball.gravityScale });
       const half = this.balls[this.balls.length - 1];
       half.spin = ball.spin;
       half.angle = ball.angle;

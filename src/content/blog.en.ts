@@ -5,11 +5,11 @@ export const POSTS_EN: BlogPost[] = [
     slug: "every-viralballs-mode-explained",
     locale: "en",
     title: "Every ViralBalls Mode Explained — And Which One Gets the Most Views",
-    description: "A walkthrough of all 10 game modes with recommended settings, what makes each one work on screen, and how to pick the right mode for your next clip.",
+    description: "A walkthrough of all 11 game modes with recommended settings, what makes each one work on screen, and how to pick the right mode for your next clip.",
     date: "2026-03-28",
     readingTime: "10 min read",
     tags: ["guide", "game modes", "tutorial", "viral content", "settings", "tips"],
-    content: `ViralBalls ships with **10 game modes**, and each one produces a visibly different kind of video. Choosing the mode, and then dialling in a handful of settings, is the biggest single lever you have over how a clip performs. This guide walks through every mode, explains the mechanic behind it, and lists the settings that tend to work for short-form video.
+    content: `ViralBalls ships with **11 game modes**, and each one produces a visibly different kind of video. Choosing the mode, and then dialling in a handful of settings, is the biggest single lever you have over how a clip performs. This guide walks through every mode, explains the mechanic behind it, and lists the settings that tend to work for short-form video.
 
 ## 1. Classic
 
@@ -156,6 +156,23 @@ The ball is sealed inside one large ring with no exit. Every bounce makes it sli
 
 **Tip:** the caption *"How big can it get?"* drives completion rate because viewers need to see the answer.
 
+## 11. Ball Drop
+
+No rings this time. A tall board of pegs and short bars fills the canvas, and balls of different sizes and weights are released from the top one after another. Every peg, bar or wall hit plays a note pitched by the ball's size, big balls low and small balls high, so the run composes its own polyrhythm until the last ball comes to rest.
+
+**Why it works:** it is the sound-first mode. Viewers watch with the volume up because the picture explains the music: a heavy ball plodding down the board plays the bass line while the small ones sprinkle high notes over it. Switch Rain on and the piece never ends.
+
+**Suggested settings:**
+
+- **Ball count:** 12 to 20. More balls, denser music.
+- **Size variation:** 60 to 80%, so the pitches spread over a couple of octaves.
+- **Gravity variation:** 50% or more. It is what pulls the rhythm apart.
+- **Scale:** Pentatonic in the Sound section. Every note lands in key whatever the ball sizes are.
+- **Release interval:** 0.3 to 0.5 s for a clear opening; 0 for a burst.
+- **Duration:** 20 to 30 seconds, or Rain on for a loop.
+
+**Tip:** the caption *"Turn the sound on"* is the whole hook here.
+
 ## Which mode should you use?
 
 - **Maximum views:** Classic or Multiply, the most proven formats with the broadest appeal.
@@ -164,10 +181,11 @@ The ball is sealed inside one large ring with no exit. Every bounce makes it sli
 - **Standing out:** Accumulation or Grow, which are still underused.
 - **Arcade nostalgia:** Shatter.
 - **Rewatches:** Portal.
+- **Music and rhythm:** Ball Drop, where every hit is a note.
 
 The real move is to **rotate**. Post a Classic clip on Monday, Multiply on Wednesday and Color Match on Friday. Variety keeps your feed fresh, and each mode pulls in a slightly different audience, which grows your overall reach faster than repeating one format.
 
-[Try all 10 modes now →](/en/simulator)`,
+[Try all 11 modes now →](/en/simulator)`,
   },
   {
     slug: "10-satisfying-ball-physics-video-ideas-that-go-viral",
@@ -304,6 +322,7 @@ Adjust gravity from feather-light to crushing, set the ball speed, and enable in
 - **Shatter**: walls are bricks with hit points.
 - **Color Match**: only matching colours break segments.
 - **Grow**: the ball gets bigger with every bounce.
+- **Ball Drop**: balls rain through pegs and bars and every hit plays a note pitched by the ball's size.
 
 ### Visual effects
 

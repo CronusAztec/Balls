@@ -270,17 +270,23 @@ export class ToneGenerator {
     return this.slicer.getProgress(this.audioContext?.currentTime ?? 0);
   }
 
-  playWallHit(wallIndex = 0) {
+  /**
+   * A wall (or obstacle) bounce. `frequency` is an optional pitch in Hz chosen by the mode (Ball Drop maps
+   * it from the ball's size); without it the wall index picks the classic descending tone. Either way the
+   * pitch is snapped to the current scale, a hit sample is transposed to it and a loaded melody still plays
+   * its next note instead.
+   */
+  playWallHit(wallIndex = 0, frequency?: number) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.scheduleHit(wallIndex));
+      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency));
       return;
     }
-    this.scheduleHit(wallIndex);
+    this.scheduleHit(wallIndex, frequency);
   }
 
-  private scheduleHit(wallIndex: number) {
+  private scheduleHit(wallIndex: number, pitch?: number) {
     if (!this.audioContext || !this.masterGain) return;
     const now = this.audioContext.currentTime;
     // 1. The song slicer takes over the bounce sound while it has a song to play.
@@ -293,7 +299,7 @@ export class ToneGenerator {
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
       this.lastSlotTime = time;
-      this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall), time);
+      this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitch), time);
       this.musicBed.duck(time);
       return;
     }
@@ -309,7 +315,7 @@ export class ToneGenerator {
         duration = 0.25;
         gain = 0.35;
       } else {
-        frequency = wallHitFrequency(wallIndex);
+        frequency = pitch !== undefined && pitch > 0 ? pitch : wallHitFrequency(wallIndex);
         duration = 0.15;
         gain = 0.25;
       }

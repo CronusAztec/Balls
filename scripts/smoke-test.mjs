@@ -5,9 +5,9 @@
  *   BASE_URL=http://localhost:3000/Balls npm run smoke
  *
  * It checks the root redirect, the 404 page, assets under the base path, opens every page in
- * every locale, starts the simulator in each mode, exercises the physics extras, the ball interactions and the sound
- * features (hit samples, song slicer, instruments, background music bed), records a short clip with the music bed,
- * runs the seed finder, submits the feedback form, switches language and reports console errors.
+ * every locale, starts the simulator in each mode, exercises the physics extras, the ball interactions, the Ball Drop
+ * board and the sound features (hit samples, song slicer, instruments, background music bed), records a short clip
+ * with the music bed, runs the seed finder, submits the feedback form, switches language and reports console errors.
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -16,7 +16,7 @@ import { loadDotEnv } from "./dotenv.mjs";
 
 loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
-const MODES = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow"];
+const MODES = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "drop"];
 const outDir = process.env.OUT_DIR || path.join(process.cwd(), "smoke-output");
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -85,7 +85,7 @@ check("root redirects to a locale", /\/(en|pl|es)\/$/.test(page.url()), `(${page
   const h1 = await page.locator("h1").first().innerText().catch(() => "");
   check("unknown URL serves localised 404", res.status() === 404 && (await page.evaluate(() => document.documentElement.lang)) === "pl" && h1.length > 0, `(${res.status()}, lang=${await page.evaluate(() => document.documentElement.lang)}, h1="${h1}")`);
 }
-for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
+for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/modes/drop.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
   const res = await page.request.get(`${BASE}${asset}`);
   check(`asset ${asset}`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
 }
@@ -324,6 +324,47 @@ await page.waitForTimeout(3000);
   const time = await page.locator("span.tabular-nums").first().innerText();
   const query = page.url().split("?")[1] || "";
   check("simulator runs with ball splitting on", /\d/.test(time) && time !== "0.0s" && /(^|&)bi=split(&|$)/.test(query), `(elapsed ${time}, ${query})`);
+}
+
+// 4b'''. Ball Drop (the mode without rings): URL → the board controls in the Mode row, controls → URL, Rain hides the
+// seed finder, the search box finds the board controls, and the run plays with obstacles and size-pitched hit sounds
+// (OscillatorNode.start is instrumented: the 1 Hz keep-alive oscillator is never a bounce sound)
+await page.goto(`${BASE}/en/simulator/?mode=drop&dbc=6&drows=4&dsi=0&dloop=1`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__oscLog = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function (when) {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+{
+  const values = { dbc: await sliderValue("Ball Count"), drows: await sliderValue("Peg Rows"), dsi: await sliderValue("Release Interval") };
+  const rain = await page.locator('label:has-text("Rain (Loop)") + button').getAttribute("aria-pressed");
+  const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  check("ball drop loads from URL", values.dbc === "6" && values.drows === "4" && values.dsi === "0" && rain === "true" && finderHidden, `(${JSON.stringify(values)}, rain=${rain}, finder hidden=${finderHidden})`);
+}
+await page.locator('input[aria-label="Peg Rows"]').evaluate(setRangeValue, "6");
+await page.locator('label:has-text("Rain (Loop)") + button').click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+  check("ball drop mirrors into the URL", /(^|&)drows=6(&|$)/.test(query) && /(^|&)dbc=6(&|$)/.test(query) && !/(^|&)dloop=/.test(query) && finderShown, `(${query}, finder shown=${finderShown})`);
+}
+await page.getByPlaceholder("Search settings...").fill("peg rows");
+check("search finds the ball drop controls", (await page.locator('input[aria-label="Peg Rows"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(3500);
+{
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  const pitches = await page.evaluate(() => window.__oscLog);
+  const distinct = new Set(pitches.map((f) => Math.round(f))).size;
+  const inRange = pitches.every((f) => f >= 110 && f <= 1760);
+  check("simulator runs the ball drop board with size-pitched hit sounds", /\d/.test(time) && time !== "0.0s" && distinct >= 2 && inRange, `(elapsed ${time}, ${pitches.length} tones, ${distinct} distinct pitches)`);
+  await page.screenshot({ path: path.join(outDir, "sim-drop-board.png") });
 }
 
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays

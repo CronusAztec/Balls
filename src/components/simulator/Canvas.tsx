@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { PhysicsEngine } from "@/lib/physics/engine";
+import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 
@@ -22,6 +23,9 @@ export interface CanvasLabels {
   complete: string;
   segmentsHitInOrder: (total: number) => string;
   ballsLabel: string;
+  /** Ball Drop: every ball has come to rest. */
+  settled: string;
+  ballsAtRest: (n: number) => string;
 }
 
 export interface CanvasHandle {
@@ -79,6 +83,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   complete: "COMPLETE!",
   segmentsHitInOrder: (t) => `All ${t} segments hit in order`,
   ballsLabel: "balls",
+  settled: "SETTLED!",
+  ballsAtRest: (n) => `All ${n} balls at rest`,
 };
 
 const TWO_PI = Math.PI * 2;
@@ -307,6 +313,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const ballSpriteCache = new Map<string, HTMLCanvasElement>();
     const glowSpriteCache = new Map<string, HTMLCanvasElement>();
     let accumulator = 0;
+    // Scratch space for the obstacle pass (Ball Drop): the age of the latest hit per obstacle and a bar's endpoints.
+    let obstacleHitAges = new Float64Array(0);
+    const ends: SegmentEnds = { x1: 0, y1: 0, x2: 0, y2: 0 };
 
     const withAlpha = (color: string, alpha: number) => {
       const key = `${color}_${alpha.toFixed(2)}`;
@@ -373,23 +382,35 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       if (p.reactiveBackground) {
         const hits = engine.getWallHits();
+        const obstacleHits = engine.getObstacleHits();
         const nowMs = Date.now();
         const maxR = 0.7 * Math.max(size.width, size.height);
         const hueBase = 0.05 * time;
         let drawn = 0;
-        for (let i = hits.length - 1; i >= 0 && drawn < 3; i--) {
-          const hit = hits[i];
-          const age = nowMs - hit.timestamp;
-          if (age >= 400) continue;
-          drawn++;
+        const flash = (angle: number, age: number) => {
           const alpha = (1 - age / 400) * 0.15;
-          const hue = Math.floor(((180 * hit.angle) / Math.PI + hueBase) % 360);
+          const hue = Math.floor(((180 * angle) / Math.PI + hueBase) % 360);
           const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
           grad.addColorStop(0, `hsla(${hue},100%,60%,${alpha.toFixed(3)})`);
           grad.addColorStop(0.5, `hsla(${hue},80%,40%,${(0.4 * alpha).toFixed(3)})`);
           grad.addColorStop(1, `hsla(${hue},60%,20%,0)`);
           ctx.fillStyle = grad;
           ctx.fillRect(0, 0, size.width, size.height);
+        };
+        for (let i = hits.length - 1; i >= 0 && drawn < 3; i--) {
+          const hit = hits[i];
+          const age = nowMs - hit.timestamp;
+          if (age >= 400) continue;
+          drawn++;
+          flash(hit.angle, age);
+        }
+        // Obstacle hits (Ball Drop) flash too, coloured by where the contact sits around the centre.
+        for (let i = obstacleHits.length - 1; i >= 0 && drawn < 3; i--) {
+          const hit = obstacleHits[i];
+          const age = nowMs - hit.timestamp;
+          if (age >= 400) continue;
+          drawn++;
+          flash(Math.atan2(hit.y - cy, hit.x - cx), age);
         }
       }
 
@@ -472,6 +493,68 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
       ctx.globalAlpha = 1;
+
+      // Obstacles (pegs, bars and straight walls – Ball Drop) in the wall colour; recent hits glow like the walls.
+      const obstacles = engine.getObstacles();
+      if (obstacles.length > 0) {
+        const nowMs = Date.now();
+        if (obstacleHitAges.length < obstacles.length) obstacleHitAges = new Float64Array(obstacles.length);
+        obstacleHitAges.fill(Infinity, 0, obstacles.length);
+        if (p.showWallGlow) {
+          for (const hit of engine.getObstacleHits()) {
+            const age = nowMs - hit.timestamp;
+            if (hit.index < obstacles.length && age < obstacleHitAges[hit.index]) obstacleHitAges[hit.index] = age;
+          }
+        }
+        const gradientHue = p.rainbowWalls && p.rainbowWallMode === "gradient";
+        ctx.save();
+        ctx.lineCap = "round";
+        for (let i = 0; i < obstacles.length; i++) {
+          const o = obstacles[i];
+          const angle = gradientHue ? ((Math.atan2(o.y - cy, o.x - cx) % TWO_PI) + TWO_PI) % TWO_PI : undefined;
+          const age = obstacleHitAges[i];
+          const strength = age < 1000 ? 1 - (age / 1000) * (age / 1000) : 0;
+          if (o.kind === "circle") {
+            if (strength > 0.01) {
+              for (const layer of GLOW_LAYERS) {
+                ctx.globalAlpha = layer.alphaMult > 0.2 ? 0.85 : 0.5;
+                ctx.fillStyle = wallColor(i, strength * layer.alphaMult, angle);
+                ctx.beginPath();
+                ctx.arc(o.x, o.y, o.radius + (2 + 2 * strength) * layer.widthMult, 0, TWO_PI);
+                ctx.fill();
+              }
+            }
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle = wallColor(i, undefined, angle);
+            ctx.beginPath();
+            ctx.arc(o.x, o.y, o.radius, 0, TWO_PI);
+            ctx.fill();
+          } else {
+            segmentEndpoints(o, ends);
+            const width = Math.max(o.thickness, p.wallThickness);
+            if (strength > 0.01) {
+              for (const layer of GLOW_LAYERS) {
+                ctx.globalAlpha = layer.alphaMult > 0.2 ? 0.85 : 0.5;
+                ctx.strokeStyle = wallColor(i, strength * layer.alphaMult, angle);
+                ctx.lineWidth = width + (4 + 4 * strength) * layer.widthMult;
+                ctx.beginPath();
+                ctx.moveTo(ends.x1, ends.y1);
+                ctx.lineTo(ends.x2, ends.y2);
+                ctx.stroke();
+              }
+            }
+            ctx.globalAlpha = 0.85;
+            ctx.strokeStyle = wallColor(i, undefined, angle);
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(ends.x1, ends.y1);
+            ctx.lineTo(ends.x2, ends.y2);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
 
       // Color Match segments
       if (engine.isColorMatchMode()) {
@@ -1226,6 +1309,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
           const prog = engine.getShatterProgress();
           bigBanner(L.shattered, L.segmentsDestroyed(prog.broken, prog.total), "#ef4444");
+        }
+        if (engine.isDropMode()) {
+          const prog = engine.getDropProgress();
+          if (prog.finished) bigBanner(L.settled, L.ballsAtRest(prog.total), "#a3e635");
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();

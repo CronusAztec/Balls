@@ -6,11 +6,11 @@ export const POSTS_PL: BlogPost[] = [
     slug: "every-viralballs-mode-explained",
     locale: "pl",
     title: "Każdy tryb ViralBalls wyjaśniony — i który zdobywa najwięcej wyświetleń",
-    description: "Przegląd wszystkich 10 trybów gry z zalecanymi ustawieniami, opisem tego, co sprawia, że każdy działa na ekranie, i wskazówkami, jak wybrać tryb do kolejnego klipu.",
+    description: "Przegląd wszystkich 11 trybów gry z zalecanymi ustawieniami, opisem tego, co sprawia, że każdy działa na ekranie, i wskazówkami, jak wybrać tryb do kolejnego klipu.",
     date: "2026-03-28",
     readingTime: "10 min czytania",
     tags: ["poradnik", "tryby gry", "tutorial", "viralowe treści", "ustawienia", "wskazówki"],
-    content: `ViralBalls ma **10 trybów gry**, a każdy z nich daje wyraźnie inny rodzaj filmu. Wybór trybu, a potem dobranie kilku ustawień, to największa dźwignia wpływu na wyniki klipu. Ten poradnik omawia każdy tryb, wyjaśnia mechanikę i podaje ustawienia, które zwykle sprawdzają się w krótkich filmach.
+    content: `ViralBalls ma **11 trybów gry**, a każdy z nich daje wyraźnie inny rodzaj filmu. Wybór trybu, a potem dobranie kilku ustawień, to największa dźwignia wpływu na wyniki klipu. Ten poradnik omawia każdy tryb, wyjaśnia mechanikę i podaje ustawienia, które zwykle sprawdzają się w krótkich filmach.
 
 ## 1. Klasyczny
 
@@ -157,6 +157,23 @@ Piłka jest zamknięta w jednym dużym pierścieniu bez wyjścia. Każde odbicie
 
 **Wskazówka:** podpis *„Jak duża może się zrobić?”* podnosi wskaźnik ukończenia, bo widzowie muszą zobaczyć odpowiedź.
 
+## 11. Spadające piłki
+
+Tym razem bez pierścieni. Wysoka plansza z kołkami i krótkimi belkami wypełnia płótno, a piłki o różnych rozmiarach i wadze są wypuszczane z góry jedna po drugiej. Każde uderzenie w kołek, belkę lub ścianę gra nutę o wysokości zależnej od rozmiaru piłki, duże piłki nisko, małe wysoko, więc symulacja sama komponuje polirytmię, aż ostatnia piłka się zatrzyma.
+
+**Dlaczego działa:** to tryb, w którym dźwięk jest na pierwszym planie. Widzowie oglądają z włączonym dźwiękiem, bo obraz tłumaczy muzykę: ciężka piłka toczy się w dół planszy i gra linię basu, a małe sypią nad nią wysokie nuty. Włącz Deszcz, a utwór nigdy się nie skończy.
+
+**Sugerowane ustawienia:**
+
+- **Liczba piłek:** 12–20. Więcej piłek, gęstsza muzyka.
+- **Rozrzut rozmiarów:** 60–80%, żeby wysokości dźwięków rozłożyły się na kilka oktaw.
+- **Rozrzut grawitacji:** 50% lub więcej. To on rozjeżdża rytm.
+- **Skala:** Pentatoniczna w sekcji Dźwięk. Każda nuta trafia w tonację niezależnie od rozmiarów piłek.
+- **Odstęp wypuszczania:** 0,3–0,5 s dla wyraźnego początku; 0 dla wybuchu.
+- **Czas trwania:** 20–30 sekund albo Deszcz dla pętli.
+
+**Wskazówka:** podpis *„Włącz dźwięk”* to tutaj cały haczyk.
+
 ## Który tryb wybrać?
 
 - **Maksimum wyświetleń:** Klasyczny lub Mnożenie, najbardziej sprawdzone formaty o najszerszym zasięgu.
@@ -165,10 +182,11 @@ Piłka jest zamknięta w jednym dużym pierścieniu bez wyjścia. Każde odbicie
 - **Wyróżnienie się:** Akumulacja lub Rośnij, wciąż rzadko używane.
 - **Nostalgia za automatami:** Rozbicie.
 - **Ponowne odtworzenia:** Portal.
+- **Muzyka i rytm:** Spadające piłki, gdzie każde uderzenie to nuta.
 
 Prawdziwy ruch to **rotacja**. Opublikuj Klasyczny w poniedziałek, Mnożenie w środę i Dopasowanie kolorów w piątek. Różnorodność odświeża feed, a każdy tryb przyciąga nieco innych odbiorców, co rozwija zasięg szybciej niż powtarzanie jednego formatu.
 
-[Wypróbuj wszystkie 10 trybów →](/pl/simulator)`,
+[Wypróbuj wszystkie 11 trybów →](/pl/simulator)`,
   },
   {
     slug: "10-satisfying-ball-physics-video-ideas-that-go-viral",
@@ -305,6 +323,7 @@ Ustaw grawitację od lekkiej jak piórko po miażdżącą, dobierz prędkość p
 - **Rozbicie**: ściany to cegły z punktami wytrzymałości.
 - **Dopasowanie kolorów**: tylko pasujące kolory łamią segmenty.
 - **Rośnij**: piłka rośnie z każdym odbiciem.
+- **Spadające piłki**: piłki spadają przez kołki i belki, a każde uderzenie gra nutę zależną od rozmiaru piłki.
 
 ### Efekty wizualne
 

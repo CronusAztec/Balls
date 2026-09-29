@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
+import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
 import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
@@ -77,7 +78,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
@@ -133,6 +134,7 @@ export default function Controls(props: ControlsProps) {
     shatter: t("modeShatter"),
     colorMatch: t("modeColorMatch"),
     grow: t("modeGrow"),
+    drop: t("modeDrop"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -184,6 +186,8 @@ export default function Controls(props: ControlsProps) {
         </Searchable>
       )}
       {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* The Ball Drop controls live in the Mode row; while searching only the sections render, so they show up here. */}
+      {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
@@ -262,19 +266,21 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch"].includes(s.mode);
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter"].includes(s.mode);
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop"].includes(s.mode);
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop"].includes(s.mode);
+    // Ball Drop has no rings, but its pegs, bars and walls are drawn with the wall thickness.
+    const hasThickness = hasGapControls || s.mode === "drop";
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
         {hasWallCount && (
           <Slider t={t} search={search} matches={matches} labelKey="wallCount" tipKey="wallCountTip" value={s.wallCount} range={RANGES.wallCount} onChange={(v) => update({ wallCount: v })} />
         )}
+        {hasThickness && showAdvanced && (
+          <Slider t={t} search={search} matches={matches} labelKey="wallThickness" tipKey="wallThicknessTip" value={s.wallThickness} range={RANGES.wallThickness} onChange={(v) => update({ wallThickness: v })} display={`${s.wallThickness}px`} left="−" right="+" />
+        )}
         {hasGapControls && (
           <>
-            {showAdvanced && (
-              <Slider t={t} search={search} matches={matches} labelKey="wallThickness" tipKey="wallThicknessTip" value={s.wallThickness} range={RANGES.wallThickness} onChange={(v) => update({ wallThickness: v })} display={`${s.wallThickness}px`} left="−" right="+" />
-            )}
             {showAdvanced && (
               <Slider t={t} search={search} matches={matches} labelKey="gapSize" tipKey="gapSizeTip" value={s.gapSize} range={RANGES.gapSize} onChange={(v) => update({ gapSize: v })} display={s.gapSize.toFixed(2)} left="🤏" right="👐" />
             )}
@@ -972,6 +978,8 @@ export default function Controls(props: ControlsProps) {
             )}
           </div>
         );
+      case "drop":
+        return <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />;
       default:
         return null;
     }

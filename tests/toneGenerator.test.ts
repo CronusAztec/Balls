@@ -120,6 +120,33 @@ describe("ToneGenerator wall-hit dispatch", () => {
     expect(graph.oscillators.at(-1)?.frequency).toBeCloseTo(783.99, 1);
   });
 
+  it("plays a hit at the pitch the mode chose (Ball Drop), snapped to the scale, transposes a hit sample to it and lets a melody keep its notes", async () => {
+    hitAt(0, 3);
+    expect(graph.oscillators.at(-1)?.frequency).toBe(560); // the wall tone
+    graph.ctx.currentTime = 1;
+    tone.playWallHit(3, 330);
+    expect(graph.oscillators.at(-1)).toEqual({ type: "triangle", frequency: 330, startAt: 1 });
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, scale: "major", rootNote: 0 });
+    graph.ctx.currentTime = 2;
+    tone.playWallHit(0, 335); // just above E4 (329.63 Hz): C major keeps E4
+    expect(graph.oscillators.at(-1)?.frequency).toBeCloseTo(329.63, 1);
+    tone.setMusicSettings(DEFAULT_MUSIC_SETTINGS);
+    tone.setHitSoundMode("sample");
+    tone.setHitSample("/hitSounds/click.wav");
+    await vi.waitFor(() => expect(tone.isHitSampleReady()).toBe(true));
+    graph.ctx.currentTime = 3;
+    tone.playWallHit(0, 400);
+    expect(graph.sources.at(-1)?.playbackRate).toBeCloseTo(0.5); // 400 Hz relative to the 800 Hz innermost-wall tone
+    tone.setHitSamplePitchByWall(false);
+    tone.playWallHit(0, 400);
+    expect(graph.sources.at(-1)?.playbackRate).toBe(1);
+    tone.setHitSoundMode("tones");
+    tone.setCustomNotes([440]);
+    graph.ctx.currentTime = 4;
+    tone.playWallHit(0, 330);
+    expect(graph.oscillators.at(-1)).toEqual({ type: "sine", frequency: 440, startAt: 4 }); // a loaded melody wins
+  });
+
   it("plays the hit sample instead of a voice in sample mode once the clip is decoded, pitched per wall", async () => {
     tone.setHitSoundMode("sample");
     tone.setHitSample("/hitSounds/click.wav");

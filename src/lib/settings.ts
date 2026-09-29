@@ -5,6 +5,7 @@ import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScale
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { DEFAULT_PHYSICS_EXTRAS, PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "@/lib/physics/extras";
 import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics/interactions";
+import { DEFAULT_DROP_SETTINGS, DROP_RANGES, dropSettingFields, dropSettingsOf, resolveDropSettings } from "@/lib/physics/modes/drop";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
 
@@ -85,6 +86,19 @@ export interface SimulatorSettings {
   growRate: number;
   growCenterDot: boolean;
   growLines: boolean;
+  // Ball Drop (lib/physics/modes/drop.ts): balls released from the top through a board of pegs and bars
+  /** Balls released, 1–40 (URL `dbc`). */
+  dropBallCount: number;
+  /** 0–1: spread of the ball sizes around the ball size (URL `dsv`); bigger balls play lower notes. */
+  dropSizeVariation: number;
+  /** 0–1: spread of each ball's own gravity, ½×–2× at 1 (URL `dgv`). */
+  dropGravityVariation: number;
+  /** Rows of pegs and bars, 3–12 (URL `drows`). */
+  dropRows: number;
+  /** Seconds between two releases, 0–2 (URL `dsi`). */
+  dropSpawnInterval: number;
+  /** "Rain": the floor opens and balls that fall out come back in at the top (URL `dloop`). */
+  dropLoop: boolean;
   // Overlays & recording
   watermarkText: string;
   topText: string;
@@ -176,6 +190,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     growRate: 5,
     growCenterDot: false,
     growLines: false,
+    ...dropSettingFields(DEFAULT_DROP_SETTINGS),
     watermarkText: SITE_DOMAIN,
     topText: "",
     bottomText: "",
@@ -236,6 +251,7 @@ export const RANGES = {
   bpm: { min: BPM_MIN, max: BPM_MAX, step: 1 },
   ...PHYSICS_EXTRA_RANGES,
   ...BALL_INTERACTION_RANGES,
+  ...DROP_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -287,6 +303,12 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   // Ball interactions
   smr: "splitMinRadius",
   mb: "maxBalls",
+  // Ball Drop
+  dbc: "dropBallCount",
+  dsv: "dropSizeVariation",
+  dgv: "dropGravityVariation",
+  drows: "dropRows",
+  dsi: "dropSpawnInterval",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -314,6 +336,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   sloop: "sliceLoop",
   mloop: "musicLoop",
   qz: "quantizeToBeat",
+  dloop: "dropLoop",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -398,6 +421,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const bi = params.get("bi");
   if (isBallInteraction(bi)) settings.ballInteraction = bi;
   clampBallInteraction(settings, defaultSettings(mode));
+  clampDropSettings(settings);
   const inst = params.get("inst");
   if (isInstrumentId(inst)) settings.instrument = inst;
   const minst = params.get("minst");
@@ -438,6 +462,11 @@ function clampBallInteraction(settings: SimulatorSettings, defaults: SimulatorSe
   settings.maxBalls = Math.round(clampRange(Number(settings.maxBalls), RANGES.maxBalls, defaults.maxBalls));
 }
 
+/** Keeps the Ball Drop settings inside their slider ranges, counts as whole numbers (URL parameters and presets alike; bad values fall back to the defaults). */
+function clampDropSettings(settings: SimulatorSettings) {
+  Object.assign(settings, dropSettingFields(resolveDropSettings(dropSettingsOf(settings))));
+}
+
 /* ------------------------------------------------------------------ presets */
 
 export const PRESETS_STORAGE_KEY = "viralballs_saved_settings";
@@ -468,7 +497,8 @@ export function savePresets(store: PresetStore) {
  * Uploaded media does not survive a reload, so a preset's "custom" hit sample falls back
  * to the default built-in clip (like dead blob: wall-break URLs). Enumerated fields (hit
  * sound mode, instruments, scale, grid, ball interaction) fall back to their defaults when the
- * stored value is unknown, and numeric ones are clamped to their ranges, like URL parameters.
+ * stored value is unknown, and numeric ones (including the Ball Drop settings) are clamped to
+ * their ranges, like URL parameters.
  */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
@@ -492,6 +522,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPhysicsExtras(merged, defaults);
   merged.ballInteraction = isBallInteraction(preset.ballInteraction) ? preset.ballInteraction : defaults.ballInteraction;
   clampBallInteraction(merged, defaults);
+  clampDropSettings(merged);
   return merged;
 }
 

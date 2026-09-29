@@ -1,7 +1,9 @@
+import type { Obstacle } from "./obstacles";
+
 /**
  * Shared types for the physics engine and its game modes.
  *
- * The engine (engine.ts) owns balls, walls, particles and the RNG. Each game mode is a
+ * The engine (engine.ts) owns balls, walls, obstacles, particles and the RNG. Each game mode is a
  * small plugin that implements the GameMode interface and mutates the simulation through
  * the ModeContext it receives. To add a new mode, create a class in ./modes, register it in
  * ./modes/index.ts and add its id to MODE_IDS below.
@@ -18,6 +20,7 @@ export const MODE_IDS = [
   "shatter",
   "colorMatch",
   "grow",
+  "drop",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -48,6 +51,10 @@ export interface Ball {
   spin: number;
   /** Rotation of the ball's sprite in radians, integrated from `spin`; the canvas rotates images / emoji by it. */
   angle: number;
+  /** Per-ball gravity multiplier (Ball Drop gives every ball its own weight); 1 when absent. */
+  gravityScale?: number;
+  /** Size of the ball relative to the configured ball radius (Ball Drop's size spread), so a live change of the ball size keeps the spread; 1 when absent. */
+  radiusScale?: number;
 }
 
 export type NewBall = Omit<Ball, "id" | "trail" | "trailIndex" | "spin" | "angle">;
@@ -129,6 +136,16 @@ export interface SoundEvent {
   /** A wall bounce, a wall break / gap pass, two balls fusing ("merge" interaction) or a ball splitting in two ("split"). */
   type: "hit" | "gap" | "merge" | "split";
   wallIndex: number;
+  /** Pitch of a "hit" in Hz chosen by the mode (Ball Drop maps it from the ball's size); without it the wall index picks the pitch. */
+  frequency?: number;
+}
+
+/** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
+export interface ObstacleHit {
+  index: number;
+  x: number;
+  y: number;
+  timestamp: number;
 }
 
 export type ParticleType = "confetti" | "shard" | "spark" | "burst";
@@ -182,6 +199,16 @@ export interface WallHitResult {
   resetBouncier?: boolean;
 }
 
+/** What a mode wants done about a ball hitting an obstacle (see obstacles.ts); the rebound itself is always applied. */
+export interface ObstacleHitResult {
+  /** Do not queue the "hit" sound event for this contact. */
+  suppressSound?: boolean;
+  /** Do not register the obstacle glow for this contact. */
+  suppressGlow?: boolean;
+  /** Pitch of the hit sound in Hz (Ball Drop maps it from the ball's size); without it the sound is the innermost-wall tone. */
+  frequency?: number;
+}
+
 /** The API a game mode uses to talk to the engine. */
 export interface ModeContext {
   readonly config: PhysicsConfig;
@@ -217,10 +244,19 @@ export interface ModeContext {
   getWallBaseRadii(): number[];
   /** The physics extras in effect (defaults filled in, clamped to their ranges). */
   getPhysicsExtras(): PhysicsExtras;
+  /** Pegs, bars and straight walls the balls bounce off (obstacles.ts); empty in the ring modes. */
+  getObstacles(): Obstacle[];
+  /** Replaces the obstacle list (the engine resolves every ball against it from the next sub-step on). */
+  setObstacles(obstacles: Obstacle[]): void;
 }
 
 export interface GameMode {
   readonly name: ModeId;
+  /**
+   * True when balls may come to rest (Ball Drop): the engine then skips the slow-ball boost that keeps
+   * a ball moving in the ring modes, so a ball can actually settle on a floor.
+   */
+  readonly ballsMayRest?: boolean;
   init(ctx: ModeContext): void;
   onPreUpdate(ctx: ModeContext, dtMs: number): void;
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number): void;
@@ -242,6 +278,12 @@ export interface GameMode {
   onBallCollision?(ctx: ModeContext, a: Ball, b: Ball): void;
   /** A ball split in two (the "split" interaction): `parent` kept its id, `half` is the new ball. Copy per-ball state here. */
   onBallSplit?(ctx: ModeContext, parent: Ball, half: Ball): void;
+  /**
+   * `ball` hit obstacle `index` at `impactSpeed` px/s along the contact normal, hard enough to count as a hit
+   * (soft resting contacts are not reported). The rebound has already been applied; return a pitch for the
+   * sound or suppress the sound / glow.
+   */
+  onObstacleHit?(ctx: ModeContext, ball: Ball, obstacle: Obstacle, index: number, impactSpeed: number): ObstacleHitResult | void;
 }
 
 export interface PersonalityVisuals {

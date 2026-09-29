@@ -20,21 +20,21 @@
   "Hero": {
     "title1": "Física de pelotas satisfactoria",
     "title2": "para TikTok y Reels",
-    "subtitle": "Crea simulaciones hipnóticas de pelotas rebotando en tu navegador: ajusta la física, apila efectos arcoíris, elige uno de los 10 modos y exporta un MP4 vertical listo para publicar. Gratis, sin cuenta y sin instalar nada.",
+    "subtitle": "Crea simulaciones hipnóticas de pelotas rebotando en tu navegador: ajusta la física, apila efectos arcoíris, elige uno de los 11 modos y exporta un MP4 vertical listo para publicar. Gratis, sin cuenta y sin instalar nada.",
     "startCreating": "Empezar a crear",
     "exploreModes": "Explorar modos",
     "mobileNotice": "Para la mejor experiencia usa un navegador de escritorio o portátil. Los controles están optimizados para pantallas grandes."
   },
   "SimulatorPage": {
     "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas gratuito en el navegador con 10 modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
+    "metaDescription": "Simulador de física de pelotas gratuito en el navegador con 11 modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
   },
   "Layout": {
     "metaTitle": "Simulador de física de pelotas gratuito y satisfactorio para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas gratuito en el navegador. Crea simulaciones hipnóticas con física personalizable, efectos arcoíris y 10 modos únicos, y exporta vídeos MP4 para TikTok, Reels y Shorts. Sin registro ni instalación.",
+    "metaDescription": "Simulador de física de pelotas gratuito en el navegador. Crea simulaciones hipnóticas con física personalizable, efectos arcoíris y 11 modos únicos, y exporta vídeos MP4 para TikTok, Reels y Shorts. Sin registro ni instalación.",
     "browserRequirements": "Requiere un navegador moderno con JavaScript activado",
     "features": [
-      "10 modos de simulación",
+      "11 modos de simulación",
       "Física y aspecto personalizables",
       "Efectos arcoíris en las paredes",
       "Rastro de color",
@@ -73,6 +73,8 @@
     "canvasComplete": "¡COMPLETADO!",
     "canvasSegmentsHitInOrder": "Los [total] segmentos golpeados en orden",
     "canvasBalls": "pelotas",
+    "canvasSettled": "¡EN REPOSO!",
+    "canvasBallsAtRest": "Pelotas en reposo: [count]",
     "findingSimulation": "Buscando simulación...",
     "seedProgress": "Semilla {tested}/{max}",
     "closestDuration": "Más cercana: {duration}s",
@@ -87,7 +89,7 @@
     "shareLinkCopied": "¡Enlace copiado!"
   },
   "HowItWorks": {
-    "step1": { "title": "Elige un modo", "description": "Elige uno de los 10 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento y más." },
+    "step1": { "title": "Elige un modo", "description": "Elige uno de los 11 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
     "step2": { "title": "Personaliza todo", "description": "Ajusta la física, los colores, los efectos, los textos y el aspecto de la pelota hasta que el clip se sienta tuyo." },
     "step3": { "title": "Exporta y comparte", "description": "Graba la simulación como MP4 en cualquier resolución, incluido el formato vertical de TikTok, y publícala donde quieras." }
   },
@@ -342,12 +344,27 @@
     "modeShatter": "Fragmentación",
     "modeColorMatch": "Coincidir color",
     "modeGrow": "Crecer",
+    "modeDrop": "Caída de pelotas",
     "growthRate": "Ritmo de crecimiento",
     "growthRateTip": "Qué tan rápido crece la pelota con cada rebote (en porcentaje).",
     "centerDot": "Obstáculo central",
     "centerDotTip": "Coloca un pequeño punto en el centro del círculo contra el que rebota la pelota.",
     "growLines": "Líneas",
     "growLinesTip": "Dibuja líneas desde cada punto de rebote hasta la pelota, como en el modo Líneas.",
+    "dropDesc": "Pelotas de distintos tamaños y pesos caen a través de filas de clavijas y barras. Cada golpe toca una nota cuyo tono depende del tamaño de la pelota, así que la simulación compone su propia polirritmia.",
+    "dropBallCount": "Número de pelotas",
+    "dropBallCountTip": "Cuántas pelotas se sueltan desde lo alto del tablero.",
+    "dropSizeVariation": "Variación de tamaño",
+    "dropSizeVariationTip": "Cuánto se alejan los tamaños de las pelotas del ajuste Tamaño de la pelota. Las pelotas grandes tocan notas más graves.",
+    "dropGravityVariation": "Variación de gravedad",
+    "dropGravityVariationTip": "Da a cada pelota su propia gravedad, de ligera a pesada, para que caigan a destiempo y el ritmo no deje de desplazarse.",
+    "dropRows": "Filas de clavijas",
+    "dropRowsTip": "Número de filas escalonadas de clavijas y barras entre la parte superior y el suelo.",
+    "dropSpawnInterval": "Intervalo de salida",
+    "dropSpawnIntervalTip": "Segundos entre la salida de dos pelotas. Con 0 caen todas a la vez.",
+    "dropLoop": "Lluvia (bucle)",
+    "dropLoopTip": "Abre el suelo: las pelotas que caen por abajo vuelven a entrar por arriba, así que la pieza no termina nunca.",
+    "dropLoopDesc": "Desactivado: la simulación termina cuando todas las pelotas quedan en reposo en el suelo.",
     "onText": "SÍ",
     "offText": "NO",
     "onTextCase": "Sí",
@@ -396,7 +413,8 @@
     "grow": { "name": "Crecer", "description": "La pelota está encerrada en un gran anillo y crece un poco con cada rebote, llenando cada vez más espacio hasta que no le queda dónde ir." },
     "shatter": { "name": "Fragmentación", "description": "Cada pared está hecha de segmentos con puntos de vida. Cada rebote agrieta un segmento y con suficientes golpes se rompe. Abre un camino a través de todas las paredes para escapar." },
     "colorMatch": { "name": "Coincidir color", "description": "La pared está dividida en segmentos de colores y la pelota cambia de color en cada rebote. Un segmento solo se rompe cuando los colores coinciden. Elimínalos todos para escapar." },
-    "portal": { "name": "Portal", "description": "Pares de portales del mismo color se sitúan en la pared. Toca uno y la pelota se teletransporta a su gemelo. Tras varios usos los portales se agotan y se convierten en salidas." }
+    "portal": { "name": "Portal", "description": "Pares de portales del mismo color se sitúan en la pared. Toca uno y la pelota se teletransporta a su gemelo. Tras varios usos los portales se agotan y se convierten en salidas." },
+    "drop": { "name": "Caída de pelotas", "description": "Pelotas de distintos tamaños y pesos caen a través de filas de clavijas y barras, y cada golpe toca una nota cuyo tono depende del tamaño de la pelota. Las distintas gravedades se desincronizan y la simulación escribe su propia polirritmia." }
   },
   "Features": {
     "wallBreak": { "name": "Efectos de ruptura", "description": "Confeti, cristal roto, onda expansiva, los tres a la vez o ninguno. Cada vez que la pelota atraviesa una pared, se reproduce el efecto elegido." },
@@ -431,8 +449,8 @@
     "title": "Qué es realmente {siteName}",
     "p1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros, pulsa grabar y descarga el clip. No hay cuenta, instalación ni editor de vídeo; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
     "p2": "El formato funciona porque es simple. Una pelota rebota dentro de un anillo con un hueco. Cada vez que se cuela, algo se recompensa: una pared se rompe, la pelota se multiplica, el color inunda la pantalla, se acierta un objetivo. El espectador quiere saber cómo acaba, así que sigue mirando. Ese pequeño bucle de tensión y alivio es lo que genera las visualizaciones, y aquí controlas cada parte en lugar de republicar el clip de otro.",
-    "h3_1": "Diez modos, un lienzo",
-    "p3": "Cada uno de los diez modos cuenta una historia distinta. Clásico es el que la mayoría imagina: una pelota abriéndose paso entre anillos. Multiplicar convierte una pelota en un enjambre. Acumulación congela pelotas en su sitio hasta que la última tiene que sortear el laberinto de sus predecesoras. Pintar, Objetivo, Crecer, Fragmentación, Coincidir color, Líneas y Portal cambian las reglas a su manera. Cambiar lleva un clic y el lienzo se actualiza al instante.",
+    "h3_1": "Once modos, un lienzo",
+    "p3": "Cada uno de los once modos cuenta una historia distinta. Clásico es el que la mayoría imagina: una pelota abriéndose paso entre anillos. Multiplicar convierte una pelota en un enjambre. Acumulación congela pelotas en su sitio hasta que la última tiene que sortear el laberinto de sus predecesoras. Pintar, Objetivo, Crecer, Fragmentación, Coincidir color, Líneas, Portal y Caída de pelotas cambian las reglas a su manera. Cambiar lleva un clic y el lienzo se actualiza al instante.",
     "h3_2": "Hecho para trastear",
     "p4": "El aspecto es tuyo. Añade anillos para alargar la tensión o quítalos para un desenlace rápido. Activa las paredes arcoíris, alterna el efecto de ruptura entre confeti, fragmentación y onda expansiva, o combina los tres. Añade púas para el peligro, brillo para el acabado y un rastro de color para que el movimiento rápido parezca deliberado. Pon tu propia imagen en la pelota, escribe un gancho como «¿escapará?» arriba y carga una melodía para que los rebotes sigan el ritmo. Los pequeños cambios importan: un anillo extra puede marcar la diferencia entre un clip que la gente salta y uno que ve dos veces.",
     "h3_3": "Graba, exporta, publica",
@@ -465,7 +483,7 @@
     "whatEachControlDoes": "Qué hace cada control",
     "tryItYourself": "Pruébalo tú mismo",
     "labels": { "mode": "Modo", "ballPhysics": "Física de la pelota", "wallSettings": "Ajustes de paredes", "visualEffects": "Efectos visuales", "customSound": "Sonido personalizado", "recording": "Grabación", "savedPresets": "Presets guardados" },
-    "step1": { "title": "Elige un modo", "body": "Abre la fila Modo en el panel de controles y elige uno de los diez modos. El modo fija las reglas, así que decídelo primero." },
+    "step1": { "title": "Elige un modo", "body": "Abre la fila Modo en el panel de controles y elige uno de los once modos. El modo fija las reglas, así que decídelo primero." },
     "step2": { "title": "Abre una sección y ajústala", "body": "Pelota, Paredes, Efectos y Sonido se despliegan al pulsarlos. Cambia el número de paredes, el efecto de ruptura, los colores o el rastro. ¿Con prisa? Escribe el nombre de un ajuste en el buscador de arriba." },
     "step3": { "title": "Pulsa Iniciar", "body": "Pulsa Iniciar simulador en el lienzo. Los valores por defecto ya se ven bien, así que empieza de inmediato y ajusta cuando lo veas moverse." },
     "step4": { "title": "Consigue la ejecución perfecta", "body": "Mientras se reproduce, usa Reiniciar para volver a empezar, Pausa para congelar un fotograma y los botones de velocidad (1x a 8x) para avanzar. Espacio pausa, R reinicia. Repite hasta que el momento sea el que quieres." },
@@ -507,6 +525,7 @@
     "modeShatter": "Las paredes están divididas en segmentos con puntos de vida. Cada rebote agrieta un segmento y tras suficientes golpes se rompe. Abre un camino a través de todas las paredes para escapar.",
     "modeColorMatch": "La pared está dividida en segmentos de colores y la pelota cambia de color en cada rebote. Un segmento solo se rompe cuando los colores coinciden. Elimínalos todos para ganar.",
     "modeGrow": "La pelota está encerrada en un solo anillo y crece con cada rebote, ocupando cada vez más espacio hasta que apenas puede moverse.",
+    "modeDrop": "Un tablero alto de clavijas y barras en lugar de anillos. Pelotas de distintos tamaños y pesos caen desde arriba y cada golpe toca una nota – las grandes graves, las pequeñas agudas – hasta que todas quedan en reposo, o para siempre con Lluvia activada.",
     "tipsBadge": "Consejos",
     "tipsTitle": "Consejos para las mejores grabaciones",
     "tipFindSimulationTitle": "Usa la herramienta Buscar simulación",
@@ -676,7 +695,7 @@
   },
   "TikTokBallVideos": {
     "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – herramienta gratuita – {siteName}",
-    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web gratuita con 10 modos, física personalizada y exportación vertical 1080×1920. Sin registro.",
+    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web gratuita con 11 modos, física personalizada y exportación vertical 1080×1920. Sin registro.",
     "badge": "Contenido para TikTok",
     "navLabel": "Vídeos de pelotas para TikTok",
     "title": "Vídeos de pelotas rebotando para TikTok",
@@ -690,7 +709,7 @@
     "p6": "También puedes exportar 500×500 (cuadrado), 1280×720 (HD) o 1920×1080 (Full HD) para Reels, YouTube Shorts y otras plataformas. La grabación ocurre íntegramente en tu navegador; nada se sube y no se añade ninguna marca de agua a menos que tú pongas la tuya.",
     "h2_3": "Empieza con un formato probado",
     "p7": "Los mejores vídeos de pelotas en TikTok siguen una receta simple: un gancho visual claro en el primer segundo, un indicador de progreso visible como el número de paredes restantes y una recompensa satisfactoria cuando la pelota por fin escapa. La herramienta Buscar simulación encuentra una semilla que produce una ejecución de tu duración objetivo, así que puedes planificar el clip en lugar de adivinar.",
-    "p8": "Los diez modos, Clásico, Acumulación, Multiplicar, Líneas, Pintar, Objetivo, Crecer, Fragmentación, Coincidir color y Portal, tienen ritmos distintos, así que puedes variar tu contenido sin empezar de cero. Guarda tus configuraciones favoritas como presets y publica un vídeo nuevo cada día con un clic.",
+    "p8": "Los once modos, Clásico, Acumulación, Multiplicar, Líneas, Pintar, Objetivo, Crecer, Fragmentación, Coincidir color, Portal y Caída de pelotas, tienen ritmos distintos, así que puedes variar tu contenido sin empezar de cero. Guarda tus configuraciones favoritas como presets y publica un vídeo nuevo cada día con un clic.",
     "cta": "Crea tu primer vídeo de pelotas para TikTok"
   },
   "About": {

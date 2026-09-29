@@ -65,10 +65,13 @@ export function wallHitFrequency(wallIndex: number): number {
  * Playback rate for a hit sample on a given wall. With pitch-by-wall on, the clip follows
  * the same curve as the tones: native pitch on the innermost ring and progressively lower
  * (down to 300/800 = 0.375×) on the outer rings. Off, every wall plays the clip as recorded.
+ * A hit that carries its own pitch (`frequency` in Hz – Ball Drop maps it from the ball's size)
+ * plays the clip at that pitch relative to the innermost-ring tone instead.
  */
-export function hitSamplePlaybackRate(wallIndex: number, pitchByWall: boolean): number {
+export function hitSamplePlaybackRate(wallIndex: number, pitchByWall: boolean, frequency?: number): number {
   if (!pitchByWall) return 1;
-  return wallHitFrequency(wallIndex) / wallHitFrequency(0);
+  const hz = frequency !== undefined && frequency > 0 ? frequency : wallHitFrequency(wallIndex);
+  return hz / wallHitFrequency(0);
 }
 
 export type HitSoundSource = "tones" | "sample";
