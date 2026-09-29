@@ -9,7 +9,7 @@ import type { MusicTrackInfo } from "./sections/MusicSection";
 import type { PaintBeatInfo, PaintPictureInfo } from "./sections/PicturePaintSection";
 import type { ThemeImageInfo, ThemeImageProps } from "./sections/ThemeSection"; // --- themes
 import Tooltip from "./Tooltip";
-import { PhysicsEngine, TWO_BALL_MODES } from "@/lib/physics/engine";
+import { PhysicsEngine } from "@/lib/physics/engine"; // --- teams --- (the two-ball switch became the ball count: MULTI_BALL_MODES below)
 import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
 import { boxSettingsOf } from "@/lib/physics/modes/box";
@@ -30,6 +30,10 @@ import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --
 import { findSimulation, runNeverFinishes, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
+// --- teams ---
+import type { CanvasTeamOptions } from "./teamsRenderer";
+import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
+import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
 import {
   RANGES,
   defaultSettings,
@@ -46,6 +50,8 @@ import {
 const SPEEDS = [1, 2, 4, 8];
 /** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
 const PAINT_FINISH_HOLD_MS = 1500;
+/** --- teams --- How long the winner banner and its confetti play before the end screen covers them (a recording keeps them). */
+const WINNER_HOLD_MS = 3000;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -106,6 +112,9 @@ export default function Simulator() {
   const [beatJobs, setBeatJobs] = useState(0);
   const beatAbortRef = useRef<{ music: AbortController | null; slice: AbortController | null }>({ music: null, slice: null });
   const paintFinishedAtRef = useRef<number | null>(null);
+  // --- teams --- whether teams play in this run (the finish detection then holds the winner banner) and when the banner appeared
+  const teamsPlayRef = useRef(false);
+  const winnerShownAtRef = useRef<number | null>(null);
   // --- themes: the background picture uploaded in this session (a data: URL kept in memory, never in links or presets)
   const [backgroundImage, setBackgroundImage] = useState<ThemeImageInfo | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
@@ -166,6 +175,7 @@ export default function Simulator() {
       ballRadius: s.ballRadius,
       twoBalls: s.twoBalls,
       ballColor2: s.ballColor2,
+      ballCount: effectiveBallCount(s), // --- teams ---
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
     });
@@ -429,22 +439,17 @@ export default function Simulator() {
     engineRef.current?.setSeed(null);
   }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
 
-  // Live add/remove of the second ball (only in the two-ball modes: Ball Drop starts with many balls of its own).
-  const prevTwoBallsRef = useRef(s.twoBalls);
+  // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
+  // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
+  const ballCount = effectiveBallCount(s);
+  const prevBallCountRef = useRef(ballCount);
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine || prevTwoBallsRef.current === s.twoBalls) return;
-    prevTwoBallsRef.current = s.twoBalls;
-    if (!TWO_BALL_MODES.includes(s.mode)) return;
-    const balls = engine.getBalls();
-    if (s.twoBalls && balls.length === 1) {
-      const b = balls[0];
-      const a = Math.atan2(b.vy, b.vx) + Math.PI;
-      engine.addBall({ x: b.x, y: b.y, vx: Math.cos(a) * s.ballSpeed, vy: Math.sin(a) * s.ballSpeed, radius: b.radius, color: s.ballColor2 });
-    } else if (!s.twoBalls && balls.length > 1) {
-      engine.setBalls(balls.slice(0, 1));
-    }
-  }, [s.twoBalls, s.ballSpeed, s.ballColor2, s.mode]);
+    if (!engine || prevBallCountRef.current === ballCount) return;
+    prevBallCountRef.current = ballCount;
+    engine.setSeed(null);
+    engine.setBallCount(ballCount);
+  }, [ballCount, s.mode]);
 
   // Mirror settings into the URL so any setup can be bookmarked or shared.
   useEffect(() => {
@@ -490,6 +495,7 @@ export default function Simulator() {
         ...characterOf(settings), // --- boris-faces --- the character follows the ball into every mode
       };
       Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
+      Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -503,6 +509,7 @@ export default function Simulator() {
           ballRadius: fresh.ballRadius,
           twoBalls: false,
           ballColor2: fresh.ballColor2,
+          ballCount: effectiveBallCount(fresh), // --- teams ---
           ...physicsExtrasOf(fresh),
           ...ballInteractionOf(fresh),
         });
@@ -576,6 +583,12 @@ export default function Simulator() {
           if (paintFinishedAtRef.current === null) paintFinishedAtRef.current = now;
           if (now - paintFinishedAtRef.current < PAINT_FINISH_HOLD_MS) done = false;
         } else paintFinishedAtRef.current = null;
+        // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
+        if (done && teamsPlayRef.current) {
+          const now = performance.now();
+          if (winnerShownAtRef.current === null) winnerShownAtRef.current = now;
+          if (now - winnerShownAtRef.current < WINNER_HOLD_MS) done = false;
+        } else if (!done) winnerShownAtRef.current = null;
         setFinished((prev) => (prev !== done ? done : prev));
       }
       raf = requestAnimationFrame(loop);
@@ -991,6 +1004,7 @@ export default function Simulator() {
           ballRadius: loaded.ballRadius,
           twoBalls: loaded.twoBalls,
           ballColor2: loaded.ballColor2,
+          ballCount: effectiveBallCount(loaded), // --- teams ---
           ...physicsExtrasOf(loaded),
           ...ballInteractionOf(loaded),
         });
@@ -1070,6 +1084,7 @@ export default function Simulator() {
           polyrhythm: polyrhythmSettingsOf(settings), // --- jdm-polyrhythm ---
           // --- jdm-collisions ---
           collide: collideSettingsOf(settings),
+          ballCount: effectiveBallCount(settings), // --- teams ---
         },
       },
       (p) => setSearchProgress(p),
@@ -1154,6 +1169,29 @@ export default function Simulator() {
   const onCharacterChirp = useCallback((kind: ChirpKind) => audioRef.current?.playCharacterChirp(kind), []);
   // --- end boris-faces ---
 
+  // --- teams --- the roster, names, scoreboard and translated labels the canvas draws with (null without a roster)
+  const teamRender = useMemo<CanvasTeamOptions | null>(() => {
+    const options = teamRenderOptions(s);
+    if (!options) return null;
+    const fill = (key: string, token: string, value: string | number) => t(key).replace(`[${token}]`, () => String(value)); // a name may hold "$&"
+    return {
+      ...options,
+      labels: {
+        bounces: t("Simulator.canvasTeamBounces"),
+        walls: t("Simulator.canvasTeamWalls"),
+        escapes: t("Simulator.canvasTeamEscapes"),
+        wins: (name) => fill("Simulator.canvasTeamWins", "name", name),
+        tie: t("Simulator.canvasTeamTie"),
+        team: (n) => fill("Simulator.canvasTeamFallback", "n", n),
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.teams, s.showBallNames, s.showScoreboard, s.scoreboardPosition, t]);
+  useEffect(() => {
+    teamsPlayRef.current = settings.teams.length > 0 && MULTI_BALL_MODES.includes(settings.mode);
+  }, [settings.teams, settings.mode]);
+  // --- end teams ---
+
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings) });
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
@@ -1207,6 +1245,7 @@ export default function Simulator() {
                   backgroundDim={s.backgroundDim}
                   backgroundImage={backgroundImage?.url ?? null}
                   trailColors={s.trailColors}
+                  teams={teamRender} // --- teams ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">

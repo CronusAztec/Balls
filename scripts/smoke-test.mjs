@@ -1370,6 +1370,100 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
   check(`a character from the URL shows on the ${mode} bodies`, face === "cute" && Number(faceCount) === faces && nameLabel === "Boris", `(face=${face}, faces=${faceCount}, label=${nameLabel})`);
 }
 
+// --- teams ---
+// 14. Team balls with scoreboard: URL → the Teams section (roster rows, scoreboard corner) and the Ball Count slider, the
+// old `two=1` link as two balls, controls → URL (a fourth team renamed with its own emoji, the corner), the search box,
+// a Classic run of three teams that scores per team on the canvas (data-team-*: teams, labels, bounces/walls/escapes),
+// ends – at 8× – with a winner held on screen before the end screen, and records that banner into the export; Color
+// Match with several balls credits the segments too.
+{
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Green*22c55e*🍀";
+  const teamsQuery = () => new URLSearchParams(page.url().split("?")[1] || "");
+  const positionButton = (name) => page.getByRole("group", { name: "Scoreboard Position" }).getByRole("button", { name });
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&tsp=top-right`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Teams & Scoreboard/ }).click();
+  {
+    const names = await page.locator('[data-testid="team-row"] input[aria-label$=" name"]').evaluateAll((els) => els.map((e) => e.value));
+    const emojis = await page.locator('[data-testid="team-row"] input[aria-label$=" emoji"]').evaluateAll((els) => els.map((e) => e.value));
+    const right = await positionButton(/Top right/).getAttribute("aria-pressed");
+    check("teams load from URL", names.join(",") === "Red,Blue,Green" && emojis.join("") === "🔥💧🍀" && right === "true", `(${names.join(",")} ${emojis.join("")}, top right=${right})`);
+  }
+  await page.getByRole("button", { name: /Add Team/ }).click();
+  await page.getByLabel("Team 4 name", { exact: true }).fill("Gold Rush");
+  await page.getByLabel("Team 4 emoji", { exact: true }).fill("⭐");
+  await positionButton(/Top left/).click();
+  await page.waitForTimeout(300);
+  {
+    const q = teamsQuery();
+    check("teams mirror into the URL", q.get("teams") === `${roster},Gold Rush*eab308*⭐` && q.get("two") === "1" && !q.has("tsp") && !q.has("nb"), `(teams=${q.get("teams")}, two=${q.get("two")}, tsp=${q.get("tsp")})`);
+  }
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  check("the ball count follows the roster", (await sliderValue("Ball Count")) === "4", `(${await sliderValue("Ball Count")})`);
+  await page.getByPlaceholder("Search settings...").fill("scoreboard");
+  check("search finds the scoreboard controls", (await page.getByRole("group", { name: "Scoreboard Position" }).isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.goto(`${BASE}/en/simulator/?mode=classic&two=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const twoBallCount = await sliderValue("Ball Count");
+  await page.locator('input[aria-label="Ball Count"]').evaluate(setRangeValue, "5");
+  await page.waitForTimeout(300);
+  {
+    const q = teamsQuery();
+    check("the old two-ball link reads as two balls and a count above two gets its own key", twoBallCount === "2" && q.get("nb") === "5" && q.get("two") === "1", `(two=1 → ${twoBallCount} balls; ${q.toString()})`);
+  }
+  // A short Classic run: three rings with wide gaps and fast balls, so three teams escape within seconds at 8×.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  {
+    const data = await canvasData();
+    const bounces = (data.teamStats || "").split(",").reduce((acc, t) => acc + Number(t.split("/")[0]), 0);
+    check("team balls carry names and the scoreboard counts per team", data.teams === "3" && data.teamLabels === "3" && data.scoreboard === "top-left" && (data.teamStats || "").split(",").length === 3 && bounces > 0, `(${JSON.stringify({ teams: data.teams, labels: data.teamLabels, stats: data.teamStats, scoreboard: data.scoreboard })})`);
+    await page.screenshot({ path: path.join(outDir, "sim-teams.png") });
+  }
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const totals = (data.teamStats || "").split(",").reduce((acc, t) => t.split("/").map((v, i) => acc[i] + Number(v)), [0, 0, 0]);
+    const endScreenEarly = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(outDir, "sim-teams-winner.png") });
+    const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+    check("the run ends with a winner banner held before the end screen", won && ["Red", "Blue", "Green", "tie"].includes(data.teamWinner) && totals[1] === 3 && totals[2] === 3 && !endScreenEarly && endScreen, `(winner=${data.teamWinner}, bounces/walls/escapes=${totals.join("/")}, end screen early=${endScreenEarly}, later=${endScreen})`);
+  }
+  // The recorder copies the canvas, and the export only stops after the banner's hold: the winner is in the video.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700&res=500x500`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  {
+    let wonAt = 0;
+    const [teamDownload] = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }),
+      (async () => {
+        await page.getByRole("button", { name: /Record Video/ }).click();
+        await page.getByRole("button", { name: "8x", exact: true }).click();
+        await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 45000 }).catch(() => {});
+        wonAt = Date.now();
+      })(),
+    ]);
+    const heldMs = wonAt ? Date.now() - wonAt : 0;
+    const dlPath = path.join(outDir, `teams-${teamDownload.suggestedFilename()}`);
+    await teamDownload.saveAs(dlPath);
+    const bytes = fs.statSync(dlPath).size;
+    check("the export records the winner banner before it stops", bytes > 10000 && heldMs >= 2500, `(${teamDownload.suggestedFilename()}, ${bytes} bytes, recorded ${heldMs} ms after the winner)`);
+  }
+  await page.goto(`${BASE}/en/simulator/?mode=colorMatch&teams=${encodeURIComponent(roster)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const scored = await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.teamStats || "").split(",").some((t) => Number(t.split("/")[1]) > 0), null, { timeout: 20000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    check("Color Match plays with three team balls and credits the segments they break", scored && data.teams === "3", `(${data.teamStats})`);
+    await page.screenshot({ path: path.join(outDir, "sim-teams-colormatch.png") });
+  }
+}
+// --- end teams ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

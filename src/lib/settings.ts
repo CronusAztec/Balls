@@ -17,6 +17,7 @@ import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/ty
 import { SITE_DOMAIN } from "@/lib/site";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- boris-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
+import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -276,6 +277,18 @@ export interface SimulatorSettings {
   /** Cat face: a meow-like chirp on ouch / surprise / escape while no hit sample is used (URL `fsnd`). */
   faceSounds: boolean;
   // --- end boris-faces ---
+  // --- teams --- Team balls with a scoreboard (lib/teams.ts, physics/ballStats.ts)
+  /** Balls the multi-ball modes start with, 1–6 (URL `nb`; `two=1` still means two); `twoBalls` follows it. */
+  ballCount: number;
+  /** The roster: team i is the ball that starts in slot i; empty = no teams (URL `teams`). */
+  teams: TeamEntry[];
+  /** Team name next to each team's ball (URL `tn`). */
+  showBallNames: boolean;
+  /** Per-team bounces, walls broken and escapes on the canvas (URL `tsb`). */
+  showScoreboard: boolean;
+  /** top-left | top-right (URL `tsp`). */
+  scoreboardPosition: ScoreboardPosition;
+  // --- end teams ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -364,6 +377,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     bpm: 120,
     quantizeGrid: "1/8",
     ...DEFAULT_CHARACTER, // --- boris-faces ---
+    ...defaultTeamSettings(), // --- teams ---
   };
 }
 
@@ -406,6 +420,7 @@ export const RANGES = {
   ...THEME_RANGES, // --- themes
   // --- jdm-collisions ---
   ...COLLIDE_RANGES,
+  ...TEAM_RANGES, // --- teams ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -594,6 +609,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
   if (settings.ballFace !== base.ballFace) params.set("face", settings.ballFace); // --- boris-faces ---
   writeThemeParams(settings, base, params); // --- themes: theme, bgt, bg1, bg2, bgd, ps, trc
+  writeTeamParams(settings, base, params); // --- teams ---: teams, nb, tn, tsb, tsp
   return params;
 }
 
@@ -687,6 +703,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isFaceStyle(face)) settings.ballFace = face;
   clampCharacter(settings);
   readThemeParams(params, settings); // --- themes
+  readTeamParams(params, settings); // --- teams --- (after `two`: a roster or `nb` sets the ball count)
   return settings;
 }
 
@@ -819,6 +836,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPicturePaint(merged);
   clampCharacter(merged); // --- boris-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
+  Object.assign(merged, resolveTeamSettings({ ...merged, ballCount: preset.ballCount })); // --- teams --- (a preset without a ball count: `twoBalls` means two)
   return merged;
 }
 
