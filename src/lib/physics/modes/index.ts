@@ -38,3 +38,6 @@ export type { DoublePendulumSettings, DoublePendulumView, DpPendulum, DpString, 
 // --- jdm-illusions ---
 export { IllusionMode } from "./illusion";
 export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionView } from "./illusion";
+// --- odd-power-layers ---
+export { PowerLayersMode } from "./powerLayers";
+export type { PowerLayersSettings, PowerLayersView, PowerPlan, PowerField, PlSequence, PlBadge } from "./powerLayers";

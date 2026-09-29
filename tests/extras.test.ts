@@ -101,6 +101,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   doublePendulum: { samples: [[346027,416241],[466095,461058],[522054,260913],[597547,364478],[287915,237856],[311924,363747],[507973,369042],[380583,383070]], broken: [], walls: [] },
   // --- jdm-illusions --- Circle Illusion: analytic motion, no rings; recorded when the mode was added (seed 12345, default: 8 balls on diameters, a 4 s cycle).
   illusion: { samples: [[400000,477173],[311414,513866],[400000,300000],[436694,211414],[400000,122827],[436694,211414],[400000,550560],[311414,513866]], broken: [], walls: [] },
+  // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
+  // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
+  powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

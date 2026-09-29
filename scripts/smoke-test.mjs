@@ -2989,6 +2989,179 @@ const instrumentOscillators = () =>
 }
 // --- end timeline ---
 
+// --- odd-power-layers ---
+// 26. Power Layers: the preview image and the card; URL → the Power layers block of the Mode row (layers, sequence, drift,
+// bounce speed, corner badge, rule pills), controls → URL and the search box; the finder (the default run's fixed 8.8 s –
+// 7 hits × 1 s + the finale – is explained at once, chaos seeds are searched and keep their promise); a default run at 1×
+// – a hit every bounce period, each level the next C-major degree (OscillatorNode.start is instrumented), the stack
+// emptied, freedom and the end screen, at 30+ fps; a chaos run of 800 layers at 8× to freedom; and a 1080×1920
+// recording of the mode that keeps 20+ fps (the software encoder's share of a headless frame) and downloads.
+{
+  const res = await page.request.get(`${BASE}/modes/powerLayers.webp`);
+  check("asset /modes/powerLayers.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Power Layers card is on the landing page", (await page.locator('img[src$="/modes/powerLayers.webp"]').count()) === 1);
+}
+/** Frame-time deltas (ms) of the page over `ms` of requestAnimationFrame, and the half-second windows' frame rates. */
+const plFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+{
+  const plToggle = (label) => page.getByTestId("power-layers").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const seqButton = (name) => page.getByRole("group", { name: "Power Sequence", exact: true }).getByRole("button", { name: new RegExp(name) });
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&pll=300&plq=fibonacci&pld=0.5&plsp=1.5&plb=warning&plp=0`, { waitUntil: "networkidle" });
+  {
+    const values = { pll: await sliderValue("Layers"), pld: await sliderValue("Drift"), plsp: await sliderValue("Bounce Speed") };
+    const fib = await seqButton("Fibonacci").getAttribute("aria-pressed");
+    const badge = await page.locator("#power-layers-badge").inputValue();
+    const pills = await plToggle("Rule Badges").getAttribute("aria-pressed");
+    const run = await page.getByTestId("power-layers-run").innerText();
+    const hint = await page.getByTestId("power-layers-sequence").innerText();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Balls"]').count()) === 0;
+    // Fibonacci against 300 layers: 1, 1, 2, 3, 5 … 144 – 12 hits, 2/3 s apart, + the 1.8 s finale = 9.8 s.
+    check(
+      "power layers load from the URL",
+      values.pll === "300" && values.pld === "0.5" && values.plsp === "1.5" && fib === "true" && badge === "warning" && pills === "false" && /\b12 hits\b/.test(run) && /9\.8s/.test(run) && /1, 1, 2, 3, 5, 8/.test(hint) && noRingControls,
+      `(${JSON.stringify(values)}, fibonacci=${fib}, badge=${badge}, pills=${pills}, "${run}", "${hint}")`,
+    );
+  }
+  await seqButton("Primes").click();
+  await page.locator('input[aria-label="Layers"]').evaluate(setRangeValue, "500");
+  await plToggle("Rule Badges").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check("power layers mirror into the URL", /(^|&)plq=primes(&|$)/.test(query) && /(^|&)pll=500(&|$)/.test(query) && !/(^|&)plp=/.test(query) && /(^|&)plb=warning(&|$)/.test(query) && /(^|&)plsp=1.5(&|$)/.test(query), `(${query})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("power sequence");
+  const found = await page.getByRole("group", { name: "Power Sequence", exact: true }).isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the power layers controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // The default run always lasts 7 hits × 1 s + the 1.8 s finale: the finder says so at once.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const shown = await page.getByText(/Power Layers always lasts exactly 8\.8s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("finder explains a fixed-length power layers run", shown);
+  if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+  // Chaos: the seed decides the hit count, so the finder searches – and the found run lasts hits × 1 s + 1.8 s.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&plq=random`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.plFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a chaos seed for 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.plFinished === "1" && Math.abs(Number(data.plTotalHits) * 1 + 1.8 - promised) < 0.05,
+    `(ready=${ready}, "${readyText}", hits ${data.plTotalHits}, finished=${data.plFinished})`,
+  );
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__plOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await plFrameRates(5500);
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-power-layers.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__plOsc);
+  const first = tones.slice(0, 4);
+  const midis = first.map((o) => Math.round(69 + 12 * Math.log2(o.f / 440)));
+  const gaps = first.slice(1).map((o, i) => Math.round(o.t - first[i].t));
+  check(
+    "power layers: a hit every bounce period, each level the next note of the scale, at 30+ fps",
+    Number(mid.plHits) >= 5 && midis.join(",") === "60,62,64,65" && gaps.every((g) => g > 800 && g < 1200) && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
+    `(hits ${mid.plHits}/${mid.plTotalHits}, first notes MIDI ${midis.join("/")} ${gaps.join("/")} ms apart, ${tones.length} tones, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  check(
+    "power layers empty the stack, fall to freedom and finish",
+    done && data.plGone === "120" && data.plHits === "7" && data.plFreed === "1" && data.plFinished === "1" && data.plBigHits === "3" && data.plPower === "128",
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("pl"))))})`,
+  );
+}
+{
+  // Chaos against 800 layers at 8×, with both corner badges.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&plq=random&pll=800&plb=both`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.plFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("a chaos run of 800 layers ends in freedom", done && data.plGone === "800" && data.plHits === data.plTotalHits && data.plFreed === "1" && data.plBadge === "both" && data.plSequence === "random", `(finished=${done}, hits ${data.plHits}/${data.plTotalHits}, gone ${data.plGone})`);
+  await page.screenshot({ path: path.join(outDir, "sim-power-layers-chaos.png") });
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default run.
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await plFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `power-layers-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  // Headless Chromium encodes the 1080×1920 export in software on the CPU – the bulk of a recorded frame in every mode – so the
+  // floor is 20 fps here (scaled down on a busy machine like every frame-rate check), well above a mode that would stall it.
+  check("a 1080×1920 power layers recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+// --- end odd-power-layers ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

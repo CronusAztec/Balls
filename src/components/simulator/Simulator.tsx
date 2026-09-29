@@ -55,6 +55,7 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 import {
   RANGES,
   defaultSettings,
@@ -196,6 +197,7 @@ export default function Simulator() {
     engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
+    engine.setPowerLayersSettings(powerLayersSettingsOf(s)); // --- odd-power-layers ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -519,6 +521,27 @@ export default function Simulator() {
   }, [s.ballRadius]);
   const illusionRevealAtRef = useRef<number | null>(null);
   // --- end jdm-illusions ---
+  // --- odd-power-layers --- Power Layers: a change of the stack or the flight (layers, sequence, drift, bounce speed – and the
+  // Gravity, which shapes the arcs) restarts the run and drops a found seed; the badge, the pills and the Sound section's
+  // scale and root (the notes of the levels) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPowerLayersSettings(powerLayersSettingsOf(s));
+    if (s.mode === "powerLayers" && engine.getCurrentModeName() === "powerLayers") {
+      engine.initPowerLayers();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.plLayers, s.plSequence, s.plDrift, s.plSpeed, s.gravity]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.plLayers, s.plSequence, s.plDrift, s.plSpeed]);
+  useEffect(() => {
+    engineRef.current?.setPowerLayersSettings(powerLayersSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.plBadge, s.plPills, s.scale, s.rootNote]);
+  // --- end odd-power-layers ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1320,6 +1343,7 @@ export default function Simulator() {
           multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
+          powerLayers: powerLayersSettingsOf(settings), // --- odd-power-layers ---
         },
         outcome, // --- rigged ---
       },
@@ -1430,6 +1454,25 @@ export default function Simulator() {
       // --- jdm-illusions ---
       illusionRevealed: t("Simulator.canvasIllusionRevealed"),
       illusionCycles: (n) => fill("Simulator.canvasIllusionCycles", { count: n }),
+      // --- odd-power-layers ---
+      powerLayers: {
+        rules: {
+          double: t("Simulator.canvasPlRuleDouble"),
+          fibonacci: t("Simulator.canvasPlRuleFibonacci"),
+          primes: t("Simulator.canvasPlRulePrimes"),
+          plusOne: t("Simulator.canvasPlRulePlusOne"),
+          random: t("Simulator.canvasPlRuleRandom"),
+        },
+        power: (n) => fill("Simulator.canvasPlPower", { n }),
+        level: (n) => fill("Simulator.canvasPlLevel", { n }),
+        newSound: t("Simulator.canvasPlNewSound"),
+        soundOn: t("Simulator.canvasPlSoundOn"),
+        warningTop: t("Simulator.canvasPlWarningTop"),
+        warningBottom: t("Simulator.canvasPlWarningBottom"),
+        layersLeft: (n) => fill("Simulator.canvasPlLayersLeft", { count: n }),
+        freedom: t("Simulator.canvasPlFreedom"),
+        freedomSub: (hits, seconds) => fill("Simulator.canvasPlFreedomSub", { hits, seconds }),
+      },
     };
   }, [t]);
 
@@ -1476,6 +1519,8 @@ export default function Simulator() {
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
+  // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
+  const plFinderFixedKey = settings.mode === "powerLayers" ? "Simulator.finderFixedPowerLayers" : finderFixedKey;
   // --- boris-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
   const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
@@ -1620,7 +1665,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
+                      {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(plFinderFixedKey /* --- odd-power-layers --- */, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}
@@ -1737,7 +1782,7 @@ export default function Simulator() {
                   <span className="text-sm">❌</span>
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
-                    <p className="text-[10px] text-zinc-500">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
+                    <p className="text-[10px] text-zinc-500">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕

@@ -13,6 +13,9 @@ MODE_CARD_ORDER.push("multipliers");
 }
 // --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Boris ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
+// --- odd-power-layers --- Power Layers (oddplayground) joins the escape family – a ball working its way out through the layers – right
+// before the multipliers board (which closes the escape cards)
+MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("multipliers") >= 0 ? MODE_CARD_ORDER.indexOf("multipliers") : MODE_CARD_ORDER.length, 0, "powerLayers");
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -49,6 +52,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   doublePendulum: "rhythm",
   // --- jdm-illusions ---
   illusion: "rhythm",
+  // --- odd-power-layers --- "800 layers between the ball and freedom": the ball escapes through the stack
+  powerLayers: "escape",
 };
 
 /** The modes of a category in card order. */

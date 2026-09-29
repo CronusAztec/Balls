@@ -42,6 +42,8 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
+// --- odd-power-layers --- the Power Layers playfield, stack, particles, badges and rule pills
+import { DEFAULT_POWER_LAYERS_LABELS, PowerLayersLayer, type PowerLayersLabels, type PowerLayersRenderOptions } from "./powerLayersRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -108,6 +110,9 @@ export interface CanvasLabels {
   /** Circle Illusion: the whitespace picture is revealed; the cycles a lines / rings run finished after. */
   illusionRevealed?: string;
   illusionCycles?: (n: number) => string;
+  // --- odd-power-layers ---
+  /** Power Layers: the rule pills, the badges, the layers left and the freedom banner. */
+  powerLayers?: PowerLayersLabels;
 }
 
 export interface CanvasHandle {
@@ -245,6 +250,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   // --- jdm-illusions ---
   illusionRevealed: "REVEALED!",
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
+  powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -636,6 +642,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const illusionLayer = new IllusionLayer();
     const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr, nowMs: 0 };
     const illusionLabels: IllusionLabels = { revealed: DEFAULT_LABELS.illusionRevealed!, painted: DEFAULT_LABELS.painted };
+    // --- odd-power-layers --- the Power Layers layer (cached stack, halos, gradients) and its per-frame options
+    const plLayer = new PowerLayersLayer();
+    const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -887,6 +896,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // --- jdm-illusions --- the Circle Illusion's view, and this frame's wobbly walls: new contacts, the simulation time, the amount
       const illusionView = engine.isIllusionMode() ? engine.getIllusionView() : null;
+      const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
@@ -1105,6 +1115,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
         glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- boris-multipliers --- the gate labels
         drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      }
+      // --- odd-power-layers --- Power Layers: the navy playfield, the rainbow stack, the ceiling bar and the ball's halo under the ball.
+      if (plView) {
+        plRender.wallColor = wallColor;
+        plRender.showWallGlow = p.showWallGlow;
+        plLayer.drawWorld(ctx, plView, drawnBalls, plRender);
       }
       // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
       multRender.wallColor = wallColor;
@@ -1768,6 +1784,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -1875,6 +1892,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionLabels.painted = IL.painted;
         illusionLayer.drawOverlay(ctx, size.width, size.height, illusionView, engine.getElapsedMs(), illusionLabels);
       }
+      // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
+      if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
       // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
       const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
@@ -2088,6 +2107,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- jdm-illusions --- lines / rings run for a set number of cycles: the figure is back where it started.
         if (illusionView && illusionView.finished && illusionView.type !== "whitespace") bigBanner(L.complete, (L.illusionCycles ?? DEFAULT_LABELS.illusionCycles!)(illusionView.cyclesDone), "#a3e635");
+        // --- odd-power-layers --- Power Layers: the ball fell out of the bottom – freedom, with the hits and the time.
+        if (plView && plView.freed) {
+          const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
+          bigBanner(PL.freedom, PL.freedomSub(plView.hits, plView.freedSec.toFixed(1)), "#a3e635");
+        }
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
           const prog = engine.getGlassProgress();
@@ -2447,6 +2471,26 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
+      // --- odd-power-layers --- Power Layers: hits, layers gone, power, level, the last hit's layers, freedom and the particles drawn (data-pl-*)
+      if (plView) {
+        setCanvasData("plSequence", plView.sequence);
+        setCanvasData("plLayers", String(plView.layers));
+        setCanvasData("plHits", String(plView.hits));
+        setCanvasData("plTotalHits", String(plView.totalHits));
+        setCanvasData("plGone", String(plView.gone));
+        setCanvasData("plPower", String(plView.power));
+        setCanvasData("plLevel", String(plView.level));
+        setCanvasData("plLastDestroyed", String(plView.lastDestroyed));
+        setCanvasData("plBigHits", String(plView.bigHits));
+        setCanvasData("plPeriod", String(Math.round(1000 * plView.periodSec)));
+        setCanvasData("plFreed", plView.freed ? "1" : "0");
+        setCanvasData("plFinished", plView.finished ? "1" : "0");
+        setCanvasData("plParticles", String(plLayer.particlesDrawn));
+        setCanvasData("plBadge", plView.settings.badge);
+        setCanvasData("plPills", plView.settings.pills ? "1" : "0");
+      } else if (canvas.dataset.plHits !== undefined) {
+        for (const key of ["plSequence", "plLayers", "plHits", "plTotalHits", "plGone", "plPower", "plLevel", "plLastDestroyed", "plBigHits", "plPeriod", "plFreed", "plFinished", "plParticles", "plBadge", "plPills"]) delete canvas.dataset[key];
+      }
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

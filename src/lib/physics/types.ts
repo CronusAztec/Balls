@@ -38,6 +38,8 @@ export const MODE_IDS = [
   "doublePendulum",
   // --- jdm-illusions ---
   "illusion",
+  // --- odd-power-layers ---
+  "powerLayers",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
