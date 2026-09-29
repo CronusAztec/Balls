@@ -46,7 +46,7 @@ import {
 import { F1_POINTS, LeaderClock, pointsForPlace, rankRacers } from "@/lib/physics/raceStandings";
 import { RaceCupStore, addRaceToCup, emptyCup, parseCup, racePoints, rankCup } from "@/lib/raceCup";
 import { RACE_COLORS, raceRoster } from "@/lib/raceRoster";
-import { podiumRest, raceResultOf, writeRaceDataset } from "@/components/simulator/raceRenderer";
+import { DEFAULT_RACE_LABELS, cupRunKey, exportRaceOptions, podiumRest, raceResultOf, runKey, writeRaceDataset, type CanvasRaceOptions } from "@/components/simulator/raceRenderer";
 import { raceArpeggioLength, raceArpeggioNotes } from "@/lib/audio/raceTones";
 import { segmentEndpoints, type SegmentObstacle } from "@/lib/physics/obstacles";
 import { createEngineForSettings, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -412,6 +412,44 @@ describe("race standings and points", () => {
     expect(podiumRest({ order: [1, 0], finishOrder: [1, 0] })).toEqual({ firstPlace: 3, racers: [] });
     const sixteen = Array.from({ length: 16 }, (_, i) => i);
     expect(podiumRest({ order: sixteen, finishOrder: sixteen })).toEqual({ firstPlace: 4, racers: sixteen.slice(3, 11) });
+  });
+
+  it("scores a fast export's race under the page's run key, so a race the page already scored is not counted twice", () => {
+    const race = { racers: 4, trackLength: RACE_RANGES.rcTrackLength.min, laps: 1 };
+    // The page's engine starts its race more than once before the first visible run (constructor, settings effects).
+    const page = raceEngine(race, 11);
+    page.initRace();
+    page.initRace();
+    runRace(page);
+    const pageView = page.getRaceView();
+    expect(pageView.runSerial).toBeGreaterThan(1);
+    const prefix = "page";
+    const pageKey = runKey(prefix, pageView);
+    const stored = addRaceToCup(null, raceResultOf(pageView), pageKey);
+    expect(stored.races).toBe(1);
+    // The export replays the same seed on a fresh engine, whose run serial starts again at 1.
+    const fresh = raceEngine(race, 11);
+    runRace(fresh);
+    const exportView = fresh.getRaceView();
+    expect(exportView.runSerial).toBe(1);
+    expect(raceResultOf(exportView)).toEqual(raceResultOf(pageView));
+    const options: CanvasRaceOptions = { names: [], colors: [], emoji: [], showStandings: true, showMiniMap: true, cupEnabled: true, cup: stored, cupTitle: "Cup", runKeyPrefix: prefix, labels: DEFAULT_RACE_LABELS };
+    // Without the page's key the export would add the race a second time (the bug: races 2, points doubled).
+    expect(cupRunKey(options, exportView)).toBe(`${prefix}:1`);
+    expect(addRaceToCup(stored, raceResultOf(exportView), cupRunKey(options, exportView)).races).toBe(2);
+    // With it the export draws the stored cup as it is.
+    const exported = exportRaceOptions(options, pageKey)!;
+    expect(exported).not.toBe(options);
+    expect(exported).toMatchObject({ runKey: pageKey, cup: stored, runKeyPrefix: prefix });
+    expect(cupRunKey(exported, exportView)).toBe(pageKey);
+    expect(addRaceToCup(stored, raceResultOf(exportView), cupRunKey(exported, exportView))).toBe(stored);
+    // A race the page has not scored yet is added once, under the key the page will score it under.
+    const shown = addRaceToCup(null, raceResultOf(exportView), cupRunKey(exported, exportView));
+    expect(shown).toMatchObject({ races: 1, lastRun: pageKey, points: stored.points });
+    // Outside the race (no key) or without race options the page's options go through unchanged.
+    expect(exportRaceOptions(options, undefined)).toBe(options);
+    expect(exportRaceOptions(null, pageKey)).toBeNull();
+    expect(exportRaceOptions(undefined, pageKey)).toBeUndefined();
   });
 
   it("reads back only valid cups", () => {

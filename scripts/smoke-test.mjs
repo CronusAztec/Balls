@@ -3735,6 +3735,67 @@ const plFrameRates = async (ms) => {
   await page.waitForTimeout(300);
   check("dropping a project file on the panel imports it", outlineShown && /Opened/.test(dropText) && setupRestored(linkParams()), `(outline ${outlineShown}, status "${dropText}", link ${linkParams().toString()})`);
 
+  // A project dropped on one of the panel's own drop zones (the hit sample, the wall-break sound) still opens as a project –
+  // it is not loaded as a sound – while an audio file dropped there still goes to that zone.
+  const dropOn = async (target, name, type, content) => {
+    const dt = await page.evaluateHandle(
+      ({ name, type, content }) => {
+        const d = new DataTransfer();
+        const bytes = typeof content === "string" ? content : new Uint8Array(content);
+        d.items.add(new File([bytes], name, { type }));
+        return d;
+      },
+      { name, type, content },
+    );
+    await target.dispatchEvent("dragenter", { dataTransfer: dt });
+    await target.dispatchEvent("dragover", { dataTransfer: dt });
+    await target.dispatchEvent("drop", { dataTransfer: dt });
+  };
+  const decodeErrors = [];
+  const onDecodeError = (msg) => {
+    if (msg.type() === "error" || /decode/i.test(msg.text())) decodeErrors.push(msg.text());
+  };
+  page.on("console", onDecodeError);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&hsm=sample&hs=kick`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  const hitZone = page.locator("label:has(#hit-sample-input)");
+  await hitZone.waitFor({ timeout: 10000 });
+  await dropOn(hitZone, "my.viralballs.json", "application/json", projectText);
+  const hitDropText = await projectStatus();
+  await page.waitForTimeout(300);
+  const hitDropParams = linkParams();
+  check(
+    "a project dropped on the hit-sample drop zone opens as a project, not as a sample",
+    /Opened/.test(hitDropText) && setupRestored(hitDropParams) && !hitDropParams.has("hsm") && !decodeErrors.some((e) => /decode/i.test(e)),
+    `(status "${hitDropText}", link ${hitDropParams.toString()}, errors ${JSON.stringify(decodeErrors.slice(0, 2))})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=classic&g=450`, { waitUntil: "networkidle" });
+  // The search shows the wall-break picker and its drop zone together.
+  await page.getByPlaceholder("Search settings...").fill("Wall Break");
+  const wallBreakZone = page.locator('label:has-text("Import Custom Wall Break Sound") + label');
+  await wallBreakZone.waitFor({ timeout: 10000 });
+  decodeErrors.length = 0;
+  await dropOn(wallBreakZone, "my.viralballs.json", "application/json", projectText);
+  await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const wallBreakValue = await page.locator("#wallbreak-select").inputValue({ timeout: 5000 }).catch(() => "(missing)");
+  const wallBreakProjectOption = await page.locator("#wallbreak-select option", { hasText: "my.viralballs.json" }).count().catch(() => -1);
+  await page.getByPlaceholder("Search settings...").fill(""); // the search hides the Project file block and its status
+  const wallDropText = await projectStatus();
+  check(
+    "a project dropped on the wall-break drop zone opens as a project, not as a wall-break sound",
+    /Opened/.test(wallDropText) && setupRestored(linkParams()) && wallBreakValue !== "(missing)" && !wallBreakValue.startsWith("blob:") && wallBreakProjectOption === 0 && !decodeErrors.some((e) => /decode/i.test(e)),
+    `(status "${wallDropText}", wall break "${wallBreakValue.slice(0, 40)}", project option ${wallBreakProjectOption}, link ${linkParams().toString()}, errors ${JSON.stringify(decodeErrors.slice(0, 2))})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?mode=classic&hsm=sample&hs=kick`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await hitZone.waitFor({ timeout: 10000 });
+  await dropOn(hitZone, "dropped-hit.wav", "audio/wav", [...makeWav(1)]);
+  const hitTaken = await page.waitForFunction(() => document.querySelector("#hit-sample-select")?.value === "custom", null, { timeout: 10000 }).then(() => true).catch(() => false);
+  const noProject = !(await page.getByTestId("project-status").isVisible().catch(() => false));
+  check("an audio file dropped on the hit-sample zone still loads as the hit sample", hitTaken && noProject && linkParams().get("hsm") === "sample", `(custom=${hitTaken}, project status=${!noProject}, link ${linkParams().toString()})`);
+  page.off("console", onDecodeError);
+
   // A JSON file that is not a project is refused, and the page keeps its settings.
   await page.goto(`${BASE}/en/simulator/?mode=lines&g=450`, { waitUntil: "networkidle" });
   await openProjectBlock();
@@ -3913,6 +3974,41 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
     const summary = await page.getByTestId("race-cup-summary").innerText().catch(() => "");
     check("a second race adds its points to the cup", again && cup2?.races === 2 && cup2.points.reduce((a, b) => a + b, 0) === 2 * 80 && /2 race/.test(summary), `(finished=${again}, stored ${JSON.stringify(cup2)}, "${summary}")`);
   }
+}
+// --- fast-render --- A race the page has already scored, then fast-exported: the export's cup table shows it as the same race
+// ("Race 1", the page's run key), not as a second one with doubled points, and the export stores nothing.
+if (await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined")) {
+  await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  // A new cup (the page reads the stored one when it loads, so it loads again).
+  await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const scored = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 45000 }).then(() => true).catch(() => false);
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  // Every "Race n" line the export's (hidden) canvas draws.
+  await page.evaluate(() => {
+    const main = document.querySelector("main canvas");
+    const seen = new Set();
+    window.__exportRaceLines = seen;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (this.canvas !== main && /^Race \d+$/.test(String(text))) seen.add(String(text));
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  const downloadWait = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+  await page.getByRole("button", { name: /Fast export/ }).click();
+  const download = await downloadWait;
+  await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+  const status = await page.locator("[data-fast-export]").getAttribute("data-fast-export").catch(() => "");
+  const lines = await page.evaluate(() => [...(window.__exportRaceLines ?? [])]);
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  check(
+    "a fast export of a race the page already scored draws the same cup table (no second race, no doubled points)",
+    scored && before?.races >= 1 && !!download && status === "done" && lines.length === 1 && lines[0] === `Race ${before.races}` && after?.races === before.races && JSON.stringify(after.points) === JSON.stringify(before.points),
+    `(scored=${scored}, stored before ${JSON.stringify(before)}, export ${status}, drawn ${JSON.stringify(lines)}, stored after ${JSON.stringify(after)})`,
+  );
 }
 // A staged winner: the director favours racer 3 (Gold) at the swap zones and turbo pads – and Gold wins.
 await page.goto(`${BASE}/en/simulator/?mode=race&rcn=6&rcl=4&rcw=3`, { waitUntil: "networkidle" });

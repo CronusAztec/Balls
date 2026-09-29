@@ -3,6 +3,7 @@
 import { forwardRef, useState, useSyncExternalStore, type ForwardRefExoticComponent, type RefAttributes } from "react";
 import type { CanvasHandle, CanvasProps } from "./Canvas";
 import type { FastRenderJob } from "@/lib/recording/fastRender";
+import { exportRaceOptions } from "./raceRenderer";
 
 /*
  * --- fast-render --- The page's canvas, plus – while a fast export runs – a second, hidden instance of it that renders the
@@ -20,7 +21,8 @@ const noJob = (): FastRenderJob | null => null;
 export function withFastRender(Inner: CanvasComponent): CanvasComponent {
   /** The export's canvas: the page's props as they were when the export started, on the export's engine and clock. */
   function OfflineCanvas({ job, props }: { job: FastRenderJob; props: CanvasProps }) {
-    const [frozen] = useState(props);
+    // The race's cup table scores the exported race under the page's run key (the export's engine counts its runs from 1).
+    const [frozen] = useState<CanvasProps>(() => ({ ...props, race: exportRaceOptions(props.race, job.raceKey) }));
     return (
       <Inner
         {...frozen}
