@@ -103,6 +103,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   illusion: { samples: [[400000,477173],[311414,513866],[400000,300000],[436694,211414],[400000,122827],[436694,211414],[400000,550560],[311414,513866]], broken: [], walls: [] },
   // --- odd-string-battle --- String Battle: its own ring, no engine walls; recorded when the mode was added (seed 12345, default: 4 balls, 4 lives, the cut rule).
   stringBattle: { samples: [[417665,406085],[428524,181206],[556227,250939],[296541,379279],[390286,410465],[477204,296087],[518668,264143],[317078,234247]], broken: [], walls: [] },
+  // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
+  // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
+  powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

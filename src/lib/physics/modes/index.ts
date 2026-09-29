@@ -41,3 +41,6 @@ export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionVie
 // --- odd-string-battle ---
 export { StringBattleMode } from "./stringBattle";
 export type { StringBattleSettings, StringBattleView, SbFighter, SbString, SbGhost, SbBurst, SbRule, SbStyle } from "./stringBattle";
+// --- odd-power-layers ---
+export { PowerLayersMode } from "./powerLayers";
+export type { PowerLayersSettings, PowerLayersView, PowerPlan, PowerField, PlSequence, PlBadge } from "./powerLayers";

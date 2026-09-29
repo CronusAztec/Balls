@@ -41,6 +41,8 @@ const MODES = {
   illusion: { wait: 11000, query: "ilt=whitespace&ilpt=heart&glow=1" },
   // --- odd-string-battle --- mid-battle: fans of threads, numbered balls, the WEB DOMINION HUD and the warning badge
   stringBattle: { wait: 7000, query: "" },
+  // --- odd-power-layers --- right after a big hit: the shattered band's particles over a dense rainbow stack
+  powerLayers: { wait: 5650, query: "pll=400&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

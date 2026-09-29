@@ -23,6 +23,8 @@ import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/li
 import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettings } from "@/lib/physics/modes/illusion";
 // --- odd-string-battle ---
 import type { StringBattleSettings } from "@/lib/physics/modes/stringBattle";
+// --- odd-power-layers ---
+import { powerLayersFixedDurationSec, type PowerLayersSettings } from "@/lib/physics/modes/powerLayers";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -74,6 +76,9 @@ export interface ModeSettings {
   // --- odd-string-battle ---
   /** String Battle: balls, lives, threads, rule, clip limit and finale (see modes/stringBattle.ts); the defaults when left out. Every battle ends, so the finder searches it – by length or by winner. */
   stringBattle?: Partial<StringBattleSettings>;
+  // --- odd-power-layers ---
+  /** Power Layers: layers, sequence, drift and bounce speed (see modes/powerLayers.ts); the defaults when left out. Every run ends in freedom after hits × the bounce period. */
+  powerLayers?: Partial<PowerLayersSettings>;
 }
 
 // --- odd-string-battle ---
@@ -128,6 +133,8 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   }
   // --- jdm-illusions --- lines and rings: cycles × the cycle length, whatever the seed
   if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
+  // --- odd-power-layers --- every sequence but chaos: the plan's hit count × the bounce period (+ the celebration), whatever the seed
+  if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers);
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
@@ -223,6 +230,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "illusion") engine.setIllusionSettings(settings.illusion ?? {});
   // --- odd-string-battle ---
   if (mode === "stringBattle") engine.setStringBattleSettings(settings.stringBattle ?? {});
+  // --- odd-power-layers ---
+  if (mode === "powerLayers") engine.setPowerLayersSettings(settings.powerLayers ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -231,6 +240,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
 /** Simulates one seed headlessly and returns how long it ran (ms) before finishing. */
 export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: number): number {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  // --- odd-power-layers --- the run length is known as soon as the seed's plan is drawn: the hit count × the bounce period + the celebration
+  if (request.mode === "powerLayers") return Math.min(maxSimMs, engine.getPowerLayersProgress().plannedMs);
   const step = 1000 / 60;
   let elapsed = 0;
   while (elapsed < maxSimMs) {

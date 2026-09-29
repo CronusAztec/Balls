@@ -30,6 +30,8 @@ import { DoublePendulumMode, type DoublePendulumSettings, type DoublePendulumVie
 import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
 // --- jdm-illusions --- the Circle Illusion mode and the wall-contact log of the wobbly walls
 import { IllusionMode, type IllusionSettings, type IllusionView } from "./modes/illusion";
+// --- odd-power-layers --- the Power Layers mode (oddplayground)
+import { PowerLayersMode, type PowerLayersSettings, type PowerLayersView } from "./modes/powerLayers";
 import { WallContactLog, wobbleStrength } from "./wobble";
 import { StringBattleMode, type StringBattleSettings, type StringBattleView } from "./modes/stringBattle"; // --- odd-string-battle ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
@@ -236,6 +238,8 @@ export class PhysicsEngine {
   private readonly wallContacts = new WallContactLog();
   // --- odd-string-battle --- the String Battle (threads anchored on the ring, cut / touch / collide combat)
   readonly stringBattleMode = new StringBattleMode();
+  // --- odd-power-layers --- the Power Layers mode: a ball smashing a stack of layers with a growing power
+  readonly powerLayersMode = new PowerLayersMode();
 
   readonly ctx: ModeContext;
 
@@ -490,6 +494,10 @@ export class PhysicsEngine {
   initStringBattle() {
     this.activateMode(this.stringBattleMode, "none");
   }
+  // --- odd-power-layers ---
+  initPowerLayers() {
+    this.activateMode(this.powerLayersMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -541,6 +549,9 @@ export class PhysicsEngine {
       // --- odd-string-battle ---
       case "stringBattle":
         return this.initStringBattle();
+      // --- odd-power-layers ---
+      case "powerLayers":
+        return this.initPowerLayers();
     }
   }
 
@@ -1121,6 +1132,26 @@ export class PhysicsEngine {
     return this.stringBattleMode.getProgress();
   }
   // --- end odd-string-battle ---
+  // --- odd-power-layers ---
+  isPowerLayersMode() {
+    return this.currentMode === this.powerLayersMode;
+  }
+  getPowerLayersSettings(): PowerLayersSettings {
+    return this.powerLayersMode.getSettings();
+  }
+  /** Layers, sequence, drift and bounce speed of Power Layers apply on the next `initPowerLayers()`; the badges and the scale at once. */
+  setPowerLayersSettings(settings: Partial<PowerLayersSettings>) {
+    this.powerLayersMode.setSettings(settings);
+  }
+  /** Live Power Layers state (field, stack, power, level, particles, freedom) for the canvas and the HUD; the same object every call. */
+  getPowerLayersView(): PowerLayersView {
+    return this.powerLayersMode.getView();
+  }
+  /** Hits, layers gone, power, level, freedom – and `plannedMs`, when the run finishes (the hit count × the bounce period + the celebration). */
+  getPowerLayersProgress() {
+    return this.powerLayersMode.getProgress();
+  }
+  // --- end odd-power-layers ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

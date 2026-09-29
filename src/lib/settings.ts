@@ -36,6 +36,8 @@ import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllu
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 // --- odd-string-battle --- the String Battle mode (oddplayground's WEB DOMINION)
 import { STRING_BATTLE_RANGES, defaultStringBattleFields, readStringBattleParams, resolveStringBattleFields, writeStringBattleParams, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
+// --- odd-power-layers --- the Power Layers mode (oddplayground)
+import { POWER_LAYERS_RANGES, defaultPowerLayersFields, powerLayersModeDefaults, readPowerLayersParams, resolvePowerLayersFields, writePowerLayersParams, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -463,6 +465,20 @@ export interface SimulatorSettings {
   /** The WEB DOMINION HUD (URL `sbh`). */
   sbHud: boolean;
   // --- end odd-string-battle ---
+  // --- odd-power-layers --- Power Layers (lib/physics/modes/powerLayers.ts): a ball smashing a stack of rainbow layers
+  /** Layers in the stack, 20–800 (URL `pll`). */
+  plLayers: number;
+  /** How the power advances after every hit: double | fibonacci | primes | plusOne | random (URL `plq`). */
+  plSequence: PlSequence;
+  /** 0–1: the seeded sideways drift of the ball (URL `pld`). */
+  plDrift: number;
+  /** 0.5–2: bounce speed, one bounce a second at 1 (URL `plsp`). */
+  plSpeed: number;
+  /** The corner badge: sound | warning | both | none (URL `plb`). */
+  plBadge: PlBadge;
+  /** The two rainbow rule pills at the top of the field (URL `plp`). */
+  plPills: boolean;
+  // --- end odd-power-layers ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -565,6 +581,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
     ...defaultStringBattleFields(), // --- odd-string-battle ---
+    // --- odd-power-layers --- the feature's fields, and the mode's own ball size (radius 10) in Power Layers only
+    ...defaultPowerLayersFields(),
+    ...powerLayersModeDefaults(mode),
   };
 }
 
@@ -623,6 +642,7 @@ export const RANGES = {
   ...ILLUSION_RANGES,
   ...WOBBLE_RANGES,
   ...STRING_BATTLE_RANGES, // --- odd-string-battle ---
+  ...POWER_LAYERS_RANGES, // --- odd-power-layers ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -851,6 +871,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh
+  writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   return params;
 }
 
@@ -960,6 +981,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
   readStringBattleParams(params, settings); // --- odd-string-battle ---
+  readPowerLayersParams(params, settings); // --- odd-power-layers --- (clamped; unknown options fall back)
   return settings;
 }
 
@@ -1122,6 +1144,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveStringBattleFields(merged)); // --- odd-string-battle --- clamped numbers, known rule / style, real booleans
+  Object.assign(merged, resolvePowerLayersFields(merged)); // --- odd-power-layers --- clamped numbers, known options, real booleans
   return merged;
 }
 

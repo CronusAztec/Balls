@@ -148,7 +148,22 @@
     "canvasSbBadgeBottom": "EL FINAL SE PONE INTENSO",
     "canvasSbWins": "[name] GANA",
     "canvasSbKills": "ELIMINACIONES: [count]",
-    "canvasSbDraw": "EMPATE"
+    "canvasSbDraw": "EMPATE",
+    "finderFixedPowerLayers": "Capas de poder dura siempre exactamente {duration}s con estos ajustes (el número de golpes × el periodo de rebote, más el final), sea cual sea la semilla. Cambia las capas, la secuencia de poder o la velocidad de rebote en la fila Modo para acertar, o elige Caos, cuya duración depende de la semilla.",
+    "canvasPlRuleDouble": "Cada golpe x2 el poder",
+    "canvasPlRuleFibonacci": "fibonacci cocinó esta partida",
+    "canvasPlRulePrimes": "los números primos tomaron el control",
+    "canvasPlRulePlusOne": "cada golpe +1",
+    "canvasPlRuleRandom": "el caos elige el poder",
+    "canvasPlPower": "poder [n]",
+    "canvasPlLevel": "nivel [n]",
+    "canvasPlNewSound": "sonido nuevo en cada nivel",
+    "canvasPlSoundOn": "ACTIVA EL SONIDO",
+    "canvasPlWarningTop": "LUCES INTERMITENTES",
+    "canvasPlWarningBottom": "EL FINAL SE PONE INTENSO",
+    "canvasPlLayersLeft": "capas restantes: [count]",
+    "canvasPlFreedom": "¡LIBERTAD!",
+    "canvasPlFreedomSub": "golpes: [hits] · [seconds] s"
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los 12 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
@@ -1048,7 +1063,36 @@
     "sbHud": "Marcador DOMINIO DE LA RED",
     "sbHudTip": "Estilo red: una fila por bola en la esquina superior derecha (color, nombre, marcas de eliminación y ×eliminaciones) con los hilos vivos debajo, y un anillo discontinuo alrededor de la bola a la que le falta un corte para caer.",
     "sbRosterNote": "Las primeras bolas ({count} de {balls}) llevan la plantilla de Equipos y marcador; las demás usan la paleta neón.",
-    "sbPaletteNote": "Paleta: {names}; o crea una plantilla en Equipos y marcador."
+    "sbPaletteNote": "Paleta: {names}; o crea una plantilla en Equipos y marcador.",
+    "modePowerLayers": "Capas de poder",
+    "plTitle": "Capas de poder",
+    "plDesc": "Una pila de capas arcoíris separa la pelota de la libertad. Cada golpe contra la pila destruye tantas capas como indica el poder; después el poder avanza según la secuencia (x2 por defecto) y suena la siguiente nota de la escala. La pelota rebota a un ritmo constante y acelera a medida que la pila baja; cuando se rompe la última capa, cae por abajo.",
+    "plLayers": "Capas",
+    "plLayersTip": "Cuántas capas arcoíris finas tiene la pila, de 20 a 800. Si el poder se duplica en cada golpe, 120 capas caen en 7 golpes y 800 en 10.",
+    "plSequence": "Secuencia de poder",
+    "plSequenceTip": "Cómo crece el poder tras cada golpe: duplicar (1, 2, 4, 8 …), Fibonacci (1, 1, 2, 3, 5 …), los primos (2, 3, 5, 7 …), +1 por golpe (1, 2, 3 …) o caos: cada poder se sortea con la semilla entre 0 y el doble del récord, así que algunos golpes destruyen decenas de capas y otros no cambian nada.",
+    "plSeqDouble": "Duplicar (x2)",
+    "plSeqFibonacci": "Fibonacci",
+    "plSeqPrimes": "Primos",
+    "plSeqPlusOne": "+1 por golpe",
+    "plSeqRandom": "Caos",
+    "plHintPowers": "Poderes: {powers} …",
+    "plHintRandom": "Poderes: 1 y después cualquier valor entre 0 y el doble del récord; decide la semilla.",
+    "plDrift": "Deriva",
+    "plDriftTip": "Cuánto se desvía la pelota hacia los lados al rebotar, de 0 (recta arriba y abajo) a 1. Cada golpe le da un pequeño empujón sembrado para que el bucle siga vivo; la deriva nunca mueve el momento de un golpe.",
+    "plSpeed": "Velocidad de rebote",
+    "plSpeedTip": "Rebotes por segundo, de 0,5× a 2× (uno por segundo a 1×). Cada rebote dura exactamente lo mismo por profunda que esté la pila (la pelota simplemente vuela más rápido), así que un recorrido dura el número de golpes × el periodo de rebote.",
+    "plBadge": "Insignia de esquina",
+    "plBadgeTip": "La pequeña insignia de la esquina superior izquierda del campo: ACTIVA EL SONIDO, el aviso LUCES INTERMITENTES / EL FINAL SE PONE INTENSO, ambas o ninguna.",
+    "plBadgeSound": "ACTIVA EL SONIDO",
+    "plBadgeWarning": "Aviso de luces intermitentes",
+    "plBadgeBoth": "Ambas",
+    "plBadgeNone": "Ninguna",
+    "plPills": "Píldoras de reglas",
+    "plPillsTip": "Las dos píldoras arcoíris de arriba: la regla con el poder actual («Cada golpe x2 el poder · poder 16») y el nivel con «sonido nuevo en cada nivel».",
+    "plRunInfo": "Golpes: {hits} × {period}s por rebote y después la libertad: cada recorrido dura {seconds}s.",
+    "plRunChaos": "Caos: la semilla decide cuántos golpes hay ({period}s por rebote), así que el Buscador de simulaciones puede buscar una duración.",
+    "plFixedRunLength": "Siempre {duration}s con estos ajustes: cambia las capas, la secuencia o la velocidad de rebote"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1097,6 +1141,10 @@
     "stringBattle": {
       "name": "Batalla de hilos",
       "description": "Dominio de la red: cada rebote ancla al anillo un hilo brillante que llega hasta la bola, cada bola arrastra un abanico de hilos y cruzar el hilo de un rival lo corta y le cuesta una vida a su dueño. Vidas numeradas, un estilo neón de moaré y un final que se pone intenso: gana la última bola en pie."
+    },
+    "powerLayers": {
+      "name": "Capas de poder",
+      "description": "Empieza diminuto y se sale de control: una pelota blanca rebota entre un techo luminoso y una pila de hasta 800 capas arcoíris, y cada golpe destruye tantas capas como indica el poder, que luego se duplica (o sigue a Fibonacci, los primos, +1 o el puro caos). Una nota nueva en cada nivel, hasta que se rompe la última capa y la pelota cae hacia la libertad."
     }
   },
   "Features": {
@@ -1245,7 +1293,8 @@
     "modeMultipliers": "Un tablero alto que la cámara recorre hacia abajo, siempre siguiendo a la pelota más baja. Cada fila se divide en 2–4 puertas: las puertas de cantidad (x2, x3, x5) clonan cada pelota que pasa – hasta el límite de pelotas que elijas, de 50 a 2000 –, las de velocidad, tamaño y daño le acumulan multiplicadores sin tope, las ÷2 absorben una de cada dos pelotas y las compuertas retienen un montón sobre una trampilla que se abre en tandas. Entre las filas hay pivotes divisores, rebotadores que impulsan, embudos y bloqueos con puntos de vida (el multiplicador de daño los desgasta más rápido); cada golpe es una nota de un piano plinko pentatónico, y la zona CASA de abajo cuenta las llegadas en directo hasta el final: «N Boris llegaron a casa». Una pelota que crece más que el tablero lo supera y termina la partida con una celebración. Fija un número objetivo y Buscar simulación busca una semilla cuyo recuento final quede a menos del 5 % del objetivo. Los mismos multiplicadores flotan como potenciadores en los modos de anillos (sección Bola → Multiplicadores).",
     "modeDoublePendulum": "Sin anillos: de uno a cuatro dobles péndulos –o péndulos triples– oscilan desde un pivote en el centro del vídeo, integrados paso a paso (un esquema de Runge–Kutta adaptativo de quinto orden cuyos subpasos se acortan allí donde la oscilación se vuelve violenta), así que el caos es física real y la energía se mantiene durante todo el clip. Hasta 24 cuerdas de arpa cruzan el escenario, verticales o radiales; cada bola que cruza una la pulsa: la cuerda vibra y toca su nota, afinada en la escala de la sección Sonido personalizado a lo largo de una a cuatro octavas, mientras la última bola dibuja una larga estela arcoíris. Varios péndulos salen con una diferencia mínima y se separan a los pocos segundos (el efecto mariposa); el combate cuelga dos, uno al lado del otro, cuyas bolas chocan elásticamente: cada golpe, una nota de percusión y un destello. Las longitudes de los brazos, las masas, la gravedad, la fricción y los ángulos iniciales (o un inicio aleatorio con semilla) son ajustables, y la simulación termina con el clip o nunca.",
     "modeIllusion": "Sin anillos de los que escapar: cuatro ilusiones de project.jdm. Líneas: N pelotas van y vienen por diámetros del círculo grande, la pelota i con ángulo i·π/N y un desfase de i·π/N, así que juntas forman un círculo más pequeño que rueda dentro; cada pelota toca su nota al tocar el borde. Anillos: anillos concéntricos con una pelota que rebota en cada uno; giran a distinta velocidad, así que los rebotes se propagan en espirales y cada ciclo vuelven a alinearse. Anidados: un círculo que rebota dentro de un círculo dentro de otro (2–5 capas), con choques elásticos y paredes que tiemblan donde reciben el golpe. Espacios en blanco: las pelotas pintan de negro la arena blanca pero rebotan en formas en las que nunca pueden entrar, así que al final aparece un dibujo oculto elegido por la semilla. Todo es determinista, y el control Paredes gelatina de la sección Efectos visuales hace que las paredes de todos los modos con anillos también reboten como gelatina.",
-    "modeStringBattle": "El duelo WEB DOMINION de oddplayground: 2–6 bolas numeradas rebotan dentro de un anillo fino sobre fondo negro, y cada rebote en la pared ancla en el punto del impacto un hilo brillante que llega hasta la bola, así que cada bola arrastra un abanico de hilos (los más antiguos se sueltan y se apagan). Corte: cruzar un hilo rival lo rompe con un punteo y le cuesta una vida a su dueño; Toque: los hilos son láseres que queman a quien los toca; Choque: en cada choque pierde una vida la bola más lenta. Una bola con 0 vidas estalla como el cristal y sus hilos se disuelven; cuando quedan dos y a una le falta un corte, el final lo acelera todo y los halos parpadean, y gana la última bola en pie, con cámara lenta en el corte final si la cámara lenta está activada. El estilo neón convierte los hilos en líneas infinitas que pintan arte moaré por todo el lienzo, con un anillo de gelatina y barras de glitch. Cada semilla se reproduce exactamente, Buscar simulación busca la duración de la batalla o su ganadora, y una plantilla de equipos presta a las bolas sus colores y nombres."
+    "modeStringBattle": "El duelo WEB DOMINION de oddplayground: 2–6 bolas numeradas rebotan dentro de un anillo fino sobre fondo negro, y cada rebote en la pared ancla en el punto del impacto un hilo brillante que llega hasta la bola, así que cada bola arrastra un abanico de hilos (los más antiguos se sueltan y se apagan). Corte: cruzar un hilo rival lo rompe con un punteo y le cuesta una vida a su dueño; Toque: los hilos son láseres que queman a quien los toca; Choque: en cada choque pierde una vida la bola más lenta. Una bola con 0 vidas estalla como el cristal y sus hilos se disuelven; cuando quedan dos y a una le falta un corte, el final lo acelera todo y los halos parpadean, y gana la última bola en pie, con cámara lenta en el corte final si la cámara lenta está activada. El estilo neón convierte los hilos en líneas infinitas que pintan arte moaré por todo el lienzo, con un anillo de gelatina y barras de glitch. Cada semilla se reproduce exactamente, Buscar simulación busca la duración de la batalla o su ganadora, y una plantilla de equipos presta a las bolas sus colores y nombres.",
+    "modePowerLayers": "El formato de capas de poder de oddplayground, sin anillos: un campo vertical azul marino con una barra de techo luminosa en su tercio superior y, desde la mitad de la pantalla hacia abajo, una pila densa de 20 a 800 capas arcoíris finas: las capas entre la pelota y la libertad. Una pelota blanca rebota entre el techo y la cima de la pila con una ligera deriva sembrada. Cada impacto destruye tantas capas como el poder actual (se rompen en partículas de colores y la pila baja) y después el poder se duplica, sigue a Fibonacci o a los primos, crece de uno en uno o se sortea con la semilla (caos: algunos golpes destruyen decenas de capas y otros no cambian nada). Dos píldoras arcoíris muestran la regla, el poder y el nivel, cada nivel toca la siguiente nota de tu escala, un golpe grande añade un acorde y un silbido, y cuando desaparece la última capa la pelota cae por abajo hacia la libertad. Cada rebote dura lo mismo, así que un recorrido dura el número de golpes por el periodo de rebote: Buscar simulación lo dice o busca entre las semillas del caos la duración de tu clip."
   },
   "Footer": {
     "about": "Acerca de",

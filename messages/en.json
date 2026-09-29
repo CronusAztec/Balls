@@ -148,7 +148,22 @@
     "canvasSbBadgeBottom": "THE END GETS INTENSE",
     "canvasSbWins": "[name] WINS",
     "canvasSbKills": "KILLS: [count]",
-    "canvasSbDraw": "DRAW"
+    "canvasSbDraw": "DRAW",
+    "finderFixedPowerLayers": "Power Layers always lasts exactly {duration}s with these settings (the hit count × the bounce period, plus the finale), whatever the seed. Change the layers, the power sequence or the bounce speed in the Mode row to hit the target – or pick Chaos, whose length depends on the seed.",
+    "canvasPlRuleDouble": "Each hit x2 the power",
+    "canvasPlRuleFibonacci": "fibonacci cooked this run",
+    "canvasPlRulePrimes": "prime numbers took over",
+    "canvasPlRulePlusOne": "every hit +1",
+    "canvasPlRuleRandom": "chaos picks the power",
+    "canvasPlPower": "power [n]",
+    "canvasPlLevel": "level [n]",
+    "canvasPlNewSound": "new sound every level",
+    "canvasPlSoundOn": "SOUND ON",
+    "canvasPlWarningTop": "FLASHING LIGHTS",
+    "canvasPlWarningBottom": "THE END GETS INTENSE",
+    "canvasPlLayersLeft": "layers left: [count]",
+    "canvasPlFreedom": "FREEDOM!",
+    "canvasPlFreedomSub": "[hits] hits · [seconds]s"
   },
   "HowItWorks": {
     "step1": {
@@ -1057,7 +1072,36 @@
     "sbHud": "WEB DOMINION HUD",
     "sbHudTip": "Web style: a row per ball in the top-right corner – colour, name, kill pips and ×kills – with the threads alive below, and a dashed ring around a ball that is one cut from elimination.",
     "sbRosterNote": "The first {count} of {balls} balls wear the Teams & Scoreboard roster; the rest use the neon palette.",
-    "sbPaletteNote": "Palette: {names} – or set a roster in Teams & Scoreboard."
+    "sbPaletteNote": "Palette: {names} – or set a roster in Teams & Scoreboard.",
+    "modePowerLayers": "Power Layers",
+    "plTitle": "Power layers",
+    "plDesc": "A stack of rainbow layers stands between the ball and freedom. Every hit on the stack destroys as many layers as the power, then the power advances by the sequence – x2 by default – and the next note of the scale plays. The ball bounces on a steady beat and speeds up as the stack drops; when the last layer shatters it falls out of the bottom.",
+    "plLayers": "Layers",
+    "plLayersTip": "How many thin rainbow layers the stack holds, from 20 to 800. With the power doubling on every hit, 120 layers fall in 7 hits and 800 in 10.",
+    "plSequence": "Power Sequence",
+    "plSequenceTip": "How the power grows after every hit: doubling (1, 2, 4, 8 …), Fibonacci (1, 1, 2, 3, 5 …), the primes (2, 3, 5, 7 …), +1 per hit (1, 2, 3 …) or chaos – every power drawn from the seed between 0 and twice the best so far, so some hits destroy dozens of layers and others change nothing.",
+    "plSeqDouble": "Double (x2)",
+    "plSeqFibonacci": "Fibonacci",
+    "plSeqPrimes": "Primes",
+    "plSeqPlusOne": "+1 per hit",
+    "plSeqRandom": "Chaos",
+    "plHintPowers": "Powers: {powers} …",
+    "plHintRandom": "Powers: 1, then anything from 0 to twice the record – the seed decides.",
+    "plDrift": "Drift",
+    "plDriftTip": "How much the ball drifts sideways as it bounces, from 0 (straight up and down) to 1. Every hit gives it a small seeded kick so the loop stays alive; the drift never moves the moment a hit lands.",
+    "plSpeed": "Bounce Speed",
+    "plSpeedTip": "Bounces per second, from 0.5× to 2× (one a second at 1×). Every bounce takes exactly the same time however deep the stack is – the ball simply flies faster – so a run lasts the hit count × the bounce period.",
+    "plBadge": "Corner Badge",
+    "plBadgeTip": "The small badge in the top-left corner of the playfield: SOUND ON, the FLASHING LIGHTS / THE END GETS INTENSE warning, both, or none.",
+    "plBadgeSound": "SOUND ON",
+    "plBadgeWarning": "Flashing-lights warning",
+    "plBadgeBoth": "Both",
+    "plBadgeNone": "None",
+    "plPills": "Rule Badges",
+    "plPillsTip": "The two rainbow pills at the top: the rule with the current power (“Each hit x2 the power · power 16”) and the level with “new sound every level”.",
+    "plRunInfo": "{hits} hits × {period}s a bounce, then freedom: every run lasts {seconds}s.",
+    "plRunChaos": "Chaos: the seed decides the hit count ({period}s a bounce), so the Simulation Finder can search for a length.",
+    "plFixedRunLength": "Always {duration}s with these settings – change the layers, the sequence or the bounce speed"
   },
   "Modes": {
     "classic": {
@@ -1139,6 +1183,10 @@
     "stringBattle": {
       "name": "String Battle",
       "description": "Web dominion: every bounce anchors a glowing thread from the ring to the ball, each ball drags a fan of threads, and crossing an enemy's thread cuts it – and costs its owner a life. Numbered lives, a neon moiré style and a finale that gets intense: the last ball standing wins."
+    },
+    "powerLayers": {
+      "name": "Power Layers",
+      "description": "It starts tiny and gets out of control: a white ball bounces between a glowing ceiling and a stack of up to 800 rainbow layers, and every hit destroys as many layers as the power – which then doubles (or follows Fibonacci, the primes, +1, or pure chaos). A new note every level, until the last layer shatters and the ball falls to freedom."
     }
   },
   "Features": {
@@ -1385,7 +1433,8 @@
     "modeMultipliers": "A tall board the camera scrolls down, always following the lowest ball. Every row is split into 2–4 gates: count gates (x2, x3, x5) clone each ball that passes – up to a ball cap you choose, from 50 to 2000 –, speed, size and damage gates stack multipliers on it with no upper limit, ÷2 gates absorb every second ball and release gates hold a pile on a door that opens in bursts. Splitter pegs, kicking bumpers, funnels and blockers with hit points (the damage multiplier wears them down faster) sit between the rows, every hit is a note on a pentatonic plinko piano, and the HOME zone at the bottom counts the arrivals live until the final “N Boris made it home”. A ball that grows wider than the board outgrows it and ends the run with a celebration. Set a target count and Find Simulation looks for a seed whose final count lands within 5 % of it. The same multipliers float as pickup orbs in the ring modes (Ball section → Multipliers).",
     "modeDoublePendulum": "No rings: one to four double pendulums – or triple pendulums – swing from a pivot in the middle of the video, integrated step by step (an adaptive fifth-order Runge–Kutta scheme whose sub-steps shorten wherever the swing gets violent), so the chaos is real physics and the energy holds for the whole clip. Up to 24 harp strings stand across the playfield, vertical or radial; every bob that crosses one plucks it – the string vibrates and plays its note, tuned to the scale of the Custom Sound section across one to four octaves – while the last bob draws a long rainbow trail. Several pendulums start a hair apart and fly apart after a few seconds (the butterfly effect); sparring hangs two side by side whose bobs collide elastically, every hit a percussive note and a flash. Arm lengths, masses, gravity, friction and the start angles (or a seeded random start) are all adjustable, and the run ends with the clip or never.",
     "modeIllusion": "No rings to escape: four project.jdm illusions. Lines – N balls each slide back and forth on a diameter of the big circle, ball i at the angle i·π/N with the phase offset i·π/N, so together they form a smaller circle rolling around inside; each ball plays its note when it touches the rim. Rings – concentric rings with one bouncing ball each; the rings turn at different speeds, so the bounces ripple outward in spirals and line up again every cycle. Nested – a circle bouncing inside a circle inside a circle (2–5 layers) with elastic collisions and walls that wobble where they are hit. White spaces – the balls paint the white arena black but bounce off shapes they can never enter, so a hidden picture chosen by the seed is revealed at the end. Everything is deterministic, and the Wobbly Walls slider of the Visual section makes the walls of every ring mode bounce like jelly too.",
-    "modeStringBattle": "The oddplayground WEB DOMINION duel: 2–6 numbered balls bounce inside one thin ring on black, and every wall bounce anchors a glowing thread from the impact point to the ball, so each ball drags a fan of threads behind it (the oldest detach and fade). Cut: crossing an enemy thread snaps it with a pluck and costs its owner a life; Touch: the threads are lasers that burn whoever touches them; Collide: the slower ball of every collision loses a life. A ball at 0 lives shatters like glass and its threads dissolve; when two are left and one is a cut from elimination the finale speeds everything up and the halos strobe, and the last ball standing wins – with slow motion on the final cut when the camera's slow motion is on. The neon style turns the threads into endless lines that paint moiré art across the whole canvas, with a jelly ring and glitch bars. Every seed replays exactly, Find Simulation searches a battle's length or its winner, and a team roster lends the balls its colours and names."
+    "modeStringBattle": "The oddplayground WEB DOMINION duel: 2–6 numbered balls bounce inside one thin ring on black, and every wall bounce anchors a glowing thread from the impact point to the ball, so each ball drags a fan of threads behind it (the oldest detach and fade). Cut: crossing an enemy thread snaps it with a pluck and costs its owner a life; Touch: the threads are lasers that burn whoever touches them; Collide: the slower ball of every collision loses a life. A ball at 0 lives shatters like glass and its threads dissolve; when two are left and one is a cut from elimination the finale speeds everything up and the halos strobe, and the last ball standing wins – with slow motion on the final cut when the camera's slow motion is on. The neon style turns the threads into endless lines that paint moiré art across the whole canvas, with a jelly ring and glitch bars. Every seed replays exactly, Find Simulation searches a battle's length or its winner, and a team roster lends the balls its colours and names.",
+    "modePowerLayers": "The oddplayground power-layers format, no rings: a navy portrait playfield with a glowing ceiling bar in its upper third and, from mid-screen down, a dense stack of 20–800 thin rainbow layers – the layers between the ball and freedom. One white ball bounces between the ceiling and the top of the stack with a slight seeded drift. Every impact destroys as many layers as the current power – they shatter into coloured particles and the stack drops – and the power then doubles, follows Fibonacci or the primes, grows by one, or is drawn from the seed (chaos: some hits destroy dozens, others change nothing). Two rainbow pills show the rule, the power and the level, every level plays the next note of your scale, a big hit adds a chord and a whoosh, and when the last layer goes the ball falls through the bottom to freedom. Every bounce takes the same time, so a run lasts the hit count times the bounce period – Find Simulation says so, or searches the chaos seeds for your clip length."
   },
   "Footer": {
     "about": "About",
