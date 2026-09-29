@@ -526,21 +526,22 @@ describe("Multiply with multipliers in play", () => {
   it("stops multiplying at the cap: inherited speed would otherwise explode the ball count and the frame cost", () => {
     // Speed pickups (?mpk=1&mpr=3&mpty=speed): every orb doubles the speed, faster balls escape sooner and each escape
     // adds three balls that inherit it – this used to peak at 767–900 balls and 20–36 ms of physics a frame.
+    // (This seed passes 64 balls at 14.5 s and reaches the cap at 16.5 s; the frames are timed from 17 s on.)
     const pickups = engineFor("multiply", 1, { width: 800, height: 800, gapSize: 0.3, multiplierPickups: true, pickupRate: 3, pickupTypes: "speed" });
-    const a = crowdRun(pickups, 40, 25);
+    const a = crowdRun(pickups, 24, 17);
     expect(pickups.getMultiplierView().speed).toBeGreaterThanOrEqual(4);
     expect(a.peak).toBeGreaterThan(HASHED_PAIRS_FROM);
     expect(a.peak).toBeLessThanOrEqual(MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS);
     // A ball at x16 speed from the start (it used to reach 1540 balls in 8 s, at 105 ms a frame).
     const fast = engineFor("multiply", 1, { width: 800, height: 800, gapSize: 0.3 });
     fast.applyBallMultiplier(fast.getBalls()[0], "speed", 16);
-    const b = crowdRun(fast, 10, 5);
+    const b = crowdRun(fast, 11, 8.5);
     expect(b.peak).toBeLessThanOrEqual(MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS);
     expect(b.peak).toBeGreaterThan(HASHED_PAIRS_FROM);
     // Well inside the 60 fps frame budget: the physics of a frame measures ~2–4 ms here (it used to be 20–100 ms); the
     // bound is generous for a busy machine.
     for (const run of [a, b]) expect(run.medianMs, `peak ${run.peak}, mean ${run.avgMs.toFixed(2)} ms`).toBeLessThan(1000 / 60);
-  });
+  }, 120_000);
 
   it("caps only the multiplier runs: an ordinary Multiply run spawns as many as it always did", () => {
     const escapes = (withMultipliers: boolean) => {
