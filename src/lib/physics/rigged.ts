@@ -20,8 +20,15 @@ import { TWO_PI, normalizeAngle } from "./types";
  *   team – is favoured at the gap passes: the other balls cannot pass (or damage) a wall it has not passed yet – every
  *   wall in Classic, the way out elsewhere – and a way out broken open before it passed still holds them (Color Match,
  *   Shatter); the director steers the chosen ball's rebounds through nearby gaps and everyone else's away from the
- *   closed ones. The chosen team so breaks the walls first and escapes first – it tops the scoreboard; in Multiply,
- *   which never ends, the others stay in for good, so it keeps the lead.
+ *   closed ones. The way out opens to the others only once a ball of the chosen team has escaped (counted by the escape
+ *   scan, not when it enters the gap) – and not even then in Shatter and Color Match, where that escape ends the run,
+ *   or in Multiply, which never ends: there the others stay in. In Classic, where every ball escapes in the end, the
+ *   others cannot clone themselves on x2 BALLS orbs either (`blocksClone()`), so they never out-escape it. The chosen
+ *   team so breaks the walls first and escapes first – it tops the scoreboard. Should the chosen team lose its last
+ *   ball without escaping (the merge interaction fuses balls; the engine hands the merged ball the chosen team, this is
+ *   the net under that), the locks are released so the run can still end (`markInside()`). With "never escape" on
+ *   nobody escapes, so the forced winner is off in the modes it wins by escaping (`WINNER_NEEDS_ESCAPE`); Classic keeps
+ *   it – the walls it breaks decide there.
  *
  * Everything here is deterministic: no random numbers, only the engine's state (positions, walls, rotations, gravity)
  * and the settings, so a seed replays exactly and the seed finder – whose headless engines copy the config – finds
@@ -79,6 +86,21 @@ export const WINNER_MODES: readonly ModeId[] = MULTI_BALL_MODES.filter((m) => RI
 const LOCKED_FOR_GOOD: readonly ModeId[] = ["multiply"];
 
 /**
+ * Modes where the first escape ends the run (Shatter + 20 px, Color Match + 30 px beyond the wall): the way out stays
+ * locked to the other teams until the run is over. Opening it at the chosen team's escape (+ 10 px, the escape scan)
+ * would let a trailing ball slip out before the run ends – the escapes would be level and the walls would decide.
+ * Unlike `LOCKED_FOR_GOOD` the chosen ball is still steered toward the gaps.
+ */
+const EXIT_LOCKED_TO_END: readonly ModeId[] = ["shatter", "colorMatch"];
+
+/**
+ * Modes where the forced winner wins by escaping (Multiply, Shatter, Color Match): "never escape" keeps everyone in,
+ * so there the forced winner is off while it is on – the rig does not claim a win it cannot make. Classic keeps both:
+ * its walls are locked until the chosen team has passed them, so it breaks them all and leads on walls.
+ */
+export const WINNER_NEEDS_ESCAPE: readonly ModeId[] = ["multiply", "shatter", "colorMatch"];
+
+/**
  * Modes where a gap pass breaks the wall and the teams that all escape are ranked by the walls they broke (Classic):
  * every wall is locked to the other teams until the chosen one has passed it, so it breaks them all. Elsewhere only the
  * way out – the outermost wall – is locked (Shatter's balls dig their narrow corridors freely, the first escape ends
@@ -91,9 +113,19 @@ export function neverEscapeApplies(mode: ModeId | undefined): boolean {
   return !!mode && RIG_ESCAPE_MODES.includes(mode);
 }
 
-/** Whether a forced winner `team` acts in `mode` with `ballCount` balls: a multi-ball escape mode, two balls or more, a team that plays. */
-export function forcedWinnerApplies(mode: ModeId | undefined, ballCount: number, team: number): boolean {
-  return !!mode && WINNER_MODES.includes(mode) && ballCount >= 2 && Number.isInteger(team) && team >= 0 && team < ballCount;
+/**
+ * Whether a forced winner `team` acts in `mode` with `ballCount` balls: a multi-ball escape mode, two balls or more, a
+ * team that plays – and, with "never escape" on (`neverEscape`), a mode where the chosen team can win without escaping
+ * (not `WINNER_NEEDS_ESCAPE`).
+ */
+export function forcedWinnerApplies(mode: ModeId | undefined, ballCount: number, team: number, neverEscape = false): boolean {
+  if (!mode || !WINNER_MODES.includes(mode) || !(ballCount >= 2) || !Number.isInteger(team) || team < 0 || team >= ballCount) return false;
+  return !(neverEscape && WINNER_NEEDS_ESCAPE.includes(mode));
+}
+
+/** True when "never escape" switches a chosen forced winner off in `mode` (a mode where the winner has to escape). */
+export function forcedWinnerBlockedByNeverEscape(mode: ModeId | undefined, neverEscape: boolean): boolean {
+  return neverEscape && !!mode && WINNER_NEEDS_ESCAPE.includes(mode);
 }
 
 /** True when the rig keeps a run of `mode` from ever finishing: "never escape" in a mode that ends with an escape. */
@@ -192,10 +224,17 @@ export class RigDirector {
   private winner = -1;
   private lockedForGood = false;
   private lockEveryWall = false;
-  /** Walls the chosen team has passed this run (bit i = wall i). */
+  /** The way out stays locked to the other teams until the run ends (`EXIT_LOCKED_TO_END`: Shatter, Color Match). */
+  private exitLockedToEnd = false;
+  /** Walls the chosen team has passed this run (bit i = wall i; the way out is not opened by a pass, only by an escape). */
   private passed = 0;
   /** A ball of the chosen team has escaped this run: every wall is open to everyone from then on (except in Multiply). */
   private winnerOut = false;
+  /**
+   * The chosen team lost its last ball without escaping (`markInside()`): nothing it could still open, so the locks are
+   * released for the rest of the run (in every mode, Multiply too) and the run can end.
+   */
+  private released = false;
   private firstEscapeMs = -1;
   private seals = 0;
   private steers = 0;
@@ -235,6 +274,7 @@ export class RigDirector {
   reset() {
     this.passed = 0;
     this.winnerOut = false;
+    this.released = false;
     this.firstEscapeMs = -1;
     this.seals = 0;
     this.steers = 0;
@@ -282,16 +322,18 @@ export class RigDirector {
 
   /**
    * The rules in effect for `mode` with this config and `wallCount` walls: "never escape" in a mode whose balls can
-   * escape, the forced winner in a multi-ball escape mode with that team in play. Sets and returns `on`.
+   * escape, the forced winner in a multi-ball escape mode with that team in play (and, with "never escape" on, a mode
+   * it can win without escaping). Sets and returns `on`.
    */
   refreshRules(mode: ModeId | undefined, config: PhysicsConfig, wallCount: number): boolean {
     this.neverEscape = config.neverEscape === true && wallCount > 0 && neverEscapeApplies(mode);
     const team = config.forcedWinner ?? -1;
-    this.winner = team >= 0 && wallCount > 0 && mode !== undefined && forcedWinnerApplies(mode, startBallCount(config, mode), team) ? team : -1;
+    this.winner = team >= 0 && wallCount > 0 && mode !== undefined && forcedWinnerApplies(mode, startBallCount(config, mode), team, this.neverEscape) ? team : -1;
     this.on = this.neverEscape || this.winner >= 0;
     if (!this.on) return false; // the plain path: nothing else to work out
     this.lockedForGood = mode !== undefined && LOCKED_FOR_GOOD.includes(mode);
     this.lockEveryWall = mode !== undefined && LOCK_EVERY_WALL.includes(mode);
+    this.exitLockedToEnd = mode !== undefined && EXIT_LOCKED_TO_END.includes(mode);
     return true;
   }
 
@@ -322,18 +364,21 @@ export class RigDirector {
    * Wall `w` is closed to `ball` (a ball inside it): its gaps do not let the ball out and it may not break it. "Never
    * escape": the outermost intact wall, for every ball. Forced winner: for the other teams, every wall (Classic) or the
    * outermost one (elsewhere) that the chosen team has not passed yet – a wall broken open before it passed (the
-   * outermost) still holds them; once a ball of the chosen team has escaped, everything is open – except in Multiply,
-   * where the others stay in for good.
+   * outermost) still holds them. The way out itself is never opened by a pass – the chosen ball is still inside while
+   * it enters the gap – but only once a ball of the chosen team has escaped; in the modes that end with that escape
+   * (Shatter, Color Match) it stays closed until the end, and in Multiply the others stay in for good. Nothing is
+   * closed to them any more once the chosen team has lost its last ball without escaping (`released`).
    */
   closes(ball: Pick<Ball, "team">, w: number): boolean {
     if (!this.on) return false;
     if (this.neverEscape && w === this.barrier) return true;
-    if (this.winner < 0 || ball.team === this.winner) return false;
-    if (!this.lockEveryWall && w !== this.outer) return false;
-    if (this.lockedForGood) return true;
+    if (this.winner < 0 || this.released || ball.team === this.winner) return false;
+    const exit = w === this.outer;
+    if (!this.lockEveryWall && !exit) return false;
+    if (this.lockedForGood || (exit && this.exitLockedToEnd)) return true;
     if (this.winnerOut) return false;
-    if (w < 31 && (this.passed >>> w) & 1) return false;
-    return !(this.broken.has(w) && w !== this.outer);
+    if (!exit && w < 31 && (this.passed >>> w) & 1) return false;
+    return exit || !this.broken.has(w);
   }
 
   /** A broken wall that still holds `ball` in (forced winner: the outermost wall until the chosen team is out). */
@@ -341,7 +386,16 @@ export class RigDirector {
     return this.on && this.winner >= 0 && this.broken.has(w) && this.closes(ball, w);
   }
 
-  /** A ball passed a gap of wall `w`: the chosen team's passes open that wall to everyone. */
+  /**
+   * A ball of another team may not clone itself on an x2 BALLS orb: in Classic, where every ball escapes in the end and
+   * the escapes rank first, a team with more balls would out-escape the chosen one. (Elsewhere the others never get out
+   * before the run ends, so their clones cannot outscore it.) The engine skips such a touch – the orb floats on.
+   */
+  blocksClone(ball: Pick<Ball, "team">): boolean {
+    return this.on && this.winner >= 0 && !this.released && this.lockEveryWall && ball.team !== this.winner;
+  }
+
+  /** A ball passed a gap of wall `w`: the chosen team's passes open that wall to everyone (the way out excepted, see `closes()`). */
   notePass(ball: Pick<Ball, "team">, w: number) {
     if (this.winner >= 0 && ball.team === this.winner && w < 31) this.passed |= 1 << w;
   }
@@ -402,7 +456,7 @@ export class RigDirector {
     if (!this.on || !(speed > 0) || this.flightsLeft <= 0) return angle;
     // Multiply's chosen team leads for good anyway: turning its (many) balls through the gap would only feed the crowd.
     const favoured = this.winner >= 0 && ball.team === this.winner && !this.lockedForGood;
-    const guarded = this.neverEscape || (this.winner >= 0 && ball.team !== this.winner);
+    const guarded = this.neverEscape || (this.winner >= 0 && !this.released && ball.team !== this.winner);
     if (!favoured && !guarded) return angle;
     const f = this.fly(ball, angle, speed, this.flight);
     const bad = f.closedGap;
@@ -446,10 +500,21 @@ export class RigDirector {
     return -1;
   }
 
-  /** Start of a step (after `beginStep()`): notes the balls that are inside their closed way out. Allocation-free. */
+  /**
+   * Start of a step (after `beginStep()`): notes the balls that are inside their closed way out. Also the safety net of
+   * the forced winner: when no ball of the chosen team is left in play and none has escaped (the merge interaction fused
+   * its last ball into another team's – the engine normally hands the merged ball the chosen team), nothing could ever
+   * open the walls it keeps closed, so the locks are released for the rest of the run instead of holding the others in
+   * forever. Allocation-free.
+   */
   markInside(balls: readonly Ball[]) {
     this.held.length = 0;
     if (!this.on) return;
+    if (this.winner >= 0 && !this.winnerOut && !this.released) {
+      let inPlay = false;
+      for (let i = 0; i < balls.length && !inPlay; i++) inPlay = balls[i].team === this.winner;
+      if (!inPlay) this.released = true;
+    }
     for (let i = 0; i < balls.length; i++) {
       const ball = balls[i];
       const w = this.exitWall(ball);
@@ -501,7 +566,7 @@ export class RigDirector {
    */
   guide(ball: Ball) {
     if (!this.on || this.flightsLeft <= 0 || ball.frozen) return;
-    if (!this.neverEscape && !(this.winner >= 0 && ball.team !== this.winner)) return;
+    if (!this.neverEscape && !(this.winner >= 0 && !this.released && ball.team !== this.winner)) return;
     const dx = ball.x - this.cx;
     const dy = ball.y - this.cy;
     if (dx * ball.vx + dy * ball.vy <= 0) return; // not heading out

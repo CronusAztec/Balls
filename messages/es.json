@@ -905,6 +905,7 @@
     "forcedWinnerTip": "La pelota elegida (su equipo) gana siempre: las demás no pueden atravesar una pared antes que ella, y el director dirige sus rebotes hacia los huecos. Rompe las paredes primero y escapa primero, así que encabeza el marcador.",
     "forcedWinnerOff": "Desactivado: que decida la física",
     "forcedWinnerModes": "Necesita dos pelotas o más (Número de pelotas o un equipo) en Clásico, Multiplicar, Fragmentación o Coincidir color.",
+    "forcedWinnerNeverEscape": "Desactivado mientras Nunca escapa está activo: en este modo el equipo elegido gana escapando, y nadie escapa. Junto con Nunca escapa, el Ganador forzado funciona en Clásico, donde deciden las paredes que rompe primero.",
     "timelineTab": "Línea de tiempo",
     "timeline": "Fotogramas clave de la línea de tiempo",
     "timelineDesc": "Automatiza ajustes a lo largo del clip: elige un ajuste, fija su valor y añade un fotograma clave en el momento actual. Entre dos fotogramas clave el valor avanza en línea recta; antes del primero y después del último se mantiene.",
