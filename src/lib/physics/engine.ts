@@ -1,5 +1,5 @@
 import { CinematicDirector } from "./director";
-import { MAGNUS_COEFFICIENT, breathingScale, contactSpin, gravityAngle, resolvePhysicsExtras, spinDecayFactor } from "./extras";
+import { MAGNUS_COEFFICIENT, breathingScale, breathingScaleAtPhase, contactSpin, gravityAngle, gravityAngleTurned, resolvePhysicsExtras, spinDecayFactor } from "./extras";
 import { canSplit, mergeBalls, resolveBallInteraction, splitBall } from "./interactions";
 import {
   AccumulationMode,
@@ -133,6 +133,18 @@ export class PhysicsEngine {
   private wallPrevRadii: number[] = [];
   /** True while the walls breathe, i.e. while the collision pass has to sweep them. */
   private breathing = false;
+  /**
+   * The walls moved in the current sub-step (`applyBreathing()`), so its first collision pass sweeps them: while they
+   * breathe, and in the sub-step that takes them back to their base radii after a keyframe switched the breathing off.
+   */
+  private sweepWalls = false;
+  /**
+   * --- timeline --- Set while `update()` applies the keyframes at the start of a step: a breathing change they make
+   * does not move the walls there (unswept) but in the step's first sub-step, whose collision pass sweeps the whole move.
+   */
+  private deferBreathing = false;
+  /** Direction of the gravity in the last step (radians, π/2 = straight down; see `getGravityAngle()`). */
+  private gravityAngleRad = Math.PI / 2;
   /** Ball interaction (bounce / merge / split / pass) and the split limits; see interactions.ts. */
   private interaction: BallInteractionConfig;
   /** Balls that broke a wall during the current step; with the "split" interaction they split at its end. */
@@ -1175,7 +1187,7 @@ export class PhysicsEngine {
     let crossed = -1;
     for (let w = 0; w < walls.length; w++) {
       if (this.brokenWalls.has(w)) continue;
-      const R = this.breathing && w < prev.length ? prev[w] : walls[w].radius;
+      const R = this.sweepWalls && w < prev.length ? prev[w] : walls[w].radius;
       if (outwards ? before < R && R <= after && (crossed < 0 || R < crossed) : before > R && R >= after && R > crossed) crossed = R;
     }
     if (crossed < 0) return;
@@ -1274,11 +1286,17 @@ export class PhysicsEngine {
     this.pendingSoundEvents = [];
     this.pendingSplits = [];
     this.breathScale = 1;
+    this.gravityAngleRad = Math.PI / 2;
     this.setObstacles([]);
     this.multipliers.reset(); // --- boris-multipliers ---
     this.ballStats.reset(); // --- teams ---
     this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
-    this.applyTimeline(0); // --- timeline --- every run starts from the keyframes' values at 0 s (before its rings and balls are built)
+    // --- timeline --- every run starts from the keyframes' values at 0 s (before its rings and balls are built). The clock
+    // goes back to 0 first: a keyframed value that differs at 0 s goes through setConfig(), whose breathing pulse is taken
+    // at the current time – at the old run's clock it would leave a stale pulse scale that the new rings' base radii are
+    // then divided by (syncWallBaseRadii()), and a restarted or replayed run would play on different rings.
+    this._elapsedMs = 0;
+    this.applyTimeline(0);
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
   }
 
@@ -1333,8 +1351,9 @@ export class PhysicsEngine {
       this.syncWallBaseRadii();
       this.brokenWalls.clear();
     }
-    // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off.
-    this.applyBreathing();
+    // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off – but
+    // not while update() applies a step's keyframes: the step's first sub-step moves the walls then, and sweeps the move.
+    if (!this.deferBreathing) this.applyBreathing();
   }
 
   // --- timeline ---
@@ -1381,7 +1400,21 @@ export class PhysicsEngine {
   isTimelineAutomated(key: TimelineKey): boolean {
     return this.timeline.isAutomated(key);
   }
+
+  /**
+   * The phase a keyframed rate setting has reached at the current simulation time – its keyframes integrated since 0 s
+   * (degrees gravity has turned for `rotatingGravity`, pulses for `breathingSpeed`), which the engine uses instead of
+   * rate × t – or NaN while `key` is not a keyframed rate setting.
+   */
+  getTimelinePhase(key: TimelineKey): number {
+    return this.timeline.active ? this.timeline.integralAt(key, this._elapsedMs / 1000) : NaN;
+  }
   // --- end timeline ---
+
+  /** Direction (radians, screen coordinates: π/2 = straight down) of the gravity in the last step – rotating gravity turns it. */
+  getGravityAngle(): number {
+    return this.gravityAngleRad;
+  }
 
   // ---------------------------------------------------------------- breathing walls
 
@@ -1398,13 +1431,16 @@ export class PhysicsEngine {
   /**
    * Sets every wall radius to base × the breathing multiplier at simulation time `tMs` (the current
    * time by default) and remembers where each wall was, so the next collision pass can sweep it.
+   * --- timeline --- A keyframed pulse speed has its phase integrated (`TimelineRuntime.integralAt()`: the cycles since
+   * 0 s) instead of speed × t, which would run the pulse at speed + t · speed′ and jump with every step's new speed.
    */
   private applyBreathing(tMs = this._elapsedMs) {
     const amplitude = this.extras.breathingAmplitude;
     if (amplitude === 0 && this.breathScale === 1) return;
     const walls = this.circularWalls;
     if (this.wallBaseRadii.length !== walls.length) this.syncWallBaseRadii();
-    const scale = breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000);
+    const cycles = this.timeline.active ? this.timeline.integralAt("breathingSpeed", tMs / 1000) : NaN;
+    const scale = Number.isNaN(cycles) ? breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000) : breathingScaleAtPhase(amplitude, cycles);
     const prev = this.wallPrevRadii;
     for (let i = 0; i < walls.length; i++) {
       prev[i] = walls[i].radius;
@@ -1452,9 +1488,15 @@ export class PhysicsEngine {
     let extras = this.extras; // --- timeline --- (re-read below after keyframes move an extra)
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
       this.timeAccumulator -= this.FIXED_STEP_MS;
-      // --- timeline --- the keyframed settings at the start of this step, on the simulation clock (so the frame rate never matters)
+      // --- timeline --- the keyframed settings at the start of this step, on the simulation clock (so the frame rate never
+      // matters); a breathing change they make moves the walls in the first sub-step below, where the move is swept
       if (this.timeline.active) {
-        this.applyTimeline(this._elapsedMs);
+        this.deferBreathing = true;
+        try {
+          this.applyTimeline(this._elapsedMs);
+        } finally {
+          this.deferBreathing = false;
+        }
         extras = this.extras;
       }
       // --- boris-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
@@ -1504,8 +1546,13 @@ export class PhysicsEngine {
           ball.vy *= keep;
         }
       }
-      const rotatingGravity = extras.rotatingGravity !== 0;
-      const gAngle = rotatingGravity ? gravityAngle(extras.rotatingGravity, this._elapsedMs / 1000) : 0;
+      // --- timeline --- a keyframed turning rate turns gravity by its integral since 0 s (degrees turned so far): rate × t
+      // would turn it at rate + t · rate′ – backwards while the rate falls – and jump with every step's new rate
+      const turnedDeg = this.timeline.active ? this.timeline.integralAt("rotatingGravity", this._elapsedMs / 1000) : NaN;
+      const gravityKeyframed = !Number.isNaN(turnedDeg);
+      const rotatingGravity = gravityKeyframed ? turnedDeg !== 0 : extras.rotatingGravity !== 0;
+      const gAngle = !rotatingGravity ? 0 : gravityKeyframed ? gravityAngleTurned(turnedDeg) : gravityAngle(extras.rotatingGravity, this._elapsedMs / 1000);
+      this.gravityAngleRad = rotatingGravity ? gAngle : Math.PI / 2;
       const gDirX = rotatingGravity ? Math.cos(gAngle) : 0;
       const gDirY = rotatingGravity ? Math.sin(gAngle) : 1;
       const wind = extras.windX !== 0 || extras.windY !== 0;
@@ -1536,8 +1583,10 @@ export class PhysicsEngine {
         // Breathing walls move once per sub-step (a quarter of the per-step jump or less) and the collision
         // pass below sweeps each wall over that move, so even the fastest, widest pulse cannot step over a
         // ball. The last sub-step lands exactly on the step's end time, so the radii a frame renders (and
-        // `setConfig()` recomputes) are the same values the per-step pulse produced.
-        if (this.breathing) this.applyBreathing(s === subSteps - 1 ? this._elapsedMs : stepStartMs + (s + 1) * subMs);
+        // `setConfig()` recomputes) are the same values the per-step pulse produced. (--- timeline --- The walls also
+        // move – back to their base radii – in the sub-step after a keyframe switched the breathing off.)
+        this.sweepWalls = this.breathing || this.breathScale !== 1;
+        if (this.sweepWalls) this.applyBreathing(s === subSteps - 1 ? this._elapsedMs : stepStartMs + (s + 1) * subMs);
         if (this.obstaclesSpin) advanceObstacles(this.obstacles, subSec);
         if (editorLive) this.editorObstacles.advance(subSec); // --- obstacle-editor ---
         for (let i = this.balls.length - 1; i >= 0; i--) {
@@ -1577,7 +1626,8 @@ export class PhysicsEngine {
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
           this.currentMode?.onBallStep(this.ctx, ball, subSec);
-          if (orbsLive && mult.hasOrbs()) mult.touch(ball); // --- boris-multipliers --- a touched orb applies at the end of the step
+          // --- boris-multipliers --- a touched orb applies at the end of the step (--- rigged --- a forced winner's rivals do not clone themselves)
+          if (orbsLive && mult.hasOrbs()) mult.touch(ball, this.rigOn && this.cinematicDirector.rig.blocksClone(ball));
           if (s === 0 && ball.lifetime !== undefined) {
             ball.lifetime -= stepMs;
             if (ball.lifetime <= 0) {
@@ -1696,7 +1746,7 @@ export class PhysicsEngine {
       }
       // Only the first pass sweeps the walls over their last move: the later passes resolve what the
       // push-outs of the first one (or a mode's teleport) left overlapping, against the current radii.
-      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.breathing && iter === 0)) break;
+      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0)) break;
     }
   }
 
@@ -1990,6 +2040,13 @@ export class PhysicsEngine {
     a.vy = merged.vy;
     a.radius = merged.radius;
     a.color = merged.color;
+    // --- timeline --- the merged size is kept relative to the Ball Size, so a keyframed (or dragged) Ball Size scales it instead of resetting it
+    a.radiusScale = merged.radius / (this._config.ballRadius || 8);
+    // --- rigged --- the forced winner's ball is never absorbed out of the story: the merged ball plays on for its team
+    if (this.rigOn && b.team !== undefined && b.team === this.cinematicDirector.rig.winnerTeam() && a.team !== b.team) {
+      a.team = b.team;
+      a.color = b.color;
+    }
     this.balls.splice(ib, 1);
     this.lastWallLayer.delete(b.id);
     this.pendingSoundEvents.push({ type: "merge", wallIndex: 0 });
@@ -2028,7 +2085,9 @@ export class PhysicsEngine {
       ball.vx = first.vx;
       ball.vy = first.vy;
       ball.radius = first.radius;
-      this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime, gravityScale: ball.gravityScale });
+      // --- timeline --- both halves keep their size relative to the Ball Size, so a keyframed (or dragged) Ball Size scales them instead of regrowing them
+      ball.radiusScale = first.radius / (this._config.ballRadius || 8);
+      this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime, gravityScale: ball.gravityScale, radiusScale: second.radius / (this._config.ballRadius || 8) });
       const half = this.balls[this.balls.length - 1];
       if (ball.mult) half.mult = copyMultipliers(ball.mult); // --- boris-multipliers --- the halves keep the multipliers
       half.spin = ball.spin;

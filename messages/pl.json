@@ -886,6 +886,7 @@
     "forcedWinnerTip": "Wybrana piłka – jej drużyna – zawsze wygrywa: pozostałe piłki nie przejdą przez ścianę, zanim ona jej nie pokona, a reżyser kieruje jej odbicia w stronę szczelin. Pierwsza rozbija ściany i pierwsza ucieka, więc prowadzi w tablicy wyników.",
     "forcedWinnerOff": "Wyłączony – niech zdecyduje fizyka",
     "forcedWinnerModes": "Wymaga co najmniej dwóch piłek (Liczba piłek lub skład drużyn) w trybie Klasyczny, Mnożenie, Rozbicie lub Dopasowanie kolorów.",
+    "forcedWinnerNeverEscape": "Wyłączony, gdy włączona jest opcja Nigdy nie ucieknie: w tym trybie wybrana drużyna wygrywa ucieczką, a nikt nie ucieka. Razem z opcją Nigdy nie ucieknie wymuszony zwycięzca działa w trybie Klasyczny, gdzie decydują ściany, które rozbija jako pierwsza.",
     "timelineTab": "Oś czasu",
     "timeline": "Klatki kluczowe osi czasu",
     "timelineDesc": "Automatyzuj ustawienia w trakcie klipu: wybierz ustawienie, ustaw jego wartość i dodaj klatkę kluczową w bieżącej chwili. Między dwiema klatkami wartość zmienia się liniowo; przed pierwszą i po ostatniej pozostaje stała.",

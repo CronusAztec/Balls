@@ -722,11 +722,15 @@ export class MultiplierRuntime {
     return this.view.orbs.length > 0;
   }
 
-  /** A ball moved (sub-step): an orb it touches is taken now and applied at the end of the step. */
-  touch(ball: Ball) {
+  /**
+   * A ball moved (sub-step): an orb it touches is taken now and applied at the end of the step. With `noClone` (the
+   * rigged forced winner keeps the other teams from cloning themselves) an x2 BALLS orb is left floating instead.
+   */
+  touch(ball: Ball, noClone = false) {
     const orbs = this.view.orbs;
     for (let i = orbs.length - 1; i >= 0; i--) {
       const o = orbs[i];
+      if (noClone && o.kind === "balls") continue;
       const dx = ball.x - o.x;
       const dy = ball.y - o.y;
       const reach = ball.radius + o.radius;

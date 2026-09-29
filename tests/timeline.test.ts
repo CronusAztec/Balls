@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
-import type { PhysicsConfig } from "@/lib/physics/types";
+import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { TimelineLiveStore } from "@/components/simulator/timelineLive";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -8,12 +8,14 @@ import {
   MAX_KEYFRAMES,
   TIMELINE_KEYS,
   TIMELINE_KEY_CODES,
+  TIMELINE_RATE_KEYS,
   TimelineRuntime,
   addKeyframe,
   automatedKeys,
   compileTimeline,
   engineTimelineOf,
   formatTimelineValue,
+  integrateTrack,
   interpolateTrack,
   parseKeyframes,
   removeKeyframe,
@@ -90,7 +92,7 @@ function trace(engine: PhysicsEngine, frames: number, frameMs = 1000 / 60) {
   return out;
 }
 
-function pageEngine(keyframes: readonly Keyframe[] | undefined, seed: number, mode: "classic" | "shatter" | "multiply" | "drop" = "classic", base: PhysicsConfig = config) {
+function pageEngine(keyframes: readonly Keyframe[] | undefined, seed: number, mode: ModeId = "classic", base: PhysicsConfig = config) {
   const engine = new PhysicsEngine({ ...base, ...(keyframes ? { timeline: keyframes } : {}) });
   engine.setSeed(seed);
   engine.initMode(mode);
@@ -118,6 +120,39 @@ describe("interpolation", () => {
     expect(interpolateTrack(times, values, 1.5)).toBe(5);
     expect(interpolateTrack(times, values, 3)).toBe(20);
     expect(interpolateTrack(times, values, 5)).toBe(40);
+  });
+
+  it("integrates a track exactly from 0 s: the rate settings' phase (degrees turned, pulses)", () => {
+    // Rotating gravity held at 90 °/s until 10 s, then down to 0 °/s at 20 s, held from there.
+    const times = [10, 20];
+    const values = [90, 0];
+    expect(integrateTrack(times, values, 0)).toBe(0);
+    expect(integrateTrack(times, values, 5)).toBe(450);
+    expect(integrateTrack(times, values, 10)).toBe(900);
+    expect(integrateTrack(times, values, 15)).toBe(900 + 337.5);
+    expect(integrateTrack(times, values, 20)).toBe(1350);
+    expect(integrateTrack(times, values, 30)).toBe(1350); // stopped turning: the angle stays
+    // A pulse speed from 0.5 Hz at 20 s up to 2 Hz at 30 s: 10 + 12.5 cycles by 30 s, 2 per second after.
+    expect(integrateTrack([20, 30], [0.5, 2], 30)).toBeCloseTo(22.5, 12);
+    expect(integrateTrack([20, 30], [0.5, 2], 32)).toBeCloseTo(26.5, 12);
+    // Many keyframes, up and down; the slope of the integral is the value everywhere (it never runs backwards for a rate ≥ 0).
+    const t2 = [0, 1, 2, 4, 8];
+    const v2 = [0, 10, 0, 40, 40];
+    expect(integrateTrack(t2, v2, 2)).toBeCloseTo(10, 12);
+    expect(integrateTrack(t2, v2, 4)).toBeCloseTo(50, 12);
+    expect(integrateTrack(t2, v2, 9)).toBeCloseTo(250, 12);
+    for (let t = 0; t < 10; t += 0.25) {
+      const h = 1e-6;
+      const slope = (integrateTrack(t2, v2, t + h) - integrateTrack(t2, v2, t)) / h;
+      expect(slope).toBeCloseTo(interpolateTrack(t2, v2, t + h / 2), 3);
+    }
+    expect(integrateTrack([], [], 3)).toBeNaN();
+    expect(TIMELINE_RATE_KEYS).toEqual(["rotatingGravity", "breathingSpeed"]);
+    const runtime = new TimelineRuntime();
+    runtime.prepare({ timeline: [kf("rotatingGravity", 10, 90), kf("rotatingGravity", 20, 0), kf("gravity", 0, 500)] }, config);
+    expect(runtime.integralAt("rotatingGravity", 20)).toBe(1350);
+    expect(runtime.integralAt("breathingSpeed", 20)).toBeNaN(); // no keyframes: the engine keeps rate × t
+    expect(runtime.integralAt("gravity", 20)).toBeNaN(); // not a rate
   });
 
   it("holds a single keyframe everywhere, and a setting without keyframes has no value", () => {
@@ -441,6 +476,184 @@ describe("the engine", () => {
     expect(engine.config.rotationSpeed).toBe(3);
     expect(engine.getPhysicsExtras().airDrag).toBe(0.01);
     expect(engine.config.bumperBoost).toBe(1.8);
+  });
+
+  it("restarts a run with breathing walls on the rings a fresh engine builds, so a found seed replays as the finder ran it", { timeout: 60_000 }, () => {
+    // A keyframed value that differs at 0 s from the one in play goes through setConfig() when the run restarts: its
+    // breathing pulse must be taken at 0 s (scale 1), not at the old run's clock, or the new rings' base radii are off.
+    const base: PhysicsConfig = { ...config, breathingAmplitude: 0.15, breathingSpeed: 0.5 };
+    const keyframes = [kf("gravity", 0, 300), kf("gravity", 10, 1200), kf("rotationSpeed", 0, 1), kf("rotationSpeed", 20, 1.2)];
+    for (const seed of [11, 12, 15]) {
+      const page = pageEngine(keyframes, seed, "classic", base);
+      for (let i = 0; i < 200; i++) page.update(1000 / 60, 0);
+      // Find Simulation copies the page engine's config mid-run; the page then restarts the found seed on its own engine.
+      const found = createEngineForSettings({ ...page.config }, "classic", modeSettings, seed);
+      page.setSeed(seed);
+      page.setConfig({ ballRadius: config.ballRadius });
+      page.initMode("classic");
+      const fresh = pageEngine(keyframes, seed, "classic", base);
+      expect(page.getWallBaseRadii(), `seed ${seed}`).toEqual(fresh.getWallBaseRadii());
+      expect(page.getCircularWalls().map((w) => w.radius), `seed ${seed}`).toEqual(fresh.getCircularWalls().map((w) => w.radius));
+      expect(found.getWallBaseRadii(), `seed ${seed}`).toEqual(fresh.getWallBaseRadii());
+      const expected = trace(fresh, 900);
+      expect(trace(page, 900), `seed ${seed}`).toEqual(expected);
+      expect(trace(found, 900), `seed ${seed}`).toEqual(expected);
+    }
+    // A plain Restart (initMode) after a while plays the first run again.
+    const engine = pageEngine(keyframes, 7, "classic", { ...base, breathingAmplitude: 0.3 });
+    const first = trace(engine, 300);
+    for (let i = 0; i < 90; i++) engine.update(1000 / 60, 0);
+    engine.setSeed(7);
+    engine.initMode("classic");
+    expect(Math.max(...engine.getWallBaseRadii())).toBe(Math.max(...pageEngine(keyframes, 7, "classic", base).getWallBaseRadii()));
+    expect(trace(engine, 300)).toEqual(first);
+  });
+
+  it("turns gravity by the integral of a keyframed turning rate: never backwards, at the rate the slider shows", () => {
+    // 90 °/s until 10 s, easing to 0 °/s at 20 s: 900° + 450°, then it stays where it stopped.
+    const engine = pageEngine([kf("rotatingGravity", 10, 90), kf("rotatingGravity", 20, 0)], 3);
+    let prev = engine.getGravityAngle();
+    expect(prev).toBe(Math.PI / 2);
+    for (let i = 0; i < 25 * 60; i++) {
+      engine.update(1000 / 60, 0);
+      const angle = engine.getGravityAngle();
+      const rate = ((angle - prev) * 180) / Math.PI / (1 / 60); // degrees per second this step
+      const t = engine.getElapsedMs() / 1000;
+      expect(rate, `t=${t.toFixed(2)} s`).toBeGreaterThanOrEqual(-1e-6);
+      expect(rate, `t=${t.toFixed(2)} s`).toBeLessThanOrEqual(90 + 1e-6);
+      // Within a step of the rate in effect (the keyframes are applied at the start of each step).
+      expect(Math.abs(rate - engine.getPhysicsExtras().rotatingGravity), `t=${t.toFixed(2)} s`).toBeLessThanOrEqual(90 / 600 + 1e-6);
+      prev = angle;
+    }
+    expect(engine.getTimelinePhase("rotatingGravity")).toBe(1350);
+    expect(((engine.getGravityAngle() - Math.PI / 2) * 180) / Math.PI).toBeCloseTo(1350, 9);
+    expect(engine.getTimelinePhase("gravity")).toBeNaN();
+    // Without keyframes the rate × t path is untouched.
+    const plain = pageEngine(undefined, 3, "classic", { ...config, rotatingGravity: 45 });
+    for (let i = 0; i < 120; i++) plain.update(1000 / 60, 0);
+    expect(plain.getGravityAngle()).toBe(Math.PI / 2 + 45 * (Math.PI / 180) * (plain.getElapsedMs() / 1000));
+    expect(plain.getTimelinePhase("rotatingGravity")).toBeNaN();
+  });
+
+  it("pulses breathing walls at the keyframed speed, and a speed ramp never lets a ball through a gapless ring", { timeout: 60_000 }, () => {
+    // 0.5 Hz until 10 s, up to 3 Hz at 40 s (the range's top); amplitude 0.3, the widest pulse.
+    const ramp = [kf("breathingSpeed", 10, 0.5), kf("breathingSpeed", 40, 3)];
+    const base: PhysicsConfig = { ...config, breathingAmplitude: 0.3, breathingSpeed: 0.5 };
+    for (const mode of ["lines", "paint"] as ModeId[]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const engine = pageEngine(ramp, seed, mode, base);
+        const cx = config.width / 2;
+        const cy = config.height / 2;
+        // The widest the ring can move in a step pulsing at 3 Hz at most: 1/20 of a cycle, straddling the pulse's middle.
+        const widest = engine.getWallBaseRadii()[0] * 0.3 * 2 * Math.sin(Math.PI * (3 / 60)) + 1e-9;
+        let prev = engine.getCircularWalls()[0].radius;
+        let fastest = 0;
+        for (let i = 0; i < 45 * 60; i++) {
+          engine.update(1000 / 60, 0);
+          const ring = engine.getCircularWalls()[0].radius;
+          fastest = Math.max(fastest, Math.abs(ring - prev));
+          prev = ring;
+          for (const ball of engine.getBalls()) {
+            if (Math.hypot(ball.x - cx, ball.y - cy) > ring) expect.fail(`${mode} seed ${seed}: a ball left the ring at ${(engine.getElapsedMs() / 1000).toFixed(2)} s`);
+          }
+        }
+        expect(fastest, `${mode} seed ${seed}`).toBeLessThanOrEqual(widest);
+        expect(fastest, `${mode} seed ${seed}`).toBeGreaterThan(0.95 * widest);
+        // 0.5 Hz × 10 s + (0.5 + 3) / 2 Hz × 30 s + 3 Hz × 5 s of pulses, and the ring where that phase puts it.
+        expect(engine.getTimelinePhase("breathingSpeed"), `${mode} seed ${seed}`).toBeCloseTo(5 + 52.5 + 15, 9);
+        const baseRadius = engine.getWallBaseRadii()[0];
+        expect(engine.getCircularWalls()[0].radius).toBeCloseTo(baseRadius * (1 + 0.3 * Math.sin(2 * Math.PI * 72.5)), 6);
+      }
+    }
+  });
+
+  it("sweeps a keyframed breathing amplitude's jumps too: small balls stay inside a gapless ring", { timeout: 60_000 }, () => {
+    // The amplitude flips between 0 and 0.3 every 0.1 s (a keyframe's shortest distance): the walls jump up to 13 px a
+    // step, more than a small ball's collision margin – the move is made in the step's first sub-step, which sweeps it.
+    const flicker: Keyframe[] = [];
+    for (let i = 0; i < 40; i++) flicker.push(kf("breathingAmplitude", Math.round(i) / 10, i % 2 === 0 ? 0 : 0.3));
+    const cx = config.width / 2;
+    const cy = config.height / 2;
+    for (const mode of ["lines", "paint", "grow"] as ModeId[]) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const engine = pageEngine(flicker, seed, mode, { ...config, ballRadius: 4, ballSpeed: 600, breathingAmplitude: 0, breathingSpeed: 3 });
+        for (let i = 0; i < 12 * 60; i++) {
+          engine.update(1000 / 60, 0);
+          const ring = engine.getCircularWalls()[0].radius;
+          for (const ball of engine.getBalls()) {
+            if (Math.hypot(ball.x - cx, ball.y - cy) > ring) expect.fail(`${mode} seed ${seed}: a ball left the ring at ${(engine.getElapsedMs() / 1000).toFixed(2)} s`);
+          }
+        }
+        // After the last keyframe (amplitude 0.3 at 3.9 s) the pulse holds; the walls end exactly where it puts them.
+        expect(engine.getCircularWalls()[0].radius).toBeCloseTo(engine.getWallBaseRadii()[0] * (1 + 0.3 * Math.sin(2 * Math.PI * 3 * (engine.getElapsedMs() / 1000))), 6);
+      }
+    }
+  });
+
+  it("scales a grown, merged or split ball with a keyframed Ball Size instead of resetting it", { timeout: 60_000 }, () => {
+    // Grow: 8 → 12 px over 10 s. The ball keeps growing with every bounce and the ramp scales what it grew to.
+    const ramp = [kf("ballRadius", 0, 8), kf("ballRadius", 10, 12)];
+    const grow = pageEngine(ramp, 5, "grow");
+    const plain = pageEngine(undefined, 5, "grow");
+    const sizes: number[] = [];
+    for (let i = 1; i <= 10 * 60; i++) {
+      grow.update(1000 / 60, 0);
+      plain.update(1000 / 60, 0);
+      if (i % 120 === 0) {
+        const ball = grow.getBalls()[0];
+        sizes.push(ball.radius);
+        expect(ball.radius).toBeCloseTo(grow.config.ballRadius * (ball.radiusScale ?? 1), 9);
+        expect(ball.radius, `${i / 60} s`).toBeGreaterThan(grow.config.ballRadius + 5);
+      }
+    }
+    for (let i = 1; i < sizes.length; i++) expect(sizes[i]).toBeGreaterThan(sizes[i - 1]);
+    expect(sizes[sizes.length - 1]).toBeGreaterThan(0.9 * plain.getBalls()[0].radius);
+    // Scaled up past the ring, a grown ball is held to the ring's cap (a ramp after it filled the ring).
+    const full = pageEngine([kf("ballRadius", 30, 8), kf("ballRadius", 34, 30)], 2, "grow", { ...config, gravity: 0 });
+    full.setGrowRate(40);
+    full.initMode("grow");
+    for (let i = 0; i < 36 * 60; i++) {
+      full.update(1000 / 60, 0);
+      const ring = full.getCircularWalls()[0].radius;
+      for (const ball of full.getBalls()) expect(ball.radius, `${(i / 60).toFixed(2)} s`).toBeLessThanOrEqual(ring - 2 + 1e-9);
+    }
+    expect(full.getBalls()[0].radius).toBeGreaterThan(full.getCircularWalls()[0].radius - 3);
+
+    // Merge: two 12 px balls fuse into one of 12√2 px; a 12 → 14 px ramp then scales it to 14√2 px.
+    const merge = pageEngine([kf("ballRadius", 0, 12), kf("ballRadius", 1, 12), kf("ballRadius", 2, 14)], 9, "classic", { ...config, ballCount: 2, ballInteraction: "merge", gravity: 0 });
+    const [a, b] = merge.getBalls();
+    a.x = 380;
+    a.y = 300;
+    a.vx = 200;
+    a.vy = 0;
+    b.x = 420;
+    b.y = 300;
+    b.vx = -200;
+    b.vy = 0;
+    for (let i = 0; i < 20; i++) merge.update(1000 / 60, 0);
+    expect(merge.getBalls().length).toBe(1);
+    expect(merge.getBalls()[0].radius).toBeCloseTo(12 * Math.SQRT2, 9);
+    for (let i = 0; i < 150; i++) merge.update(1000 / 60, 0);
+    expect(merge.config.ballRadius).toBe(14);
+    expect(merge.getBalls()[0].radius).toBeCloseTo(14 * Math.SQRT2, 9);
+
+    // Split: the halves of a 16 px ball are 16/√2 px; a 16 → 20 px ramp scales them to 20/√2 px, it does not regrow them.
+    const split = pageEngine([kf("ballRadius", 0, 16), kf("ballRadius", 20, 16), kf("ballRadius", 22, 20)], 4, "classic", { ...config, ballRadius: 16, gapSize: 0.9, ballInteraction: "split", splitMinRadius: 4 });
+    let halves = false;
+    for (let i = 0; i < 20 * 60 && !halves; i++) {
+      split.update(1000 / 60, 0);
+      halves = split.getBalls().length > 1;
+    }
+    expect(halves).toBe(true);
+    const ratios = () => split.getBalls().map((ball) => Math.round((1000 * ball.radius) / split.config.ballRadius));
+    const before = ratios();
+    expect(Math.max(...before)).toBeLessThan(1000);
+    while (split.getElapsedMs() < 23_000) split.update(1000 / 60, 0);
+    expect(split.config.ballRadius).toBe(20);
+    for (const ball of split.getBalls()) expect(ball.radius).toBeCloseTo(split.config.ballRadius * (ball.radiusScale ?? 1), 9);
+    // The ramp scaled every ball by 20 / 16; none grew back to the full Ball Size (further splits only shrink them).
+    expect(Math.max(...ratios())).toBeLessThanOrEqual(Math.max(...before));
+    expect(Math.max(...ratios())).toBeLessThan(1000);
   });
 });
 

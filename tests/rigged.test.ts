@@ -8,8 +8,10 @@ import {
   RIG_ESCAPE_MODES,
   RigDirector,
   WINNER_MODES,
+  WINNER_NEEDS_ESCAPE,
   emptyFlight,
   forcedWinnerApplies,
+  forcedWinnerBlockedByNeverEscape,
   neverEscapeApplies,
   resolveRiggedConfig,
   rigNeverFinishes,
@@ -315,6 +317,114 @@ describe("RigDirector", () => {
     expect(forcedWinnerApplies("shatter", 2, 1)).toBe(true);
     expect(WINNER_MODES).toEqual(["classic", "multiply", "shatter", "colorMatch"]);
   });
+
+  it("opens the way out only with the chosen team's escape, not its pass – and never before the end where that escape ends the run", () => {
+    const ringWalls: CircularWall[] = [
+      { radius: 100, gaps: [{ startAngle: 0, endAngle: 0.4 }] },
+      { radius: 200, gaps: [{ startAngle: 1, endAngle: 1.4 }] },
+    ];
+    const cfg: PhysicsConfig = { ...config, ballCount: 3, forcedWinner: 2 };
+    // Classic: the chosen ball entering the outer gap – still inside – leaves it closed; its escape (the scan) opens it.
+    const classic = new RigDirector();
+    classic.beginStep("classic", cfg, DEFAULT_PHYSICS_EXTRAS, ringWalls, [0, 0], new Set(), 400, 0, 1, true, 0);
+    classic.notePass({ team: 2 }, 0);
+    classic.notePass({ team: 2 }, 1);
+    expect(classic.closes({ team: 0 }, 0)).toBe(false);
+    expect(classic.closes({ team: 0 }, 1)).toBe(true);
+    // Broken open by the chosen ball's pass, it still holds the others until the chosen team is out.
+    classic.beginStep("classic", cfg, DEFAULT_PHYSICS_EXTRAS, ringWalls, [0, 0], new Set([0, 1]), 400, 0, 1, true, 0);
+    expect(classic.holdsBroken({ team: 1 }, 1)).toBe(true);
+    expect(classic.holdsBroken({ team: 1 }, 0)).toBe(false);
+    classic.noteEscape({ team: 2 }, 9_000);
+    expect(classic.closes({ team: 0 }, 1)).toBe(false);
+    expect(classic.holdsBroken({ team: 1 }, 1)).toBe(false);
+    // Shatter and Color Match end with the first escape (+20 px, +30 px, the scan counts it at +10 px): the way out stays
+    // closed to the others until the run is over, whatever the chosen team did – and it stays open to the chosen team.
+    for (const mode of ["shatter", "colorMatch"] as ModeId[]) {
+      const r = new RigDirector();
+      r.beginStep(mode, cfg, DEFAULT_PHYSICS_EXTRAS, ringWalls, [0, 0], new Set(), 400, 0, 1, true, 0);
+      r.notePass({ team: 2 }, 1);
+      r.noteEscape({ team: 2 }, 9_000);
+      expect(r.closes({ team: 0 }, 1), mode).toBe(true);
+      expect(r.closes({ team: 1 }, 1), mode).toBe(true);
+      expect(r.closes({ team: 2 }, 1), mode).toBe(false);
+      expect(r.closes({ team: 0 }, 0), mode).toBe(false); // only the way out is locked there
+    }
+    // Unlike Multiply's lock for good, that lock still lets the director turn the chosen ball through a gap it can pass:
+    // a rebound straight across the ring, 8° beside the gap, is turned into it.
+    const single: CircularWall[] = [{ radius: 200, gaps: [{ startAngle: 1, endAngle: 1.4 }] }];
+    const still: PhysicsConfig = { ...cfg, rotationSpeed: 0 };
+    const from = 1.5 + Math.PI;
+    const chosen = (): Ball => ({ id: 0, x: 400 + 189 * Math.cos(from), y: 300 + 189 * Math.sin(from), vx: 0, vy: 0, radius: 8, color: "#fff", trail: [], trailIndex: 0, spin: 0, angle: 0, team: 2 });
+    for (const mode of ["shatter", "colorMatch", "multiply"] as ModeId[]) {
+      const r = new RigDirector();
+      r.beginStep(mode, still, DEFAULT_PHYSICS_EXTRAS, single, [0], new Set(), 0, 0, 1, true, 0);
+      const steered = r.steer(chosen(), 0, true, 1.5, 400);
+      if (mode === "multiply") expect(steered, mode).toBe(1.5);
+      else {
+        expect(steered, mode).not.toBe(1.5);
+        expect(Math.abs(steered - 1.5), mode).toBeLessThanOrEqual((12 * Math.PI) / 180 + 1e-9);
+        expect(r.fly(chosen(), steered, 400, emptyFlight()).passes, mode).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("switches the forced winner off where never escape puts the win out of reach (Multiply, Shatter, Color Match), not in Classic", () => {
+    expect(WINNER_NEEDS_ESCAPE).toEqual(["multiply", "shatter", "colorMatch"]);
+    for (const mode of WINNER_MODES) {
+      const needsEscape = WINNER_NEEDS_ESCAPE.includes(mode);
+      expect(forcedWinnerApplies(mode, 3, 1), mode).toBe(true);
+      expect(forcedWinnerApplies(mode, 3, 1, true), mode).toBe(!needsEscape);
+      expect(forcedWinnerBlockedByNeverEscape(mode, true), mode).toBe(needsEscape);
+      expect(forcedWinnerBlockedByNeverEscape(mode, false), mode).toBe(false);
+      const r = new RigDirector();
+      const walls: CircularWall[] = [{ radius: 200, gaps: [{ startAngle: 1, endAngle: 1.4 }] }];
+      r.beginStep(mode, { ...config, ballCount: 3, forcedWinner: 1, neverEscape: true }, DEFAULT_PHYSICS_EXTRAS, walls, [0], new Set(), 400, 0, 1, true, 0);
+      expect(r.winnerTeam(), mode).toBe(needsEscape ? -1 : 1);
+      expect(r.getView().neverEscape, mode).toBe(true);
+    }
+  });
+
+  it("keeps the other teams from cloning themselves on x2 BALLS orbs in Classic, where every ball escapes in the end", () => {
+    const walls: CircularWall[] = [{ radius: 200, gaps: [{ startAngle: 1, endAngle: 1.4 }] }];
+    const cfg: PhysicsConfig = { ...config, ballCount: 3, forcedWinner: 2 };
+    const r = new RigDirector();
+    r.beginStep("classic", cfg, DEFAULT_PHYSICS_EXTRAS, walls, [0], new Set(), 400, 0, 1, true, 0);
+    expect(r.blocksClone({ team: 0 })).toBe(true);
+    expect(r.blocksClone({ team: 2 })).toBe(false);
+    // Elsewhere the others never get out before the run ends (or never at all): their clones cannot outscore the chosen team.
+    for (const mode of ["shatter", "multiply"] as ModeId[]) {
+      r.beginStep(mode, cfg, DEFAULT_PHYSICS_EXTRAS, walls, [0], new Set(), 400, 0, 1, true, 0);
+      expect(r.blocksClone({ team: 0 }), mode).toBe(false);
+    }
+    r.beginStep("classic", { ...cfg, forcedWinner: -1 }, DEFAULT_PHYSICS_EXTRAS, walls, [0], new Set(), 400, 0, 1, true, 0);
+    expect(r.blocksClone({ team: 0 })).toBe(false);
+  });
+
+  it("releases the locks once the chosen team has lost its last ball without escaping – the run can still end", () => {
+    const walls: CircularWall[] = [
+      { radius: 100, gaps: [{ startAngle: 0, endAngle: 0.4 }] },
+      { radius: 200, gaps: [{ startAngle: 1, endAngle: 1.4 }] },
+    ];
+    const ball = (team: number): Ball => ({ id: team, x: 400, y: 300, vx: 0, vy: 0, radius: 8, color: "#fff", trail: [], trailIndex: 0, spin: 0, angle: 0, team });
+    for (const mode of ["classic", "shatter", "colorMatch", "multiply"] as ModeId[]) {
+      const r = new RigDirector();
+      r.beginStep(mode, { ...config, ballCount: 3, forcedWinner: 2 }, DEFAULT_PHYSICS_EXTRAS, walls, [0, 0], new Set(), 400, 0, 1, true, 0);
+      r.markInside([ball(0), ball(1), ball(2)]);
+      expect(r.closes({ team: 0 }, 1), mode).toBe(true);
+      r.markInside([ball(0), ball(1)]); // the chosen ball is gone (merged into another team's)
+      expect(r.closes({ team: 0 }, 1), mode).toBe(false);
+      expect(r.closes({ team: 1 }, 0), mode).toBe(false);
+      r.reset();
+      expect(r.closes({ team: 0 }, 1), mode).toBe(true);
+    }
+    // A chosen team that escaped keeps its win: its balls leaving play (Multiply's escaped balls expire) release nothing.
+    const multiply = new RigDirector();
+    multiply.beginStep("multiply", { ...config, ballCount: 3, forcedWinner: 2 }, DEFAULT_PHYSICS_EXTRAS, [walls[1]], [0], new Set(), 400, 0, 1, true, 0);
+    multiply.noteEscape({ team: 2 }, 3_000);
+    multiply.markInside([ball(0), ball(1)]);
+    expect(multiply.closes({ team: 0 }, 0)).toBe(true);
+  });
 });
 
 /* ------------------------------------------------------------------ never escape in the engine */
@@ -457,6 +567,91 @@ describe("forced winner", () => {
     const match = race("colorMatch", 4, 0, 2, 240);
     expect(match.isSimulationFinished()).toBe(true);
     expect(teamResult(match.getTeamStats(), 2).winner).toBe(0);
+  });
+
+  it("wins every Shatter and Color Match race: 20 seeds with 2 to 6 teams, the way out shut to the others to the end", { timeout: 240_000 }, () => {
+    // The chosen ball entering the outer gap no longer opens the way out while it is still inside, and a trailing ball
+    // can no longer slip out between the chosen team's escape (+10 px) and the end of the run (+20 px, +30 px).
+    for (const mode of ["shatter", "colorMatch"] as ModeId[]) {
+      for (let teams = 2; teams <= 6; teams++) {
+        for (let k = 0; k < 20; k++) {
+          const seed = 1000 + 101 * k + 13 * teams;
+          const team = k % 2 === 0 ? teams - 1 : k % teams;
+          const engine = race(mode, seed, team, teams, 1200);
+          const label = `${mode} ${teams} teams seed ${seed} (team ${team})`;
+          expect(engine.isSimulationFinished(), label).toBe(true);
+          const stats = engine.getTeamStats();
+          const result = teamResult(stats, teams);
+          expect(result.winner, label).toBe(team);
+          expect(result.tie, label).toBe(false);
+          // Nobody else got out: the chosen team's escape ended the run.
+          for (let t = 0; t < teams; t++) if (t !== team) expect(stats[t].escapes, `${label}: team ${t}`).toBe(0);
+        }
+      }
+    }
+  });
+
+  it("the rivals' x2 BALLS clones cannot out-escape the chosen team in Classic", { timeout: 120_000 }, () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = engineFor("classic", seed, { ballCount: 3, forcedWinner: 2, multiplierPickups: true, pickupTypes: "balls", pickupRate: 3 }, 3);
+      step(engine, 60 * 300, true);
+      const label = `seed ${seed}`;
+      expect(engine.isSimulationFinished(), label).toBe(true);
+      const stats = engine.getTeamStats();
+      expect(teamResult(stats, 3).winner, label).toBe(2);
+      expect(stats[0].escapes, label).toBeLessThanOrEqual(1);
+      expect(stats[1].escapes, label).toBeLessThanOrEqual(1);
+      for (const ball of engine.getBalls()) if (ball.team !== 2) expect([0, 1], label).toContain(ball.id); // no clone of a rival
+    }
+  });
+
+  it("with the merge interaction the run still ends and the chosen team wins: the merged ball plays on for it", { timeout: 120_000 }, () => {
+    for (const mode of ["classic", "shatter", "colorMatch"] as ModeId[]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const engine = engineFor(mode, seed, { ballCount: 3, forcedWinner: 2, ballInteraction: "merge", gapSize: 0.8, ballSpeed: 700 }, 3);
+        const label = `${mode} seed ${seed}`;
+        let merged = false;
+        for (let f = 0; f < 60 * 240 && !engine.isSimulationFinished(); f++) {
+          engine.update(STEP, 0);
+          if (engine.consumeSoundEvents().some((e) => e.type === "merge")) merged = true;
+        }
+        expect(engine.isSimulationFinished(), label).toBe(true);
+        expect(teamResult(engine.getTeamStats(), 3).winner, label).toBe(2);
+        if (merged) expect(engine.getBalls().some((b) => b.team === 2), label).toBe(true);
+      }
+    }
+  });
+
+  it("releases the locks when the chosen team loses its last ball without escaping, so the run can end", { timeout: 60_000 }, () => {
+    for (const mode of ["classic", "shatter", "colorMatch"] as ModeId[]) {
+      const engine = engineFor(mode, 6, { ballCount: 3, forcedWinner: 2, gapSize: 0.8 }, 3);
+      step(engine, 30);
+      const chosen = engine.getBalls().find((b) => b.team === 2);
+      expect(chosen, mode).toBeDefined();
+      engine.removeBall(chosen?.id ?? -1); // gone, as a merge without the hand-over would take it
+      step(engine, 60 * 600, true);
+      expect(engine.isSimulationFinished(), mode).toBe(true);
+      expect(engine.getTeamStats().slice(0, 2).some((t) => t.escapes > 0), mode).toBe(true);
+    }
+  });
+
+  it("keeps a never-escape run as it is where the forced winner cannot win without escaping", { timeout: 60_000 }, () => {
+    for (const mode of WINNER_NEEDS_ESCAPE) {
+      const both = engineFor(mode, 5, { ballCount: 3, neverEscape: true, forcedWinner: 1 }, 3);
+      const never = engineFor(mode, 5, { ballCount: 3, neverEscape: true }, 3);
+      expect(both.getRigView().winner, mode).toBe(-1);
+      expect(trajectory(both, 900), mode).toEqual(trajectory(never, 900));
+      expect(both.getFirstEscapeMs(), mode).toBe(-1);
+    }
+    // Classic keeps both: nobody escapes, and the chosen team breaks the walls the others cannot.
+    const classic = engineFor("classic", 5, { ballCount: 3, neverEscape: true, forcedWinner: 1, gapSize: 0.8 }, 3);
+    expect(classic.getRigView().winner).toBe(1);
+    step(classic, 60 * 60);
+    const stats = classic.getTeamStats();
+    expect(classic.getFirstEscapeMs()).toBe(-1);
+    expect(stats[1].walls).toBeGreaterThan(0);
+    expect(stats[0].walls + stats[2].walls).toBe(0);
+    expect(teamResult(stats, 3).winner).toBe(1);
   });
 
   it("keeps the other teams in for good in Multiply", { timeout: 60_000 }, () => {

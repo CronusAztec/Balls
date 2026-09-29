@@ -357,6 +357,43 @@ export function interpolateTrack(times: readonly number[], values: readonly numb
   return values[lo] + (values[hi] - values[lo]) * u;
 }
 
+/** `∫ v` from the first keyframe's time to `t` of the track's value `v` (negative before it) – the trapezoids of the piecewise-linear value. */
+function trackPrimitive(times: readonly number[], values: readonly number[], t: number): number {
+  const n = times.length;
+  if (!(t > times[0])) return values[0] * (t - times[0]);
+  let area = 0;
+  for (let i = 1; i < n; i++) {
+    const a = times[i - 1];
+    const b = times[i];
+    if (t < b) {
+      const va = values[i - 1];
+      const vt = va + (values[i] - va) * ((t - a) / (b - a));
+      return area + 0.5 * (va + vt) * (t - a);
+    }
+    area += 0.5 * (values[i - 1] + values[i]) * (b - a);
+  }
+  return area + values[n - 1] * (t - times[n - 1]);
+}
+
+/**
+ * The integral of a track's value from 0 s to second `t` (value × seconds) – exact for the piecewise-linear value
+ * `interpolateTrack()` gives (held before the first keyframe and after the last). A keyframed *rate* turns into a phase
+ * this way: gravity turned by `∫ rotatingGravity` degrees, the breathing walls `∫ breathingSpeed` cycles into their
+ * pulse. (Rate × t would be wrong while the rate changes: the phase would move at `rate + t · rate′` and jump with every
+ * step's new rate.) NaN without keyframes. Allocation-free.
+ */
+export function integrateTrack(times: readonly number[], values: readonly number[], t: number): number {
+  if (times.length === 0 || Number.isNaN(t)) return NaN;
+  return trackPrimitive(times, values, t) - trackPrimitive(times, values, 0);
+}
+
+/**
+ * Rate settings: the engine turns them into a phase (gravity's direction, the breathing pulse). While one is keyframed
+ * the engine integrates its keyframes (`TimelineRuntime.integralAt()`) instead of multiplying the rate by the time.
+ * (The wall rotation speed needs nothing: the engine adds rate × step to the rotation every step.)
+ */
+export const TIMELINE_RATE_KEYS: readonly TimelineKey[] = ["rotatingGravity", "breathingSpeed"];
+
 /** One setting's keyframes, ready for `interpolateTrack()`: ascending, distinct times (a later keyframe at a time wins). */
 export interface TimelineTrack {
   readonly key: TimelineKey;
@@ -458,10 +495,14 @@ export interface PreparedPatch {
  *   are gone gets its base back (the gap size in place, so its rings are not rebuilt).
  * - `patchAt()` / `gapAt()` give the values at a simulation second that differ from the config – the engine applies them
  *   at the start of every fixed step and when a run starts (at 0 s). Nothing is allocated while no value changes.
+ * - `integralAt()` gives a keyframed rate's integral since 0 s – the phase the engine uses for the rate settings
+ *   (`TIMELINE_RATE_KEYS`) while they are automated.
  */
 export class TimelineRuntime {
   private tracks: TimelineTrack[] = [];
   private gapTrack: TimelineTrack | null = null;
+  /** The rate settings' tracks (`TIMELINE_RATE_KEYS`), for `integralAt()`. */
+  private rateTracks: Partial<Record<TimelineKey, TimelineTrack>> = {};
   private signature = "";
   private keys: ReadonlySet<TimelineKey> = NO_KEYS;
   private readonly base: Partial<Record<TimelineKey, number>> = {};
@@ -495,6 +536,8 @@ export class TimelineRuntime {
         this.tracks = tracks;
         this.signature = signature;
         this.gapTrack = tracks.find((t) => t.key === "gapSize") ?? null;
+        this.rateTracks = {};
+        for (const track of tracks) if (TIMELINE_RATE_KEYS.includes(track.key)) this.rateTracks[track.key] = track;
         this.keys = new Set(tracks.map((t) => t.key));
       }
     }
@@ -547,6 +590,16 @@ export class TimelineRuntime {
     if (!track) return null;
     const value = interpolateTrack(track.times, track.values, t);
     return config.gapSize !== value ? value : null;
+  }
+
+  /**
+   * A keyframed rate setting (`TIMELINE_RATE_KEYS`) integrated from 0 s to simulation second `t` (`integrateTrack()`:
+   * degrees gravity has turned, cycles the walls have breathed), or NaN while `key` has no keyframes – the engine then
+   * keeps its rate × t. Allocation-free.
+   */
+  integralAt(key: TimelineKey, t: number): number {
+    const track = this.rateTracks[key];
+    return track ? integrateTrack(track.times, track.values, t) : NaN;
   }
 }
 
