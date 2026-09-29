@@ -2359,8 +2359,17 @@ export class PhysicsEngine {
 
   private pushParticle(p: Particle) {
     if (this.particles.length >= this.MAX_PARTICLES) return;
+    if (this.particles.length >= this.particleCap) return; // --- split-screen ---
     this.particles.push(p);
   }
+
+  // --- split-screen --- the arenas of a split-screen race share the particle budget (lib/simulation/multi.ts); visual only
+  private particleCap = Infinity;
+  /** Caps the live particles at `max` (null: only the engine's own cap). Split-screen arenas share one budget. Visual only. */
+  setParticleBudget(max: number | null) {
+    this.particleCap = max === null || !Number.isFinite(max) ? Infinity : Math.max(1, Math.floor(max));
+  }
+  // --- end split-screen ---
 
   spawnConfetti(x: number, y: number) {
     // --- themes: sparks, petals, pixels and bubbles, or confetti in a theme's colours; the classic burst below stays the default

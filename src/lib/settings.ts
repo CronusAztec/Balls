@@ -44,6 +44,8 @@ import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writ
 import type { RaceFeature } from "@/lib/physics/raceTrack";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_GAME_RANGES, defaultArenaGameFields, readArenaGameParams, resolveArenaGameFields, writeArenaGameParams, type BattleArena } from "@/lib/physics/modes/arenaGames";
+// --- split-screen --- 2 or 4 arenas racing on one canvas (lib/splitScreen.ts, lib/simulation/multi.ts)
+import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -532,6 +534,16 @@ export interface SimulatorSettings {
   /** Both games: 0–1, how far the director turns a wall rebound toward the action (URL `arn`). */
   arenaNudge: number;
   // --- end jdm-arena-games ---
+  // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, components/simulator/splitScreenCanvas.tsx)
+  /** Arenas on the canvas: 1 (the single view), 2 or 4 (URL `ac`). */
+  arenaCount: ArenaCount;
+  /** row: side by side; grid: 2 × 2, or two stacked (URL `al`). */
+  arenaLayout: ArenaLayout;
+  /** Per-arena overrides – label, seed, gravity, ball speed, ball colour, mode (URL `ar`, compact). */
+  arenas: ArenaOverride[];
+  /** Whose bounces are heard: the first arena's or every arena's (URL `sa`). */
+  soundArena: SoundArena;
+  // --- end split-screen ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -640,6 +652,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...DEFAULT_FAST_EXPORT_SETTINGS, // --- fast-render ---
     ...defaultRaceFields(), // --- jdm-race ---
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
+    ...defaultSplitScreenFields(), // --- split-screen ---
   };
 }
 
@@ -702,6 +715,7 @@ export const RANGES = {
   ...FAST_EXPORT_RANGES, // --- fast-render ---
   ...RACE_RANGES, // --- jdm-race ---
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
+  ...SPLIT_SCREEN_RANGES, // --- split-screen ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -934,6 +948,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
+  writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   return params;
 }
 
@@ -1047,6 +1062,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   Object.assign(settings, resolveFastExportSettings(settings)); // --- fast-render --- (snapped to 30 or 60)
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
+  readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   return settings;
 }
 
@@ -1213,6 +1229,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveFastExportSettings(merged)); // --- fast-render --- (snapped to 30 or 60)
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
+  Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   return merged;
 }
 
