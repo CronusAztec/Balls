@@ -7,6 +7,7 @@ import { DEFAULT_PHYSICS_EXTRAS, PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from
 import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics/interactions";
 import { BOX_RANGES, DEFAULT_BOX_SETTINGS, boxSettingFields, boxSettingsOf, isBoxShape, isBoxSpeedRatio, resolveBoxSettings, type BoxShape, type BoxSpeedRatio } from "@/lib/physics/modes/box";
 import { DEFAULT_DROP_SETTINGS, DROP_RANGES, dropSettingFields, dropSettingsOf, resolveDropSettings } from "@/lib/physics/modes/drop";
+import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulumPitchDirection, isPendulumSoundOn, pendulumSettingFields, pendulumSettingsOf, resolvePendulumSettings, type PendulumLayout, type PendulumPitchDirection, type PendulumSoundOn } from "@/lib/physics/modes/pendulum";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -116,6 +117,31 @@ export interface SimulatorSettings {
   boxGrowPerHit: number;
   /** Speeds of the shapes in whole-number ratios: 1:1, 2:3, 3:4:5 or 4:5:6 (URL `bxr`). */
   boxSpeedRatio: BoxSpeedRatio;
+  // Pendulum Wave (lib/physics/modes/pendulum.ts): pendulums tuned so the row drifts into waves and snaps back every cycle
+  /** Pendulums, 5–60 (URL `pwn`). */
+  pwCount: number;
+  /** Oscillations of the slowest pendulum per cycle; pendulum i completes this + i (URL `pwk`). */
+  pwBaseOscillations: number;
+  /** Seconds per cycle – the row is back in line every cycle (URL `pwt`). */
+  pwCycleSeconds: number;
+  /** Swing amplitude in degrees (URL `pwa`). */
+  pwAmplitude: number;
+  /** row | arc | circle | galaxy | sliding | bouncing (URL `pwl`). */
+  pwLayout: PendulumLayout;
+  /** 0 (circle) or 3–8 sides: the radial layouts map the bobs onto a rotating polygon (URL `pwp`). */
+  pwPolygon: number;
+  /** Arithmetic series of swing times (Reich-style phasing) instead of the classic tuning (URL `pwph`). */
+  pwPhasing: boolean;
+  /** Length of the fading trails, 0–1 (URL `pwtr`). */
+  pwTrails: number;
+  /** Where a bob plays: center | extremes | both (URL `pws`). */
+  pwSoundOn: PendulumSoundOn;
+  /** up: the slowest pendulum plays the lowest note; down: the highest (URL `pwpd`). */
+  pwPitchDirection: PendulumPitchDirection;
+  /** Bobs aligned within 20 ms play as one chord (URL `pwch`). */
+  pwWaveChord: boolean;
+  /** Full cycles after which the run finishes, 0 = never (URL `pwc`). */
+  pwCycles: number;
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -224,6 +250,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     growLines: false,
     ...dropSettingFields(DEFAULT_DROP_SETTINGS),
     ...boxSettingFields(DEFAULT_BOX_SETTINGS),
+    ...pendulumSettingFields(DEFAULT_PENDULUM_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
@@ -287,6 +314,7 @@ export const RANGES = {
   ...BALL_INTERACTION_RANGES,
   ...DROP_RANGES,
   ...BOX_RANGES,
+  ...PENDULUM_RANGES,
   ...PICTURE_PAINT_RANGES,
 } as const;
 
@@ -351,6 +379,14 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   bxg: "boxGravity",
   bxc: "boxCountdown",
   bxgr: "boxGrowPerHit",
+  // Pendulum Wave
+  pwn: "pwCount",
+  pwk: "pwBaseOscillations",
+  pwt: "pwCycleSeconds",
+  pwa: "pwAmplitude",
+  pwp: "pwPolygon",
+  pwtr: "pwTrails",
+  pwc: "pwCycles",
   // Picture Paint
   pbr: "paintBrush",
   pgh: "paintGhost",
@@ -383,6 +419,8 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   mloop: "musicLoop",
   qz: "quantizeToBeat",
   dloop: "dropLoop",
+  pwph: "pwPhasing",
+  pwch: "pwWaveChord",
   pbeat: "paintBeatSync",
   pgd: "paintGuided",
   pps: "paintPaceToSong",
@@ -418,6 +456,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.paintBeatSource !== base.paintBeatSource) params.set("pbs", settings.paintBeatSource);
   if (settings.boxShape !== base.boxShape) params.set("bxs", settings.boxShape);
   if (settings.boxSpeedRatio !== base.boxSpeedRatio) params.set("bxr", settings.boxSpeedRatio);
+  if (settings.pwLayout !== base.pwLayout) params.set("pwl", settings.pwLayout);
+  if (settings.pwSoundOn !== base.pwSoundOn) params.set("pws", settings.pwSoundOn);
+  if (settings.pwPitchDirection !== base.pwPitchDirection) params.set("pwpd", settings.pwPitchDirection);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
@@ -479,6 +520,13 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const bxr = params.get("bxr");
   if (isBoxSpeedRatio(bxr)) settings.boxSpeedRatio = bxr;
   clampBoxSettings(settings);
+  const pwl = params.get("pwl");
+  if (isPendulumLayout(pwl)) settings.pwLayout = pwl;
+  const pws = params.get("pws");
+  if (isPendulumSoundOn(pws)) settings.pwSoundOn = pws;
+  const pwpd = params.get("pwpd");
+  if (isPendulumPitchDirection(pwpd)) settings.pwPitchDirection = pwpd;
+  clampPendulumSettings(settings);
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -532,6 +580,11 @@ function clampBoxSettings(settings: SimulatorSettings) {
   Object.assign(settings, boxSettingFields(resolveBoxSettings(boxSettingsOf(settings))));
 }
 
+/** Keeps the Pendulum Wave settings inside their ranges, counts as whole numbers; an unknown layout, sound spot or pitch direction falls back to the default (URL parameters and presets alike). */
+function clampPendulumSettings(settings: SimulatorSettings) {
+  Object.assign(settings, pendulumSettingFields(resolvePendulumSettings(pendulumSettingsOf(settings))));
+}
+
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampPicturePaint(settings: SimulatorSettings) {
   Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
@@ -568,7 +621,7 @@ export function savePresets(store: PresetStore) {
  * to the default built-in clip (like dead blob: wall-break URLs). Enumerated fields (hit
  * sound mode, instruments, scale, grid, ball interaction) fall back to their defaults when the
  * stored value is unknown, and numeric ones (including the Ball Drop and Bouncing Shapes settings)
- * are clamped to their ranges, like URL parameters.
+ * are clamped to their ranges, like URL parameters (the Pendulum Wave settings too).
  */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
@@ -594,6 +647,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampBallInteraction(merged, defaults);
   clampDropSettings(merged);
   clampBoxSettings(merged);
+  clampPendulumSettings(merged);
   clampPicturePaint(merged);
   return merged;
 }

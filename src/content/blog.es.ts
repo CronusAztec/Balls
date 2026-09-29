@@ -191,6 +191,22 @@ Una caja rectangular en lugar de anillos. Cuadrados, círculos o logos estilo DV
 
 **Consejo:** el texto *«Espera a la esquina»* hace el trabajo por ti.
 
+## 13. Onda de péndulos
+
+Sin anillos: una fila de péndulos afinados como la clásica onda de péndulos. El más lento oscila 51 veces por minuto, el siguiente 52, y así sucesivamente, de modo que empiezan alineados, derivan en ondas viajeras, se dividen en dos y tres grupos y vuelven a alinearse exactamente al minuto. Cada paso por el centro toca una nota cuya altura depende del lugar del péndulo en la fila, y las bolas que se alinean tocan un acorde. Cuélgalos bajo una barra, alrededor de un anillo oscilando hacia el centro, sobre radios desde el centro o sobre un polígono giratorio, sobre una galaxia que gira despacio y dibuja brazos espirales, sobre raíles, o hazlos botar en el suelo con la misma afinación; una opción de desfase lo convierte en un desfase de tempo al estilo de Reich que nunca llega a realinearse del todo.
+
+**Por qué funciona:** es la física que la gente recuerda a medias de un museo de la ciencia, y el momento en que el caos vuelve a una línea recta es un final que el público espera. El sonido se escribe solo.
+
+**Ajustes sugeridos:**
+
+- **Disposición:** Fila para el clip clásico; Arco o Círculo para el aire de geometría sagrada; Galaxia con las estelas al máximo para brazos espirales.
+- **Péndulos:** de 15 a 24. Menos para acordes claros, más para ondas más finas.
+- **Duración del ciclo:** de 30 a 60 s; la simulación termina sola cuando la fila vuelve a alinearse.
+- **Escala:** pentatónica o mayor en la sección de sonido, para que todos los acordes encajen.
+- **Acorde de onda:** activado, para que las alineaciones suenen como acordes y no como un montón de notas.
+
+**Consejo:** el texto *«Espera a que se alineen»* dice al público exactamente cuándo dejar de deslizar.
+
 ## ¿Qué modo deberías usar?
 
 - **Máximas visualizaciones:** Clásico o Multiplicar, los formatos más probados y de mayor alcance.
@@ -201,6 +217,7 @@ Una caja rectangular en lugar de anillos. Cuadrados, círculos o logos estilo DV
 - **Repeticiones:** Portal.
 - **Música y ritmo:** Caída de pelotas, donde cada golpe es una nota.
 - **Nostalgia DVD y polirritmias:** Formas que rebotan, donde los logos hacen cuenta atrás y un golpe en la esquina es la recompensa.
+- **Física satisfactoria:** Onda de péndulos, donde la fila deriva en ondas y vuelve a alinearse al minuto.
 
 La jugada real es **rotar**. Publica un clip Clásico el lunes, Multiplicar el miércoles y Coincidir color el viernes. La variedad mantiene fresco tu perfil, y cada modo atrae a una audiencia ligeramente distinta, lo que hace crecer tu alcance total más rápido que repetir un solo formato.
 
@@ -343,6 +360,7 @@ Ajusta la gravedad desde ligera como una pluma hasta aplastante, fija la velocid
 - **Crecer**: la pelota crece con cada rebote.
 - **Caída de pelotas**: las pelotas caen entre clavijas y barras y cada golpe toca una nota según su tamaño.
 - **Formas que rebotan**: cuadrados, círculos o logos estilo DVD rebotan en una caja, hacen cuenta atrás con cada golpe y tejen polirritmias.
+- **Onda de péndulos**: una fila de péndulos afinados deriva en ondas y vuelve a alinearse cada ciclo, y cada cruce es una nota.
 
 ### Efectos visuales
 

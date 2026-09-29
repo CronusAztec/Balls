@@ -22,6 +22,7 @@ export const MODE_IDS = [
   "grow",
   "drop",
   "box",
+  "pendulum",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -139,8 +140,13 @@ export interface SoundEvent {
   wallIndex: number;
   /** Pitch of a "hit" in Hz chosen by the mode (Ball Drop maps it from the ball's size); without it the wall index picks the pitch. */
   frequency?: number;
-  /** An accented "hit" (a DVD logo hitting a corner in Bouncing Shapes): the tone generator plays it louder and longer. */
+  /** An accented "hit" (a DVD logo hitting a corner in Bouncing Shapes, a full Pendulum Wave chord): the tone generator plays it louder and longer. */
   accent?: boolean;
+  /**
+   * Pitches (Hz) of a chord: several "hit"s that happen at once and are played together, as one sound in one beat-grid
+   * slot with the level shared out (Pendulum Wave bobs crossing the centre together). `frequency` is its lowest note.
+   */
+  chord?: number[];
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

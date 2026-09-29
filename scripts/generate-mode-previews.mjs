@@ -27,6 +27,7 @@ const MODES = {
   grow: { wait: 12000, query: "glines=1&rlines=1&glow=1" },
   drop: { wait: 7000, query: "dbc=16&dsi=0.2&dsv=0.7&glow=1" },
   box: { wait: 5500, query: "bxs=dvd&bxn=3&bxc=60&glow=1" },
+  pendulum: { wait: 6000, query: "pwn=20&pwk=24&pwt=40&pwtr=0.5&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

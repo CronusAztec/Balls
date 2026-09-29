@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ACCENT_GAIN, DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
+import { ACCENT_GAIN, DEFAULT_MUSIC_SETTINGS, MAX_CHORD_VOICES, ToneGenerator, chordGain, hitPitches } from "@/lib/audio/toneGenerator";
 
 /**
  * Drives the ToneGenerator through a minimal fake Web Audio graph to check how a wall hit is
@@ -154,6 +154,58 @@ describe("ToneGenerator wall-hit dispatch", () => {
     graph.ctx.currentTime = 4;
     tone.playWallHit(0, 800, true);
     expect(heard(0.5 * ACCENT_GAIN)).toBe(true);
+    tone.setHitSoundMode("tones");
+  });
+
+  it("plays a chord (Pendulum Wave bobs in line) as one sound: every pitch at once, the level shared out, one beat-grid slot, one melody note, one clip per pitch", async () => {
+    expect(hitPitches(0, 440, undefined)).toEqual([440]);
+    expect(hitPitches(2, undefined, undefined)).toEqual([640]);
+    expect(hitPitches(0, 440, [440])).toEqual([440]);
+    expect(hitPitches(0, 261.63, [261.63, 329.63, 261.63, 392, 0])).toEqual([261.63, 329.63, 392]);
+    expect(hitPitches(0, 1, Array.from({ length: 40 }, (_, i) => 100 + i))).toHaveLength(MAX_CHORD_VOICES);
+    expect(chordGain(1)).toBe(1);
+    expect(chordGain(4)).toBe(0.5);
+    const heard = (level: number) => graph.gains.some((g) => Math.abs(g - level) < 1e-9);
+    graph.ctx.currentTime = 1;
+    tone.playWallHit(0, 261.63, false, [261.63, 329.63, 392]);
+    const chord = graph.oscillators.filter((o) => o.startAt === 1);
+    expect(chord.map((o) => o.frequency)).toEqual([261.63, 329.63, 392]);
+    expect(chord.every((o) => o.type === "triangle")).toBe(true);
+    expect(heard(0.25 * chordGain(3))).toBe(true);
+    expect(heard(0.25)).toBe(false);
+    // An accented chord (the whole row in line) is louder still.
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 1.5;
+    tone.playWallHit(0, 261.63, true, [261.63, 329.63, 392, 523.25]);
+    expect(heard(0.25 * chordGain(4) * ACCENT_GAIN)).toBe(true);
+    // Beat lock: the whole chord sits in one grid slot and a later hit in that slot is dropped.
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, quantizeToBeat: true, bpm: 120, quantizeGrid: "1/4" });
+    graph.oscillators.length = 0;
+    graph.ctx.currentTime = 2.1;
+    tone.playWallHit(0, 261.63, false, [261.63, 329.63]);
+    expect(graph.oscillators.map((o) => o.startAt)).toEqual([2.5, 2.5]);
+    graph.ctx.currentTime = 2.2;
+    tone.playWallHit(0, 440);
+    expect(graph.oscillators).toHaveLength(2);
+    tone.setMusicSettings(DEFAULT_MUSIC_SETTINGS);
+    // A loaded melody plays its next note once for the whole chord.
+    tone.setCustomNotes([523.25, 659.25]);
+    graph.oscillators.length = 0;
+    graph.ctx.currentTime = 5;
+    tone.playWallHit(0, 261.63, false, [261.63, 329.63, 392]);
+    expect(graph.oscillators).toEqual([{ type: "sine", frequency: 523.25, startAt: 5 }]);
+    tone.clearCustomNotes();
+    // Sample mode: the clip plays once per pitch, transposed to it, at the shared level.
+    tone.setHitSoundMode("sample");
+    tone.setHitSample("/hitSounds/click.wav");
+    tone.setHitSampleVolume(1);
+    await vi.waitFor(() => expect(tone.isHitSampleReady()).toBe(true));
+    graph.sources.length = 0;
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 6;
+    tone.playWallHit(0, 400, false, [400, 800]);
+    expect(graph.sources.map((s) => s.playbackRate)).toEqual([0.5, 1]);
+    expect(heard(chordGain(2))).toBe(true);
     tone.setHitSoundMode("tones");
   });
 

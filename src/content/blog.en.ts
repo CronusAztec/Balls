@@ -190,6 +190,22 @@ A rectangular box instead of rings. Squares, circles or DVD-style logos glide in
 
 **Tip:** the caption *"Wait for the corner"* does the work for you.
 
+## 13. Pendulum Wave
+
+No rings: a row of pendulums tuned like the classic pendulum wave. The slowest swings 51 times a minute, the next one 52, and so on, so they start in line, drift into travelling waves, split into two and three groups and snap back in line exactly on the minute. Every centre crossing plays a note pitched by the pendulum's place in the row, and bobs that align play a chord. Hang them under a bar, around a ring swinging toward the centre, on radii from the centre or a rotating polygon, on a slowly turning galaxy that draws spiral arms, on rails, or bounce them on a floor with the same tuning; a phasing option turns it into a Reich-style tempo phase shift that never quite realigns.
+
+**Why it works:** it is physics people half-remember from a science museum, and the moment the chaos snaps back into a straight line is an ending viewers wait for. The sound writes itself.
+
+**Suggested settings:**
+
+- **Layout:** Row for the classic clip; Arc or Circle for the sacred-geometry look; Galaxy with Trails up for spiral arms.
+- **Pendulums:** 15 to 24. Fewer for clear chords, more for finer waves.
+- **Cycle length:** 30 to 60 s; the run ends on its own when the row is back in line.
+- **Scale:** Pentatonic or Major in the Sound section so every chord agrees.
+- **Wave chord:** on, so the alignments sound like chords instead of a pile of notes.
+
+**Tip:** the caption *"Wait for them to line up"* tells viewers exactly when to stop scrolling.
+
 ## Which mode should you use?
 
 - **Maximum views:** Classic or Multiply, the most proven formats with the broadest appeal.
@@ -200,6 +216,7 @@ A rectangular box instead of rings. Squares, circles or DVD-style logos glide in
 - **Rewatches:** Portal.
 - **Music and rhythm:** Ball Drop, where every hit is a note.
 - **DVD nostalgia and polyrhythms:** Bouncing Shapes, where logos count down and a corner hit is the payoff.
+- **Satisfying physics:** Pendulum Wave, where the row drifts into waves and snaps back in line on the minute.
 
 The real move is to **rotate**. Post a Classic clip on Monday, Multiply on Wednesday and Color Match on Friday. Variety keeps your feed fresh, and each mode pulls in a slightly different audience, which grows your overall reach faster than repeating one format.
 
@@ -342,6 +359,7 @@ Adjust gravity from feather-light to crushing, set the ball speed, and enable in
 - **Grow**: the ball gets bigger with every bounce.
 - **Ball Drop**: balls rain through pegs and bars and every hit plays a note pitched by the ball's size.
 - **Bouncing Shapes**: squares, circles or DVD-style logos bounce in a box, count down with every hit and weave polyrhythms.
+- **Pendulum Wave**: a row of tuned pendulums drifts into waves and snaps back in line every cycle, every crossing a note.
 
 ### Visual effects
 

@@ -11,11 +11,12 @@ import {
   LinesMode,
   MultiplyMode,
   PaintMode,
+  PendulumMode,
   PortalMode,
   ShatterMode,
   TargetMode,
 } from "./modes";
-import type { BoxSettings, BoxView, DropSettings, PicturePaintState } from "./modes";
+import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView, PicturePaintState } from "./modes";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
@@ -76,6 +77,8 @@ export const OBSTACLE_HIT_SPEED = 40;
  *
  * Bouncing Shapes (modes/box.ts) owns its playfield entirely: it activates with the "none" ring layout,
  * folds every ball back into its box in `onBallStep()` and opts out of the pair loop (`ballsPassThrough`).
+ * Pendulum Wave (modes/pendulum.ts) does the same with analytic motion: its bobs are ordinary balls whose
+ * positions it overwrites at every sub-step from the simulation clock.
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
@@ -141,6 +144,7 @@ export class PhysicsEngine {
   readonly growMode = new GrowMode();
   readonly dropMode = new DropMode();
   readonly boxMode = new BoxMode();
+  readonly pendulumMode = new PendulumMode();
 
   readonly ctx: ModeContext;
 
@@ -340,6 +344,9 @@ export class PhysicsEngine {
   initBox() {
     this.activateMode(this.boxMode, "none");
   }
+  initPendulum() {
+    this.activateMode(this.pendulumMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -368,6 +375,8 @@ export class PhysicsEngine {
         return this.initDrop();
       case "box":
         return this.initBox();
+      case "pendulum":
+        return this.initPendulum();
     }
   }
 
@@ -674,6 +683,27 @@ export class PhysicsEngine {
   }
   getBoxProgress() {
     return this.boxMode.getProgress();
+  }
+  isPendulumMode() {
+    return this.currentMode === this.pendulumMode;
+  }
+  getPendulumSettings(): PendulumSettings {
+    return this.pendulumMode.getSettings();
+  }
+  /** Count, tuning, amplitude, layout, polygon, phasing, trails, sound and cycles of the Pendulum Wave; applied by the next `initPendulum()`. */
+  setPendulumSettings(settings: Partial<PendulumSettings>) {
+    this.pendulumMode.setSettings(settings);
+  }
+  /** Live Pendulum Wave state (rig, bobs, clock, counters) for the canvas and the HUD; the same object every call. */
+  getPendulumView(): PendulumView {
+    return this.pendulumMode.getView();
+  }
+  getPendulumProgress() {
+    return this.pendulumMode.getProgress();
+  }
+  /** Seconds until the pendulums are next in line (Infinity with phasing on). */
+  getPendulumSecondsToAlignment() {
+    return this.pendulumMode.secondsToAlignment();
   }
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {

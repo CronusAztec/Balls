@@ -18,3 +18,5 @@ export { DropMode } from "./drop";
 export type { DropSettings, DropLayout, DropField } from "./drop";
 export { BoxMode } from "./box";
 export type { BoxSettings, BoxShape, BoxSpeedRatio, BoxField, BoxShapeState, BoxView } from "./box";
+export { PendulumMode } from "./pendulum";
+export type { PendulumSettings, PendulumLayout, PendulumSoundOn, PendulumPitchDirection, PendulumField, PendulumRig, PendulumBobState, PendulumView } from "./pendulum";

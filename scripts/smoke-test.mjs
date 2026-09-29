@@ -6,7 +6,7 @@
  *
  * It checks the root redirect, the 404 page, assets under the base path, opens every page in
  * every locale, starts the simulator in each mode, exercises the physics extras, the ball interactions, the Ball Drop
- * board, the Bouncing Shapes box, the sound features (hit samples, song slicer, instruments, background music bed) and Picture Paint (a
+ * board, the Bouncing Shapes box, the Pendulum Wave rig, the sound features (hit samples, song slicer, instruments, background music bed) and Picture Paint (a
  * generated PNG revealed on the beat of a click track), records a short clip with the music bed, runs the seed
  * finder, submits the feedback form, switches language and reports console errors.
  */
@@ -17,7 +17,7 @@ import { loadDotEnv } from "./dotenv.mjs";
 
 loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
-const MODES = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "drop", "box"];
+const MODES = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "drop", "box", "pendulum"];
 const outDir = process.env.OUT_DIR || path.join(process.cwd(), "smoke-output");
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -107,7 +107,7 @@ check("root redirects to a locale", /\/(en|pl|es)\/$/.test(page.url()), `(${page
   const h1 = await page.locator("h1").first().innerText().catch(() => "");
   check("unknown URL serves localised 404", res.status() === 404 && (await page.evaluate(() => document.documentElement.lang)) === "pl" && h1.length > 0, `(${res.status()}, lang=${await page.evaluate(() => document.documentElement.lang)}, h1="${h1}")`);
 }
-for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/modes/drop.webp", "/modes/box.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
+for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/modes/drop.webp", "/modes/box.webp", "/modes/pendulum.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
   const res = await page.request.get(`${BASE}${asset}`);
   check(`asset ${asset}`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
 }
@@ -497,6 +497,62 @@ await page.goto(`${BASE}/en/simulator/?mode=box`, { waitUntil: "networkidle" });
     text += ` [closest ${closest}s → countdown ${countdown}]`;
   }
   check("find simulation finds a 30 s bouncing shapes run", /Found! (29\.[5-9]|30\.[0-5])s/.test(text), `(${text})`);
+}
+
+// 4b''. Pendulum Wave: URL → the Pendulum wave controls in the Mode row, controls → URL, the cycles at "never" hide
+// the seed finder, the search box finds the controls, a fixed-length run makes the finder say so instead of testing seeds,
+// and the run plays scale-degree notes and chords (OscillatorNode.start is instrumented again; the canvas mirrors the
+// counts into data-pendulum-notes / data-pendulum-chords)
+await page.goto(`${BASE}/en/simulator/?mode=pendulum&pwl=arc&pwn=8&pwk=6&pwt=12&pwc=0&pws=both`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__oscLog = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function (when) {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+{
+  const values = { pwn: await sliderValue("Pendulums"), pwk: await sliderValue("Base Swings"), pwt: await sliderValue("Cycle Length"), pwc: await sliderValue("Cycles") };
+  const arc = await page.getByRole("group", { name: "Layout", exact: true }).getByRole("button", { name: /Arc/ }).getAttribute("aria-pressed");
+  const both = await page.getByRole("group", { name: "Play a Note" }).getByRole("button", { name: "Both", exact: true }).getAttribute("aria-pressed");
+  const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  check("pendulum wave loads from URL", values.pwn === "8" && values.pwk === "6" && values.pwt === "12" && values.pwc === "0" && arc === "true" && both === "true" && finderHidden && noRingControls, `(${JSON.stringify(values)}, arc=${arc}, both=${both}, finder hidden=${finderHidden})`);
+}
+await page.locator('input[aria-label="Cycles"]').evaluate(setRangeValue, "2");
+await page.getByRole("group", { name: "Layout", exact: true }).getByRole("button", { name: /Circle/ }).click();
+await page.getByRole("group", { name: "Polygon" }).getByRole("button", { name: "5", exact: true }).click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+  check("pendulum wave mirrors into the URL", /(^|&)pwc=2(&|$)/.test(query) && /(^|&)pwl=circle(&|$)/.test(query) && /(^|&)pwp=5(&|$)/.test(query) && /(^|&)pwn=8(&|$)/.test(query) && !/(^|&)pwa=/.test(query) && finderShown, `(${query}, finder shown=${finderShown})`);
+}
+await page.getByPlaceholder("Search settings...").fill("wave chord");
+check("search finds the pendulum wave controls", (await page.getByText("Wave Chord").first().isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+// Two cycles of 12 s always last 24 s: the finder says so at once instead of testing seeds.
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const shown = await page.getByText(/always lasts exactly 24\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("finder explains a fixed-length pendulum run", shown);
+  if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+}
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(4000);
+{
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  const pitches = await page.evaluate(() => window.__oscLog);
+  const notes = Number(await page.locator("canvas").first().getAttribute("data-pendulum-notes"));
+  const chords = Number(await page.locator("canvas").first().getAttribute("data-pendulum-chords"));
+  // Every pitch is a degree of C major between C4 and C7 (the chromatic default leaves them unsnapped).
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const onScale = pitches.length > 0 && midis.every((m) => m >= 60 && m <= 96 && [0, 2, 4, 5, 7, 9, 11].includes(m % 12));
+  const distinct = new Set(midis);
+  check("simulator runs the pendulum wave with scale-degree notes and chords", /\d/.test(time) && time !== "0.0s" && notes >= 8 && chords >= 1 && onScale && distinct.size >= 4, `(elapsed ${time}, ${notes} notes, ${chords} chords, ${pitches.length} tones, ${distinct.size} distinct degrees)`);
+  await page.screenshot({ path: path.join(outDir, "sim-pendulum.png") });
 }
 
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays

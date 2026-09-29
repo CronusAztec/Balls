@@ -2,7 +2,7 @@ import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instrument
 import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from "./interactionTones";
 import { MusicBed } from "./musicBed";
-import { HitSampler, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
+import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
 
 /**
@@ -43,9 +43,29 @@ export const DEFAULT_MUSIC_SETTINGS: MusicSettings = { instrument: "triangle", m
 
 /** The classic gap-pass arpeggio (C5 E5 G5 C6), snapped to the current scale before playing. */
 const GAP_ARPEGGIO = [523.25, 659.25, 783.99, 1046.5];
-/** An accented hit (a DVD logo in a corner) plays this much louder and longer than a plain one. */
+/** An accented hit (a DVD logo in a corner, a full pendulum chord) plays this much louder and longer than a plain one. */
 export const ACCENT_GAIN = 1.6;
 export const ACCENT_LENGTH = 1.6;
+/** Most notes of one chord that are voiced (a Pendulum Wave with more bobs in line shares the rest). */
+export const MAX_CHORD_VOICES = 12;
+
+/** Level of each note of an n-note chord, so a chord is louder than one note but never n times as loud. */
+export function chordGain(notes: number): number {
+  return 1 / Math.sqrt(Math.max(1, notes));
+}
+
+/** The distinct pitches a hit plays: the chord when it carries one, else the single pitch (or the wall tone). */
+export function hitPitches(wallIndex: number, pitch: number | undefined, chord: readonly number[] | undefined, max = MAX_CHORD_VOICES): number[] {
+  if (chord && chord.length > 1) {
+    const out: number[] = [];
+    for (const f of chord) {
+      if (f > 0 && !out.includes(f)) out.push(f);
+      if (out.length >= max) break;
+    }
+    if (out.length > 0) return out;
+  }
+  return [pitch !== undefined && pitch > 0 ? pitch : wallHitFrequency(wallIndex)];
+}
 
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
@@ -278,19 +298,20 @@ export class ToneGenerator {
    * it from the ball's size); without it the wall index picks the classic descending tone. Either way the
    * pitch is snapped to the current scale, a hit sample is transposed to it and a loaded melody still plays
    * its next note instead. An `accent` (a DVD logo hitting a corner) plays louder and longer – voice, melody
-   * note or sample alike.
+   * note or sample alike. A `chord` (Pendulum Wave bobs in line) plays all its pitches at once as one sound:
+   * one beat-grid slot, one duck, the level shared out with `chordGain()`; a melody still plays one note.
    */
-  playWallHit(wallIndex = 0, frequency?: number, accent = false) {
+  playWallHit(wallIndex = 0, frequency?: number, accent = false, chord?: readonly number[]) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent));
+      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent, chord));
       return;
     }
-    this.scheduleHit(wallIndex, frequency, accent);
+    this.scheduleHit(wallIndex, frequency, accent, chord);
   }
 
-  private scheduleHit(wallIndex: number, pitch?: number, accent = false) {
+  private scheduleHit(wallIndex: number, pitch?: number, accent = false, chord?: readonly number[]) {
     if (!this.audioContext || !this.masterGain) return;
     const now = this.audioContext.currentTime;
     // 1. The song slicer takes over the bounce sound while it has a song to play.
@@ -303,25 +324,27 @@ export class ToneGenerator {
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
       this.lastSlotTime = time;
-      this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitch), time, accent ? ACCENT_GAIN : 1);
+      const pitches = hitPitches(wallIndex, pitch, chord, MAX_SAMPLE_VOICES);
+      const level = (accent ? ACCENT_GAIN : 1) * chordGain(pitches.length);
+      for (const f of pitches) this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitches.length > 1 || pitch !== undefined ? f : undefined), time, level);
       this.musicBed.duck(time);
       return;
     }
     // 3. A synthesised voice: the next melody note or the wall tone, snapped to the scale.
     try {
-      let frequency: number;
+      let notes: number[];
       let duration: number;
       let gain: number;
       const melody = this.customNotes.length > 0;
       if (melody) {
         if (now - this.lastCustomNoteTime < this.NOTE_COOLDOWN) return;
-        frequency = this.customNotes[this.customNoteIndex % this.customNotes.length];
+        notes = [this.customNotes[this.customNoteIndex % this.customNotes.length]];
         duration = 0.25;
         gain = 0.35;
       } else {
-        frequency = pitch !== undefined && pitch > 0 ? pitch : wallHitFrequency(wallIndex);
+        notes = hitPitches(wallIndex, pitch, chord);
         duration = 0.15;
-        gain = 0.25;
+        gain = 0.25 * chordGain(notes.length);
       }
       if (accent) {
         gain = Math.min(0.6, gain * ACCENT_GAIN);
@@ -337,7 +360,7 @@ export class ToneGenerator {
       }
       // Melody notes keep their own voice (sine by default), so a song sounds as it always did.
       const instrument = melody ? this.music.melodyInstrument : this.music.instrument;
-      playVoice(this.audioContext, this.masterGain, instrument, { frequency: this.snap(frequency), time, duration, gain }, this.pluckCache);
+      for (const frequency of notes) playVoice(this.audioContext, this.masterGain, instrument, { frequency: this.snap(frequency), time, duration, gain }, this.pluckCache);
       this.musicBed.duck(time);
     } catch (err) {
       console.error("Error playing wall hit sound:", err);

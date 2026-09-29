@@ -13,6 +13,7 @@ import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
 import { boxSettingsOf } from "@/lib/physics/modes/box";
 import { dropSettingsOf } from "@/lib/physics/modes/drop";
+import { pendulumSettingsOf } from "@/lib/physics/modes/pendulum";
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -128,6 +129,7 @@ export default function Simulator() {
     engine.setLinesCenterDotEnabled(s.linesCenterDot);
     engine.setDropSettings(dropSettingsOf(s));
     engine.setBoxSettings(boxSettingsOf(s));
+    engine.setPendulumSettings(pendulumSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -282,6 +284,17 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio]);
+  // Pendulum Wave: a change of the rig (count, tuning, layout, sound, cycles) restarts it too, so the row starts in line.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPendulumSettings(pendulumSettingsOf(s));
+    if (s.mode === "pendulum" && engine.getCurrentModeName() === "pendulum") {
+      engine.initPendulum();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwTrails, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -353,7 +366,7 @@ export default function Simulator() {
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio]);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
 
   // Live add/remove of the second ball (only in the two-ball modes: Ball Drop starts with many balls of its own).
   const prevTwoBallsRef = useRef(s.twoBalls);
@@ -472,7 +485,7 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
-          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent);
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord);
           else if (ev.type === "gap") audio.playGapPass();
           else audio.playInteraction(ev.type);
         }
@@ -949,6 +962,7 @@ export default function Simulator() {
           twoBalls: settings.twoBalls,
           drop: dropSettingsOf(settings),
           box: boxSettingsOf(settings),
+          pendulum: pendulumSettingsOf(settings),
         },
       },
       (p) => setSearchProgress(p),
@@ -1011,6 +1025,8 @@ export default function Simulator() {
       ballsAtRest: (n) => fill("Simulator.canvasBallsAtRest", { count: n }),
       boxDone: t("Simulator.canvasBoxDone"),
       boxCounted: (n) => fill("Simulator.canvasBoxCounted", { count: n }),
+      pendulumDone: t("Simulator.canvasPendulumDone"),
+      pendulumInLine: (n, cycles) => fill("Simulator.canvasPendulumInLine", { count: n, cycles }),
       paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
       paintBehind: t("Simulator.canvasPaintBehind"),
       paintAhead: t("Simulator.canvasPaintAhead"),
@@ -1018,8 +1034,8 @@ export default function Simulator() {
     };
   }, [t]);
 
-  // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings) });
+  // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings) });
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
@@ -1141,7 +1157,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {searchResult.endless ? t("Simulator.finderEndless") : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
+                      {searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t("Simulator.finderFixed", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}
@@ -1219,7 +1235,7 @@ export default function Simulator() {
                   <span className="text-sm">❌</span>
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
-                    <p className="text-[10px] text-zinc-500">{t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested })}</p>
+                    <p className="text-[10px] text-zinc-500">{searchResult.fixedDuration ? t("Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested })}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕

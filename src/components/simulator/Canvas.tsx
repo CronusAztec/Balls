@@ -5,6 +5,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
+import { createPendulumTrailLayer, drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, updatePendulumTrailLayer, type PendulumRenderOptions, type PendulumTrailLayer } from "./pendulumRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
@@ -32,6 +33,9 @@ export interface CanvasLabels {
   /** Bouncing Shapes: every countdown reached zero. */
   boxDone: string;
   boxCounted: (n: number) => string;
+  /** Pendulum Wave: the row is back in line after the last cycle. */
+  pendulumDone: string;
+  pendulumInLine: (n: number, cycles: number) => string;
   /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
   paintOnSchedule: string;
   paintBehind: string;
@@ -102,6 +106,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   ballsAtRest: (n) => `All ${n} balls at rest`,
   boxDone: "COUNTED DOWN!",
   boxCounted: (n) => `All ${n} shape${n !== 1 ? "s" : ""} reached zero`,
+  pendulumDone: "IN LINE!",
+  pendulumInLine: (n, c) => `All ${n} pendulums back in phase after ${c} cycle${c !== 1 ? "s" : ""}`,
   paintOnSchedule: "on schedule",
   paintBehind: "behind schedule",
   paintAhead: "ahead of schedule",
@@ -366,6 +372,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const ends: SegmentEnds = { x1: 0, y1: 0, x2: 0, y2: 0 };
     // Bouncing Shapes: the renderer's options, refreshed per frame (one object for the life of the loop).
     const boxRender: BoxRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
+    // Pendulum Wave: the renderer's options and the fading trail layer (device pixels; rebuilt when the canvas size changes).
+    const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
+    let pendulumTrails: PendulumTrailLayer | null = null;
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -706,6 +715,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         boxRender.trailThickness = p.trailThickness;
         drawBoxArena(ctx, engine.getBoxView(), boxRender);
       }
+
+      // Pendulum Wave: the fading trails under everything, then the rig (bar and pivots, ring, radial guides, rails or floor).
+      const isPendulum = engine.isPendulumMode();
+      if (isPendulum) {
+        pendulumRender.wallColor = wallColor;
+        pendulumRender.wallThickness = p.wallThickness;
+        pendulumRender.showGlow = p.showGlow;
+        const view = engine.getPendulumView();
+        if (view.settings.trails > 0) {
+          if (!pendulumTrails || pendulumTrails.width !== size.width || pendulumTrails.height !== size.height) pendulumTrails = createPendulumTrailLayer(size.width, size.height, dpr);
+          if (pendulumTrails) {
+            updatePendulumTrailLayer(pendulumTrails, view, engine.getBalls());
+            ctx.drawImage(pendulumTrails.canvas, 0, 0, size.width, size.height);
+          }
+        } else pendulumTrails = null;
+        drawPendulumRig(ctx, view, pendulumRender);
+      } else if (pendulumTrails) pendulumTrails = null;
 
       // Color Match segments
       if (engine.isColorMatchMode()) {
@@ -1148,6 +1174,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const beatEnvelope = paintBeat && paintBeat.beatActive ? paintBeat.envelope : 1;
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
+      else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
       else balls.forEach((ball, index) => {
         const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
         // Trail
@@ -1387,6 +1414,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // Bouncing Shapes: a DVD logo in a corner lights up the whole frame (screen space, part of the recording).
       if (isBox) drawBoxCornerFlash(ctx, size.width, size.height, engine.getBoxView());
+      // Pendulum Wave: a big chord (most of the row in line) lights up the frame too.
+      if (isPendulum) drawPendulumChordFlash(ctx, size.width, size.height, engine.getPendulumView());
 
       // HUD: mode counters in the centre
       {
@@ -1534,6 +1563,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isBox) {
           const prog = engine.getBoxProgress();
           if (prog.finished) bigBanner(L.boxDone, L.boxCounted(prog.total), "#a3e635");
+        }
+        if (isPendulum) {
+          const prog = engine.getPendulumProgress();
+          if (prog.finished) bigBanner(L.pendulumDone, L.pendulumInLine(prog.count, prog.total), "#a3e635");
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
@@ -1688,6 +1721,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("boxDone", String(view.doneCount));
       } else if (canvas.dataset.boxHits !== undefined) {
         for (const key of ["boxHits", "boxCorners", "boxDone"]) delete canvas.dataset[key];
+      }
+      // Pendulum Wave: note, chord and cycle counts (data-pendulum-*) for tools and the smoke test.
+      if (isPendulum) {
+        const view = engine.getPendulumView();
+        setCanvasData("pendulumNotes", String(view.noteCount));
+        setCanvasData("pendulumChords", String(view.chordCount));
+        setCanvasData("pendulumCycles", String(view.cyclesDone));
+      } else if (canvas.dataset.pendulumNotes !== undefined) {
+        for (const key of ["pendulumNotes", "pendulumChords", "pendulumCycles"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

@@ -191,6 +191,22 @@ Prostokątne pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu 
 
 **Wskazówka:** podpis *„Czekaj na róg”* zrobi robotę za Ciebie.
 
+## 13. Fala wahadeł
+
+Bez pierścieni: rząd wahadeł nastrojonych jak klasyczna fala wahadeł. Najwolniejsze wykonuje 51 wahnięć na minutę, następne 52 i tak dalej, więc startują w linii, rozjeżdżają się w wędrujące fale, dzielą na dwie i trzy grupy i dokładnie co minutę znów stają w linii. Każde przejście przez środek gra nutę o wysokości zależnej od miejsca wahadła w rzędzie, a kulki, które się zrównają, grają akord. Zawieś je pod belką, wokół pierścienia z wahaniem ku środkowi, na promieniach od środka albo na obracającym się wielokącie, na wolno obracającej się galaktyce rysującej ramiona spiralne, na szynach – albo odbijaj je od podłogi z tym samym strojeniem; opcja przesunięcia fazowego zamienia to w przesunięcie tempa w stylu Reicha, które nigdy do końca się nie zrównuje.
+
+**Dlaczego działa:** to fizyka, którą ludzie na wpół pamiętają z muzeum nauki, a moment, w którym chaos wraca do prostej linii, to zakończenie, na które widzowie czekają. Dźwięk pisze się sam.
+
+**Sugerowane ustawienia:**
+
+- **Układ:** Rząd dla klasycznego klipu; Łuk lub Okrąg dla „świętej geometrii”; Galaktyka z podkręconymi śladami dla ramion spiralnych.
+- **Wahadła:** 15–24. Mniej dla czystych akordów, więcej dla drobniejszych fal.
+- **Długość cyklu:** 30–60 s; symulacja kończy się sama, gdy rząd znów stanie w linii.
+- **Skala:** pentatoniczna lub durowa w sekcji dźwięku, żeby każdy akord brzmiał czysto.
+- **Akord fali:** włączony, żeby zrównania brzmiały jak akordy, a nie sterta nut.
+
+**Wskazówka:** podpis *„Czekaj, aż ustawią się w linii”* mówi widzom dokładnie, kiedy przestać przewijać.
+
 ## Który tryb wybrać?
 
 - **Maksimum wyświetleń:** Klasyczny lub Mnożenie, najbardziej sprawdzone formaty o najszerszym zasięgu.
@@ -201,6 +217,7 @@ Prostokątne pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu 
 - **Ponowne odtworzenia:** Portal.
 - **Muzyka i rytm:** Spadające piłki, gdzie każde uderzenie to nuta.
 - **Nostalgia za DVD i polirytmie:** Odbijające się kształty, gdzie logotypy odliczają, a trafienie w róg to nagroda.
+- **Satysfakcjonująca fizyka:** Fala wahadeł, gdzie rząd rozjeżdża się w fale i co minutę wraca do linii.
 
 Prawdziwy ruch to **rotacja**. Opublikuj Klasyczny w poniedziałek, Mnożenie w środę i Dopasowanie kolorów w piątek. Różnorodność odświeża feed, a każdy tryb przyciąga nieco innych odbiorców, co rozwija zasięg szybciej niż powtarzanie jednego formatu.
 
@@ -343,6 +360,7 @@ Ustaw grawitację od lekkiej jak piórko po miażdżącą, dobierz prędkość p
 - **Rośnij**: piłka rośnie z każdym odbiciem.
 - **Spadające piłki**: piłki spadają przez kołki i belki, a każde uderzenie gra nutę zależną od rozmiaru piłki.
 - **Odbijające się kształty**: kwadraty, koła lub logotypy w stylu DVD odbijają się w pudełku, odliczają z każdym uderzeniem i splatają polirytmie.
+- **Fala wahadeł**: rząd nastrojonych wahadeł rozjeżdża się w fale i co cykl wraca do linii, a każde przejście to nuta.
 
 ### Efekty wizualne
 
