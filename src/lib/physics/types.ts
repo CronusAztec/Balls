@@ -325,6 +325,13 @@ export interface GameMode {
    * sound or suppress the sound / glow.
    */
   onObstacleHit?(ctx: ModeContext, ball: Ball, obstacle: Obstacle, index: number, impactSpeed: number): ObstacleHitResult | void;
+  /**
+   * Called by `engine.consumeSoundEvents()` right before it hands the queue over – once per consumed batch, i.e.
+   * once per rendered frame however many 60 Hz steps the frame ran (1–8+ with the playback speed). A mode that
+   * budgets its sounds per frame (Collision Playground: the 12 most energetic collisions) collects them across the
+   * steps and queues them here with `ctx.addPendingSoundEvent()`. Must not touch the physics (determinism).
+   */
+  flushPendingSounds?(ctx: ModeContext): void;
 }
 
 export interface PersonalityVisuals {

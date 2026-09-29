@@ -416,6 +416,36 @@ describe("the mode in the engine", () => {
     expect(events.map((e) => !!e.accent)).toEqual([true, false, false, false, true, false, false, false]);
   });
 
+  it("pitches by ratio: a custom or harmonic voice plays its own ratio as a harmonic of C3, a BPM-steps voice its tempo over the slowest", () => {
+    const c3 = midiToFrequency(48);
+    // The advertised example: 3:4:5 is the chord G4–C5–E5 (harmonics 3, 4 and 5 of C3), not C3–F3–A3.
+    const custom = polyEngine({ tempos: "custom", custom: "3,4,5", cycleSeconds: 2, pitchBy: "ratio", cycles: 0 });
+    const view = custom.getPolyrhythmView();
+    expect(view.pitch).toHaveLength(3);
+    expect(view.pitch[0]).toBeCloseTo(3 * c3, 9);
+    expect(view.pitch[1]).toBeCloseTo(4 * c3, 9);
+    expect(view.pitch[2]).toBeCloseTo(5 * c3, 9);
+    // The downbeat sounds exactly that chord.
+    const downbeat = run(custom, 1)[0];
+    expect(downbeat.chord).toHaveLength(3);
+    expect(downbeat.chord![0]).toBeCloseTo(3 * c3, 9);
+    expect(downbeat.chord![1]).toBeCloseTo(4 * c3, 9);
+    expect(downbeat.chord![2]).toBeCloseTo(5 * c3, 9);
+    // A list whose smallest ratio is not 1 keeps its absolute ratios (2:3 is C4–G4); 16 folds down an octave.
+    const fifth = polyEngine({ tempos: "custom", custom: "2,3,16", pitchBy: "ratio", cycles: 0 }).getPolyrhythmView();
+    expect(fifth.pitch[0]).toBeCloseTo(2 * c3, 9);
+    expect(fifth.pitch[1]).toBeCloseTo(3 * c3, 9);
+    expect(fifth.pitch[2]).toBeCloseTo(8 * c3, 9);
+    // The harmonic series is ratios 1…N.
+    const harmonic = polyEngine({ tempos: "harmonic", count: 5, pitchBy: "ratio", cycles: 0 }).getPolyrhythmView();
+    for (let i = 0; i < 5; i++) expect(harmonic.pitch[i]).toBeCloseTo((i + 1) * c3, 9);
+    // BPM steps: 60, 70, 80 BPM play 1, 7/6 and 4/3 of C3.
+    const steps = polyEngine({ tempos: "arithmetic", count: 3, baseBpm: 60, bpmStep: 10, pitchBy: "ratio", cycles: 0 }).getPolyrhythmView();
+    expect(steps.pitch[0]).toBeCloseTo(c3, 9);
+    expect(steps.pitch[1]).toBeCloseTo((7 / 6) * c3, 9);
+    expect(steps.pitch[2]).toBeCloseTo((4 / 3) * c3, 9);
+  });
+
   it("caps the chord of a crowded step but keeps its range", () => {
     const engine = polyEngine({ count: 400, cycleSeconds: 1, cycles: 0 });
     const events = run(engine, 120);

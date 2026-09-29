@@ -1128,7 +1128,7 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
 // 11. Metronomes & Polyrhythms: the preview image, URL → the controls in the Mode row, controls → URL,
 // the cycles at "never" hide the seed finder, the search box finds the controls, a fixed-length run makes the finder say
 // so, and a run ticks, aligns (analytically: data-poly-alignments), plays notes and chords (OscillatorNode.start is
-// instrumented), switches its layout live without restarting, and 400 voices keep running.
+// instrumented), switches its layout live without restarting, pitches 3:4:5 by ratio as G4–C5–E5, and 400 voices keep running.
 {
   const res = await page.request.get(`${BASE}/modes/polyrhythm.webp`);
   check("asset /modes/polyrhythm.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -1194,6 +1194,25 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
     const run2 = await polyData();
     check("polyrhythm layout switches live without restarting", run2.polyLayout === "arcs" && Number(run2.polyTicks) > Number(run1.polyTicks) && Number(run2.polyAlignments) >= Number(run1.polyAlignments), `(${JSON.stringify(run1)} → ${JSON.stringify(run2)})`);
   }
+  // Pitch by ratio: every voice plays its own tempo ratio as a harmonic of C3, so 3:4:5 sounds G4–C5–E5 (MIDI 67, 72,
+  // 76: harmonics 3, 4 and 5), as the tooltip says – not the ratios over the slowest voice (C3–F3–A3).
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prt=custom&prcu=3%2C4%2C5&prcs=2&prc=0&prpb=ratio`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__polyOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  {
+    const pitches = await page.evaluate(() => window.__polyOsc);
+    const midis = new Set(pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440))));
+    check("polyrhythm pitch by ratio plays 3:4:5 as the chord G4–C5–E5", pitches.length > 0 && midis.size === 3 && [67, 72, 76].every((m) => midis.has(m)), `(${pitches.length} tones, MIDI ${[...midis].sort((a, b) => a - b).join("/")})`);
+  }
   await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=400&prc=0`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(3000);
@@ -1210,7 +1229,8 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
 // 12. Collision Playground: the preview image, URL → the "Collision playground" block of the Mode
 // row, controls → URL, the search box, the finder hidden for this endless mode, 300 orbs running 5 s without the frame
 // rate dropping below 30 fps in any half-second window while every collision note sits on the pentatonic size ladder
-// (OscillatorNode.start is instrumented again), the anti-collision switch and the lollipop ring (data-collide-*).
+// (OscillatorNode.start is instrumented again) and at most 12 of them start in any frame at 8× playback, the
+// anti-collision switch and the lollipop ring (data-collide-*).
 {
   const res = await page.request.get(`${BASE}/modes/collide.webp`);
   check("asset /modes/collide.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -1291,6 +1311,32 @@ await page.waitForTimeout(500);
   const distinct = new Set(midis);
   check("collision notes are pitched by orb size on the pentatonic ladder", Number(data.collideNotes) > 50 && onLadder && distinct.size >= 5, `(${data.collideNotes} notes, ${pitches.length} tones, ${distinct.size} distinct degrees)`);
   await page.screenshot({ path: path.join(outDir, "sim-collide.png") });
+  // The note budget is per rendered frame, not per 60 Hz step: at 8× every frame runs eight or more steps and still
+  // starts at most 12 oscillators (one per triangle note), instead of up to 12 per step piling up in one frame.
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForTimeout(300);
+  const perFrame = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const counts = [];
+        let seen = window.__oscLog.length;
+        const end = performance.now() + ms;
+        const frame = (t) => {
+          const n = window.__oscLog.length;
+          counts.push(n - seen);
+          seen = n;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(counts.slice(1));
+        };
+        requestAnimationFrame(frame);
+      }),
+    2000,
+  );
+  {
+    const total = perFrame.reduce((a, b) => a + b, 0);
+    const busiest = Math.max(...perFrame);
+    check("collision notes stay within 12 per frame at 8× playback", perFrame.length >= 20 && total >= perFrame.length && busiest <= 12, `(${perFrame.length} frames, ${total} tones, avg ${(total / Math.max(1, perFrame.length)).toFixed(1)}, busiest frame ${busiest})`);
+  }
 }
 await page.goto(`${BASE}/en/simulator/?mode=collide&cpac=2&cpg=0.8`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();

@@ -897,7 +897,10 @@ export class PhysicsEngine {
   isCinematicEnabled() {
     return this.cinematicDirector.isEnabled();
   }
+  /** The sound events queued since the last call (the Simulator calls it once per rendered frame). */
   consumeSoundEvents(): SoundEvent[] {
+    // A mode with a per-frame sound budget queues the sounds it kept across this frame's steps now.
+    this.currentMode?.flushPendingSounds?.(this.ctx);
     const events = this.pendingSoundEvents;
     this.pendingSoundEvents = [];
     return events;
