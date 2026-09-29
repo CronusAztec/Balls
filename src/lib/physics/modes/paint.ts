@@ -173,7 +173,13 @@ export class PaintMode implements GameMode {
 
   onPreUpdate(ctx: ModeContext) {
     const o = this.options;
-    if (!o.picture) return; // classic Paint: nothing below runs, so the recorded fingerprint holds
+    if (!o.picture) {
+      // Classic Paint: nothing below runs, so the recorded fingerprint holds. The one thing done here
+      // is releasing a beat sync that was in effect when the picture was removed mid-run (undo the
+      // speed scale, clear the beat state), and that is a no-op unless one was.
+      this.releaseBeat(ctx);
+      return;
+    }
     this.applyBeatEnvelope(ctx);
     if (o.paceToSong && o.targetSec > 0) {
       const now = ctx.getElapsedMs();
@@ -194,17 +200,7 @@ export class PaintMode implements GameMode {
     const s = this.state;
     const active = o.beatSync && o.beatPulse > 0 && this.beat.isActive();
     if (!active) {
-      if (this.speedScale.size > 0) {
-        for (const ball of ctx.getBalls()) {
-          const prev = this.speedScale.get(ball.id);
-          if (prev && prev !== 1) {
-            ball.vx /= prev;
-            ball.vy /= prev;
-          }
-        }
-        this.speedScale.clear();
-      }
-      this.resetBeatState();
+      this.releaseBeat(ctx);
       return;
     }
     const sample = this.beat.sample(ctx.getElapsedMs() / 1000, this.beatSample);
@@ -223,6 +219,26 @@ export class PaintMode implements GameMode {
     s.pulse = sample.pulse;
     s.envelope = scale;
     s.beatIndex = sample.index;
+  }
+
+  /**
+   * Ends a beat sync that is no longer wanted (switched off, no tempo to follow, or the picture
+   * removed mid-run): undoes the velocity scale still applied to every ball and clears the beat
+   * state, so the ball resumes its natural speed at once, the canvas stops drawing the pulse and
+   * the next beat sync starts from an unscaled ball. A no-op while no beat sync is in effect.
+   */
+  private releaseBeat(ctx: ModeContext) {
+    if (this.speedScale.size > 0) {
+      for (const ball of ctx.getBalls()) {
+        const prev = this.speedScale.get(ball.id);
+        if (prev && prev !== 1) {
+          ball.vx /= prev;
+          ball.vy /= prev;
+        }
+      }
+      this.speedScale.clear();
+    }
+    if (this.state.beatActive) this.resetBeatState();
   }
 
   onBallStep(ctx: ModeContext, ball: Ball) {

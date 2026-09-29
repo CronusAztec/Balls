@@ -368,6 +368,35 @@ describe("beat sync", () => {
     expect(silent.getPaintState().beatActive).toBe(false);
   });
 
+  it("releases the beat when the picture is removed mid-run and starts a new picture from the unscaled ball", () => {
+    const plain = paintEngine(31, PICTURE_ONLY);
+    const synced = paintEngine(31, { ...PICTURE_ONLY, beatSync: true, beatPulse: 1 }, { source: "bpm", manualBpm: 120 });
+    run(plain, 1);
+    run(synced, 1);
+    expect(synced.getPaintState().beatActive).toBe(true);
+    expect(speed(synced) / speed(plain)).toBeGreaterThan(1.8);
+    // Remove the picture (beat sync itself stays on): the very next step undoes the speed scale and
+    // clears the beat state, so the classic trail runs at its natural speed with no pulse to draw.
+    synced.setPaintOptions({ picture: false });
+    run(plain, 1);
+    run(synced, 1);
+    expect(synced.getPaintState()).toMatchObject({ picture: false, beatActive: false, bpm: 0, pulse: 0, envelope: 1, beatIndex: -1 });
+    expect(speed(synced) / speed(plain)).toBeCloseTo(1, 1);
+    // Several classic frames later nothing lingers: still no beat state, still the natural speed.
+    run(plain, 30);
+    run(synced, 30);
+    expect(synced.getPaintState()).toMatchObject({ beatActive: false, envelope: 1, pulse: 0 });
+    expect(speed(synced) / speed(plain)).toBeCloseTo(1, 1);
+    // A picture loaded again scales the unscaled ball by the fresh envelope, not by envelope / stale scale.
+    synced.setPaintOptions({ picture: true });
+    run(plain, 1);
+    run(synced, 1);
+    const again = synced.getPaintState();
+    expect(again.beatActive).toBe(true);
+    expect(again.envelope).toBeGreaterThan(1);
+    expect(speed(synced) / speed(plain)).toBeCloseTo(again.envelope, 1);
+  });
+
   it("follows a song grid through the music start offset", () => {
     const beatTimes: number[] = [];
     for (let t = 0.25; t < 20; t += 0.5) beatTimes.push(t);

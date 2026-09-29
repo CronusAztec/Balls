@@ -637,6 +637,11 @@ await page.waitForTimeout(700);
 {
   const paintData3 = await paintCanvasData();
   check("removing the picture returns to the classic paint trail", (await paintPicture.count()) === 0 && paintData3.paintPicture === "0" && Number(paintData3.paintCoverage) >= 0, `(coverage ${paintData3.paintCoverage}%)`);
+  // The beat sync (still switched on, the music bed still playing) is released with the picture: the mode clears
+  // its beat state on the next step, so the HUD stops showing the tempo and the canvas stops drawing the pulse.
+  await page.waitForTimeout(1000);
+  const paintData4 = await paintCanvasData();
+  check("removing the picture mid-run releases the beat sync", paintData3.paintBeat === "0" && paintData4.paintBeat === "0" && paintData4.paintPicture === "0", `(beat ${paintData3.paintBeat} → ${paintData4.paintBeat}, picture ${paintData4.paintPicture})`);
 }
 
 // 5. Recording: 3-second clip downloads, with the music bed mixed into the audio track
