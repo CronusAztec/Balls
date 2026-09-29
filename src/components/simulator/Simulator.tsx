@@ -7,6 +7,7 @@ import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
 import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
 import type { MusicTrackInfo } from "./sections/MusicSection";
 import type { PaintBeatInfo, PaintPictureInfo } from "./sections/PicturePaintSection";
+import type { ThemeImageInfo, ThemeImageProps } from "./sections/ThemeSection"; // --- themes
 import Tooltip from "./Tooltip";
 import { PhysicsEngine, TWO_BALL_MODES } from "@/lib/physics/engine";
 import { physicsExtrasOf } from "@/lib/physics/extras";
@@ -22,6 +23,7 @@ import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
+import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
 import { findSimulation, runNeverFinishes, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
@@ -101,6 +103,8 @@ export default function Simulator() {
   const [beatJobs, setBeatJobs] = useState(0);
   const beatAbortRef = useRef<{ music: AbortController | null; slice: AbortController | null }>({ music: null, slice: null });
   const paintFinishedAtRef = useRef<number | null>(null);
+  // --- themes: the background picture uploaded in this session (a data: URL kept in memory, never in links or presets)
+  const [backgroundImage, setBackgroundImage] = useState<ThemeImageInfo | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(30);
   const [findTolerance] = useState(0.5);
@@ -343,6 +347,16 @@ export default function Simulator() {
   useEffect(() => {
     audioRef.current?.setMusicSettings(musicSettingsOf(s));
   }, [s.instrument, s.melodyInstrument, s.scale, s.rootNote, s.quantizeToBeat, s.bpm, s.quantizeGrid]); // eslint-disable-line react-hooks/exhaustive-deps
+  // --- themes: the style of the confetti bursts and, with a theme picked, the scene's colours for them (visual only)
+  useEffect(() => {
+    engineRef.current?.setParticleStyle(s.particleStyle, particlePalette(s));
+  }, [s.particleStyle, s.themeId, s.ballColor, s.ballColor2, s.circleColor, s.lineColor, s.trailColors]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The latest settings, for changeMode() (its dependency list names only the fields it always keeps).
+  const themeLookRef = useRef(settings);
+  useEffect(() => {
+    themeLookRef.current = settings;
+  }, [settings]);
+  // --- end themes
 
   // Picture Paint: the beat grid the Paint mode follows – the music bed's song (its start offset and loop align the
   // grid with the simulation clock), else the slicer's song – and the length the reveal is paced to.
@@ -434,6 +448,7 @@ export default function Simulator() {
         musicStartOffset: settings.musicStartOffset,
         ...characterOf(settings), // --- boris-faces --- the character follows the ball into every mode
       };
+      Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -642,6 +657,9 @@ export default function Simulator() {
       resolution: resolutionToSize(settings.recordingResolution),
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
+      // --- themes: the letterbox bars of the export continue the gradient / picture background
+      backgroundColor: settings.backgroundColors[0],
+      drawBackground: (c, width, height, crop) => canvasRef.current?.paintRecordingBackground(c, width, height, crop),
     });
     if (!ok) {
       canvasRef.current?.setRecording(false);
@@ -810,6 +828,42 @@ export default function Simulator() {
 
   const onPaintPictureRemove = useCallback(() => setPaintPicture(null), []);
 
+  // --- themes: the background picture is decoded once here (a file that is not a picture is refused) and kept as a data: URL
+  const onBackgroundImageUpload = useCallback(
+    (file: File) => {
+      const reject = () => alert(t("Controls.themeBgError"));
+      if (!file.type.startsWith("image/")) {
+        reject();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const url = e.target?.result;
+        if (typeof url !== "string") {
+          reject();
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          setBackgroundImage({ name: file.name, url });
+          update({ backgroundType: "image" });
+        };
+        img.onerror = reject;
+        img.src = url;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    },
+    [t, update],
+  );
+  // Removing the picture falls back to the picked theme's background (or the plain solid one).
+  const onBackgroundImageRemove = useCallback(() => {
+    setBackgroundImage(null);
+    setSettings((prev) => (prev.backgroundType === "image" ? { ...prev, backgroundType: themeById(prev.themeId)?.background.type ?? "solid" } : prev));
+  }, []);
+  const themeImage = useMemo<ThemeImageProps>(() => ({ image: backgroundImage, onUpload: onBackgroundImageUpload, onRemove: onBackgroundImageRemove }), [backgroundImage, onBackgroundImageUpload, onBackgroundImageRemove]);
+  // --- end themes
+
   const onCustomSoundSelect = useCallback(async (id: string | null) => {
     if (!id) {
       audioRef.current?.clearCustomNotes();
@@ -927,6 +981,7 @@ export default function Simulator() {
         setBallEmoji(null);
       }
       if (section === "visual") setPaintPicture(null);
+      if (section === "visual") setBackgroundImage(null); // --- themes
       if (section === "sound") {
         void onCustomSoundSelect(null);
         onSliceSongClear();
@@ -1095,6 +1150,13 @@ export default function Simulator() {
                   paintGhost={s.paintGhost}
                   character={characterRender}
                   onCharacterChirp={onCharacterChirp}
+                  // --- themes
+                  backgroundColor={s.backgroundColors[0]}
+                  backgroundType={s.backgroundType}
+                  backgroundColors={s.backgroundColors}
+                  backgroundDim={s.backgroundDim}
+                  backgroundImage={backgroundImage?.url ?? null}
+                  trailColors={s.trailColors}
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -1342,6 +1404,7 @@ export default function Simulator() {
             onSavePreset={onSavePreset}
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
+            themeImage={themeImage} // --- themes
           />
         </div>
       </div>

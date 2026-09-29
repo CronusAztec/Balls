@@ -25,7 +25,25 @@ export interface RecordingOptions {
   textOverlay?: RecordingTextOverlay;
   videoBitsPerSecond?: number;
   backgroundColor?: string;
+  // --- themes: paints the frame's background (gradient / picture) before the cropped canvas, so the letterbox bars continue it
+  drawBackground?: (ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => void;
+  // --- end themes
 }
+
+// --- themes
+/** Where the cropped square of the source canvas (device pixels) lands in the exported frame. */
+export interface RecordingCrop {
+  sx: number;
+  sy: number;
+  side: number;
+  dx: number;
+  dy: number;
+  dw: number;
+  dh: number;
+  sourceWidth: number;
+  sourceHeight: number;
+}
+// --- end themes
 
 const MIME_CANDIDATES = [
   "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
@@ -79,6 +97,7 @@ export class VideoRecorder {
       const dh = side * scale;
       const dx = (width - dw) / 2;
       const dy = (height - dh) / 2;
+      options.drawBackground?.(ctx, width, height, { sx, sy, side, dx, dy, dw, dh, sourceWidth: sw, sourceHeight: sh }); // --- themes
       ctx.drawImage(this.sourceCanvas, sx, sy, side, side, dx, dy, dw, dh);
 
       const overlay = options.textOverlay;

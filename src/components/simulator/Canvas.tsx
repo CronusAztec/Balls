@@ -13,6 +13,9 @@ import type { CharacterRenderOptions } from "@/lib/character/character";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
 import type { BoxView } from "@/lib/physics/modes";
 // --- end boris-faces ---
+import { BackgroundPainter, drawStyledParticle, drawThemedTrail, trailColorTable, type BackgroundLook } from "./themeRenderer"; // --- themes
+import type { RecordingCrop } from "@/lib/recording/recorder"; // --- themes
+import { DEFAULT_BACKGROUND_COLORS, type BackgroundType } from "@/lib/themes"; // --- themes
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 
@@ -58,6 +61,9 @@ export interface CanvasHandle {
   fpsRef: React.RefObject<number>;
   /** --- boris-faces --- A wall broke (a "gap" sound event): the ball characters look shocked. */
   noteWallBreak: () => void;
+  // --- themes: the recorder paints each exported frame's background through this (gradient / picture, seamless letterbox bars)
+  paintRecordingBackground: (ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => void;
+  // --- end themes
 }
 
 export interface CanvasProps {
@@ -97,7 +103,19 @@ export interface CanvasProps {
   character?: CharacterRenderOptions | null;
   /** Called when a cat face chirps (an ouch, a breaking wall, an escape); the page plays it through the ToneGenerator. */
   onCharacterChirp?: (kind: ChirpKind) => void;
+  // --- themes (lib/themes.ts, themeRenderer.ts): the background is `backgroundColor` for "solid"; gradients run top → bottom
+  backgroundType?: BackgroundType;
+  backgroundColors?: readonly string[];
+  /** 0–1: darkening of the background picture. */
+  backgroundDim?: number;
+  /** data: URL of the uploaded background picture (cover-fitted; null = none). */
+  backgroundImage?: string | null;
+  /** Two colours the colour trail cycles between instead of the rainbow (empty = rainbow). */
+  trailColors?: readonly string[];
+  // --- end themes
 }
+
+const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
 
 const DEFAULT_LABELS: CanvasLabels = {
   escaped: "ESCAPED!",
@@ -180,6 +198,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     paintGhost = 0.12,
     character = null,
     onCharacterChirp,
+    // --- themes
+    backgroundType = "solid",
+    backgroundColors = DEFAULT_BACKGROUND_COLORS,
+    backgroundDim = 0.35,
+    backgroundImage = null,
+    trailColors = NO_TRAIL_COLORS,
+    // --- end themes
   },
   ref,
 ) {
@@ -209,6 +234,37 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const chirpRef = useRef(onCharacterChirp);
   chirpRef.current = onCharacterChirp;
   const facesRef = useRef<FaceLayer | null>(null);
+  // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
+  const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
+  useEffect(() => {
+    themeLookRef.current = { backgroundType, backgroundColors, backgroundDim, trailColors };
+  }, [backgroundType, backgroundColors, backgroundDim, trailColors]);
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
+  const bgPainterRef = useRef<BackgroundPainter | null>(null);
+  const bgPainter = () => (bgPainterRef.current ??= new BackgroundPainter());
+  const backgroundLook = (): BackgroundLook => {
+    const look = themeLookRef.current;
+    return { type: look.backgroundType, colors: look.backgroundColors, dim: look.backgroundDim, image: bgImageRef.current };
+  };
+  useEffect(() => {
+    if (!backgroundImage) {
+      bgImageRef.current = null;
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      bgImageRef.current = img;
+    };
+    img.onerror = () => {
+      bgImageRef.current = null;
+    };
+    img.src = backgroundImage;
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [backgroundImage]);
+  // --- end themes
 
   const propsRef = useRef({
     showTrails,
@@ -309,6 +365,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     },
     fpsRef,
     noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- boris-faces ---
+    // --- themes
+    paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
+      bgPainter().paintExport(c, width, height, crop, backgroundLook());
+    },
+    // --- end themes
   }));
 
   useEffect(() => {
@@ -556,6 +617,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       ctx.fillStyle = p.backgroundColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const size = sizeRef.current;
+      // --- themes: a gradient or picture background over the solid fill (the reactive flashes below still land on top)
+      const themeLook = themeLookRef.current;
+      if (themeLook.backgroundType !== "solid") bgPainter().paint(ctx, size.width, size.height, backgroundLook(), dpr);
+      setCanvasData("background", themeLook.backgroundType === "image" && !bgImageRef.current ? "solid" : themeLook.backgroundType);
+      setCanvasData("particleStyle", engine.getParticleStyle());
+      // --- end themes
       const cx = size.width / 2;
       const cy = size.height / 2;
       const arena = (Math.min(size.width, size.height) / 2) * 0.85;
@@ -1212,7 +1279,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const intensity = personality.trailIntensity;
           const len = ball.trail.length;
           const at = (i: number) => ball.trail[(ball.trailIndex + i) % len];
-          if (p.colorTrail) {
+          const themedTrail = p.colorTrail ? trailColorTable(themeLookRef.current.trailColors) : null; // --- themes: a theme's trail colours replace the rainbow hues
+          if (themedTrail) drawThemedTrail(ctx, ball, themedTrail, p.trailThickness, time, index, intensity); // --- themes
+          else if (p.colorTrail) {
             for (let i = 1; i < len; i++) {
               const t = i / len;
               const hue = Math.floor((0.1 * time + 15 * i + 60 * index) % 360);
@@ -1408,6 +1477,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.rotate(part.rotation);
         const life = part.life / part.maxLife;
         ctx.globalAlpha = life;
+        // --- themes: sparks, petals, pixels and bubbles draw themselves (themeRenderer.ts)
+        if (part.style !== undefined) {
+          drawStyledParticle(ctx, part, life);
+          ctx.restore();
+          continue;
+        }
+        // --- end themes
         if (part.type === "shard") {
           ctx.fillStyle = part.color;
           if (life > 0.3) {

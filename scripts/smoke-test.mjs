@@ -942,6 +942,150 @@ await page.waitForTimeout(5000);
   await page.screenshot({ path: path.join(outDir, "sim-character.png") });
 }
 // --- end boris-faces ---
+// --- themes
+// 9. Themes and backgrounds: the Theme block opens the Visual section; a theme card applies its look (URL, gradient
+// background read back from the canvas pixels, particle style handed to the engine); its colours stay editable (the
+// card then reads "edited"); a picture generated in the page becomes the cover-fitted, dimmed background (never in
+// the URL); the reactive background still flashes on top of it during a run; a portrait export with the picture
+// records; the Default card clears the theme and removing the picture falls back to the solid colour.
+await page.goto(`${BASE}/en/simulator/?mode=classic&bg=1`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Visual Effects/ }).click();
+{
+  const themeGroup = page.getByRole("group", { name: "Theme" });
+  const themeCanvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+  /** RGB of the visible canvas at a fraction of its size (device pixels). */
+  const canvasPixel = (fx, fy) =>
+    page.evaluate(([fx, fy]) => {
+      const c = document.querySelector("main canvas");
+      const x = Math.min(c.width - 1, Math.max(0, Math.round(fx * c.width)));
+      const y = Math.min(c.height - 1, Math.max(0, Math.round(fy * c.height)));
+      return [...c.getContext("2d").getImageData(x, y, 1, 1).data.slice(0, 3)];
+    }, [fx, fy]);
+  const near = (px, rgb, tol) => px.every((v, i) => Math.abs(v - rgb[i]) <= tol);
+  const themeQuery = () => page.url().split("?")[1] || "";
+  {
+    const cards = await themeGroup.getByRole("button").count();
+    const defaultPressed = await themeGroup.getByRole("button", { name: "Default", exact: true }).getAttribute("aria-pressed");
+    const data = await themeCanvasData();
+    const corner = await canvasPixel(0.01, 0.01);
+    check("theme cards open the Visual section, plain look by default", cards >= 9 && defaultPressed === "true" && data.background === "solid" && data.particleStyle === "confetti" && near(corner, [10, 10, 10], 3), `(${cards} cards, default pressed=${defaultPressed}, bg=${data.background}, particles=${data.particleStyle}, corner ${corner})`);
+  }
+  await themeGroup.getByRole("button", { name: "Sunset", exact: true }).click();
+  await page.waitForTimeout(400);
+  {
+    const query = themeQuery();
+    const data = await themeCanvasData();
+    const top = await canvasPixel(0.01, 0.01);
+    const bottom = await canvasPixel(0.01, 0.99);
+    check(
+      "a theme card applies its look (URL, gradient background, particle style)",
+      /(^|&)theme=sunset(&|$)/.test(query) && /(^|&)bgt=gradient(&|$)/.test(query) && /(^|&)ps=petals(&|$)/.test(query) && /(^|&)rwalls=0(&|$)/.test(query) && /(^|&)trc=/.test(query) && data.background === "gradient" && data.particleStyle === "petals" && near(top, [45, 27, 105], 8) && near(bottom, [179, 57, 81], 10),
+      `(${query}, top ${top}, bottom ${bottom}, particles ${data.particleStyle})`,
+    );
+  }
+  await page.locator('input[aria-label="Bottom"]').fill("#ff0000");
+  await page.getByRole("group", { name: "Particle Style" }).getByRole("button", { name: "Pixels", exact: true }).click();
+  await page.waitForTimeout(400);
+  {
+    const query = themeQuery();
+    const data = await themeCanvasData();
+    const bottom = await canvasPixel(0.01, 0.99);
+    const edited = await page.getByTestId("theme-edited").isVisible();
+    const stillPicked = await themeGroup.getByRole("button", { name: "Sunset", exact: true }).getAttribute("aria-pressed");
+    check("theme colours stay individually editable", /(^|&)bg2=%23ff0000(&|$)/.test(query) && /(^|&)ps=pixels(&|$)/.test(query) && near(bottom, [255, 0, 0], 10) && edited && stillPicked === "true" && data.particleStyle === "pixels", `(${query}, bottom ${bottom}, edited=${edited}, picked=${stillPicked})`);
+  }
+  await page.getByRole("group", { name: "Background" }).getByRole("button", { name: "Image", exact: true }).click();
+  await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 160;
+    c.height = 90;
+    const g = c.getContext("2d");
+    g.fillStyle = "#3060ff";
+    g.fillRect(0, 0, 160, 90);
+    const bytes = atob(c.toDataURL("image/png").split(",")[1]);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const dt = new DataTransfer();
+    dt.items.add(new File([arr], "smoke-background.png", { type: "image/png" }));
+    const input = document.querySelector("#theme-bg-input");
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const bgImage = page.getByTestId("theme-bg-image");
+  const bgLoaded = await bgImage.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  {
+    const query = themeQuery();
+    const data = await themeCanvasData();
+    const px = await canvasPixel(0.01, 0.5);
+    // #3060ff darkened by the default 35 % dim ≈ (31, 62, 166)
+    check("a background picture is cover-fitted and dimmed, and stays out of the URL", bgLoaded && (await bgImage.innerText()).includes("smoke-background.png") && data.background === "image" && near(px, [31, 62, 166], 10) && !/(^|&)bgt=/.test(query), `(bg=${data.background}, pixel ${px}, ${query})`);
+  }
+  await page.locator('input[aria-label="Picture Dim"]').evaluate(setRangeValue, "0.8");
+  await page.waitForTimeout(300);
+  {
+    const px = await canvasPixel(0.01, 0.5);
+    check("picture dim darkens the background", near(px, [10, 19, 51], 8) && /(^|&)bgd=0.8(&|$)/.test(themeQuery()), `(pixel ${px})`);
+  }
+  const reactiveBase = await canvasPixel(0.2, 0.5);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const flash = await page.evaluate(
+    (base) =>
+      new Promise((resolve) => {
+        const c = document.querySelector("main canvas");
+        const g = c.getContext("2d");
+        const x = Math.round(0.2 * c.width);
+        const y = Math.round(0.5 * c.height);
+        const t0 = performance.now();
+        let max = 0;
+        const tick = () => {
+          const d = g.getImageData(x, y, 1, 1).data;
+          max = Math.max(max, Math.abs(d[0] - base[0]) + Math.abs(d[1] - base[1]) + Math.abs(d[2] - base[2]));
+          if (max >= 6 || performance.now() - t0 > 8000) resolve(max);
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }),
+    reactiveBase,
+  );
+  {
+    const time = await page.locator("span.tabular-nums").first().innerText();
+    check("reactive background flashes over the picture background", flash >= 6 && /\d/.test(time) && time !== "0.0s", `(max change ${flash} over base ${reactiveBase}, elapsed ${time})`);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-theme.png") });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const [themeDownload] = await Promise.all([
+    page.waitForEvent("download", { timeout: 40000 }),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(2500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]);
+  const themeDlPath = path.join(outDir, `theme-${themeDownload.suggestedFilename()}`);
+  await themeDownload.saveAs(themeDlPath);
+  const themeDlSize = fs.statSync(themeDlPath).size;
+  check("portrait export records with a picture background", themeDlSize > 10000, `(${themeDownload.suggestedFilename()}, ${themeDlSize} bytes)`);
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  await themeGroup.getByRole("button", { name: "Default", exact: true }).click();
+  await page.waitForTimeout(300);
+  {
+    const query = themeQuery();
+    const data = await themeCanvasData();
+    check("the Default card clears the theme and keeps the picture", !/(^|&)theme=/.test(query) && !/(^|&)ps=/.test(query) && !/(^|&)rwalls=/.test(query) && data.background === "image" && data.particleStyle === "confetti", `(${query}, bg=${data.background}, particles=${data.particleStyle})`);
+  }
+  await page.getByRole("button", { name: "Remove background picture" }).click();
+  await page.waitForTimeout(300);
+  {
+    const data = await themeCanvasData();
+    const pressed = await page.getByRole("group", { name: "Background" }).getByRole("button", { name: "Solid", exact: true }).getAttribute("aria-pressed");
+    check("removing the picture falls back to the solid background", data.background === "solid" && pressed === "true" && (await bgImage.count()) === 0, `(bg=${data.background}, solid pressed=${pressed})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("particle");
+  check("search finds the particle style", (await page.getByRole("group", { name: "Particle Style" }).isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+// --- end themes
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

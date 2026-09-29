@@ -171,6 +171,11 @@ export interface Particle {
   rotation: number;
   rotationSpeed: number;
   type?: ParticleType;
+  // --- themes: a styled burst particle (lib/physics/particleStyles.ts) – how the theme renderer draws it and a
+  // multiplier of the particle gravity (1 when absent; bubbles rise, petals float). Visual only.
+  style?: "sparks" | "petals" | "pixels" | "bubbles";
+  gravity?: number;
+  // --- end themes
 }
 
 export interface Shockwave {
