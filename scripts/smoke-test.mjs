@@ -2717,8 +2717,10 @@ const instrumentOscillators = () =>
 // --- rigged ---
 // 24. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
 // warning and the note under the canvas, controls → URL, the search box; a Never Escape run at 8× in which the rig acts
-// and no ball escapes; a three-team race won by the Forced Winner; Find Simulation's Outcome select – a run without an
-// escape in Classic, a first escape at a chosen second in Multiply (whose finder shows now) and a won race.
+// and no ball escapes; a three-team race won by the Forced Winner – in Classic, in Shatter (nobody else gets out), with
+// merging balls (the run ends) and with x2 BALLS orbs (the rivals do not out-escape it); Never Escape switching the Forced
+// Winner off in Shatter but not in Classic; Find Simulation's Outcome select – a run without an escape in Classic, a
+// first escape at a chosen second in Multiply (whose finder shows now) and a won race.
 {
   const rigQuery = () => new URLSearchParams(page.url().split("?")[1] || "");
   const finderResult = async (timeout = 120_000) => {
@@ -2779,6 +2781,54 @@ const instrumentOscillators = () =>
   {
     const after = rigQuery();
     check("the rig carries over a mode change", after.get("mode") === "shatter" && after.get("fw") === "2" && after.get("teams") === roster, `(mode=${after.get("mode")}, fw=${after.get("fw")}, teams=${after.get("teams")})`);
+  }
+  /** Plays the linked race at 8× until the winner banner and returns the canvas data (per-team "bounces/walls/escapes" in teamStats). */
+  const rigRace = async (query, timeout = 60_000) => {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const escapes = (data.teamStats || "").split(",").map((t) => Number(t.split("/")[2]));
+    return { won, data, escapes };
+  };
+  // Shatter ends with the first escape: the way out stays shut to the others until the run is over (not only until the
+  // chosen ball enters its gap or is counted out), so nobody else escapes and Green wins.
+  {
+    const { won, data, escapes } = await rigRace(`mode=shatter&teams=${encodeURIComponent(roster)}&fw=2&s=700`);
+    check("a Forced Winner Shatter race is won by the chosen team and nobody else gets out", won && data.teamWinner === "Green" && data.rigWinner === "2" && escapes[2] >= 1 && escapes[0] === 0 && escapes[1] === 0, `(winner=${data.teamWinner}, stats=${data.teamStats})`);
+  }
+  // The merge interaction fuses balls: the chosen ball is never merged out of the story (the merged ball plays on for
+  // Green), so the run ends – it used to hold the others in forever once Green's ball was absorbed.
+  {
+    const { won, data } = await rigRace(`mode=classic&teams=${encodeURIComponent(roster)}&fw=2&wc=3&gap=0.8&s=700&bi=merge`);
+    check("a Forced Winner race with merging balls ends, won by the chosen team", won && data.teamWinner === "Green", `(winner=${data.teamWinner || "none – the run did not end"}, stats=${data.teamStats})`);
+  }
+  // x2 BALLS orbs clone only the chosen team's balls in Classic, where every ball escapes: the rivals cannot out-escape it.
+  {
+    const { won, data, escapes } = await rigRace(`mode=classic&teams=${encodeURIComponent(roster)}&fw=2&wc=3&gap=0.8&s=700&mpk=1&mpty=balls&mpr=3`);
+    check("x2 BALLS orbs do not let the rivals out-escape a Forced Winner", won && data.teamWinner === "Green" && escapes[0] <= 1 && escapes[1] <= 1, `(winner=${data.teamWinner}, stats=${data.teamStats})`);
+  }
+  // Never Escape keeps everyone in: where the chosen team can only win by escaping (Shatter) the Forced Winner is off –
+  // the note under the canvas does not claim the win, the panel says why and the rig mirrors no winner. Classic keeps both.
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&teams=${encodeURIComponent(roster)}&fw=2&ne=1`, { waitUntil: "networkidle" });
+  {
+    const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    await page.getByLabel("Show advanced options").check();
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    const why = await page.getByTestId("forced-winner-never-escape").isVisible().catch(() => false);
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(800);
+    const data = await canvasData();
+    await page.locator('[role="button"]', { hasText: "Classic" }).first().click();
+    await page.waitForTimeout(500);
+    const classicNote = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    const whyInClassic = await page.getByTestId("forced-winner-never-escape").isVisible().catch(() => false);
+    check(
+      "Never Escape switches the Forced Winner off where the win needs an escape (Shatter), not in Classic",
+      /no ball can escape/.test(note) && !/wins/.test(note) && why && data.rigWinner === "-1" && data.rigNeverEscape === "1" && /no ball can escape/.test(classicNote) && /Green wins/.test(classicNote) && !whyInClassic,
+      `(Shatter note "${note}", hint=${why}, rig winner=${data.rigWinner}; Classic note "${classicNote}", hint=${whyInClassic})`,
+    );
   }
   // Find Simulation: a Classic run without an escape for the whole clip.
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });

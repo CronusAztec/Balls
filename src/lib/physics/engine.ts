@@ -1524,7 +1524,8 @@ export class PhysicsEngine {
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
           this.currentMode?.onBallStep(this.ctx, ball, subSec);
-          if (orbsLive && mult.hasOrbs()) mult.touch(ball); // --- boris-multipliers --- a touched orb applies at the end of the step
+          // --- boris-multipliers --- a touched orb applies at the end of the step (--- rigged --- a forced winner's rivals do not clone themselves)
+          if (orbsLive && mult.hasOrbs()) mult.touch(ball, this.rigOn && this.cinematicDirector.rig.blocksClone(ball));
           if (s === 0 && ball.lifetime !== undefined) {
             ball.lifetime -= stepMs;
             if (ball.lifetime <= 0) {
@@ -1937,6 +1938,11 @@ export class PhysicsEngine {
     a.vy = merged.vy;
     a.radius = merged.radius;
     a.color = merged.color;
+    // --- rigged --- the forced winner's ball is never absorbed out of the story: the merged ball plays on for its team
+    if (this.rigOn && b.team !== undefined && b.team === this.cinematicDirector.rig.winnerTeam() && a.team !== b.team) {
+      a.team = b.team;
+      a.color = b.color;
+    }
     this.balls.splice(ib, 1);
     this.lastWallLayer.delete(b.id);
     this.pendingSoundEvents.push({ type: "merge", wallIndex: 0 });
