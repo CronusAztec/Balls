@@ -6,6 +6,7 @@ import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
 import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
 import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
+import BoxArenaSection, { BOX_ARENA_KEYS } from "./sections/BoxArenaSection";
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
@@ -84,7 +85,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
@@ -141,6 +142,7 @@ export default function Controls(props: ControlsProps) {
     colorMatch: t("modeColorMatch"),
     grow: t("modeGrow"),
     drop: t("modeDrop"),
+    box: t("modeBox"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -199,6 +201,7 @@ export default function Controls(props: ControlsProps) {
       {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Ball Drop controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {s.mode === "box" && !!search && <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
@@ -277,10 +280,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop"].includes(s.mode);
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop"].includes(s.mode);
-    // Ball Drop has no rings, but its pegs, bars and walls are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop";
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box"].includes(s.mode);
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box"].includes(s.mode);
+    // Ball Drop and Bouncing Shapes have no rings, but their pegs, bars and box walls are drawn with the wall thickness.
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box";
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -993,6 +996,8 @@ export default function Controls(props: ControlsProps) {
         );
       case "drop":
         return <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      case "box":
+        return <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

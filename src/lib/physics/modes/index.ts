@@ -16,3 +16,5 @@ export type { ColorMatchSegment } from "./colorMatch";
 export { GrowMode } from "./grow";
 export { DropMode } from "./drop";
 export type { DropSettings, DropLayout, DropField } from "./drop";
+export { BoxMode } from "./box";
+export type { BoxSettings, BoxShape, BoxSpeedRatio, BoxField, BoxShapeState, BoxView } from "./box";

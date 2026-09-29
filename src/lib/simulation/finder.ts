@@ -1,6 +1,8 @@
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { resolvePhysicsExtras } from "@/lib/physics/extras";
-import type { DropSettings } from "@/lib/physics/modes";
+import type { BoxSettings, DropSettings } from "@/lib/physics/modes";
+import { resolveBoxSettings } from "@/lib/physics/modes/box";
+import { resolveDropSettings } from "@/lib/physics/modes/drop";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 
 /**
@@ -25,6 +27,23 @@ export interface ModeSettings {
   twoBalls: boolean;
   /** Ball Drop: ball count, size / gravity spread, rows, release interval and rain (see modes/drop.ts). */
   drop: Partial<DropSettings>;
+  /** Bouncing Shapes: shape count / kind, box aspect, gravity, countdown, growth and speed ratio (see modes/box.ts). */
+  box: Partial<BoxSettings>;
+}
+
+/** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
+export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
+
+/**
+ * True when a run of `mode` with these settings can never finish, so there is no duration to search
+ * for: the endless modes, Ball Drop while it rains and Bouncing Shapes with the countdown off. The
+ * finder resolves at once with `endless` set instead of simulating, and the page hides its button.
+ */
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box">): boolean {
+  if (ENDLESS_MODES.includes(mode)) return true;
+  if (mode === "drop") return resolveDropSettings(settings.drop).loop;
+  if (mode === "box") return resolveBoxSettings(settings.box).countdown === 0;
+  return false;
 }
 
 export interface FinderRequest {
@@ -50,6 +69,8 @@ export interface FinderResult {
   seed: number;
   duration: number;
   seedsTested: number;
+  /** The run can never finish with these settings (see `runNeverFinishes()`): nothing was simulated. */
+  endless?: boolean;
 }
 
 /**
@@ -79,6 +100,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "grow") engine.setGrowRate(settings.growRate);
   if (mode === "portal") engine.setPortalCount(settings.portalCount);
   if (mode === "drop") engine.setDropSettings(settings.drop);
+  if (mode === "box") engine.setBoxSettings(settings.box);
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -103,6 +125,10 @@ export function findSimulation(
   signal?: AbortSignal,
 ): Promise<FinderResult> {
   return new Promise((resolve) => {
+    if (runNeverFinishes(request.mode, request.modeSettings)) {
+      resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
+      return;
+    }
     const targetMs = request.targetDurationSec * 1000;
     const toleranceMs = request.toleranceSec * 1000;
     const maxSimMs = request.maxSimTimeSec * 1000;

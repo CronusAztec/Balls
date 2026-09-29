@@ -43,6 +43,9 @@ export const DEFAULT_MUSIC_SETTINGS: MusicSettings = { instrument: "triangle", m
 
 /** The classic gap-pass arpeggio (C5 E5 G5 C6), snapped to the current scale before playing. */
 const GAP_ARPEGGIO = [523.25, 659.25, 783.99, 1046.5];
+/** An accented hit (a DVD logo in a corner) plays this much louder and longer than a plain one. */
+export const ACCENT_GAIN = 1.6;
+export const ACCENT_LENGTH = 1.6;
 
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
@@ -274,19 +277,20 @@ export class ToneGenerator {
    * A wall (or obstacle) bounce. `frequency` is an optional pitch in Hz chosen by the mode (Ball Drop maps
    * it from the ball's size); without it the wall index picks the classic descending tone. Either way the
    * pitch is snapped to the current scale, a hit sample is transposed to it and a loaded melody still plays
-   * its next note instead.
+   * its next note instead. An `accent` (a DVD logo hitting a corner) plays louder and longer – voice, melody
+   * note or sample alike.
    */
-  playWallHit(wallIndex = 0, frequency?: number) {
+  playWallHit(wallIndex = 0, frequency?: number, accent = false) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency));
+      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent));
       return;
     }
-    this.scheduleHit(wallIndex, frequency);
+    this.scheduleHit(wallIndex, frequency, accent);
   }
 
-  private scheduleHit(wallIndex: number, pitch?: number) {
+  private scheduleHit(wallIndex: number, pitch?: number, accent = false) {
     if (!this.audioContext || !this.masterGain) return;
     const now = this.audioContext.currentTime;
     // 1. The song slicer takes over the bounce sound while it has a song to play.
@@ -299,7 +303,7 @@ export class ToneGenerator {
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
       this.lastSlotTime = time;
-      this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitch), time);
+      this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitch), time, accent ? ACCENT_GAIN : 1);
       this.musicBed.duck(time);
       return;
     }
@@ -318,6 +322,10 @@ export class ToneGenerator {
         frequency = pitch !== undefined && pitch > 0 ? pitch : wallHitFrequency(wallIndex);
         duration = 0.15;
         gain = 0.25;
+      }
+      if (accent) {
+        gain = Math.min(0.6, gain * ACCENT_GAIN);
+        duration *= ACCENT_LENGTH;
       }
       const time = this.scheduleTime(now);
       // Beat lock: one bounce sound per grid slot, so the export sits cleanly on the beat.

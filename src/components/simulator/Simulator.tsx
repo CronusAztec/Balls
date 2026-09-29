@@ -11,6 +11,7 @@ import Tooltip from "./Tooltip";
 import { PhysicsEngine, TWO_BALL_MODES } from "@/lib/physics/engine";
 import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
+import { boxSettingsOf } from "@/lib/physics/modes/box";
 import { dropSettingsOf } from "@/lib/physics/modes/drop";
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
@@ -20,7 +21,7 @@ import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
-import { findSimulation, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
+import { findSimulation, runNeverFinishes, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
 import {
   RANGES,
   defaultSettings,
@@ -34,8 +35,6 @@ import {
   type SimulatorSettings,
 } from "@/lib/settings";
 
-/** Modes where "Find Simulation" makes no sense because the run never "finishes" (Ball Drop only while its rain loops). */
-const NO_FINDER_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
 const SPEEDS = [1, 2, 4, 8];
 /** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
 const PAINT_FINISH_HOLD_MS = 1500;
@@ -128,6 +127,7 @@ export default function Simulator() {
     engine.setGrowLinesEnabled(s.growLines);
     engine.setLinesCenterDotEnabled(s.linesCenterDot);
     engine.setDropSettings(dropSettingsOf(s));
+    engine.setBoxSettings(boxSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -271,6 +271,17 @@ export default function Simulator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop]);
+  // Bouncing Shapes: a change of the box (shapes, aspect, gravity, countdown, growth, speed ratio) restarts it too.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBoxSettings(boxSettingsOf(s));
+    if (s.mode === "box" && engine.getCurrentModeName() === "box") {
+      engine.initBox();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio]);
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -342,7 +353,7 @@ export default function Simulator() {
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop]);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio]);
 
   // Live add/remove of the second ball (only in the two-ball modes: Ball Drop starts with many balls of its own).
   const prevTwoBallsRef = useRef(s.twoBalls);
@@ -461,7 +472,7 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
-          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency);
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent);
           else if (ev.type === "gap") audio.playGapPass();
           else audio.playInteraction(ev.type);
         }
@@ -937,6 +948,7 @@ export default function Simulator() {
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
           drop: dropSettingsOf(settings),
+          box: boxSettingsOf(settings),
         },
       },
       (p) => setSearchProgress(p),
@@ -997,6 +1009,8 @@ export default function Simulator() {
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
       ballsAtRest: (n) => fill("Simulator.canvasBallsAtRest", { count: n }),
+      boxDone: t("Simulator.canvasBoxDone"),
+      boxCounted: (n) => fill("Simulator.canvasBoxCounted", { count: n }),
       paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
       paintBehind: t("Simulator.canvasPaintBehind"),
       paintAhead: t("Simulator.canvasPaintAhead"),
@@ -1004,7 +1018,8 @@ export default function Simulator() {
     };
   }, [t]);
 
-  const showFinder = !NO_FINDER_MODES.includes(settings.mode) && !(settings.mode === "drop" && settings.dropLoop);
+  // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off).
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings) });
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
@@ -1126,7 +1141,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
+                      {searchResult.endless ? t("Simulator.finderEndless") : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}

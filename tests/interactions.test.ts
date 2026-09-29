@@ -51,6 +51,7 @@ const modeSettings: ModeSettings = {
   portalCount: 3,
   twoBalls: false,
   drop: {},
+  box: {},
 };
 
 const STEP = 1000 / 60;

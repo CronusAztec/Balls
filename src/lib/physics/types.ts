@@ -21,6 +21,7 @@ export const MODE_IDS = [
   "colorMatch",
   "grow",
   "drop",
+  "box",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -138,6 +139,8 @@ export interface SoundEvent {
   wallIndex: number;
   /** Pitch of a "hit" in Hz chosen by the mode (Ball Drop maps it from the ball's size); without it the wall index picks the pitch. */
   frequency?: number;
+  /** An accented "hit" (a DVD logo hitting a corner in Bouncing Shapes): the tone generator plays it louder and longer. */
+  accent?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
@@ -257,6 +260,11 @@ export interface GameMode {
    * a ball moving in the ring modes, so a ball can actually settle on a floor.
    */
   readonly ballsMayRest?: boolean;
+  /**
+   * True when balls fly through each other whatever the ball interaction says (Bouncing Shapes): the engine
+   * then skips the pair loop, so a collision can never disturb the shapes' rhythms.
+   */
+  readonly ballsPassThrough?: boolean;
   init(ctx: ModeContext): void;
   onPreUpdate(ctx: ModeContext, dtMs: number): void;
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number): void;

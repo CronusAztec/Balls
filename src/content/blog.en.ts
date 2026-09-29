@@ -5,11 +5,11 @@ export const POSTS_EN: BlogPost[] = [
     slug: "every-viralballs-mode-explained",
     locale: "en",
     title: "Every ViralBalls Mode Explained — And Which One Gets the Most Views",
-    description: "A walkthrough of all 11 game modes with recommended settings, what makes each one work on screen, and how to pick the right mode for your next clip.",
+    description: "A walkthrough of all 12 game modes with recommended settings, what makes each one work on screen, and how to pick the right mode for your next clip.",
     date: "2026-03-28",
     readingTime: "10 min read",
     tags: ["guide", "game modes", "tutorial", "viral content", "settings", "tips"],
-    content: `ViralBalls ships with **11 game modes**, and each one produces a visibly different kind of video. Choosing the mode, and then dialling in a handful of settings, is the biggest single lever you have over how a clip performs. This guide walks through every mode, explains the mechanic behind it, and lists the settings that tend to work for short-form video.
+    content: `ViralBalls ships with **12 game modes**, and each one produces a visibly different kind of video. Choosing the mode, and then dialling in a handful of settings, is the biggest single lever you have over how a clip performs. This guide walks through every mode, explains the mechanic behind it, and lists the settings that tend to work for short-form video.
 
 ## 1. Classic
 
@@ -173,6 +173,23 @@ No rings this time. A tall board of pegs and short bars fills the canvas, and ba
 
 **Tip:** the caption *"Turn the sound on"* is the whole hook here.
 
+## 12. Bouncing Shapes
+
+A rectangular box instead of rings. Squares, circles or DVD-style logos glide in straight lines at constant speed and reflect perfectly off the walls, and every hit plays the next note of the melody, or one of four notes, one per wall. Each shape carries a big number that counts down with every bounce, flashes, grows a little and changes colour; the run ends when every number reaches zero. Several logos at speeds in ratios like 2:3 or 3:4:5 hit the walls in those ratios, which is the polyrhythm, and a logo that lands in a corner plays a louder note and lights up the whole frame.
+
+**Why it works:** it is the DVD-screensaver meme with a countdown on top. Everyone knows the corner is coming and nobody knows when, and the numbers give viewers a reason to stay until the last shape hits zero.
+
+**Suggested settings:**
+
+- **Shape:** DVD logo for the corner payoff; squares for the cleanest countdown clips.
+- **Shape count:** 2 or 3 at 2:3 or 3:4:5 for a polyrhythm you can hear; 1 for a pure countdown.
+- **Countdown:** 30 to 60. The run ends on its own when every shape reaches zero.
+- **Grow per hit:** 1 to 2%, so the shapes are noticeably bigger by the end.
+- **Scale:** Pentatonic or Major in the Sound section, so the four wall notes always agree.
+- **Duration:** whatever the countdown gives; the finder can pick a seed for an exact length.
+
+**Tip:** the caption *"Wait for the corner"* does the work for you.
+
 ## Which mode should you use?
 
 - **Maximum views:** Classic or Multiply, the most proven formats with the broadest appeal.
@@ -182,10 +199,11 @@ No rings this time. A tall board of pegs and short bars fills the canvas, and ba
 - **Arcade nostalgia:** Shatter.
 - **Rewatches:** Portal.
 - **Music and rhythm:** Ball Drop, where every hit is a note.
+- **DVD nostalgia and polyrhythms:** Bouncing Shapes, where logos count down and a corner hit is the payoff.
 
 The real move is to **rotate**. Post a Classic clip on Monday, Multiply on Wednesday and Color Match on Friday. Variety keeps your feed fresh, and each mode pulls in a slightly different audience, which grows your overall reach faster than repeating one format.
 
-[Try all 11 modes now →](/en/simulator)`,
+[Try all 12 modes now →](/en/simulator)`,
   },
   {
     slug: "10-satisfying-ball-physics-video-ideas-that-go-viral",
@@ -323,6 +341,7 @@ Adjust gravity from feather-light to crushing, set the ball speed, and enable in
 - **Color Match**: only matching colours break segments.
 - **Grow**: the ball gets bigger with every bounce.
 - **Ball Drop**: balls rain through pegs and bars and every hit plays a note pitched by the ball's size.
+- **Bouncing Shapes**: squares, circles or DVD-style logos bounce in a box, count down with every hit and weave polyrhythms.
 
 ### Visual effects
 

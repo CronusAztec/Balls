@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
+import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
@@ -28,6 +29,9 @@ export interface CanvasLabels {
   /** Ball Drop: every ball has come to rest. */
   settled: string;
   ballsAtRest: (n: number) => string;
+  /** Bouncing Shapes: every countdown reached zero. */
+  boxDone: string;
+  boxCounted: (n: number) => string;
   /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
   paintOnSchedule: string;
   paintBehind: string;
@@ -96,6 +100,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   ballsLabel: "balls",
   settled: "SETTLED!",
   ballsAtRest: (n) => `All ${n} balls at rest`,
+  boxDone: "COUNTED DOWN!",
+  boxCounted: (n) => `All ${n} shape${n !== 1 ? "s" : ""} reached zero`,
   paintOnSchedule: "on schedule",
   paintBehind: "behind schedule",
   paintAhead: "ahead of schedule",
@@ -358,6 +364,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Scratch space for the obstacle pass (Ball Drop): the age of the latest hit per obstacle and a bar's endpoints.
     let obstacleHitAges = new Float64Array(0);
     const ends: SegmentEnds = { x1: 0, y1: 0, x2: 0, y2: 0 };
+    // Bouncing Shapes: the renderer's options, refreshed per frame (one object for the life of the loop).
+    const boxRender: BoxRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -685,6 +693,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         ctx.restore();
         ctx.globalAlpha = 1;
+      }
+
+      // Bouncing Shapes: the box, its walls glowing on recent hits like the rings do.
+      const isBox = engine.isBoxMode();
+      if (isBox) {
+        boxRender.wallColor = wallColor;
+        boxRender.wallThickness = p.wallThickness;
+        boxRender.showWallGlow = p.showWallGlow;
+        boxRender.showGlow = p.showGlow;
+        boxRender.showTrails = p.showTrails;
+        boxRender.trailThickness = p.trailThickness;
+        drawBoxArena(ctx, engine.getBoxView(), boxRender);
       }
 
       // Color Match segments
@@ -1126,7 +1146,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Picture Paint: the beat envelope scales the glow and draws a pulse ring around the ball.
       const paintBeat = engine.isPaintMode() ? engine.getPaintState() : null;
       const beatEnvelope = paintBeat && paintBeat.beatActive ? paintBeat.envelope : 1;
-      balls.forEach((ball, index) => {
+      // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
+      if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
+      else balls.forEach((ball, index) => {
         const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
         // Trail
         if (p.showTrails && index < 30 && ball.trail.length > 1) {
@@ -1363,6 +1385,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       ctx.globalAlpha = 1;
       ctx.restore(); // camera
 
+      // Bouncing Shapes: a DVD logo in a corner lights up the whole frame (screen space, part of the recording).
+      if (isBox) drawBoxCornerFlash(ctx, size.width, size.height, engine.getBoxView());
+
       // HUD: mode counters in the centre
       {
         const L = labelsRef.current ?? DEFAULT_LABELS;
@@ -1505,6 +1530,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (engine.isDropMode()) {
           const prog = engine.getDropProgress();
           if (prog.finished) bigBanner(L.settled, L.ballsAtRest(prog.total), "#a3e635");
+        }
+        if (isBox) {
+          const prog = engine.getBoxProgress();
+          if (prog.finished) bigBanner(L.boxDone, L.boxCounted(prog.total), "#a3e635");
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
@@ -1650,6 +1679,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("paintBeat", paint.beatActive ? String(Math.round(paint.bpm)) : "0");
       } else if (canvas.dataset.paintCoverage !== undefined) {
         for (const key of ["paintCoverage", "paintPicture", "paintPace", "paintBeat"]) delete canvas.dataset[key];
+      }
+      // Bouncing Shapes: hit, corner and finished-shape counts (data-box-*) for tools and the smoke test.
+      if (isBox) {
+        const view = engine.getBoxView();
+        setCanvasData("boxHits", String(view.totalHits));
+        setCanvasData("boxCorners", String(view.cornerHits));
+        setCanvasData("boxDone", String(view.doneCount));
+      } else if (canvas.dataset.boxHits !== undefined) {
+        for (const key of ["boxHits", "boxCorners", "boxDone"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

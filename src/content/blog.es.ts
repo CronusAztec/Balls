@@ -6,11 +6,11 @@ export const POSTS_ES: BlogPost[] = [
     slug: "every-viralballs-mode-explained",
     locale: "es",
     title: "Todos los modos de ViralBalls explicados — y cuál consigue más visualizaciones",
-    description: "Un recorrido por los 11 modos de juego con ajustes recomendados, qué hace que cada uno funcione en pantalla y cómo elegir el modo adecuado para tu próximo clip.",
+    description: "Un recorrido por los 12 modos de juego con ajustes recomendados, qué hace que cada uno funcione en pantalla y cómo elegir el modo adecuado para tu próximo clip.",
     date: "2026-03-28",
     readingTime: "10 min de lectura",
     tags: ["guía", "modos de juego", "tutorial", "contenido viral", "ajustes", "consejos"],
-    content: `ViralBalls incluye **11 modos de juego**, y cada uno produce un tipo de vídeo visiblemente distinto. Elegir el modo, y después ajustar un puñado de parámetros, es la palanca más importante que tienes sobre el rendimiento de un clip. Esta guía recorre cada modo, explica la mecánica que hay detrás y lista los ajustes que suelen funcionar en vídeo corto.
+    content: `ViralBalls incluye **12 modos de juego**, y cada uno produce un tipo de vídeo visiblemente distinto. Elegir el modo, y después ajustar un puñado de parámetros, es la palanca más importante que tienes sobre el rendimiento de un clip. Esta guía recorre cada modo, explica la mecánica que hay detrás y lista los ajustes que suelen funcionar en vídeo corto.
 
 ## 1. Clásico
 
@@ -174,6 +174,23 @@ Esta vez sin anillos. Un tablero alto de clavijas y barras cortas llena el lienz
 
 **Consejo:** el texto *«Sube el volumen»* es aquí todo el gancho.
 
+## 12. Formas que rebotan
+
+Una caja rectangular en lugar de anillos. Cuadrados, círculos o logos estilo DVD se deslizan en línea recta a velocidad constante y se reflejan perfectamente en las paredes, y cada golpe toca la siguiente nota de la melodía o una de cuatro notas, una por pared. Cada forma lleva un número grande que hace cuenta atrás con cada rebote, destella, crece un poco y cambia de color; la simulación termina cuando todos los números llegan a cero. Varios logos a velocidades en proporción 2:3 o 3:4:5 golpean las paredes en esas mismas proporciones, y eso es la polirritmia; un logo que cae en una esquina toca una nota más fuerte e ilumina todo el encuadre.
+
+**Por qué funciona:** es el meme del salvapantallas de DVD con una cuenta atrás encima. Todo el mundo sabe que la esquina llegará y nadie sabe cuándo, y los números dan a los espectadores un motivo para quedarse hasta que la última forma llega a cero.
+
+**Ajustes sugeridos:**
+
+- **Forma:** logo DVD para la recompensa de la esquina; cuadrados para los clips de cuenta atrás más limpios.
+- **Número de formas:** 2 o 3 a 2:3 o 3:4:5 para una polirritmia que se oiga; 1 para una cuenta atrás pura.
+- **Cuenta atrás:** de 30 a 60. La simulación termina sola cuando todas las formas llegan a cero.
+- **Crecimiento por golpe:** 1 a 2 %, para que las formas sean claramente más grandes al final.
+- **Escala:** pentatónica o mayor en la sección de sonido, para que las cuatro notas de las paredes siempre encajen.
+- **Duración:** la que dé la cuenta atrás; el buscador de simulaciones puede elegir una semilla para una duración exacta.
+
+**Consejo:** el texto *«Espera a la esquina»* hace el trabajo por ti.
+
 ## ¿Qué modo deberías usar?
 
 - **Máximas visualizaciones:** Clásico o Multiplicar, los formatos más probados y de mayor alcance.
@@ -183,10 +200,11 @@ Esta vez sin anillos. Un tablero alto de clavijas y barras cortas llena el lienz
 - **Nostalgia arcade:** Fragmentación.
 - **Repeticiones:** Portal.
 - **Música y ritmo:** Caída de pelotas, donde cada golpe es una nota.
+- **Nostalgia DVD y polirritmias:** Formas que rebotan, donde los logos hacen cuenta atrás y un golpe en la esquina es la recompensa.
 
 La jugada real es **rotar**. Publica un clip Clásico el lunes, Multiplicar el miércoles y Coincidir color el viernes. La variedad mantiene fresco tu perfil, y cada modo atrae a una audiencia ligeramente distinta, lo que hace crecer tu alcance total más rápido que repetir un solo formato.
 
-[Prueba los 11 modos ahora →](/es/simulator)`,
+[Prueba los 12 modos ahora →](/es/simulator)`,
   },
   {
     slug: "10-satisfying-ball-physics-video-ideas-that-go-viral",
@@ -324,6 +342,7 @@ Ajusta la gravedad desde ligera como una pluma hasta aplastante, fija la velocid
 - **Coincidir color**: solo los colores coincidentes rompen segmentos.
 - **Crecer**: la pelota crece con cada rebote.
 - **Caída de pelotas**: las pelotas caen entre clavijas y barras y cada golpe toca una nota según su tamaño.
+- **Formas que rebotan**: cuadrados, círculos o logos estilo DVD rebotan en una caja, hacen cuenta atrás con cada golpe y tejen polirritmias.
 
 ### Efectos visuales
 

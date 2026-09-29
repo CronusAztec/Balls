@@ -5,6 +5,7 @@ import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScale
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { DEFAULT_PHYSICS_EXTRAS, PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "@/lib/physics/extras";
 import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics/interactions";
+import { BOX_RANGES, DEFAULT_BOX_SETTINGS, boxSettingFields, boxSettingsOf, isBoxShape, isBoxSpeedRatio, resolveBoxSettings, type BoxShape, type BoxSpeedRatio } from "@/lib/physics/modes/box";
 import { DEFAULT_DROP_SETTINGS, DROP_RANGES, dropSettingFields, dropSettingsOf, resolveDropSettings } from "@/lib/physics/modes/drop";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
@@ -100,6 +101,21 @@ export interface SimulatorSettings {
   dropSpawnInterval: number;
   /** "Rain": the floor opens and balls that fall out come back in at the top (URL `dloop`). */
   dropLoop: boolean;
+  // Bouncing Shapes (lib/physics/modes/box.ts): squares, circles or DVD-style logos bouncing in a rectangular box
+  /** Shapes in the box, 1–12 (URL `bxn`). */
+  boxShapeCount: number;
+  /** square | circle | dvd (URL `bxs`). */
+  boxShape: BoxShape;
+  /** Width of the box relative to its height, 0.5–2 (URL `bxa`). */
+  boxAspect: number;
+  /** 0–1: how much of the gravity setting acts on the shapes (URL `bxg`). */
+  boxGravity: number;
+  /** Starting countdown on every shape, 0–99; 0 = off (URL `bxc`). */
+  boxCountdown: number;
+  /** Percent a shape grows per wall hit, 0–3 (URL `bxgr`). */
+  boxGrowPerHit: number;
+  /** Speeds of the shapes in whole-number ratios: 1:1, 2:3, 3:4:5 or 4:5:6 (URL `bxr`). */
+  boxSpeedRatio: BoxSpeedRatio;
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -207,6 +223,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     growCenterDot: false,
     growLines: false,
     ...dropSettingFields(DEFAULT_DROP_SETTINGS),
+    ...boxSettingFields(DEFAULT_BOX_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
@@ -269,6 +286,7 @@ export const RANGES = {
   ...PHYSICS_EXTRA_RANGES,
   ...BALL_INTERACTION_RANGES,
   ...DROP_RANGES,
+  ...BOX_RANGES,
   ...PICTURE_PAINT_RANGES,
 } as const;
 
@@ -327,6 +345,12 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   dgv: "dropGravityVariation",
   drows: "dropRows",
   dsi: "dropSpawnInterval",
+  // Bouncing Shapes
+  bxn: "boxShapeCount",
+  bxa: "boxAspect",
+  bxg: "boxGravity",
+  bxc: "boxCountdown",
+  bxgr: "boxGrowPerHit",
   // Picture Paint
   pbr: "paintBrush",
   pgh: "paintGhost",
@@ -392,6 +416,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.wallBreakStyle !== base.wallBreakStyle) params.set("wbreak", settings.wallBreakStyle);
   if (settings.ballInteraction !== base.ballInteraction) params.set("bi", settings.ballInteraction);
   if (settings.paintBeatSource !== base.paintBeatSource) params.set("pbs", settings.paintBeatSource);
+  if (settings.boxShape !== base.boxShape) params.set("bxs", settings.boxShape);
+  if (settings.boxSpeedRatio !== base.boxSpeedRatio) params.set("bxr", settings.boxSpeedRatio);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
@@ -448,6 +474,11 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isBallInteraction(bi)) settings.ballInteraction = bi;
   clampBallInteraction(settings, defaultSettings(mode));
   clampDropSettings(settings);
+  const bxs = params.get("bxs");
+  if (isBoxShape(bxs)) settings.boxShape = bxs;
+  const bxr = params.get("bxr");
+  if (isBoxSpeedRatio(bxr)) settings.boxSpeedRatio = bxr;
+  clampBoxSettings(settings);
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -496,6 +527,11 @@ function clampDropSettings(settings: SimulatorSettings) {
   Object.assign(settings, dropSettingFields(resolveDropSettings(dropSettingsOf(settings))));
 }
 
+/** Keeps the Bouncing Shapes settings inside their ranges, counts as whole numbers; an unknown shape or speed ratio falls back to the default (URL parameters and presets alike). */
+function clampBoxSettings(settings: SimulatorSettings) {
+  Object.assign(settings, boxSettingFields(resolveBoxSettings(boxSettingsOf(settings))));
+}
+
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampPicturePaint(settings: SimulatorSettings) {
   Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
@@ -531,8 +567,8 @@ export function savePresets(store: PresetStore) {
  * Uploaded media does not survive a reload, so a preset's "custom" hit sample falls back
  * to the default built-in clip (like dead blob: wall-break URLs). Enumerated fields (hit
  * sound mode, instruments, scale, grid, ball interaction) fall back to their defaults when the
- * stored value is unknown, and numeric ones (including the Ball Drop settings) are clamped to
- * their ranges, like URL parameters.
+ * stored value is unknown, and numeric ones (including the Ball Drop and Bouncing Shapes settings)
+ * are clamped to their ranges, like URL parameters.
  */
 export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorSettings {
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
@@ -557,6 +593,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.ballInteraction = isBallInteraction(preset.ballInteraction) ? preset.ballInteraction : defaults.ballInteraction;
   clampBallInteraction(merged, defaults);
   clampDropSettings(merged);
+  clampBoxSettings(merged);
   clampPicturePaint(merged);
   return merged;
 }

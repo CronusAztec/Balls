@@ -44,6 +44,7 @@ const modeSettings: ModeSettings = {
   portalCount: 3,
   twoBalls: false,
   drop: {},
+  box: {},
 };
 
 const ALL_EXTRAS_ON: PhysicsExtras = {
@@ -81,6 +82,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   colorMatch: { samples: [[543609,300177],[596383,347033],[600656,287224],[285153,381609]], broken: [], walls: [225000] },
   grow: { samples: [[384329,184131],[334553,260481],[250197,392467],[321890,452798]], broken: [], walls: [225000] },  // Ball Drop has no rings; recorded when the mode was added (seed 12345, default board: 12 balls released 0.4 s apart).
   drop: { samples: [[386190,181061],[179964,230492],[420973,497548],[219878,230933],[209300,577112],[293286,420857],[177302,577112],[361866,554952]], broken: [], walls: [] },
+  // Bouncing Shapes has no rings either; recorded when the mode was added (seed 12345, default box: 3 squares at 3:4:5 counting down from 30).
+  box: { samples: [[499777,116335],[460284,236311],[491079,476091],[522207,426113],[393948,306252],[501128,112491],[298951,112433],[434265,547488]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

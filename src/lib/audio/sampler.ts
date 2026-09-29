@@ -208,13 +208,14 @@ export class HitSampler {
     this.cache.set(url, buffer);
   }
 
-  /** Plays the active clip at `playbackRate` (at AudioContext time `when`, default now); returns false when nothing is loaded. */
-  play(playbackRate = 1, when?: number): boolean {
+  /** Plays the active clip at `playbackRate` (at AudioContext time `when`, default now), `gainScale` × the volume (an accent plays louder); returns false when nothing is loaded. */
+  play(playbackRate = 1, when?: number, gainScale = 1): boolean {
     const buffer = this.buffer;
     if (!buffer || this.volume <= 0) return false;
     const ctx = this.context;
     const now = when ?? ctx.currentTime;
     const rate = Math.max(0.125, Math.min(8, playbackRate));
+    const level = Math.min(1, this.volume * Math.max(0, gainScale));
     try {
       while (this.voices.length >= MAX_VOICES) this.release(this.voices.shift()!, now);
       const duration = Math.min(buffer.duration / rate, MAX_VOICE_SEC);
@@ -224,8 +225,8 @@ export class HitSampler {
       source.playbackRate.value = rate;
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(this.volume, now + fade);
-      gain.gain.setValueAtTime(this.volume, now + duration - fade);
+      gain.gain.linearRampToValueAtTime(level, now + fade);
+      gain.gain.setValueAtTime(level, now + duration - fade);
       gain.gain.linearRampToValueAtTime(0, now + duration);
       source.connect(gain);
       gain.connect(this.destination);

@@ -3,6 +3,7 @@ import { MAGNUS_COEFFICIENT, breathingScale, contactSpin, gravityAngle, resolveP
 import { canSplit, mergeBalls, resolveBallInteraction, splitBall } from "./interactions";
 import {
   AccumulationMode,
+  BoxMode,
   ClassicMode,
   ColorMatchMode,
   DropMode,
@@ -14,7 +15,7 @@ import {
   ShatterMode,
   TargetMode,
 } from "./modes";
-import type { DropSettings, PicturePaintState } from "./modes";
+import type { BoxSettings, BoxView, DropSettings, PicturePaintState } from "./modes";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
@@ -72,6 +73,9 @@ export const OBSTACLE_HIT_SPEED = 40;
  * every ball in every sub-step (`handleObstacleCollisions()`), before the ring walls; a hit above
  * `OBSTACLE_HIT_SPEED` is reported to the mode (`onObstacleHit`), queued as a "hit" sound (with the
  * pitch the mode chose) and remembered for the canvas glow. Ball Drop is built entirely out of them.
+ *
+ * Bouncing Shapes (modes/box.ts) owns its playfield entirely: it activates with the "none" ring layout,
+ * folds every ball back into its box in `onBallStep()` and opts out of the pair loop (`ballsPassThrough`).
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
@@ -136,6 +140,7 @@ export class PhysicsEngine {
   readonly colorMatchMode = new ColorMatchMode();
   readonly growMode = new GrowMode();
   readonly dropMode = new DropMode();
+  readonly boxMode = new BoxMode();
 
   readonly ctx: ModeContext;
 
@@ -332,6 +337,9 @@ export class PhysicsEngine {
   initDrop() {
     this.activateMode(this.dropMode, "none");
   }
+  initBox() {
+    this.activateMode(this.boxMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -358,6 +366,8 @@ export class PhysicsEngine {
         return this.initGrow();
       case "drop":
         return this.initDrop();
+      case "box":
+        return this.initBox();
     }
   }
 
@@ -647,6 +657,23 @@ export class PhysicsEngine {
   }
   getDropLayout() {
     return this.dropMode.getLayout();
+  }
+  isBoxMode() {
+    return this.currentMode === this.boxMode;
+  }
+  getBoxSettings(): BoxSettings {
+    return this.boxMode.getSettings();
+  }
+  /** Shape count / kind, box aspect, gravity, countdown, growth and speed ratio; applied by the next `initBox()`. */
+  setBoxSettings(settings: Partial<BoxSettings>) {
+    this.boxMode.setSettings(settings);
+  }
+  /** Live Bouncing Shapes state (box, shapes, recent hits) for the canvas and the HUD; the same object every call. */
+  getBoxView(): BoxView {
+    return this.boxMode.getView();
+  }
+  getBoxProgress() {
+    return this.boxMode.getProgress();
   }
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
@@ -1192,7 +1219,7 @@ export class PhysicsEngine {
    */
   private handleBallCollisions() {
     const interaction = this.interaction.ballInteraction;
-    if (interaction === "pass") return;
+    if (interaction === "pass" || this.currentMode?.ballsPassThrough) return;
     const merge = interaction === "merge";
     for (let a = 0; a < this.balls.length; a++) {
       for (let b = a + 1; b < this.balls.length; b++) {

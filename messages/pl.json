@@ -2,6 +2,8 @@
   "Headings": {
     "features": "Funkcje i personalizacja",
     "modes": "Tryby gry",
+    "modesEscape": "Tryby ucieczki",
+    "modesRhythm": "Tryby rytmiczne i polirytmiczne",
     "faq": "Najczęściej zadawane pytania",
     "howItWorks": "Jak to działa"
   },
@@ -20,21 +22,21 @@
   "Hero": {
     "title1": "Satysfakcjonująca fizyka piłki",
     "title2": "na TikToka i Reels",
-    "subtitle": "Twórz hipnotyzujące symulacje odbijającej się piłki w przeglądarce: dostrój fizykę, nałóż tęczowe efekty, wybierz jeden z 11 trybów i wyeksportuj pionowe MP4 gotowe do publikacji. Za darmo, bez konta, bez instalacji.",
+    "subtitle": "Twórz hipnotyzujące symulacje odbijającej się piłki w przeglądarce: dostrój fizykę, nałóż tęczowe efekty, wybierz jeden z 12 trybów i wyeksportuj pionowe MP4 gotowe do publikacji. Za darmo, bez konta, bez instalacji.",
     "startCreating": "Zacznij tworzyć",
     "exploreModes": "Odkryj tryby",
     "mobileNotice": "Najlepiej korzystać z przeglądarki na komputerze lub laptopie. Sterowanie jest zoptymalizowane pod większe ekrany."
   },
   "SimulatorPage": {
     "metaTitle": "Symulator fizyki piłki – darmowe narzędzie online na TikToka i Reels – {siteName}",
-    "metaDescription": "Darmowy przeglądarkowy symulator fizyki piłki z 11 trybami, konfigurowalną fizyką, tęczowymi efektami i eksportem MP4 w pionowym formacie TikTok. Bez rejestracji i instalacji."
+    "metaDescription": "Darmowy przeglądarkowy symulator fizyki piłki z 12 trybami, konfigurowalną fizyką, tęczowymi efektami i eksportem MP4 w pionowym formacie TikTok. Bez rejestracji i instalacji."
   },
   "Layout": {
     "metaTitle": "Darmowy satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
-    "metaDescription": "Darmowy symulator fizyki piłki działający w przeglądarce. Twórz hipnotyzujące symulacje z konfigurowalną fizyką, tęczowymi efektami i 11 unikalnymi trybami, a potem eksportuj filmy MP4 na TikToka, Reels i Shorts. Bez rejestracji i instalacji.",
+    "metaDescription": "Darmowy symulator fizyki piłki działający w przeglądarce. Twórz hipnotyzujące symulacje z konfigurowalną fizyką, tęczowymi efektami i 12 unikalnymi trybami, a potem eksportuj filmy MP4 na TikToka, Reels i Shorts. Bez rejestracji i instalacji.",
     "browserRequirements": "Wymaga nowoczesnej przeglądarki z włączonym JavaScriptem",
     "features": [
-      "11 trybów symulacji",
+      "12 trybów symulacji",
       "Konfigurowalna fizyka i wygląd",
       "Tęczowe efekty ścian",
       "Kolorowy ślad",
@@ -75,6 +77,9 @@
     "canvasBalls": "piłek",
     "canvasSettled": "OSIADŁY!",
     "canvasBallsAtRest": "Piłki w spoczynku: [count]",
+    "canvasBoxDone": "ODLICZONE!",
+    "canvasBoxCounted": "Wszystkie kształty ([count]) doszły do zera",
+    "finderEndless": "Przy obecnych ustawieniach symulacja nigdy się nie kończy (tryb bez końca, Deszcz lub wyłączone odliczanie), więc nie ma czasu trwania, którego można by szukać.",
     "canvasPaintOnSchedule": "zgodnie z planem",
     "canvasPaintBehind": "z opóźnieniem",
     "canvasPaintAhead": "przed czasem",
@@ -93,7 +98,7 @@
     "shareLinkCopied": "Link skopiowany!"
   },
   "HowItWorks": {
-    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 11 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
+    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
     "step2": { "title": "Dostosuj wszystko", "description": "Zmieniaj fizykę, kolory, efekty, nakładki tekstowe i wygląd piłki, aż klip będzie wyglądał tak, jak chcesz." },
     "step3": { "title": "Eksportuj i udostępniaj", "description": "Nagraj symulację jako MP4 w dowolnej rozdzielczości, w tym w pionowym formacie TikTok, i opublikuj, gdzie chcesz." }
   },
@@ -349,6 +354,7 @@
     "modeColorMatch": "Dopasowanie kolorów",
     "modeGrow": "Rośnij",
     "modeDrop": "Spadające piłki",
+    "modeBox": "Odbijające się kształty",
     "growthRate": "Tempo wzrostu",
     "growthRateTip": "Jak szybko piłka rośnie z każdym odbiciem (w procentach).",
     "centerDot": "Przeszkoda w środku",
@@ -399,6 +405,26 @@
     "paintPaceTip": "Co sekundę zmienia rozmiar pędzla, żeby odsłanianie skończyło się razem z piosenką – albo z klipem. HUD pokazuje, czy piłka jest w harmonogramie.",
     "paintPaceDesc": "Zakończ odsłanianie razem z piosenką (albo z długością klipu, gdy jej nie ma).",
     "dropLoopDesc": "Wyłączone: symulacja kończy się, gdy wszystkie piłki spoczną na podłodze.",
+    "boxDesc": "Pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu DVD lecą po liniach prostych, a każde uderzenie w ściankę gra nutę: kolejną nutę melodii albo bez melodii jedną z czterech nut, po jednej na ściankę. Liczby odliczają z każdym odbiciem, kolory się zmieniają, a kształty odrobinę rosną.",
+    "boxShape": "Kształt",
+    "boxShapeTip": "Co odbija się w pudełku: kwadraty równoległe do ścianek, koła albo zaokrąglony logotyp w stylu DVD, którego trafienia w róg są akcentowane głośniejszą nutą i błyskiem.",
+    "boxShapeSquare": "Kwadrat",
+    "boxShapeCircle": "Koło",
+    "boxShapeDvd": "Logo DVD",
+    "boxShapeCount": "Liczba kształtów",
+    "boxShapeCountTip": "Ile kształtów startuje ze środka pudełka. Przenikają się nawzajem, więc ich rytmy nigdy sobie nie przeszkadzają.",
+    "boxSpeedRatio": "Stosunek prędkości",
+    "boxSpeedRatioTip": "Prędkości kształtów w małych stosunkach liczb całkowitych, najszybszy porusza się z prędkością piłki: przy 2:3 drugi kształt uderza w ścianki trzy razy, gdy pierwszy dwa – to właśnie polirytmia. Przy 1:1 każdy kształt dostaje za to własny kąt startu.",
+    "boxSpeedRatioDesc": "Kąt startu jest tak dobrany, by uderzenia góra/dół i lewo/prawo każdego kształtu też tworzyły prosty stosunek; przy nieparzystych stosunkach logo DVD co kilka ścianek trafia w róg.",
+    "boxCountdown": "Odliczanie",
+    "boxCountdownTip": "Liczba na każdym kształcie zmniejsza się o jeden z każdym uderzeniem w ściankę, a symulacja kończy się, gdy wszystkie kształty dojdą do zera. 0 wyłącza odliczanie i kształty odbijają się bez końca.",
+    "boxCountdownOff": "Wył.",
+    "boxGrowPerHit": "Wzrost na uderzenie",
+    "boxGrowPerHitTip": "O ile kształt rośnie z każdym uderzeniem w ściankę, w procentach swojego rozmiaru (z limitem, żeby nigdy nie wypełnił pudełka).",
+    "boxGravity": "Grawitacja",
+    "boxGravityTip": "Jaka część ustawienia grawitacji działa na kształty. 0 to klasyczny ruch logo DVD po liniach prostych; powyżej kształty zamieniają się w odbijające się piłki, które zachowują wysokość odbicia.",
+    "boxAspect": "Proporcje pudełka",
+    "boxAspectTip": "Szerokość pudełka względem jego wysokości: 9:16 wypełnia pionowy klip, 1:1 to kwadrat, 16:9 to poziom.",
     "onText": "WŁ.",
     "offText": "WYŁ.",
     "onTextCase": "Wł.",
@@ -448,7 +474,11 @@
     "shatter": { "name": "Rozbicie", "description": "Każda ściana składa się z segmentów z punktami wytrzymałości. Każde odbicie pęka segment, a wystarczająco dużo uderzeń go rozbija. Utoruj drogę przez wszystkie ściany, aby uciec." },
     "colorMatch": { "name": "Dopasowanie kolorów", "description": "Ściana jest podzielona na kolorowe segmenty, a piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają. Usuń wszystkie, aby uciec." },
     "portal": { "name": "Portal", "description": "Na ścianie znajdują się pary portali w tym samym kolorze. Dotknij jednego, a piłka teleportuje się do bliźniaka. Po kilku użyciach portale wypalają się i stają się wyjściami." },
-    "drop": { "name": "Spadające piłki", "description": "Piłki o różnych rozmiarach i wadze spadają przez rzędy kołków i belek, a każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki. Różne grawitacje rozjeżdżają się w czasie i symulacja sama pisze swoją polirytmię." }
+    "drop": { "name": "Spadające piłki", "description": "Piłki o różnych rozmiarach i wadze spadają przez rzędy kołków i belek, a każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki. Różne grawitacje rozjeżdżają się w czasie i symulacja sama pisze swoją polirytmię." },
+    "box": {
+      "name": "Odbijające się kształty",
+      "description": "Kwadraty, koła lub logotypy w stylu DVD suną po pudełku ze stałą prędkością, a każde uderzenie w ściankę gra kolejną nutę. Duże liczby odliczają w dół z każdym odbiciem, logotypy o prędkościach w stosunku 2:3 lub 3:4:5 splatają polirytmię, a trafienie w róg to akcent, na który wszyscy czekają."
+    }
   },
   "Features": {
     "wallBreak": { "name": "Efekty przebicia ściany", "description": "Konfetti, rozbite szkło, fala uderzeniowa, wszystkie trzy naraz albo brak. Za każdym razem, gdy piłka przebija ścianę, odtwarzany jest wybrany efekt." },
@@ -560,6 +590,7 @@
     "modeColorMatch": "Ściana jest podzielona na kolorowe segmenty, a piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają. Usuń wszystkie, aby wygrać.",
     "modeGrow": "Piłka jest zamknięta w jednym pierścieniu i rośnie z każdym odbiciem, zajmując coraz więcej miejsca, aż ledwo może się ruszać.",
     "modeDrop": "Zamiast pierścieni wysoka plansza z kołkami i belkami. Piłki o różnych rozmiarach i wadze spadają z góry, a każde uderzenie gra nutę – duże piłki nisko, małe wysoko – aż wszystkie się zatrzymają, albo bez końca z włączonym Deszczem.",
+    "modeBox": "Prostokątne pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu DVD poruszają się po liniach prostych ze stałą prędkością i idealnie odbijają się od ścianek; każde uderzenie gra kolejną nutę melodii albo nutę zależną od ścianki. Każdy kształt nosi dużą liczbę, która odlicza w dół z każdym odbiciem, błyska, odrobinę rośnie i zmienia kolor, a kilka logotypów o prędkościach w stosunku 2:3 czy 3:4:5 splata polirytmię, aż wszystkie liczby dojdą do zera – albo bez końca z wyłączonym odliczaniem. Logo, które trafi w róg, gra głośniejszą nutę i rozświetla ekran.",
     "tipsBadge": "Porady",
     "tipsTitle": "Wskazówki dla najlepszych nagrań",
     "tipFindSimulationTitle": "Użyj funkcji Znajdź symulację",
@@ -729,7 +760,7 @@
   },
   "TikTokBallVideos": {
     "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – darmowe narzędzie – {siteName}",
-    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: darmowe narzędzie przeglądarkowe z 11 trybami, własną fizyką i pionowym eksportem 1080×1920. Bez rejestracji.",
+    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: darmowe narzędzie przeglądarkowe z 12 trybami, własną fizyką i pionowym eksportem 1080×1920. Bez rejestracji.",
     "badge": "Treści na TikToka",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",

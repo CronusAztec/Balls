@@ -6,11 +6,11 @@ export const POSTS_PL: BlogPost[] = [
     slug: "every-viralballs-mode-explained",
     locale: "pl",
     title: "Każdy tryb ViralBalls wyjaśniony — i który zdobywa najwięcej wyświetleń",
-    description: "Przegląd wszystkich 11 trybów gry z zalecanymi ustawieniami, opisem tego, co sprawia, że każdy działa na ekranie, i wskazówkami, jak wybrać tryb do kolejnego klipu.",
+    description: "Przegląd wszystkich 12 trybów gry z zalecanymi ustawieniami, opisem tego, co sprawia, że każdy działa na ekranie, i wskazówkami, jak wybrać tryb do kolejnego klipu.",
     date: "2026-03-28",
     readingTime: "10 min czytania",
     tags: ["poradnik", "tryby gry", "tutorial", "viralowe treści", "ustawienia", "wskazówki"],
-    content: `ViralBalls ma **11 trybów gry**, a każdy z nich daje wyraźnie inny rodzaj filmu. Wybór trybu, a potem dobranie kilku ustawień, to największa dźwignia wpływu na wyniki klipu. Ten poradnik omawia każdy tryb, wyjaśnia mechanikę i podaje ustawienia, które zwykle sprawdzają się w krótkich filmach.
+    content: `ViralBalls ma **12 trybów gry**, a każdy z nich daje wyraźnie inny rodzaj filmu. Wybór trybu, a potem dobranie kilku ustawień, to największa dźwignia wpływu na wyniki klipu. Ten poradnik omawia każdy tryb, wyjaśnia mechanikę i podaje ustawienia, które zwykle sprawdzają się w krótkich filmach.
 
 ## 1. Klasyczny
 
@@ -174,6 +174,23 @@ Tym razem bez pierścieni. Wysoka plansza z kołkami i krótkimi belkami wypełn
 
 **Wskazówka:** podpis *„Włącz dźwięk”* to tutaj cały haczyk.
 
+## 12. Odbijające się kształty
+
+Prostokątne pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu DVD suną po liniach prostych ze stałą prędkością i idealnie odbijają się od ścianek, a każde uderzenie gra kolejną nutę melodii albo jedną z czterech nut, po jednej na ściankę. Każdy kształt nosi dużą liczbę, która odlicza w dół z każdym odbiciem, błyska, odrobinę rośnie i zmienia kolor; symulacja kończy się, gdy wszystkie liczby dojdą do zera. Kilka logotypów o prędkościach w stosunku 2:3 czy 3:4:5 uderza w ścianki w tych samych proporcjach – to właśnie polirytmia – a logo, które trafi w róg, gra głośniejszą nutę i rozświetla cały kadr.
+
+**Dlaczego działa:** to mem z wygaszacza ekranu DVD z odliczaniem na wierzchu. Wszyscy wiedzą, że róg kiedyś nadejdzie, nikt nie wie kiedy, a liczby dają widzom powód, by zostać do momentu, gdy ostatni kształt dojdzie do zera.
+
+**Sugerowane ustawienia:**
+
+- **Kształt:** logo DVD dla nagrody za róg; kwadraty dla najczystszych klipów z odliczaniem.
+- **Liczba kształtów:** 2 lub 3 przy 2:3 albo 3:4:5, żeby polirytmię było słychać; 1 dla czystego odliczania.
+- **Odliczanie:** 30–60. Symulacja kończy się sama, gdy każdy kształt dojdzie do zera.
+- **Wzrost na uderzenie:** 1–2%, żeby kształty były pod koniec wyraźnie większe.
+- **Skala:** pentatoniczna lub durowa w sekcji dźwięku, żeby cztery nuty ścianek zawsze do siebie pasowały.
+- **Czas trwania:** taki, jaki daje odliczanie; wyszukiwarka symulacji dobierze ziarno do dokładnej długości.
+
+**Wskazówka:** podpis *„Czekaj na róg”* zrobi robotę za Ciebie.
+
 ## Który tryb wybrać?
 
 - **Maksimum wyświetleń:** Klasyczny lub Mnożenie, najbardziej sprawdzone formaty o najszerszym zasięgu.
@@ -183,10 +200,11 @@ Tym razem bez pierścieni. Wysoka plansza z kołkami i krótkimi belkami wypełn
 - **Nostalgia za automatami:** Rozbicie.
 - **Ponowne odtworzenia:** Portal.
 - **Muzyka i rytm:** Spadające piłki, gdzie każde uderzenie to nuta.
+- **Nostalgia za DVD i polirytmie:** Odbijające się kształty, gdzie logotypy odliczają, a trafienie w róg to nagroda.
 
 Prawdziwy ruch to **rotacja**. Opublikuj Klasyczny w poniedziałek, Mnożenie w środę i Dopasowanie kolorów w piątek. Różnorodność odświeża feed, a każdy tryb przyciąga nieco innych odbiorców, co rozwija zasięg szybciej niż powtarzanie jednego formatu.
 
-[Wypróbuj wszystkie 11 trybów →](/pl/simulator)`,
+[Wypróbuj wszystkie 12 trybów →](/pl/simulator)`,
   },
   {
     slug: "10-satisfying-ball-physics-video-ideas-that-go-viral",
@@ -324,6 +342,7 @@ Ustaw grawitację od lekkiej jak piórko po miażdżącą, dobierz prędkość p
 - **Dopasowanie kolorów**: tylko pasujące kolory łamią segmenty.
 - **Rośnij**: piłka rośnie z każdym odbiciem.
 - **Spadające piłki**: piłki spadają przez kołki i belki, a każde uderzenie gra nutę zależną od rozmiaru piłki.
+- **Odbijające się kształty**: kwadraty, koła lub logotypy w stylu DVD odbijają się w pudełku, odliczają z każdym uderzeniem i splatają polirytmie.
 
 ### Efekty wizualne
 

@@ -33,6 +33,7 @@ const settings = {
   portalCount: 3,
   twoBalls: false,
   drop: {},
+  box: {},
 };
 
 function run(engine: PhysicsEngine, frames: number) {

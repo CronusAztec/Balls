@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
+import { ACCENT_GAIN, DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 
 /**
  * Drives the ToneGenerator through a minimal fake Web Audio graph to check how a wall hit is
@@ -21,6 +21,8 @@ interface SourceLog {
 function fakeGraph() {
   const oscillators: OscLog[] = [];
   const sources: SourceLog[] = [];
+  /** Every value set on a gain node's AudioParam (envelopes, sample levels), so a test can see how loud a sound was. */
+  const gains: number[] = [];
   const param = (value = 0) => ({
     value,
     setValueAtTime: () => undefined,
@@ -36,7 +38,7 @@ function fakeGraph() {
     resume: async () => undefined,
     close: async () => undefined,
     decodeAudioData: async () => ({ duration: 0.3 }),
-    createGain: () => ({ gain: param(1), connect: () => undefined, disconnect: () => undefined }),
+    createGain: () => ({ gain: { ...param(1), setValueAtTime: (value: number) => void gains.push(value) }, connect: () => undefined, disconnect: () => undefined }),
     createAnalyser: () => ({ fftSize: 0, smoothingTimeConstant: 0, frequencyBinCount: 128, connect: () => undefined, disconnect: () => undefined }),
     createMediaStreamDestination: () => ({ stream: {}, connect: () => undefined }),
     createOscillator: () => {
@@ -69,7 +71,7 @@ function fakeGraph() {
     },
     createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, copyToChannel: () => undefined }),
   };
-  return { ctx, oscillators, sources };
+  return { ctx, oscillators, sources, gains };
 }
 
 describe("ToneGenerator wall-hit dispatch", () => {
@@ -118,6 +120,41 @@ describe("ToneGenerator wall-hit dispatch", () => {
     tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, scale: "major", rootNote: 0 });
     hitAt(0, 0); // 800 Hz sits between G5 (784) and G#5 (831): the major scale picks G5
     expect(graph.oscillators.at(-1)?.frequency).toBeCloseTo(783.99, 1);
+  });
+
+  it("plays an accented hit (a DVD logo in a corner) louder than a plain one, voice and sample alike", async () => {
+    const heard = (level: number) => graph.gains.some((g) => Math.abs(g - level) < 1e-9);
+    hitAt(0, 3);
+    expect(heard(0.25)).toBe(true); // the plain triangle envelope peak
+    expect(heard(0.25 * ACCENT_GAIN)).toBe(false);
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 1;
+    tone.playWallHit(3, 523.25, true);
+    expect(graph.oscillators.at(-1)).toEqual({ type: "triangle", frequency: 523.25, startAt: 1 });
+    expect(heard(0.25 * ACCENT_GAIN)).toBe(true);
+    // A melody note is accented too.
+    tone.setCustomNotes([440]);
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 2;
+    tone.playWallHit(0, 523.25, true);
+    expect(graph.oscillators.at(-1)).toEqual({ type: "sine", frequency: 440, startAt: 2 });
+    expect(heard(0.35 * ACCENT_GAIN)).toBe(true);
+    tone.clearCustomNotes();
+    // Sample mode: the clip's level is scaled by the accent gain (within the 0–1 range).
+    tone.setHitSoundMode("sample");
+    tone.setHitSample("/hitSounds/click.wav");
+    tone.setHitSampleVolume(0.5);
+    await vi.waitFor(() => expect(tone.isHitSampleReady()).toBe(true));
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 3;
+    tone.playWallHit(0, 800);
+    expect(heard(0.5)).toBe(true);
+    expect(heard(0.5 * ACCENT_GAIN)).toBe(false);
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 4;
+    tone.playWallHit(0, 800, true);
+    expect(heard(0.5 * ACCENT_GAIN)).toBe(true);
+    tone.setHitSoundMode("tones");
   });
 
   it("plays a hit at the pitch the mode chose (Ball Drop), snapped to the scale, transposes a hit sample to it and lets a melody keep its notes", async () => {
