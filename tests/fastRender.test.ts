@@ -311,6 +311,7 @@ describe("fast export: sound", () => {
       playMultiplier: (n: number) => calls.push(`multiplier ${n}`),
       playInteraction: (kind: string) => calls.push(`interaction ${kind}`),
       playRaceArpeggio: (kind: string, root?: number) => calls.push(`race ${kind} ${root}`), // --- jdm-race ---
+      playStringBattle: (kind: string, f?: number) => calls.push(`sb ${kind} ${f}`), // --- odd-string-battle ---
     } as unknown as ToneGenerator;
     let breaks = 0;
     const events: SoundEvent[] = [
@@ -323,9 +324,11 @@ describe("fast export: sound", () => {
       { type: "split", wallIndex: 0 },
       { type: "hit", wallIndex: 0, frequency: 330, race: "chime" }, // --- jdm-race --- a pass
       { type: "hit", wallIndex: 0, frequency: 262, race: "fanfare" }, // --- jdm-race --- the winner
+      { type: "hit", wallIndex: 0, frequency: 523, sbSound: "pluck" }, // --- odd-string-battle --- a cut thread
+      { type: "hit", wallIndex: 0, sbSound: "shatter" }, // --- odd-string-battle --- a ball at 0 lives
     ];
     for (const ev of events) playSoundEvent(audio, ev, () => breaks++);
-    expect(calls).toEqual(["hit 2 440 true 440/550 0.5", "bumper 700", "gap", "multiplier 2", "multiplier 8", "interaction merge", "interaction split", "race chime 330", "race fanfare 262"]);
+    expect(calls).toEqual(["hit 2 440 true 440/550 0.5", "bumper 700", "gap", "multiplier 2", "multiplier 8", "interaction merge", "interaction split", "race chime 330", "race fanfare 262", "sb pluck 523", "sb shatter undefined"]);
     expect(breaks).toBe(1);
   });
 

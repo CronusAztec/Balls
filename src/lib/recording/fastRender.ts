@@ -197,6 +197,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playBumper(ev.frequency);
     return;
   }
+  // --- odd-string-battle --- a cut thread's pluck, a ball's shatter
+  if (ev.sbSound) {
+    audio.playStringBattle(ev.sbSound, ev.frequency);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
   else if (ev.type === "gap") audio.playGapPass();

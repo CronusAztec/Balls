@@ -3590,7 +3590,7 @@ const plFrameRates = async (ms) => {
 }
 // --- end fast-render ---
 // --- project-files ---
-// 26. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
+// 28. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
 // bed downloads as <name>.viralballs.json holding the settings and the track as base64. Import on a fresh page (the
 // file input, then a drop on the panel) restores the settings and the track; a JSON file that is not a project is
 // refused with a message. Share: the share button copies a ?c= link (base64url); opening it applies the setup,
@@ -3713,7 +3713,7 @@ const plFrameRates = async (ms) => {
 }
 // --- end project-files ---
 // --- jdm-race ---
-// 28. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
+// 29. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
 // length, laps, obstacle mix, camera, standings, mini-map, cup and its title, the staged winner with its warnings), controls →
 // URL, the search box, the Teams tab's note; a default race at 30+ fps whose obstacle notes are the racers' notes
 // (OscillatorNode.start is instrumented) while the standings follow the overtakes (data-race-*); a short race at 8× that
@@ -3874,7 +3874,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 // --- end jdm-race ---
 // --- jdm-arena-games ---
-// 29. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
+// 30. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
 // row, controls → URL, the search box; a battle at 8× fought to the last square standing – every other square knocked
 // out, notes played, the winner banner held before the end screen; Find Simulation finds a 30 s battle and the found
 // seed replays to its length; a capture-the-flag game won on the score (captures counted, flags back home or carried);
