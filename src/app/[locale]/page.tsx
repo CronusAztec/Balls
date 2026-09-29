@@ -10,7 +10,6 @@ import FeedbackCta from "@/components/site/FeedbackCta";
 import Features from "@/components/site/Features";
 import FAQ from "@/components/site/FAQ";
 import { FAQ_KEYS } from "@/lib/faq";
-import BlogPreview from "@/components/site/BlogPreview";
 import JsonLd from "@/components/site/JsonLd";
 import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
 
@@ -62,7 +61,6 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <FeedbackCta />
       </div>
       <FAQ />
-      <BlogPreview />
       <Footer />
     </div>
   );

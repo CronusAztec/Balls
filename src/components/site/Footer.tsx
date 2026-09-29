@@ -4,11 +4,9 @@ import { SITE_DOMAIN } from "@/lib/site";
 
 export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
   const t = useTranslations("Footer");
-  const nav = useTranslations("Navbar");
   const links: { href: string; label: string }[] = [
     { href: "/about", label: t("about") },
     { href: "/tiktok-ball-videos", label: t("tiktok") },
-    { href: "/blog", label: nav("blog") },
     { href: "/privacy", label: t("privacy") },
     { href: "/terms", label: t("terms") },
     { href: "/disclaimer", label: t("disclaimer") },

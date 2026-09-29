@@ -1,5 +1,5 @@
 /**
- * --- project-files --- Project files: `<name>.viralballs.json`.
+ * --- project-files --- Project files: `<name>.jumpingballslive.json`.
  *
  * A project holds everything needed to pick a clip up again on another computer: the whole settings object (with its
  * obstacle layout, keyframes, captions, team roster, arena and mode settings – they all live in `SimulatorSettings`),
@@ -7,7 +7,7 @@
  * base64-encoded: the ball image, the hit sample, the wall-break sound, the song slicer's song, the music bed, a
  * custom MIDI melody, the Picture Paint picture and the background picture.
  *
- *   { "format": "viralballs-project", "version": 1, "name": "…", "app": "ViralBalls", "createdAt": "…",
+ *   { "format": "jumpingballslive-project", "version": 1, "name": "…", "app": "JumpingBallsLive", "createdAt": "…",
  *     "settings": { … }, "extras": { "ballEmoji": null, "melody": "fur-elise" },
  *     "assets": { "musicBed": { "name": "bed.mp3", "type": "audio/mpeg", "size": 123456, "data": "<base64>" } } }
  *
@@ -25,10 +25,12 @@ import { SITE_NAME } from "@/lib/site";
 import { themeById } from "@/lib/themes";
 import { isModeId } from "@/lib/physics/types";
 
-export const PROJECT_FORMAT = "viralballs-project";
+export const PROJECT_FORMAT = "jumpingballslive-project";
+/** Format ids written before the rename to JumpingBallsLive; still opened. */
+export const LEGACY_PROJECT_FORMATS: readonly string[] = ["viralballs-project"];
 /** Current format version; bump it (and add a step to MIGRATIONS) when the file layout changes. */
 export const PROJECT_VERSION = 1;
-export const PROJECT_EXTENSION = ".viralballs.json";
+export const PROJECT_EXTENSION = ".jumpingballslive.json";
 /** Media above this total (bytes) get a warning before the export. */
 export const PROJECT_WARN_BYTES = 25 * 1024 * 1024;
 /** Media above this total (bytes) are refused, on export and on import. */
@@ -118,17 +120,17 @@ export function sanitizeProjectName(name: unknown): string {
   return Array.from(cleaned).slice(0, PROJECT_NAME_MAX).join("").trim();
 }
 
-/** `<name>.viralballs.json` (the name sanitised; "viralballs-project" without one). */
+/** `<name>.jumpingballslive.json` (the name sanitised; "jumpingballslive-project" without one). */
 export function projectFileName(name: string): string {
-  return `${sanitizeProjectName(name) || "viralballs-project"}${PROJECT_EXTENSION}`;
+  return `${sanitizeProjectName(name) || "jumpingballslive-project"}${PROJECT_EXTENSION}`;
 }
 
-/** The project name a file name suggests: "My clip.viralballs.json" → "My clip". */
+/** The project name a file name suggests: "My clip.jumpingballslive.json" → "My clip". */
 export function projectNameFromFileName(fileName: string): string {
-  return sanitizeProjectName(fileName.replace(/\.viralballs\.json$/i, "").replace(/\.json$/i, ""));
+  return sanitizeProjectName(fileName.replace(/\.(jumpingballslive|viralballs)\.json$/i, "").replace(/\.json$/i, ""));
 }
 
-/** True for a file the importer should read (`.viralballs.json`, any `.json`, or a JSON MIME type). */
+/** True for a file the importer should read (`.jumpingballslive.json`, any `.json`, or a JSON MIME type). */
 export function looksLikeProjectFile(file: { name: string; type?: string }): boolean {
   return /\.json$/i.test(file.name) || file.type === "application/json";
 }
@@ -341,7 +343,7 @@ export function parseProject(text: string): ProjectParseResult {
   } catch {
     return { ok: false, error: "not-json" };
   }
-  if (!isPlainObject(raw) || raw.format !== PROJECT_FORMAT || !Number.isInteger(raw.version) || (raw.version as number) < 1 || !isPlainObject(raw.settings)) return { ok: false, error: "not-project" };
+  if (!isPlainObject(raw) || (raw.format !== PROJECT_FORMAT && !LEGACY_PROJECT_FORMATS.includes(raw.format as string)) || !Number.isInteger(raw.version) || (raw.version as number) < 1 || !isPlainObject(raw.settings)) return { ok: false, error: "not-project" };
   const migrated = migrateProject(raw);
   if (!migrated) return { ok: false, error: "newer-version" };
   const assets: ProjectAssets = {};

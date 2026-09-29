@@ -48,7 +48,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
           <h2 className="text-2xl font-bold text-slate-50 pt-4">{t("h2_3")}</h2>
           <p>{t.rich("p6", { ...v, feedback: link("/feedback") })}</p>
           <h2 className="text-2xl font-bold text-slate-50 pt-4">{t("h2_4")}</h2>
-          <p>{t.rich("p7", { ...v, blog: link("/blog") })}</p>
+          <p>{t.rich("p7", v)}</p>
           <div className="pt-6 text-center">
             <Link href="/simulator" className="btn-bounce inline-flex px-7 py-3 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-blue-600 to-cyan-600">
               {t("cta")}

@@ -361,7 +361,7 @@ describe("names and times", () => {
   });
 
   it("formats the ZIP name and wall-clock times", () => {
-    expect(batchZipBase(new Date(2026, 8, 9, 7, 5))).toBe("viralballs-batch-20260909-0705");
+    expect(batchZipBase(new Date(2026, 8, 9, 7, 5))).toBe("jumpingballslive-batch-20260909-0705");
     expect(formatElapsed(0)).toBe("0:00");
     expect(formatElapsed(7400)).toBe("0:07");
     expect(formatElapsed(151_000)).toBe("2:31");

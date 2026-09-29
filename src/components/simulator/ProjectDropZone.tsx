@@ -4,7 +4,7 @@ import { useRef, useState, type DragEvent, type ReactNode } from "react";
 import { looksLikeProjectFile } from "@/lib/project";
 
 /**
- * --- project-files --- Wraps the controls panel so a `.viralballs.json` file dropped anywhere on it is imported.
+ * --- project-files --- Wraps the controls panel so a `.jumpingballslive.json` file dropped anywhere on it is imported.
  * A project file is caught in the capture phase, before the panel's own drop zones (MIDI, songs, samples, pictures,
  * wall-break sound, theme background) see it: none of them takes JSON, and each passes whatever it is given to its
  * upload handler, so a project dropped on one of them must still open as a project. Other files go through to them.

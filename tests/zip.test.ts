@@ -80,7 +80,7 @@ describe("crc32", () => {
   });
 
   it("continues over chunks", () => {
-    const data = bytes("viralballs batch render – chunked checksum");
+    const data = bytes("jumpingballslive batch render – chunked checksum");
     for (const cut of [0, 1, 7, data.length - 1, data.length]) {
       expect(crc32(data.subarray(cut), crc32(data.subarray(0, cut)))).toBe(crc32(data));
     }

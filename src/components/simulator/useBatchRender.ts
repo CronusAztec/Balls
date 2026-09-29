@@ -35,7 +35,7 @@ import type { FastExportState } from "./sections/FastExportSection";
  * with the page engine's config and the page's sound set-up – so every job first puts its settings on the page (a share
  * link's settings, a swept value: `loadPresetSettings()`; a mode: `changeMode()`, exactly as clicking the mode card does),
  * waits for the page to commit them and then starts the page's own `startFastExport()` with a `BatchExportRequest` in
- * `exportRef`: the export renders the job's seed and hands the file back instead of downloading `viralballs-export.mp4`.
+ * `exportRef`: the export renders the job's seed and hands the file back instead of downloading `jumpingballslive-export.mp4`.
  * The batch names the file (`mode-seed-duration.mp4`), downloads it (optional) and keeps it for the ZIP. "Stop after this
  * clip" lets the job in progress finish; the fast export's own Cancel aborts it and stops the batch. When the batch is
  * over the page gets its settings back – with its uploads (the preset loader keeps the live ones) and, when Find Simulation

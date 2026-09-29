@@ -1,6 +1,6 @@
 /** Central place for branding. Change these two values to rebrand the whole site. */
-export const SITE_NAME = "ViralBalls";
-export const SITE_DOMAIN = "viralballs.com";
+export const SITE_NAME = "JumpingBallsLive";
+export const SITE_DOMAIN = "jumpingballslive.com";
 
 /**
  * Sub-folder the site is served from ("" for the domain root, "/Balls" for a GitHub Pages
@@ -24,7 +24,7 @@ export function absoluteUrl(path: string): string {
 
 /**
  * Canonical URL of a localised page, with the trailing slash the static export uses:
- * pageUrl("en") → https://example.com/en/, pageUrl("pl", "/blog/x") → https://example.com/pl/blog/x/
+ * pageUrl("en") → https://example.com/en/, pageUrl("pl", "/about") → https://example.com/pl/about/
  */
 export function pageUrl(locale: string, path = ""): string {
   const clean = path.replace(/\/+$/, "");

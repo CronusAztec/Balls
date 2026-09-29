@@ -1171,14 +1171,38 @@ function clampMultiplierSettings(settings: SimulatorSettings) {
 
 /* ------------------------------------------------------------------ presets */
 
-export const PRESETS_STORAGE_KEY = "viralballs_saved_settings";
-export const ADVANCED_STORAGE_KEY = "viralballs_advanced_options";
+export const PRESETS_STORAGE_KEY = "jumpingballslive_saved_settings";
+export const ADVANCED_STORAGE_KEY = "jumpingballslive_advanced_options";
+
+/** Browser-storage keys written before the rename to JumpingBallsLive, and the keys that replaced them. */
+const LEGACY_STORAGE_KEYS: Record<string, string> = {
+  viralballs_saved_settings: PRESETS_STORAGE_KEY,
+  viralballs_advanced_options: ADVANCED_STORAGE_KEY,
+  "viralballs:race-cup": "jumpingballslive:race-cup",
+  viralballs_batch_render: "jumpingballslive_batch_render",
+};
+
+/** Moves saved presets, options, race cups and batches from the old keys to the new ones (once; no-op afterwards). */
+export function migrateLegacyStorage(): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    for (const [oldKey, newKey] of Object.entries(LEGACY_STORAGE_KEYS)) {
+      const value = localStorage.getItem(oldKey);
+      if (value === null) continue;
+      if (localStorage.getItem(newKey) === null) localStorage.setItem(newKey, value);
+      localStorage.removeItem(oldKey);
+    }
+  } catch {
+    // Storage unavailable (private mode, quota): nothing to migrate.
+  }
+}
 
 export type PresetStore = Record<string, Partial<SimulatorSettings>>;
 
 export function loadPresets(): PresetStore {
   if (typeof window === "undefined") return {};
   try {
+    migrateLegacyStorage();
     const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as PresetStore) : {};
   } catch {

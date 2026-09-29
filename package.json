@@ -1,8 +1,8 @@
 {
-  "name": "viralballs-clone",
+  "name": "jumpingballslive",
   "version": "1.0.0",
   "private": true,
-  "description": "Free browser-based ball physics simulator for TikTok, Reels and Shorts \u2013 a full-featured, editable clone of viralballs.com, exported as a static site for GitHub Pages",
+  "description": "JumpingBallsLive \u2013 free browser-based ball physics simulator for TikTok, Reels and Shorts, exported as a static site for GitHub Pages",
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/postexport.mjs",
