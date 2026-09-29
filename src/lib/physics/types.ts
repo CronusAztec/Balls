@@ -1,6 +1,7 @@
 import type { Obstacle } from "./obstacles";
 import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
+import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -164,6 +165,13 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** Team slot (0–5) the director makes win in the multi-ball escape modes; −1 or absent = off. */
   forcedWinner?: number;
   // --- end rigged ---
+  // --- timeline ---
+  /**
+   * Keyframed settings (lib/simulation/timeline.ts): the engine applies them at the start of every fixed step from the
+   * simulation clock, and the seed finder copies them with the rest of the config. Empty / absent = no automation.
+   */
+  timeline?: readonly Keyframe[];
+  // --- end timeline ---
 }
 
 export interface SoundEvent {

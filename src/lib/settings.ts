@@ -28,6 +28,7 @@ import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFie
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
+import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -369,6 +370,10 @@ export interface SimulatorSettings {
   /** Team slot (0–5) the director makes win in the multi-ball escape modes; −1 = off (URL `fw`). */
   forcedWinner: number;
   // --- end rigged ---
+  // --- timeline --- keyframes (lib/simulation/timeline.ts): numeric settings automated over the clip – none by default
+  /** `{ time, key, value }` keyframes of the settings the engine takes live; applied to the run only, never written back here (URL `kf`, e.g. `g_0_300_10_1200`). */
+  keyframes: Keyframe[];
+  // --- end timeline ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -467,6 +472,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
     ...DEFAULT_RIGGED, // --- rigged ---
+    ...defaultTimelineSettings(), // --- timeline ---
   };
 }
 
@@ -519,6 +525,7 @@ export const RANGES = {
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
   ...RIGGED_RANGES, // --- rigged ---
+  ...TIMELINE_RANGES, // --- timeline ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -743,6 +750,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
+  writeTimelineParams(settings, params); // --- timeline ---: kf
   return params;
 }
 
@@ -848,6 +856,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
   Object.assign(settings, resolveRiggedConfig(settings)); // --- rigged --- a bad team slot is off
+  readTimelineParams(params, settings, RANGES); // --- timeline ---
   return settings;
 }
 
@@ -1006,6 +1015,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
   Object.assign(merged, resolveRiggedConfig(merged)); // --- rigged --- a non-boolean flag is off, a bad team slot too
+  Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   return merged;
 }
 

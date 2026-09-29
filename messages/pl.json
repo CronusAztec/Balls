@@ -130,7 +130,9 @@
     "finderMpClosestCount": "Najbliżej: {count} w domu",
     "finderMpTestedClosest": "Sprawdzono {tested} ziaren. Najbliższy wynik to {closest} (cel: {target} ±5 %)",
     "canvasCaptionWall": "Ściana [n]/[total]",
-    "canvasCaptionQuestion": "Czy ucieknie?"
+    "canvasCaptionQuestion": "Czy ucieknie?",
+    "timelineBar": "Klatki kluczowe osi czasu",
+    "timelineMarker": "{setting}: {value} w {time} s"
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -875,7 +877,31 @@
     "forcedWinner": "Wymuszony zwycięzca",
     "forcedWinnerTip": "Wybrana piłka – jej drużyna – zawsze wygrywa: pozostałe piłki nie przejdą przez ścianę, zanim ona jej nie pokona, a reżyser kieruje jej odbicia w stronę szczelin. Pierwsza rozbija ściany i pierwsza ucieka, więc prowadzi w tablicy wyników.",
     "forcedWinnerOff": "Wyłączony – niech zdecyduje fizyka",
-    "forcedWinnerModes": "Wymaga co najmniej dwóch piłek (Liczba piłek lub skład drużyn) w trybie Klasyczny, Mnożenie, Rozbicie lub Dopasowanie kolorów."
+    "forcedWinnerModes": "Wymaga co najmniej dwóch piłek (Liczba piłek lub skład drużyn) w trybie Klasyczny, Mnożenie, Rozbicie lub Dopasowanie kolorów.",
+    "timelineTab": "Oś czasu",
+    "timeline": "Klatki kluczowe osi czasu",
+    "timelineDesc": "Automatyzuj ustawienia w trakcie klipu: wybierz ustawienie, ustaw jego wartość i dodaj klatkę kluczową w bieżącej chwili. Między dwiema klatkami wartość zmienia się liniowo; przed pierwszą i po ostatniej pozostaje stała.",
+    "timelineTip": "Klatki kluczowe biegną według zegara symulacji: pauza je wstrzymuje, 8× odtwarza je szybciej, a Uruchom ponownie zaczyna je od początku, więc Znajdź symulację i nagranie widzą ten sam przebieg. Sterują tylko przebiegiem – Twoje wartości suwaków zostają bez zmian i wracają, gdy usuniesz klatki danego ustawienia.",
+    "timelineSetting": "Ustawienie",
+    "timelineSettingTip": "Ustawienie, którym steruje następna klatka kluczowa. Dopóki ustawienie ma klatki kluczowe, jego suwak pokazuje bieżącą wartość z plakietką AUTO i jest zablokowany.",
+    "timelineRotationSpeed": "Prędkość obrotu ścian",
+    "timelineValue": "Wartość",
+    "timelineValueTip": "Własna wartość ustawienia – tę wartość dostanie następna klatka kluczowa (ta sama co na jego suwaku w panelu).",
+    "timelineNow": "Teraz",
+    "timelineAdd": "Dodaj klatkę kluczową w bieżącej chwili",
+    "timelineAddAt": "Dodaj klatkę kluczową w {time} s",
+    "timelineAddTip": "Dodaje klatkę kluczową wybranego ustawienia w bieżącym czasie symulacji (0 s przed startem) z wartością powyżej; klatka, która już jest w tej chwili, zostaje zastąpiona.",
+    "timelineLimit": "Najwyżej {max} klatek kluczowych.",
+    "timelineKeyframes": "Klatki kluczowe",
+    "timelineEmpty": "Nie ma jeszcze klatek kluczowych – każde ustawienie zachowuje wartość ze swojego suwaka.",
+    "timelineTimeOf": "Czas klatki kluczowej {n} w sekundach",
+    "timelineValueOf": "Wartość klatki kluczowej {n}",
+    "timelineRemove": "Usuń klatkę kluczową {n}",
+    "timelineUnused": "Nieużywane w tym trybie",
+    "timelineRotationOff": "Obrót jest wyłączony w sekcji Ustawienia ścian",
+    "timelineClipNote": "Pasek pod płótnem obejmuje klip ({duration} s): osobny tor dla każdego automatyzowanego ustawienia z jego klatkami kluczowymi i wskaźnik odtwarzania na zegarze symulacji. Między klatkami wartości zmieniają się płynnie, a poza nimi pozostają stałe.",
+    "timelineAuto": "Auto",
+    "timelineAutoTip": "Sterowane przez oś czasu: wartość podąża za klatkami kluczowymi. Edytuj je w sekcji Oś czasu."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
