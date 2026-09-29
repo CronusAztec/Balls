@@ -47,6 +47,8 @@ export function emptyCup(racers: number): RaceCup {
 /** The cup with `result` scored once: a new cup when there is none or its racer count differs; `cup` itself when this run is already in it. */
 export function addRaceToCup(cup: RaceCup | null, result: RaceResult, runKey: string): RaceCup {
   if (cup && cup.racers === result.racers && runKey !== "" && cup.lastRun === runKey) return cup;
+  // A race nobody finished is no race of the cup (nothing to score, nothing counted).
+  if (result.order.length === 0) return cup && cup.racers === result.racers ? cup : emptyCup(result.racers);
   const base = cup && cup.racers === result.racers ? cup : emptyCup(result.racers);
   const next: RaceCup = { version: RACE_CUP_VERSION, racers: base.racers, races: base.races + 1, points: [...base.points], places: base.places.map((p) => [...p]), lastRun: runKey };
   result.order.forEach((racer, index) => {
@@ -153,8 +155,9 @@ export class RaceCupStore {
     return this.cup;
   };
 
-  /** Scores a race (once per run key) and saves the cup. */
+  /** Scores a race (once per run key) and saves the cup; a race nobody finished leaves the cup as it is. */
   addRace(result: RaceResult, runKey: string) {
+    if (result.order.length === 0) return;
     const current = this.get();
     const next = addRaceToCup(current, result, runKey);
     if (next === current) return;

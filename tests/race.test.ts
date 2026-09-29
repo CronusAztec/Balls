@@ -4,7 +4,9 @@ import {
   COUNTDOWN_MS,
   CUP_MS,
   DEFAULT_RACE_SETTINGS,
+  MAX_RACE_MS,
   PODIUM_MS,
+  RACE_MS_PER_SCREEN,
   RACE_RANGES,
   RaceMode,
   currentCallout,
@@ -13,6 +15,7 @@ import {
   favouredRacer,
   raceMotion,
   raceSettingsOf,
+  raceTimeLimitMs,
   racerNote,
   readRaceParams,
   resolveRaceFields,
@@ -43,6 +46,7 @@ import {
 import { F1_POINTS, LeaderClock, pointsForPlace, rankRacers } from "@/lib/physics/raceStandings";
 import { RaceCupStore, addRaceToCup, emptyCup, parseCup, racePoints, rankCup } from "@/lib/raceCup";
 import { RACE_COLORS, raceRoster } from "@/lib/raceRoster";
+import { podiumRest, raceResultOf, writeRaceDataset } from "@/components/simulator/raceRenderer";
 import { raceArpeggioLength, raceArpeggioNotes } from "@/lib/audio/raceTones";
 import { segmentEndpoints, type SegmentObstacle } from "@/lib/physics/obstacles";
 import { createEngineForSettings, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -394,6 +398,20 @@ describe("race standings and points", () => {
     expect(fresh).toMatchObject({ racers: 6, races: 1 });
     expect(fresh.points[5]).toBe(25);
     expect(emptyCup(3).places).toEqual([[0, 0, 0], [0, 0, 0], [0, 0, 0]]);
+    // A race nobody finished is not a race of the cup: nothing scored, nothing counted.
+    expect(addRaceToCup(three, { racers: 4, order: [] }, "a:5")).toBe(three);
+    expect(addRaceToCup(null, { racers: 4, order: [] }, "a:6")).toEqual(emptyCup(4));
+  });
+
+  it("lists the standings under the podium from the first racer the podium steps do not show", () => {
+    const order = [4, 1, 0, 2, 3, 5, 6, 7];
+    expect(podiumRest({ order, finishOrder: [4, 1, 0, 2, 3] })).toEqual({ firstPlace: 4, racers: [2, 3, 5, 6, 7] });
+    // One finisher and seven DNFs: the list starts right after the winner, so no DNF is left out.
+    expect(podiumRest({ order, finishOrder: [4] })).toEqual({ firstPlace: 2, racers: [1, 0, 2, 3, 5, 6, 7] });
+    expect(podiumRest({ order, finishOrder: [] })).toEqual({ firstPlace: 1, racers: order });
+    expect(podiumRest({ order: [1, 0], finishOrder: [1, 0] })).toEqual({ firstPlace: 3, racers: [] });
+    const sixteen = Array.from({ length: 16 }, (_, i) => i);
+    expect(podiumRest({ order: sixteen, finishOrder: sixteen })).toEqual({ firstPlace: 4, racers: sixteen.slice(3, 11) });
   });
 
   it("reads back only valid cups", () => {
@@ -411,8 +429,12 @@ describe("race standings and points", () => {
     let heard = 0;
     const off = store.subscribe(() => heard++);
     expect(store.get()).toBeNull();
+    store.addRace({ racers: 2, order: [] }, "p:0");
+    expect(store.get()).toBeNull();
+    expect(heard).toBe(0);
     store.addRace({ racers: 2, order: [1, 0] }, "p:1");
     store.addRace({ racers: 2, order: [1, 0] }, "p:1");
+    store.addRace({ racers: 2, order: [] }, "p:2");
     expect(store.get()).toMatchObject({ races: 1, points: [18, 25] });
     expect(heard).toBe(1);
     store.reset();
@@ -632,6 +654,77 @@ describe("race mode in the engine", () => {
     }
     expect(dnfGraceMs(10000)).toBe(12000);
     expect(dnfGraceMs(60000)).toBe(30000);
+  });
+
+  it("scales the time limit with the track, the Ball Speed and the Gravity – and only ever lengthens it during a run", () => {
+    expect(raceTimeLimitMs(8, 400, 300)).toBe(MAX_RACE_MS);
+    expect(raceTimeLimitMs(100, 400, 300)).toBe(100 * RACE_MS_PER_SCREEN);
+    expect(raceTimeLimitMs(100, 200, 300)).toBe(200 * RACE_MS_PER_SCREEN);
+    expect(raceTimeLimitMs(100, 400, 150)).toBe(200 * RACE_MS_PER_SCREEN);
+    expect(raceTimeLimitMs(3, 50, 0)).toBeCloseTo((3 * RACE_MS_PER_SCREEN) / (0.25 * 0.3), 6);
+    expect(raceTimeLimitMs(100, 800, 2000)).toBe(MAX_RACE_MS);
+    expect(raceTimeLimitMs(Number.NaN, 400, 300)).toBe(MAX_RACE_MS);
+    const engine = raceEngine({ trackLength: 20, laps: 5 }, 1);
+    const view = engine.getRaceView();
+    expect(view.timeLimitMs).toBe(100 * RACE_MS_PER_SCREEN);
+    engine.setConfig({ ballSpeed: 200 });
+    engine.update(1000 / 60, 0);
+    expect(view.timeLimitMs).toBe(200 * RACE_MS_PER_SCREEN);
+    engine.setConfig({ ballSpeed: 800 });
+    engine.update(1000 / 60, 0);
+    expect(view.timeLimitMs).toBe(200 * RACE_MS_PER_SCREEN);
+    // A new run takes the limit of its own tempo (Ball Speed 800: twice as fast, half the limit).
+    engine.initRace();
+    expect(view.timeLimitMs).toBe(50 * RACE_MS_PER_SCREEN);
+    engine.setConfig({ ballSpeed: 400 });
+    engine.initRace();
+    expect(view.timeLimitMs).toBe(100 * RACE_MS_PER_SCREEN);
+    const data: Record<string, string> = {};
+    writeRaceDataset(view, (key, value) => (data[key] = value));
+    expect(data.raceTimeLimit).toBe(String((100 * RACE_MS_PER_SCREEN) / 1000));
+  });
+
+  it("finishes the longest tracks: a winner (the favourite when staged), a podium and a fanfare – never cut off by the limit", () => {
+    // 20 screens × 5 laps took over four minutes – past the old fixed 240 s limit, which ended these seeds with nobody home.
+    for (const race of [{ trackLength: 20, laps: 5 }, { trackLength: 20, laps: 5, winner: 2 }, { trackLength: 20, laps: 5, racers: 2 }] as Partial<RaceSettings>[]) {
+      for (const seed of [1, 2, 3]) {
+        const label = `${JSON.stringify(race)} seed ${seed}`;
+        const engine = raceEngine(race, seed, { width: 790, height: 444 });
+        const view = engine.getRaceView();
+        const { sounds } = runRace(engine, 2_000_000);
+        expect(engine.isSimulationFinished(), label).toBe(true);
+        expect(view.winner, label).toBeGreaterThanOrEqual(0);
+        if (race.winner !== undefined) expect(view.winner, label).toBe(race.winner);
+        expect(view.finishOrder[0], label).toBe(view.winner);
+        expect(view.finishOrder.length, label).toBeGreaterThanOrEqual(Math.min(3, view.racers));
+        expect(view.completeAtMs - view.goAtMs, label).toBeLessThan(view.timeLimitMs);
+        expect(sounds.filter((e) => e.race === "fanfare"), label).toHaveLength(1);
+        expect(raceResultOf(view).order.length, label).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("places everybody still racing when the time limit comes before anybody finishes: the favourite first, then by the standings", () => {
+    for (const race of [{ trackLength: 20, laps: 5 }, { trackLength: 20, laps: 5, winner: 5 }] as Partial<RaceSettings>[]) {
+      const engine = raceEngine(race, 2);
+      const view = engine.getRaceView();
+      // Squeeze the limit to 20 s (the track needs minutes), so the backstop is what ends the race.
+      Object.defineProperty(view, "timeLimitMs", { configurable: true, get: () => 20000, set: () => {} });
+      const { sounds } = runRace(engine);
+      const label = JSON.stringify(race);
+      expect(engine.isSimulationFinished(), label).toBe(true);
+      expect(view.completeAtMs - view.goAtMs, label).toBeGreaterThanOrEqual(20000);
+      expect(view.completeAtMs - view.goAtMs, label).toBeLessThan(20000 + 20);
+      expect(view.finishOrder, label).toHaveLength(8);
+      expect(new Set(view.finishOrder).size, label).toBe(8);
+      expect(Array.from(view.place.subarray(0, 8)).every((p) => p > 0), label).toBe(true);
+      expect(view.order.slice(0, 8), label).toEqual(view.finishOrder);
+      expect(view.winner, label).toBe(view.finishOrder[0]);
+      if (race.winner !== undefined) expect(view.winner, label).toBe(race.winner);
+      expect(sounds.filter((e) => e.race === "fanfare"), label).toHaveLength(1);
+      expect(currentCallout(view, view.completeAtMs)?.kind, label).toBe("winner");
+      expect(podiumRest(view).firstPlace, label).toBe(4);
+    }
   });
 
   it("scales gravity and top speed with the Gravity and Ball Speed settings", () => {

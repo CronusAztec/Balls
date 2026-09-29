@@ -3507,6 +3507,22 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("a staged race is won by the favoured racer", podium && data.raceWinner === "3", `(podium=${podium}, ${JSON.stringify(data)})`);
   await page.screenshot({ path: path.join(outDir, "sim-race-podium.png") });
 }
+// The longest track (20 screens × 5 laps, minutes of racing) at 8×: the time limit grows with the track (800 s here, the
+// default race's 240 s), so the race is never cut off before anybody is home – the staged favourite (racer 2) wins it.
+await page.goto(`${BASE}/en/simulator/?mode=race&rcl=20&rclp=5&rcw=2`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const limit = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.raceTimeLimit, null, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => "");
+  const podium = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "podium", null, { timeout: 240000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check(
+    "the longest track is raced to the finish: the time limit grows with it and the staged favourite wins",
+    limit === "800" && podium && data.raceWinner === "2" && Number(data.raceFinished) >= 3,
+    `(limit ${limit}s, podium=${podium}, ${JSON.stringify({ winner: data.raceWinner, finished: data.raceFinished, phase: data.racePhase, lap: data.raceLap })})`,
+  );
+  if (podium) await page.screenshot({ path: path.join(outDir, "sim-race-long-podium.png") });
+}
 // The finder times races: every seed builds another track, so a 30 s run is found among the seeds.
 await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
