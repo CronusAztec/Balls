@@ -34,6 +34,7 @@ import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/c
 // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
 import { ObstacleEditorLayer, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
+import { CaptionLayer, type CanvasCaptionOptions } from "./captionsRenderer"; // --- captions ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -164,6 +165,8 @@ export interface CanvasProps {
   obstacleEditing?: boolean;
   /** A drag (on release) or a delete on the canvas changed the obstacle list. */
   onObstaclesChange?: (obstacles: EditorObstacle[]) => void;
+  /** --- captions --- Animated captions drawn in the exported square on the simulation clock (null = none); see captionsRenderer.ts. */
+  captions?: CanvasCaptionOptions | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -276,6 +279,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     camera = DEFAULT_CAMERA_SETTINGS, // --- camera ---
     obstacleEditing = false, // --- obstacle-editor ---
     onObstaclesChange,
+    captions = null, // --- captions ---
   },
   ref,
 ) {
@@ -320,6 +324,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const onObstaclesChangeRef = useRef(onObstaclesChange);
   onObstaclesChangeRef.current = onObstaclesChange;
   // --- end obstacle-editor ---
+  // --- captions --- the caption options, read by the draw loop
+  const captionsRef = useRef<CanvasCaptionOptions | null>(captions);
+  captionsRef.current = captions;
+  const captionLayerRef = useRef<CaptionLayer | null>(null);
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -456,7 +464,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
     },
     // --- end themes
-    holdsEndScreen: () => cinematicRef.current?.holdsEndScreen() ?? false, // --- camera ---
+    holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
   }));
 
   useEffect(() => {
@@ -563,6 +571,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
     const cam = new CinematicCamera();
     cinematicRef.current = cam;
+    const captionLayer = new CaptionLayer(); // --- captions ---
+    captionLayerRef.current = captionLayer;
     // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
     const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
     // --- boris-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
@@ -2073,6 +2083,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
       }
 
+      // --- captions --- countdown, wall counter, progress bar, question and text captions inside the exported square (so
+      // recordings have them), animated on the simulation clock; live, they keep clear of the page's buttons and the scoreboard
+      const captionOptions = captionsRef.current;
+      if (captionOptions) {
+        const side = Math.min(size.width, size.height);
+        const live = !recordingRef.current && (size.width - side) / 2 < 170;
+        captionLayer.draw(ctx, engine, captionOptions, { width: size.width, height: size.height, insetTop: live ? 52 : 0, insetBottom: live ? 56 : 0, topMin: teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 });
+      } else captionLayer.clear();
+
       // Song slicer: thin progress bar along the bottom edge (part of the recording too)
       const songProgress = songProgressRef.current;
       if (songProgress !== null) {
@@ -2111,7 +2130,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
       // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
       const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
-      const replayAtBottom = (!!p.topText || scoreboardBottom > 0) && !p.bottomText;
+      const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       ctx.restore();
 
@@ -2199,6 +2218,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
       } else if (canvas.dataset.teams !== undefined) {
         for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard"]) delete canvas.dataset[key];
+      }
+      // --- captions --- captions drawn, the values they show ("0:27 | Wall 2/7 | Will it escape? → YES!") and the answer's reveal (data-caption-*)
+      if (captionOptions) {
+        setCanvasData("captions", String(captionLayer.drawn));
+        setCanvasData("captionTexts", captionLayer.summary);
+        setCanvasData("captionReveal", captionLayer.revealed ? "1" : "0");
+      } else if (canvas.dataset.captions !== undefined) {
+        for (const key of ["captions", "captionTexts", "captionReveal"]) delete canvas.dataset[key];
       }
       // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME and the camera (data-glass-*) for tools and the smoke test.
       if (glassView) {

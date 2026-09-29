@@ -1827,9 +1827,61 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.screenshot({ path: path.join(outDir, "sim-multipliers-home.png") });
 }
 // --- end boris-multipliers ---
+// --- captions ---
+// 19. Animated captions: a link with a countdown, a wall counter, a progress bar and a question fills the Captions
+// section; a caption added from the panel lands in the link; the search box finds the caption fields; a Classic
+// run shows them on the canvas (data-caption-*), the countdown counts down, and at 8× the question's answer is
+// revealed when the ball escapes, with every wall counted; a Target run answered at its finish holds the end screen
+// until the answer is seen; the captions survive a mode change.
+{
+  const cap = ["cd*t*0*0*p*1.2*ffffff*000000", "wc*t*0*0*s*1*93d119*000000", "pg*b*0*0*f*1*93d119*27272a", "q*c*0*0*p*1.3*ffffff*000000*Will it escape?*YES!"].join(",");
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=30&cap=${encodeURIComponent(cap)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Captions/ }).first().click();
+  const rows = page.getByTestId("caption-row");
+  const types = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-caption-type")));
+  check("captions from the link fill the Captions section", types.join(",") === "countdown,wallCounter,progress,question", `(${types.join(",")})`);
+  await page.getByTestId("caption-add-text").click();
+  await page.waitForTimeout(400);
+  const linked = new URL(page.url()).searchParams.get("cap") ?? "";
+  check("a caption added in the panel lands in the link", (await rows.count()) === 5 && linked === `${cap},tx*b*0*0*f*1*ffffff**Watch till the end!`, `(${await rows.count()} rows, cap=${linked.slice(-60)})`);
+  await page.getByPlaceholder("Search settings...").fill("answer");
+  const answerField = await page.locator('input[aria-label="Caption 4 answer"]').inputValue().catch(() => null);
+  check("the search box finds the caption fields", answerField === "YES!", `(answer field: ${answerField})`);
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  const texts = early.captionTexts ?? "";
+  check("captions show on the canvas while the run plays", Number(early.captions) === 5 && /\b0:(29|30|28)\b/.test(texts) && /Wall \d\/7/.test(texts) && texts.includes("Will it escape?") && texts.includes("Watch till the end!") && early.captionReveal === "0", `(${early.captions} drawn: "${texts}", reveal=${early.captionReveal})`);
+  await page.screenshot({ path: path.join(outDir, "sim-captions.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const revealed = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.captionReveal === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(800);
+  const late = await canvasData();
+  const lateTexts = late.captionTexts ?? "";
+  const clock = /\b(\d+):(\d\d)\b/.exec(lateTexts);
+  const secondsLeft = clock ? 60 * Number(clock[1]) + Number(clock[2]) : -1;
+  check("the question's answer pops in at the escape, the wall counter reads every wall and the countdown ran down", revealed && lateTexts.includes("Will it escape? → YES!") && lateTexts.includes("Wall 7/7") && secondsLeft >= 0 && secondsLeft < 28, `(revealed=${revealed}, "${lateTexts}")`);
+  await page.screenshot({ path: path.join(outDir, "sim-captions-reveal.png") });
+  // A run whose answer comes with its finish (Target: the ring never opens) holds the end screen while the answer pops in.
+  await page.goto(`${BASE}/en/simulator/?mode=target&tc=5&cap=${encodeURIComponent("q*t*0*0*p*1.3*ffffff*000000*Done?*YES!")}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const answered = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.captionReveal === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const heldAtReveal = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  const targetTexts = (await canvasData()).captionTexts ?? "";
+  check("a question answered at the finish holds the end screen until the answer is seen", answered && heldAtReveal && endScreen && targetTexts.includes("Done? → YES!"), `(revealed=${answered}, held=${heldAtReveal}, end screen=${endScreen}, "${targetTexts}")`);
+  await page.goto(`${BASE}/en/simulator/?mode=classic&cap=${encodeURIComponent(cap)}`, { waitUntil: "networkidle" });
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.waitForTimeout(500);
+  const after = new URL(page.url()).searchParams;
+  check("captions carry over a mode change", after.get("mode") === "portal" && after.get("cap") === cap, `(mode=${after.get("mode")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
+}
+// --- end captions ---
 
 // --- obstacle-editor ---
-// 19. Obstacle editor: URL → the Obstacles section (a row per obstacle, the bumper boost) and the canvas (data-obstacles),
+// 20. Obstacle editor: URL → the Obstacles section (a row per obstacle, the bumper boost) and the canvas (data-obstacles),
 // the ready screen shrinks to a bar so the obstacles stay visible and editable; a mouse drag moves a peg (the URL follows
 // on release), a click + Backspace deletes a bumper, a touch drag (pointerType "touch") moves the blocker, the dropdown
 // adds a spinner on a free spot; a run at 8× hits the obstacles (hits, bumper kicks, the spinner turning), pausing makes

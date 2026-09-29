@@ -42,6 +42,9 @@ import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
+// --- captions ---
+import type { CanvasCaptionOptions } from "./captionsRenderer";
+import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
 import {
   RANGES,
   defaultSettings,
@@ -574,6 +577,7 @@ export default function Simulator() {
       Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
+      Object.assign(fresh, captionCarryOver(themeLookRef.current)); // --- captions --- the captions are overlays: they carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1312,6 +1316,13 @@ export default function Simulator() {
   }, [settings.teams, settings.mode]);
   // --- end teams ---
 
+  // --- captions --- the captions, the clip length their countdown / progress run to and the translated canvas words (null without captions)
+  const captionRender = useMemo<CanvasCaptionOptions | null>(
+    () => captionRenderOptions(s, { wall: t("Simulator.canvasCaptionWall"), question: t("Simulator.canvasCaptionQuestion") }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.captions, s.recordingDuration, t],
+  );
+
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings) });
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
@@ -1377,6 +1388,7 @@ export default function Simulator() {
                   // --- obstacle-editor ---
                   obstacleEditing={obstacleEditing}
                   onObstaclesChange={onObstaclesChange}
+                  captions={captionRender} // --- captions ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
