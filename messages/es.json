@@ -1303,7 +1303,26 @@
     "pdSpeedUpTip": "Cada atrapada hace el vuelo un poco más rápido (hasta el doble): cuanto más dura el juego, más difícil se vuelve.",
     "pdInfoPerfect": "Con un 100% de habilidad el controlador nunca falla: el juego no termina (Buscar simulación necesita una habilidad menor).",
     "pdInfoAuto": "{lives} vidas: los fallos del controlador salen de la semilla, así que Buscar simulación puede cronometrar el fin del juego.",
-    "pdInfoManual": "Mueve la plataforma con el puntero o con ← →. Buscar simulación necesita la plataforma automática."
+    "pdInfoManual": "Mueve la plataforma con el puntero o con ← →. Buscar simulación necesita la plataforma automática.",
+    "modeVortex": "Vórtice sonoro",
+    "vxTitle": "Vórtice",
+    "vxDesc": "Las bolas entran por el borde una tras otra y caen en espiral hacia el agujero, atraídas por el centro. Cada anillo sonoro que cruza una bola toca la nota siguiente de tu escala (la Escala y la Nota fundamental de los ajustes de sonido); el agujero se la traga con un «pew».",
+    "vxBalls": "Bolas del vórtice",
+    "vxBallsTip": "Cuántas bolas bajan por el vórtice (1–30). Cada una toca todos los anillos en su camino, así que más bolas dan arpegios más densos.",
+    "vxStagger": "Intervalo de entrada",
+    "vxStaggerTip": "Segundos entre la entrada de dos bolas por el borde. Con 0 entran todas a la vez, repartidas por el borde; un intervalo más largo convierte las notas en un canon.",
+    "vxRings": "Anillos sonoros",
+    "vxRingsTip": "Cuántos anillos hay entre el borde y el agujero (6–24). El anillo del borde toca la nota más grave y cada anillo más adentro, la siguiente nota de la escala.",
+    "vxDuration": "Tiempo de espiral",
+    "vxDurationTip": "Segundos que tarda una bola del borde al agujero. Los anillos están espaciados para que los cruce a un tempo constante; la semilla varía ese tempo hasta un ±8 %, y eso es lo que busca Buscar simulación.",
+    "vxGravity": "Atracción central",
+    "vxGravityTip": "Con qué fuerza tira el centro. Marca el giro –cuántas vueltas da una bola al bajar–, no cuánto tarda el viaje.",
+    "vxDepthScale": "Efecto de profundidad",
+    "vxDepthScaleTip": "Sensación 3D: las bolas se encogen al hundirse hacia el agujero y la garganta del embudo se oscurece. Con 0 todo queda plano.",
+    "vxLoop": "Bucle de reaparición",
+    "vxLoopTip": "Una bola tragada vuelve enseguida al borde, así que el vórtice nunca termina: ideal para bucles largos, pero Buscar simulación no tiene nada que medir.",
+    "vxRunInfo": "{notes} notas de anillos; el recorrido dura unos {seconds}s (el tempo de la semilla: {min}–{max}s), así que Buscar simulación puede acertar una duración en esa franja.",
+    "vxRunEndless": "El bucle de reaparición está activado: las bolas vuelven sin fin, así que el recorrido nunca termina y Buscar simulación se oculta. Desactiva el bucle para buscar una semilla para la duración de tu clip."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1376,6 +1395,10 @@
     "paddle": {
       "name": "Pelota en la plataforma",
       "description": "Mantén la pelota en juego con una plataforma que se desliza a izquierda y derecha: cada atrapada es una nota y los golpes fuera del centro la mandan de lado con efecto contra las paredes y el techo, hasta que se acaban los fallos y llega el fin del juego."
+    },
+    "vortex": {
+      "name": "Vórtice sonoro",
+      "description": "¡Pew! Las bolas caen en un remolino de anillos sonoros y bajan en espiral hasta el agujero del centro: cada anillo que cruzan toca la nota siguiente, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. Al fondo, el agujero se las traga con un «pew» y un chapoteo."
     }
   },
   "Features": {
@@ -1528,7 +1551,8 @@
     "modeBattle": "Sin anillos: de 2 a 20 cuadrados con puntos de vida rebotan en una caja o un círculo y chocan entre sí. Cuando dos se golpean, el más rápido hace un daño proporcional a la velocidad con la que se acercan; el cuadrado golpeado parpadea y encoge un poco, y a 0 PV estalla en pedazos con un cartel de KO. Una zona segura opcional se cierra desde el octavo segundo y empuja a los supervivientes unos contra otros, y los potenciadores de curación, escudo y velocidad aparecen en momentos marcados por la semilla. El último cuadrado en pie gana bajo un cartel con confeti. Todo depende de la semilla, así que Buscar simulación puede encontrar una batalla de la duración que quieras.",
     "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip.",
     "modeRunner": "El corredor rítmico de project.jdm «gravedad realista en Geometry Dash», sin anillos: un cuadrado corre por el suelo a velocidad constante bajo una cámara que se desplaza. El recorrido se planifica sobre los pulsos de la canción cargada (su pulso detectado, el mismo detector que Pintar una imagen) o del BPM: para cada obstáculo (una fila de pinchos, un foso, un bloque al que subir y del que luego bajar) el solucionador de saltos toma el tiempo de vuelo de un salto con gravedad real y velocidad de despegue fija y ajusta el despegue para que el aterrizaje caiga justo en un pulso. Con el salto automático el cuadrado salta en esos momentos y nunca falla; sin él saltas con Espacio y un choque reinicia el tramo. Cada aterrizaje toca la siguiente nota con una nube de polvo; la meta toca un acorde.",
-    "modePaddle": "El formato «Ball Bounce Game with Moving Platform», sin anillos: una pelota cae con gravedad real sobre una plataforma que se desliza a izquierda y derecha; al atraparla sale despedida hacia arriba (más alto desde el centro, más bajo y de lado con efecto desde los bordes), así que recorre las paredes y el techo, y cada atrapada toca la siguiente nota. El controlador automático predice cada aterrizaje y va hacia allí; su Habilidad decide cuántas veces llega antes o después de tiempo, así que los fallos (y el fin del juego tras los permitidos) son deterministas para una semilla. También puedes mover la plataforma tú."
+    "modePaddle": "El formato «Ball Bounce Game with Moving Platform», sin anillos: una pelota cae con gravedad real sobre una plataforma que se desliza a izquierda y derecha; al atraparla sale despedida hacia arriba (más alto desde el centro, más bajo y de lado con efecto desde los bordes), así que recorre las paredes y el techo, y cada atrapada toca la siguiente nota. El controlador automático predice cada aterrizaje y va hacia allí; su Habilidad decide cuántas veces llega antes o después de tiempo, así que los fallos (y el fin del juego tras los permitidos) son deterministas para una semilla. También puedes mover la plataforma tú.",
+    "modeVortex": "El formato «sound vortex, pew» de borisbounces, sin anillos de los que escapar: un remolino visto desde arriba –un embudo de 6 a 24 anillos sonoros concéntricos sobre brazos de espiral luminosos, con un agujero en el centro–. Una bola tras otra entra por el borde con velocidad lateral y baja en espiral atraída por una fuerza que crece hacia el centro, con un poco de rozamiento; tarda el Tiempo de espiral en llegar al agujero y gira cada vez más deprisa por el camino. Cada anillo que cruza toca la nota siguiente de tu escala –con melodía, instrumento, muestra de golpe y ajuste al compás incluidos–, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. El agujero se la traga con un «pew», un barrido rápido de tono hacia abajo, y un chapoteo; con el bucle activado vuelve al borde. Las bolas se encogen con la profundidad para dar sensación 3D y cada recorrido es determinista, así que Buscar simulación puede elegir una semilla para la duración de tu clip."
   },
   "Footer": {
     "about": "Acerca de",
@@ -1865,5 +1889,12 @@
     "gameOverSub": "Puntos: [hits] · mejor racha: [best]",
     "streak": "[n] seguidas",
     "moveHint": "← → o el puntero mueven la plataforma"
+  },
+  "Vortex": {
+    "canvasTitle": "VÓRTICE SONORO",
+    "canvasSwallowed": "[count] / [total] tragadas",
+    "canvasPews": "[count] × PEW",
+    "canvasDone": "¡PEW!",
+    "canvasDoneSub": "[balls] bolas tragadas · [notes] notas"
   }
 }
