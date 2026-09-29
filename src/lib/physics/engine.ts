@@ -1039,13 +1039,49 @@ export class PhysicsEngine {
   private editorObstaclesLive(): boolean {
     return this.editorObstacles.count > 0 && supportsObstacles(this.currentMode?.name);
   }
-  /** Resolves `ball` against the creator's obstacles after it moved, before the ring walls (see `ObstacleField.collide()`). */
+  /**
+   * Resolves `ball` against the creator's obstacles after it moved, before the ring walls (see `ObstacleField.collide()`).
+   * The push-out ignores the rings, and the ring pass judges a ball's side of a ring by its centre: a push that carried
+   * the centre across an intact ring would make that ring resolve the ball on the far side (a sealed ring would eject a
+   * big Grow ball pressed onto a spinner). `keepRingSide()` moves such a ball back to the side it was on.
+   */
   private handleEditorObstacles(ball: Ball, dtSec: number) {
     const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness;
     const baseSpeed = this._config.ballSpeed || 400;
     // A ball pressed onto a bar by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
     const resting = (3 * this._config.gravity * baseSpeed * dtSec * (ball.gravityScale ?? 1)) / 300;
+    const cx = this._config.width / 2;
+    const cy = this._config.height / 2;
+    const before = Math.hypot(ball.x - cx, ball.y - cy);
     this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents);
+    if (this.circularWalls.length > 0) this.keepRingSide(ball, before, cx, cy);
+  }
+
+  /**
+   * Undoes an obstacle push-out that carried the ball's centre across an intact ring: the ball goes back radially to
+   * half a pixel on the side it was on (`before` = its distance from the centre before the push), so the ring pass
+   * resolves it from there – against the innermost ring crossed on the way out, the outermost one on the way in. A
+   * ring's side is judged by the radius the next ring pass judges it by (where a breathing wall was before its last
+   * move). No random numbers, no allocation.
+   */
+  private keepRingSide(ball: Ball, before: number, cx: number, cy: number) {
+    const dx = ball.x - cx;
+    const dy = ball.y - cy;
+    const after = Math.hypot(dx, dy);
+    if (after === before || after === 0) return;
+    const walls = this.circularWalls;
+    const prev = this.wallPrevRadii;
+    const outwards = after > before;
+    let crossed = -1;
+    for (let w = 0; w < walls.length; w++) {
+      if (this.brokenWalls.has(w)) continue;
+      const R = this.breathing && w < prev.length ? prev[w] : walls[w].radius;
+      if (outwards ? before < R && R <= after && (crossed < 0 || R < crossed) : before > R && R >= after && R > crossed) crossed = R;
+    }
+    if (crossed < 0) return;
+    const k = (outwards ? crossed - 0.5 : crossed + 0.5) / after;
+    ball.x = cx + dx * k;
+    ball.y = cy + dy * k;
   }
   // --- end obstacle-editor ---
   getElapsedMs() {

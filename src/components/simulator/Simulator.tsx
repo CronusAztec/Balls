@@ -453,6 +453,9 @@ export default function Simulator() {
     if (!engine) return;
     engine.setConfig(obstacleConfigOf(s));
     engine.setSeed(null);
+    // The found seed is gone with the old layout, so its promise goes too: the ready bar and the finder panel stop quoting
+    // its duration. (This runs only when the layout or the boost really changed – the finder touches neither.)
+    setSearchResult((r) => (r?.found ? null : r));
   }, [s.obstacles, s.bumperBoost]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end obstacle-editor ---
   useEffect(() => {
@@ -826,11 +829,13 @@ export default function Simulator() {
     if (!isStarted) await start();
     recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
     await audioRef.current?.start();
-    canvasRef.current?.setRecording(true);
+    const resolution = resolutionToSize(settings.recordingResolution);
+    // The canvas starts the captions' clip clock here and keeps them clear of the text lines the recorder draws.
+    canvasRef.current?.setRecording(true, resolution);
     setIsRecording(true);
     const ok = await recorderRef.current.startRecording({
       mimeType: "video/mp4",
-      resolution: resolutionToSize(settings.recordingResolution),
+      resolution,
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
       // --- themes: the letterbox bars of the export continue the gradient / picture background
@@ -1537,13 +1542,21 @@ export default function Simulator() {
               {/* --- obstacle-editor --- with a layout in play the ready screen shrinks to a bar at the top, so the obstacles stay visible and draggable */}
               {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
                 <div className="absolute inset-x-0 top-0 flex justify-center p-3 sm:p-4 pointer-events-none" data-testid="obstacle-ready-bar">
-                  <div className="pointer-events-auto flex items-center justify-center gap-4 p-1.5 sm:px-4 sm:py-2.5 bg-slate-950/75 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl shadow-cyan-500/10">
-                    <span className="hidden sm:inline text-sm font-medium text-slate-300">
-                      {searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}
-                    </span>
-                    <button type="button" onClick={start} className="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-sm transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
-                      {t("Simulator.startSimulator")}
-                    </button>
+                  <div className="pointer-events-auto flex flex-col items-center gap-1.5 p-1.5 sm:px-4 sm:py-2.5 bg-slate-950/75 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl shadow-cyan-500/10">
+                    <div className="flex items-center justify-center gap-4">
+                      <span className="hidden sm:inline text-sm font-medium text-slate-300">
+                        {searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}
+                      </span>
+                      <button type="button" onClick={start} className="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-sm transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
+                        {t("Simulator.startSimulator")}
+                      </button>
+                    </div>
+                    {/* A found seed holds only while nothing changes – moving an obstacle included (it drops the seed). */}
+                    {searchResult?.found && (
+                      <p className="max-w-sm px-2 text-center text-[11px] leading-snug text-amber-500/90 font-medium" data-testid="obstacle-ready-warning">
+                        {t("Simulator.doNotChangeSettingsWarning")}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

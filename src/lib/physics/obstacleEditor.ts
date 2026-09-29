@@ -63,6 +63,25 @@ export const MAX_OBSTACLES = 24;
 export const DEFAULT_BUMPER_BOOST = 1.3;
 /** A bumper never kicks a ball past this multiple of the ball speed setting (the ring rebound resets it anyway). */
 export const BUMPER_SPEED_CAP = 3;
+/**
+ * A ring only catches a ball whose centre lands within `ball.radius + RING_CAPTURE_MARGIN` px of it (the engine's
+ * `processWallCollisions()` band) and judges the side by the centre: a ball crossing more than that in one sub-step
+ * lands on the far side and is resolved there – it tunnels through an intact, even a sealed ring.
+ */
+export const RING_CAPTURE_MARGIN = 2;
+/** Share of that capture band a ball the obstacles sped up may cover in one sub-step. */
+export const RING_CAPTURE_SHARE = 0.9;
+
+/**
+ * The fastest (px/s) the obstacles may leave a ball of `radius` px that met them at `speedIn` px/s: a spinner's fling
+ * or a bumper's kick keeps the larger of its incoming speed and BUMPER_SPEED_CAP × the ball speed setting (`baseSpeed`),
+ * but never covers more than RING_CAPTURE_SHARE of a ring's capture band in one sub-step of `dtSec` – so the next ring
+ * still catches it. Applied only when the obstacles made the ball faster than it came in.
+ */
+export function obstacleSpeedLimit(speedIn: number, radius: number, baseSpeed: number, dtSec: number): number {
+  const band = dtSec > 0 ? (RING_CAPTURE_SHARE * (radius + RING_CAPTURE_MARGIN)) / dtSec : Infinity;
+  return Math.min(Math.max(speedIn, BUMPER_SPEED_CAP * baseSpeed), band);
+}
 /** Hit sounds the editor's obstacles may queue per 60 Hz step (a ball rattling between two pegs stays listenable). */
 export const MAX_OBSTACLE_SOUNDS_PER_STEP = 4;
 
@@ -545,9 +564,12 @@ export class ObstacleField {
    * at `hitSpeed` or more counts as a hit – it lights the obstacle at `nowMs`, a bumper kicks the ball to its speed
    * before the hit × the boost (× `restitutionScale`, at most BUMPER_SPEED_CAP × `baseSpeed`, never slower than the
    * rebound left it), and a sound event is queued into `events` (at most MAX_OBSTACLE_SOUNDS_PER_STEP per step).
+   * Whatever sped the ball up – a spinner's fling or a bumper's kick – it leaves at most `obstacleSpeedLimit()`, so it
+   * cannot tunnel through the next ring (`dtSec` is the sub-step the ball moves with).
    */
   collide(ball: Ball, dtSec: number, restitutionScale: number, hitSpeed: number, baseSpeed: number, nowMs: number, events: SoundEvent[]) {
     const items = this.items;
+    const speedIn = Math.hypot(ball.vx, ball.vy);
     for (let i = 0; i < items.length; i++) {
       const o = items[i];
       const bumper = this.kinds[i] === "bumper";
@@ -569,6 +591,15 @@ export class ObstacleField {
       if (this.soundsThisStep >= MAX_OBSTACLE_SOUNDS_PER_STEP) continue;
       this.soundsThisStep++;
       events.push(bumper ? { type: "hit", wallIndex: 0, frequency: bumperNote(i), accent: true, bumper: true } : { type: "hit", wallIndex: 0, frequency: obstacleNote(i) });
+    }
+    // Only a ball the obstacles sped up is limited (no contact leaves the velocity exactly as it was).
+    const out = Math.hypot(ball.vx, ball.vy);
+    if (out <= speedIn) return;
+    const limit = obstacleSpeedLimit(speedIn, ball.radius, baseSpeed, dtSec);
+    if (out > limit) {
+      const k = limit / out;
+      ball.vx *= k;
+      ball.vy *= k;
     }
   }
 }

@@ -23,7 +23,7 @@ import type { ChirpKind } from "@/lib/audio/characterVoice";
 import type { BoxView } from "@/lib/physics/modes";
 // --- end boris-faces ---
 import { BackgroundPainter, drawStyledParticle, drawThemedTrail, trailColorTable, type BackgroundLook } from "./themeRenderer"; // --- themes
-import type { RecordingCrop } from "@/lib/recording/recorder"; // --- themes
+import { recordingTextLayout, type RecordingCrop } from "@/lib/recording/recorder"; // --- themes (--- captions --- the export's text lines)
 import { DEFAULT_BACKGROUND_COLORS, type BackgroundType } from "@/lib/themes"; // --- themes
 import { TeamLayer, type CanvasTeamOptions } from "./teamsRenderer"; // --- teams ---
 import type { RainbowWallMode } from "@/lib/settings";
@@ -32,9 +32,10 @@ import { ACCENT } from "@/lib/site";
 import { CinematicCamera } from "./cameraRenderer";
 import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
 // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
-import { ObstacleEditorLayer, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
+import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
-import { CaptionLayer, type CanvasCaptionOptions } from "./captionsRenderer"; // --- captions ---
+import { CaptionLayer, type CanvasCaptionOptions, type CaptionView } from "./captionsRenderer"; // --- captions ---
+import { edgeTextBounds, emptyEdgeTextLines, exportEdgeTextLines, liveEdgeTextLines } from "@/lib/captions"; // --- captions ---
 // --- jdm-double-pendulum ---
 import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumStrings, drawDoublePendulumTrails, type DoublePendulumRenderOptions } from "./doublePendulumRenderer";
 
@@ -103,7 +104,12 @@ export interface CanvasLabels {
 
 export interface CanvasHandle {
   getCanvas: () => HTMLCanvasElement | null;
-  setRecording: (recording: boolean) => void;
+  /**
+   * The page records (or stopped): the canvas leaves the Top / Bottom Text to the recorder and, from now on, runs the
+   * captions' countdown and progress bar on the clip's clock. `exportSize` is the export frame the recorder draws its
+   * copy of the texts into (the captions keep clear of them).
+   */
+  setRecording: (recording: boolean, exportSize?: { width: number; height: number }) => void;
   setAudioIntensity: (v: number) => void;
   /** Song slicer position (0–1) for the HUD progress bar; null hides the bar. */
   setSongProgress: (v: number | null) => void;
@@ -304,6 +310,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const imageLoadedRef = useRef(false);
   const emojiCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingRef = useRef(false);
+  /** --- captions --- performance.now() when the current recording started, and the export frame it records into. */
+  const clipStartRef = useRef(0);
+  const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
   const sizeRef = useRef({ width: 800, height: 600 });
   const fpsRef = useRef(60);
@@ -461,8 +470,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
   useImperativeHandle(ref, () => ({
     getCanvas: () => canvasRef.current,
-    setRecording: (v: boolean) => {
+    setRecording: (v: boolean, exportSize?: { width: number; height: number }) => {
+      if (v && !recordingRef.current) clipStartRef.current = performance.now(); // --- captions --- the clip's clock starts
       recordingRef.current = v;
+      exportSizeRef.current = v ? (exportSize ?? null) : null;
     },
     setAudioIntensity: (v: number) => {
       audioRef.current = v;
@@ -590,6 +601,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     cinematicRef.current = cam;
     const captionLayer = new CaptionLayer(); // --- captions ---
     captionLayerRef.current = captionLayer;
+    // --- captions --- the view the captions are laid out in and the Top / Bottom Text lines they keep clear of (reused per frame)
+    const captionView: CaptionView = { width: 0, height: 0, insetTop: 0, insetBottom: 0, topMin: 0, bottomMax: Infinity, dtMs: 0, clipTimeSec: -1 };
+    const edgeLines = emptyEdgeTextLines();
+    const exportText = { fontSize: 0, topY: 0, bottomY: 0 };
+    /** The numbers data-caption-stack and data-edge-text were last written for (the strings are rebuilt only on a change). */
+    const mirrored = { stackTop: NaN, stackBottom: NaN, textTop: NaN, textBottom: NaN, textFs: NaN };
     // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
     const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
     // --- boris-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
@@ -2117,29 +2134,42 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Top / bottom text (the recorder draws its own copy at export resolution)
+      liveEdgeTextLines(Math.min(size.width, size.height), cy, arena, p.textSize, !!p.topText, !!p.bottomText, edgeLines);
       if ((p.topText || p.bottomText) && !recordingRef.current) {
         ctx.save();
-        const fs = Math.max(14, 0.045 * Math.min(size.width, size.height)) * p.textSize;
-        ctx.font = `bold ${fs}px sans-serif`;
+        ctx.font = `bold ${edgeLines.fontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#ffffff";
         ctx.globalAlpha = 0.95;
-        const pad = 0.6 * fs;
         ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
         ctx.shadowBlur = 8;
-        if (p.topText) ctx.fillText(p.topText, cx, cy - arena - pad);
-        if (p.bottomText) ctx.fillText(p.bottomText, cx, cy + arena + pad);
+        if (p.topText) ctx.fillText(p.topText, cx, edgeLines.topY);
+        if (p.bottomText) ctx.fillText(p.bottomText, cx, edgeLines.bottomY);
         ctx.restore();
       }
 
       // --- captions --- countdown, wall counter, progress bar, question and text captions inside the exported square (so
-      // recordings have them), animated on the simulation clock; live, they keep clear of the page's buttons and the scoreboard
+      // recordings have them), animated on the simulation clock; live, they keep clear of the page's buttons and the scoreboard,
+      // and always of the Top / Bottom Text – the canvas' own lines, or while recording the ones the recorder draws into the
+      // export frame. While a clip is recorded the countdown and the progress bar count the clip (real seconds since Record).
       const captionOptions = captionsRef.current;
       if (captionOptions) {
         const side = Math.min(size.width, size.height);
         const live = !recordingRef.current && (size.width - side) / 2 < 170;
-        captionLayer.draw(ctx, engine, captionOptions, { width: size.width, height: size.height, insetTop: live ? 52 : 0, insetBottom: live ? 56 : 0, topMin: teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, dtMs: !p.isPaused && p.isStarted ? frameMs : 0 });
+        const exportSize = recordingRef.current ? exportSizeRef.current : null;
+        if (exportSize && (p.topText || p.bottomText)) {
+          recordingTextLayout(exportSize.width, exportSize.height, p.textSize, exportText);
+          exportEdgeTextLines(exportText, exportSize.width, exportSize.height, side, cy - side / 2, !!p.topText, !!p.bottomText, edgeLines);
+        }
+        captionView.width = size.width;
+        captionView.height = size.height;
+        captionView.insetTop = live ? 52 : 0;
+        captionView.insetBottom = live ? 56 : 0;
+        edgeTextBounds(edgeLines, teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, captionView);
+        captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
+        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current) / 1000 : -1;
+        captionLayer.draw(ctx, engine, captionOptions, captionView);
       } else captionLayer.clear();
 
       // Song slicer: thin progress bar along the bottom edge (part of the recording too)
@@ -2285,13 +2315,34 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.teams !== undefined) {
         for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard", "scoreboardBottom"]) delete canvas.dataset[key];
       }
-      // --- captions --- captions drawn, the values they show ("0:27 | Wall 2/7 | Will it escape? → YES!") and the answer's reveal (data-caption-*)
+      // --- captions --- captions drawn, the values they show ("0:27 | Wall 2/7 | Will it escape? → YES!") and the answer's reveal
+      // (data-caption-*); where the top / bottom stacks start and the Top / Bottom Text lines they keep clear of ("top,bottom" and
+      // "top,bottom,font size", CSS px – while recording, the lines the recorder draws, mapped onto the canvas)
       if (captionOptions) {
         setCanvasData("captions", String(captionLayer.drawn));
         setCanvasData("captionTexts", captionLayer.summary);
         setCanvasData("captionReveal", captionLayer.revealed ? "1" : "0");
+        const st = captionLayer.starts;
+        if (st.top !== mirrored.stackTop || st.bottom !== mirrored.stackBottom) {
+          mirrored.stackTop = st.top;
+          mirrored.stackBottom = st.bottom;
+          setCanvasData("captionStack", `${st.top.toFixed(1)},${st.bottom.toFixed(1)}`);
+        }
+        if (edgeLines.top || edgeLines.bottom) {
+          if (edgeLines.topY !== mirrored.textTop || edgeLines.bottomY !== mirrored.textBottom || edgeLines.fontSize !== mirrored.textFs) {
+            mirrored.textTop = edgeLines.topY;
+            mirrored.textBottom = edgeLines.bottomY;
+            mirrored.textFs = edgeLines.fontSize;
+            setCanvasData("edgeText", `${edgeLines.topY.toFixed(1)},${edgeLines.bottomY.toFixed(1)},${edgeLines.fontSize.toFixed(1)}`);
+          }
+        } else if (canvas.dataset.edgeText !== undefined) {
+          delete canvas.dataset.edgeText;
+          mirrored.textTop = NaN;
+        }
       } else if (canvas.dataset.captions !== undefined) {
-        for (const key of ["captions", "captionTexts", "captionReveal"]) delete canvas.dataset[key];
+        for (const key of ["captions", "captionTexts", "captionReveal", "captionStack", "edgeText"]) delete canvas.dataset[key];
+        mirrored.stackTop = NaN;
+        mirrored.textTop = NaN;
       }
       // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME, the camera and the gate rows gone through (data-glass-*) for tools and the smoke test.
       if (glassView) {
@@ -2338,8 +2389,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      // Typing in a text field keeps its keys; a slider, toggle, dropdown or button left focused by the panel does not.
+      if (isTextEntryTarget(e.target as HTMLElement | null)) return;
       const commit = onObstaclesChangeRef.current;
       if (commit && obstacleLayerRef.current?.deleteSelected(physicsEngine.getEditorObstacles(), commit)) e.preventDefault();
     };
@@ -2353,7 +2404,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     if (!canvas || !layer || !obstacleEditingRef.current) return;
     const field = physicsEngine.getEditorObstacles();
     if (e.type === "pointerdown") {
-      if (layer.pointerDown(e.nativeEvent, canvas, field)) e.preventDefault();
+      if (layer.pointerDown(e.nativeEvent, canvas, field)) {
+        e.preventDefault();
+        // preventDefault() also keeps the focus where it was – often a panel slider just nudged. Let it go, so the
+        // editing keys (Backspace / Delete) reach the canvas' selection instead of a control.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused !== document.body) focused.blur();
+      }
     } else if (e.type === "pointermove") {
       layer.pointerMove(e.nativeEvent, canvas, field, physicsEngine);
     } else if (e.type === "pointerleave") {
