@@ -22,8 +22,12 @@ import type { BoxView } from "@/lib/physics/modes";
 import { BackgroundPainter, drawStyledParticle, drawThemedTrail, trailColorTable, type BackgroundLook } from "./themeRenderer"; // --- themes
 import type { RecordingCrop } from "@/lib/recording/recorder"; // --- themes
 import { DEFAULT_BACKGROUND_COLORS, type BackgroundType } from "@/lib/themes"; // --- themes
+import { TeamLayer, type CanvasTeamOptions } from "./teamsRenderer"; // --- teams ---
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
+// --- camera --- zoom, screen shake, slow motion on near misses and the escape replay (lib/simulation/camera.ts)
+import { CinematicCamera } from "./cameraRenderer";
+import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -63,6 +67,8 @@ export interface CanvasLabels {
   // --- jdm-collisions ---
   /** Collision Playground: the caption of the anti-collision switch. */
   collideAnti?: string;
+  /** --- camera --- the badge over the escape replay. */
+  replay?: string;
   // --- boris-glass ---
   /** Glass Smash: the stage banner and markers ("STAGE 3"), the sign over the door, and the banner at the end. */
   glassStage?: (n: number) => string;
@@ -83,6 +89,8 @@ export interface CanvasHandle {
   // --- themes: the recorder paints each exported frame's background through this (gradient / picture, seamless letterbox bars)
   paintRecordingBackground: (ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => void;
   // --- end themes
+  /** --- camera --- True while the escape replay is about to play or playing: the page holds the end screen (and a recording) back. */
+  holdsEndScreen: () => boolean;
 }
 
 export interface CanvasProps {
@@ -132,6 +140,10 @@ export interface CanvasProps {
   /** Two colours the colour trail cycles between instead of the rainbow (empty = rainbow). */
   trailColors?: readonly string[];
   // --- end themes
+  // --- teams --- team colours, emoji and names on the balls, the scoreboard and the winner banner (null = no roster); see teamsRenderer.ts
+  teams?: CanvasTeamOptions | null;
+  /** --- camera --- Cinematic camera: zoom, shake, slow motion on near misses, escape replay (all off by default). */
+  camera?: CameraSettings;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -166,6 +178,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   paintBeat: (bpm) => `♩ ${bpm} BPM`,
   // --- jdm-collisions ---
   collideAnti: "ANTI-COLLISION",
+  replay: "REPLAY", // --- camera ---
   // --- boris-glass ---
   glassStage: (n) => `STAGE ${n}`,
   glassHome: "HOME",
@@ -233,6 +246,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     backgroundImage = null,
     trailColors = NO_TRAIL_COLORS,
     // --- end themes
+    teams = null, // --- teams ---
+    camera = DEFAULT_CAMERA_SETTINGS, // --- camera ---
   },
   ref,
 ) {
@@ -262,6 +277,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const chirpRef = useRef(onCharacterChirp);
   chirpRef.current = onCharacterChirp;
   const facesRef = useRef<FaceLayer | null>(null);
+  // --- teams --- the roster options, read by the draw loop
+  const teamsRef = useRef<CanvasTeamOptions | null>(teams);
+  teamsRef.current = teams;
+  // --- camera --- the camera settings the draw loop reads; the camera itself lives with the loop
+  const cameraRef = useRef<CameraSettings>(camera);
+  cameraRef.current = camera;
+  const cinematicRef = useRef<CinematicCamera | null>(null);
+  // --- end camera ---
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -398,6 +421,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
     },
     // --- end themes
+    holdsEndScreen: () => cinematicRef.current?.holdsEndScreen() ?? false, // --- camera ---
   }));
 
   useEffect(() => {
@@ -489,6 +513,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- boris-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
+    const teamLayer = new TeamLayer(); // --- teams ---
     const boxHueColors: string[] = [];
     const boxBodyColor = (ball: { id: number }) => {
       const st = engine.getBoxView().shapes.get(ball.id);
@@ -500,6 +525,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
     const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
+    // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
+    const cam = new CinematicCamera();
+    cinematicRef.current = cam;
     // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
     const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
@@ -617,20 +645,25 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
       const p = propsRef.current;
+      cam.settings = cameraRef.current; // --- camera ---
 
       if (!p.isPaused && p.isStarted) {
-        accumulator += frameMs * p.simSpeed;
+        accumulator += frameMs * p.simSpeed * cam.timeScale(); // --- camera: slow motion feeds the engine less time; its fixed steps stay the same
         if (accumulator > 250) accumulator = 250;
         while (accumulator >= 16.666) {
           engine.update(16.666, audioRef.current);
+          cam.afterStep(engine); // --- camera: the escape replay's ring buffer
           accumulator -= 16.666;
         }
       }
+      cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
-      const walls = engine.getCircularWalls();
-      const rotations = engine.getWallRotations();
-      const broken = engine.getBrokenWalls();
+      // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones
+      const replay = cam.replayView();
+      const walls = replay ? replay.walls : engine.getCircularWalls();
+      const rotations = replay ? replay.rotations : engine.getWallRotations();
+      const broken = replay ? replay.broken : engine.getBrokenWalls();
       const circleAlpha = (a: number) => {
         const { r, g, b } = circleRgbRef.current;
         return `rgba(${r}, ${g}, ${b}, ${a})`;
@@ -699,7 +732,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       ctx.lineWidth = p.wallThickness;
       ctx.globalAlpha = 0.6;
       ctx.save();
-      if (p.cameraFollow) {
+      if (cam.applyView(ctx, engine, p.cameraFollow, cx, cy, arena, Math.min(size.width, size.height), camXRef.current, camYRef.current)) {
+        // --- camera --- zoom, shake or the replay own the view; the classic follow picks up from where it is
+        camXRef.current = -cam.view.offsetX;
+        camYRef.current = -cam.view.offsetY;
+      } else if (p.cameraFollow) {
         const balls = engine.getBalls();
         if (balls.length > 0) {
           const b = balls[0];
@@ -714,10 +751,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         camXRef.current = 0;
         camYRef.current = 0;
       }
-      // --- boris-glass --- Glass Smash scrolls the world down the shaft with its own camera (Camera Follow stays out of it).
+      // --- boris-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
+      // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
       const glassView = engine.isGlassMode() ? engine.getGlassView() : null;
       if (glassView) {
-        if (p.cameraFollow) ctx.translate(-camXRef.current, -camYRef.current);
+        ctx.restore();
+        ctx.save();
         applyGlassCamera(ctx, glassView);
       }
 
@@ -1323,7 +1362,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Balls
-      const balls = engine.getBalls();
+      const balls = replay ? replay.balls : engine.getBalls(); // --- camera: the replayed balls and trails during the escape replay
       const isColorMatch = engine.isColorMatchMode();
       const matchColor = isColorMatch ? engine.getColorMatchBallColor() : null;
       const rainbowColors: string[] = [];
@@ -1341,6 +1380,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const chirp = faces.beginFrame(engine, characterRef.current, { started: p.isStarted });
       if (chirp) chirpRef.current?.(chirp);
       const hasSprite = !!emojiCanvasRef.current || (imageLoadedRef.current && !!imageRef.current);
+      teamLayer.beginFrame(engine, teamsRef.current); // --- teams ---
+      const customImage = imageLoadedRef.current && !!imageRef.current; // --- teams --- a custom picture beats the team emoji
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
@@ -1348,7 +1389,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
       else balls.forEach((ball, index) => {
-        const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
+        // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
+        const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
+        const teamSprite = isColorMatch || customImage ? null : teamLayer.spriteOf(ball);
+        const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall ? rainbowColors[index] : ball.color);
         // Trail
         if (p.showTrails && index < 30 && ball.trail.length > 1) {
           const intensity = personality.trailIntensity;
@@ -1423,9 +1467,20 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- boris-faces --- squash-and-stretch around the body, the cat's ears behind it
         const squashed = faces.pushSquash(ctx, ball);
-        faces.drawBehind(ctx, ball, color, hasSprite, index);
+        faces.drawBehind(ctx, ball, color, hasSprite || !!teamSprite, index);
         // Body: emoji, image or shaded disc
-        if (emojiCanvasRef.current) {
+        if (teamSprite) {
+          // --- teams --- the team's emoji, turned by the spin like the custom emoji
+          ctx.save();
+          ctx.translate(ball.x, ball.y);
+          if (ball.angle !== 0) ctx.rotate(ball.angle);
+          ctx.beginPath();
+          ctx.arc(0, 0, ball.radius, 0, TWO_PI);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(teamSprite, -ball.radius, -ball.radius, 2 * ball.radius, 2 * ball.radius);
+          ctx.restore();
+        } else if (emojiCanvasRef.current) {
           ctx.save();
           ctx.translate(ball.x, ball.y);
           if (ball.angle !== 0) ctx.rotate(ball.angle); // the "spin" physics extra turns the sprite
@@ -1487,9 +1542,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         }
         // --- boris-faces --- the face on the body (squashed with it), then the name label under the ball
-        faces.drawFront(ctx, ball, color, hasSprite, index);
+        faces.drawFront(ctx, ball, color, hasSprite || !!teamSprite, index);
         if (squashed) ctx.restore();
         faces.drawLabel(ctx, ball, index);
+        // --- teams --- a ring in the team colour where the body does not wear it, and the team's name above its first ball
+        if (teamLayer.isActive()) teamLayer.drawBallExtras(ctx, ball, !isColorMatch && !teamSprite && !hasSprite, !!teamSprite);
         // Personality ring (tension indicator)
         if (personality.state !== "calm" && !emojiCanvasRef.current) {
           const hue =
@@ -1842,6 +1899,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             });
           }
         }
+        if (replay) blocks.length = 0; // --- camera --- the mode banners wait for the end of the escape replay
         const totalH = blocks.reduce((s, b) => s + b.height, 0) + 8 * Math.max(0, blocks.length - 1);
         let y = cy - totalH / 2;
         for (const b of blocks) {
@@ -1860,6 +1918,20 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.fillText(p.watermarkText, cx, wy);
           ctx.restore();
         }
+      }
+
+      // --- teams --- the scoreboard in a corner of the exported square and, when the run is over, the winner banner with confetti
+      if (teamLayer.isActive()) {
+        const side = Math.min(size.width, size.height);
+        teamLayer.drawOverlay(ctx, engine, {
+          width: size.width,
+          height: size.height,
+          dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
+          // Live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners.
+          inset: !recordingRef.current && (size.width - side) / 2 < 170 ? 52 : 0,
+          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()),
+          holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
+        });
       }
 
       // Top / bottom text (the recorder draws its own copy at export resolution)
@@ -1914,6 +1986,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.arc(cx, cy, arena + 20 * intensity, 0, TWO_PI);
         ctx.stroke();
       }
+      // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
+      // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
+      const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
+      const replayAtBottom = (!!p.topText || scoreboardBottom > 0) && !p.bottomText;
+      cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       ctx.restore();
 
       // Picture Paint: mirror what the HUD shows onto the element (data-paint-*) so tools and the smoke test can read it.
@@ -1974,6 +2051,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("collideAnti", view.antiActive ? "1" : "0");
       } else if (canvas.dataset.collideBodies !== undefined) {
         for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
+      }
+      cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
+
+      // --- teams --- teams in play, per-team "bounces/walls/escapes", the winner, the names drawn and the scoreboard (data-team-*) for tools and the smoke test
+      if (teamLayer.isActive()) {
+        const o = teamsRef.current;
+        setCanvasData("teams", String(teamLayer.teamsInPlay()));
+        setCanvasData("teamStats", teamLayer.statsText(engine));
+        setCanvasData("teamWinner", teamLayer.winnerText());
+        setCanvasData("teamLabels", String(teamLayer.labelsDrawn));
+        setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
+      } else if (canvas.dataset.teams !== undefined) {
+        for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard"]) delete canvas.dataset[key];
       }
       // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME and the camera (data-glass-*) for tools and the smoke test.
       if (glassView) {

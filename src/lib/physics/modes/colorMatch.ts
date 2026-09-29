@@ -89,6 +89,7 @@ export class ColorMatchMode implements GameMode {
       ctx.setBounceSpeedMultiplier(1);
       ctx.spawnWallBreakByStyle(wallIndex, ball.x, ball.y);
       ctx.addPendingSoundEvent({ type: "gap", wallIndex });
+      ctx.creditWallBreak?.(ball); // --- teams --- the segment counts for the ball that broke it
       if (this.segments.every((s) => s.broken)) ctx.getBrokenWalls().add(wallIndex);
       return { resetBouncier: true };
     }

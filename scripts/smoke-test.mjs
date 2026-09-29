@@ -1370,8 +1370,216 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
   check(`a character from the URL shows on the ${mode} bodies`, face === "cute" && Number(faceCount) === faces && nameLabel === "Boris", `(face=${face}, faces=${faceCount}, label=${nameLabel})`);
 }
 
+// --- teams ---
+// 14. Team balls with scoreboard: URL → the Teams section (roster rows, scoreboard corner) and the Ball Count slider, the
+// old `two=1` link as two balls, controls → URL (a fourth team renamed with its own emoji, the corner), the search box,
+// a Classic run of three teams that scores per team on the canvas (data-team-*: teams, labels, bounces/walls/escapes),
+// ends – at 8× – with a winner held on screen before the end screen, and records that banner into the export; Color
+// Match with several balls credits the segments too.
+{
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Green*22c55e*🍀";
+  const teamsQuery = () => new URLSearchParams(page.url().split("?")[1] || "");
+  const positionButton = (name) => page.getByRole("group", { name: "Scoreboard Position" }).getByRole("button", { name });
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&tsp=top-right`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Teams & Scoreboard/ }).click();
+  {
+    const names = await page.locator('[data-testid="team-row"] input[aria-label$=" name"]').evaluateAll((els) => els.map((e) => e.value));
+    const emojis = await page.locator('[data-testid="team-row"] input[aria-label$=" emoji"]').evaluateAll((els) => els.map((e) => e.value));
+    const right = await positionButton(/Top right/).getAttribute("aria-pressed");
+    check("teams load from URL", names.join(",") === "Red,Blue,Green" && emojis.join("") === "🔥💧🍀" && right === "true", `(${names.join(",")} ${emojis.join("")}, top right=${right})`);
+  }
+  await page.getByRole("button", { name: /Add Team/ }).click();
+  await page.getByLabel("Team 4 name", { exact: true }).fill("Gold Rush");
+  await page.getByLabel("Team 4 emoji", { exact: true }).fill("⭐");
+  await positionButton(/Top left/).click();
+  await page.waitForTimeout(300);
+  {
+    const q = teamsQuery();
+    check("teams mirror into the URL", q.get("teams") === `${roster},Gold Rush*eab308*⭐` && q.get("two") === "1" && !q.has("tsp") && !q.has("nb"), `(teams=${q.get("teams")}, two=${q.get("two")}, tsp=${q.get("tsp")})`);
+  }
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  check("the ball count follows the roster", (await sliderValue("Ball Count")) === "4", `(${await sliderValue("Ball Count")})`);
+  await page.getByPlaceholder("Search settings...").fill("scoreboard");
+  check("search finds the scoreboard controls", (await page.getByRole("group", { name: "Scoreboard Position" }).isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.goto(`${BASE}/en/simulator/?mode=classic&two=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const twoBallCount = await sliderValue("Ball Count");
+  await page.locator('input[aria-label="Ball Count"]').evaluate(setRangeValue, "5");
+  await page.waitForTimeout(300);
+  {
+    const q = teamsQuery();
+    check("the old two-ball link reads as two balls and a count above two gets its own key", twoBallCount === "2" && q.get("nb") === "5" && q.get("two") === "1", `(two=1 → ${twoBallCount} balls; ${q.toString()})`);
+  }
+  // A short Classic run: three rings with wide gaps and fast balls, so three teams escape within seconds at 8×.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  {
+    const data = await canvasData();
+    const bounces = (data.teamStats || "").split(",").reduce((acc, t) => acc + Number(t.split("/")[0]), 0);
+    check("team balls carry names and the scoreboard counts per team", data.teams === "3" && data.teamLabels === "3" && data.scoreboard === "top-left" && (data.teamStats || "").split(",").length === 3 && bounces > 0, `(${JSON.stringify({ teams: data.teams, labels: data.teamLabels, stats: data.teamStats, scoreboard: data.scoreboard })})`);
+    await page.screenshot({ path: path.join(outDir, "sim-teams.png") });
+  }
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const totals = (data.teamStats || "").split(",").reduce((acc, t) => t.split("/").map((v, i) => acc[i] + Number(v)), [0, 0, 0]);
+    const endScreenEarly = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(outDir, "sim-teams-winner.png") });
+    const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+    check("the run ends with a winner banner held before the end screen", won && ["Red", "Blue", "Green", "tie"].includes(data.teamWinner) && totals[1] === 3 && totals[2] === 3 && !endScreenEarly && endScreen, `(winner=${data.teamWinner}, bounces/walls/escapes=${totals.join("/")}, end screen early=${endScreenEarly}, later=${endScreen})`);
+  }
+  // The recorder copies the canvas, and the export only stops after the banner's hold: the winner is in the video.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700&res=500x500`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  {
+    let wonAt = 0;
+    const [teamDownload] = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }),
+      (async () => {
+        await page.getByRole("button", { name: /Record Video/ }).click();
+        await page.getByRole("button", { name: "8x", exact: true }).click();
+        await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 45000 }).catch(() => {});
+        wonAt = Date.now();
+      })(),
+    ]);
+    const heldMs = wonAt ? Date.now() - wonAt : 0;
+    const dlPath = path.join(outDir, `teams-${teamDownload.suggestedFilename()}`);
+    await teamDownload.saveAs(dlPath);
+    const bytes = fs.statSync(dlPath).size;
+    check("the export records the winner banner before it stops", bytes > 10000 && heldMs >= 2500, `(${teamDownload.suggestedFilename()}, ${bytes} bytes, recorded ${heldMs} ms after the winner)`);
+  }
+  await page.goto(`${BASE}/en/simulator/?mode=colorMatch&teams=${encodeURIComponent(roster)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const scored = await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.teamStats || "").split(",").some((t) => Number(t.split("/")[1]) > 0), null, { timeout: 20000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    check("Color Match plays with three team balls and credits the segments they break", scored && data.teams === "3", `(${data.teamStats})`);
+    await page.screenshot({ path: path.join(outDir, "sim-teams-colormatch.png") });
+  }
+}
+// --- end teams ---
+// --- camera ---
+// 15. Cinematic camera: URL → the Camera group of the Visual section, controls → URL, the search box; a Classic run
+// zooms toward the ball, shakes on a wall break and slows the clock on a near miss (data-camera-*); a quick Classic
+// escape recorded at 8× replays its last 2 s at half speed with the REPLAY badge while the recording keeps going,
+// and only then do the export and the end screen follow.
+{
+  const cameraToggle = (label) => page.getByTestId("camera-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const cameraPhase = () => page.evaluate(() => document.querySelector("main canvas")?.dataset.cameraReplay ?? "");
+  await page.goto(`${BASE}/en/simulator/?mode=classic&cz=0.6&shake=0.5&slow=1&slowf=0.3&slowms=900&replay=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  {
+    const values = { cz: await sliderValue("Camera Zoom"), shake: await sliderValue("Screen Shake"), slowf: await sliderValue("Slow-Mo Speed"), slowms: await sliderValue("Slow-Mo Length") };
+    const slow = await cameraToggle("Slow-Mo on Near Miss").getAttribute("aria-pressed");
+    const replay = await cameraToggle("Replay on Escape").getAttribute("aria-pressed");
+    check("camera settings load from URL into the Camera group", values.cz === "0.6" && values.shake === "0.5" && values.slowf === "0.3" && values.slowms === "900" && slow === "true" && replay === "true", `(${JSON.stringify(values)}, slow=${slow}, replay=${replay})`);
+  }
+  await page.locator('input[aria-label="Camera Zoom"]').evaluate(setRangeValue, "0.8");
+  await cameraToggle("Slow-Mo on Near Miss").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const slidersHidden = (await page.locator('input[aria-label="Slow-Mo Speed"]').count()) === 0;
+    check("camera controls mirror into the URL", /(^|&)cz=0\.8(&|$)/.test(query) && !/(^|&)slow=/.test(query) && /(^|&)replay=1(&|$)/.test(query) && slidersHidden, `(${query}, slow-mo sliders hidden=${slidersHidden})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("shake");
+  check("search finds the camera controls", (await page.locator('input[aria-label="Screen Shake"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+
+  await page.goto(`${BASE}/en/simulator/?mode=classic&cz=1&shake=1&slow=1&slowf=0.2&slowms=1200`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  {
+    const slowed = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.cameraTimeScale) < 0.5, null, { timeout: 45000, polling: "raf" }).then(() => true).catch(() => false);
+    await page.screenshot({ path: path.join(outDir, "sim-camera-slowmo.png") });
+    const data = await canvasData();
+    check(
+      "camera zooms toward the ball, shakes on a wall break and slows the clock on a near miss",
+      slowed && Number(data.cameraScale) > 1.6 && Number(data.cameraShakes) > 0 && Number(data.cameraSlowMo) > 0 && data.cameraReplay === "idle",
+      `(slowed=${slowed}, scale ${data.cameraScale}, time scale ${data.cameraTimeScale}, shakes ${data.cameraShakes}, slow-mo windows ${data.cameraSlowMo})`,
+    );
+  }
+
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=2&gap=0.9&replay=1&shake=0.6&res=500x500&dur=60`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const replayDownload = page.waitForEvent("download", { timeout: 90000 }).catch(() => null);
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const playing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "playing", null, { timeout: 60000, polling: "raf" }).then(() => true).catch(() => false);
+    const playingAt = Date.now();
+    const recordingDuringReplay = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+    const endScreenDuringReplay = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false);
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: path.join(outDir, "sim-camera-replay.png") });
+    const mid = await canvasData();
+    const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "done", null, { timeout: 20000 }).then(() => true).catch(() => false);
+    const replayMs = Date.now() - playingAt;
+    const download = await replayDownload;
+    let size = 0;
+    if (download) {
+      const file = path.join(outDir, `replay-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      size = fs.statSync(file).size;
+    }
+    const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    check(
+      "escape replay plays at half speed, recorded, before the end screen",
+      playing && recordingDuringReplay && !endScreenDuringReplay && mid.cameraReplay === "playing" && mid.cameraReplays === "1" && done && replayMs > 1500 && replayMs < 9000 && size > 10000 && endScreen && (await cameraPhase()) === "done",
+      `(playing=${playing}, recording during replay=${recordingDuringReplay}, end screen during replay=${endScreenDuringReplay}, replay ${replayMs} ms, export ${size} bytes, end screen=${endScreen})`,
+    );
+  }
+  // Without a recording: Restart Simulation runs again, and the end screen waits for the replay.
+  await page.getByRole("button", { name: /Restart Simulation/ }).click();
+  {
+    const restarted = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "idle", null, { timeout: 5000, polling: "raf" }).then(() => true).catch(() => false);
+    const playing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "playing", null, { timeout: 60000, polling: "raf" }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    const heldBack = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false)) && (await cameraPhase()) === "playing";
+    const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    check("the end screen waits for the escape replay", restarted && playing && heldBack && endScreen && (await cameraPhase()) === "done", `(restarted=${restarted}, playing=${playing}, held back=${heldBack}, end screen=${endScreen})`);
+  }
+}
+// --- end camera ---
+
+// --- teams + camera ---
+// 16. Teams with the escape replay: a Classic run of three teams with Replay on Escape replays the escape first – the
+// replayed balls keep their teams (names drawn on them), the winner banner waits – then the banner is held before the
+// end screen.
+{
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Green*22c55e*🍀";
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700&replay=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const playing = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cameraReplay === "playing", null, { timeout: 60000, polling: "raf" }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const during = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-teams-replay.png") });
+  const won = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.cameraReplay === "done" && !!d.teamWinner;
+    }, null, { timeout: 20000, polling: "raf" })
+    .then(() => true)
+    .catch(() => false);
+  const wonAt = Date.now();
+  const endScreenEarly = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible();
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
+  const heldMs = Date.now() - wonAt;
+  check(
+    "with teams the escape replay plays first (team names on the replayed balls), then the winner banner, then the end screen",
+    playing && during.cameraReplay === "playing" && !during.teamWinner && Number(during.teamLabels) >= 1 && won && !endScreenEarly && endScreen && heldMs >= 2000,
+    `(playing=${playing}, during replay: winner="${during.teamWinner}", labels=${during.teamLabels}; won=${won}, end screen early=${endScreenEarly}, held ${heldMs} ms)`,
+  );
+}
+// --- end teams + camera ---
 // --- boris-glass ---
-// 14. Glass Smash: the preview image and the glass clip, URL → the "Glass" block of the Mode row, controls → URL, the
+// 17. Glass Smash: the preview image and the glass clip, URL → the "Glass" block of the Mode row, controls → URL, the
 // search box, the finder shown (every run ends at HOME), the Sound section naming the mode's default wall-break clip,
 // a default run at 30+ fps whose pane hits are scale degrees of C major (OscillatorNode.start is instrumented) and whose
 // shatters play the glass clip (the only one-argument AudioBufferSourceNode.start), and a short run to HOME at 8×

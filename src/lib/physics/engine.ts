@@ -26,6 +26,7 @@ import { GlassMode, type GlassSettings, type GlassView } from "./modes/glass";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
+import { BallStatsBook, ESCAPE_MARGIN, MULTI_BALL_MODES, startBallAngle, startBallColor, startBallCount, type BallStats } from "./ballStats"; // --- teams ---
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
 import type {
   Ball,
@@ -132,7 +133,11 @@ export class PhysicsEngine {
   private particlePalette: readonly string[] = [];
   private readonly pushParticleFn = (p: Particle) => this.pushParticle(p);
   // --- end themes
+  // --- teams --- per-ball and per-team bounces, walls broken and escapes (ballStats.ts); recording never touches the physics
+  private readonly ballStats = new BallStatsBook();
   private pendingSoundEvents: SoundEvent[] = [];
+  /** Wall breaks so far – every "gap" event, the engine's or a mode's (never reset). The cinematic camera shakes on it. */
+  private wallBreakSerial = 0; // --- camera ---
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
   private bounceSpeedMultiplier = 1;
@@ -199,10 +204,12 @@ export class PhysicsEngine {
       addWallHit: (wallIndex, angle, radius) => this.addWallHit(wallIndex, angle, radius),
       addPendingSoundEvent: (event) => {
         this.pendingSoundEvents.push(event);
+        if (event.type === "gap") this.wallBreakSerial++; // --- camera ---
       },
       spawnWallBreakByStyle: (wallIndex, x, y) => this.spawnWallBreakByStyle(wallIndex, x, y),
       spawnConfetti: (x, y) => this.spawnConfetti(x, y),
       reportWallBreak: (ball, wallIndex) => this.reportWallBreak(ball, wallIndex),
+      creditWallBreak: (ball) => this.ballStats.wall(ball), // --- teams ---
       isBouncierEnabled: () => this.bouncierEnabled,
       getBounceSpeedMultiplier: () => this.bounceSpeedMultiplier,
       setBounceSpeedMultiplier: (value) => {
@@ -290,6 +297,9 @@ export class PhysicsEngine {
       const cy = this._config.height / 2;
       const a = this.random() * Math.PI * 2;
       const speed = this._config.ballSpeed || 400;
+      // --- teams --- in the multi-ball modes every starting ball carries its slot (its team)
+      const count = startBallCount(this._config, mode.name);
+      const multi = MULTI_BALL_MODES.includes(mode.name);
       this.addBall({
         x: cx,
         y: cy,
@@ -297,17 +307,20 @@ export class PhysicsEngine {
         vy: Math.sin(a) * speed,
         radius: this._config.ballRadius || 8,
         color: this._config.ballColor || "#FFFFFF",
+        ...(multi ? { team: 0 } : {}), // --- teams ---
       });
       this.lastWallLayer.set(this.nextId - 1, -1);
-      if (this._config.twoBalls && TWO_BALL_MODES.includes(mode.name)) {
-        const b = (a + Math.PI) % TWO_PI;
+      // --- teams --- up to six balls, evenly spread (the second of two flies straight back, as it always did); no random draws
+      for (let slot = 1; slot < count; slot++) {
+        const b = startBallAngle(a, slot, count);
         this.addBall({
           x: cx,
           y: cy,
           vx: Math.cos(b) * speed,
           vy: Math.sin(b) * speed,
           radius: this._config.ballRadius || 8,
-          color: this._config.ballColor2 || "#FF3366",
+          color: startBallColor(slot, this._config),
+          team: slot,
         });
         this.lastWallLayer.set(this.nextId - 1, -1);
       }
@@ -801,6 +814,77 @@ export class PhysicsEngine {
     return this.collideMode.getProgress();
   }
   // --- end jdm-collisions ---
+  // --- teams ---
+  /** Bounces, walls broken and escapes of one ball (undefined until it scored anything; see ballStats.ts). */
+  getBallStats(id: number): Readonly<BallStats> | undefined {
+    return this.ballStats.ballStats(id);
+  }
+  /** Totals per team slot – `MAX_TEAMS` entries, the same objects every call, zeroed by every (re)start. */
+  getTeamStats(): readonly Readonly<BallStats>[] {
+    return this.ballStats.teams;
+  }
+  /** Bumped by every (re)start, so the canvas can tell a new run from the one it is showing. */
+  getStatsGeneration(): number {
+    return this.ballStats.generation;
+  }
+  /** True once the ball has left the arena (counted as an escape). */
+  hasBallEscaped(id: number): boolean {
+    return this.ballStats.hasEscaped(id);
+  }
+  /**
+   * Live change of the ball count (the page's slider) in the multi-ball modes: the balls of the slots beyond
+   * `count` (and their offspring) leave, the missing slots are added at the first ball still in the arena (the
+   * centre when every ball has escaped), flying off in their start directions relative to it. Down to one ball,
+   * only the first one stays (as the "two balls" switch did). Draws no random numbers; the next (re)start spawns
+   * `count` balls from the centre.
+   */
+  setBallCount(count: number) {
+    this._config = { ...this._config, ballCount: count };
+    const mode = this.currentMode;
+    if (!mode || !MULTI_BALL_MODES.includes(mode.name)) return;
+    const n = startBallCount(this._config, mode.name);
+    if (n === 1) {
+      if (this.balls.length > 1) this.balls = this.balls.slice(0, 1);
+      return;
+    }
+    this.balls = this.balls.filter((b) => b.team === undefined || b.team < n);
+    const anchor = this.balls.find((b) => !this.ballStats.hasEscaped(b.id));
+    const a = anchor ? Math.atan2(anchor.vy, anchor.vx) : 0;
+    const speed = this._config.ballSpeed || 400;
+    for (let slot = 1; slot < n; slot++) {
+      if (this.balls.some((b) => b.team === slot)) continue;
+      const dir = startBallAngle(a, slot, n);
+      this.addBall({
+        x: anchor ? anchor.x : this._config.width / 2,
+        y: anchor ? anchor.y : this._config.height / 2,
+        vx: Math.cos(dir) * speed,
+        vy: Math.sin(dir) * speed,
+        radius: anchor ? anchor.radius : this._config.ballRadius || 8,
+        color: startBallColor(slot, this._config),
+        team: slot,
+      });
+    }
+  }
+  /**
+   * Once per step: every ball beyond the outermost wall (its base radius at the widest breathing pulse, plus
+   * the ball and `ESCAPE_MARGIN`) has escaped; the book counts each ball once. Reads positions only.
+   */
+  private scanEscapes() {
+    const base = this.wallBaseRadii;
+    let outer = 0;
+    for (let i = 0; i < base.length; i++) if (base[i] > outer) outer = base[i];
+    outer *= 1 + this.extras.breathingAmplitude;
+    const cx = this._config.width / 2;
+    const cy = this._config.height / 2;
+    for (let i = 0; i < this.balls.length; i++) {
+      const ball = this.balls[i];
+      const limit = outer + ball.radius + ESCAPE_MARGIN;
+      const dx = ball.x - cx;
+      const dy = ball.y - cy;
+      if (dx * dx + dy * dy > limit * limit) this.ballStats.escape(ball, this._elapsedMs);
+    }
+  }
+  // --- end teams ---
   // --- boris-glass ---
   isGlassMode() {
     return this.currentMode === this.glassMode;
@@ -854,6 +938,16 @@ export class PhysicsEngine {
     this.pendingSoundEvents = [];
     return events;
   }
+  // --- camera ---
+  /** Wall breaks so far (every "gap" event; never reset): the cinematic camera shakes when it grows. Reading it changes nothing. */
+  getWallBreakSerial() {
+    return this.wallBreakSerial;
+  }
+  /** The director's near-miss event: near misses so far (counted with the director on or off; never reset). The camera slows the clock when it grows. */
+  getNearMissSerial() {
+    return this.cinematicDirector.getNearMissSerial();
+  }
+  // --- end camera ---
   /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
   getPhysicsExtras(): PhysicsExtras {
     return this.extras;
@@ -889,6 +983,7 @@ export class PhysicsEngine {
     this.pendingSplits = [];
     this.breathScale = 1;
     this.setObstacles([]);
+    this.ballStats.reset(); // --- teams ---
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -906,7 +1001,9 @@ export class PhysicsEngine {
     this.extras = resolvePhysicsExtras(this._config);
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(this._config);
-    if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
+    // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
+    if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
+    if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
     // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is.
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
     const sizeChanged =
@@ -1114,6 +1211,7 @@ export class PhysicsEngine {
         this.currentMode?.onPostSubStep(this.ctx);
       }
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
+      if (this.circularWalls.length > 0) this.scanEscapes(); // --- teams ---
       if (this.pendingSplits.length > 0) this.flushSplits();
       for (const ball of this.balls) {
         if (ball.trail.length < 20) ball.trail.push({ x: ball.x, y: ball.y });
@@ -1275,6 +1373,7 @@ export class PhysicsEngine {
             if (!this.brokenWalls.has(w)) {
               this.spawnWallBreakByStyle(w, ball.x, ball.y);
               this.pendingSoundEvents.push({ type: "gap", wallIndex: w });
+              this.wallBreakSerial++; // --- camera ---
               this.reportWallBreak(ball, w);
             }
             this.brokenWalls.add(w);
@@ -1297,6 +1396,7 @@ export class PhysicsEngine {
         const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
         this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
+        this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
           this.bounceSpeedMultiplier = Math.min(this.bounceSpeedMultiplier + this.bouncierIncrement, this.bouncierMaxMultiplier);
         }
@@ -1412,6 +1512,7 @@ export class PhysicsEngine {
    * outside every loop over the balls, and once per ball per step however many walls it broke.
    */
   private reportWallBreak(ball: Ball, wallIndex: number) {
+    this.ballStats.wall(ball); // --- teams ---
     if (this.interaction.ballInteraction !== "split") return;
     for (const pending of this.pendingSplits) if (pending.ball === ball) return;
     this.pendingSplits.push({ ball, wallIndex });
@@ -1439,6 +1540,9 @@ export class PhysicsEngine {
       const half = this.balls[this.balls.length - 1];
       half.spin = ball.spin;
       half.angle = ball.angle;
+      // --- teams --- the half plays for its parent's team, and the half of an escaped ball does not escape again
+      if (ball.team !== undefined) half.team = ball.team;
+      this.ballStats.inheritEscape(ball.id, half.id);
       this.currentMode?.onBallSplit?.(this.ctx, ball, half);
       this.pendingSoundEvents.push({ type: "split", wallIndex });
       this.spawnSplitBurst(x, y, ball.color);

@@ -75,6 +75,10 @@ export class CinematicDirector {
   private nearMissCountTotal = 0;
   private nearMissSyncedAt = -1;
   private currentVisuals: PersonalityVisuals = freshVisuals();
+  // --- camera ---
+  /** Near-miss events since the director was created (never reset; the cinematic camera slows the clock when it grows). */
+  private nearMissSerial = 0;
+  // --- end camera ---
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
@@ -158,7 +162,11 @@ export class CinematicDirector {
     centerX: number,
     centerY: number,
   ): { vxAdjust: number; vyAdjust: number } | null {
-    if (!this.enabled) return null;
+    if (!this.enabled) {
+      // --- camera --- the near-miss test is pure geometry (no RNG, no drama state), so the event still fires with the director off
+      if (this.isNearMissPass(ball, wallRadius, wallRotation, gap, centerX, centerY)) this.nearMissSerial++;
+      return null;
+    }
     const angle = normalizeAngle(Math.atan2(ball.y - centerY, ball.x - centerX));
     const start = normalizeAngle(gap.startAngle + wallRotation);
     const end = normalizeAngle(gap.endAngle + wallRotation);
@@ -198,6 +206,26 @@ export class CinematicDirector {
   getSpeedMultiplier() {
     return this.enabled ? this.currentVisuals.speedMultiplier : 1;
   }
+
+  // --- camera ---
+  /**
+   * The near-miss event for the cinematic camera: how many gap passes so far squeezed within four ball
+   * widths of a gap edge (the director's own near-miss test). Counted whether the director is on or off and
+   * never reset – the camera polls it and slows the clock when it grows. Reading it changes nothing.
+   */
+  getNearMissSerial() {
+    return this.nearMissSerial;
+  }
+
+  /** The near-miss test of `adjustGapPass()` on its own, without touching the drama state. */
+  private isNearMissPass(ball: Ball, wallRadius: number, wallRotation: number, gap: Gap, centerX: number, centerY: number): boolean {
+    const angle = normalizeAngle(Math.atan2(ball.y - centerY, ball.x - centerX));
+    const start = normalizeAngle(gap.startAngle + wallRotation);
+    const end = normalizeAngle(gap.endAngle + wallRotation);
+    const minDist = Math.min(this.angleDist(angle, start), this.angleDist(angle, end));
+    return minDist < 4 * Math.atan2(ball.radius, wallRadius);
+  }
+  // --- end camera ---
 
   private updateDramaCurve() {
     const t = this.dramaTime / this.dramaCycleDuration;
@@ -293,6 +321,7 @@ export class CinematicDirector {
   }
 
   private registerNearMiss() {
+    this.nearMissSerial++; // --- camera --- the near-miss event
     const now = this.simClock;
     const slot = this.nearMissCountTotal % this.nearMissBuffer.length;
     this.nearMissBuffer[slot] = now;
