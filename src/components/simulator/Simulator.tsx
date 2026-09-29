@@ -73,6 +73,7 @@ import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
 import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
+import { useBatchRender, type BatchExportRequest } from "./useBatchRender"; // --- batch-render ---
 import {
   RANGES,
   defaultSettings,
@@ -1144,7 +1145,11 @@ export default function Simulator() {
   const fastAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => fastAbortRef.current?.abort(), []); // an export stops with the page
   const fastRunning = fastExport.status === "running";
+  // --- batch-render --- a batch job for the next export: its seed, and the file handed back instead of downloaded (useBatchRender.ts)
+  const batchExportRef = useRef<BatchExportRequest | null>(null);
   const startFastExport = useCallback(async () => {
+    const batchJob = batchExportRef.current; // --- batch-render ---
+    batchExportRef.current = null;
     const page = engineRef.current;
     if (!page || fastAbortRef.current || isRecording || isSearching) return;
     const s = settings;
@@ -1164,7 +1169,7 @@ export default function Simulator() {
       void toggleRecording();
       return;
     }
-    const seed = page.getSeed();
+    const seed = batchJob?.seed ?? page.getSeed(); // --- batch-render --- (a batch job renders its own seed)
     const resume = isStarted && !isPaused;
     if (resume) setIsPaused(true);
     // Everything the page engine got from its settings effects beyond the config and the mode's settings (initEngineForMode).
@@ -1179,6 +1184,7 @@ export default function Simulator() {
     const teamsPlay = teamsPlayRef.current;
     // The export's engine is new, so its race's run serial starts at 1: its cup table scores the race under the page's key.
     const raceKey = page.isRaceMode() ? runKey(RACE_RUN_PREFIX, page.getRaceView()) : undefined;
+    const exportRaceKey = batchJob && raceKey ? `${RACE_RUN_PREFIX}:batch-${batchJob.key}` : raceKey; // --- batch-render --- (a batch job's race is a race of its own)
     let lastProgress = 0;
     try {
       const result = await renderFast({
@@ -1199,7 +1205,7 @@ export default function Simulator() {
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
-        raceKey,
+        raceKey: exportRaceKey, // --- batch-render ---
         textOverlay: { topText: s.topText, bottomText: s.bottomText, textSize: s.textSize, watermarkText: s.watermarkText },
         backgroundColor: s.backgroundColors[0],
         onProgress: (p) => {
@@ -1210,12 +1216,14 @@ export default function Simulator() {
         },
         signal: controller.signal,
       });
+      batchJob?.settle(result ? { result } : { cancelled: true }); // --- batch-render --- the batch names, downloads and zips its files
       if (!result) setFastExport({ status: "cancelled" });
       else {
-        downloadExport(result.blob, result.format.extension);
+        if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
       }
     } catch (err) {
+      batchJob?.settle({ error: err instanceof Error ? err.message : String(err) }); // --- batch-render ---
       if (err instanceof FastRenderUnsupportedError) setFastExport({ status: "fallback", reason: "codecs" });
       else {
         console.warn("Fast export failed:", err);
@@ -1576,6 +1584,22 @@ export default function Simulator() {
   const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
+  // --- batch-render --- the Batch block of the Recording section: the fast export job after job, each with its seed, link,
+  // mode or swept value put on the page first (loadPresetSettings / changeMode); the page gets its settings back afterwards
+  const batchRender = useBatchRender({
+    settings,
+    exportRef: batchExportRef,
+    startFastExport,
+    applySettings: loadPresetSettings,
+    changeMode,
+    update,
+    pageRunning: isStarted && !isPaused,
+    setPaused: setIsPaused,
+    fastExport,
+    supported: fastSupported,
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import",
+  });
+  // --- end batch-render ---
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -2213,7 +2237,7 @@ export default function Simulator() {
             update={update}
             onResetSection={onResetSection}
             isRecording={isRecording}
-            recordingSupported={recordingSupported && !fastRunning} // --- fast-render --- (not while a fast export runs)
+            recordingSupported={recordingSupported && !fastRunning && !batchRender.running} // --- fast-render --- (not while a fast export runs) --- batch-render --- (or a batch)
             simulationFound={!!searchResult?.found}
             onRecordToggle={toggleRecording}
             ballImage={ballImage}
@@ -2255,8 +2279,9 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
-            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import", onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders)
+            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders)
             project={projectFiles.panel} // --- project-files ---
+            batch={batchRender.panel} // --- batch-render ---
           />
         </ProjectDropZone>
       </div>
