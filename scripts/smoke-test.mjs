@@ -4227,7 +4227,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 // --- end jdm-arena-games ---
 
 // --- jdm-rhythm-runner ---
-// 28. Beat Runner and Paddle Keep-Up: the preview images and both cards under the rhythm heading of the landing page; URL →
+// 31. Beat Runner and Paddle Keep-Up: the preview images and both cards under the rhythm heading of the landing page; URL →
 // the Mode-row blocks and back into the URL, the search box; a Beat Runner at 1× – every landing on a beat of the 120 BPM
 // grid (data-rr-on-beat equals the landings, the notes – OscillatorNode.start is instrumented – come whole beats apart), no
 // crash, 30+ fps, the finish; the default course at 8× to LEVEL COMPLETE and the end screen; a hand-played run – Space
