@@ -37,6 +37,8 @@ import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 // --- jdm-race ---
 import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writeRaceParams, type RaceCamera, type RaceShape } from "@/lib/physics/modes/race";
 import type { RaceFeature } from "@/lib/physics/raceTrack";
+// --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+import { ARENA_GAME_RANGES, defaultArenaGameFields, readArenaGameParams, resolveArenaGameFields, writeArenaGameParams, type BattleArena } from "@/lib/physics/modes/arenaGames";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -466,6 +468,26 @@ export interface SimulatorSettings {
   /** The mini-map (URL `rcmm`). */
   rcMiniMap: boolean;
   // --- end jdm-race ---
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag (lib/physics/modes/arenaGames.ts, battle.ts, ctf.ts)
+  /** Battle: squares in the fight, 2–20 (URL `btn`). */
+  btCount: number;
+  /** Battle: hit points of every square, 3–20 (URL `bthp`). */
+  btHp: number;
+  /** Battle: damage multiplier, 0.25–3 (URL `btd`). */
+  btDamage: number;
+  /** Battle: box | circle (URL `bta`). */
+  btArena: BattleArena;
+  /** Battle: the safe zone shrinks and pushes the squares together (URL `bts`). */
+  btShrink: boolean;
+  /** Battle: heal, shield and speed power-ups (URL `btp`). */
+  btPowerUps: boolean;
+  /** Capture the flag: squares per team, 1–4 (URL `ctfn`). */
+  ctfPerTeam: number;
+  /** Capture the flag: captures that win, 1–10 (URL `ctfw`). */
+  ctfScoreToWin: number;
+  /** Both games: 0–1, how far the director turns a wall rebound toward the action (URL `arn`). */
+  arenaNudge: number;
+  // --- end jdm-arena-games ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -568,6 +590,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
     ...defaultRaceFields(), // --- jdm-race ---
+    ...defaultArenaGameFields(), // --- jdm-arena-games ---
   };
 }
 
@@ -626,6 +649,7 @@ export const RANGES = {
   ...ILLUSION_RANGES,
   ...WOBBLE_RANGES,
   ...RACE_RANGES, // --- jdm-race ---
+  ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -854,6 +878,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
+  writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   return params;
 }
 
@@ -963,6 +988,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
+  readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   return settings;
 }
 
@@ -1125,6 +1151,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
+  Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   return merged;
 }
 

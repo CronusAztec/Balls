@@ -33,6 +33,10 @@ import { IllusionMode, type IllusionSettings, type IllusionView } from "./modes/
 import { WallContactLog, wobbleStrength } from "./wobble";
 // --- jdm-race ---
 import { RaceMode, type RaceSettings, type RaceView } from "./modes/race";
+// --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+import { BattleMode } from "./modes/battle";
+import { CtfMode } from "./modes/ctf";
+import type { ArenaView, BattleSettings, CtfSettings } from "./modes/arenaGames";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -237,6 +241,9 @@ export class PhysicsEngine {
   private readonly wallContacts = new WallContactLog();
   // --- jdm-race --- the Square Racing Grand Prix (a seeded track, racers, standings, podium and cup)
   readonly raceMode = new RaceMode();
+  // --- jdm-arena-games --- the two team games of bouncing squares
+  readonly battleMode = new BattleMode();
+  readonly ctfMode = new CtfMode();
 
   readonly ctx: ModeContext;
 
@@ -481,6 +488,13 @@ export class PhysicsEngine {
   initRace() {
     this.activateMode(this.raceMode, "none");
   }
+  // --- jdm-arena-games ---
+  initBattle() {
+    this.activateMode(this.battleMode, "none");
+  }
+  initCtf() {
+    this.activateMode(this.ctfMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -532,6 +546,11 @@ export class PhysicsEngine {
       // --- jdm-race ---
       case "race":
         return this.initRace();
+      // --- jdm-arena-games ---
+      case "battle":
+        return this.initBattle();
+      case "ctf":
+        return this.initCtf();
     }
   }
 
@@ -1112,6 +1131,40 @@ export class PhysicsEngine {
     return this.raceMode.getProgress();
   }
   // --- end jdm-race ---
+  // --- jdm-arena-games ---
+  isBattleMode() {
+    return this.currentMode === this.battleMode;
+  }
+  getBattleSettings(): BattleSettings {
+    return this.battleMode.getSettings();
+  }
+  /** Squares, hit points, damage, arena, shrinking zone, power-ups and nudge of the battle; applied by the next `initBattle()`. */
+  setBattleSettings(settings: Partial<BattleSettings>) {
+    this.battleMode.setSettings(settings);
+  }
+  getBattleProgress() {
+    return this.battleMode.getProgress();
+  }
+  isCtfMode() {
+    return this.currentMode === this.ctfMode;
+  }
+  getCtfSettings(): CtfSettings {
+    return this.ctfMode.getSettings();
+  }
+  /** Team size, score to win and nudge of Capture the Flag apply on the next `initCtf()`; the clip length (its time limit) at once. */
+  setCtfSettings(settings: Partial<CtfSettings>) {
+    this.ctfMode.setSettings(settings);
+  }
+  getCtfProgress() {
+    return this.ctfMode.getProgress();
+  }
+  /** Live state of the arena game in play (squares, zone, power-ups, flags, scores, result) for the canvas; null in the other modes. */
+  getArenaView(): ArenaView | null {
+    if (this.currentMode === this.battleMode) return this.battleMode.getView();
+    if (this.currentMode === this.ctfMode) return this.ctfMode.getView();
+    return null;
+  }
+  // --- end jdm-arena-games ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

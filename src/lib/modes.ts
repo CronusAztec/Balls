@@ -18,6 +18,8 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "race");
 }
+// --- jdm-arena-games --- the two team games join the rhythm family after the other project.jdm modes (before the Boris ones)
+MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ctf");
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -56,6 +58,9 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   illusion: "rhythm",
   // --- jdm-race --- every obstacle a racer hits is its note, every pass a chime
   race: "rhythm",
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag: every clash and bounce is a note
+  battle: "rhythm",
+  ctf: "rhythm",
 };
 
 /** The modes of a category in card order. */

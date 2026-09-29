@@ -40,6 +40,9 @@ export const MODE_IDS = [
   "illusion",
   // --- jdm-race ---
   "race",
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+  "battle",
+  "ctf",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

@@ -1098,7 +1098,34 @@
     "rcName14": "Srebrny",
     "rcName15": "Bordowy",
     "rcName16": "Miętowy",
-    "rcTeamsNote": "W Wyścigu kwadratów Grand Prix lista drużyn nadaje nazwy, kolory i emoji pierwszym sześciu zawodnikom (pozostali jadą we własnych kolorach)."
+    "rcTeamsNote": "W Wyścigu kwadratów Grand Prix lista drużyn nadaje nazwy, kolory i emoji pierwszym sześciu zawodnikom (pozostali jadą we własnych kolorach).",
+    "modeBattle": "Battle Royale",
+    "modeCtf": "Zdobądź flagę",
+    "arenaTitle": "Gry na arenie",
+    "btDesc": "Kwadraty z punktami życia odbijają się i zderzają w stylu project.jdm: obrażenia zadaje szybszy kwadrat, trafione kwadraty błyskają i się kurczą, a przy 0 HP odpadają z gry. Wygrywa ostatni kwadrat na placu boju – każde zderzenie i odbicie to nuta.",
+    "ctfDesc": "Dwie drużyny odbijających się kwadratów w stylu project.jdm: dotknij flagi rywala, by ją nieść, i zanieś ją do swojej bazy, by zdobyć punkt. Niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – każde zdobycie flagi wita fanfara.",
+    "btCount": "Kwadraty",
+    "btCountTip": "Ile kwadratów walczy, od 2 do 20. Każdy jest osobną drużyną; ich rozmiar dobiera się sam, by wypełniły arenę (Rozmiar kulki je powiększa).",
+    "btHp": "Punkty życia",
+    "btHpTip": "HP, z którymi startuje każdy kwadrat, od 3 do 20. Więcej HP to dłuższe bitwy.",
+    "btDamage": "Obrażenia",
+    "btDamageTip": "Mnożnik obrażeń: zderzenie zadaje tyle razy prędkość zbliżania podzieloną przez Prędkość kulki, więc zderzenie czołowe boli znacznie bardziej niż otarcie.",
+    "btArena": "Arena",
+    "btArenaTip": "Walka w pudełku albo w kole – oba wypełniają środek wideo pod tablicą wyników.",
+    "btArenaBox": "Pudełko",
+    "btArenaCircle": "Koło",
+    "btShrink": "Kurcząca się strefa",
+    "btShrinkTip": "Od ósmej sekundy bezpieczna strefa zamyka się przez 30 s i spycha kwadraty do siebie – nigdy ciaśniej, niż potrzebują ci, którzy przetrwali.",
+    "btPowerUps": "Bonusy",
+    "btPowerUpsTip": "Leczenie (+35 % HP), tarcza (blokuje następne trafienie) i przyspieszenie (1,5× przez 5 s) pojawiają się w miejscach i chwilach wyznaczonych przez ziarno; bierze je kwadrat, który ich dotknie.",
+    "ctfPerTeam": "Kwadraty w drużynie",
+    "ctfPerTeamTip": "Liczebność drużyny, od 1 do 4 na stronę (2 na 2 to klasyka).",
+    "ctfScoreToWin": "Punkty do wygranej",
+    "ctfScoreToWinTip": "Wygrywa drużyna, która pierwsza tyle razy doniesie flagę rywala do swojej bazy; w przeciwnym razie na koniec klipu wygrywa lepszy wynik.",
+    "ctfTimeInfo": "Limit czasu: {seconds} s (długość klipu minus baner zwycięzcy)",
+    "arenaNudge": "Pchnięcie reżysera",
+    "arenaNudgeTip": "Jak mocno reżyser skręca odbicie od ściany w stronę akcji – najbliższego rywala, flagi przeciwnika albo, z flagą, własnej bazy. 0 to czysta fizyka; wszystko zależy od ziarna, więc każdy przebieg da się odtworzyć.",
+    "arenaTeamsHint": "Nazwy i kolory pochodzą z listy drużyn, jeśli ją ustawisz (sekcja Drużyny i tablica wyników); w przeciwnym razie każdy kwadrat dostaje nazwę koloru."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1147,6 +1174,14 @@
     "race": {
       "name": "Wyścig kwadratów Grand Prix",
       "description": "Wyścigowe kwadraty (albo kulki) pędzą w dół długiego toru pełnego kołków, lejków, obrotowych belek, flipperowych odbijaczy, turbo-pól, wąskich bramek i stref zamiany, które zamieniają miejscami dwóch zawodników. Klasyfikacja na żywo, komunikaty o wyprzedzaniu, podium z konfetti – i puchary, w których punkty F1 sumują się przez kolejne wyścigi."
+    },
+    "battle": {
+      "name": "Battle Royale kwadratów",
+      "description": "Do 20 kwadratów z paskami zdrowia odbija się w pudełku lub w kole i zderza ze sobą: obrażenia zadaje szybszy kwadrat, trafione kwadraty błyskają i się kurczą, a przy zerze HP wybuchają z napisem KO. Kurcząca się bezpieczna strefa oraz bonusy – leczenie, tarcza i przyspieszenie – trzymają w napięciu, aż na placu boju zostanie ostatni kwadrat."
+    },
+    "ctf": {
+      "name": "Zdobądź flagę",
+      "description": "Dwie drużyny odbijających się kwadratów i baza z flagą na każdym końcu: dotknij flagi rywala, by ją nieść, zanieś ją do siebie, by zdobyć punkt – a gdy ktoś cię po drodze staranuje, flaga spada tam, gdzie jesteś. Wygrywa pierwsza drużyna z wymaganym wynikiem albo ta z lepszym wynikiem na koniec klipu, a każde zdobycie flagi wita fanfara."
     }
   },
   "Features": {
@@ -1295,7 +1330,9 @@
     "modeMultipliers": "Wysoka plansza, którą kamera przewija w dół, zawsze za najniżej położoną piłką. Każdy rząd dzieli się na 2–4 bramki: bramki liczby (x2, x3, x5) klonują każdą przechodzącą piłkę – aż do wybranego limitu, od 50 do 2000 –, bramki prędkości, rozmiaru i obrażeń nakładają na nią mnożniki bez górnej granicy, bramki ÷2 pochłaniają co drugą piłkę, a bramki z zapadką trzymają stos piłek na klapie, która otwiera się seriami. Między rzędami stoją kołki rozdzielające, sprężyste odbijacze, lejki i blokady z punktami wytrzymałości (mnożnik obrażeń szybciej je kruszy), każde uderzenie to nuta pentatonicznego „pianina plinko”, a strefa DOM na dole liczy na żywo przybyłe piłki aż do końcowego „Boris w domu: N”. Piłka, która urośnie szerzej niż plansza, przerasta arenę i kończy bieg świętowaniem. Ustaw docelową liczbę, a Znajdź symulację poszuka ziarna, którego końcowy wynik mieści się w 5 % od celu. Te same mnożniki unoszą się jako znajdźki w trybach z pierścieniami (sekcja Piłka → Mnożniki).",
     "modeDoublePendulum": "Bez pierścieni: od jednego do czterech podwójnych – albo potrójnych – wahadeł kołysze się z punktu zawieszenia na środku filmu, liczonych krok po kroku (adaptacyjną metodą Rungego–Kutty piątego rzędu, której podkroki skracają się wszędzie tam, gdzie ruch robi się gwałtowny), więc chaos to prawdziwa fizyka, a energia utrzymuje się przez cały klip. W poprzek planszy stoi do 24 strun harfy, pionowych lub promienistych; każda kulka, która przetnie strunę, szarpie ją – struna drga i gra swój dźwięk, nastrojony do skali z sekcji Własny dźwięk w zakresie od jednej do czterech oktaw – a ostatnia kulka rysuje długi tęczowy ślad. Kilka wahadeł startuje minimalnie przesuniętych i po kilku sekundach się rozbiega (efekt motyla); sparing wiesza dwa wahadła obok siebie, których kulki zderzają się sprężyście – każde uderzenie to perkusyjny dźwięk i błysk. Długości ramion, masy, grawitację, tarcie i kąty startowe (albo losowy start z ziarna) można regulować, a przebieg kończy się razem z klipem albo nigdy.",
     "modeIllusion": "Bez pierścieni do przebicia: cztery iluzje w stylu project.jdm. Linie – N piłek sunie tam i z powrotem po średnicach dużego okręgu, piłka i pod kątem i·π/N z przesunięciem fazy i·π/N, więc razem tworzą mniejszy okrąg toczący się w środku; każda piłka gra swoją nutę, gdy dotknie krawędzi. Pierścienie – współśrodkowe pierścienie z jedną odbijającą się piłką w każdym; obracają się z różną prędkością, więc odbicia rozchodzą się spiralami i co cykl znów stają w linii. Zagnieżdżone – okrąg odbijający się w okręgu w okręgu (2–5 warstw), ze sprężystymi zderzeniami i ścianami, które falują tam, gdzie zostały uderzone. Białe plamy – piłki malują białą arenę na czarno, ale odbijają się od kształtów, w które nigdy nie wjadą, więc na końcu ukazuje się ukryty obrazek wybrany przez ziarno. Wszystko jest deterministyczne, a suwak Falujące ściany w sekcji Efekty wizualne sprawia, że ściany każdego trybu z pierścieniami też drgają jak galaretka.",
-    "modeRace": "Format wyścigu kulek z project.jdm, bez pierścieni: od 2 do 16 zawodników – z nazwami, kolorami i emoji z listy drużyn – rusza z pól startowych w dół długiego, pionowego toru wygenerowanego z ziarna. Rzędy kołków, lejków, obrotowych belek, flipperowych odbijaczy, turbo-pól, wąskich bramek i stref zamiany (pierwszy zawodnik ją uzbraja, drugi zamienia się z nim miejscami) mieszają kolejność; każda przeszkoda, w którą ktoś uderzy, gra jego własną nutę, a każde wyprzedzenie – rosnący dzwonek. Kamera śledzi lidera albo obejmuje całą stawkę, minimapa pokazuje cały tor, klasyfikacja – pozycje i straty, a meta to fanfara, podium i konfetti. Zapętl tor na kilka okrążeń, włącz puchar, by zbierać punkty F1 przez kolejne wyścigi, albo wybierz ustawionego zwycięzcę."
+    "modeRace": "Format wyścigu kulek z project.jdm, bez pierścieni: od 2 do 16 zawodników – z nazwami, kolorami i emoji z listy drużyn – rusza z pól startowych w dół długiego, pionowego toru wygenerowanego z ziarna. Rzędy kołków, lejków, obrotowych belek, flipperowych odbijaczy, turbo-pól, wąskich bramek i stref zamiany (pierwszy zawodnik ją uzbraja, drugi zamienia się z nim miejscami) mieszają kolejność; każda przeszkoda, w którą ktoś uderzy, gra jego własną nutę, a każde wyprzedzenie – rosnący dzwonek. Kamera śledzi lidera albo obejmuje całą stawkę, minimapa pokazuje cały tor, klasyfikacja – pozycje i straty, a meta to fanfara, podium i konfetti. Zapętl tor na kilka okrążeń, włącz puchar, by zbierać punkty F1 przez kolejne wyścigi, albo wybierz ustawionego zwycięzcę.",
+    "modeBattle": "Bez pierścieni: od 2 do 20 kwadratów z punktami życia odbija się w pudełku lub w kole i wpada na siebie. Przy zderzeniu szybszy kwadrat zadaje obrażenia proporcjonalne do prędkości zbliżania; trafiony kwadrat błyska i trochę się kurczy, a przy 0 HP rozpada się na odłamki z napisem KO. Opcjonalna bezpieczna strefa zamyka się od ósmej sekundy i spycha ocalałych do siebie, a bonusy – leczenie, tarcza i przyspieszenie – pojawiają się w chwilach wyznaczonych przez ziarno. Ostatni kwadrat na placu boju wygrywa pod banerem z konfetti. Przebieg zależy tylko od ziarna, więc Znajdź symulację potrafi wyszukać bitwę o zadanej długości.",
+    "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu."
   },
   "Footer": {
     "about": "O nas",
@@ -1507,5 +1544,36 @@
     "ballN": "Piłka {n}",
     "noteNeverEscape": "Ustawione: żadna piłka nie ucieknie",
     "noteWinner": "Ustawione: wygrywa {name}"
+  },
+  "ArenaGames": {
+    "ko": "KO!",
+    "wins": "WYGRYWA: [name]!",
+    "draw": "REMIS!",
+    "left": "ZOSTAŁO: [count]",
+    "capture": "FLAGA ZDOBYTA!",
+    "time": "KONIEC CZASU!",
+    "battleSub": "Nokauty: [kos] · HP: [hp]",
+    "ctfSub": "[a] – [b]",
+    "zone": "STREFA SIĘ ZAMYKA",
+    "name1": "Czerwoni",
+    "name2": "Niebiescy",
+    "name3": "Zieloni",
+    "name4": "Złoci",
+    "name5": "Fioletowi",
+    "name6": "Pomarańczowi",
+    "name7": "Różowi",
+    "name8": "Błękitni",
+    "name9": "Limonkowi",
+    "name10": "Morscy",
+    "name11": "Koralowi",
+    "name12": "Indygo",
+    "name13": "Miętowi",
+    "name14": "Lawendowi",
+    "name15": "Bursztynowi",
+    "name16": "Lazurowi",
+    "name17": "Malinowi",
+    "name18": "Oliwkowi",
+    "name19": "Granatowi",
+    "name20": "Śnieżni"
   }
 }

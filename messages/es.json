@@ -1098,7 +1098,34 @@
     "rcName14": "Plata",
     "rcName15": "Granate",
     "rcName16": "Menta",
-    "rcTeamsNote": "En el Gran Premio de Cuadrados la lista da nombre, color y emoji a los seis primeros corredores (los demás corren con colores propios)."
+    "rcTeamsNote": "En el Gran Premio de Cuadrados la lista da nombre, color y emoji a los seis primeros corredores (los demás corren con colores propios).",
+    "modeBattle": "Battle Royale",
+    "modeCtf": "Captura la bandera",
+    "arenaTitle": "Juegos de arena",
+    "btDesc": "Cuadrados con puntos de vida rebotan y chocan al estilo de project.jdm: el cuadrado más rápido hace el daño, los golpeados parpadean y encogen, y a 0 PV quedan eliminados. Gana el último cuadrado en pie, y cada choque y rebote es una nota.",
+    "ctfDesc": "Dos equipos de cuadrados que rebotan al estilo de project.jdm: toca la bandera rival para llevarla y llévala a tu base para anotar. Si un rival golpea al portador, la bandera cae donde está, y cada captura suena con una fanfarria.",
+    "btCount": "Cuadrados",
+    "btCountTip": "Cuántos cuadrados luchan, de 2 a 20. Cada uno es su propio equipo; su tamaño se ajusta solo para llenar la arena (el Tamaño de la bola los agranda).",
+    "btHp": "Puntos de vida",
+    "btHpTip": "Los PV con los que empieza cada cuadrado, de 3 a 20. Más PV, batallas más largas.",
+    "btDamage": "Daño",
+    "btDamageTip": "Multiplicador de daño: un choque hace este valor por la velocidad de acercamiento dividida entre la Velocidad de la bola, así que un choque de frente duele mucho más que un roce.",
+    "btArena": "Arena",
+    "btArenaTip": "Lucha en una caja o en un círculo; ambos ocupan el centro del vídeo bajo el marcador.",
+    "btArenaBox": "Caja",
+    "btArenaCircle": "Círculo",
+    "btShrink": "Zona que se cierra",
+    "btShrinkTip": "A partir del octavo segundo la zona segura se cierra durante 30 s y empuja a los cuadrados unos contra otros, nunca más de lo que necesitan los supervivientes.",
+    "btPowerUps": "Potenciadores",
+    "btPowerUpsTip": "Curación (+35 % de PV), escudo (bloquea el siguiente golpe) y velocidad (1,5× durante 5 s) aparecen en momentos y lugares que marca la semilla; se los queda el cuadrado que los toca.",
+    "ctfPerTeam": "Cuadrados por equipo",
+    "ctfPerTeamTip": "Tamaño de cada equipo, de 1 a 4 por lado (el 2 contra 2 es el clásico).",
+    "ctfScoreToWin": "Capturas para ganar",
+    "ctfScoreToWinTip": "Gana el primer equipo que lleve la bandera rival a su base tantas veces; si no, gana la mejor puntuación cuando termina el clip.",
+    "ctfTimeInfo": "Límite de tiempo: {seconds} s (la duración del clip menos el cartel del ganador)",
+    "arenaNudge": "Empujón del director",
+    "arenaNudgeTip": "Cuánto gira el director un rebote en la pared hacia la acción: el rival más cercano, la bandera enemiga o, con ella, la propia base. 0 es física pura; depende de la semilla, así que cada partida se puede reproducir.",
+    "arenaTeamsHint": "Los nombres y colores salen de la lista de equipos si la defines (sección Equipos y marcador); si no, cada cuadrado recibe el nombre de un color."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1147,6 +1174,14 @@
     "race": {
       "name": "Gran Premio de Cuadrados",
       "description": "Cuadrados (o canicas) de carreras bajan por una pista larga llena de clavijas, embudos, aspas giratorias, bumpers de pinball, turbos, puertas estrechas y zonas de intercambio que cambian de sitio a dos corredores. Clasificación en directo, avisos de adelantamiento, podio con confeti… y copas que suman puntos de F1 carrera tras carrera."
+    },
+    "battle": {
+      "name": "Battle Royale de cuadrados",
+      "description": "Hasta 20 cuadrados con barras de vida rebotan en una caja o un círculo y chocan entre sí: el cuadrado más rápido hace el daño, los golpeados parpadean y encogen, y a cero PV explotan con un KO. Una zona segura que se cierra y potenciadores de curación, escudo y velocidad mantienen la tensión hasta que solo queda un cuadrado en pie."
+    },
+    "ctf": {
+      "name": "Captura la bandera",
+      "description": "Dos equipos de cuadrados que rebotan y una base con bandera en cada extremo: toca la bandera rival para llevarla y llévala a casa para anotar; si te placan por el camino, la bandera cae donde estés. Gana el primero en llegar a la puntuación objetivo, o el que vaya ganando cuando acabe el clip, con una fanfarria en cada captura."
     }
   },
   "Features": {
@@ -1295,7 +1330,9 @@
     "modeMultipliers": "Un tablero alto que la cámara recorre hacia abajo, siempre siguiendo a la pelota más baja. Cada fila se divide en 2–4 puertas: las puertas de cantidad (x2, x3, x5) clonan cada pelota que pasa – hasta el límite de pelotas que elijas, de 50 a 2000 –, las de velocidad, tamaño y daño le acumulan multiplicadores sin tope, las ÷2 absorben una de cada dos pelotas y las compuertas retienen un montón sobre una trampilla que se abre en tandas. Entre las filas hay pivotes divisores, rebotadores que impulsan, embudos y bloqueos con puntos de vida (el multiplicador de daño los desgasta más rápido); cada golpe es una nota de un piano plinko pentatónico, y la zona CASA de abajo cuenta las llegadas en directo hasta el final: «N Boris llegaron a casa». Una pelota que crece más que el tablero lo supera y termina la partida con una celebración. Fija un número objetivo y Buscar simulación busca una semilla cuyo recuento final quede a menos del 5 % del objetivo. Los mismos multiplicadores flotan como potenciadores en los modos de anillos (sección Bola → Multiplicadores).",
     "modeDoublePendulum": "Sin anillos: de uno a cuatro dobles péndulos –o péndulos triples– oscilan desde un pivote en el centro del vídeo, integrados paso a paso (un esquema de Runge–Kutta adaptativo de quinto orden cuyos subpasos se acortan allí donde la oscilación se vuelve violenta), así que el caos es física real y la energía se mantiene durante todo el clip. Hasta 24 cuerdas de arpa cruzan el escenario, verticales o radiales; cada bola que cruza una la pulsa: la cuerda vibra y toca su nota, afinada en la escala de la sección Sonido personalizado a lo largo de una a cuatro octavas, mientras la última bola dibuja una larga estela arcoíris. Varios péndulos salen con una diferencia mínima y se separan a los pocos segundos (el efecto mariposa); el combate cuelga dos, uno al lado del otro, cuyas bolas chocan elásticamente: cada golpe, una nota de percusión y un destello. Las longitudes de los brazos, las masas, la gravedad, la fricción y los ángulos iniciales (o un inicio aleatorio con semilla) son ajustables, y la simulación termina con el clip o nunca.",
     "modeIllusion": "Sin anillos de los que escapar: cuatro ilusiones de project.jdm. Líneas: N pelotas van y vienen por diámetros del círculo grande, la pelota i con ángulo i·π/N y un desfase de i·π/N, así que juntas forman un círculo más pequeño que rueda dentro; cada pelota toca su nota al tocar el borde. Anillos: anillos concéntricos con una pelota que rebota en cada uno; giran a distinta velocidad, así que los rebotes se propagan en espirales y cada ciclo vuelven a alinearse. Anidados: un círculo que rebota dentro de un círculo dentro de otro (2–5 capas), con choques elásticos y paredes que tiemblan donde reciben el golpe. Espacios en blanco: las pelotas pintan de negro la arena blanca pero rebotan en formas en las que nunca pueden entrar, así que al final aparece un dibujo oculto elegido por la semilla. Todo es determinista, y el control Paredes gelatina de la sección Efectos visuales hace que las paredes de todos los modos con anillos también reboten como gelatina.",
-    "modeRace": "El formato de carrera de canicas de project.jdm, sin anillos: de 2 a 16 corredores —con los nombres, colores y emojis de la lista de equipos— salen de una parrilla y bajan por una larga pista vertical generada a partir de la semilla. Filas de clavijas, embudos, aspas giratorias, bumpers de pinball, turbos, puertas estrechas y zonas de intercambio (el primer corredor la arma y el segundo intercambia su posición con él) revuelven el orden; cada obstáculo que golpea un corredor suena con su propia nota y cada adelantamiento con un timbre ascendente. La cámara sigue al líder o encuadra al pelotón, un minimapa muestra toda la pista, la clasificación muestra posiciones y diferencias, y la meta trae fanfarria, podio y confeti. Repite la pista varias vueltas, activa una copa para sumar puntos de F1 entre carreras o elige un ganador amañado."
+    "modeRace": "El formato de carrera de canicas de project.jdm, sin anillos: de 2 a 16 corredores —con los nombres, colores y emojis de la lista de equipos— salen de una parrilla y bajan por una larga pista vertical generada a partir de la semilla. Filas de clavijas, embudos, aspas giratorias, bumpers de pinball, turbos, puertas estrechas y zonas de intercambio (el primer corredor la arma y el segundo intercambia su posición con él) revuelven el orden; cada obstáculo que golpea un corredor suena con su propia nota y cada adelantamiento con un timbre ascendente. La cámara sigue al líder o encuadra al pelotón, un minimapa muestra toda la pista, la clasificación muestra posiciones y diferencias, y la meta trae fanfarria, podio y confeti. Repite la pista varias vueltas, activa una copa para sumar puntos de F1 entre carreras o elige un ganador amañado.",
+    "modeBattle": "Sin anillos: de 2 a 20 cuadrados con puntos de vida rebotan en una caja o un círculo y chocan entre sí. Cuando dos se golpean, el más rápido hace un daño proporcional a la velocidad con la que se acercan; el cuadrado golpeado parpadea y encoge un poco, y a 0 PV estalla en pedazos con un cartel de KO. Una zona segura opcional se cierra desde el octavo segundo y empuja a los supervivientes unos contra otros, y los potenciadores de curación, escudo y velocidad aparecen en momentos marcados por la semilla. El último cuadrado en pie gana bajo un cartel con confeti. Todo depende de la semilla, así que Buscar simulación puede encontrar una batalla de la duración que quieras.",
+    "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip."
   },
   "Footer": {
     "about": "Acerca de",
@@ -1507,5 +1544,36 @@
     "ballN": "Pelota {n}",
     "noteNeverEscape": "Amañado: ninguna pelota puede escapar",
     "noteWinner": "Amañado: gana {name}"
+  },
+  "ArenaGames": {
+    "ko": "¡KO!",
+    "wins": "¡GANA [name]!",
+    "draw": "¡EMPATE!",
+    "left": "QUEDAN: [count]",
+    "capture": "¡CAPTURA!",
+    "time": "¡TIEMPO!",
+    "battleSub": "KO: [kos] · PV: [hp]",
+    "ctfSub": "[a] – [b]",
+    "zone": "LA ZONA SE CIERRA",
+    "name1": "Rojos",
+    "name2": "Azules",
+    "name3": "Verdes",
+    "name4": "Dorados",
+    "name5": "Morados",
+    "name6": "Naranjas",
+    "name7": "Rosas",
+    "name8": "Cian",
+    "name9": "Lima",
+    "name10": "Turquesas",
+    "name11": "Corales",
+    "name12": "Índigo",
+    "name13": "Menta",
+    "name14": "Violetas",
+    "name15": "Ámbar",
+    "name16": "Celestes",
+    "name17": "Frambuesa",
+    "name18": "Oliva",
+    "name19": "Marinos",
+    "name20": "Nieve"
   }
 }

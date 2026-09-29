@@ -3305,6 +3305,158 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   check("finder finds a 30 s race", found);
 }
 // --- end jdm-race ---
+// --- jdm-arena-games ---
+// 27. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
+// row, controls → URL, the search box; a battle at 8× fought to the last square standing – every other square knocked
+// out, notes played, the winner banner held before the end screen; Find Simulation finds a 30 s battle and the found
+// seed replays to its length; a capture-the-flag game won on the score (captures counted, flags back home or carried);
+// names from the Teams roster; the frame rate of 20 squares and of a 4 – 4 game.
+{
+  for (const mode of ["battle", "ctf"]) {
+    const res = await page.request.get(`${BASE}/modes/${mode}.webp`);
+    check(`asset /modes/${mode}.webp`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  }
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const cards = (await page.locator('img[src$="/modes/battle.webp"]').count()) + (await page.locator('img[src$="/modes/ctf.webp"]').count());
+  check("the Battle Royale and Capture the Flag cards are on the landing page", cards === 2, `(${cards})`);
+}
+{
+  const arenaToggle = (label) => page.getByTestId("arena-games-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=battle&btn=12&bthp=6&btd=1.5&bta=circle&bts=0&btp=0&arn=0.8`, { waitUntil: "networkidle" });
+  {
+    const values = { btn: await sliderValue("Squares"), bthp: await sliderValue("Hit Points"), btd: await sliderValue("Damage"), arn: await sliderValue("Director Nudge") };
+    const circle = await page.getByRole("group", { name: "Arena", exact: true }).getByRole("button", { name: /Circle/ }).getAttribute("aria-pressed");
+    const shrink = await arenaToggle("Shrinking Zone").getAttribute("aria-pressed");
+    const powerUps = await arenaToggle("Power-ups").getAttribute("aria-pressed");
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "battle royale loads from URL",
+      values.btn === "12" && values.bthp === "6" && values.btd === "1.5" && values.arn === "0.8" && circle === "true" && shrink === "false" && powerUps === "false" && noRingControls,
+      `(${JSON.stringify(values)}, circle=${circle}, shrink=${shrink}, power-ups=${powerUps})`,
+    );
+  }
+  await page.locator('input[aria-label="Squares"]').evaluate(setRangeValue, "10");
+  await page.getByRole("group", { name: "Arena", exact: true }).getByRole("button", { name: /Box/ }).click();
+  await arenaToggle("Shrinking Zone").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check("battle royale mirrors into the URL", /(^|&)btn=10(&|$)/.test(query) && !/(^|&)bta=/.test(query) && !/(^|&)bts=/.test(query) && /(^|&)btp=0(&|$)/.test(query), `(${query})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("power-ups");
+  const powerFound = await arenaToggle("Power-ups").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("director nudge");
+  const nudgeFound = await page.locator('input[aria-label="Director Nudge"]').isVisible();
+  check("search finds the arena-game controls", powerFound && nudgeFound && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()), `(power-ups=${powerFound}, nudge=${nudgeFound})`);
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+{
+  // A default battle at 8×: every square but one is knocked out, the clashes and bounces play notes (OscillatorNode.start is
+  // instrumented), and the winner banner holds the end screen back for a moment.
+  await page.goto(`${BASE}/en/simulator/?mode=battle`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__arenaOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-battle.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-battle-winner.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  const tones = await page.evaluate(() => window.__arenaOsc.length);
+  check(
+    "a battle is fought to the last square standing, with notes, and its winner banner is held",
+    Number(early.arenaDrawn) === 8 && finished && data.arenaSquares === "8" && data.arenaAlive === "1" && data.arenaKos === "7" && Number(data.arenaHits) > 7 && Number(data.arenaNotes) > 0 && !!data.arenaWinner && data.arenaWinner !== "draw" && tones > 0 && held && endScreen,
+    `(start ${JSON.stringify({ drawn: early.arenaDrawn, hits: early.arenaHits })}, end ${JSON.stringify({ alive: data.arenaAlive, kos: data.arenaKos, hits: data.arenaHits, notes: data.arenaNotes, pickups: data.arenaPickups, zone: data.arenaZone, winner: data.arenaWinner })}, ${tones} tones, held=${held}, end screen=${endScreen})`,
+  );
+}
+{
+  // Find Simulation: a battle always ends, so a 30 s one is found; the found seed replays to the length it was found with
+  // (the finder shows it rounded to one decimal, so within 0.05 s) and the clip is that length plus the winner banner's hold,
+  // rounded up.
+  await page.goto(`${BASE}/en/simulator/?mode=battle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  const dur = new URL(page.url()).searchParams.get("dur");
+  let replay = NaN;
+  if (foundSec > 0) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    replay = Number((await canvasData()).arenaFinishSec);
+  }
+  check("find simulation finds a 30 s battle that replays to its length", /Found! (29\.[5-9]|30\.[0-5])s/.test(text) && Math.abs(replay - foundSec) <= 0.051 && dur === String(Math.ceil(replay + 3 - 1e-9)), `(${text}, dur=${dur}, replay ${replay}s)`);
+}
+{
+  // Capture the flag, first to two: captures are counted and the score decides (or the clock, if nobody gets there).
+  await page.goto(`${BASE}/en/simulator/?mode=ctf&ctfw=2`, { waitUntil: "networkidle" });
+  const values = { ctfn: await sliderValue("Squares per Team"), ctfw: await sliderValue("Captures to Win") };
+  const limit = await page.getByTestId("ctf-time-limit").innerText();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: path.join(outDir, "sim-ctf.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-ctf-winner.png") });
+  const [a, b] = (data.arenaScore || "0:0").split(":").map(Number);
+  const onScore = Math.max(a, b) === 2;
+  check(
+    "capture the flag: captures score, the first to two wins (or the better score when time runs out)",
+    values.ctfn === "2" && values.ctfw === "2" && /27s/.test(limit) && finished && data.arenaGame === "ctf" && data.arenaSquares === "4" && Number(data.arenaCaptures) === a + b && (onScore ? data.arenaWinner !== "draw" : Number(data.arenaFinishSec) >= 26.9) && /^(base|carried|dropped),(base|carried|dropped)$/.test(data.arenaFlags || ""),
+    `(${JSON.stringify(values)}, "${limit}", ${JSON.stringify({ score: data.arenaScore, captures: data.arenaCaptures, drops: data.arenaDrops, returns: data.arenaReturns, flags: data.arenaFlags, winner: data.arenaWinner, at: data.arenaFinishSec })})`,
+  );
+}
+{
+  // Names and colours from the Teams roster; a battle between three: the winner is one of them.
+  await page.goto(`${BASE}/en/simulator/?mode=battle&btn=3&teams=${encodeURIComponent("Alpha*ff0000*,Beta*00ff00*")}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("the Teams roster names the squares (colour names for the rest)", finished && ["Alpha", "Beta", "Green"].includes(data.arenaWinner), `(winner=${data.arenaWinner})`);
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.waitForTimeout(500);
+  check("the arena data leaves with the mode", (await canvasData()).arenaGame === undefined);
+}
+{
+  // Frame rate: 20 squares with power-ups and the zone, and a 4 – 4 capture the flag (headless Chromium; 30+ fps on average
+  // over 3 s, fpsFloor() on a busy machine).
+  const rates = {};
+  for (const [name, query] of [["battle 20", "mode=battle&btn=20&glow=1"], ["ctf 4-4", "mode=ctf&ctfn=4&glow=1"]]) {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    rates[name] = await page.evaluate(
+      (ms) =>
+        new Promise((resolve) => {
+          let frames = 0;
+          const start = performance.now();
+          const frame = (t) => {
+            frames++;
+            if (t - start < ms) requestAnimationFrame(frame);
+            else resolve(Math.round((1000 * frames) / (t - start)));
+          };
+          requestAnimationFrame(frame);
+        }),
+      3000,
+    );
+  }
+  check("the arena games keep 30+ fps", Object.values(rates).every((fps) => fps >= fpsFloor(30)), `(${JSON.stringify(rates)}, floor ${fpsFloor(30)}${loadNote()})`);
+}
+// --- end jdm-arena-games ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

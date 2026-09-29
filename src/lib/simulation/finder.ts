@@ -23,6 +23,8 @@ import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/li
 import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettings } from "@/lib/physics/modes/illusion";
 // --- jdm-race ---
 import type { RaceSettings } from "@/lib/physics/modes/race";
+// --- jdm-arena-games ---
+import type { BattleSettings, CtfSettings } from "@/lib/physics/modes/arenaGames";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -74,6 +76,13 @@ export interface ModeSettings {
   // --- jdm-race ---
   /** Square Racing Grand Prix: racers, track length, laps, obstacle mix, the favourite and the cup (see modes/race.ts); the defaults when left out. Every race ends (a podium after the last racer home, or DNFs after a grace period), so the finder times it. */
   race?: Partial<RaceSettings>;
+  // --- jdm-arena-games ---
+  /**
+   * Battle Royale and Capture the Flag (see modes/arenaGames.ts); the defaults when left out. A battle always ends with one
+   * square standing and a capture-the-flag game on the score or at its time limit (`clipSeconds`), so the finder searches both.
+   */
+  battle?: Partial<BattleSettings>;
+  ctf?: Partial<CtfSettings>;
 }
 
 // --- jdm-race ---
@@ -223,6 +232,9 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "illusion") engine.setIllusionSettings(settings.illusion ?? {});
   // --- jdm-race ---
   if (mode === "race") engine.setRaceSettings(settings.race ?? {});
+  // --- jdm-arena-games ---
+  if (mode === "battle") engine.setBattleSettings(settings.battle ?? {});
+  if (mode === "ctf") engine.setCtfSettings(settings.ctf ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

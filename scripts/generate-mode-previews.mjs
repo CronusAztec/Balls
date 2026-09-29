@@ -41,6 +41,9 @@ const MODES = {
   illusion: { wait: 11000, query: "ilt=whitespace&ilpt=heart&glow=1" },
   // --- jdm-race --- ten racers mid-race: the standings, the mini-map, swap zones, turbo pads and a pass callout in view
   race: { wait: 8000, query: "rcn=10&glow=1" },
+  // --- jdm-arena-games --- mid-battle: squares with HP bars, a KO blast, power-ups; and a capture the flag game with a carrier
+  battle: { wait: 7000, query: "btn=12&glow=1" },
+  ctf: { wait: 5000, query: "ctfn=3&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");
