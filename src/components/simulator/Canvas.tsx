@@ -48,6 +48,10 @@ import type { Ball } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
 // --- odd-power-layers --- the Power Layers playfield, stack, particles, badges and rule pills
 import { DEFAULT_POWER_LAYERS_LABELS, PowerLayersLayer, type PowerLayersLabels, type PowerLayersRenderOptions } from "./powerLayersRenderer";
+// --- jdm-race --- the Square Racing Grand Prix: track, racers, standings, mini-map, callouts, podium and cup
+import { RACE_DATA_KEYS, RaceLayer, writeRaceDataset, type CanvasRaceOptions, type RaceRenderOptions } from "./raceRenderer";
+// --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOptions } from "./arenaRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -120,6 +124,9 @@ export interface CanvasLabels {
   // --- odd-power-layers ---
   /** Power Layers: the rule pills, the badges, the layers left and the freedom banner. */
   powerLayers?: PowerLayersLabels;
+  // --- jdm-arena-games ---
+  /** Battle Royale / Capture the Flag: KO, winner, draw, squares left, capture, time, the banner lines and the built-in names. */
+  arena?: ArenaLabels;
 }
 
 export interface CanvasHandle {
@@ -203,6 +210,8 @@ export interface CanvasProps {
   captions?: CanvasCaptionOptions | null;
   /** --- jdm-illusions --- Wobbly Walls, 0–1: circular walls deform with a travelling wave where a ball hits them (0 = perfect circles). */
   wallWobble?: number;
+  /** --- jdm-race --- The race's names, colours and emoji (Teams roster), overlays and cup (null outside the race). */
+  race?: CanvasRaceOptions | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -327,6 +336,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     onObstaclesChange,
     captions = null, // --- captions ---
     wallWobble = 0, // --- jdm-illusions ---
+    race = null, // --- jdm-race ---
   },
   ref,
 ) {
@@ -381,6 +391,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   // --- jdm-illusions --- the Wobbly Walls amount, read by the draw loop
   const wobbleAmountRef = useRef(wallWobble);
   wobbleAmountRef.current = wallWobble;
+  // --- jdm-race --- the race options, read by the draw loop
+  const raceRef = useRef<CanvasRaceOptions | null>(race);
+  raceRef.current = race;
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -658,6 +671,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- odd-power-layers --- the Power Layers layer (cached stack, halos, gradients) and its per-frame options
     const plLayer = new PowerLayersLayer();
     const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr };
+    // --- jdm-race --- the race's layer (row easing, sprite and text caches) and its per-frame options
+    const raceLayer = new RaceLayer();
+    const raceRender: RaceRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8 };
+    // --- jdm-arena-games --- the arena games' layer and its per-frame options (the Teams roster names and colours the squares)
+    const arenaLayer = new ArenaLayer();
+    const arenaRender: ArenaRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, roster: null, showNames: true, numbers: true, labels: DEFAULT_ARENA_LABELS };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -898,6 +917,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.save();
         applyGlassCamera(ctx, glassView);
       }
+      // --- jdm-race --- the race scrolls down its track with its own camera, like Glass Smash (the view set up above is dropped)
+      const raceView = engine.isRaceMode() ? engine.getRaceView() : null;
+      if (raceView) {
+        ctx.restore();
+        ctx.save();
+        raceLayer.applyCamera(ctx, raceView);
+      }
       // --- boris-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
       const multView = engine.getMultiplierView();
@@ -1136,6 +1162,22 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
       }
 
+      // --- jdm-arena-games --- Battle Royale / Capture the Flag: the box or circle (and the shrinking zone), power-ups, bases and flags.
+      const arenaView = engine.getArenaView();
+      if (arenaView) {
+        const roster = teamsRef.current?.roster ?? null;
+        arenaRender.wallColor = wallColor;
+        arenaRender.wallThickness = p.wallThickness;
+        arenaRender.showWallGlow = p.showWallGlow;
+        arenaRender.showGlow = p.showGlow;
+        arenaRender.showTrails = p.showTrails;
+        arenaRender.roster = roster && roster.length > 0 ? roster : null;
+        arenaRender.showNames = teamsRef.current?.showNames ?? false;
+        arenaRender.numbers = !(characterRef.current && characterRef.current.face !== "none");
+        arenaRender.labels = (labelsRef.current ?? DEFAULT_LABELS).arena ?? DEFAULT_ARENA_LABELS;
+        arenaLayer.drawStage(ctx, arenaView, arenaRender);
+      }
+
       // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
       if (glassView) {
         const GL = labelsRef.current ?? DEFAULT_LABELS;
@@ -1152,6 +1194,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         plRender.wallColor = wallColor;
         plRender.showWallGlow = p.showWallGlow;
         plLayer.drawWorld(ctx, plView, drawnBalls, plRender);
+      }
+      // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
+      if (raceView) {
+        raceRender.wallColor = wallColor;
+        raceRender.wallThickness = p.wallThickness;
+        raceRender.showGlow = p.showGlow;
+        raceRender.showTrails = p.showTrails;
+        raceRender.trailThickness = p.trailThickness;
+        raceLayer.drawWorld(ctx, raceView, raceRender, raceRef.current, raceView.cameraY - 40, raceView.cameraY + size.height + 40);
       }
       // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
       multRender.wallColor = wallColor;
@@ -1622,6 +1673,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
+      else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
+      else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1814,6 +1867,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
+      // --- jdm-race --- faces on the racers too
+      if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
+      // --- jdm-arena-games --- faces on the squares
+      if (faces.isActive() && arenaView) faces.drawOverlays(ctx, balls, arenaLayer.bodyColor, { shape: "square", countdown: false });
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
@@ -1918,6 +1975,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
+      // --- jdm-race --- standings, mini-map, callouts, the countdown, the podium and the cup table (screen space, part of the recording);
+      // live, below the page's buttons over a nearly square canvas
+      if (raceView) raceLayer.drawOverlay(ctx, raceView, raceRef.current, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, !p.isPaused && p.isStarted ? frameMs : 0);
       // --- jdm-illusions --- Circle Illusion: the alignment / reveal flash, the paint counter and "REVEALED!" (screen space, part of the recording).
       if (illusionView) {
         const IL = labelsRef.current ?? DEFAULT_LABELS;
@@ -1927,6 +1987,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
       if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
+      // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
+      if (arenaView) arenaLayer.drawOverlay(ctx, size.width, size.height, arenaView, arenaRender);
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
       // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
       const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
@@ -2467,6 +2529,32 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
+      // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
+      // score, the flags, captures / drops / returns, notes and the result, for tools and the smoke test
+      if (arenaView) {
+        let alive = 0;
+        for (let k = 0; k < arenaView.count; k++) alive += arenaView.alive[k];
+        setCanvasData("arenaGame", arenaView.game);
+        setCanvasData("arenaSquares", String(arenaView.count));
+        setCanvasData("arenaAlive", String(alive));
+        setCanvasData("arenaDrawn", String(arenaLayer.squaresDrawn));
+        setCanvasData("arenaHits", String(arenaView.hits));
+        setCanvasData("arenaKos", String(arenaView.kos.length));
+        setCanvasData("arenaPickups", String(arenaView.pickups));
+        setCanvasData("arenaZone", String(Math.round(100 * arenaView.zone)));
+        setCanvasData("arenaScore", `${arenaView.scores[0]}:${arenaView.scores[1]}`);
+        setCanvasData("arenaFlags", arenaView.flags.map((f) => f.state).join(","));
+        setCanvasData("arenaCaptures", String(arenaView.captures));
+        setCanvasData("arenaDrops", String(arenaView.drops));
+        setCanvasData("arenaReturns", String(arenaView.returns));
+        setCanvasData("arenaNotes", String(arenaView.notes));
+        setCanvasData("arenaFinished", arenaView.finished ? "1" : "0");
+        setCanvasData("arenaWinner", arenaView.finished ? (arenaView.winner >= 0 ? arenaLayer.nameOf(arenaView.winner) : "draw") : "");
+        setCanvasData("arenaFinishSec", arenaView.finished ? (arenaView.finishMs / 1000).toFixed(3) : "");
+      } else if (canvas.dataset.arenaGame !== undefined) {
+        for (const key of ["arenaGame", "arenaSquares", "arenaAlive", "arenaDrawn", "arenaHits", "arenaKos", "arenaPickups", "arenaZone", "arenaScore", "arenaFlags", "arenaCaptures", "arenaDrops", "arenaReturns", "arenaNotes", "arenaFinished", "arenaWinner", "arenaFinishSec"]) delete canvas.dataset[key];
+      }
+      // --- end jdm-arena-games ---
       cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
       // --- obstacle-editor --- obstacles in play, editing, the selection, hits, bumper kicks and the first spinner's angle (data-obstacle*) for tools and the smoke test
       if (editorField) {
@@ -2566,6 +2654,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.plHits !== undefined) {
         for (const key of ["plSequence", "plLayers", "plHits", "plTotalHits", "plGone", "plPower", "plLevel", "plLastDestroyed", "plBigHits", "plPeriod", "plFreed", "plFinished", "plParticles", "plBadge", "plPills"]) delete canvas.dataset[key];
       }
+      // --- jdm-race --- racers, phase, leader, winner, finishers, passes, swaps, boosts, hits, lap, camera, order and callouts (data-race-*)
+      if (raceView) writeRaceDataset(raceView, setCanvasData);
+      else if (canvas.dataset.raceRacers !== undefined) for (const key of RACE_DATA_KEYS) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

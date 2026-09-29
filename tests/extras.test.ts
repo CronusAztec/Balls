@@ -106,6 +106,11 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
   // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
   powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
+  // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library); recorded when the mode was added.
+  race: { samples: [[366652,232223],[410818,232223],[516984,1191014],[544677,780631],[458837,2078020],[360939,1556027],[612916,2583260],[551558,2261944]], broken: [], walls: [] },
+  // --- jdm-arena-games --- Battle Royale and Capture the Flag: no rings; recorded when the modes were added (seed 12345, defaults: 8 squares in a box / 2 – 2).
+  battle: { samples: [[418067,342619],[596728,158971],[520852,194653],[601961,404820],[362002,547436],[405269,525570],[268108,185655],[290011,288507]], broken: [], walls: [] },
+  ctf: { samples: [[464260,193076],[653920,237007],[304817,457518],[313243,546485],[446150,169209],[271083,282839],[314906,501106],[633347,562433]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

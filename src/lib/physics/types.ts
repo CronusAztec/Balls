@@ -42,6 +42,11 @@ export const MODE_IDS = [
   "stringBattle",
   // --- odd-power-layers ---
   "powerLayers",
+  // --- jdm-race ---
+  "race",
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+  "battle",
+  "ctf",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -210,6 +215,9 @@ export interface SoundEvent {
   // --- odd-string-battle ---
   /** A String Battle effect instead of a bounce: a thread's pluck at `frequency` or a ball's shatter (`ToneGenerator.playStringBattle()`). */
   sbSound?: "pluck" | "shatter";
+  // --- jdm-race ---
+  /** A "hit" that plays a tune of the race (`ToneGenerator.playRaceArpeggio()`): the rising chime of a pass, the winner's fanfare; rooted on `frequency`. */
+  race?: "chime" | "fanfare";
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

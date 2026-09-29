@@ -25,6 +25,10 @@ import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettin
 import type { StringBattleSettings } from "@/lib/physics/modes/stringBattle";
 // --- odd-power-layers ---
 import { powerLayersFixedDurationSec, type PowerLayersSettings } from "@/lib/physics/modes/powerLayers";
+// --- jdm-race ---
+import type { RaceSettings } from "@/lib/physics/modes/race";
+// --- jdm-arena-games ---
+import type { BattleSettings, CtfSettings } from "@/lib/physics/modes/arenaGames";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -79,11 +83,25 @@ export interface ModeSettings {
   // --- odd-power-layers ---
   /** Power Layers: layers, sequence, drift and bounce speed (see modes/powerLayers.ts); the defaults when left out. Every run ends in freedom after hits × the bounce period. */
   powerLayers?: Partial<PowerLayersSettings>;
+  // --- jdm-race ---
+  /** Square Racing Grand Prix: racers, track length, laps, obstacle mix, the favourite and the cup (see modes/race.ts); the defaults when left out. Every race ends (a podium after the last racer home, or DNFs after a grace period), so the finder times it. */
+  race?: Partial<RaceSettings>;
+  // --- jdm-arena-games ---
+  /**
+   * Battle Royale and Capture the Flag (see modes/arenaGames.ts); the defaults when left out. A battle always ends with one
+   * square standing and a capture-the-flag game on the score or at its time limit (`clipSeconds`), so the finder searches both.
+   */
+  battle?: Partial<BattleSettings>;
+  ctf?: Partial<CtfSettings>;
 }
 
 // --- odd-string-battle ---
 /** Seeds of the String Battle simulated per animation frame (a battle takes a few ms per simulated second). */
 export const STRING_BATTLE_FINDER_BATCH = 6;
+
+// --- jdm-race ---
+/** Seeds of the race simulated per animation frame (a seed runs a whole race of up to 16 racers). */
+export const RACE_FINDER_BATCH = 3;
 
 // --- jdm-illusions ---
 /** Seeds of the Circle Illusion simulated per animation frame (a whitespace seed paints a grid for tens of seconds). */
@@ -232,6 +250,11 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "stringBattle") engine.setStringBattleSettings(settings.stringBattle ?? {});
   // --- odd-power-layers ---
   if (mode === "powerLayers") engine.setPowerLayersSettings(settings.powerLayers ?? {});
+  // --- jdm-race ---
+  if (mode === "race") engine.setRaceSettings(settings.race ?? {});
+  // --- jdm-arena-games ---
+  if (mode === "battle") engine.setBattleSettings(settings.battle ?? {});
+  if (mode === "ctf") engine.setCtfSettings(settings.ctf ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -312,7 +335,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;

@@ -3502,6 +3502,320 @@ const plFrameRates = async (ms) => {
 }
 // --- end odd-power-layers ---
 
+// --- jdm-race ---
+// 28. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
+// length, laps, obstacle mix, camera, standings, mini-map, cup and its title, the staged winner with its warnings), controls →
+// URL, the search box, the Teams tab's note; a default race at 30+ fps whose obstacle notes are the racers' notes
+// (OscillatorNode.start is instrumented) while the standings follow the overtakes (data-race-*); a short race at 8× that
+// reaches its podium and the cup table, scored into the cup in localStorage, and a second race that adds to it; a staged
+// winner who wins; the finder timing a race.
+{
+  const res = await page.request.get(`${BASE}/modes/race.webp`);
+  check("asset /modes/race.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Square Racing Grand Prix card is on the landing page", (await page.locator('img[src$="/modes/race.webp"]').count()) === 1);
+}
+{
+  /** The On/Off button of a toggle in the Race block, by the start of its label. */
+  const raceToggle = (label) => page.getByTestId("race-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=race&rcn=12&rcs=circle&rcl=5&rclp=2&rcf=turbo&rccam=pack&rccup=1&rcct=Neon%20Cup&rcw=3&rcst=0&rcmm=0`, { waitUntil: "networkidle" });
+  {
+    const values = { rcn: await sliderValue("Racers"), rcl: await sliderValue("Track Length"), rclp: await sliderValue("Laps") };
+    const circles = await page.getByRole("group", { name: "Racer Shape", exact: true }).getByRole("button", { name: /Circles/ }).getAttribute("aria-pressed");
+    const pack = await page.getByRole("group", { name: "Camera", exact: true }).getByRole("button", { name: /Pack/ }).getAttribute("aria-pressed");
+    const mix = await page.locator("#race-feature").inputValue();
+    const standings = await raceToggle("Live Standings").getAttribute("aria-pressed");
+    const miniMap = await raceToggle("Mini-map").getAttribute("aria-pressed");
+    const cup = await raceToggle("Cup").first().getAttribute("aria-pressed");
+    const title = await page.locator("#race-cup-title").inputValue();
+    const winner = await page.locator("#race-winner").inputValue();
+    const warned = (await page.getByTestId("race-rig-warning").isVisible()) && (await page.getByTestId("race-rigged-note").isVisible());
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "race loads from URL",
+      values.rcn === "12" && values.rcl === "5" && values.rclp === "2" && circles === "true" && pack === "true" && mix === "turbo" && standings === "false" && miniMap === "false" && cup === "true" && title === "Neon Cup" && winner === "3" && warned && noRingControls,
+      `(${JSON.stringify(values)}, circles=${circles}, pack=${pack}, mix=${mix}, standings=${standings}, minimap=${miniMap}, cup=${cup}, title=${title}, winner=${winner}, warned=${warned})`,
+    );
+  }
+  await page.locator('input[aria-label="Racers"]').evaluate(setRangeValue, "7");
+  await page.getByRole("group", { name: "Racer Shape", exact: true }).getByRole("button", { name: /Squares/ }).click();
+  await page.locator("#race-feature").selectOption("gates");
+  await page.getByRole("group", { name: "Camera", exact: true }).getByRole("button", { name: /Leader/ }).click();
+  await raceToggle("Live Standings").click();
+  await page.locator("#race-winner").selectOption("-1");
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const roster = await page.getByTestId("race-roster").locator("span.inline-flex").count();
+    check(
+      "race mirrors into the URL",
+      /(^|&)rcn=7(&|$)/.test(query) && !/(^|&)rcs=/.test(query) && /(^|&)rcf=gates(&|$)/.test(query) && !/(^|&)rccam=/.test(query) && !/(^|&)rcst=/.test(query) && !/(^|&)rcw=/.test(query) && /(^|&)rcct=Neon/.test(query) && roster === 7 && !(await page.getByTestId("race-rigged-note").isVisible()),
+      `(${query}, roster chips ${roster})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("obstacle mix");
+  check("search finds the race controls", (await page.locator("#race-feature").isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.getByRole("button", { name: /Teams & Scoreboard/ }).click();
+  check("the Teams tab says the race takes its roster", await page.getByTestId("teams-race-note").isVisible());
+}
+await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__raceOsc = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(2500);
+await page.evaluate(() => (window.__raceOsc.length = 0)); // the notes of the race, not the countdown's beeps
+{
+  // Frame intervals over 4 s of the default race (8 racers, 8 screens), in half-second windows.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    4000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__raceOsc);
+  // The racers' notes: a C-major pentatonic ladder from C4, one per racer (the chromatic default leaves them unsnapped).
+  const ladder = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96];
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const racerNotes = midis.filter((m) => ladder.includes(m)).length;
+  check(
+    "simulator mode=race runs the race at 30+ fps with the racers' notes",
+    data.raceRacers === "8" && data.racePhase === "racing" && Number(data.raceHits) >= 5 && Number(data.racePasses) >= 1 && Number(data.raceCamera) > 100 && data.raceOrder.split(",").length === 8 && racerNotes >= 3 && windows.length >= 6 && minWindow >= fpsFloor(30),
+    `(${data.raceHits} hits, ${data.racePasses} passes, ${data.raceCallouts} callouts, camera ${data.raceCamera}, ${pitches.length} tones, ${racerNotes} racer notes, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-race.png") });
+}
+// A short race at 8× with the cup on: the podium, the cup table, the finish – scored once into the cup, and a second race adds to it.
+await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1`, { waitUntil: "networkidle" });
+await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const podium = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "podium", null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const atPodium = await canvasData();
+  const cupShown = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "cup", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  if (cupShown) await page.screenshot({ path: path.join(outDir, "sim-race-cup.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  const cup = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  const winner = Number(atPodium.raceWinner);
+  check(
+    "a short race reaches its podium and the cup table, scored into the cup",
+    podium && cupShown && done && atPodium.raceFinished === "5" && winner >= 0 && cup?.races === 1 && cup?.points?.[winner] === 25 && cup.points.reduce((a, b) => a + b, 0) === 25 + 18 + 15 + 12 + 10,
+    `(podium=${podium}, cup=${cupShown}, done=${done}, ${JSON.stringify(atPodium)}, stored ${JSON.stringify(cup)})`,
+  );
+  if (done) {
+    const restartButton = page.getByRole("button", { name: /Restart Simulation/ });
+    await restartButton.click();
+    await restartButton.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+    const again = await restartButton.waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
+    const cup2 = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+    const summary = await page.getByTestId("race-cup-summary").innerText().catch(() => "");
+    check("a second race adds its points to the cup", again && cup2?.races === 2 && cup2.points.reduce((a, b) => a + b, 0) === 2 * 80 && /2 race/.test(summary), `(finished=${again}, stored ${JSON.stringify(cup2)}, "${summary}")`);
+  }
+}
+// A staged winner: the director favours racer 3 (Gold) at the swap zones and turbo pads – and Gold wins.
+await page.goto(`${BASE}/en/simulator/?mode=race&rcn=6&rcl=4&rcw=3`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const podium = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "podium", null, { timeout: 40000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("a staged race is won by the favoured racer", podium && data.raceWinner === "3", `(podium=${podium}, ${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-race-podium.png") });
+}
+// The finder times races: every seed builds another track, so a 30 s run is found among the seeds.
+await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const found = await page.getByText(/Ready to start simulation for (29\.[5-9]|30\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  check("finder finds a 30 s race", found);
+}
+// --- end jdm-race ---
+// --- jdm-arena-games ---
+// 29. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
+// row, controls → URL, the search box; a battle at 8× fought to the last square standing – every other square knocked
+// out, notes played, the winner banner held before the end screen; Find Simulation finds a 30 s battle and the found
+// seed replays to its length; a capture-the-flag game won on the score (captures counted, flags back home or carried);
+// names from the Teams roster; the frame rate of 20 squares and of a 4 – 4 game.
+{
+  for (const mode of ["battle", "ctf"]) {
+    const res = await page.request.get(`${BASE}/modes/${mode}.webp`);
+    check(`asset /modes/${mode}.webp`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  }
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const cards = (await page.locator('img[src$="/modes/battle.webp"]').count()) + (await page.locator('img[src$="/modes/ctf.webp"]').count());
+  check("the Battle Royale and Capture the Flag cards are on the landing page", cards === 2, `(${cards})`);
+}
+{
+  const arenaToggle = (label) => page.getByTestId("arena-games-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=battle&btn=12&bthp=6&btd=1.5&bta=circle&bts=0&btp=0&arn=0.8`, { waitUntil: "networkidle" });
+  {
+    const values = { btn: await sliderValue("Squares"), bthp: await sliderValue("Hit Points"), btd: await sliderValue("Damage"), arn: await sliderValue("Director Nudge") };
+    const circle = await page.getByRole("group", { name: "Arena", exact: true }).getByRole("button", { name: /Circle/ }).getAttribute("aria-pressed");
+    const shrink = await arenaToggle("Shrinking Zone").getAttribute("aria-pressed");
+    const powerUps = await arenaToggle("Power-ups").getAttribute("aria-pressed");
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "battle royale loads from URL",
+      values.btn === "12" && values.bthp === "6" && values.btd === "1.5" && values.arn === "0.8" && circle === "true" && shrink === "false" && powerUps === "false" && noRingControls,
+      `(${JSON.stringify(values)}, circle=${circle}, shrink=${shrink}, power-ups=${powerUps})`,
+    );
+  }
+  await page.locator('input[aria-label="Squares"]').evaluate(setRangeValue, "10");
+  await page.getByRole("group", { name: "Arena", exact: true }).getByRole("button", { name: /Box/ }).click();
+  await arenaToggle("Shrinking Zone").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check("battle royale mirrors into the URL", /(^|&)btn=10(&|$)/.test(query) && !/(^|&)bta=/.test(query) && !/(^|&)bts=/.test(query) && /(^|&)btp=0(&|$)/.test(query), `(${query})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("power-ups");
+  const powerFound = await arenaToggle("Power-ups").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("director nudge");
+  const nudgeFound = await page.locator('input[aria-label="Director Nudge"]').isVisible();
+  check("search finds the arena-game controls", powerFound && nudgeFound && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()), `(power-ups=${powerFound}, nudge=${nudgeFound})`);
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+{
+  // A default battle at 8×: every square but one is knocked out, the clashes and bounces play notes (OscillatorNode.start is
+  // instrumented), and the winner banner holds the end screen back for a moment.
+  await page.goto(`${BASE}/en/simulator/?mode=battle`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__arenaOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-battle.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-battle-winner.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  const tones = await page.evaluate(() => window.__arenaOsc.length);
+  check(
+    "a battle is fought to the last square standing, with notes, and its winner banner is held",
+    Number(early.arenaDrawn) === 8 && finished && data.arenaSquares === "8" && data.arenaAlive === "1" && data.arenaKos === "7" && Number(data.arenaHits) > 7 && Number(data.arenaNotes) > 0 && !!data.arenaWinner && data.arenaWinner !== "draw" && tones > 0 && held && endScreen,
+    `(start ${JSON.stringify({ drawn: early.arenaDrawn, hits: early.arenaHits })}, end ${JSON.stringify({ alive: data.arenaAlive, kos: data.arenaKos, hits: data.arenaHits, notes: data.arenaNotes, pickups: data.arenaPickups, zone: data.arenaZone, winner: data.arenaWinner })}, ${tones} tones, held=${held}, end screen=${endScreen})`,
+  );
+}
+{
+  // Find Simulation: a battle always ends, so a 30 s one is found; the found seed replays to the length it was found with
+  // (the finder shows it rounded to one decimal, so within 0.05 s) and the clip is that length plus the winner banner's hold,
+  // rounded up.
+  await page.goto(`${BASE}/en/simulator/?mode=battle`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  const dur = new URL(page.url()).searchParams.get("dur");
+  let replay = NaN;
+  if (foundSec > 0) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    replay = Number((await canvasData()).arenaFinishSec);
+  }
+  check("find simulation finds a 30 s battle that replays to its length", /Found! (29\.[5-9]|30\.[0-5])s/.test(text) && Math.abs(replay - foundSec) <= 0.051 && dur === String(Math.ceil(replay + 3 - 1e-9)), `(${text}, dur=${dur}, replay ${replay}s)`);
+}
+{
+  // Capture the flag, first to two: captures are counted and the score decides (or the clock, if nobody gets there).
+  await page.goto(`${BASE}/en/simulator/?mode=ctf&ctfw=2`, { waitUntil: "networkidle" });
+  const values = { ctfn: await sliderValue("Squares per Team"), ctfw: await sliderValue("Captures to Win") };
+  const limit = await page.getByTestId("ctf-time-limit").innerText();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: path.join(outDir, "sim-ctf.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-ctf-winner.png") });
+  const [a, b] = (data.arenaScore || "0:0").split(":").map(Number);
+  const onScore = Math.max(a, b) === 2;
+  check(
+    "capture the flag: captures score, the first to two wins (or the better score when time runs out)",
+    values.ctfn === "2" && values.ctfw === "2" && /27s/.test(limit) && finished && data.arenaGame === "ctf" && data.arenaSquares === "4" && Number(data.arenaCaptures) === a + b && (onScore ? data.arenaWinner !== "draw" : Number(data.arenaFinishSec) >= 26.9) && /^(base|carried|dropped),(base|carried|dropped)$/.test(data.arenaFlags || ""),
+    `(${JSON.stringify(values)}, "${limit}", ${JSON.stringify({ score: data.arenaScore, captures: data.arenaCaptures, drops: data.arenaDrops, returns: data.arenaReturns, flags: data.arenaFlags, winner: data.arenaWinner, at: data.arenaFinishSec })})`,
+  );
+}
+{
+  // Names and colours from the Teams roster; a battle between three: the winner is one of them.
+  await page.goto(`${BASE}/en/simulator/?mode=battle&btn=3&teams=${encodeURIComponent("Alpha*ff0000*,Beta*00ff00*")}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("the Teams roster names the squares (colour names for the rest)", finished && ["Alpha", "Beta", "Green"].includes(data.arenaWinner), `(winner=${data.arenaWinner})`);
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.waitForTimeout(500);
+  check("the arena data leaves with the mode", (await canvasData()).arenaGame === undefined);
+}
+{
+  // Frame rate: 20 squares with power-ups and the zone, and a 4 – 4 capture the flag (headless Chromium; 30+ fps on average
+  // over 3 s, fpsFloor() on a busy machine).
+  const rates = {};
+  for (const [name, query] of [["battle 20", "mode=battle&btn=20&glow=1"], ["ctf 4-4", "mode=ctf&ctfn=4&glow=1"]]) {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    rates[name] = await page.evaluate(
+      (ms) =>
+        new Promise((resolve) => {
+          let frames = 0;
+          const start = performance.now();
+          const frame = (t) => {
+            frames++;
+            if (t - start < ms) requestAnimationFrame(frame);
+            else resolve(Math.round((1000 * frames) / (t - start)));
+          };
+          requestAnimationFrame(frame);
+        }),
+      3000,
+    );
+  }
+  check("the arena games keep 30+ fps", Object.values(rates).every((fps) => fps >= fpsFloor(30)), `(${JSON.stringify(rates)}, floor ${fpsFloor(30)}${loadNote()})`);
+}
+// --- end jdm-arena-games ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

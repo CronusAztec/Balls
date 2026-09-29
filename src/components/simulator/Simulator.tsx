@@ -57,6 +57,14 @@ import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
+// --- jdm-race ---
+import { raceSettingsOf } from "@/lib/physics/modes/race";
+import { raceCupStore } from "@/lib/raceCup";
+import { raceRoster } from "@/lib/raceRoster";
+import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
+import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
+// --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 import {
   RANGES,
   defaultSettings,
@@ -91,6 +99,10 @@ const END_HOLD_FALLBACK_MS = 12000;
 const ILLUSION_REVEAL_HOLD_MS = 2000;
 /** --- odd-string-battle --- How long the String Battle's last shatter, ring flash and winner banner play before the end screen covers them (a recording keeps them). */
 const STRING_BATTLE_FINISH_HOLD_MS = 3000;
+/** --- jdm-race --- This page's prefix of the race run keys: a finished race is scored into the cup once. */
+const RACE_RUN_PREFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+/** --- jdm-arena-games --- How long the winner banner of an arena game and its confetti play before the end screen covers them (a recording keeps them). */
+const ARENA_WIN_HOLD_MS = 1000 * ARENA_WIN_HOLD_SEC;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -202,6 +214,10 @@ export default function Simulator() {
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
     engine.setStringBattleSettings(stringBattleSettingsOf(s)); // --- odd-string-battle ---
     engine.setPowerLayersSettings(powerLayersSettingsOf(s)); // --- odd-power-layers ---
+    engine.setRaceSettings(raceSettingsOf(s)); // --- jdm-race ---
+    // --- jdm-arena-games ---
+    engine.setBattleSettings(battleSettingsOf(s));
+    engine.setCtfSettings(ctfSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -566,6 +582,67 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.plBadge, s.plPills, s.scale, s.rootNote]);
   // --- end odd-power-layers ---
+  // --- jdm-race --- Square Racing Grand Prix: a new track (racers, length, laps, obstacle mix) or favourite restarts the race and
+  // drops a found seed; the camera and the shape follow live; the cup only lengthens the run (the cup table), so it drops the seed.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setRaceSettings(raceSettingsOf(s));
+    if (s.mode === "race" && engine.getCurrentModeName() === "race") {
+      engine.initRace();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.rcRacers, s.rcTrackLength, s.rcLaps, s.rcFeature, s.rcWinner]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.rcRacers, s.rcTrackLength, s.rcLaps, s.rcFeature, s.rcWinner, s.rcCup]);
+  useEffect(() => {
+    engineRef.current?.setRaceSettings({ camera: s.rcCamera, shape: s.rcShape, cup: s.rcCup });
+  }, [s.rcCamera, s.rcShape, s.rcCup]);
+  // The track is laid out for the racers' size: a Ball Size change restarts the race.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || s.mode !== "race" || engine.getCurrentModeName() !== "race") return;
+    engine.initRace();
+    setFinished(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ballRadius]);
+  // The cup: a race that reached its podium is scored once (its run key) into the table kept in this browser.
+  const raceCup = useRaceCup();
+  useEffect(() => {
+    if (!isStarted || s.mode !== "race" || !s.rcCup) return;
+    const id = setInterval(() => {
+      const engine = engineRef.current;
+      if (!engine || !engine.isRaceMode()) return;
+      const view = engine.getRaceView();
+      if (view.phase === "podium" || view.phase === "cup" || view.phase === "done") raceCupStore.addRace(raceResultOf(view), runKey(RACE_RUN_PREFIX, view));
+    }, 200);
+    return () => clearInterval(id);
+  }, [isStarted, s.mode, s.rcCup]);
+  // --- end jdm-race ---
+  // --- jdm-arena-games --- Battle Royale / Capture the Flag: a change of the game (squares, hit points, damage, arena, zone,
+  // power-ups, team size, score to win, the director's nudge) restarts it and drops a found seed; the clip length is capture
+  // the flag's time limit and follows live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBattleSettings(battleSettingsOf(s));
+    engine.setCtfSettings(ctfSettingsOf(s));
+    if (isArenaGameMode(s.mode) && engine.getCurrentModeName() === s.mode) {
+      engine.initMode(s.mode);
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.btCount, s.btHp, s.btDamage, s.btArena, s.btShrink, s.btPowerUps, s.ctfPerTeam, s.ctfScoreToWin, s.arenaNudge]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.btCount, s.btHp, s.btDamage, s.btArena, s.btShrink, s.btPowerUps, s.ctfPerTeam, s.ctfScoreToWin, s.arenaNudge]);
+  useEffect(() => {
+    engineRef.current?.setCtfSettings({ clipSeconds: s.recordingDuration });
+  }, [s.recordingDuration]);
+  const arenaWinAtRef = useRef<number | null>(null);
+  // --- end jdm-arena-games ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -799,6 +876,11 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
+          // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
+          if (ev.race) {
+            audio.playRaceArpeggio(ev.race, ev.frequency);
+            continue;
+          }
           // --- obstacle-editor --- a bumper kick plays the pinball ding instead of a bounce tone
           if (ev.bumper) {
             audio.playBumper(ev.frequency);
@@ -850,6 +932,12 @@ export default function Simulator() {
           if (battleFinishAtRef.current === null) battleFinishAtRef.current = now;
           if (now - battleFinishAtRef.current < STRING_BATTLE_FINISH_HOLD_MS) done = false;
         } else battleFinishAtRef.current = null;
+        // --- jdm-arena-games --- the winner banner and its confetti play (and record) before the end screen covers them
+        if (done && isArenaGameMode(engine.getCurrentModeName())) {
+          const now = performance.now();
+          if (arenaWinAtRef.current === null) arenaWinAtRef.current = now;
+          if (now - arenaWinAtRef.current < ARENA_WIN_HOLD_MS) done = false;
+        } else arenaWinAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -1380,6 +1468,10 @@ export default function Simulator() {
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
           stringBattle: stringBattleSettingsOf(settings), // --- odd-string-battle ---
           powerLayers: powerLayersSettingsOf(settings), // --- odd-power-layers ---
+          race: raceSettingsOf(settings), // --- jdm-race ---
+          // --- jdm-arena-games --- (capture the flag searches with a time limit past the target, so a game won on the score can match it)
+          battle: battleSettingsOf(settings),
+          ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
         },
         outcome, // --- rigged ---
       },
@@ -1407,6 +1499,8 @@ export default function Simulator() {
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
       // --- odd-string-battle --- a found battle is recorded with its finish hold (the last shatter and the winner banner)
       if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000))) });
+      // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
+      if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
     }
@@ -1522,6 +1616,19 @@ export default function Simulator() {
         freedom: t("Simulator.canvasPlFreedom"),
         freedomSub: (hits, seconds) => fill("Simulator.canvasPlFreedomSub", { hits, seconds }),
       },
+      // --- jdm-arena-games ---
+      arena: {
+        ko: t("ArenaGames.ko"),
+        wins: (name) => t("ArenaGames.wins").replace("[name]", () => name),
+        draw: t("ArenaGames.draw"),
+        left: (n) => fill("ArenaGames.left", { count: n }),
+        capture: t("ArenaGames.capture"),
+        time: t("ArenaGames.time"),
+        battleSub: (kos, hp) => fill("ArenaGames.battleSub", { kos, hp }),
+        ctfSub: (a, b) => fill("ArenaGames.ctfSub", { a, b }),
+        zone: t("ArenaGames.zone"),
+        names: Array.from({ length: 20 }, (_, i) => t(`ArenaGames.name${i + 1}`)),
+      },
     };
   }, [t]);
 
@@ -1563,6 +1670,47 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [s.captions, s.recordingDuration, t],
   );
+
+  // --- jdm-race --- the racers' names, colours and emoji (the Teams roster, then the racer palette), the overlays, the cup and
+  // the translated words the canvas draws with (null outside the race)
+  const raceRender = useMemo<CanvasRaceOptions | null>(() => {
+    if (s.mode !== "race") return null;
+    const ct = (key: string) => t(`Controls.${key}`);
+    const roster = raceRoster(s.teams, defaultRacerNames(ct));
+    const fill = (key: string, vars: Record<string, string | number>) => {
+      let text = t(key);
+      for (const [k, v] of Object.entries(vars)) text = text.replace(`[${k}]`, () => String(v)); // a name may hold "$&"
+      return text;
+    };
+    return {
+      ...roster,
+      showStandings: s.rcStandings,
+      showMiniMap: s.rcMiniMap,
+      cupEnabled: s.rcCup,
+      cup: raceCup,
+      cupTitle: cupTitleOf(ct, s),
+      runKeyPrefix: RACE_RUN_PREFIX,
+      labels: {
+        go: t("Simulator.canvasRaceGo"),
+        standings: t("Simulator.canvasRaceStandings"),
+        leader: t("Simulator.canvasRaceLeader"),
+        lap: (n, total) => fill("Simulator.canvasRaceLap", { n, total }),
+        finalLap: t("Simulator.canvasRaceFinalLap"),
+        finish: t("Simulator.canvasRaceFinish"),
+        swap: t("Simulator.canvasRaceSwap"),
+        passes: (a, b) => fill("Simulator.canvasRacePasses", { a, b }),
+        takesLead: (a) => fill("Simulator.canvasRaceTakesLead", { a }),
+        swapped: (a, b) => fill("Simulator.canvasRaceSwapped", { a, b }),
+        wins: (a) => fill("Simulator.canvasRaceWins", { a }),
+        dnf: t("Simulator.canvasRaceDnf"),
+        podium: t("Simulator.canvasRacePodium"),
+        place: (n) => (n >= 1 && n <= 3 ? t(`Simulator.canvasRacePlace${n}`) : fill("Simulator.canvasRacePlaceN", { n })),
+        race: (n) => fill("Simulator.canvasRaceNumber", { n }),
+        points: t("Simulator.canvasRacePoints"),
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
@@ -1633,6 +1781,7 @@ export default function Simulator() {
                   onObstaclesChange={onObstaclesChange}
                   captions={captionRender} // --- captions ---
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
+                  race={raceRender} // --- jdm-race ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -1776,6 +1925,12 @@ export default function Simulator() {
             {riggedNote && (
               <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="rigged-note">
                 🎭 {riggedNote}
+              </p>
+            )}
+            {/* --- jdm-race --- a staged winner is said here too, outside the canvas */}
+            {raceRender && s.rcWinner >= 0 && s.rcWinner < s.rcRacers && (
+              <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="race-rigged-note">
+                🎭 {t("Controls.rcRigNote", { name: raceRender.names[s.rcWinner] ?? "" })}
               </p>
             )}
           </div>

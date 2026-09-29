@@ -5,6 +5,7 @@ import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // ---
 import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- boris-multipliers ---
 import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // --- obstacle-editor ---
 import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
+import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -587,6 +588,54 @@ export class ToneGenerator {
     }
   }
   // --- end odd-string-battle ---
+
+  // --- jdm-race ---
+  /**
+   * A tune of the Square Racing Grand Prix (raceTones.ts): the rising chime of a pass or the winner's fanfare, rooted on
+   * `root` (Hz) when given. It goes the way a bounce goes – the next slice while the song slicer plays, the hit sample
+   * transposed to every note in sample mode, otherwise the bounce instrument (a loaded melody roots it on its next note
+   * with the melody voice) – snapped to the scale, its first note on the beat grid (one slot), ducking the music bed.
+   */
+  playRaceArpeggio(kind: RaceArpeggioKind, root?: number) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleRaceArpeggio(kind, root));
+      return;
+    }
+    this.scheduleRaceArpeggio(kind, root);
+  }
+
+  private scheduleRaceArpeggio(kind: RaceArpeggioKind, root?: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const now = this.audioContext.currentTime;
+      if (this.slicer.trigger(this.audioContext, this.masterGain)) {
+        this.musicBed.duck(now);
+        return;
+      }
+      const time = this.scheduleTime(now);
+      if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
+      this.lastSlotTime = time;
+      const melody = this.customNotes.length > 0;
+      let base = root;
+      if (melody) {
+        base = this.customNotes[this.customNoteIndex % this.customNotes.length];
+        this.customNoteIndex++;
+        this.lastCustomNoteTime = now;
+      }
+      const notes = raceArpeggioNotes(kind, base);
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
+        for (const note of notes) this.sampler!.play(hitSamplePlaybackRate(0, true, this.snap(note.frequency)), time + note.offset, note.gain / 0.25);
+      } else {
+        scheduleRaceNotes(this.audioContext, this.masterGain, melody ? this.music.melodyInstrument : this.music.instrument, notes, time, (f) => this.snap(f), this.pluckCache);
+      }
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error(`Error playing the race ${kind}:`, err);
+    }
+  }
+  // --- end jdm-race ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

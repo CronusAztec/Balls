@@ -18,6 +18,13 @@ MODE_CARD_ORDER.push("stringBattle");
 // --- odd-power-layers --- Power Layers (oddplayground) joins the escape family – a ball working its way out through the layers – right
 // before the multipliers board (which closes the escape cards)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("multipliers") >= 0 ? MODE_CARD_ORDER.indexOf("multipliers") : MODE_CARD_ORDER.length, 0, "powerLayers");
+// --- jdm-race --- the Square Racing Grand Prix joins the project.jdm modes of the rhythm family (before the Boris family's Glass Smash)
+{
+  const at = MODE_CARD_ORDER.indexOf("glass");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "race");
+}
+// --- jdm-arena-games --- the two team games join the rhythm family after the other project.jdm modes (before the Boris ones)
+MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ctf");
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -58,6 +65,11 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   stringBattle: "battle",
   // --- odd-power-layers --- "800 layers between the ball and freedom": the ball escapes through the stack
   powerLayers: "escape",
+  // --- jdm-race --- every obstacle a racer hits is its note, every pass a chime
+  race: "rhythm",
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag: every clash and bounce is a note
+  battle: "rhythm",
+  ctf: "rhythm",
 };
 
 /** The modes of a category in card order. */

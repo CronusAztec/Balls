@@ -38,6 +38,11 @@ import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 import { STRING_BATTLE_RANGES, defaultStringBattleFields, readStringBattleParams, resolveStringBattleFields, writeStringBattleParams, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
 // --- odd-power-layers --- the Power Layers mode (oddplayground)
 import { POWER_LAYERS_RANGES, defaultPowerLayersFields, powerLayersModeDefaults, readPowerLayersParams, resolvePowerLayersFields, writePowerLayersParams, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
+// --- jdm-race ---
+import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writeRaceParams, type RaceCamera, type RaceShape } from "@/lib/physics/modes/race";
+import type { RaceFeature } from "@/lib/physics/raceTrack";
+// --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
+import { ARENA_GAME_RANGES, defaultArenaGameFields, readArenaGameParams, resolveArenaGameFields, writeArenaGameParams, type BattleArena } from "@/lib/physics/modes/arenaGames";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -479,6 +484,50 @@ export interface SimulatorSettings {
   /** The two rainbow rule pills at the top of the field (URL `plp`). */
   plPills: boolean;
   // --- end odd-power-layers ---
+  // --- jdm-race --- Square Racing Grand Prix (lib/physics/modes/race.ts, lib/physics/raceTrack.ts, lib/raceCup.ts); names, colours and emoji come from the Teams roster
+  /** Racers on the grid, 2–16 (URL `rcn`). */
+  rcRacers: number;
+  /** square | circle (URL `rcs`). */
+  rcShape: RaceShape;
+  /** Screens per lap, 3–20 (URL `rcl`). */
+  rcTrackLength: number;
+  /** Laps, 1–5 (URL `rclp`). */
+  rcLaps: number;
+  /** The obstacle mix: mixed or one featured kind (URL `rcf`). */
+  rcFeature: RaceFeature;
+  /** leader | pack (URL `rccam`). */
+  rcCamera: RaceCamera;
+  /** Keep a points table across races (URL `rccup`). */
+  rcCup: boolean;
+  /** The cup's name, "" = named after the featured obstacle (URL `rcct`). */
+  rcCupTitle: string;
+  /** Racer the director favours, −1 = fair (URL `rcw`). */
+  rcWinner: number;
+  /** The live standings (URL `rcst`). */
+  rcStandings: boolean;
+  /** The mini-map (URL `rcmm`). */
+  rcMiniMap: boolean;
+  // --- end jdm-race ---
+  // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag (lib/physics/modes/arenaGames.ts, battle.ts, ctf.ts)
+  /** Battle: squares in the fight, 2–20 (URL `btn`). */
+  btCount: number;
+  /** Battle: hit points of every square, 3–20 (URL `bthp`). */
+  btHp: number;
+  /** Battle: damage multiplier, 0.25–3 (URL `btd`). */
+  btDamage: number;
+  /** Battle: box | circle (URL `bta`). */
+  btArena: BattleArena;
+  /** Battle: the safe zone shrinks and pushes the squares together (URL `bts`). */
+  btShrink: boolean;
+  /** Battle: heal, shield and speed power-ups (URL `btp`). */
+  btPowerUps: boolean;
+  /** Capture the flag: squares per team, 1–4 (URL `ctfn`). */
+  ctfPerTeam: number;
+  /** Capture the flag: captures that win, 1–10 (URL `ctfw`). */
+  ctfScoreToWin: number;
+  /** Both games: 0–1, how far the director turns a wall rebound toward the action (URL `arn`). */
+  arenaNudge: number;
+  // --- end jdm-arena-games ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -584,6 +633,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- odd-power-layers --- the feature's fields, and the mode's own ball size (radius 10) in Power Layers only
     ...defaultPowerLayersFields(),
     ...powerLayersModeDefaults(mode),
+    ...defaultRaceFields(), // --- jdm-race ---
+    ...defaultArenaGameFields(), // --- jdm-arena-games ---
   };
 }
 
@@ -643,6 +694,8 @@ export const RANGES = {
   ...WOBBLE_RANGES,
   ...STRING_BATTLE_RANGES, // --- odd-string-battle ---
   ...POWER_LAYERS_RANGES, // --- odd-power-layers ---
+  ...RACE_RANGES, // --- jdm-race ---
+  ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -872,6 +925,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
   writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh
   writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
+  writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
+  writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   return params;
 }
 
@@ -982,6 +1037,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readIllusionParams(params, settings); // --- jdm-illusions ---
   readStringBattleParams(params, settings); // --- odd-string-battle ---
   readPowerLayersParams(params, settings); // --- odd-power-layers --- (clamped; unknown options fall back)
+  readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
+  readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   return settings;
 }
 
@@ -1145,6 +1202,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveStringBattleFields(merged)); // --- odd-string-battle --- clamped numbers, known rule / style, real booleans
   Object.assign(merged, resolvePowerLayersFields(merged)); // --- odd-power-layers --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
+  Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   return merged;
 }
 
