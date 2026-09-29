@@ -30,6 +30,7 @@ import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --
 import { findSimulation, runNeverFinishes, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
+import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import {
   RANGES,
   defaultSettings,
@@ -576,6 +577,7 @@ export default function Simulator() {
           if (paintFinishedAtRef.current === null) paintFinishedAtRef.current = now;
           if (now - paintFinishedAtRef.current < PAINT_FINISH_HOLD_MS) done = false;
         } else paintFinishedAtRef.current = null;
+        if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         setFinished((prev) => (prev !== done ? done : prev));
       }
       raf = requestAnimationFrame(loop);
@@ -1142,6 +1144,7 @@ export default function Simulator() {
       paintBeat: (bpm) => fill("Simulator.canvasPaintBeat", { bpm }),
       // --- jdm-collisions ---
       collideAnti: t("Simulator.canvasCollideAnti"),
+      replay: t("Simulator.canvasReplay"), // --- camera ---
     };
   }, [t]);
 
@@ -1207,6 +1210,8 @@ export default function Simulator() {
                   backgroundDim={s.backgroundDim}
                   backgroundImage={backgroundImage?.url ?? null}
                   trailColors={s.trailColors}
+                  // --- camera ---
+                  camera={cameraSettingsOf(s)}
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">

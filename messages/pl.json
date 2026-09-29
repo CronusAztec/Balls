@@ -102,7 +102,8 @@
     "canvasPolyrhythmDone": "W FAZIE!",
     "canvasPolyrhythmAligned": "Wszystkie głosy ([count]) znów w fazie po cyklach: [cycles]",
     "finderFixedPolyrhythm": "Metronomy i polirytmy przy tych ustawieniach trwają zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień długość cyklu, tempa albo liczbę cykli w wierszu Tryb, żeby trafić w cel.",
-    "canvasCollideAnti": "ANTYKOLIZJA"
+    "canvasCollideAnti": "ANTYKOLIZJA",
+    "canvasReplay": "POWTÓRKA"
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -643,7 +644,24 @@
     "cpAntiCollisionAtTip": "Sekunda przebiegu, w której system kolizji się wyłącza: kule zmieniają kolor i przenikają przez siebie (od pojemnika wciąż się odbijają). Wył. oznacza zderzenia bez końca.",
     "cpAntiOff": "Wył.",
     "cpRing": "Lizaki na pierścieniu",
-    "cpRingTip": "Przypina ciała do okrągłego toru: każde to lizak – patyczek od środka do krążka – który zderza się z sąsiadami wzdłuż pierścienia. Z grawitacją kołyszą się jak wahadła wokół dołu."
+    "cpRingTip": "Przypina ciała do okrągłego toru: każde to lizak – patyczek od środka do krążka – który zderza się z sąsiadami wzdłuż pierścienia. Z grawitacją kołyszą się jak wahadła wokół dołu.",
+    "cameraGroup": "Kamera",
+    "cameraGroupTip": "Filmowe efekty kamery. Zmieniają tylko obraz i tempo, w jakim zegar napędza symulację – nigdy fizykę: ziarna i znalezione symulacje przebiegają dokładnie tak samo.",
+    "cameraGroupDesc": "Przybliż piłkę, potrząśnij obrazem, gdy pęka ściana, zwolnij przy otarciach o krawędź szczeliny i powtórz ucieczkę – w podglądzie i w nagraniach.",
+    "cameraOff": "Wył.",
+    "cameraZoom": "Zoom kamery",
+    "cameraZoomTip": "Jak mocno widok przybliża się do piłki, podążając za nią po arenie. 0 zostawia dotychczasowy widok (z włączoną opcją „Kamera podąża” – łagodne klasyczne śledzenie). W trybach z dwiema piłkami zoom pozostaje na tyle szeroki, by obie były w kadrze.",
+    "screenShake": "Wstrząs ekranu",
+    "screenShakeTip": "Potrząsa obrazem za każdym razem, gdy pęka ściana; wstrząs wygasa w ciągu 300 ms. Wyższe wartości trzęsą mocniej.",
+    "slowMoOnNearMiss": "Zwolnienie przy otarciu",
+    "slowMoOnNearMissTip": "Gdy piłka przeciska się przez szczelinę tuż przy jej krawędzi (otarcie wykrywane przez reżysera dramaturgii), czas na chwilę zwalnia. Symulacja wykonuje te same kroki, tylko wolniej – nagrania pokazują zwolnione tempo.",
+    "slowMoFactor": "Tempo zwolnienia",
+    "slowMoFactorTip": "Jak szybko płynie czas podczas zwolnienia: 0,2× to bardzo wolno, 0,8× – ledwie wolniej.",
+    "slowMoMs": "Długość zwolnienia",
+    "slowMoMsTip": "Ile trwa każde zwolnienie, w czasie rzeczywistym. Potem krótka przerwa sprawia, że otarcia jedno po drugim nie spowalniają całego przebiegu.",
+    "replayOnEscape": "Powtórka ucieczki",
+    "replayOnEscapeTip": "Gdy piłka ucieknie za zewnętrzną ścianę i przebieg się kończy, jej ostatnie 2 sekundy odtwarzają się ponownie w połowie prędkości z plakietką POWTÓRKA, zanim pojawi się ekran końcowy – także w nagraniach.",
+    "replayOnEscapeModes": "Powtórka działa w trybach ucieczki: Klasyczny, Akumulacja, Portal, Rozbicie i Dopasowanie kolorów."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },

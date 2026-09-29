@@ -131,6 +131,8 @@ export class PhysicsEngine {
   private readonly pushParticleFn = (p: Particle) => this.pushParticle(p);
   // --- end themes
   private pendingSoundEvents: SoundEvent[] = [];
+  /** Wall breaks so far – every "gap" event, the engine's or a mode's (never reset). The cinematic camera shakes on it. */
+  private wallBreakSerial = 0; // --- camera ---
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
   private bounceSpeedMultiplier = 1;
@@ -195,6 +197,7 @@ export class PhysicsEngine {
       addWallHit: (wallIndex, angle, radius) => this.addWallHit(wallIndex, angle, radius),
       addPendingSoundEvent: (event) => {
         this.pendingSoundEvents.push(event);
+        if (event.type === "gap") this.wallBreakSerial++; // --- camera ---
       },
       spawnWallBreakByStyle: (wallIndex, x, y) => this.spawnWallBreakByStyle(wallIndex, x, y),
       spawnConfetti: (x, y) => this.spawnConfetti(x, y),
@@ -821,6 +824,16 @@ export class PhysicsEngine {
     this.pendingSoundEvents = [];
     return events;
   }
+  // --- camera ---
+  /** Wall breaks so far (every "gap" event; never reset): the cinematic camera shakes when it grows. Reading it changes nothing. */
+  getWallBreakSerial() {
+    return this.wallBreakSerial;
+  }
+  /** The director's near-miss event: near misses so far (counted with the director on or off; never reset). The camera slows the clock when it grows. */
+  getNearMissSerial() {
+    return this.cinematicDirector.getNearMissSerial();
+  }
+  // --- end camera ---
   /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
   getPhysicsExtras(): PhysicsExtras {
     return this.extras;
@@ -1242,6 +1255,7 @@ export class PhysicsEngine {
             if (!this.brokenWalls.has(w)) {
               this.spawnWallBreakByStyle(w, ball.x, ball.y);
               this.pendingSoundEvents.push({ type: "gap", wallIndex: w });
+              this.wallBreakSerial++; // --- camera ---
               this.reportWallBreak(ball, w);
             }
             this.brokenWalls.add(w);

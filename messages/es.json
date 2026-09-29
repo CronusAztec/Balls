@@ -102,7 +102,8 @@
     "canvasPolyrhythmDone": "¡EN FASE!",
     "canvasPolyrhythmAligned": "Las [count] voces vuelven a estar en fase tras [cycles] ciclo(s)",
     "finderFixedPolyrhythm": "Metrónomos y polirritmos dura siempre exactamente {duration}s con estos ajustes (los ciclos × la duración del ciclo), sea cual sea la semilla. Cambia la duración del ciclo, los tempos o el número de ciclos en la fila Modo para alcanzar el objetivo.",
-    "canvasCollideAnti": "ANTICOLISIÓN"
+    "canvasCollideAnti": "ANTICOLISIÓN",
+    "canvasReplay": "REPETICIÓN"
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los 12 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
@@ -643,7 +644,24 @@
     "cpAntiCollisionAtTip": "Segundo de la simulación en el que se apaga el sistema de colisiones: las esferas cambian de color y se atraviesan unas a otras (siguen rebotando en el recipiente). Con No, chocan para siempre.",
     "cpAntiOff": "No",
     "cpRing": "Piruletas en un anillo",
-    "cpRingTip": "Sujeta los cuerpos a una pista circular: cada uno es una piruleta (un palito desde el centro hasta un disco) que choca con sus vecinas a lo largo del anillo. Con gravedad oscilan como péndulos alrededor de la parte de abajo."
+    "cpRingTip": "Sujeta los cuerpos a una pista circular: cada uno es una piruleta (un palito desde el centro hasta un disco) que choca con sus vecinas a lo largo del anillo. Con gravedad oscilan como péndulos alrededor de la parte de abajo.",
+    "cameraGroup": "Cámara",
+    "cameraGroupTip": "Efectos de cámara cinematográficos. Solo cambian la imagen y el ritmo al que el reloj alimenta la simulación, nunca la física: las semillas y las simulaciones encontradas se desarrollan exactamente igual.",
+    "cameraGroupDesc": "Acerca la cámara a la pelota, sacude la vista cuando se rompe una pared, ralentiza los casi-escapes y repite la fuga, en la vista previa y en las grabaciones.",
+    "cameraOff": "No",
+    "cameraZoom": "Zoom de cámara",
+    "cameraZoomTip": "Cuánto se acerca la vista a la pelota mientras la sigue por la arena. 0 mantiene la vista de siempre (con «Cámara que sigue» activada, el seguimiento suave clásico). En los modos de dos pelotas el zoom se mantiene lo bastante abierto para que ambas queden en el encuadre.",
+    "screenShake": "Sacudida de pantalla",
+    "screenShakeTip": "Sacude la vista cada vez que se rompe una pared; la sacudida se apaga en 300 ms. Los valores altos sacuden con más fuerza.",
+    "slowMoOnNearMiss": "Cámara lenta en casi-escapes",
+    "slowMoOnNearMissTip": "Cuando la pelota cruza un hueco rozando su borde (el casi-escape que detecta el director dramático), el tiempo se ralentiza un momento. La simulación da los mismos pasos, solo que más despacio; las grabaciones muestran la cámara lenta.",
+    "slowMoFactor": "Velocidad de la cámara lenta",
+    "slowMoFactorTip": "A qué ritmo corre el tiempo durante la cámara lenta: 0,2× es muy lento; 0,8×, apenas más lento.",
+    "slowMoMs": "Duración de la cámara lenta",
+    "slowMoMsTip": "Cuánto dura cada momento de cámara lenta, en tiempo real. Después, una breve pausa evita que varios casi-escapes seguidos ralenticen toda la partida.",
+    "replayOnEscape": "Repetición de la fuga",
+    "replayOnEscapeTip": "Cuando una pelota escapa de la pared exterior y la partida termina, sus últimos 2 segundos se repiten a media velocidad con la etiqueta REPETICIÓN antes de la pantalla final, también en las grabaciones.",
+    "replayOnEscapeModes": "La repetición funciona en los modos de escape: Clásico, Acumulación, Portal, Fragmentación y Coincidir color."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
