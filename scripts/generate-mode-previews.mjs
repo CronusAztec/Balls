@@ -48,6 +48,8 @@ const MODES = {
   // --- jdm-arena-games --- mid-battle: squares with HP bars, a KO blast, power-ups; and a capture the flag game with a carrier
   battle: { wait: 7000, query: "btn=12&glow=1" },
   ctf: { wait: 5000, query: "ctfn=3&glow=1" },
+  // --- boris-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
+  vortex: { wait: 14200, query: "face=cute&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

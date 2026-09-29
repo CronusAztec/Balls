@@ -55,6 +55,8 @@ import { withFastRender } from "./fastRenderCanvas";
 import { RACE_DATA_KEYS, RaceLayer, writeRaceDataset, type CanvasRaceOptions, type RaceRenderOptions } from "./raceRenderer";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOptions } from "./arenaRenderer";
+// --- boris-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
+import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -130,6 +132,9 @@ export interface CanvasLabels {
   // --- jdm-arena-games ---
   /** Battle Royale / Capture the Flag: KO, winner, draw, squares left, capture, time, the banner lines and the built-in names. */
   arena?: ArenaLabels;
+  // --- boris-vortex ---
+  /** Sound Vortex: the HUD title, the swallowed / pew counter and the banner when every ball is gone. */
+  vortex?: VortexLabels;
 }
 
 export interface CanvasHandle {
@@ -280,6 +285,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   illusionRevealed: "REVEALED!",
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
   powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
+  vortex: DEFAULT_VORTEX_LABELS, // --- boris-vortex ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -697,6 +703,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- jdm-arena-games --- the arena games' layer and its per-frame options (the Teams roster names and colours the squares)
     const arenaLayer = new ArenaLayer();
     const arenaRender: ArenaRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, roster: null, showNames: true, numbers: true, labels: DEFAULT_ARENA_LABELS };
+    // --- boris-vortex --- the Sound Vortex's layer (cached gradients) and its per-frame options
+    const vortexLayer = new VortexLayer();
+    const vortexRender: VortexRenderOptions = { wallAlpha: () => "#fff", rainbow: true, wallThickness: 2, showWallGlow: true, ballRadius: 8 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -962,6 +971,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-illusions --- the Circle Illusion's view, and this frame's wobbly walls: new contacts, the simulation time, the amount
       const illusionView = engine.isIllusionMode() ? engine.getIllusionView() : null;
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
+      const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- boris-vortex ---
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
@@ -1220,6 +1230,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         plRender.wallColor = wallColor;
         plRender.showWallGlow = p.showWallGlow;
         plLayer.drawWorld(ctx, plView, drawnBalls, plRender);
+      }
+      // --- boris-vortex --- Sound Vortex: the funnel, the whirlpool arms, the sound rings, the rim and the hole under the balls.
+      if (vortexView) {
+        vortexRender.wallAlpha = circleAlpha;
+        vortexRender.rainbow = p.rainbowWalls;
+        vortexRender.wallThickness = p.wallThickness;
+        vortexRender.showWallGlow = p.showWallGlow;
+        vortexRender.ballRadius = engine.config.ballRadius || 8;
+        vortexLayer.drawWorld(ctx, vortexView, vortexRender);
       }
       // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
       if (raceView) {
@@ -1901,6 +1920,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
+      if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- boris-vortex --- the throat's shade, note pulses and splashes over the balls
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -2013,6 +2033,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
       if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
+      // --- boris-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
+      if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
       if (arenaView) arenaLayer.drawOverlay(ctx, size.width, size.height, arenaView, arenaRender);
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
@@ -2235,6 +2257,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (plView && plView.freed) {
           const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
           bigBanner(PL.freedom, PL.freedomSub(plView.hits, plView.freedSec.toFixed(1)), "#a3e635");
+        }
+        // --- boris-vortex --- Sound Vortex: every ball swallowed – pew!
+        if (vortexView && vortexView.finished) {
+          const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
+          bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
         }
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
@@ -2683,6 +2710,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-race --- racers, phase, leader, winner, finishers, passes, swaps, boosts, hits, lap, camera, order and callouts (data-race-*)
       if (raceView) writeRaceDataset(raceView, setCanvasData);
       else if (canvas.dataset.raceRacers !== undefined) for (const key of RACE_DATA_KEYS) delete canvas.dataset[key];
+      // --- boris-vortex --- balls, entered, swallowed, in flight, notes, chords, rings, the deepest ring, loop, tempo, depth, finished (data-vortex-*)
+      if (vortexView) writeVortexDataset(vortexView, setCanvasData);
+      else if (canvas.dataset.vortexBalls !== undefined) for (const key of VORTEX_DATA_KEYS) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

@@ -112,6 +112,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // Re-recorded when the battle's fixed margins became reference pixels scaled with the field (a seed plays the same on any canvas).
   battle: { samples: [[374459,349977],[329182,250770],[338535,110954],[267052,343771],[595188,183924],[337396,292032],[459252,122349],[517487,427594]], broken: [], walls: [] },
   ctf: { samples: [[464260,193076],[653920,237007],[304817,457518],[313243,546485],[446150,169209],[271083,282839],[314906,501106],[633347,562433]], broken: [], walls: [] },
+  // --- boris-vortex --- Sound Vortex: its own funnel, no rings; recorded when the mode was added (seed 12345, defaults: 12 balls 1.5 s apart, 12 rings, 12.5 s spirals).
+  vortex: { samples: [[505441,421447],[591932,381653],[429348,392412],[489357,211878],[456871,281023],[426114,373116],[412905,265698],[369240,335581]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

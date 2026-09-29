@@ -6,6 +6,7 @@ import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- bori
 import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // --- obstacle-editor ---
 import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
 import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
+import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -637,6 +638,38 @@ export class ToneGenerator {
     }
   }
   // --- end jdm-race ---
+
+  // --- boris-vortex ---
+  /**
+   * A ball swallowed by the Sound Vortex: the "pew" (pewTone.ts) – a fast downward sweep from `frequency`, snapped to the
+   * scale, in the waveform of the bounce instrument, on the beat grid when the beat lock is on, ducking the music bed. It
+   * is an effect like the gap arpeggio (it never takes a bounce's beat-grid slot); a chosen wall-break clip plays instead.
+   */
+  playPew(frequency = DEFAULT_PEW_FREQUENCY) {
+    if (this.wallBreakSoundUrl) {
+      this.playWallBreakBuffer();
+      return;
+    }
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.schedulePew(frequency));
+      return;
+    }
+    this.schedulePew(frequency);
+  }
+
+  private schedulePew(frequency: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      schedulePewTone(this.audioContext, this.masterGain, frequency, time, (f) => this.snap(f), pewWaveform(this.music.instrument));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the pew:", err);
+    }
+  }
+  // --- end boris-vortex ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

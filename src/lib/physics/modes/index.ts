@@ -51,3 +51,6 @@ export type { RaceSettings, RaceView, RaceCallout, RacePhase, RaceShape, RaceCam
 export { BattleMode } from "./battle";
 export { CtfMode } from "./ctf";
 export type { ArenaView, ArenaField, ArenaFlag, ArenaBase, ArenaKo, ArenaPowerUp, BattleSettings, CtfSettings, BattleArena } from "./arenaGames";
+// --- boris-vortex ---
+export { VortexMode } from "./vortex";
+export type { VortexSettings, VortexField, VortexView, SpiralState } from "./vortex";

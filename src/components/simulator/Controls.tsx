@@ -52,6 +52,7 @@ import RaceSection, { RACE_KEYS } from "./sections/RaceSection"; // --- jdm-race
 // --- jdm-arena-games --- the "Arena games" block of the Mode row (Battle Royale, Capture the Flag)
 import ArenaGamesSection, { ARENA_GAME_KEYS } from "./sections/ArenaGamesSection";
 import { isArenaGameMode } from "@/lib/physics/modes/arenaGames";
+import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- boris-vortex --- the Vortex block of the Mode row
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -170,6 +171,8 @@ SECTION_KEYS.recording.push(...FAST_EXPORT_KEYS); // --- fast-render --- the fas
 SECTION_KEYS.ball.push(...RACE_KEYS);
 // --- jdm-arena-games --- the Arena games block is searched with the Ball section.
 SECTION_KEYS.ball.push(...ARENA_GAME_KEYS);
+// --- boris-vortex --- the Vortex block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...VORTEX_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -243,6 +246,8 @@ export default function Controls(props: ControlsProps) {
     // --- jdm-arena-games ---
     battle: t("modeBattle"),
     ctf: t("modeCtf"),
+    // --- boris-vortex ---
+    vortex: t("modeVortex"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -318,6 +323,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "race" && !!search && <RaceSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-arena-games --- */}
       {isArenaGameMode(s.mode) && !!search && <ArenaGamesSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- boris-vortex --- */}
+      {s.mode === "vortex" && !!search && <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
@@ -397,10 +404,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex"].includes(s.mode) && !isArenaGameMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring)
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- boris-vortex --- (the sound rings)
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1168,6 +1175,9 @@ export default function Controls(props: ControlsProps) {
       case "battle":
       case "ctf":
         return <ArenaGamesSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- boris-vortex ---
+      case "vortex":
+        return <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

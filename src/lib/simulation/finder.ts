@@ -29,6 +29,8 @@ import { powerLayersFixedDurationSec, type PowerLayersSettings } from "@/lib/phy
 import type { RaceSettings } from "@/lib/physics/modes/race";
 // --- jdm-arena-games ---
 import type { BattleSettings, CtfSettings } from "@/lib/physics/modes/arenaGames";
+// --- boris-vortex ---
+import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -93,6 +95,9 @@ export interface ModeSettings {
    */
   battle?: Partial<BattleSettings>;
   ctf?: Partial<CtfSettings>;
+  // --- boris-vortex ---
+  /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
+  vortex?: Partial<VortexSettings>;
 }
 
 // --- odd-string-battle ---
@@ -116,7 +121,7 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "vortex">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
   if (mode === "collide") return true;
@@ -129,6 +134,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "doublePendulum") return resolveDoublePendulumSettings(settings.doublePendulum).endless;
   // --- jdm-illusions --- the nested circles bounce forever; lines and rings with the cycles at "never"
   if (mode === "illusion") return illusionRunNeverFinishes(settings.illusion);
+  // --- boris-vortex --- with the loop on every swallowed ball comes back: the vortex never ends
+  if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
   return false;
 }
 
@@ -255,6 +262,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   // --- jdm-arena-games ---
   if (mode === "battle") engine.setBattleSettings(settings.battle ?? {});
   if (mode === "ctf") engine.setCtfSettings(settings.ctf ?? {});
+  // --- boris-vortex ---
+  if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

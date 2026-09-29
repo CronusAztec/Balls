@@ -4071,6 +4071,177 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 // --- end jdm-arena-games ---
 
+// --- boris-vortex ---
+// 31. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
+// time, pull, depth cue, loop, the run summary), controls → URL and the search box; the Respawn Loop hides the finder and
+// says why; a short run at 1× at 30+ fps whose ring notes climb the C-major degrees ring by ring and whose swallows pew –
+// a sweep from an octave above the innermost ring (OscillatorNode.start is instrumented) – and then finishes; the finder
+// lands a 30 s seed and the run keeps the promise at 8×; the default run at 1× keeps 30+ fps; and a 1080×1920 recording
+// keeps 20+ fps (the software encoder's share of a headless frame) and downloads.
+{
+  const res = await page.request.get(`${BASE}/modes/vortex.webp`);
+  check("asset /modes/vortex.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Sound Vortex card is on the landing page", (await page.locator('img[src$="/modes/vortex.webp"]').count()) === 1);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const vxFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+{
+  const vxToggle = (label) => page.getByTestId("sound-vortex").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=6&vxs=0.5&vxr=16&vxd=8&vxg=2&vxds=0.8`, { waitUntil: "networkidle" });
+  {
+    const values = { vxn: await sliderValue("Vortex Balls"), vxs: await sliderValue("Entry Stagger"), vxr: await sliderValue("Sound Rings"), vxd: await sliderValue("Spiral Time"), vxg: await sliderValue("Central Pull"), vxds: await sliderValue("Depth Cue") };
+    const loop = await vxToggle("Respawn Loop").getAttribute("aria-pressed");
+    const run = await page.getByTestId("sound-vortex-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    // 6 balls × 16 rings = 96 notes; the last ball enters at 2.5 s and takes 8 s, the run ends a second later: 11.5 s.
+    check(
+      "sound vortex loads from the URL",
+      values.vxn === "6" && values.vxs === "0.5" && values.vxr === "16" && values.vxd === "8" && values.vxg === "2" && values.vxds === "0.8" && loop === "false" && /\b96\b/.test(run) && /11\.5s/.test(run) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, loop=${loop}, "${run}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await page.locator('input[aria-label="Sound Rings"]').evaluate(setRangeValue, "20");
+  await page.locator('input[aria-label="Vortex Balls"]').evaluate(setRangeValue, "10");
+  await vxToggle("Respawn Loop").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const endless = await page.getByTestId("sound-vortex-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    check(
+      "sound vortex mirrors into the URL; the loop hides the finder and says why",
+      /(^|&)vxr=20(&|$)/.test(query) && /(^|&)vxn=10(&|$)/.test(query) && /(^|&)vxl=1(&|$)/.test(query) && /(^|&)vxg=2(&|$)/.test(query) && /never ends/.test(endless) && !finderShown,
+      `(${query}, "${endless}", finder shown=${finderShown})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("spiral time");
+  const found = await page.locator('input[aria-label="Spiral Time"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the sound vortex controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A short run at 1×: 3 balls 0.5 s apart, 12 rings, 5 s spirals – ring notes on C major, pews from G6, the end.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=3&vxs=0.5&vxd=5&face=cute`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__vxOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await vxFrameRates(4500);
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-vortex.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__vxOsc);
+  const midis = tones.map((o) => Math.round(69 + 12 * Math.log2(o.f / 440)));
+  const notes = midis.filter((m) => m >= 60 && m <= 79);
+  const pews = midis.filter((m) => m === 91);
+  // The first ball's first notes: rings 0 and 1 – C4, D4 (the second ball's first ring comes after them); the innermost ring is G5.
+  const firstTwo = notes.slice(0, 2).join(",");
+  check(
+    "sound vortex: ring notes climb the scale, balls weave at 30+ fps",
+    Number(mid.vortexNotes) >= 12 && Number(mid.vortexInFlight) >= 1 && firstTwo === "60,62" && notes.includes(79) && notes.every((m) => [0, 2, 4, 5, 7, 9, 11].includes(m % 12)) && fps.windows.length >= 7 && fps.min >= fpsFloor(30),
+    `(notes ${mid.vortexNotes}, in flight ${mid.vortexInFlight}, first MIDI ${firstTwo}, ${tones.length} tones, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  check(
+    "sound vortex: every ball is swallowed with a pew and the run finishes",
+    done && data.vortexSwallowed === "3" && data.vortexNotes === "36" && data.vortexDeepest === "11" && data.vortexFinished === "1" && pews.length === 3 && data.face === "cute",
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("vortex"))))}, ${pews.length} pews)`,
+  );
+}
+{
+  // The finder: the seed's tempo spreads the default run around 30 s – a found seed keeps its promise.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.vortexFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a sound vortex seed for 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.vortexFinished === "1" && Math.abs(Number(data.vortexFinishedMs) / 1000 - promised) < 0.1 && data.vortexSwallowed === "12",
+    `(ready=${ready}, "${readyText}", finished at ${data.vortexFinishedMs} ms, swallowed ${data.vortexSwallowed})`,
+  );
+}
+{
+  // The default run at 1× (12 balls, about 8 in the funnel at once, glow and trails on).
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&glow=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(9000);
+  const fps = await vxFrameRates(4000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-vortex-full.png") });
+  check("the default sound vortex keeps 30+ fps with the funnel full", Number(data.vortexInFlight) >= 5 && fps.windows.length >= 6 && fps.min >= fpsFloor(30), `(in flight ${data.vortexInFlight}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default run.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await vxFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `vortex-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 sound vortex recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+// --- end boris-vortex ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

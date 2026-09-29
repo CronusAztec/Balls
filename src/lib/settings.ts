@@ -44,6 +44,8 @@ import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writ
 import type { RaceFeature } from "@/lib/physics/raceTrack";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_GAME_RANGES, defaultArenaGameFields, readArenaGameParams, resolveArenaGameFields, writeArenaGameParams, type BattleArena } from "@/lib/physics/modes/arenaGames";
+// --- boris-vortex --- the Sound Vortex mode
+import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -532,6 +534,22 @@ export interface SimulatorSettings {
   /** Both games: 0–1, how far the director turns a wall rebound toward the action (URL `arn`). */
   arenaNudge: number;
   // --- end jdm-arena-games ---
+  // --- boris-vortex --- Sound Vortex (lib/physics/modes/vortex.ts): balls spiral down a funnel of sound rings into a hole
+  /** Balls that go down the vortex, 1–30 (URL `vxn`). */
+  vxBalls: number;
+  /** Seconds between two balls entering, 0–3 (URL `vxs`). */
+  vxStagger: number;
+  /** Sound rings, 6–24: a note each (URL `vxr`). */
+  vxRings: number;
+  /** Seconds from the rim to the hole, 3–30 (URL `vxd`). */
+  vxDuration: number;
+  /** 0.2–3: the central pull – how fast the balls whirl (URL `vxg`). */
+  vxGravity: number;
+  /** Swallowed balls come back at the rim: the vortex never ends (URL `vxl`). */
+  vxLoop: boolean;
+  /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
+  vxDepthScale: number;
+  // --- end boris-vortex ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -640,6 +658,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...DEFAULT_FAST_EXPORT_SETTINGS, // --- fast-render ---
     ...defaultRaceFields(), // --- jdm-race ---
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
+    ...defaultVortexFields(), // --- boris-vortex ---
   };
 }
 
@@ -702,6 +721,7 @@ export const RANGES = {
   ...FAST_EXPORT_RANGES, // --- fast-render ---
   ...RACE_RANGES, // --- jdm-race ---
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
+  ...VORTEX_RANGES, // --- boris-vortex ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -934,6 +954,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
+  writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
   return params;
 }
 
@@ -1047,6 +1068,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   Object.assign(settings, resolveFastExportSettings(settings)); // --- fast-render --- (snapped to 30 or 60)
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
+  readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
   return settings;
 }
 
@@ -1213,6 +1235,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveFastExportSettings(merged)); // --- fast-render --- (snapped to 30 or 60)
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
+  Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
   return merged;
 }
 

@@ -1253,7 +1253,26 @@
     "ctfTimeInfo": "Límite de tiempo: {seconds} s (la duración del clip menos el cartel del ganador)",
     "arenaNudge": "Empujón del director",
     "arenaNudgeTip": "Cuánto gira el director un rebote en la pared hacia la acción: el rival más cercano, la bandera enemiga o, con ella, la propia base. 0 es física pura; depende de la semilla, así que cada partida se puede reproducir.",
-    "arenaTeamsHint": "Los nombres y colores salen de la lista de equipos si la defines (sección Equipos y marcador); si no, cada cuadrado recibe el nombre de un color."
+    "arenaTeamsHint": "Los nombres y colores salen de la lista de equipos si la defines (sección Equipos y marcador); si no, cada cuadrado recibe el nombre de un color.",
+    "modeVortex": "Vórtice sonoro",
+    "vxTitle": "Vórtice",
+    "vxDesc": "Las bolas entran por el borde una tras otra y caen en espiral hacia el agujero, atraídas por el centro. Cada anillo sonoro que cruza una bola toca la nota siguiente de tu escala (la Escala y la Nota fundamental de los ajustes de sonido); el agujero se la traga con un «pew».",
+    "vxBalls": "Bolas del vórtice",
+    "vxBallsTip": "Cuántas bolas bajan por el vórtice (1–30). Cada una toca todos los anillos en su camino, así que más bolas dan arpegios más densos.",
+    "vxStagger": "Intervalo de entrada",
+    "vxStaggerTip": "Segundos entre la entrada de dos bolas por el borde. Con 0 entran todas a la vez, repartidas por el borde; un intervalo más largo convierte las notas en un canon.",
+    "vxRings": "Anillos sonoros",
+    "vxRingsTip": "Cuántos anillos hay entre el borde y el agujero (6–24). El anillo del borde toca la nota más grave y cada anillo más adentro, la siguiente nota de la escala.",
+    "vxDuration": "Tiempo de espiral",
+    "vxDurationTip": "Segundos que tarda una bola del borde al agujero. Los anillos están espaciados para que los cruce a un tempo constante; la semilla varía ese tempo hasta un ±8 %, y eso es lo que busca Buscar simulación.",
+    "vxGravity": "Atracción central",
+    "vxGravityTip": "Con qué fuerza tira el centro. Marca el giro –cuántas vueltas da una bola al bajar–, no cuánto tarda el viaje.",
+    "vxDepthScale": "Efecto de profundidad",
+    "vxDepthScaleTip": "Sensación 3D: las bolas se encogen al hundirse hacia el agujero y la garganta del embudo se oscurece. Con 0 todo queda plano.",
+    "vxLoop": "Bucle de reaparición",
+    "vxLoopTip": "Una bola tragada vuelve enseguida al borde, así que el vórtice nunca termina: ideal para bucles largos, pero Buscar simulación no tiene nada que medir.",
+    "vxRunInfo": "{notes} notas de anillos; el recorrido dura unos {seconds}s (el tempo de la semilla: {min}–{max}s), así que Buscar simulación puede acertar una duración en esa franja.",
+    "vxRunEndless": "El bucle de reaparición está activado: las bolas vuelven sin fin, así que el recorrido nunca termina y Buscar simulación se oculta. Desactiva el bucle para buscar una semilla para la duración de tu clip."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1318,6 +1337,10 @@
     "ctf": {
       "name": "Captura la bandera",
       "description": "Dos equipos de cuadrados que rebotan y una base con bandera en cada extremo: toca la bandera rival para llevarla y llévala a casa para anotar; si te placan por el camino, la bandera cae donde estés. Gana el primero en llegar a la puntuación objetivo, o el que vaya ganando cuando acabe el clip, con una fanfarria en cada captura."
+    },
+    "vortex": {
+      "name": "Vórtice sonoro",
+      "description": "¡Pew! Las bolas caen en un remolino de anillos sonoros y bajan en espiral hasta el agujero del centro: cada anillo que cruzan toca la nota siguiente, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. Al fondo, el agujero se las traga con un «pew» y un chapoteo."
     }
   },
   "Features": {
@@ -1470,7 +1493,8 @@
     "modePowerLayers": "El formato de capas de poder de oddplayground, sin anillos: un campo vertical azul marino con una barra de techo luminosa en su tercio superior y, desde la mitad de la pantalla hacia abajo, una pila densa de 20 a 800 capas arcoíris finas: las capas entre la pelota y la libertad. Una pelota blanca rebota entre el techo y la cima de la pila con una ligera deriva sembrada. Cada impacto destruye tantas capas como el poder actual (se rompen en partículas de colores y la pila baja) y después el poder se duplica, sigue a Fibonacci o a los primos, crece de uno en uno o se sortea con la semilla (caos: algunos golpes destruyen decenas de capas y otros no cambian nada). Dos píldoras arcoíris muestran la regla, el poder y el nivel, cada nivel toca la siguiente nota de tu escala, un golpe grande añade un acorde y un silbido, y cuando desaparece la última capa la pelota cae por abajo hacia la libertad. Cada rebote dura lo mismo, así que un recorrido dura el número de golpes por el periodo de rebote: Buscar simulación lo dice o busca entre las semillas del caos la duración de tu clip.",
     "modeRace": "El formato de carrera de canicas de project.jdm, sin anillos: de 2 a 16 corredores —con los nombres, colores y emojis de la lista de equipos— salen de una parrilla y bajan por una larga pista vertical generada a partir de la semilla. Filas de clavijas, embudos, aspas giratorias, bumpers de pinball, turbos, puertas estrechas y zonas de intercambio (el primer corredor la arma y el segundo intercambia su posición con él) revuelven el orden; cada obstáculo que golpea un corredor suena con su propia nota y cada adelantamiento con un timbre ascendente. La cámara sigue al líder o encuadra al pelotón, un minimapa muestra toda la pista, la clasificación muestra posiciones y diferencias, y la meta trae fanfarria, podio y confeti. Repite la pista varias vueltas, activa una copa para sumar puntos de F1 entre carreras o elige un ganador amañado.",
     "modeBattle": "Sin anillos: de 2 a 20 cuadrados con puntos de vida rebotan en una caja o un círculo y chocan entre sí. Cuando dos se golpean, el más rápido hace un daño proporcional a la velocidad con la que se acercan; el cuadrado golpeado parpadea y encoge un poco, y a 0 PV estalla en pedazos con un cartel de KO. Una zona segura opcional se cierra desde el octavo segundo y empuja a los supervivientes unos contra otros, y los potenciadores de curación, escudo y velocidad aparecen en momentos marcados por la semilla. El último cuadrado en pie gana bajo un cartel con confeti. Todo depende de la semilla, así que Buscar simulación puede encontrar una batalla de la duración que quieras.",
-    "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip."
+    "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip.",
+    "modeVortex": "El formato «sound vortex, pew» de borisbounces, sin anillos de los que escapar: un remolino visto desde arriba –un embudo de 6 a 24 anillos sonoros concéntricos sobre brazos de espiral luminosos, con un agujero en el centro–. Una bola tras otra entra por el borde con velocidad lateral y baja en espiral atraída por una fuerza que crece hacia el centro, con un poco de rozamiento; tarda el Tiempo de espiral en llegar al agujero y gira cada vez más deprisa por el camino. Cada anillo que cruza toca la nota siguiente de tu escala –con melodía, instrumento, muestra de golpe y ajuste al compás incluidos–, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. El agujero se la traga con un «pew», un barrido rápido de tono hacia abajo, y un chapoteo; con el bucle activado vuelve al borde. Las bolas se encogen con la profundidad para dar sensación 3D y cada recorrido es determinista, así que Buscar simulación puede elegir una semilla para la duración de tu clip."
   },
   "Footer": {
     "about": "Acerca de",
@@ -1730,5 +1754,12 @@
     "name18": "Oliva",
     "name19": "Marinos",
     "name20": "Nieve"
+  },
+  "Vortex": {
+    "canvasTitle": "VÓRTICE SONORO",
+    "canvasSwallowed": "[count] / [total] tragadas",
+    "canvasPews": "[count] × PEW",
+    "canvasDone": "¡PEW!",
+    "canvasDoneSub": "[balls] bolas tragadas · [notes] notas"
   }
 }

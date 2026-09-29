@@ -47,6 +47,8 @@ export const MODE_IDS = [
   // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
   "battle",
   "ctf",
+  // --- boris-vortex --- Sound Vortex
+  "vortex",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -218,6 +220,9 @@ export interface SoundEvent {
   // --- jdm-race ---
   /** A "hit" that plays a tune of the race (`ToneGenerator.playRaceArpeggio()`): the rising chime of a pass, the winner's fanfare; rooted on `frequency`. */
   race?: "chime" | "fanfare";
+  // --- boris-vortex ---
+  /** A ball swallowed by the Sound Vortex: the page plays the "pew" (`ToneGenerator.playPew()`), a fast downward sweep from `frequency`. */
+  pew?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
