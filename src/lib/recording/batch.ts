@@ -306,6 +306,15 @@ export function keepExportFormat(settings: SimulatorSettings, format: Pick<Simul
   return { ...settings, recordingResolution: format.recordingResolution, fastExportFps: format.fastExportFps };
 }
 
+/**
+ * The settings of a link's job: the link's, with the batch's export format (`keepExportFormat()`) and the page's wall-break
+ * sound – a link never carries one (neither a built-in clip nor an upload, which only lives in the page that holds it), so
+ * the clip gets the one the page plays, like a mode of the "every mode" variant.
+ */
+export function linkJobSettings(link: SimulatorSettings, page: SimulatorSettings): SimulatorSettings {
+  return { ...keepExportFormat(link, page), wallBreakSound: page.wallBreakSound };
+}
+
 /** The settings with one swept value. */
 export function sweepSettings(settings: SimulatorSettings, key: SweepKey, value: number): SimulatorSettings {
   return { ...settings, [key]: value };

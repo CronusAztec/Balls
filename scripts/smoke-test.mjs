@@ -4494,7 +4494,10 @@ const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//l
 // .webm, "Download all as ZIP" packs exactly those files (read back entry by entry: STORE, UTF-8 flag, CRC-32, the same
 // bytes) and the definition survives a reload (localStorage). A mode variant – Portal and Shatter, rendered in card order –
 // stopped with "Stop after this clip" finishes its first clip in Shatter (the mode card's change), skips the Portal one and
-// gives the page its own mode back. Without WebCodecs the block says so and cannot start.
+// gives the page its own mode back. An uploaded wall-break sound plays in every clip of a sweep (a seed and a share link)
+// and of a mode variant and stays on the page; a run Find Simulation found survives a sweep (the panel, the clip length,
+// the fast export's digest and the page run's first escape are the same afterwards). Without WebCodecs the block says so
+// and cannot start.
 {
   const BATCH_KEY = "viralballs_batch_render";
   /** CRC-32 (IEEE), as the ZIP stores it. */
@@ -4619,6 +4622,136 @@ const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//l
       "batch render: every mode renders the clip in the picked mode; Stop after this clip finishes it, skips the rest and gives the page its mode back",
       canStop && stopping && stopped && doneLine && modeRows.length === 2 && modeRows[0].status === "done" && /^shatter-303-/.test(modeRows[0].file || "") && modeRows[1].status === "skipped" && modeDownloads.length === 1 && /^shatter-303-/.test(modeDownloads[0]) && pageMode === "classic",
       `(rows ${JSON.stringify(modeRows)}, downloads ${JSON.stringify(modeDownloads)}, page mode ${pageMode}, stopping=${stopping})`,
+    );
+
+    // 4. An uploaded wall-break sound is in every clip and stays on the page: a sweep of a seed and of a share link, and a
+    // mode variant that starts from Target (every clip in Shatter, which plays the wall-break clip on every shattered
+    // segment). The search box shows the Batch block and the Wall Break Sound select together; every 50 ms the select's
+    // value is noted for the clip being rendered, and so is every wall-break clip the export plays (a one-argument
+    // AudioBufferSourceNode.start – the default tones are oscillators) with its length.
+    const wallBreakBatch = async (query, setUp) => {
+      await page.goto(`${BASE}/en/simulator/?${query}&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+      const search = page.getByPlaceholder("Search settings...");
+      await search.fill("wall break");
+      await page.locator('label:has-text("Choose audio file") input[type=file]').first().setInputFiles({ name: "smoke-break.wav", mimeType: "audio/wav", buffer: makeWav(0.5) });
+      const upload = await page
+        .waitForFunction(() => (document.querySelector("#wallbreak-select")?.value.startsWith("blob:") ? document.querySelector("#wallbreak-select").value : null), null, { timeout: 10000 })
+        .then((h) => h.jsonValue())
+        .catch(() => "");
+      await search.fill("nd"); // "Wall Break Sound" and "Batch Render"
+      const batch = page.locator("[data-batch]");
+      await batch.waitFor({ timeout: 10000 });
+      await setUp(batch);
+      await page.evaluate(() => {
+        const job = () => [...document.querySelectorAll("[data-batch-job]")].findIndex((el) => el.getAttribute("data-batch-job") === "rendering");
+        const seen = (window.__wbSeen = []);
+        const plays = (window.__wbPlays = []);
+        const timer = setInterval(() => {
+          const j = job();
+          if (j >= 0) seen.push([j, document.querySelector("#wallbreak-select")?.value ?? ""]);
+        }, 50);
+        const start = AudioBufferSourceNode.prototype.start;
+        window.__wbDone = () => {
+          clearInterval(timer);
+          AudioBufferSourceNode.prototype.start = start;
+        };
+        AudioBufferSourceNode.prototype.start = function () {
+          if (arguments.length === 1 && this.buffer) plays.push([job(), Math.round(this.buffer.duration * 1000) / 1000]);
+          return start.apply(this, arguments);
+        };
+      });
+      await batch.getByRole("button", { name: /Render batch/ }).click();
+      const finished = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "finished", null, { timeout: 300000 }).then(() => true).catch(() => false);
+      await page.waitForTimeout(500);
+      const { seen, plays } = await page.evaluate(() => {
+        window.__wbDone();
+        return { seen: window.__wbSeen, plays: window.__wbPlays };
+      });
+      const rows = await batchRows();
+      const after = await page.locator("#wallbreak-select").inputValue().catch(() => "");
+      const afterName = await page.locator("#wallbreak-select option:checked").innerText().catch(() => "");
+      await search.fill("");
+      const jobs = rows.map((_, j) => ({ values: [...new Set(seen.filter(([k]) => k === j).map(([, v]) => (v === upload ? "upload" : v || "default tones")))], plays: plays.filter(([k]) => k === j).map(([, d]) => d) }));
+      const mode = new URL(page.url()).searchParams.get("mode");
+      return {
+        ok: finished && !!upload && rows.length > 1 && rows.every((r) => r.status === "done") && jobs.every((j) => j.values.join() === "upload" && j.plays.length > 0 && j.plays.every((d) => Math.abs(d - 0.5) < 0.01)) && after === upload && afterName === "smoke-break.wav",
+        mode,
+        detail: `(${rows.map((r, j) => `${r.file || r.status}: select ${jobs[j].values.join("/") || "unseen"}, ${jobs[j].plays.length} wall-break clips of ${[...new Set(jobs[j].plays)].join("/") || "-"} s`).join("; ")}; afterwards ${after === upload ? "the upload" : `"${after}"`} ("${afterName}"), page mode ${mode})`,
+      };
+    };
+    const sweepUpload = await wallBreakBatch("mode=shatter", async (batch) => {
+      await batch.getByRole("button", { name: "Seed list", exact: true }).click();
+      await page.locator("#batch-list").fill(`303\n${BASE}/en/simulator/?mode=shatter&g=500 404`);
+      await batch.getByRole("button", { name: "Sweep a setting", exact: true }).click();
+      await page.locator("#batch-sweep-key").selectOption("gravity");
+      await batch.getByLabel("From", { exact: true }).fill("0");
+      await batch.getByLabel("To", { exact: true }).fill("100");
+      await batch.getByLabel("Steps", { exact: true }).fill("2");
+    });
+    check("batch render: an uploaded wall-break sound plays in every clip of a sweep – of a seed and of a share link – and stays on the page", sweepUpload.ok && sweepUpload.mode === "shatter", sweepUpload.detail);
+    const modesUpload = await wallBreakBatch("mode=target", async (batch) => {
+      await batch.getByRole("button", { name: "Seed list", exact: true }).click();
+      await page.locator("#batch-list").fill("505\n606");
+      await batch.getByRole("button", { name: "Every mode", exact: true }).click();
+      await batch.getByRole("button", { name: "Clear", exact: true }).click();
+      await batch.getByRole("group", { name: "Every mode" }).getByRole("button", { name: "Shatter", exact: true }).click();
+    });
+    check("batch render: an uploaded wall-break sound plays in every clip of a mode variant and stays on the page, back in its own mode", modesUpload.ok && modesUpload.mode === "target", modesUpload.detail);
+
+    // 5. A batch that changes settings gives the page back the run Find Simulation found: after a gravity sweep (stopped
+    // after its first clip) the Found panel, the ready bar and the clip length are as they were, the next fast export
+    // renders the found seed (the same frames: digest) and the page's own run is the found run (the same first escape,
+    // data-first-escape, played at 8× before and after).
+    await page.goto(`${BASE}/en/simulator/?mode=classic&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+    let foundText = "";
+    // (1000 seeds miss a 30 s run now and then – about one search in a hundred: search again)
+    for (let attempt = 0; attempt < 3 && !/^Found! \d/.test(foundText); attempt++) {
+      await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+      await page.waitForTimeout(100);
+      const foundLine = page.getByText(/Found! \d|Didn't find simulation/).first();
+      foundText = await foundLine.waitFor({ timeout: 180000 }).then(() => foundLine.innerText()).catch(() => "timeout");
+    }
+    await page.waitForTimeout(500);
+    const seedLine = () => page.getByText(/^Seed: -?\d+/).first().innerText({ timeout: 2000 }).catch(() => "");
+    const clipLength = () => new URLSearchParams(page.url().split("?")[1] || "").get("dur") ?? "default";
+    const fastDigest = async () => {
+      if ((await page.locator("[data-batch]").count()) === 0) await openBatch();
+      const done = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      await done;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      return page.locator("[data-fast-export]").getAttribute("data-fast-digest").catch(() => null);
+    };
+    const firstEscape = async () => {
+      await page.getByRole("button", { name: /Start Simulator/ }).click();
+      await page.getByRole("button", { name: "8x", exact: true }).click();
+      return page
+        .waitForFunction(() => (document.querySelector("main canvas")?.dataset.firstEscape ?? "-1") !== "-1" && document.querySelector("main canvas").dataset.firstEscape, null, { timeout: 60000 })
+        .then((h) => h.jsonValue())
+        .catch(() => "none");
+    };
+    const before = { found: foundText, seed: await seedLine(), clip: clipLength(), digest: await fastDigest(), escape: await firstEscape() };
+    block = page.locator("[data-batch]");
+    await block.getByRole("button", { name: "Seed list", exact: true }).click();
+    await page.locator("#batch-list").fill("101");
+    await block.getByRole("button", { name: "Sweep a setting", exact: true }).click();
+    await page.locator("#batch-sweep-key").selectOption("gravity");
+    await block.getByLabel("From", { exact: true }).fill("0");
+    await block.getByLabel("To", { exact: true }).fill("100");
+    await block.getByLabel("Steps", { exact: true }).fill("2");
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const stopSweep = block.getByRole("button", { name: /Stop after this clip/ });
+    if (await stopSweep.waitFor({ timeout: 15000 }).then(() => true).catch(() => false)) await stopSweep.click();
+    const sweepStopped = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "stopped", null, { timeout: 300000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    const sweepRows = await batchRows();
+    const foundAfter = await page.getByText(/Found! \d/).first().innerText({ timeout: 2000 }).catch(() => "");
+    const ready = await page.getByText(/Ready to start simulation for/).first().innerText({ timeout: 2000 }).catch(() => "");
+    const after = { found: foundAfter, seed: await seedLine(), clip: clipLength(), digest: await fastDigest(), escape: await firstEscape() };
+    check(
+      "batch render: a batch that changes settings gives back the run Find Simulation found (the panel, the clip length, the fast export's frames, the page's own run)",
+      /^Found! \d/.test(before.found) && /^Seed: -?\d+/.test(before.seed) && !!before.digest && before.escape !== "none" && sweepStopped && sweepRows[0]?.status === "done" && /Ready to start simulation for/.test(ready) && JSON.stringify(after) === JSON.stringify(before),
+      `(before: ${JSON.stringify(before)}; after the batch (${sweepRows.map((r) => r.file || r.status).join(", ")}): ${JSON.stringify(after)}, "${ready}")`,
     );
   } else {
     const disabled = await block.getByRole("button", { name: /Render batch/ }).isDisabled();

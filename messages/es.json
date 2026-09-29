@@ -1800,7 +1800,7 @@
     "count": "Número de semillas",
     "countValue": "{count, plural, one {# semilla} other {# semillas}}",
     "listLabel": "Semillas y enlaces para compartir",
-    "listHint": "Una tarea por línea: una semilla (123456), un enlace para compartir – largo o corto – o un enlace seguido de una o más semillas. Un enlace sin semilla recibe una aleatoria (o la de su parámetro seed=). Cada clip mantiene la resolución y los fotogramas por segundo de esta sección; las líneas que empiezan por # se ignoran.",
+    "listHint": "Una tarea por línea: una semilla (123456), un enlace para compartir – largo o corto – o un enlace seguido de una o más semillas. Un enlace sin semilla recibe una aleatoria (o la de su parámetro seed=). Cada clip mantiene la resolución y los fotogramas por segundo de esta sección y tu sonido de ruptura (los enlaces no lo llevan); las líneas que empiezan por # se ignoran.",
     "listPlaceholder": "123456\n4242, 777\nhttps://…/simulator/?mode=portal&g=500\nhttps://…/simulator/?c=… 42",
     "listRead": "{count, plural, =0 {Todavía no hay semillas} one {# tarea} other {# tareas}}",
     "listSkipped": "{count, plural, one {se omitió la línea {lines}} other {se omitieron las líneas {lines}}} (no es una semilla ni un enlace del simulador)",

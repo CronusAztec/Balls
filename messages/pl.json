@@ -1800,7 +1800,7 @@
     "count": "Liczba ziaren",
     "countValue": "{count, plural, one {# ziarno} few {# ziarna} many {# ziaren} other {# ziarna}}",
     "listLabel": "Ziarna i linki do udostępniania",
-    "listHint": "Jedno zadanie w linii: ziarno (123456), link do udostępniania – długi lub krótki – albo link, a po nim jedno lub więcej ziaren. Link bez ziarna dostaje losowe (albo to z parametru seed=). Każdy klip zachowuje rozdzielczość i liczbę klatek z tej sekcji; linie zaczynające się od # są pomijane.",
+    "listHint": "Jedno zadanie w linii: ziarno (123456), link do udostępniania – długi lub krótki – albo link, a po nim jedno lub więcej ziaren. Link bez ziarna dostaje losowe (albo to z parametru seed=). Każdy klip zachowuje rozdzielczość i liczbę klatek z tej sekcji oraz Twój dźwięk przebicia ściany (linki go nie przenoszą); linie zaczynające się od # są pomijane.",
     "listPlaceholder": "123456\n4242, 777\nhttps://…/simulator/?mode=portal&g=500\nhttps://…/simulator/?c=… 42",
     "listRead": "{count, plural, =0 {Brak ziaren} one {# zadanie} few {# zadania} many {# zadań} other {# zadania}}",
     "listSkipped": "{count, plural, one {pominięto linię {lines}} other {pominięto linie {lines}}} (to nie jest ziarno ani link do symulatora)",

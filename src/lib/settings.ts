@@ -1,5 +1,5 @@
 import type { BallInteraction, ModeId, WallBreakStyle } from "@/lib/physics/types";
-import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
+import { CUSTOM_HIT_SAMPLE_ID, DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
 import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
 import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
@@ -1250,6 +1250,25 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   return merged;
+}
+
+/** The uploads the page holds right now: whether a hit sample was uploaded, and the blob: URL of the uploaded wall-break sound. */
+export interface LiveUploads {
+  hitSample: boolean;
+  wallBreakSound: string | null;
+}
+
+/**
+ * `presetToSettings()` for settings put on the page while it still holds its uploads (a saved preset, an imported project,
+ * a share code, a batch job and the batch's way back to the page's own settings): a "custom" hit sample stays selected
+ * while a sample is uploaded, and an uploaded wall-break sound (a blob: URL, which `presetToSettings()` drops) while it
+ * is the page's live upload. A dead blob: URL or "custom" without an upload still falls back.
+ */
+export function presetToLiveSettings(preset: Partial<SimulatorSettings>, uploads: LiveUploads): SimulatorSettings {
+  const loaded = presetToSettings(preset);
+  if (preset.hitSampleId === CUSTOM_HIT_SAMPLE_ID && uploads.hitSample) loaded.hitSampleId = CUSTOM_HIT_SAMPLE_ID;
+  if (preset.wallBreakSound && preset.wallBreakSound === uploads.wallBreakSound) loaded.wallBreakSound = preset.wallBreakSound;
+  return loaded;
 }
 
 export function resolutionToSize(resolution: string): { width: number; height: number } {

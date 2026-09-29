@@ -10,7 +10,7 @@ import {
   batchJobCount,
   batchZipBase,
   defaultBatchDefinition,
-  keepExportFormat,
+  linkJobSettings,
   loadBatchDefinition,
   parseBatchList,
   planBatch,
@@ -37,7 +37,8 @@ import type { FastExportState } from "./sections/FastExportSection";
  * `exportRef`: the export renders the job's seed and hands the file back instead of downloading `viralballs-export.mp4`.
  * The batch names the file (`mode-seed-duration.mp4`), downloads it (optional) and keeps it for the ZIP. "Stop after this
  * clip" lets the job in progress finish; the fast export's own Cancel aborts it and stops the batch. When the batch is
- * over the page gets its settings back.
+ * over the page gets its settings back – with its uploads (the preset loader keeps the live ones) and, when Find Simulation
+ * had found a run, that run (`keepFound`: the preset loader and the physics effects drop it on the way).
  */
 
 /** A batch job, handed to the page's `startFastExport()` through `exportRef`. */
@@ -114,8 +115,14 @@ export interface UseBatchRenderOptions {
   /** Read by the page's `startFastExport()`: the job it renders. */
   exportRef: MutableRefObject<BatchExportRequest | null>;
   startFastExport: () => Promise<void>;
-  /** Puts a whole settings object on the page (the preset loader). */
+  /** Puts a whole settings object on the page (the preset loader; the page's live uploads stay selected). */
   applySettings: (settings: SimulatorSettings) => void;
+  /**
+   * The page's found simulation (Find Simulation's seed and result), kept over a batch that puts other settings on the page:
+   * called as the batch starts, it returns what sets the found run up again once the page has its own settings back (null
+   * when nothing was found).
+   */
+  keepFound: () => (() => void) | null;
   /** The mode card's mode change (the look, sound and recording settings carry over). */
   changeMode: (mode: ModeId) => void;
   /** Changes a few settings on the page (the panel's own update). */
@@ -215,8 +222,9 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
     const used = new Set<string>();
     const runId = Date.now().toString(36);
     setRun({ status: "running", jobs: jobs.map((job) => initialJob(job, o.settings.mode)), startedAt: Date.now(), finishedAt: null });
-    // The page's settings come back when the batch is over; its run stays paused meanwhile.
+    // The page's settings come back when the batch is over (and a found run with them); its run stays paused meanwhile.
     const snapshot = o.settings;
+    const restoreFound = o.keepFound();
     const wasRunning = o.pageRunning;
     if (wasRunning) {
       o.setPaused(true);
@@ -240,7 +248,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
             patchJob(job.id, { status: "failed", error: r.error === "unsupported" ? "code" : "link" });
             continue;
           }
-          target = keepExportFormat(r.settings, snapshot);
+          target = linkJobSettings(r.settings, snapshot);
         }
         if (job.variant.kind === "sweep") target = sweepSettings(target, job.variant.key, job.variant.value);
         if (!sameSettings(target, latest.current.settings)) {
@@ -298,7 +306,11 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
       if (mounted.current) {
         if (changed) {
           latest.current.applySettings(snapshot);
-          await nextCommit();
+          if (restoreFound) {
+            // The page's effects run on its own settings first (a physics change drops a found seed), then the found run is back.
+            await settle();
+            if (mounted.current) restoreFound();
+          } else await nextCommit();
         } else if (wasRunning) latest.current.setPaused(false);
       }
       runningRef.current = false;

@@ -13,6 +13,7 @@ import {
   formatClipSeconds,
   formatElapsed,
   keepExportFormat,
+  linkJobSettings,
   linkParams,
   linkSeed,
   loadBatchDefinition,
@@ -32,9 +33,12 @@ import {
   type BatchDefinition,
 } from "@/lib/recording/batch";
 import { MODE_CARD_ORDER } from "@/lib/modes";
-import { RANGES, defaultSettings, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToLiveSettings, presetToSettings, settingsToSearchParams } from "@/lib/settings";
+import { WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { encodeShareCode, shareCodeUrl } from "@/lib/shareCode";
 import { seededRandom } from "@/lib/recording/fastRenderPlan";
+import { PhysicsEngine } from "@/lib/physics/engine";
+import type { PhysicsConfig } from "@/lib/physics/types";
 
 /* --- batch-render --- the pure side of the batch render: definition, pasted list, variants, plan, names */
 
@@ -257,6 +261,32 @@ describe("job settings", () => {
     expect(page.gravity).toBe(defaultSettings().gravity);
   });
 
+  it("keeps the page's uploaded wall-break sound in every job's settings and on the way back (the preset loader)", () => {
+    const upload = "blob:http://localhost:4011/89a0c2d4";
+    const live = { hitSample: false, wallBreakSound: upload };
+    const page = { ...defaultSettings("classic"), wallBreakSound: upload, recordingResolution: "500x500" };
+    // presetToSettings() alone drops every blob: URL (a preset from another session cannot reach that upload).
+    expect(presetToSettings(page).wallBreakSound).toBeNull();
+    // A swept value and the page's own settings at the end keep the live upload…
+    expect(presetToLiveSettings(sweepSettings(page, "gravity", 0), live)).toMatchObject({ gravity: 0, wallBreakSound: upload });
+    expect(presetToLiveSettings(page, live)).toEqual({ ...presetToSettings(page), wallBreakSound: upload });
+    // …and so does a link, which never carries a wall-break sound: its job plays the page's (a built-in one too).
+    const link = { ...defaultSettings("portal"), gravity: 500 };
+    expect(linkJobSettings(link, page)).toMatchObject({ mode: "portal", gravity: 500, wallBreakSound: upload, recordingResolution: "500x500", fastExportFps: page.fastExportFps });
+    expect(presetToLiveSettings(linkJobSettings(link, page), live).wallBreakSound).toBe(upload);
+    const pop = WALL_BREAK_SOUNDS[0].url;
+    expect(linkJobSettings(link, { ...page, wallBreakSound: pop }).wallBreakSound).toBe(pop);
+    expect(linkJobSettings(link, { ...page, wallBreakSound: null }).wallBreakSound).toBeNull();
+    // A dead upload (replaced since, or from another session) still falls back; a built-in clip stays as ever.
+    expect(presetToLiveSettings(page, { hitSample: false, wallBreakSound: "blob:http://localhost:4011/other" }).wallBreakSound).toBeNull();
+    expect(presetToLiveSettings(page, { hitSample: false, wallBreakSound: null }).wallBreakSound).toBeNull();
+    expect(presetToLiveSettings({ ...page, wallBreakSound: pop }, live).wallBreakSound).toBe(pop);
+    // The uploaded hit sample ("custom") stays only while a sample is uploaded.
+    const custom = { ...page, hitSoundMode: "sample" as const, hitSampleId: "custom" };
+    expect(presetToLiveSettings(custom, { hitSample: true, wallBreakSound: null }).hitSampleId).toBe("custom");
+    expect(presetToLiveSettings(custom, { hitSample: false, wallBreakSound: null }).hitSampleId).not.toBe("custom");
+  });
+
   it("compares settings by value, whatever the field order", () => {
     const a = defaultSettings();
     const reordered = Object.fromEntries(Object.entries(a).reverse()) as typeof a;
@@ -264,6 +294,52 @@ describe("job settings", () => {
     expect(sameSettings(a, { ...a })).toBe(true);
     expect(sameSettings(a, { ...a, gravity: a.gravity + 1 })).toBe(false);
     expect(sameSettings(a, { ...a, obstacles: [...a.obstacles] })).toBe(true);
+  });
+});
+
+describe("the found run after a batch", () => {
+  const config: PhysicsConfig = { width: 800, height: 600, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#ffffff", ballRadius: 8, audioIntensity: 0 };
+  /** Every half second of the run: where the balls are, and which walls are broken at the end. */
+  const trace = (engine: PhysicsEngine, frames: number) => {
+    const at: number[][] = [];
+    for (let i = 1; i <= frames; i++) {
+      engine.update(1000 / 60, 0);
+      if (i % 30 === 0) at.push(engine.getBalls().flatMap((b) => [Math.round(b.x * 1000), Math.round(b.y * 1000)]));
+    }
+    return { at, broken: [...engine.getBrokenWalls()] };
+  };
+  /** The page engine after Find Simulation found `seed`, then a batch: its jobs' physics and runs, the page's own settings again. */
+  const afterBatch = (seed: number) => {
+    const page = new PhysicsEngine({ ...config });
+    page.setSeed(seed);
+    page.initMode("classic");
+    trace(page, 60);
+    page.setConfig({ gravity: 0 }); // a swept value: the physics effect drops the found seed, the preset loader sets the mode up
+    page.setSeed(null);
+    page.initMode("classic");
+    trace(page, 120);
+    page.setConfig({ gravity: config.gravity }); // the page's own settings: the preset loader sets the mode up with a new seed
+    page.initMode("classic");
+    return page;
+  };
+
+  it("replays the found run once the kept seed is set and the mode set up again (the kept seed alone is not enough)", () => {
+    const seed = 424242;
+    const found = new PhysicsEngine({ ...config });
+    found.setSeed(seed);
+    found.initMode("classic");
+    const expected = trace(found, 900);
+    expect(expected.broken.length).toBeGreaterThan(0);
+
+    const restored = afterBatch(seed);
+    restored.setSeed(seed);
+    expect(restored.getSeed()).toBe(seed); // the seed the next fast export renders
+    restored.initMode("classic"); // what the page's restore does (initEngineForMode), so Start and Record play the found run
+    expect(trace(restored, 900)).toEqual(expected);
+
+    const seedOnly = afterBatch(seed);
+    seedOnly.setSeed(seed);
+    expect(trace(seedOnly, 900)).not.toEqual(expected);
   });
 });
 
