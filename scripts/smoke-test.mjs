@@ -2989,6 +2989,168 @@ const instrumentOscillators = () =>
 }
 // --- end timeline ---
 
+// --- jdm-race ---
+// 26. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
+// length, laps, obstacle mix, camera, standings, mini-map, cup and its title, the staged winner with its warnings), controls →
+// URL, the search box, the Teams tab's note; a default race at 30+ fps whose obstacle notes are the racers' notes
+// (OscillatorNode.start is instrumented) while the standings follow the overtakes (data-race-*); a short race at 8× that
+// reaches its podium and the cup table, scored into the cup in localStorage, and a second race that adds to it; a staged
+// winner who wins; the finder timing a race.
+{
+  const res = await page.request.get(`${BASE}/modes/race.webp`);
+  check("asset /modes/race.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Square Racing Grand Prix card is on the landing page", (await page.locator('img[src$="/modes/race.webp"]').count()) === 1);
+}
+{
+  /** The On/Off button of a toggle in the Race block, by the start of its label. */
+  const raceToggle = (label) => page.getByTestId("race-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=race&rcn=12&rcs=circle&rcl=5&rclp=2&rcf=turbo&rccam=pack&rccup=1&rcct=Neon%20Cup&rcw=3&rcst=0&rcmm=0`, { waitUntil: "networkidle" });
+  {
+    const values = { rcn: await sliderValue("Racers"), rcl: await sliderValue("Track Length"), rclp: await sliderValue("Laps") };
+    const circles = await page.getByRole("group", { name: "Racer Shape", exact: true }).getByRole("button", { name: /Circles/ }).getAttribute("aria-pressed");
+    const pack = await page.getByRole("group", { name: "Camera", exact: true }).getByRole("button", { name: /Pack/ }).getAttribute("aria-pressed");
+    const mix = await page.locator("#race-feature").inputValue();
+    const standings = await raceToggle("Live Standings").getAttribute("aria-pressed");
+    const miniMap = await raceToggle("Mini-map").getAttribute("aria-pressed");
+    const cup = await raceToggle("Cup").first().getAttribute("aria-pressed");
+    const title = await page.locator("#race-cup-title").inputValue();
+    const winner = await page.locator("#race-winner").inputValue();
+    const warned = (await page.getByTestId("race-rig-warning").isVisible()) && (await page.getByTestId("race-rigged-note").isVisible());
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "race loads from URL",
+      values.rcn === "12" && values.rcl === "5" && values.rclp === "2" && circles === "true" && pack === "true" && mix === "turbo" && standings === "false" && miniMap === "false" && cup === "true" && title === "Neon Cup" && winner === "3" && warned && noRingControls,
+      `(${JSON.stringify(values)}, circles=${circles}, pack=${pack}, mix=${mix}, standings=${standings}, minimap=${miniMap}, cup=${cup}, title=${title}, winner=${winner}, warned=${warned})`,
+    );
+  }
+  await page.locator('input[aria-label="Racers"]').evaluate(setRangeValue, "7");
+  await page.getByRole("group", { name: "Racer Shape", exact: true }).getByRole("button", { name: /Squares/ }).click();
+  await page.locator("#race-feature").selectOption("gates");
+  await page.getByRole("group", { name: "Camera", exact: true }).getByRole("button", { name: /Leader/ }).click();
+  await raceToggle("Live Standings").click();
+  await page.locator("#race-winner").selectOption("-1");
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const roster = await page.getByTestId("race-roster").locator("span.inline-flex").count();
+    check(
+      "race mirrors into the URL",
+      /(^|&)rcn=7(&|$)/.test(query) && !/(^|&)rcs=/.test(query) && /(^|&)rcf=gates(&|$)/.test(query) && !/(^|&)rccam=/.test(query) && !/(^|&)rcst=/.test(query) && !/(^|&)rcw=/.test(query) && /(^|&)rcct=Neon/.test(query) && roster === 7 && !(await page.getByTestId("race-rigged-note").isVisible()),
+      `(${query}, roster chips ${roster})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("obstacle mix");
+  check("search finds the race controls", (await page.locator("#race-feature").isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.getByRole("button", { name: /Teams & Scoreboard/ }).click();
+  check("the Teams tab says the race takes its roster", await page.getByTestId("teams-race-note").isVisible());
+}
+await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__raceOsc = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(2500);
+await page.evaluate(() => (window.__raceOsc.length = 0)); // the notes of the race, not the countdown's beeps
+{
+  // Frame intervals over 4 s of the default race (8 racers, 8 screens), in half-second windows.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    4000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__raceOsc);
+  // The racers' notes: a C-major pentatonic ladder from C4, one per racer (the chromatic default leaves them unsnapped).
+  const ladder = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96];
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const racerNotes = midis.filter((m) => ladder.includes(m)).length;
+  check(
+    "simulator mode=race runs the race at 30+ fps with the racers' notes",
+    data.raceRacers === "8" && data.racePhase === "racing" && Number(data.raceHits) >= 5 && Number(data.racePasses) >= 1 && Number(data.raceCamera) > 100 && data.raceOrder.split(",").length === 8 && racerNotes >= 3 && windows.length >= 6 && minWindow >= fpsFloor(30),
+    `(${data.raceHits} hits, ${data.racePasses} passes, ${data.raceCallouts} callouts, camera ${data.raceCamera}, ${pitches.length} tones, ${racerNotes} racer notes, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-race.png") });
+}
+// A short race at 8× with the cup on: the podium, the cup table, the finish – scored once into the cup, and a second race adds to it.
+await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1`, { waitUntil: "networkidle" });
+await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const podium = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "podium", null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const atPodium = await canvasData();
+  const cupShown = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "cup", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  if (cupShown) await page.screenshot({ path: path.join(outDir, "sim-race-cup.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  const cup = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  const winner = Number(atPodium.raceWinner);
+  check(
+    "a short race reaches its podium and the cup table, scored into the cup",
+    podium && cupShown && done && atPodium.raceFinished === "5" && winner >= 0 && cup?.races === 1 && cup?.points?.[winner] === 25 && cup.points.reduce((a, b) => a + b, 0) === 25 + 18 + 15 + 12 + 10,
+    `(podium=${podium}, cup=${cupShown}, done=${done}, ${JSON.stringify(atPodium)}, stored ${JSON.stringify(cup)})`,
+  );
+  if (done) {
+    const restartButton = page.getByRole("button", { name: /Restart Simulation/ });
+    await restartButton.click();
+    await restartButton.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+    const again = await restartButton.waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
+    const cup2 = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+    const summary = await page.getByTestId("race-cup-summary").innerText().catch(() => "");
+    check("a second race adds its points to the cup", again && cup2?.races === 2 && cup2.points.reduce((a, b) => a + b, 0) === 2 * 80 && /2 race/.test(summary), `(finished=${again}, stored ${JSON.stringify(cup2)}, "${summary}")`);
+  }
+}
+// A staged winner: the director favours racer 3 (Gold) at the swap zones and turbo pads – and Gold wins.
+await page.goto(`${BASE}/en/simulator/?mode=race&rcn=6&rcl=4&rcw=3`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const podium = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "podium", null, { timeout: 40000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("a staged race is won by the favoured racer", podium && data.raceWinner === "3", `(podium=${podium}, ${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-race-podium.png") });
+}
+// The finder times races: every seed builds another track, so a 30 s run is found among the seeds.
+await page.goto(`${BASE}/en/simulator/?mode=race`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const found = await page.getByText(/Ready to start simulation for (29\.[5-9]|30\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  check("finder finds a 30 s race", found);
+}
+// --- end jdm-race ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

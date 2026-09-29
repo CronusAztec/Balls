@@ -42,6 +42,7 @@ import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- time
 // --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
+import RaceSection, { RACE_KEYS } from "./sections/RaceSection"; // --- jdm-race ---
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -147,6 +148,8 @@ SECTION_KEYS.ball.push(...DOUBLE_PENDULUM_KEYS);
 // --- jdm-illusions --- the Circle Illusion block is searched with the Ball section, Wobbly Walls with the Visual section.
 SECTION_KEYS.ball.push(...ILLUSION_KEYS);
 SECTION_KEYS.visual.push(...WALL_WOBBLE_KEYS);
+// --- jdm-race --- the "Race" block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...RACE_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -211,6 +214,8 @@ export default function Controls(props: ControlsProps) {
     doublePendulum: t("modeDoublePendulum"),
     // --- jdm-illusions ---
     illusion: t("modeIllusion"),
+    // --- jdm-race ---
+    race: t("modeRace"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -278,6 +283,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "doublePendulum" && !!search && <DoublePendulumSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-illusions --- */}
       {s.mode === "illusion" && !!search && <IllusionSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- jdm-race --- */}
+      {s.mode === "race" && !!search && <RaceSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
@@ -357,10 +364,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion"].includes(s.mode); // --- jdm-illusions --- (illusion)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion"].includes(s.mode); // --- jdm-illusions --- (illusion)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race"].includes(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race"].includes(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion)
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms)
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1113,6 +1120,9 @@ export default function Controls(props: ControlsProps) {
       // --- jdm-illusions ---
       case "illusion":
         return <IllusionSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- jdm-race ---
+      case "race":
+        return <RaceSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

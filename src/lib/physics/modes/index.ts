@@ -38,3 +38,6 @@ export type { DoublePendulumSettings, DoublePendulumView, DpPendulum, DpString, 
 // --- jdm-illusions ---
 export { IllusionMode } from "./illusion";
 export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionView } from "./illusion";
+// --- jdm-race ---
+export { RaceMode } from "./race";
+export type { RaceSettings, RaceView, RaceCallout, RacePhase, RaceShape, RaceCamera } from "./race";

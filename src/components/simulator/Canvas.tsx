@@ -42,6 +42,8 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
+// --- jdm-race --- the Square Racing Grand Prix: track, racers, standings, mini-map, callouts, podium and cup
+import { RACE_DATA_KEYS, RaceLayer, writeRaceDataset, type CanvasRaceOptions, type RaceRenderOptions } from "./raceRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -191,6 +193,8 @@ export interface CanvasProps {
   captions?: CanvasCaptionOptions | null;
   /** --- jdm-illusions --- Wobbly Walls, 0–1: circular walls deform with a travelling wave where a ball hits them (0 = perfect circles). */
   wallWobble?: number;
+  /** --- jdm-race --- The race's names, colours and emoji (Teams roster), overlays and cup (null outside the race). */
+  race?: CanvasRaceOptions | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -313,6 +317,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     onObstaclesChange,
     captions = null, // --- captions ---
     wallWobble = 0, // --- jdm-illusions ---
+    race = null, // --- jdm-race ---
   },
   ref,
 ) {
@@ -367,6 +372,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   // --- jdm-illusions --- the Wobbly Walls amount, read by the draw loop
   const wobbleAmountRef = useRef(wallWobble);
   wobbleAmountRef.current = wallWobble;
+  // --- jdm-race --- the race options, read by the draw loop
+  const raceRef = useRef<CanvasRaceOptions | null>(race);
+  raceRef.current = race;
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -636,6 +644,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const illusionLayer = new IllusionLayer();
     const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr, nowMs: 0 };
     const illusionLabels: IllusionLabels = { revealed: DEFAULT_LABELS.illusionRevealed!, painted: DEFAULT_LABELS.painted };
+    // --- jdm-race --- the race's layer (row easing, sprite and text caches) and its per-frame options
+    const raceLayer = new RaceLayer();
+    const raceRender: RaceRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -876,6 +887,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.save();
         applyGlassCamera(ctx, glassView);
       }
+      // --- jdm-race --- the race scrolls down its track with its own camera, like Glass Smash (the view set up above is dropped)
+      const raceView = engine.isRaceMode() ? engine.getRaceView() : null;
+      if (raceView) {
+        ctx.restore();
+        ctx.save();
+        raceLayer.applyCamera(ctx, raceView);
+      }
       // --- boris-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
       const multView = engine.getMultiplierView();
@@ -1105,6 +1123,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
         glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- boris-multipliers --- the gate labels
         drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+      }
+      // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
+      if (raceView) {
+        raceRender.wallColor = wallColor;
+        raceRender.wallThickness = p.wallThickness;
+        raceRender.showGlow = p.showGlow;
+        raceRender.showTrails = p.showTrails;
+        raceRender.trailThickness = p.trailThickness;
+        raceLayer.drawWorld(ctx, raceView, raceRender, raceRef.current, raceView.cameraY - 40, raceView.cameraY + size.height + 40);
       }
       // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
       multRender.wallColor = wallColor;
@@ -1574,6 +1601,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
+      else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1765,6 +1793,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
+      // --- jdm-race --- faces on the racers too
+      if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
@@ -1868,6 +1898,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
+      // --- jdm-race --- standings, mini-map, callouts, the countdown, the podium and the cup table (screen space, part of the recording);
+      // live, below the page's buttons over a nearly square canvas
+      if (raceView) raceLayer.drawOverlay(ctx, raceView, raceRef.current, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, !p.isPaused && p.isStarted ? frameMs : 0);
       // --- jdm-illusions --- Circle Illusion: the alignment / reveal flash, the paint counter and "REVEALED!" (screen space, part of the recording).
       if (illusionView) {
         const IL = labelsRef.current ?? DEFAULT_LABELS;
@@ -2447,6 +2480,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
+      // --- jdm-race --- racers, phase, leader, winner, finishers, passes, swaps, boosts, hits, lap, camera, order and callouts (data-race-*)
+      if (raceView) writeRaceDataset(raceView, setCanvasData);
+      else if (canvas.dataset.raceRacers !== undefined) for (const key of RACE_DATA_KEYS) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

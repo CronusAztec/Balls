@@ -34,6 +34,9 @@ import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulu
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
+// --- jdm-race ---
+import { RACE_RANGES, defaultRaceFields, readRaceParams, resolveRaceFields, writeRaceParams, type RaceCamera, type RaceShape } from "@/lib/physics/modes/race";
+import type { RaceFeature } from "@/lib/physics/raceTrack";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -439,6 +442,30 @@ export interface SimulatorSettings {
   /** 0–1: circular walls deform with a travelling wave where a ball hits them, in every ring mode and the Circle Illusion (URL `wob`). */
   wallWobble: number;
   // --- end jdm-illusions ---
+  // --- jdm-race --- Square Racing Grand Prix (lib/physics/modes/race.ts, lib/physics/raceTrack.ts, lib/raceCup.ts); names, colours and emoji come from the Teams roster
+  /** Racers on the grid, 2–16 (URL `rcn`). */
+  rcRacers: number;
+  /** square | circle (URL `rcs`). */
+  rcShape: RaceShape;
+  /** Screens per lap, 3–20 (URL `rcl`). */
+  rcTrackLength: number;
+  /** Laps, 1–5 (URL `rclp`). */
+  rcLaps: number;
+  /** The obstacle mix: mixed or one featured kind (URL `rcf`). */
+  rcFeature: RaceFeature;
+  /** leader | pack (URL `rccam`). */
+  rcCamera: RaceCamera;
+  /** Keep a points table across races (URL `rccup`). */
+  rcCup: boolean;
+  /** The cup's name, "" = named after the featured obstacle (URL `rcct`). */
+  rcCupTitle: string;
+  /** Racer the director favours, −1 = fair (URL `rcw`). */
+  rcWinner: number;
+  /** The live standings (URL `rcst`). */
+  rcStandings: boolean;
+  /** The mini-map (URL `rcmm`). */
+  rcMiniMap: boolean;
+  // --- end jdm-race ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -540,6 +567,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultTimelineSettings(), // --- timeline ---
     ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
     ...defaultIllusionFields(), // --- jdm-illusions ---
+    ...defaultRaceFields(), // --- jdm-race ---
   };
 }
 
@@ -597,6 +625,7 @@ export const RANGES = {
   // --- jdm-illusions ---
   ...ILLUSION_RANGES,
   ...WOBBLE_RANGES,
+  ...RACE_RANGES, // --- jdm-race ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -824,6 +853,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
+  writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   return params;
 }
 
@@ -932,6 +962,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readTimelineParams(params, settings, RANGES); // --- timeline ---
   readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   readIllusionParams(params, settings); // --- jdm-illusions ---
+  readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   return settings;
 }
 
@@ -1093,6 +1124,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges
   Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   Object.assign(merged, resolveIllusionFields(merged)); // --- jdm-illusions --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   return merged;
 }
 
