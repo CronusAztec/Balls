@@ -1993,7 +1993,7 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
-            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render ---
+            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import", onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders)
             project={projectFiles.panel} // --- project-files ---
           />
         </ProjectDropZone>

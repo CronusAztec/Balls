@@ -28,7 +28,7 @@ export interface FastExportPanelProps {
   state: FastExportState;
   /** Whether the browser has WebCodecs (null until known after mounting): without it the button records in real time. */
   supported: boolean | null;
-  /** Record Video or Find Simulation is busy. */
+  /** Record Video or Find Simulation is busy, or a project file is being opened. */
   disabled: boolean;
   onStart: () => void;
   onCancel: () => void;
