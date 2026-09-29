@@ -98,7 +98,8 @@
     "exportFormatNote": "Eksport jako MP4, jeśli przeglądarka to obsługuje; w przeciwnym razie WebM.",
     "fps": "FPS",
     "shareLink": "Kopiuj link do udostępnienia",
-    "shareLinkCopied": "Link skopiowany!"
+    "shareLinkCopied": "Link skopiowany!",
+    "canvasCollideAnti": "ANTYKOLIZJA"
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -505,7 +506,32 @@
     "foundDuration": "Znaleziono! {duration}s",
     "seedTested": "Seed: {seed} ({tested} sprawdzonych)",
     "cancelSearch": "Anuluj wyszukiwanie",
-    "findDurationSimulation": "Znajdź symulację {duration}s"
+    "findDurationSimulation": "Znajdź symulację {duration}s",
+    "modeCollide": "Poligon zderzeń",
+    "cpTitle": "Poligon zderzeń",
+    "cpDesc": "Setki kul różnej wielkości odbijają się od ścian i od siebie nawzajem – masa rośnie z rozmiarem – a każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli: duże kule nisko, małe wysoko.",
+    "cpCount": "Kule",
+    "cpCountTip": "Ile kul się zderza, od 10 do 2000. Ich rozmiar dobiera się sam, tak by wypełniły pojemnik (Rozmiar piłki je powiększa lub zmniejsza); na pierścieniu mieści się najwyżej 36 lizaków.",
+    "cpCountOnRing": "{count} na pierścieniu",
+    "cpSizeSpread": "Różnorodność rozmiarów",
+    "cpSizeSpreadTip": "Jak bardzo kule się różnią: 0 to wszystkie jednakowe, 100% rozrzuca je od jednej trzeciej do trzykrotności rozmiaru bazowego. Masa rośnie z polem, więc duże kule rozpychają małe – a większe kule grają niższe nuty.",
+    "cpContainer": "Pojemnik",
+    "cpContainerTip": "Kształt, w którym odbijają się kule: okrąg albo kwadrat, oba wypełniają środek filmu.",
+    "cpContainerCircle": "Okrąg",
+    "cpContainerBox": "Kwadrat",
+    "cpGravity": "Grawitacja kul",
+    "cpGravityTip": "Jaka część ustawienia grawitacji ściąga kule w dół. 0 to swobodnie unoszący się gaz kul; wyższe wartości gromadzą je na dnie, a one wciąż się odbijają.",
+    "cpRestitution": "Sprężystość",
+    "cpRestitutionTip": "Współczynnik restytucji każdego zderzenia: 1 to zderzenia idealnie sprężyste (kule nigdy nie tracą energii), 0,7 to miękkie i tłumione, więc przy grawitacji kule układają się w stos.",
+    "cpSquishy": "Galaretowate",
+    "cpSquishyTip": "Zgniatanie i rozciąganie: każde uderzenie na ułamek sekundy (120 ms) spłaszcza kulę w kierunku zderzenia, jak piłkę z galaretki. Efekt czysto wizualny.",
+    "cpSyncStart": "Start w synchronizacji",
+    "cpSyncStartTip": "Wszystkie kule startują z siatki w tej samej chwili – ze spoczynku przy grawitacji albo lecąc w tę samą stronę bez niej – więc spadają i odbijają się synchronicznie. Połącz z opcją Galaretowate i różnorodnością rozmiarów 0, by nagrać klip „galaretowate kule odbijają się w synchronizacji”.",
+    "cpAntiCollisionAt": "Antykolizja od",
+    "cpAntiCollisionAtTip": "Sekunda przebiegu, w której system kolizji się wyłącza: kule zmieniają kolor i przenikają przez siebie (od pojemnika wciąż się odbijają). Wył. oznacza zderzenia bez końca.",
+    "cpAntiOff": "Wył.",
+    "cpRing": "Lizaki na pierścieniu",
+    "cpRingTip": "Przypina ciała do okrągłego toru: każde to lizak – patyczek od środka do krążka – który zderza się z sąsiadami wzdłuż pierścienia. Z grawitacją kołyszą się jak wahadła wokół dołu."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -526,6 +552,10 @@
     "pendulum": {
       "name": "Fala wahadeł",
       "description": "Wahadła nastrojone tak, że każde wykonuje o jedno wahnięcie na cykl więcej niż poprzednie: rząd rozjeżdża się w wędrujące fale, dzieli na grupy i co cykl znów staje w linii, a każde przejście to nuta. Rząd, łuk, okrąg, galaktyka, szyny albo odbijanie – oraz tryb przesunięcia fazowego, który nigdy do końca się nie zrównuje."
+    },
+    "collide": {
+      "name": "Poligon zderzeń",
+      "description": "Setki różnorodnych kul zderza się w okręgu albo w kwadracie, a każde zderzenie gra cichą nutę zależną od rozmiaru. Zrób je galaretowate, puść je synchronicznie, wyłącz kolizje w trakcie albo ustaw lizaki na pierścieniu."
     }
   },
   "Features": {
@@ -667,7 +697,8 @@
     "troubleMidiQ": "Mój plik MIDI się nie wczytuje",
     "troubleMidiA": "Bardzo złożone pliki z wieloma jednoczesnymi ścieżkami mogą się nie wczytać. Spróbuj prostszego pliku MIDI z jedną melodią (format 0 lub 1). Narzędzie zachowuje tylko najwyższą nutę w danym momencie, więc eksport samej linii melodycznej z programu muzycznego działa najlepiej.",
     "troubleStuckQ": "Nadal masz problem?",
-    "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś."
+    "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś.",
+    "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru."
   },
   "Footer": {
     "about": "O nas",

@@ -54,6 +54,13 @@ export function chordGain(notes: number): number {
   return 1 / Math.sqrt(Math.max(1, notes));
 }
 
+// --- jdm-collisions ---
+/** The loudness factor of a hit's `level` (clamped to 0–1; anything that is not a number is a normal hit). */
+export function hitLevel(level: number | undefined): number {
+  if (typeof level !== "number" || !Number.isFinite(level)) return 1;
+  return Math.max(0, Math.min(1, level));
+}
+
 /** The distinct pitches a hit plays: the chord when it carries one, else the single pitch (or the wall tone). */
 export function hitPitches(wallIndex: number, pitch: number | undefined, chord: readonly number[] | undefined, max = MAX_CHORD_VOICES): number[] {
   if (chord && chord.length > 1) {
@@ -300,18 +307,22 @@ export class ToneGenerator {
    * its next note instead. An `accent` (a DVD logo hitting a corner) plays louder and longer – voice, melody
    * note or sample alike. A `chord` (Pendulum Wave bobs in line) plays all its pitches at once as one sound:
    * one beat-grid slot, one duck, the level shared out with `chordGain()`; a melody still plays one note.
+   * `level` (0–1, default 1) scales the loudness of this one hit – voice, melody note or sample (the Collision
+   * Playground's soft collision notes, softer still for gentle impacts; see `hitLevel()`).
    */
-  playWallHit(wallIndex = 0, frequency?: number, accent = false, chord?: readonly number[]) {
+  playWallHit(wallIndex = 0, frequency?: number, accent = false, chord?: readonly number[], level = 1) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
-      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent, chord));
+      this.audioContext.resume().then(() => this.scheduleHit(wallIndex, frequency, accent, chord, level));
       return;
     }
-    this.scheduleHit(wallIndex, frequency, accent, chord);
+    this.scheduleHit(wallIndex, frequency, accent, chord, level);
   }
 
-  private scheduleHit(wallIndex: number, pitch?: number, accent = false, chord?: readonly number[]) {
+  private scheduleHit(wallIndex: number, pitch?: number, accent = false, chord?: readonly number[], level = 1) {
+    // --- jdm-collisions --- a per-hit loudness (soft collision notes); 1 leaves every other hit as it was.
+    const softness = hitLevel(level);
     if (!this.audioContext || !this.masterGain) return;
     const now = this.audioContext.currentTime;
     // 1. The song slicer takes over the bounce sound while it has a song to play.
@@ -326,7 +337,7 @@ export class ToneGenerator {
       this.lastSlotTime = time;
       const pitches = hitPitches(wallIndex, pitch, chord, MAX_SAMPLE_VOICES);
       const level = (accent ? ACCENT_GAIN : 1) * chordGain(pitches.length);
-      for (const f of pitches) this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitches.length > 1 || pitch !== undefined ? f : undefined), time, level);
+      for (const f of pitches) this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitches.length > 1 || pitch !== undefined ? f : undefined), time, level * softness);
       this.musicBed.duck(time);
       return;
     }
@@ -350,6 +361,7 @@ export class ToneGenerator {
         gain = Math.min(0.6, gain * ACCENT_GAIN);
         duration *= ACCENT_LENGTH;
       }
+      if (softness !== 1) gain *= softness;
       const time = this.scheduleTime(now);
       // Beat lock: one bounce sound per grid slot, so the export sits cleanly on the beat.
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;

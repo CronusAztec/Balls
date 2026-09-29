@@ -20,3 +20,6 @@ export { BoxMode } from "./box";
 export type { BoxSettings, BoxShape, BoxSpeedRatio, BoxField, BoxShapeState, BoxView } from "./box";
 export { PendulumMode } from "./pendulum";
 export type { PendulumSettings, PendulumLayout, PendulumSoundOn, PendulumPitchDirection, PendulumField, PendulumRig, PendulumBobState, PendulumView } from "./pendulum";
+// --- jdm-collisions ---
+export { CollideMode } from "./collide";
+export type { CollideSettings, CollideContainer, CollideField, CollideView } from "./collide";

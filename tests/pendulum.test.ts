@@ -330,7 +330,8 @@ describe("PendulumMode in the engine", () => {
     expect(MODE_IDS).toContain("pendulum");
     expect(MODE_CARD_ORDER).toContain("pendulum");
     expect(MODE_CATEGORIES.pendulum).toBe("rhythm");
-    expect(modesInCategory("rhythm")).toEqual(["drop", "box", "pendulum"]);
+    // --- jdm-collisions --- later rhythm modes are appended after these three (the Collision Playground follows them).
+    expect(modesInCategory("rhythm").slice(0, 3)).toEqual(["drop", "box", "pendulum"]);
     expect(modesInCategory("escape")).toHaveLength(10);
   });
 

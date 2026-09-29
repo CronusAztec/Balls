@@ -23,6 +23,8 @@ export const MODE_IDS = [
   "drop",
   "box",
   "pendulum",
+  // --- jdm-collisions ---
+  "collide",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -147,6 +149,9 @@ export interface SoundEvent {
    * slot with the level shared out (Pendulum Wave bobs crossing the centre together). `frequency` is its lowest note.
    */
   chord?: number[];
+  // --- jdm-collisions ---
+  /** Loudness of a "hit" relative to a normal one, 0–1 (Collision Playground plays soft notes scaled by the impact); 1 when absent. */
+  level?: number;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

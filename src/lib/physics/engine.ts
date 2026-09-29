@@ -17,6 +17,8 @@ import {
   TargetMode,
 } from "./modes";
 import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView, PicturePaintState } from "./modes";
+// --- jdm-collisions ---
+import { CollideMode, type CollideSettings, type CollideView } from "./modes/collide";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
@@ -145,6 +147,8 @@ export class PhysicsEngine {
   readonly dropMode = new DropMode();
   readonly boxMode = new BoxMode();
   readonly pendulumMode = new PendulumMode();
+  // --- jdm-collisions ---
+  readonly collideMode = new CollideMode();
 
   readonly ctx: ModeContext;
 
@@ -347,6 +351,10 @@ export class PhysicsEngine {
   initPendulum() {
     this.activateMode(this.pendulumMode, "none");
   }
+  // --- jdm-collisions ---
+  initCollide() {
+    this.activateMode(this.collideMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -377,6 +385,9 @@ export class PhysicsEngine {
         return this.initBox();
       case "pendulum":
         return this.initPendulum();
+      // --- jdm-collisions ---
+      case "collide":
+        return this.initCollide();
     }
   }
 
@@ -705,6 +716,25 @@ export class PhysicsEngine {
   getPendulumSecondsToAlignment() {
     return this.pendulumMode.secondsToAlignment();
   }
+  // --- jdm-collisions ---
+  isCollideMode() {
+    return this.currentMode === this.collideMode;
+  }
+  getCollideSettings(): CollideSettings {
+    return this.collideMode.getSettings();
+  }
+  /** Count, sizes, container, gravity, restitution, squishy, sync start, anti-collision and ring of the Collision Playground; applied by the next `initCollide()`. */
+  setCollideSettings(settings: Partial<CollideSettings>) {
+    this.collideMode.setSettings(settings);
+  }
+  /** Live Collision Playground state (container, colours, impacts, counters) for the canvas; the same object every call. */
+  getCollideView(): CollideView {
+    return this.collideMode.getView();
+  }
+  getCollideProgress() {
+    return this.collideMode.getProgress();
+  }
+  // --- end jdm-collisions ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

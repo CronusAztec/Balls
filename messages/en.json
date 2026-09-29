@@ -98,7 +98,8 @@
     "exportFormatNote": "Exports as MP4 where the browser supports it, otherwise WebM.",
     "fps": "FPS",
     "shareLink": "Copy share link",
-    "shareLinkCopied": "Link copied!"
+    "shareLinkCopied": "Link copied!",
+    "canvasCollideAnti": "ANTI-COLLISION"
   },
   "HowItWorks": {
     "step1": {
@@ -514,7 +515,32 @@
     "foundDuration": "Found! {duration}s",
     "seedTested": "Seed: {seed} ({tested} tested)",
     "cancelSearch": "Cancel Search",
-    "findDurationSimulation": "Find {duration}s Simulation"
+    "findDurationSimulation": "Find {duration}s Simulation",
+    "modeCollide": "Collision Playground",
+    "cpTitle": "Collision playground",
+    "cpDesc": "Hundreds of orbs of different sizes bounce off the walls and off each other – mass follows size – and every collision plays a soft note pitched by the smaller orb: big orbs low, small orbs high.",
+    "cpCount": "Orbs",
+    "cpCountTip": "How many orbs collide, from 10 to 2000. They are sized automatically to fill the container (Ball Size makes them bigger or smaller); the ring holds at most 36 lollipops.",
+    "cpCountOnRing": "{count} on the ring",
+    "cpSizeSpread": "Size Variety",
+    "cpSizeSpreadTip": "How different the orbs are: 0 makes them all the same size, 100% spreads them from a third to three times the base size. Mass follows the area, so big orbs shove small ones around – and bigger orbs play lower notes.",
+    "cpContainer": "Container",
+    "cpContainerTip": "The shape the orbs bounce around in: a circle or a square, both filling the centre of the video.",
+    "cpContainerCircle": "Circle",
+    "cpContainerBox": "Box",
+    "cpGravity": "Orb Gravity",
+    "cpGravityTip": "How much of the Gravity setting pulls the orbs down. 0 is a floating gas of orbs; higher values heap them up at the bottom while they keep bouncing.",
+    "cpRestitution": "Bounciness",
+    "cpRestitutionTip": "Coefficient of restitution of every collision: 1 is perfectly elastic (the orbs never lose energy), 0.7 is soft and damped, so under gravity the orbs settle into a pile.",
+    "cpSquishy": "Squishy",
+    "cpSquishyTip": "Squash and stretch: every impact flattens an orb along the direction of the hit for a split second (120 ms), like a jelly ball. Purely visual.",
+    "cpSyncStart": "Sync Start",
+    "cpSyncStartTip": "All orbs start on a grid at the same instant – from rest under gravity, or all flying the same way without it – so they fall and bounce in sync. Pair it with Squishy and a Size Variety of 0 for the “squishy balls bounce in sync” clip.",
+    "cpAntiCollisionAt": "Anti-Collision At",
+    "cpAntiCollisionAtTip": "Second of the run at which the collision system switches off: the orbs change colour and pass straight through each other (they still bounce off the container). Off keeps them colliding forever.",
+    "cpAntiOff": "Off",
+    "cpRing": "Lollipops on a Ring",
+    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom."
   },
   "Modes": {
     "classic": {
@@ -568,6 +594,10 @@
     "pendulum": {
       "name": "Pendulum Wave",
       "description": "Pendulums tuned so each one swings once more per cycle than the last: the row drifts into travelling waves, splits into groups and snaps back in line every cycle, every crossing a note. Row, arc, circle, galaxy, sliding or bouncing – and a phasing mode that never quite realigns."
+    },
+    "collide": {
+      "name": "Collision Playground",
+      "description": "Hundreds of varied orbs collide in a circle or a box and every collision plays a soft note pitched by size. Make them squishy, drop them in sync, switch the collisions off mid-run or put lollipops on a ring."
     }
   },
   "Features": {
@@ -807,7 +837,8 @@
     "troubleMidiQ": "My custom MIDI file does not load",
     "troubleMidiA": "Very complex files with many simultaneous tracks may not parse. Try a simpler single-melody MIDI (format 0 or 1). The tool keeps only the highest note at each moment, so a lead-melody export from your music software works best.",
     "troubleStuckQ": "Still stuck?",
-    "troubleStuckA": "Send a note through the feedback page and describe what you were doing."
+    "troubleStuckA": "Send a note through the feedback page and describe what you were doing.",
+    "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track."
   },
   "Footer": {
     "about": "About",

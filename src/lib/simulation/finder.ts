@@ -5,6 +5,8 @@ import { resolveBoxSettings } from "@/lib/physics/modes/box";
 import { resolveDropSettings } from "@/lib/physics/modes/drop";
 import { resolvePendulumSettings } from "@/lib/physics/modes/pendulum";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
+// --- jdm-collisions ---
+import type { CollideSettings } from "@/lib/physics/modes/collide";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -32,6 +34,9 @@ export interface ModeSettings {
   box: Partial<BoxSettings>;
   /** Pendulum Wave: count, tuning, layout, sound and cycles (see modes/pendulum.ts); the defaults when left out. */
   pendulum?: Partial<PendulumSettings>;
+  // --- jdm-collisions ---
+  /** Collision Playground: count, sizes, container, gravity, restitution and the variants (see modes/collide.ts); the defaults when left out. */
+  collide?: Partial<CollideSettings>;
 }
 
 /** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
@@ -45,6 +50,8 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  */
 export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
+  // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
+  if (mode === "collide") return true;
   if (mode === "drop") return resolveDropSettings(settings.drop).loop;
   if (mode === "box") return resolveBoxSettings(settings.box).countdown === 0;
   if (mode === "pendulum") return resolvePendulumSettings(settings.pendulum).cycles === 0;
@@ -121,6 +128,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "drop") engine.setDropSettings(settings.drop);
   if (mode === "box") engine.setBoxSettings(settings.box);
   if (mode === "pendulum") engine.setPendulumSettings(settings.pendulum ?? {});
+  // --- jdm-collisions ---
+  if (mode === "collide") engine.setCollideSettings(settings.collide ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

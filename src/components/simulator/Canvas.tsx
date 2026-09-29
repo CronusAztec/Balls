@@ -6,6 +6,8 @@ import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { createPendulumTrailLayer, drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, updatePendulumTrailLayer, type PendulumRenderOptions, type PendulumTrailLayer } from "./pendulumRenderer";
+// --- jdm-collisions ---
+import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
@@ -41,6 +43,9 @@ export interface CanvasLabels {
   paintBehind: string;
   paintAhead: string;
   paintBeat: (bpm: number) => string;
+  // --- jdm-collisions ---
+  /** Collision Playground: the caption of the anti-collision switch. */
+  collideAnti?: string;
 }
 
 export interface CanvasHandle {
@@ -112,6 +117,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   paintBehind: "behind schedule",
   paintAhead: "ahead of schedule",
   paintBeat: (bpm) => `♩ ${bpm} BPM`,
+  // --- jdm-collisions ---
+  collideAnti: "ANTI-COLLISION",
 };
 
 const TWO_PI = Math.PI * 2;
@@ -375,6 +382,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Pendulum Wave: the renderer's options and the fading trail layer (device pixels; rebuilt when the canvas size changes).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     let pendulumTrails: PendulumTrailLayer | null = null;
+    // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
+    const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -732,6 +741,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         } else pendulumTrails = null;
         drawPendulumRig(ctx, view, pendulumRender);
       } else if (pendulumTrails) pendulumTrails = null;
+
+      // --- jdm-collisions --- Collision Playground: the container (or the lollipop track), glowing after a hit.
+      const isCollide = engine.isCollideMode();
+      if (isCollide) {
+        collideRender.wallColor = wallColor;
+        collideRender.wallThickness = p.wallThickness;
+        collideRender.showWallGlow = p.showWallGlow;
+        collideRender.showGlow = p.showGlow;
+        collideRender.showTrails = p.showTrails;
+        collideRender.trailThickness = p.trailThickness;
+        drawCollideArena(ctx, engine.getCollideView(), collideRender);
+      }
 
       // Color Match segments
       if (engine.isColorMatchMode()) {
@@ -1175,6 +1196,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
+      // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
+      else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
       else balls.forEach((ball, index) => {
         const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
         // Trail
@@ -1416,6 +1439,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isBox) drawBoxCornerFlash(ctx, size.width, size.height, engine.getBoxView());
       // Pendulum Wave: a big chord (most of the row in line) lights up the frame too.
       if (isPendulum) drawPendulumChordFlash(ctx, size.width, size.height, engine.getPendulumView());
+      // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
+      if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
 
       // HUD: mode counters in the centre
       {
@@ -1730,6 +1755,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("pendulumCycles", String(view.cyclesDone));
       } else if (canvas.dataset.pendulumNotes !== undefined) {
         for (const key of ["pendulumNotes", "pendulumChords", "pendulumCycles"]) delete canvas.dataset[key];
+      }
+      // --- jdm-collisions --- Collision Playground: bodies, collisions, notes and the anti-collision state (data-collide-*) for tools and the smoke test.
+      if (isCollide) {
+        const view = engine.getCollideView();
+        setCanvasData("collideBodies", String(view.count));
+        setCanvasData("collideCollisions", String(view.collisions));
+        setCanvasData("collideNotes", String(view.notes));
+        setCanvasData("collideAnti", view.antiActive ? "1" : "0");
+      } else if (canvas.dataset.collideBodies !== undefined) {
+        for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

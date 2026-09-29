@@ -837,6 +837,113 @@ await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
 
+// --- jdm-collisions --- Collision Playground: the preview image, URL → the "Collision playground" block of the Mode
+// row, controls → URL, the search box, the finder hidden for this endless mode, 300 orbs running 5 s without the frame
+// rate dropping below 30 fps in any half-second window while every collision note sits on the pentatonic size ladder
+// (OscillatorNode.start is instrumented again), the anti-collision switch and the lollipop ring (data-collide-*).
+{
+  const res = await page.request.get(`${BASE}/modes/collide.webp`);
+  check("asset /modes/collide.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+/** The On/Off button of a toggle in the Collision playground block, by the start of its label (tooltips mention other toggles). */
+const collideToggle = (label) => page.getByTestId("collision-playground").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+await page.goto(`${BASE}/en/simulator/?mode=collide&cpn=120&cpc=box&cpsq=1&cpac=3&cpe=0.9`, { waitUntil: "networkidle" });
+{
+  const values = { cpn: await sliderValue("Orbs"), cpe: await sliderValue("Bounciness"), cpac: await sliderValue("Anti-Collision At") };
+  const box = await page.getByRole("group", { name: "Container" }).getByRole("button", { name: /Box/ }).getAttribute("aria-pressed");
+  const squishy = await collideToggle("Squishy").getAttribute("aria-pressed");
+  const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  check("collision playground loads from URL", values.cpn === "120" && values.cpe === "0.9" && values.cpac === "3" && box === "true" && squishy === "true" && finderHidden && noRingControls, `(${JSON.stringify(values)}, box=${box}, squishy=${squishy}, finder hidden=${finderHidden})`);
+}
+await page.locator('input[aria-label="Orbs"]').evaluate(setRangeValue, "200");
+await page.getByRole("group", { name: "Container" }).getByRole("button", { name: /Circle/ }).click();
+await collideToggle("Sync Start").click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  check("collision playground mirrors into the URL", /(^|&)cpn=200(&|$)/.test(query) && /(^|&)cpsy=1(&|$)/.test(query) && !/(^|&)cpc=/.test(query) && /(^|&)cpsq=1(&|$)/.test(query), `(${query})`);
+}
+await page.getByPlaceholder("Search settings...").fill("anti-collision");
+check("search finds the collision playground controls", (await page.locator('input[aria-label="Anti-Collision At"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.goto(`${BASE}/en/simulator/?mode=collide`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__oscLog = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function (when) {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(500);
+{
+  // Frame intervals over 5 s of the default playground (300 orbs), in half-second windows.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    5000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await page.locator("canvas").first().evaluate((c) => ({ ...c.dataset }));
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("simulator mode=collide runs 300 orbs for 5 s at 30+ fps", /\d/.test(time) && time !== "0.0s" && data.collideBodies === "300" && Number(data.collideCollisions) > 100 && windows.length >= 8 && minWindow >= 30, `(elapsed ${time}, ${data.collideBodies} orbs, ${data.collideCollisions} collisions, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps)`);
+  // Every note is a degree of the C major pentatonic ladder (C3 … A5), the chromatic default leaving it unsnapped.
+  const pitches = await page.evaluate(() => window.__oscLog);
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const onLadder = pitches.length > 0 && midis.every((m) => m >= 48 && m <= 81 && [0, 2, 4, 7, 9].includes(m % 12));
+  const distinct = new Set(midis);
+  check("collision notes are pitched by orb size on the pentatonic ladder", Number(data.collideNotes) > 50 && onLadder && distinct.size >= 5, `(${data.collideNotes} notes, ${pitches.length} tones, ${distinct.size} distinct degrees)`);
+  await page.screenshot({ path: path.join(outDir, "sim-collide.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=collide&cpac=2&cpg=0.8`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const canvas = page.locator("canvas").first();
+  const anti = await page.waitForFunction(() => document.querySelector("canvas")?.dataset.collideAnti === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const before = Number(await canvas.getAttribute("data-collide-collisions"));
+  await page.waitForTimeout(1000);
+  const after = Number(await canvas.getAttribute("data-collide-collisions"));
+  check("collision playground switches to anti-collision", anti && before > 0 && after === before, `(anti=${anti}, collisions ${before} → ${after})`);
+  await page.screenshot({ path: path.join(outDir, "sim-collide-anti.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=collide&cpr=1&cpg=0.5`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(2500);
+{
+  const data = await page.locator("canvas").first().evaluate((c) => ({ ...c.dataset }));
+  const shown = await page.getByText("36 on the ring").first().isVisible().catch(() => false);
+  check("collision playground puts lollipops on a ring", data.collideBodies === "36" && Number(data.collideCollisions) > 0 && shown, `(${data.collideBodies} lollipops, ${data.collideCollisions} collisions, count label ${shown ? "shown" : "missing"})`);
+  await page.screenshot({ path: path.join(outDir, "sim-collide-ring.png") });
+}
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

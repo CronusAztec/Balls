@@ -13,6 +13,8 @@ import PendulumWaveSection, { PENDULUM_WAVE_KEYS } from "./sections/PendulumWave
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
 import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
+// --- jdm-collisions ---
+import CollisionPlaygroundSection, { COLLISION_PLAYGROUND_KEYS } from "./sections/CollisionPlaygroundSection";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -86,7 +88,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, ...COLLISION_PLAYGROUND_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
@@ -145,6 +147,8 @@ export default function Controls(props: ControlsProps) {
     drop: t("modeDrop"),
     box: t("modeBox"),
     pendulum: t("modePendulum"),
+    // --- jdm-collisions ---
+    collide: t("modeCollide"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -205,6 +209,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "box" && !!search && <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "pendulum" && !!search && <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- jdm-collisions --- */}
+      {s.mode === "collide" && !!search && <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
@@ -283,10 +289,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum"].includes(s.mode);
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum"].includes(s.mode);
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "collide"].includes(s.mode);
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "collide"].includes(s.mode);
     // Ball Drop, Bouncing Shapes and Pendulum Wave have no rings, but their pegs, bars, box walls and rigs are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum";
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "collide";
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1003,6 +1009,9 @@ export default function Controls(props: ControlsProps) {
         return <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "pendulum":
         return <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- jdm-collisions ---
+      case "collide":
+        return <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

@@ -8,6 +8,8 @@ import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics
 import { BOX_RANGES, DEFAULT_BOX_SETTINGS, boxSettingFields, boxSettingsOf, isBoxShape, isBoxSpeedRatio, resolveBoxSettings, type BoxShape, type BoxSpeedRatio } from "@/lib/physics/modes/box";
 import { DEFAULT_DROP_SETTINGS, DROP_RANGES, dropSettingFields, dropSettingsOf, resolveDropSettings } from "@/lib/physics/modes/drop";
 import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulumPitchDirection, isPendulumSoundOn, pendulumSettingFields, pendulumSettingsOf, resolvePendulumSettings, type PendulumLayout, type PendulumPitchDirection, type PendulumSoundOn } from "@/lib/physics/modes/pendulum";
+// --- jdm-collisions ---
+import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -142,6 +144,25 @@ export interface SimulatorSettings {
   pwWaveChord: boolean;
   /** Full cycles after which the run finishes, 0 = never (URL `pwc`). */
   pwCycles: number;
+  // --- jdm-collisions --- Collision Playground (lib/physics/modes/collide.ts): hundreds of colliding orbs
+  /** Orbs in play, 10–2000 (URL `cpn`). */
+  cpCount: number;
+  /** 0–1: spread of the orb sizes (URL `cpsz`); bigger orbs play lower notes. */
+  cpSizeSpread: number;
+  /** circle | box (URL `cpc`). */
+  cpContainer: CollideContainer;
+  /** 0–1: how much of the gravity setting pulls the orbs (URL `cpg`). */
+  cpGravity: number;
+  /** Restitution of every collision, 0.7–1 (URL `cpe`). */
+  cpRestitution: number;
+  /** Squash-and-stretch on impact (URL `cpsq`). */
+  cpSquishy: boolean;
+  /** All orbs start on a grid at the same instant and bounce in sync (URL `cpsy`). */
+  cpSyncStart: boolean;
+  /** Seconds after which collisions switch off (anti-collision), 0 = never (URL `cpac`). */
+  cpAntiCollisionAt: number;
+  /** Lollipops on a ring: bodies constrained to a circular track (URL `cpr`). */
+  cpRing: boolean;
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -251,6 +272,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...dropSettingFields(DEFAULT_DROP_SETTINGS),
     ...boxSettingFields(DEFAULT_BOX_SETTINGS),
     ...pendulumSettingFields(DEFAULT_PENDULUM_SETTINGS),
+    // --- jdm-collisions ---
+    ...collideSettingFields(DEFAULT_COLLIDE_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
@@ -316,6 +339,8 @@ export const RANGES = {
   ...BOX_RANGES,
   ...PENDULUM_RANGES,
   ...PICTURE_PAINT_RANGES,
+  // --- jdm-collisions ---
+  ...COLLIDE_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -391,6 +416,12 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   pbr: "paintBrush",
   pgh: "paintGhost",
   pbp: "paintBeatPulse",
+  // --- jdm-collisions --- Collision Playground
+  cpn: "cpCount",
+  cpsz: "cpSizeSpread",
+  cpg: "cpGravity",
+  cpe: "cpRestitution",
+  cpac: "cpAntiCollisionAt",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -424,6 +455,10 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   pbeat: "paintBeatSync",
   pgd: "paintGuided",
   pps: "paintPaceToSong",
+  // --- jdm-collisions --- Collision Playground
+  cpsq: "cpSquishy",
+  cpsy: "cpSyncStart",
+  cpr: "cpRing",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -459,6 +494,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.pwLayout !== base.pwLayout) params.set("pwl", settings.pwLayout);
   if (settings.pwSoundOn !== base.pwSoundOn) params.set("pws", settings.pwSoundOn);
   if (settings.pwPitchDirection !== base.pwPitchDirection) params.set("pwpd", settings.pwPitchDirection);
+  // --- jdm-collisions ---
+  if (settings.cpContainer !== base.cpContainer) params.set("cpc", settings.cpContainer);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
@@ -527,6 +564,10 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const pwpd = params.get("pwpd");
   if (isPendulumPitchDirection(pwpd)) settings.pwPitchDirection = pwpd;
   clampPendulumSettings(settings);
+  // --- jdm-collisions ---
+  const cpc = params.get("cpc");
+  if (isCollideContainer(cpc)) settings.cpContainer = cpc;
+  clampCollideSettings(settings);
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -583,6 +624,12 @@ function clampBoxSettings(settings: SimulatorSettings) {
 /** Keeps the Pendulum Wave settings inside their ranges, counts as whole numbers; an unknown layout, sound spot or pitch direction falls back to the default (URL parameters and presets alike). */
 function clampPendulumSettings(settings: SimulatorSettings) {
   Object.assign(settings, pendulumSettingFields(resolvePendulumSettings(pendulumSettingsOf(settings))));
+}
+
+// --- jdm-collisions ---
+/** Keeps the Collision Playground settings inside their ranges (count and anti-collision time as whole numbers); an unknown container or a non-boolean flag falls back to the default (URL parameters and presets alike). */
+function clampCollideSettings(settings: SimulatorSettings) {
+  Object.assign(settings, collideSettingFields(resolveCollideSettings(collideSettingsOf(settings))));
 }
 
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
@@ -648,6 +695,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampDropSettings(merged);
   clampBoxSettings(merged);
   clampPendulumSettings(merged);
+  // --- jdm-collisions ---
+  clampCollideSettings(merged);
   clampPicturePaint(merged);
   return merged;
 }

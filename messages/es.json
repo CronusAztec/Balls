@@ -98,7 +98,8 @@
     "exportFormatNote": "Se exporta como MP4 si el navegador lo admite; si no, como WebM.",
     "fps": "FPS",
     "shareLink": "Copiar enlace para compartir",
-    "shareLinkCopied": "¡Enlace copiado!"
+    "shareLinkCopied": "¡Enlace copiado!",
+    "canvasCollideAnti": "ANTICOLISIÓN"
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los 12 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
@@ -505,7 +506,32 @@
     "foundDuration": "¡Encontrada! {duration}s",
     "seedTested": "Semilla: {seed} ({tested} probadas)",
     "cancelSearch": "Cancelar búsqueda",
-    "findDurationSimulation": "Buscar simulación de {duration}s"
+    "findDurationSimulation": "Buscar simulación de {duration}s",
+    "modeCollide": "Parque de colisiones",
+    "cpTitle": "Parque de colisiones",
+    "cpDesc": "Cientos de esferas de distintos tamaños rebotan en las paredes y entre sí (la masa crece con el tamaño) y cada colisión toca una nota suave cuya altura depende de la esfera más pequeña: las grandes suenan graves y las pequeñas, agudas.",
+    "cpCount": "Esferas",
+    "cpCountTip": "Cuántas esferas chocan, de 10 a 2000. Su tamaño se ajusta solo para llenar el recipiente (el Tamaño de la pelota las agranda o las encoge); en el anillo caben como mucho 36 piruletas.",
+    "cpCountOnRing": "{count} en el anillo",
+    "cpSizeSpread": "Variedad de tamaños",
+    "cpSizeSpreadTip": "Cuánto se diferencian las esferas: 0 las hace todas iguales y 100 % las reparte entre un tercio y el triple del tamaño base. La masa sigue al área, así que las grandes empujan a las pequeñas, y las más grandes tocan notas más graves.",
+    "cpContainer": "Recipiente",
+    "cpContainerTip": "La forma dentro de la que rebotan las esferas: un círculo o un cuadrado, ambos ocupando el centro del vídeo.",
+    "cpContainerCircle": "Círculo",
+    "cpContainerBox": "Cuadrado",
+    "cpGravity": "Gravedad de las esferas",
+    "cpGravityTip": "Qué parte del ajuste de gravedad tira de las esferas hacia abajo. 0 es un gas de esferas flotando; los valores altos las amontonan en el fondo mientras siguen rebotando.",
+    "cpRestitution": "Elasticidad",
+    "cpRestitutionTip": "Coeficiente de restitución de cada colisión: 1 es perfectamente elástico (las esferas nunca pierden energía) y 0,7 es blando y amortiguado, así que con gravedad las esferas acaban formando un montón.",
+    "cpSquishy": "Blanditas",
+    "cpSquishyTip": "Aplastar y estirar: cada impacto aplana la esfera en la dirección del golpe durante una fracción de segundo (120 ms), como una pelota de gelatina. Es un efecto puramente visual.",
+    "cpSyncStart": "Salida sincronizada",
+    "cpSyncStartTip": "Todas las esferas salen de una cuadrícula en el mismo instante (desde el reposo con gravedad o todas volando en la misma dirección sin ella), así que caen y rebotan en sincronía. Combínalo con Blanditas y una variedad de tamaños de 0 para el clip de «pelotas blanditas que rebotan en sincronía».",
+    "cpAntiCollisionAt": "Anticolisión a los",
+    "cpAntiCollisionAtTip": "Segundo de la simulación en el que se apaga el sistema de colisiones: las esferas cambian de color y se atraviesan unas a otras (siguen rebotando en el recipiente). Con No, chocan para siempre.",
+    "cpAntiOff": "No",
+    "cpRing": "Piruletas en un anillo",
+    "cpRingTip": "Sujeta los cuerpos a una pista circular: cada uno es una piruleta (un palito desde el centro hasta un disco) que choca con sus vecinas a lo largo del anillo. Con gravedad oscilan como péndulos alrededor de la parte de abajo."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -526,6 +552,10 @@
     "pendulum": {
       "name": "Onda de péndulos",
       "description": "Péndulos afinados para que cada uno oscile una vez más por ciclo que el anterior: la fila deriva en ondas viajeras, se divide en grupos y vuelve a alinearse cada ciclo, y cada cruce es una nota. Fila, arco, círculo, galaxia, raíles o botes, y un modo de desfase que nunca llega a realinearse del todo."
+    },
+    "collide": {
+      "name": "Parque de colisiones",
+      "description": "Cientos de esferas variadas chocan dentro de un círculo o una caja y cada colisión toca una nota suave según su tamaño. Hazlas blanditas, suéltalas en sincronía, apaga las colisiones a mitad de la simulación o pon piruletas en un anillo."
     }
   },
   "Features": {
@@ -667,7 +697,8 @@
     "troubleMidiQ": "Mi archivo MIDI no se carga",
     "troubleMidiA": "Los archivos muy complejos con muchas pistas simultáneas pueden no leerse. Prueba un MIDI más simple con una sola melodía (formato 0 o 1). La herramienta conserva solo la nota más alta en cada instante, así que una exportación de la melodía principal desde tu programa de música funciona mejor.",
     "troubleStuckQ": "¿Sigues atascado?",
-    "troubleStuckA": "Envíanos una nota por la página de comentarios y describe lo que estabas haciendo."
+    "troubleStuckA": "Envíanos una nota por la página de comentarios y describe lo que estabas haciendo.",
+    "modeCollide": "Sin anillos: de 10 a 2000 esferas de distintos tamaños (la masa crece con el tamaño) rebotan dentro de un círculo o un cuadrado y entre sí con colisiones elásticas, con tanta o tan poca gravedad como quieras. Cada colisión toca una nota suave cuya altura depende de la esfera más pequeña (las grandes graves, las pequeñas agudas, en una escalera pentatónica ajustada a tu escala) y en cada fotograma solo suenan la docena de choques más enérgicos, así que cientos de esferas suenan como lluvia sobre un cristal y no como ruido. Variantes: esferas blanditas que se aplastan en cada impacto, una salida sincronizada que las suelta todas a la vez desde una cuadrícula, un interruptor de anticolisión que las deja atravesarse en el segundo que elijas y piruletas en un anillo que chocan a lo largo de una pista circular."
   },
   "Footer": {
     "about": "Acerca de",
