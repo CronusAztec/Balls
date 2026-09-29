@@ -5,12 +5,16 @@ import { useTranslations } from "next-intl";
 import { timelineLive } from "./timelineLive";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { RANGES } from "@/lib/settings";
-import { TIMELINE_KEY_COLORS, compileTimeline, formatTimelineTime, formatTimelineValue, timelineKeyLabel, timelinePosition, timelineSpan, type Keyframe, type TimelineTrack } from "@/lib/simulation/timeline";
+import { TIMELINE_KEY_COLORS, TIMELINE_RATE_KEYS, compileTimeline, formatTimelineTime, formatTimelineValue, timelineKeyLabel, timelinePosition, timelineSpan, type Keyframe, type TimelineKey, type TimelineTrack } from "@/lib/simulation/timeline";
 
-/** What the bar reads from the engine: the simulation clock and the config the keyframes are applied to. */
+/** What the bar reads from the engine: the simulation clock, the config the keyframes are applied to and the rates' phases. */
 export interface TimelineEngineView {
   getElapsedMs(): number;
   readonly config: PhysicsConfig;
+  /** A keyframed rate setting integrated since 0 s (degrees gravity turned, breathing pulses), NaN otherwise. */
+  getTimelinePhase?(key: TimelineKey): number;
+  /** The balls in play (their sizes: a keyframed Ball Size scales each ball's own size). */
+  getBalls?(): readonly { radius: number }[];
 }
 
 export interface TimelineBarProps {
@@ -41,7 +45,10 @@ function lanePoints(track: TimelineTrack, span: number, height: number, pad: num
  * small curve of its value (ramps between keyframes, holds outside them) and a marker per keyframe in the setting's colour
  * (hover for the setting, value and time), the playhead at the simulation clock – moved every frame straight in the DOM,
  * so the page does not re-render – and a legend. It mirrors the clock, the live values and the values the engine really
- * uses into `data-timeline-time`, `data-timeline-live` and `data-timeline-engine` (e.g. `gravity=842.5`) for tools and the
+ * uses into `data-timeline-time`, `data-timeline-live` and `data-timeline-engine` (e.g. `gravity=842.5`) – and, for a
+ * keyframed rate, the phase the engine integrated from it into `data-timeline-phase` (`rotatingGravity=1350` degrees
+ * turned, `breathingSpeed=12.5` pulses), and the largest ball's radius into `data-timeline-ball-radius` (a keyframed
+ * Ball Size scales the balls' own sizes – a grown, merged or split ball keeps its size relative to it) – for tools and the
  * smoke test. It is not part of the recording (it is not on the canvas).
  */
 function TimelineBar({ keyframes, clipSec, getEngine }: TimelineBarProps) {
@@ -50,6 +57,7 @@ function TimelineBar({ keyframes, clipSec, getEngine }: TimelineBarProps) {
   const headRef = useRef<HTMLDivElement | null>(null);
   const span = timelineSpan(keyframes, clipSec);
   const tracks = useMemo(() => compileTimeline(keyframes), [keyframes]);
+  const rateTracks = useMemo(() => tracks.filter((track) => TIMELINE_RATE_KEYS.includes(track.key)), [tracks]);
   const laneHeight = tracks.length > 3 ? 10 : 14;
   const pad = laneHeight > 10 ? 4 : 3;
 
@@ -70,12 +78,19 @@ function TimelineBar({ keyframes, clipSec, getEngine }: TimelineBarProps) {
         bar.dataset.timelineTime = timeSec.toFixed(2);
         bar.dataset.timelineLive = tracks.map((track) => `${track.key}=${round3(timelineLive.getValue(track.key))}`).join(",");
         bar.dataset.timelineEngine = tracks.map((track) => `${track.key}=${round3(engine.config[track.key])}`).join(",");
+        const phaseOf = engine.getTimelinePhase;
+        if (rateTracks.length > 0 && phaseOf) bar.dataset.timelinePhase = rateTracks.map((track) => `${track.key}=${round3(phaseOf.call(engine, track.key))}`).join(",");
+        else if (bar.dataset.timelinePhase !== undefined) delete bar.dataset.timelinePhase;
+        const balls = engine.getBalls?.() ?? [];
+        let largest = 0;
+        for (let i = 0; i < balls.length; i++) if (balls[i].radius > largest) largest = balls[i].radius;
+        bar.dataset.timelineBallRadius = round3(largest);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [tracks, span, getEngine]);
+  }, [tracks, rateTracks, span, getEngine]);
 
   const settingName = (track: TimelineTrack) => t(`Controls.${timelineKeyLabel(track.key)}`);
   return (
