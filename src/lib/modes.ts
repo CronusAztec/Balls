@@ -2,6 +2,8 @@ import type { ModeId } from "@/lib/physics/types";
 
 /** Display order of the mode cards on the landing and simulator pages (edit to reorder). */
 export const MODE_CARD_ORDER: ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "grow", "shatter", "colorMatch", "portal", "drop", "box", "pendulum", "polyrhythm", "collide"];
+// --- boris-multipliers --- the multipliers board joins the escape family (Boris uses the multipliers to get home)
+MODE_CARD_ORDER.push("multipliers");
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -29,6 +31,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   polyrhythm: "rhythm",
   // --- jdm-collisions ---
   collide: "rhythm",
+  // --- boris-multipliers ---
+  multipliers: "escape",
 };
 
 /** The modes of a category in card order. */

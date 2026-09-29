@@ -102,7 +102,22 @@
     "canvasPolyrhythmDone": "IN PHASE!",
     "canvasPolyrhythmAligned": "All [count] voices back in phase after [cycles] cycle(s)",
     "finderFixedPolyrhythm": "Metronomes & Polyrhythms always lasts exactly {duration}s with these settings (the cycles × the cycle length), whatever the seed. Change the cycle length, the tempos or the number of cycles in the Mode row to hit the target.",
-    "canvasCollideAnti": "ANTI-COLLISION"
+    "canvasCollideAnti": "ANTI-COLLISION",
+    "canvasMpSpeed": "SPEED",
+    "canvasMpSize": "SIZE",
+    "canvasMpDamage": "DMG",
+    "canvasMpBounce": "BOUNCE",
+    "canvasMpGravity": "GRAV",
+    "canvasMpBalls": "BALLS",
+    "canvasMpRelease": "RELEASE",
+    "canvasMpHome": "HOME",
+    "canvasMpSlowMo": "SLOW-MO [factor]",
+    "canvasMpOutgrew": "OUTGREW THE ARENA",
+    "canvasMpOutgrewSub": "Size [size] – too big to hold",
+    "canvasMpMadeItHome": "[count] [name] made it home",
+    "canvasMpMadeItHomeSub": "[count] clones along the way",
+    "finderMpClosestCount": "Closest: {count} home",
+    "finderMpTestedClosest": "Tested {tested} seeds. The closest final count was {closest} (target: {target} ±5 %)"
   },
   "HowItWorks": {
     "step1": {
@@ -652,7 +667,56 @@
     "cpAntiCollisionAtTip": "Second of the run at which the collision system switches off: the orbs change colour and pass straight through each other (they still bounce off the container). Off keeps them colliding forever.",
     "cpAntiOff": "Off",
     "cpRing": "Lollipops on a Ring",
-    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom."
+    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom.",
+    "modeMultipliers": "Multipliers",
+    "mpTitle": "Multipliers",
+    "mpDesc": "Speed, size, damage, bounce and gravity multipliers stack on the ball – with no cap unless you set one. Pickups float in the ring modes, and a ball whose damage reaches the smash level breaks the rings it touches.",
+    "multiplierPickups": "Multiplier Pickups",
+    "multiplierPickupsTip": "Floating orbs – x2 SPEED, x1.5 SIZE, x2 DMG, x2 BALLS… – appear at seeded times and places inside the ball's ring. Touching one stacks it on the ball with a burst, a rising arpeggio and a pop of the HUD badge. Seeds and Find Simulation include them.",
+    "pickupRate": "Pickup Rate",
+    "pickupRateTip": "How many orbs appear per 10 seconds on average (0–3).",
+    "pickupRateValue": "{rate} / 10 s",
+    "pickupTypes": "Pickup Types",
+    "pickupTypesTip": "Which orbs may appear. x2 BALLS clones the ball (up to the Ball Cap of the ball interaction) and only floats in the modes that play with several balls.",
+    "pickupKindSpeed": "Speed",
+    "pickupKindSize": "Size",
+    "pickupKindDamage": "Dmg",
+    "pickupKindBalls": "Balls",
+    "pickupKindBounce": "Bounce",
+    "pickupKindGravity": "Grav",
+    "pickupBallsUnavailable": "x2 BALLS only floats in Classic, Multiply, Lines, Shatter and Grow.",
+    "pickupLifetime": "Pickup Lifetime",
+    "pickupLifetimeTip": "Seconds an orb drifts before it fades away.",
+    "mpUnlimited": "Unlimited Multipliers",
+    "mpUnlimitedTip": "On (default): multipliers stack without any cap – the speed can keep doubling. The physics stays safe at any value: more sub-steps per frame, and past 64 the clock slows down (SLOW-MO) instead of letting a ball tunnel through a wall.",
+    "mpCap": "Multiplier Cap",
+    "mpCapTip": "With Unlimited off: the highest value any stat may stack to (and 1/cap the lowest). 0 = no cap.",
+    "mpCapOff": "∞",
+    "wallSmashThreshold": "Smash Walls at Damage",
+    "wallSmashThresholdTip": "Once a ball's damage multiplier reaches this value it smashes the rings it touches – no gap needed – with the wall-break effect and sound (Classic, Accumulation, Multiply, Shatter, Color Match, Portal).",
+    "mpBoardTitle": "Multipliers board",
+    "mpBoardDesc": "Balls fall through rows of gates to HOME: count gates clone them, speed, size and damage gates stack multipliers, ÷2 takes half away and release doors let them through in bursts.",
+    "mpRows": "Gate Rows",
+    "mpRowsTip": "Rows of gates between the start and HOME, 4 to 20. The camera scrolls down with the lowest ball.",
+    "mpStartBalls": "Starting Balls",
+    "mpStartBallsTip": "Balls released at the top, 1 to 10.",
+    "mpMaxBalls": "Max Balls",
+    "mpMaxBallsTip": "Most balls in play at once (50–2000): count gates stop cloning there. Balls that reach HOME free their place.",
+    "mpGateMix": "Gate Mix",
+    "mpGateMixTip": "How often each kind of gate appears (0 = never, 9 = most often). The layout itself is drawn from the seed.",
+    "gateCount": "Count",
+    "gateSpeed": "Speed",
+    "gateSize": "Size",
+    "gateDamage": "Damage",
+    "gateReverse": "÷2",
+    "gateRelease": "Release",
+    "mpTarget": "Target Count",
+    "mpTargetTip": "Rigging: with a target, Find Simulation searches for a seed whose final HOME count is within 5 % of it (instead of a duration). 0 = off.",
+    "mpTargetOff": "Off",
+    "mpTargetValue": "{count} home",
+    "mpFindTarget": "Find a Run With ~{target} Home",
+    "mpFoundCount": "Found! {count} made it home ({duration}s)",
+    "mpClosestCount": "Closest: {count} home ({seeds} seeds)"
   },
   "Modes": {
     "classic": {
@@ -714,6 +778,10 @@
     "collide": {
       "name": "Collision Playground",
       "description": "Hundreds of varied orbs collide in a circle or a box and every collision plays a soft note pitched by size. Make them squishy, drop them in sync, switch the collisions off mid-run or put lollipops on a ring."
+    },
+    "multipliers": {
+      "name": "Multipliers",
+      "description": "Boris uses the multipliers to get home: balls fall through rows of gates – x2, x3 and x5 clone them, x2 SPEED, x1.5 SIZE and x2 DMG stack with no cap, ÷2 takes half away and release doors let them through in bursts – past bumpers and blockers, while a live counter shows how many make it home."
     }
   },
   "Features": {
@@ -955,7 +1023,8 @@
     "troubleStuckQ": "Still stuck?",
     "troubleStuckA": "Send a note through the feedback page and describe what you were doing.",
     "modePolyrhythm": "No rings to escape: 2–400 voices each tick at their own tempo and every tick plays a note. Rings (dots orbiting 1, 2, 3… times per cycle and ticking at 12 o'clock, optionally as rotating polygons), arcs (dots sliding along the chords or semicircles of a circle and ticking at both ends), a grid of metronomes, or a spiral whose tick points line up again every cycle. The tempos follow the harmonic series, an arithmetic BPM series (the Reich-style tempo phase shift) or your own ratio list such as 3,4,5,7. The moment every voice ticks together is computed exactly and lands as a chord and a flash; the run ends after the chosen number of cycles and always lasts the same time, so it fits any clip.",
-    "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track."
+    "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track.",
+    "modeMultipliers": "A tall board the camera scrolls down, always following the lowest ball. Every row is split into 2–4 gates: count gates (x2, x3, x5) clone each ball that passes – up to a ball cap you choose, from 50 to 2000 –, speed, size and damage gates stack multipliers on it with no upper limit, ÷2 gates absorb every second ball and release gates hold a pile on a door that opens in bursts. Splitter pegs, kicking bumpers, funnels and blockers with hit points (the damage multiplier wears them down faster) sit between the rows, every hit is a note on a pentatonic plinko piano, and the HOME zone at the bottom counts the arrivals live until the final “N Boris made it home”. A ball that grows wider than the board outgrows it and ends the run with a celebration. Set a target count and Find Simulation looks for a seed whose final count lands within 5 % of it. The same multipliers float as pickup orbs in the ring modes (Ball section → Multipliers)."
   },
   "Footer": {
     "about": "About",

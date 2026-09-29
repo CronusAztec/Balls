@@ -31,6 +31,8 @@ const MODES = {
   polyrhythm: { wait: 4000, query: "prt=custom&prcu=3,4,5,6,7,8,9,10&prcs=12&prp=1&prnum=1&glow=1" }, // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   collide: { wait: 5000, query: "cpsq=1&glow=1" },
+  // --- boris-multipliers ---
+  multipliers: { wait: 3000, query: "mpsb=3&mprw=10" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

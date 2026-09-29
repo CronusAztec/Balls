@@ -21,6 +21,9 @@ import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView
 import { PolyrhythmMode, type PolyrhythmSettings, type PolyrhythmView } from "./modes";
 // --- jdm-collisions ---
 import { CollideMode, type CollideSettings, type CollideView } from "./modes/collide";
+// --- boris-multipliers ---
+import { MultipliersMode, type MultipliersSettings, type MultipliersView } from "./modes/multipliers";
+import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -161,6 +164,13 @@ export class PhysicsEngine {
   readonly polyrhythmMode = new PolyrhythmMode();
   // --- jdm-collisions ---
   readonly collideMode = new CollideMode();
+  // --- boris-multipliers --- the board mode, and the run's stat multipliers (pickups, cap, smash, adaptive sub-steps, outgrow)
+  readonly multipliersMode = new MultipliersMode();
+  private readonly multipliers = new MultiplierRuntime({
+    burst: (x, y, color, radius) => this.spawnMergeBurst(x, y, color, radius),
+    breakWall: (ball, wallIndex) => this.smashWall(ball, wallIndex),
+    cloned: (parent, clone) => this.currentMode?.onBallSplit?.(this.ctx, parent, clone),
+  });
 
   readonly ctx: ModeContext;
 
@@ -169,6 +179,7 @@ export class PhysicsEngine {
     this.extras = resolvePhysicsExtras(config);
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(config);
+    this.multipliers.setConfig(config); // --- boris-multipliers ---
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -216,6 +227,7 @@ export class PhysicsEngine {
       getPhysicsExtras: () => this.extras,
       getObstacles: () => this.obstacles,
       setObstacles: (obstacles) => this.setObstacles(obstacles),
+      getMultipliers: () => this.multipliers, // --- boris-multipliers ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -371,6 +383,10 @@ export class PhysicsEngine {
   initCollide() {
     this.activateMode(this.collideMode, "none");
   }
+  // --- boris-multipliers ---
+  initMultipliers() {
+    this.activateMode(this.multipliersMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -407,6 +423,9 @@ export class PhysicsEngine {
       // --- jdm-collisions ---
       case "collide":
         return this.initCollide();
+      // --- boris-multipliers ---
+      case "multipliers":
+        return this.initMultipliers();
     }
   }
 
@@ -790,6 +809,37 @@ export class PhysicsEngine {
     return this.collideMode.getProgress();
   }
   // --- end jdm-collisions ---
+  // --- boris-multipliers ---
+  isMultipliersMode() {
+    return this.currentMode === this.multipliersMode;
+  }
+  getMultipliersSettings(): MultipliersSettings {
+    return this.multipliersMode.getSettings();
+  }
+  /** Rows, gate mix, start balls, ball cap and count target of the multipliers board; applied by the next `initMultipliers()`. */
+  setMultipliersSettings(settings: Partial<MultipliersSettings>) {
+    this.multipliersMode.setSettings(settings);
+  }
+  /** Live multipliers-board state (board, camera, counters) for the canvas and the HUD; the same object every call. */
+  getMultipliersView(): MultipliersView {
+    return this.multipliersMode.getView();
+  }
+  getMultipliersProgress() {
+    return this.multipliersMode.getProgress();
+  }
+  /** The stat multipliers of the run (HUD summary, pickup orbs, slow-mo, outgrow) for the canvas; the same object every call. */
+  getMultiplierView(): MultiplierView {
+    return this.multipliers.getView();
+  }
+  /** The run's multiplier runtime (config, cap, pickups); modes reach it through `ctx.getMultipliers()`. */
+  getMultiplierRuntime(): MultiplierRuntime {
+    return this.multipliers;
+  }
+  /** Stacks a stat multiplier on a ball through the cap in effect (what a pickup or a gate does); returns the factor applied. */
+  applyBallMultiplier(ball: Ball, stat: MultiplierStat, factor: number): number {
+    return this.multipliers.apply(ball, stat, factor);
+  }
+  // --- end boris-multipliers ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
@@ -802,6 +852,7 @@ export class PhysicsEngine {
     return this._elapsedMs;
   }
   isSimulationFinished() {
+    if (this.multipliers.isOutgrown()) return true; // --- boris-multipliers --- a ball outgrew the arena
     return this.currentMode?.isFinished(this.ctx) ?? false;
   }
   getPersonalityState() {
@@ -859,6 +910,7 @@ export class PhysicsEngine {
     this.pendingSplits = [];
     this.breathScale = 1;
     this.setObstacles([]);
+    this.multipliers.reset(); // --- boris-multipliers ---
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -876,6 +928,7 @@ export class PhysicsEngine {
     this.extras = resolvePhysicsExtras(this._config);
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(this._config);
+    this.multipliers.setConfig(this._config); // --- boris-multipliers ---
     if (patch.ballColor !== undefined) for (const b of this.balls) b.color = patch.ballColor;
     // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is.
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
@@ -966,12 +1019,28 @@ export class PhysicsEngine {
    */
   update(frameMs: number, audioIntensity = 0) {
     const dt = Math.min(frameMs, 128);
+    // --- boris-multipliers --- a ball outgrew the arena: the run is over, only the confetti keeps flying
+    const mult = this.multipliers;
+    if (mult.isOutgrown()) {
+      this.updateParticles(frameMs / 1000);
+      return;
+    }
+    const modeName = this.currentMode?.name;
+    mult.setMode(modeName);
+    // --- end boris-multipliers ---
     this.timeAccumulator += dt;
     const extras = this.extras;
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
       this.timeAccumulator -= this.FIXED_STEP_MS;
-      this._elapsedMs += this.FIXED_STEP_MS;
-      const stepMs = this.FIXED_STEP_MS;
+      // --- boris-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
+      // radius (≤ 4 px) per sub-step; past 64 sub-steps the step itself shrinks (time dilation, SLOW-MO in the HUD).
+      // Without multipliers `plan` is null and the step is exactly the fixed step, as before.
+      const multActive = mult.isActive(modeName);
+      const plan = multActive ? mult.planStep(this.balls, this.FIXED_STEP_MS / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
+      const stepMs = plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS;
+      this._elapsedMs += stepMs;
+      const orbsLive = multActive && mult.pickupsLive(modeName);
+      // --- end boris-multipliers ---
       while (this.wallRotations.length < this.circularWalls.length) this.wallRotations.push(0);
       const stepSec = stepMs / 1000;
       for (let i = 0; i < this.circularWalls.length; i++) {
@@ -998,6 +1067,7 @@ export class PhysicsEngine {
       }
       this.cinematicDirector.update(stepMs);
       this.currentMode?.onPreUpdate(this.ctx, stepMs);
+      if (orbsLive) mult.stepPickups(this.ctx, stepMs); // --- boris-multipliers --- spawn, drift and fade the pickup orbs
 
       // Physics extras: air drag acts once per 60 Hz step; the gravity direction, wind and spin
       // terms are constant within the step and applied per sub-step below. Each is skipped at
@@ -1020,8 +1090,9 @@ export class PhysicsEngine {
       const keepMoving = !this.currentMode?.ballsMayRest;
       const hasObstacles = this.obstacles.length > 0;
 
-      const subSteps =
+      let subSteps =
         this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
+      if (plan && plan.subSteps > subSteps) subSteps = plan.subSteps; // --- boris-multipliers ---
       const subMs = stepMs / subSteps;
       const subSec = subMs / 1000;
       const spinDecay = spinning ? spinDecayFactor(subSec) : 1;
@@ -1061,7 +1132,8 @@ export class PhysicsEngine {
           }
           if (keepMoving) {
             const speed = Math.hypot(ball.vx, ball.vy);
-            if (speed > 0 && speed < baseSpeed) {
+            const cruise = ball.mult ? cruiseSpeed(ball, baseSpeed) : baseSpeed; // --- boris-multipliers --- the speed multiplier raises the cruising speed
+            if (speed > 0 && speed < cruise) {
               const boost = 1 + 0.5 * subSec;
               ball.vx *= boost;
               ball.vy *= boost;
@@ -1070,6 +1142,7 @@ export class PhysicsEngine {
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
           this.currentMode?.onBallStep(this.ctx, ball, subSec);
+          if (orbsLive && mult.hasOrbs()) mult.touch(ball); // --- boris-multipliers --- a touched orb applies at the end of the step
           if (s === 0 && ball.lifetime !== undefined) {
             ball.lifetime -= stepMs;
             if (ball.lifetime <= 0) {
@@ -1084,6 +1157,7 @@ export class PhysicsEngine {
         this.currentMode?.onPostSubStep(this.ctx);
       }
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
+      if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- boris-multipliers --- orbs taken, grown balls refitted, HUD
       if (this.pendingSplits.length > 0) this.flushSplits();
       for (const ball of this.balls) {
         if (ball.trail.length < 20) ball.trail.push({ x: ball.x, y: ball.y });
@@ -1093,9 +1167,35 @@ export class PhysicsEngine {
           ball.trailIndex = (ball.trailIndex + 1) % 20;
         }
       }
+      if (mult.isOutgrown()) break; // --- boris-multipliers --- the run just ended
     }
     this.updateParticles(frameMs / 1000);
   }
+
+  // --- boris-multipliers ---
+  /** Gravity (px/s²) on a ball of normal weight this step, for the sub-step plan. */
+  private gravityAccel(audioIntensity: number) {
+    return this._config.gravity * ((this._config.ballSpeed || 400) / 300) * (1 + 0.5 * audioIntensity);
+  }
+
+  /** The fastest rebound the rings may give a ×1 ball this step (0 in modes without the engine's ring rebounds). */
+  private reboundSpeedBound() {
+    if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return 0;
+    const bouncier = this.bouncierEnabled ? Math.min(this.bouncierMaxMultiplier, this.bounceSpeedMultiplier + 0.3) : 1;
+    return (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
+  }
+
+  /** A ring breaks for good under a ball (a smash from damage, or a grown ball bursting it): effect, sound, split, director. */
+  private smashWall(ball: Ball, wallIndex: number) {
+    if (this.brokenWalls.has(wallIndex)) return;
+    this.spawnWallBreakByStyle(wallIndex, ball.x, ball.y);
+    this.pendingSoundEvents.push({ type: "gap", wallIndex });
+    this.reportWallBreak(ball, wallIndex);
+    this.brokenWalls.add(wallIndex);
+    this.cinematicDirector.onGapPass();
+    if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
+  }
+  // --- end boris-multipliers ---
 
   /**
    * Resolves the ball against every obstacle (obstacles.ts): the push-out and rebound always happen; a
@@ -1105,7 +1205,7 @@ export class PhysicsEngine {
    */
   private handleObstacleCollisions(ball: Ball, dtSec: number) {
     const obstacles = this.obstacles;
-    const scale = this.extras.wallBounciness;
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness; // --- boris-multipliers --- bounce multiplier
     // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
     const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
     const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
@@ -1251,6 +1351,12 @@ export class PhysicsEngine {
           }
         }
       } else {
+        // --- boris-multipliers --- enough damage smashes the ring on contact: no gap needed
+        if (ball.mult && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) {
+          this.smashWall(ball, w);
+          this.multipliers.noteSmash();
+          continue;
+        }
         const push = isShatter ? ball.radius + 0.5 : ball.radius + 3;
         if (inside) {
           ball.x = cx + nx * (wall.radius - push);
@@ -1273,7 +1379,8 @@ export class PhysicsEngine {
         if (!result?.suppressBounce) {
           const baseSpeed = this._config.ballSpeed || 400;
           // Wall bounciness (restitution) scales the rebound speed; it is 1 by default (an exact no-op).
-          const speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier() * this.extras.wallBounciness;
+          let speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier() * this.extras.wallBounciness;
+          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball); // --- boris-multipliers --- speed and bounce multipliers
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
@@ -1407,6 +1514,7 @@ export class PhysicsEngine {
       ball.radius = first.radius;
       this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime, gravityScale: ball.gravityScale });
       const half = this.balls[this.balls.length - 1];
+      if (ball.mult) half.mult = copyMultipliers(ball.mult); // --- boris-multipliers --- the halves keep the multipliers
       half.spin = ball.spin;
       half.angle = ball.angle;
       this.currentMode?.onBallSplit?.(this.ctx, ball, half);

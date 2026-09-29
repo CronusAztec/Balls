@@ -1,4 +1,5 @@
 import type { Obstacle } from "./obstacles";
+import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -27,6 +28,8 @@ export const MODE_IDS = [
   "polyrhythm",
   // --- jdm-collisions ---
   "collide",
+  // --- boris-multipliers ---
+  "multipliers",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -61,6 +64,9 @@ export interface Ball {
   gravityScale?: number;
   /** Size of the ball relative to the configured ball radius (Ball Drop's size spread), so a live change of the ball size keeps the spread; 1 when absent. */
   radiusScale?: number;
+  // --- boris-multipliers ---
+  /** Stacked stat multipliers – speed, size, damage, bounce, gravity (see multipliers.ts); absent = a plain ×1 ball. */
+  mult?: BallMultipliers;
 }
 
 export type NewBall = Omit<Ball, "id" | "trail" | "trailIndex" | "spin" | "angle">;
@@ -121,7 +127,8 @@ export interface BallInteractionConfig {
   maxBalls: number;
 }
 
-export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig> {
+// --- boris-multipliers --- the stat-multiplier settings (cap, smash threshold, pickups) travel in the config too
+export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig> {
   width: number;
   height: number;
   gravity: number;
@@ -139,8 +146,11 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
 }
 
 export interface SoundEvent {
-  /** A wall bounce, a wall break / gap pass, two balls fusing ("merge" interaction) or a ball splitting in two ("split"). */
-  type: "hit" | "gap" | "merge" | "split";
+  /**
+   * A wall bounce, a wall break / gap pass, two balls fusing ("merge" interaction), a ball splitting in two ("split")
+   * or a stat multiplier stacking ("multiplier": a pickup or a gate – the rising arpeggio of multipliers.ts).
+   */
+  type: "hit" | "gap" | "merge" | "split" | "multiplier";
   wallIndex: number;
   /** Pitch of a "hit" in Hz chosen by the mode (Ball Drop maps it from the ball's size); without it the wall index picks the pitch. */
   frequency?: number;
@@ -154,6 +164,9 @@ export interface SoundEvent {
   // --- jdm-collisions ---
   /** Loudness of a "hit" relative to a normal one, 0–1 (Collision Playground plays soft notes scaled by the impact); 1 when absent. */
   level?: number;
+  // --- boris-multipliers ---
+  /** A "multiplier" event: the stat's new total (or the ball count), which the arpeggio climbs with. */
+  multiplier?: number;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
@@ -269,6 +282,9 @@ export interface ModeContext {
   getObstacles(): Obstacle[];
   /** Replaces the obstacle list (the engine resolves every ball against it from the next sub-step on). */
   setObstacles(obstacles: Obstacle[]): void;
+  // --- boris-multipliers ---
+  /** The run's stat multipliers (cap, pickups, outgrow): modes stack multipliers through it (see multipliers.ts). */
+  getMultipliers?(): MultiplierRuntime;
 }
 
 export interface GameMode {

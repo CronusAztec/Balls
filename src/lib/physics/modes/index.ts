@@ -26,3 +26,6 @@ export type { PolyrhythmSettings, PolyLayout, PolyArcStyle, PolyTempos, PolyPitc
 // --- jdm-collisions ---
 export { CollideMode } from "./collide";
 export type { CollideSettings, CollideContainer, CollideField, CollideView } from "./collide";
+// --- boris-multipliers ---
+export { MultipliersMode } from "./multipliers";
+export type { MultipliersSettings, MultipliersView, MultiplierBoard, GateKind, Gate, Blocker, BoardLayout } from "./multipliers";

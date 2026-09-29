@@ -17,6 +17,9 @@ import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/ty
 import { SITE_DOMAIN } from "@/lib/site";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- boris-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
+// --- boris-multipliers ---
+import { DEFAULT_MULTIPLIER_CONFIG, MULTIPLIER_RANGES, multiplierConfigOf, resolveMultiplierConfig, sanitizePickupTypes } from "@/lib/physics/multipliers";
+import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFields, multipliersSettingsOf, resolveMultipliersSettings, sanitizeGateMix } from "@/lib/physics/modes/multipliers";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -276,6 +279,32 @@ export interface SimulatorSettings {
   /** Cat face: a meow-like chirp on ouch / surprise / escape while no hit sample is used (URL `fsnd`). */
   faceSounds: boolean;
   // --- end boris-faces ---
+  // --- boris-multipliers --- stat multipliers (lib/physics/multipliers.ts) and the multipliers board (modes/multipliers.ts)
+  /** No cap on any stat multiplier (URL `mpu`). */
+  mpUnlimited: boolean;
+  /** With unlimited off: the highest a stat may stack to, 0 = unlimited (URL `mpc`). */
+  mpCap: number;
+  /** Damage from which a ball smashes the ring walls on contact (URL `wst`). */
+  wallSmashThreshold: number;
+  /** Floating multiplier orbs in the ring modes (URL `mpk`). */
+  multiplierPickups: boolean;
+  /** Orbs per 10 seconds, 0–3 (URL `mpr`). */
+  pickupRate: number;
+  /** The orb kinds that spawn, comma separated: speed, size, damage, balls, bounce, gravity (URL `mpty`). */
+  pickupTypes: string;
+  /** Seconds an orb floats (URL `mpl`). */
+  pickupLifetime: number;
+  /** Multipliers board: rows of gates, 4–20 (URL `mprw`). */
+  mpRows: number;
+  /** Weights of count / speed / size / damage / reverse / release gates, six digits (URL `mpgm`). */
+  mpGateMix: string;
+  /** Balls released at the top, 1–10 (URL `mpsb`). */
+  mpStartBalls: number;
+  /** Most balls in play, 50–2000 (URL `mpmb`). */
+  mpMaxBalls: number;
+  /** Rigging: the finder looks for a run whose final count is within 5 % of this, 0 = off (URL `mptg`). */
+  mpTarget: number;
+  // --- end boris-multipliers ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -364,6 +393,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     bpm: 120,
     quantizeGrid: "1/8",
     ...DEFAULT_CHARACTER, // --- boris-faces ---
+    // --- boris-multipliers ---
+    ...DEFAULT_MULTIPLIER_CONFIG,
+    ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
   };
 }
 
@@ -406,6 +438,9 @@ export const RANGES = {
   ...THEME_RANGES, // --- themes
   // --- jdm-collisions ---
   ...COLLIDE_RANGES,
+  // --- boris-multipliers ---
+  ...MULTIPLIER_RANGES,
+  ...MULTIPLIERS_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -496,6 +531,15 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   cpg: "cpGravity",
   cpe: "cpRestitution",
   cpac: "cpAntiCollisionAt",
+  // --- boris-multipliers ---
+  mpc: "mpCap",
+  wst: "wallSmashThreshold",
+  mpr: "pickupRate",
+  mpl: "pickupLifetime",
+  mprw: "mpRows",
+  mpsb: "mpStartBalls",
+  mpmb: "mpMaxBalls",
+  mptg: "mpTarget",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -539,6 +583,9 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   cpsq: "cpSquishy",
   cpsy: "cpSyncStart",
   cpr: "cpRing",
+  // --- boris-multipliers ---
+  mpu: "mpUnlimited",
+  mpk: "multiplierPickups",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -594,6 +641,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
   if (settings.ballFace !== base.ballFace) params.set("face", settings.ballFace); // --- boris-faces ---
   writeThemeParams(settings, base, params); // --- themes: theme, bgt, bg1, bg2, bgd, ps, trc
+  // --- boris-multipliers --- the two list-like strings (validated on the way back in)
+  if (settings.pickupTypes !== base.pickupTypes) params.set("mpty", settings.pickupTypes);
+  if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   return params;
 }
 
@@ -687,6 +737,12 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isFaceStyle(face)) settings.ballFace = face;
   clampCharacter(settings);
   readThemeParams(params, settings); // --- themes
+  // --- boris-multipliers ---
+  const mpty = params.get("mpty");
+  if (mpty !== null) settings.pickupTypes = sanitizePickupTypes(mpty);
+  const mpgm = params.get("mpgm");
+  if (mpgm !== null) settings.mpGateMix = sanitizeGateMix(mpgm);
+  clampMultiplierSettings(settings);
   return settings;
 }
 
@@ -755,6 +811,13 @@ function clampCharacter(settings: SimulatorSettings) {
   Object.assign(settings, resolveCharacterSettings(characterOf(settings)));
 }
 
+// --- boris-multipliers ---
+/** Keeps the multiplier settings (cap, smash threshold, pickups) and the multipliers board inside their ranges; bad values fall back to the defaults (URL parameters and presets alike). */
+function clampMultiplierSettings(settings: SimulatorSettings) {
+  Object.assign(settings, resolveMultiplierConfig(multiplierConfigOf(settings)));
+  Object.assign(settings, multipliersSettingFields(resolveMultipliersSettings(multipliersSettingsOf(settings))));
+}
+
 /* ------------------------------------------------------------------ presets */
 
 export const PRESETS_STORAGE_KEY = "viralballs_saved_settings";
@@ -819,6 +882,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPicturePaint(merged);
   clampCharacter(merged); // --- boris-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
+  clampMultiplierSettings(merged); // --- boris-multipliers ---
   return merged;
 }
 

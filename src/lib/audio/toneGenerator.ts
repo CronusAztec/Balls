@@ -2,6 +2,7 @@ import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instrument
 import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from "./interactionTones";
 import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // --- boris-faces ---
+import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- boris-multipliers ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -468,6 +469,53 @@ export class ToneGenerator {
     }
   }
   // --- end boris-faces ---
+
+  // --- boris-multipliers ---
+  /**
+   * A stat multiplier stacked (a pickup orb, a gate): a rising arpeggio that climbs with the new `total`
+   * (multiplierTones.ts). It goes the way a bounce goes – the next slice while the song slicer plays, the hit sample
+   * transposed to every note in sample mode, otherwise the bounce instrument (a loaded melody roots it on its next note
+   * with the melody voice) – snapped to the scale, its first note on the beat grid (one slot), ducking the music bed.
+   */
+  playMultiplier(total: number) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleMultiplier(total));
+      return;
+    }
+    this.scheduleMultiplier(total);
+  }
+
+  private scheduleMultiplier(total: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const now = this.audioContext.currentTime;
+      if (this.slicer.trigger(this.audioContext, this.masterGain)) {
+        this.musicBed.duck(now);
+        return;
+      }
+      const time = this.scheduleTime(now);
+      if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
+      this.lastSlotTime = time;
+      const melody = this.customNotes.length > 0;
+      const root = melody ? this.customNotes[this.customNoteIndex % this.customNotes.length] : undefined;
+      if (melody) {
+        this.customNoteIndex++;
+        this.lastCustomNoteTime = now;
+      }
+      const notes = arpeggioNotes(total, root);
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
+        for (const note of notes) this.sampler!.play(hitSamplePlaybackRate(0, true, this.snap(note.frequency)), time + note.offset, note.gain / 0.25);
+      } else {
+        scheduleArpeggio(this.audioContext, this.masterGain, melody ? this.music.melodyInstrument : this.music.instrument, notes, time, (f) => this.snap(f), this.pluckCache);
+      }
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the multiplier arpeggio:", err);
+    }
+  }
+  // --- end boris-multipliers ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
