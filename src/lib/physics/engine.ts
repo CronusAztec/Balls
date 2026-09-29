@@ -855,14 +855,17 @@ export class PhysicsEngine {
     }
   }
   /**
-   * Once per step: every ball beyond the outermost wall (its base radius at the widest breathing pulse, plus
-   * the ball and `ESCAPE_MARGIN`) has escaped; the book counts each ball once. Reads positions only.
+   * Once per step: every ball beyond the outermost wall (its live radius – with breathing walls, where the pulse
+   * has it now – plus the ball and `ESCAPE_MARGIN`) has escaped; the book counts each ball once. Reads positions
+   * only. The modes that end on an escape (Shatter + 20 px, Color Match + 30 px) and Multiply (+ `ESCAPE_MARGIN`)
+   * test the same live radius with at least this margin, and run their test in `onPostUpdate()` just before this
+   * scan, so an escape that ends the run is always counted in the step that ends it (or earlier) – the scoreboard's
+   * last frame and the winner never miss it.
    */
   private scanEscapes() {
-    const base = this.wallBaseRadii;
+    const walls = this.circularWalls;
     let outer = 0;
-    for (let i = 0; i < base.length; i++) if (base[i] > outer) outer = base[i];
-    outer *= 1 + this.extras.breathingAmplitude;
+    for (let i = 0; i < walls.length; i++) if (walls[i].radius > outer) outer = walls[i].radius;
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     for (let i = 0; i < this.balls.length; i++) {

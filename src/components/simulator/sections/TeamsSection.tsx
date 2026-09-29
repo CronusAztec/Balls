@@ -3,7 +3,7 @@
 import Tooltip from "../Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
-import { MAX_TEAMS, MULTI_BALL_MODES } from "@/lib/physics/ballStats";
+import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap } from "@/lib/physics/ballStats";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import {
   MAX_TEAM_NAME_LENGTH,
@@ -11,6 +11,7 @@ import {
   TEAM_EMOJI_SUGGESTIONS,
   ballCountPatch,
   effectiveBallCount,
+  maxTeamsIn,
   pickEmoji,
   resizeRoster,
   rosterPatch,
@@ -44,15 +45,16 @@ export function defaultTeamNames(t: Translate): string[] {
 
 /**
  * The ball count slider of the Ball & Physics section (it replaced the "Two balls" switch): 1–6 balls in the
- * multi-ball modes, with the second ball's colour while there is no team roster. With a roster the count is the
- * number of teams, so moving the slider adds or removes teams.
+ * multi-ball modes (1–2 in Grow, see `modeBallCap()`), with the second ball's colour while there is no team roster.
+ * With a roster the count is the number of teams, so moving the slider adds or removes teams.
  */
 export function BallCountControl({ t, search, matches, settings: s, update }: Omit<TeamsSectionProps, "onReset">) {
   if (search && !matches("ballCount") && !matches("twoBalls")) return null;
   const count = effectiveBallCount(s);
+  const range = { ...RANGES.ballCount, max: Math.min(RANGES.ballCount.max, modeBallCap(s.mode)) };
   const body = (
     <div className="space-y-3">
-      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={count} range={RANGES.ballCount} onChange={(v) => update(ballCountPatch(s, v, defaultTeamNames(t)))} display={String(count)} left="⚪" right="🎱" />
+      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={count} range={range} onChange={(v) => update(ballCountPatch(s, v, defaultTeamNames(t)))} display={String(count)} left="⚪" right="🎱" />
       {count >= 2 && !s.rainbowBall && s.teams.length === 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-300">{t("ballColor2")}</label>
@@ -112,6 +114,8 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
   const names = defaultTeamNames(t);
   const on = s.teams.length > 0;
   const plays = MULTI_BALL_MODES.includes(s.mode);
+  // Grow takes two balls at most: a bigger roster (kept for the other modes) plays with its first teams there.
+  const maxTeams = maxTeamsIn(s.mode);
   const setRoster = (roster: TeamEntry[]) => update(rosterPatch(roster));
   // Edits keep the text as typed (a name may end in a space while typing); the canvas and links tidy it up.
   const editTeam = (index: number, patch: Partial<TeamEntry>) => update({ teams: s.teams.map((team, i) => (i === index ? { ...team, ...patch } : team)) });
@@ -122,6 +126,11 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
         <div className="space-y-2">
           <Toggle t={t} labelKey="teams" tipKey="teamsTip" value={on} onChange={(v) => setRoster(v ? resizeRoster([], Math.max(2, effectiveBallCount(s)), names) : [])} caseStyle="title" />
           {!plays && <p className="text-xs text-amber-500/90 leading-relaxed">{t("teamsModeNote")}</p>}
+          {plays && maxTeams < MAX_TEAMS && (on || !!search) && (
+            <p className="text-xs text-amber-500/90 leading-relaxed" data-testid="teams-cap-note">
+              {t("teamsModeCapNote", { max: maxTeams })}
+            </p>
+          )}
         </div>
       </Searchable>
       {on && (
@@ -138,7 +147,7 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
             <button
               type="button"
               onClick={() => update(ballCountPatch(s, s.teams.length + 1, names))}
-              disabled={s.teams.length >= MAX_TEAMS}
+              disabled={s.teams.length >= maxTeams}
               className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-dashed border-[#93d119]/40 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ＋ {t("teamAdd")}

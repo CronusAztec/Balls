@@ -53,6 +53,11 @@ const SPEEDS = [1, 2, 4, 8];
 const PAINT_FINISH_HOLD_MS = 1500;
 /** --- teams --- How long the winner banner and its confetti play before the end screen covers them (a recording keeps them). */
 const WINNER_HOLD_MS = 3000;
+/**
+ * A recording whose length runs out after its run finished waits for the end-of-run hold (winner banner, escape
+ * replay, finished picture) instead of cutting it; this long at most (the longest hold is replay + banner, ~7.5 s).
+ */
+const END_HOLD_FALLBACK_MS = 12000;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -723,7 +728,16 @@ export default function Simulator() {
       setIsRecording(false);
       return;
     }
-    recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), 1000 * settings.recordingDuration);
+    recordTimerRef.current = setTimeout(() => {
+      // The run is already over and the page is still holding it (the winner banner, the escape replay, a finished
+      // picture): the effect below stops the export once that hold is over instead of cutting it off here. The
+      // fallback timer only matters if the hold never ends (the run paused by hand, say).
+      if (engineRef.current?.isSimulationFinished()) {
+        recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), END_HOLD_FALLBACK_MS);
+        return;
+      }
+      void stopRecordingAndDownload();
+    }, 1000 * settings.recordingDuration);
   }, [isRecording, isStarted, recordingSupported, settings, start, stopRecordingAndDownload]);
 
   // Stop the recording shortly after the run finishes.
@@ -1104,7 +1118,8 @@ export default function Simulator() {
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
       audioRef.current?.getMusicBed().stop(); // the found run starts over, so the bed does too
-      update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration)) });
+      // --- teams --- the recording also keeps the winner banner's hold after the run
+      update({ recordingDuration: Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + (teamsPlayRef.current ? WINNER_HOLD_MS / 1000 : 0))) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
     }

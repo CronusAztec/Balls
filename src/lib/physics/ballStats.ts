@@ -38,15 +38,30 @@ export const ESCAPE_MARGIN = 10;
  */
 export const MULTI_BALL_MODES: readonly ModeId[] = ["classic", "multiply", "lines", "grow", "shatter", "colorMatch"];
 
+/**
+ * Multi-ball modes that hold fewer than MAX_TEAMS balls. Grow grows every ball to about the radius of its sealed
+ * ring, so three or more balls crush each other through the ring (and the rest jam at hundreds of bounces a second):
+ * it keeps its old limit of two balls, whose runs replay exactly as before.
+ */
+export const MODE_MAX_BALLS: Partial<Record<ModeId, number>> = { grow: 2 };
+
+/** The most balls a multi-ball `mode` starts with (and so the most teams that play in it): its own cap, else MAX_TEAMS. */
+export function modeBallCap(mode: ModeId): number {
+  return MODE_MAX_BALLS[mode] ?? MAX_TEAMS;
+}
+
 /** Colours of the third to sixth starting ball without a team roster (the first two use the ball colours of the settings). */
 export const EXTRA_BALL_COLORS: readonly string[] = ["#33CCFF", "#FFD23F", "#7CFC00", "#C77DFF"];
 
-/** How many balls a run of `mode` starts with: `ballCount` (1–MAX_TEAMS) when the config carries it, else 2 with `twoBalls`. */
+/**
+ * How many balls a run of `mode` starts with: `ballCount` (1 – the mode's cap, `modeBallCap()`) when the config
+ * carries it, else 2 with `twoBalls`.
+ */
 export function startBallCount(config: Pick<PhysicsConfig, "ballCount" | "twoBalls">, mode: ModeId): number {
   if (!MULTI_BALL_MODES.includes(mode)) return 1;
   const n = config.ballCount;
   if (n === undefined || !Number.isFinite(n)) return config.twoBalls ? 2 : 1;
-  return Math.max(1, Math.min(MAX_TEAMS, Math.round(n)));
+  return Math.max(1, Math.min(modeBallCap(mode), Math.round(n)));
 }
 
 /** Colour of the starting ball in slot `slot` (0 = the ball colour, 1 = the second ball colour, then EXTRA_BALL_COLORS). */

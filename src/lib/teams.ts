@@ -1,4 +1,4 @@
-import { MAX_TEAMS, MULTI_BALL_MODES, type BallStats } from "@/lib/physics/ballStats";
+import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap, type BallStats } from "@/lib/physics/ballStats";
 import type { ModeId } from "@/lib/physics/types";
 import { normalizeHexColor } from "@/lib/themes";
 
@@ -190,15 +190,19 @@ export function parseTeams(text: string | null | undefined): TeamEntry[] {
 /* ------------------------------------------------------------------ settings */
 
 interface BallCountFields {
+  mode: ModeId;
   ballCount: number;
   twoBalls: boolean;
   teams: readonly TeamEntry[];
 }
 
-/** How many balls a multi-ball mode starts with: the roster's size when there is one, else the ball count (two with the old switch). */
+/**
+ * How many balls a multi-ball mode starts with: the roster's size when there is one, else the ball count (two with
+ * the old switch) – at most the mode's cap (Grow: two; a bigger roster keeps its teams, and the first ones play).
+ */
 export function effectiveBallCount(settings: BallCountFields): number {
-  if (settings.teams.length > 0) return clampBallCount(settings.teams.length);
-  return clampBallCount(Math.max(settings.ballCount, settings.twoBalls ? 2 : 1));
+  const n = settings.teams.length > 0 ? settings.teams.length : Math.max(settings.ballCount, settings.twoBalls ? 2 : 1);
+  return Math.min(modeBallCap(settings.mode), clampBallCount(n));
 }
 
 /** The settings patch for a new ball count: `twoBalls` follows it, and a roster grows or shrinks with it. */
@@ -361,6 +365,14 @@ export function teamRenderOptions(settings: TeamSettings): TeamRenderOptions | n
 /** Whether teams play in `mode` (the modes that start with several balls). */
 export function teamsPlayIn(mode: ModeId): boolean {
   return MULTI_BALL_MODES.includes(mode);
+}
+
+/**
+ * The most teams a roster edited in `mode` may have: the teams that can play there (Grow: two), or MAX_TEAMS in a
+ * mode without teams (the roster only waits there for a mode that plays it).
+ */
+export function maxTeamsIn(mode: ModeId): number {
+  return teamsPlayIn(mode) ? modeBallCap(mode) : MAX_TEAMS;
 }
 
 /** The name to show for team `index`: its own, or `fallback(n)` ("Team 3") when it has none. */

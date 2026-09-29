@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
-import { BallStatsBook, MAX_TEAMS, MAX_TRACKED_BALLS, MULTI_BALL_MODES, emptyStats, startBallAngle, startBallColor, startBallCount, teamSlotOf, type BallStats } from "@/lib/physics/ballStats";
+import { BallStatsBook, MAX_TEAMS, MAX_TRACKED_BALLS, MODE_MAX_BALLS, MULTI_BALL_MODES, emptyStats, modeBallCap, startBallAngle, startBallColor, startBallCount, teamSlotOf, type BallStats } from "@/lib/physics/ballStats";
 import { MODE_IDS, type ModeId, type PhysicsConfig } from "@/lib/physics/types";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
@@ -11,6 +11,7 @@ import {
   compareTeamStats,
   defaultTeam,
   effectiveBallCount,
+  maxTeamsIn,
   parseTeams,
   pickEmoji,
   rankTeams,
@@ -68,8 +69,8 @@ const modeSettings: ModeSettings = {
 
 const STEP = 1000 / 60;
 
-function engineFor(mode: ModeId, seed: number, ballCount?: number, twoBalls = false): PhysicsEngine {
-  return createEngineForSettings(config, mode, { ...modeSettings, twoBalls, ...(ballCount !== undefined ? { ballCount } : {}) }, seed);
+function engineFor(mode: ModeId, seed: number, ballCount?: number, twoBalls = false, overrides: Partial<PhysicsConfig> = {}): PhysicsEngine {
+  return createEngineForSettings({ ...config, ...overrides }, mode, { ...modeSettings, twoBalls, ...(ballCount !== undefined ? { ballCount } : {}) }, seed);
 }
 
 /** Runs `frames` steps (or until the run finishes) and counts the sound events by type. */
@@ -297,12 +298,14 @@ describe("ball stats book", () => {
 describe("several balls in the engine", () => {
   it("starts 1–6 balls only in the multi-ball modes, the ball count overriding the two-ball switch", () => {
     for (const mode of MODE_IDS) {
-      const expected = MULTI_BALL_MODES.includes(mode) ? 4 : 1;
+      const expected = MULTI_BALL_MODES.includes(mode) ? Math.min(4, modeBallCap(mode)) : 1;
       expect(startBallCount({ ballCount: 4 }, mode)).toBe(expected);
     }
     expect(startBallCount({ twoBalls: true }, "classic")).toBe(2);
     expect(startBallCount({ twoBalls: true, ballCount: 1 }, "classic")).toBe(1);
-    expect(startBallCount({ ballCount: 99 }, "grow")).toBe(MAX_TEAMS);
+    expect(startBallCount({ ballCount: 99 }, "classic")).toBe(MAX_TEAMS);
+    expect(startBallCount({ ballCount: 99 }, "grow")).toBe(2);
+    expect(startBallCount({ twoBalls: true }, "grow")).toBe(2);
     expect(startBallCount({}, "shatter")).toBe(1);
     expect(startBallColor(0, { ballColor: "#111111", ballColor2: "#222222" })).toBe("#111111");
     expect(startBallColor(1, { ballColor: "#111111", ballColor2: "#222222" })).toBe("#222222");
@@ -315,12 +318,13 @@ describe("several balls in the engine", () => {
     for (const mode of MULTI_BALL_MODES) {
       const engine = engineFor(mode, 42, 5);
       const balls = engine.getBalls();
-      expect(balls.map((b) => b.team)).toEqual([0, 1, 2, 3, 4]);
+      const n = Math.min(5, modeBallCap(mode));
+      expect(balls.map((b) => b.team)).toEqual([0, 1, 2, 3, 4].slice(0, n));
       const a0 = Math.atan2(balls[0].vy, balls[0].vx);
       balls.forEach((b, i) => {
         expect(Math.hypot(b.vx, b.vy)).toBeCloseTo(400, 6);
         const turn = (((Math.atan2(b.vy, b.vx) - a0) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-        expect(turn).toBeCloseTo((i * 2 * Math.PI) / 5, 6);
+        expect(turn).toBeCloseTo((i * 2 * Math.PI) / n, 6);
       });
     }
     // A mode without several balls ignores the count; Ball Drop keeps its own balls, without teams.
@@ -384,6 +388,57 @@ describe("several balls in the engine", () => {
     }
   });
 
+  it("counts the escape that ends a Shatter or Color Match run with breathing walls, so the banner names the right winner", () => {
+    // The escape scan measures against the live (pulsing) outer wall, like the modes' own end tests (+20 / +30 px),
+    // so the escape is on the books in the step the run ends – the scoreboard freezes on that frame. Measured against
+    // the widest pulse instead, most of these runs ended with no escape counted and the winner picked by walls.
+    for (const breathingAmplitude of [0.05, 0.1, 0.3]) {
+      for (const mode of ["shatter", "colorMatch"] as ModeId[]) {
+        for (let seed = 1; seed <= 8; seed++) {
+          const engine = engineFor(mode, seed, 3, false, { breathingAmplitude, breathingSpeed: 1 });
+          run(engine, 60 * 120, true);
+          const label = `${mode} bw=${breathingAmplitude} seed ${seed}`;
+          expect(engine.isSimulationFinished(), label).toBe(true);
+          const teams = engine.getTeamStats();
+          expect(sum(teams, "escapes"), label).toBeGreaterThanOrEqual(1);
+          const winner = teamResult(teams, 3).winner;
+          if (winner >= 0) expect(teams[winner].escapes, label).toBeGreaterThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  it("Grow keeps its old limit of two balls: none ever leaves the sealed ring, and two-ball runs replay as before", () => {
+    expect(MODE_MAX_BALLS.grow).toBe(2);
+    expect(modeBallCap("grow")).toBe(2);
+    expect(modeBallCap("classic")).toBe(MAX_TEAMS);
+    // The roster limit: two teams play in Grow; a mode without teams keeps the whole roster for the next mode.
+    expect(maxTeamsIn("grow")).toBe(2);
+    expect(maxTeamsIn("classic")).toBe(MAX_TEAMS);
+    expect(maxTeamsIn("portal")).toBe(MAX_TEAMS);
+    const grow = defaultSettings("grow");
+    expect(effectiveBallCount({ ...grow, ballCount: 6 })).toBe(2);
+    expect(effectiveBallCount({ ...grow, teams: resizeRoster([], 4) })).toBe(2);
+    expect(effectiveBallCount({ ...defaultSettings("classic"), teams: resizeRoster([], 4) })).toBe(4);
+    for (let seed = 1; seed <= 6; seed++) {
+      const six = engineFor("grow", seed, 6);
+      expect(six.getBalls().map((b) => b.team)).toEqual([0, 1]);
+      const oldTwo = engineFor("grow", seed, undefined, true);
+      run(six, 60 * 60);
+      run(oldTwo, 60 * 60);
+      expect(snapshot(six)).toEqual(snapshot(oldTwo));
+      expect(sum(six.getTeamStats(), "escapes"), `seed ${seed}`).toBe(0);
+      const cx = config.width / 2;
+      const cy = config.height / 2;
+      const ring = six.getCircularWalls()[0].radius;
+      for (const b of six.getBalls()) expect(Math.hypot(b.x - cx, b.y - cy), `seed ${seed}`).toBeLessThan(ring);
+    }
+    // The live change stays inside the cap too.
+    const live = engineFor("grow", 3);
+    live.setBallCount(6);
+    expect(live.getBalls().map((b) => b.team)).toEqual([0, 1]);
+  });
+
   it("Multiply: the start count sets the first balls and the new balls play for the team of the ball that escaped", () => {
     const engine = engineFor("multiply", 5, 3);
     expect(engine.getBalls()).toHaveLength(3);
@@ -399,7 +454,7 @@ describe("several balls in the engine", () => {
   });
 
   it("adds and removes balls live, and a restart zeroes the stats", () => {
-    const engine = engineFor("grow", 3);
+    const engine = engineFor("classic", 3);
     run(engine, 60);
     engine.setBallCount(4);
     expect(engine.getBalls().map((b) => b.team)).toEqual([0, 1, 2, 3]);
@@ -411,7 +466,7 @@ describe("several balls in the engine", () => {
     expect(sum(engine.getTeamStats(), "bounces")).toBeGreaterThan(0);
     const generation = engine.getStatsGeneration();
     engine.setBallCount(3);
-    engine.initMode("grow");
+    engine.initMode("classic");
     expect(engine.getBalls()).toHaveLength(3);
     expect(engine.getStatsGeneration()).toBeGreaterThan(generation);
     expect(sum(engine.getTeamStats(), "bounces")).toBe(0);

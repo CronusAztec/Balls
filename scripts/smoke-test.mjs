@@ -1371,6 +1371,49 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
 }
 
 // --- teams ---
+/**
+ * Finds a 30 s run of Classic with the given extra query (a team roster and more), records it at 1× and checks
+ * that the finder set the export length to the run plus the winner banner's 3 s hold, and that the export stops
+ * only after the banner has been on screen for most of that hold (the recorder copies the canvas).
+ */
+const findAndRecordTeams = async (query, name) => {
+  await page.goto(`${BASE}/en/simulator/?mode=classic&${query}&res=500x500`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  await page.waitForTimeout(100);
+  const result = page.getByText(/Found!|Didn't find simulation/).first();
+  const found = await result.waitFor({ timeout: 180000 }).then(() => true).catch(() => false);
+  const text = found ? await result.innerText() : "timeout";
+  const runSec = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  // The panel hides the length slider while a found run is loaded; the link carries it (`dur`).
+  await page.waitForTimeout(500);
+  const duration = Number(new URLSearchParams(page.url().split("?")[1] || "").get("dur"));
+  let wonAt = 0;
+  let recordedAt = 0;
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+    (async () => {
+      if (!Number.isFinite(runSec)) return;
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      recordedAt = Date.now();
+      await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 80000 }).catch(() => {});
+      wonAt = Date.now();
+    })(),
+  ]).then(([d]) => d);
+  const doneAt = Date.now();
+  let bytes = 0;
+  if (download) {
+    const file = path.join(outDir, `teams-found-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    bytes = fs.statSync(file).size;
+  }
+  const heldMs = wonAt ? doneAt - wonAt : 0;
+  check(
+    name,
+    Number.isFinite(runSec) && duration >= runSec + 2.95 && duration <= runSec + 4.05 && wonAt > 0 && bytes > 10000 && heldMs >= 2500,
+    `(${text.replace(/\s+/g, " ")}, export length ${duration} s, winner ${wonAt ? ((wonAt - recordedAt) / 1000).toFixed(1) : "-"} s into the recording, export done ${heldMs} ms after it, ${bytes} bytes)`,
+  );
+};
+
 // 14. Team balls with scoreboard: URL → the Teams section (roster rows, scoreboard corner) and the Ball Count slider, the
 // old `two=1` link as two balls, controls → URL (a fourth team renamed with its own emoji, the corner), the search box,
 // a Classic run of three teams that scores per team on the canvas (data-team-*: teams, labels, bounces/walls/escapes),
@@ -1461,6 +1504,49 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
     check("Color Match plays with three team balls and credits the segments they break", scored && data.teams === "3", `(${data.teamStats})`);
     await page.screenshot({ path: path.join(outDir, "sim-teams-colormatch.png") });
   }
+  // Shatter with breathing walls at their widest (bw=0.3): the escape that ends the run is on the frozen scoreboard, so
+  // the banner names a team that escaped (the escape scan measures against the live, pulsing outer wall – the one
+  // Shatter's own end test uses – instead of the widest pulse, which the run used to end before reaching).
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&teams=${encodeURIComponent(roster)}&bw=0.3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 90000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const escapes = (data.teamStats || "").split(",").map((t) => Number(t.split("/")[2]));
+    const winnerIndex = ["Red", "Blue", "Green"].indexOf(data.teamWinner);
+    const winnerEscapes = winnerIndex >= 0 ? escapes[winnerIndex] : Math.max(0, ...escapes);
+    await page.screenshot({ path: path.join(outDir, "sim-teams-shatter-breathing.png") });
+    check("with breathing walls the escape that ends a Shatter run is on the scoreboard and wins", won && escapes.reduce((a, b) => a + b, 0) >= 1 && winnerEscapes >= 1, `(winner=${data.teamWinner}, bounces/walls/escapes per team=${data.teamStats})`);
+  }
+  // Grow takes two balls at most (every ball grows to about the ring's size, so more would crush each other through
+  // the sealed ring): a roster of four keeps its teams but plays its first two – the Ball Count stops at two, Add Team
+  // is disabled and a note says so – and at 8× neither ball leaves the ring.
+  {
+    const roster4 = `${roster},Gold*eab308*⭐`;
+    await page.goto(`${BASE}/en/simulator/?mode=grow&teams=${encodeURIComponent(roster4)}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Ball & Physics/ }).click();
+    const count = await sliderValue("Ball Count");
+    const max = await page.locator('input[aria-label="Ball Count"]').getAttribute("max");
+    await page.getByRole("button", { name: /Teams & Scoreboard/ }).click();
+    const note = await page.getByTestId("teams-cap-note").isVisible().catch(() => false);
+    const addDisabled = await page.getByRole("button", { name: /Add Team/ }).isDisabled();
+    const rows = await page.locator('[data-testid="team-row"]').count();
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForTimeout(5000);
+    const data = await canvasData();
+    const stats = (data.teamStats || "").split(",");
+    check(
+      "Grow plays two team balls at most and neither leaves the sealed ring",
+      count === "2" && max === "2" && note && addDisabled && rows === 4 && data.teams === "2" && stats.length === 2 && stats.every((t) => Number(t.split("/")[2]) === 0) && teamsQuery().get("teams") === roster4,
+      `(ball count ${count} of max ${max}, note=${note}, add disabled=${addDisabled}, rows=${rows}, teams in play=${data.teams}, stats=${data.teamStats}, teams=${teamsQuery().get("teams")})`,
+    );
+  }
+  // Find Simulation + Record with teams, at 1×: the finder sets the export length to the run plus the winner's 3 s
+  // hold, and the export keeps recording through the banner and its confetti instead of stopping when its length
+  // runs out right after the run.
+  await findAndRecordTeams(`teams=${encodeURIComponent(roster)}`, "Find + Record with teams keeps the winner banner in the export");
 }
 // --- end teams ---
 // --- camera ---
@@ -1576,6 +1662,9 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
     playing && during.cameraReplay === "playing" && !during.teamWinner && Number(during.teamLabels) >= 1 && won && !endScreenEarly && endScreen && heldMs >= 2000,
     `(playing=${playing}, during replay: winner="${during.teamWinner}", labels=${during.teamLabels}; won=${won}, end screen early=${endScreenEarly}, held ${heldMs} ms)`,
   );
+  // Find + Record at 1× with the replay too: the export length (run + 3 s) runs out while the escape replay plays,
+  // before the banner even shows – the export waits for the replay and the banner's hold instead of cutting them.
+  await findAndRecordTeams(`teams=${encodeURIComponent(roster)}&replay=1`, "Find + Record with teams and the escape replay keeps the replay and then the winner banner in the export");
 }
 // --- end teams + camera ---
 
