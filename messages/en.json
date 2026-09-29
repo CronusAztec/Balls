@@ -903,6 +903,7 @@
     "forcedWinnerTip": "The chosen ball – its team – always wins: the other balls cannot get through a wall before it has, and the director steers its rebounds toward the gaps. It breaks the walls first and escapes first, so it tops the scoreboard.",
     "forcedWinnerOff": "Off – let physics decide",
     "forcedWinnerModes": "Needs two balls or more (Ball Count or a team roster) in Classic, Multiply, Shatter or Color Match.",
+    "forcedWinnerNeverEscape": "Off while Never Escape is on: in this mode the chosen team wins by escaping, and nobody escapes. Together with Never Escape the Forced Winner works in Classic, where the walls it breaks first decide.",
     "timelineTab": "Timeline",
     "timeline": "Timeline keyframes",
     "timelineDesc": "Automate settings over the clip: pick a setting, set its value and add a keyframe at the current time. Between two keyframes the value glides in a straight line; before the first and after the last it holds.",

@@ -49,7 +49,35 @@ export class GrowMode implements GameMode {
     const walls = ctx.getCircularWalls();
     if (walls.length > 0) this.centerDotRadius = Math.max(5, 0.02 * walls[0].radius);
   }
-  onPreUpdate() {}
+  /**
+   * The largest radius a ball may have in ring `wallIndex`: the smallest radius the ring reaches, less 2 px. With
+   * breathing walls the live radius pulses around its base by ±amplitude, so the cap is the trough of the pulse, not
+   * the current (possibly peaking) size – otherwise the ring would shrink under a ball that outgrew it.
+   */
+  private maxBallRadius(ctx: ModeContext, wallIndex: number): number {
+    const wall = ctx.getCircularWalls()[wallIndex];
+    if (!wall) return Infinity;
+    const baseRadii = ctx.getWallBaseRadii();
+    const base = wallIndex < baseRadii.length ? baseRadii[wallIndex] : wall.radius;
+    return Math.min(wall.radius, base * (1 - ctx.getPhysicsExtras().breathingAmplitude)) - 2;
+  }
+  /**
+   * A grown ball keeps its size relative to the Ball Size (`radiusScale`), so a Ball Size keyframe or slider scales it;
+   * scaled up (or with a wider keyframed breathing that deepens the trough) it is held to the ring's cap here, before
+   * the step moves it. In a run whose Ball Size and breathing stay put no ball is ever above the cap: nothing changes.
+   * A ball grown by a size multiplier is left to the multipliers, which refit it (the ring bursts, the run ends).
+   */
+  onPreUpdate(ctx: ModeContext) {
+    const balls = ctx.getBalls();
+    if (balls.length === 0 || ctx.getCircularWalls().length === 0) return;
+    const cap = this.maxBallRadius(ctx, 0);
+    if (!(cap > 0)) return;
+    for (const ball of balls) {
+      if (!(ball.radius > cap) || (ball.mult && ball.mult.size !== 1)) continue;
+      ball.radius = cap;
+      ball.radiusScale = cap / (ctx.config.ballRadius || 8);
+    }
+  }
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     this.elapsedTime += dtSec;
     if (!this.centerDotEnabled) return;
@@ -77,16 +105,14 @@ export class GrowMode implements GameMode {
   onWallHit(ctx: ModeContext, ball: Ball, wallIndex: number): WallHitResult | void {
     const wall = ctx.getCircularWalls()[wallIndex];
     if (wall) {
-      // The ball may only ever grow up to the smallest radius the ring reaches. With breathing walls the live
-      // radius pulses around its base by ±amplitude, so the cap is the trough of the pulse, not the current
-      // (possibly peaking) size – otherwise the ring would shrink under a ball that outgrew it.
-      const baseRadii = ctx.getWallBaseRadii();
-      const base = wallIndex < baseRadii.length ? baseRadii[wallIndex] : wall.radius;
-      const minWallRadius = Math.min(wall.radius, base * (1 - ctx.getPhysicsExtras().breathingAmplitude));
-      const maxRadius = minWallRadius - 2;
+      // The ball may only ever grow up to the smallest radius the ring reaches (the trough of a breathing pulse).
+      const maxRadius = this.maxBallRadius(ctx, wallIndex);
       if (ball.radius < maxRadius) {
         const rate = this.growRate / 100;
         ball.radius = Math.min(maxRadius, ball.radius + (maxRadius - ball.radius) * (rate * rate * 2.1));
+        // The grown size relative to the Ball Size: a keyframed (or dragged) Ball Size then scales the ball instead of
+        // resetting it to the plain size (setConfig() sets every ball to ballRadius × radiusScale).
+        ball.radiusScale = ball.radius / (ctx.config.ballRadius || 8);
       }
       const cx = ctx.config.width / 2;
       const cy = ctx.config.height / 2;

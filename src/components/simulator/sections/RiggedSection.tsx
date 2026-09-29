@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, Toggle, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { teamChoiceNames } from "../FinderOutcomeFields";
-import { BATTLE_WINNER_MODES, WINNER_MODES, forcedWinnerApplies, neverEscapeApplies } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
+import { BATTLE_WINNER_MODES, WINNER_MODES, forcedWinnerApplies, forcedWinnerBlockedByNeverEscape, neverEscapeApplies } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import type { SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 
@@ -71,6 +71,11 @@ export default function RiggedSection({ t, search, matches, settings: s, update 
             ))}
           </select>
           {(!winnerPlays || (winner >= 0 && !forcedWinnerApplies(s.mode, count, winner))) && <p className="text-xs text-zinc-500 leading-relaxed">{t("forcedWinnerModes")}</p>}
+          {winnerPlays && winner >= 0 && forcedWinnerBlockedByNeverEscape(s.mode, s.neverEscape) && (
+            <p className="text-xs text-amber-500/90 leading-relaxed" data-testid="forced-winner-never-escape">
+              {t("forcedWinnerNeverEscape")}
+            </p>
+          )}
         </div>
       </Searchable>
     </>
