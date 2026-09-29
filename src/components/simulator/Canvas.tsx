@@ -8,6 +8,8 @@ import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions 
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
+// --- jdm-collisions ---
+import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 // --- boris-faces ---
 import { FaceLayer } from "./faceRenderer";
@@ -56,6 +58,9 @@ export interface CanvasLabels {
   paintBehind: string;
   paintAhead: string;
   paintBeat: (bpm: number) => string;
+  // --- jdm-collisions ---
+  /** Collision Playground: the caption of the anti-collision switch. */
+  collideAnti?: string;
 }
 
 export interface CanvasHandle {
@@ -151,6 +156,8 @@ const DEFAULT_LABELS: CanvasLabels = {
   paintBehind: "behind schedule",
   paintAhead: "ahead of schedule",
   paintBeat: (bpm) => `♩ ${bpm} BPM`,
+  // --- jdm-collisions ---
+  collideAnti: "ANTI-COLLISION",
 };
 
 const TWO_PI = Math.PI * 2;
@@ -478,6 +485,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bobBodyColor = (ball: { color: string }) => ball.color;
     // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the renderer's options, refreshed per frame.
     const polyRender: PolyrhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
+    // --- jdm-collisions --- Collision Playground: the renderer's options, refreshed per frame.
+    const collideRender: CollideRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, trailThickness: 0.8 };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -843,6 +852,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         polyRender.wallThickness = p.wallThickness;
         polyRender.showGlow = p.showGlow;
         drawPolyrhythmStage(ctx, engine.getPolyrhythmView(), polyRender);
+      }
+
+      // --- jdm-collisions --- Collision Playground: the container (or the lollipop track), glowing after a hit.
+      const isCollide = engine.isCollideMode();
+      if (isCollide) {
+        collideRender.wallColor = wallColor;
+        collideRender.wallThickness = p.wallThickness;
+        collideRender.showWallGlow = p.showWallGlow;
+        collideRender.showGlow = p.showGlow;
+        collideRender.showTrails = p.showTrails;
+        collideRender.trailThickness = p.trailThickness;
+        drawCollideArena(ctx, engine.getCollideView(), collideRender);
       }
 
       // Color Match segments
@@ -1292,6 +1313,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
+      // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
+      else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
       else balls.forEach((ball, index) => {
         const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
         // Trail
@@ -1556,6 +1579,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isPendulum) drawPendulumChordFlash(ctx, size.width, size.height, engine.getPendulumView());
       // --- jdm-polyrhythm --- every voice ticking at once lights up the frame.
       if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
+      // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
+      if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
 
       // HUD: mode counters in the centre
       {
@@ -1896,6 +1921,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("nameLabel", faces.labelShown);
       } else if (canvas.dataset.face !== undefined) {
         for (const key of ["face", "faceExpression", "faceCount", "nameLabel"]) delete canvas.dataset[key];
+      }
+      // --- jdm-collisions --- Collision Playground: bodies, collisions, notes and the anti-collision state (data-collide-*) for tools and the smoke test.
+      if (isCollide) {
+        const view = engine.getCollideView();
+        setCanvasData("collideBodies", String(view.count));
+        setCanvasData("collideCollisions", String(view.collisions));
+        setCanvasData("collideNotes", String(view.notes));
+        setCanvasData("collideAnti", view.antiActive ? "1" : "0");
+      } else if (canvas.dataset.collideBodies !== undefined) {
+        for (const key of ["collideBodies", "collideCollisions", "collideNotes", "collideAnti"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

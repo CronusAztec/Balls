@@ -7,6 +7,8 @@ import { resolvePendulumSettings } from "@/lib/physics/modes/pendulum";
 // --- jdm-polyrhythm ---
 import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSettings } from "@/lib/physics/modes/polyrhythm";
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
+// --- jdm-collisions ---
+import type { CollideSettings } from "@/lib/physics/modes/collide";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -37,6 +39,9 @@ export interface ModeSettings {
   // --- jdm-polyrhythm ---
   /** Metronomes & Polyrhythms: voices, tempo series, cycle and cycles (see modes/polyrhythm.ts); the defaults when left out. */
   polyrhythm?: Partial<PolyrhythmSettings>;
+  // --- jdm-collisions ---
+  /** Collision Playground: count, sizes, container, gravity, restitution and the variants (see modes/collide.ts); the defaults when left out. */
+  collide?: Partial<CollideSettings>;
 }
 
 /** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
@@ -50,6 +55,8 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  */
 export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
+  // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
+  if (mode === "collide") return true;
   if (mode === "drop") return resolveDropSettings(settings.drop).loop;
   if (mode === "box") return resolveBoxSettings(settings.box).countdown === 0;
   if (mode === "pendulum") return resolvePendulumSettings(settings.pendulum).cycles === 0;
@@ -134,6 +141,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "box") engine.setBoxSettings(settings.box);
   if (mode === "pendulum") engine.setPendulumSettings(settings.pendulum ?? {});
   if (mode === "polyrhythm") engine.setPolyrhythmSettings(settings.polyrhythm ?? {}); // --- jdm-polyrhythm ---
+  // --- jdm-collisions ---
+  if (mode === "collide") engine.setCollideSettings(settings.collide ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

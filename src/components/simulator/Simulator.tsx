@@ -16,6 +16,8 @@ import { boxSettingsOf } from "@/lib/physics/modes/box";
 import { dropSettingsOf } from "@/lib/physics/modes/drop";
 import { pendulumSettingsOf } from "@/lib/physics/modes/pendulum";
 import { parseCustomRatios, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm"; // --- jdm-polyrhythm ---
+// --- jdm-collisions ---
+import { collideSettingsOf } from "@/lib/physics/modes/collide";
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -138,6 +140,8 @@ export default function Simulator() {
     engine.setBoxSettings(boxSettingsOf(s));
     engine.setPendulumSettings(pendulumSettingsOf(s));
     engine.setPolyrhythmSettings(polyrhythmSettingsOf(s)); // --- jdm-polyrhythm ---
+    // --- jdm-collisions ---
+    engine.setCollideSettings(collideSettingsOf(s));
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -327,6 +331,21 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.prLayout, s.prArcStyle, s.prPolygon, s.prAccentEvery, s.prPitchBy, s.prNumbers, s.prCustom]);
   // --- end jdm-polyrhythm ---
+  // --- jdm-collisions --- Collision Playground: a change of the playground (count, sizes, container, physics, variants) restarts it.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setCollideSettings(collideSettingsOf(s));
+    if (s.mode === "collide" && engine.getCurrentModeName() === "collide") {
+      engine.initCollide();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSquishy, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
+  // Any Collision Playground change invalidates a found seed too (the finder hides itself for this endless mode, but a seed may be pinned).
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -530,7 +549,7 @@ export default function Simulator() {
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
-          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord);
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
           else if (ev.type === "gap") audio.playGapPass();
           else audio.playInteraction(ev.type);
         }
@@ -1049,6 +1068,8 @@ export default function Simulator() {
           box: boxSettingsOf(settings),
           pendulum: pendulumSettingsOf(settings),
           polyrhythm: polyrhythmSettingsOf(settings), // --- jdm-polyrhythm ---
+          // --- jdm-collisions ---
+          collide: collideSettingsOf(settings),
         },
       },
       (p) => setSearchProgress(p),
@@ -1119,6 +1140,8 @@ export default function Simulator() {
       paintBehind: t("Simulator.canvasPaintBehind"),
       paintAhead: t("Simulator.canvasPaintAhead"),
       paintBeat: (bpm) => fill("Simulator.canvasPaintBeat", { bpm }),
+      // --- jdm-collisions ---
+      collideAnti: t("Simulator.canvasCollideAnti"),
     };
   }, [t]);
 

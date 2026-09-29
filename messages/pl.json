@@ -101,7 +101,8 @@
     "shareLinkCopied": "Link skopiowany!",
     "canvasPolyrhythmDone": "W FAZIE!",
     "canvasPolyrhythmAligned": "Wszystkie głosy ([count]) znów w fazie po cyklach: [cycles]",
-    "finderFixedPolyrhythm": "Metronomy i polirytmy przy tych ustawieniach trwają zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień długość cyklu, tempa albo liczbę cykli w wierszu Tryb, żeby trafić w cel."
+    "finderFixedPolyrhythm": "Metronomy i polirytmy przy tych ustawieniach trwają zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień długość cyklu, tempa albo liczbę cykli w wierszu Tryb, żeby trafić w cel.",
+    "canvasCollideAnti": "ANTYKOLIZJA"
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -617,7 +618,32 @@
     "prCyclesTip": "Po ilu cyklach symulacja się kończy, ze wszystkimi głosami znów w fazie. 0 pozwala jej tykać bez końca.",
     "prCyclesNever": "Nigdy",
     "prOff": "Wył.",
-    "prRealign": "Wszystkie głosy zgrywają się co {seconds}s"
+    "prRealign": "Wszystkie głosy zgrywają się co {seconds}s",
+    "modeCollide": "Poligon zderzeń",
+    "cpTitle": "Poligon zderzeń",
+    "cpDesc": "Setki kul różnej wielkości odbijają się od ścian i od siebie nawzajem – masa rośnie z rozmiarem – a każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli: duże kule nisko, małe wysoko.",
+    "cpCount": "Kule",
+    "cpCountTip": "Ile kul się zderza, od 10 do 2000. Ich rozmiar dobiera się sam, tak by wypełniły pojemnik (Rozmiar piłki je powiększa lub zmniejsza); na pierścieniu mieści się najwyżej 36 lizaków.",
+    "cpCountOnRing": "{count} na pierścieniu",
+    "cpSizeSpread": "Różnorodność rozmiarów",
+    "cpSizeSpreadTip": "Jak bardzo kule się różnią: 0 to wszystkie jednakowe, 100% rozrzuca je od jednej trzeciej do trzykrotności rozmiaru bazowego. Masa rośnie z polem, więc duże kule rozpychają małe – a większe kule grają niższe nuty.",
+    "cpContainer": "Pojemnik",
+    "cpContainerTip": "Kształt, w którym odbijają się kule: okrąg albo kwadrat, oba wypełniają środek filmu.",
+    "cpContainerCircle": "Okrąg",
+    "cpContainerBox": "Kwadrat",
+    "cpGravity": "Grawitacja kul",
+    "cpGravityTip": "Jaka część ustawienia grawitacji ściąga kule w dół. 0 to swobodnie unoszący się gaz kul; wyższe wartości gromadzą je na dnie, a one wciąż się odbijają.",
+    "cpRestitution": "Sprężystość",
+    "cpRestitutionTip": "Współczynnik restytucji każdego zderzenia: 1 to zderzenia idealnie sprężyste (kule nigdy nie tracą energii), 0,7 to miękkie i tłumione, więc przy grawitacji kule układają się w stos.",
+    "cpSquishy": "Galaretowate",
+    "cpSquishyTip": "Zgniatanie i rozciąganie: każde uderzenie na ułamek sekundy (120 ms) spłaszcza kulę w kierunku zderzenia, jak piłkę z galaretki. Efekt czysto wizualny.",
+    "cpSyncStart": "Start w synchronizacji",
+    "cpSyncStartTip": "Wszystkie kule startują z siatki w tej samej chwili – ze spoczynku przy grawitacji albo lecąc w tę samą stronę bez niej – więc spadają i odbijają się synchronicznie. Połącz z opcją Galaretowate i różnorodnością rozmiarów 0, by nagrać klip „galaretowate kule odbijają się w synchronizacji”.",
+    "cpAntiCollisionAt": "Antykolizja od",
+    "cpAntiCollisionAtTip": "Sekunda przebiegu, w której system kolizji się wyłącza: kule zmieniają kolor i przenikają przez siebie (od pojemnika wciąż się odbijają). Wył. oznacza zderzenia bez końca.",
+    "cpAntiOff": "Wył.",
+    "cpRing": "Lizaki na pierścieniu",
+    "cpRingTip": "Przypina ciała do okrągłego toru: każde to lizak – patyczek od środka do krążka – który zderza się z sąsiadami wzdłuż pierścienia. Z grawitacją kołyszą się jak wahadła wokół dołu."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -642,6 +668,10 @@
     "polyrhythm": {
       "name": "Metronomy i polirytmy",
       "description": "Do 400 głosów tyka we własnym tempie – kropki krążące po okręgach w rytmie 3:4:5, kropki sunące w poprzek koła, siatka metronomów rozjeżdżających się w fazie, spirala – a każde tyknięcie to nuta. Rozchodzą się w polirytmy i wracają do wspólnej fazy z błyskiem i akordem."
+    },
+    "collide": {
+      "name": "Poligon zderzeń",
+      "description": "Setki różnorodnych kul zderza się w okręgu albo w kwadracie, a każde zderzenie gra cichą nutę zależną od rozmiaru. Zrób je galaretowate, puść je synchronicznie, wyłącz kolizje w trakcie albo ustaw lizaki na pierścieniu."
     }
   },
   "Features": {
@@ -784,7 +814,8 @@
     "troubleMidiA": "Bardzo złożone pliki z wieloma jednoczesnymi ścieżkami mogą się nie wczytać. Spróbuj prostszego pliku MIDI z jedną melodią (format 0 lub 1). Narzędzie zachowuje tylko najwyższą nutę w danym momencie, więc eksport samej linii melodycznej z programu muzycznego działa najlepiej.",
     "troubleStuckQ": "Nadal masz problem?",
     "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś.",
-    "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu."
+    "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu.",
+    "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru."
   },
   "Footer": {
     "about": "O nas",

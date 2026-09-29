@@ -23,3 +23,6 @@ export type { PendulumSettings, PendulumLayout, PendulumSoundOn, PendulumPitchDi
 // --- jdm-polyrhythm ---
 export { PolyrhythmMode } from "./polyrhythm";
 export type { PolyrhythmSettings, PolyLayout, PolyArcStyle, PolyTempos, PolyPitchBy, PolyGeometry, PolyrhythmView, TempoSeries } from "./polyrhythm";
+// --- jdm-collisions ---
+export { CollideMode } from "./collide";
+export type { CollideSettings, CollideContainer, CollideField, CollideView } from "./collide";

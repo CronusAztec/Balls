@@ -29,6 +29,8 @@ const MODES = {
   box: { wait: 5500, query: "bxs=dvd&bxn=3&bxc=60&glow=1" },
   pendulum: { wait: 6000, query: "pwn=20&pwk=24&pwt=40&pwtr=0.5&glow=1" },
   polyrhythm: { wait: 4000, query: "prt=custom&prcu=3,4,5,6,7,8,9,10&prcs=12&prp=1&prnum=1&glow=1" }, // --- jdm-polyrhythm ---
+  // --- jdm-collisions ---
+  collide: { wait: 5000, query: "cpsq=1&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

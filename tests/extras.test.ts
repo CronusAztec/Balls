@@ -88,6 +88,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   pendulum: { samples: [[399501,400691],[379898,395526],[284800,418527],[222616,395526],[170099,400691],[147704,370097],[125166,383137],[222616,395526]], broken: [], walls: [] },
   // --- jdm-polyrhythm --- Metronomes & Polyrhythms: analytic motion, no rings; recorded when the mode was added (seed 12345, default: 16 rings, ratios 1–16 per 30 s).
   polyrhythm: { samples: [[420160,265082],[447525,272562],[434918,279840],[447525,327438],[440320,300000],[400000,354877],[434918,320160],[352475,327438]], broken: [], walls: [] },
+  // --- jdm-collisions --- Collision Playground: no rings; recorded when the mode was added (seed 12345, default playground: 300 orbs in a circle, gravity 0.3, restitution 1).
+  collide: { samples: [[487111,370370],[324053,350598],[415811,486674],[350075,374418],[451355,560543],[439759,425664],[412621,562530],[541650,361374]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

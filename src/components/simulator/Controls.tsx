@@ -16,6 +16,8 @@ import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type Paint
 import PolyrhythmSection, { POLYRHYTHM_KEYS } from "./sections/PolyrhythmSection"; // --- jdm-polyrhythm ---
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import ThemeSection, { THEME_KEYS, type ThemeImageProps } from "./sections/ThemeSection"; // --- themes
+// --- jdm-collisions ---
+import CollisionPlaygroundSection, { COLLISION_PLAYGROUND_KEYS } from "./sections/CollisionPlaygroundSection";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -93,7 +95,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 
 /** Which searchable controls belong to which section (used by the search box). */
 const SECTION_KEYS: Record<ControlSection, string[]> = {
-  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS, ...CHARACTER_KEYS],
+  ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, ...BOX_ARENA_KEYS, ...PENDULUM_WAVE_KEYS, ...COLLISION_PLAYGROUND_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS, ...CHARACTER_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
   visual: [...THEME_KEYS, "trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
@@ -155,6 +157,8 @@ export default function Controls(props: ControlsProps) {
     box: t("modeBox"),
     pendulum: t("modePendulum"),
     polyrhythm: t("modePolyrhythm"), // --- jdm-polyrhythm ---
+    // --- jdm-collisions ---
+    collide: t("modeCollide"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -218,6 +222,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "box" && !!search && <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "pendulum" && !!search && <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "polyrhythm" && !!search && <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- jdm-collisions --- */}
+      {s.mode === "collide" && !!search && <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
@@ -296,10 +302,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm"].includes(s.mode);
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm"].includes(s.mode);
-    // Ball Drop, Bouncing Shapes, Pendulum Wave and Metronomes & Polyrhythms have no rings, but their pegs, bars, box walls, rigs and guides are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm";
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide"].includes(s.mode);
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide"].includes(s.mode);
+    // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide";
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1020,6 +1026,9 @@ export default function Controls(props: ControlsProps) {
         return <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "polyrhythm": // --- jdm-polyrhythm ---
         return <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- jdm-collisions ---
+      case "collide":
+        return <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:
