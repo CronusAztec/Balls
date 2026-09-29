@@ -8,8 +8,10 @@ import type { Ball, GameMode, ModeContext } from "../types";
  * (10–2000) of orbs of varied sizes – masses proportional to their area – bounce around a circular or square
  * container and off each other with elastic collisions (`restitution` 0.7–1), optionally under gravity. Every
  * collision plays a soft note pitched by the smaller body's size (bigger = lower, on a pentatonic ladder the tone
- * generator then snaps to the chosen scale), at most `MAX_SOUNDS_PER_STEP` per 60 Hz step – the most energetic
- * ones – so a dense run is a shimmering texture instead of a wall of noise. Variants:
+ * generator then snaps to the chosen scale), at most `MAX_SOUNDS_PER_FRAME` per rendered frame – the most
+ * energetic ones, kept across however many 60 Hz steps the frame runs (several at a faster playback speed) and
+ * queued when the frame consumes its sounds (`flushPendingSounds()`) – so a dense run is a shimmering texture
+ * instead of a wall of noise at any speed. Variants:
  *  - **squishy**: squash-and-stretch on every impact, a render-only deformation along the contact normal that
  *    decays over `SQUASH_MS` (120 ms);
  *  - **sync start**: all orbs start on a grid at the same instant (from rest under gravity, otherwise with one
@@ -157,8 +159,11 @@ export const RING_MAX_FILL = 0.8;
 export const SIZE_SPREAD_RATIO = 3;
 /** Smallest orb radius (px). */
 export const MIN_BODY_RADIUS = 1;
-/** Most collision sounds one 60 Hz step may queue; the most energetic collisions win (every collision still counts and squashes). */
-export const MAX_SOUNDS_PER_STEP = 12;
+/**
+ * Most collision sounds one rendered frame may play – however many 60 Hz steps it ran (several per frame at a faster
+ * playback speed or on a late frame); the most energetic collisions win (every collision still counts and squashes).
+ */
+export const MAX_SOUNDS_PER_FRAME = 12;
 /** A squash-and-stretch decays over this many (simulation) milliseconds. */
 export const SQUASH_MS = 120;
 /** Strongest squash (fraction of the radius the orb is flattened by along the contact normal). */
@@ -430,11 +435,11 @@ export class CollideMode implements GameMode {
   private wallRestitution = 1;
   private minSoundSpeed = 25;
   private ballSpeed = 400;
-  // Per-step sound budget: the most energetic collisions of the step.
-  private readonly sndEnergy = new Float64Array(MAX_SOUNDS_PER_STEP);
-  private readonly sndFreq = new Float64Array(MAX_SOUNDS_PER_STEP);
-  private readonly sndLevel = new Float64Array(MAX_SOUNDS_PER_STEP);
-  private readonly sndOrder = new Int32Array(MAX_SOUNDS_PER_STEP);
+  // Per-frame sound budget: the most energetic collisions since the sounds were last consumed (across steps).
+  private readonly sndEnergy = new Float64Array(MAX_SOUNDS_PER_FRAME);
+  private readonly sndFreq = new Float64Array(MAX_SOUNDS_PER_FRAME);
+  private readonly sndLevel = new Float64Array(MAX_SOUNDS_PER_FRAME);
+  private readonly sndOrder = new Int32Array(MAX_SOUNDS_PER_FRAME);
   private sndCount = 0;
   private ctx: ModeContext | null = null;
 
@@ -681,7 +686,6 @@ export class CollideMode implements GameMode {
   }
 
   onPreUpdate(ctx: ModeContext) {
-    this.sndCount = 0;
     const speed = ctx.config.ballSpeed || 400;
     this.ballSpeed = speed;
     // A live change of the ball speed scales every velocity (the pattern of the run stays).
@@ -820,12 +824,12 @@ export class CollideMode implements GameMode {
     v.impactAmount[k] = amount;
   }
 
-  /** Offers a note to the step's budget: kept while there is room, else it replaces the weakest when it is more energetic. */
+  /** Offers a note to the frame's budget: kept while there is room, else it replaces the weakest when it is more energetic. */
   private offerSound(energy: number, frequency: number, level: number) {
     let slot = this.sndCount;
-    if (slot >= MAX_SOUNDS_PER_STEP) {
+    if (slot >= MAX_SOUNDS_PER_FRAME) {
       slot = 0;
-      for (let i = 1; i < MAX_SOUNDS_PER_STEP; i++) if (this.sndEnergy[i] < this.sndEnergy[slot]) slot = i;
+      for (let i = 1; i < MAX_SOUNDS_PER_FRAME; i++) if (this.sndEnergy[i] < this.sndEnergy[slot]) slot = i;
       if (!(energy > this.sndEnergy[slot])) return;
     } else this.sndCount++;
     this.sndEnergy[slot] = energy;
@@ -944,14 +948,16 @@ export class CollideMode implements GameMode {
     this.bodyImpact(a, b, track.r[a], track.r[b], -Math.sin(angle), Math.cos(angle), speed, im > 0 ? 1 / im : 0);
   };
 
-  /** End of a 60 Hz step: the anti-collision switch, the step's notes (most energetic first), the ring bookkeeping. */
+  /**
+   * End of a 60 Hz step: the anti-collision switch and the ring bookkeeping. The step's notes stay in the budget,
+   * which keeps the strongest of every step the frame runs until `flushPendingSounds()` queues them.
+   */
   onPostUpdate(ctx: ModeContext, dtMs: number) {
     const v = this.view;
     const s = v.settings;
     this.steps++;
     const t = this.steps * (dtMs / 1000);
     if (!v.antiActive && s.antiCollisionAt > 0 && t >= s.antiCollisionAt - 1e-9) this.switchToAntiCollision(ctx);
-    this.flushSounds(ctx);
     if (this.ring) renormalizeRing(this.ring, v.antiActive);
   }
 
@@ -968,7 +974,12 @@ export class CollideMode implements GameMode {
     ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: ANTI_COLLISION_CHORD[0], accent: true, chord: [...ANTI_COLLISION_CHORD] });
   }
 
-  private flushSounds(ctx: ModeContext) {
+  /**
+   * Called by `engine.consumeSoundEvents()` once per rendered frame: queues the frame's budget – at most
+   * `MAX_SOUNDS_PER_FRAME` notes, most energetic first – and empties it, so a faster playback speed (more steps per
+   * frame) never piles up more simultaneous voices. Sound only: the physics never reads the budget.
+   */
+  flushPendingSounds(ctx: ModeContext) {
     const count = this.sndCount;
     if (count === 0) return;
     const order = this.sndOrder;

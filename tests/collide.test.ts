@@ -8,7 +8,7 @@ import {
   COLLIDE_SOFT_LEVEL,
   DEFAULT_COLLIDE_SETTINGS,
   HUE_BUCKETS,
-  MAX_SOUNDS_PER_STEP,
+  MAX_SOUNDS_PER_FRAME,
   MAX_SQUASH,
   RING_MAX_BODIES,
   SIZE_SPREAD_RATIO,
@@ -495,27 +495,68 @@ describe("CollideMode in the engine", () => {
     }
   });
 
-  it("plays at most 12 soft notes per step, pitched on the ladder, the most energetic kept", () => {
+  it("plays at most 12 soft notes per frame of one step, pitched on the ladder, the most energetic kept", () => {
     const engine = collideEngine({ count: 2000 });
     let steps = 0;
     let notes = 0;
     for (let i = 0; i < 180; i++) {
       engine.update(1000 / 60, 0);
       const events = engine.consumeSoundEvents();
-      expect(events.length).toBeLessThanOrEqual(MAX_SOUNDS_PER_STEP);
+      expect(events.length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
       for (const ev of events) {
         expect(ev.type).toBe("hit");
         expect(LADDER.has(Math.round(frequencyToMidi(ev.frequency!)))).toBe(true);
         expect(ev.level).toBeGreaterThan(0);
         expect(ev.level).toBeLessThanOrEqual(COLLIDE_SOFT_LEVEL);
       }
-      if (events.length === MAX_SOUNDS_PER_STEP) steps++;
+      if (events.length === MAX_SOUNDS_PER_FRAME) steps++;
       notes += events.length;
     }
     // Two thousand orbs collide far more often than 12 times a step: the budget is full almost every step.
     expect(steps).toBeGreaterThan(150);
     expect(engine.getCollideView().notes).toBe(notes);
     expect(engine.getCollideView().collisions).toBeGreaterThan(notes);
+  });
+
+  it("caps the notes per rendered frame, not per step: 8 steps in one frame (8× playback) still play at most 12", () => {
+    // The default playground, as a frame at 8× runs it: eight 60 Hz steps, then one consumeSoundEvents().
+    const fast = collideEngine();
+    step(fast, 8);
+    const batch = fast.consumeSoundEvents();
+    const hits = batch.filter((e: SoundEvent) => e.level !== undefined);
+    expect(hits).toHaveLength(MAX_SOUNDS_PER_FRAME);
+    expect(batch).toHaveLength(hits.length);
+    expect(fast.getCollideView().notes).toBe(MAX_SOUNDS_PER_FRAME);
+    // The same run consumed after every step (1×) plays far more over those eight steps…
+    const slow = collideEngine();
+    const perStep: SoundEvent[] = [];
+    for (let i = 0; i < 8; i++) {
+      step(slow, 1);
+      const events = slow.consumeSoundEvents();
+      expect(events.length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
+      perStep.push(...events);
+    }
+    expect(perStep.length).toBeGreaterThan(2 * MAX_SOUNDS_PER_FRAME);
+    // …and the 8× frame's notes are the strongest of them: every one was also played at 1×.
+    const key = (e: SoundEvent) => `${e.frequency}|${e.level}`;
+    const pool = new Map<string, number>();
+    for (const e of perStep) pool.set(key(e), (pool.get(key(e)) ?? 0) + 1);
+    for (const e of hits) {
+      const left = pool.get(key(e)) ?? 0;
+      expect(left).toBeGreaterThan(0);
+      pool.set(key(e), left - 1);
+    }
+    // The budget is sound only: both runs are still bit for bit the same physics.
+    expect(fast.getBalls().map((b) => [b.x, b.y, b.vx, b.vy])).toEqual(slow.getBalls().map((b) => [b.x, b.y, b.vx, b.vy]));
+    expect(fast.getCollideView().collisions).toBe(slow.getCollideView().collisions);
+    // A frame that ran no step plays nothing; the next frame starts a fresh budget.
+    expect(fast.consumeSoundEvents()).toEqual([]);
+    step(fast, 8);
+    expect(fast.consumeSoundEvents().filter((e: SoundEvent) => e.level !== undefined).length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
+    // Even 2000 orbs over 60 steps in one batch stay within the budget.
+    const crowd = collideEngine({ count: 2000 });
+    step(crowd, 60);
+    expect(crowd.consumeSoundEvents().length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
   });
 
   it("pitches the note of a collision by the smaller orb", () => {

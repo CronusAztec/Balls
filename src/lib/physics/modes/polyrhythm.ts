@@ -349,9 +349,10 @@ export const POLY_RATIO_SPAN = 16;
 
 /**
  * Pitch (Hz) of voice `index`: by `index`, its rank as a degree of the C major scale from C4 (spread over at
- * most three octaves, like the Pendulum Wave); by `ratio`, its tempo relative to the slowest voice as a
- * harmonic of C3 (3:4:5 plays G, C, E – the chord the rhythm is), folded into four octaves. The tone generator
- * snaps either to the chosen scale.
+ * most three octaves, like the Pendulum Wave); by `ratio`, `ratio` as a harmonic of C3, folded into four
+ * octaves. The mode passes a harmonic or custom voice's own tempo ratio – its ticks per cycle, so 3:4:5 plays
+ * G4, C5, E5, the chord the rhythm is – and a BPM-steps voice its tempo relative to the slowest voice. The tone
+ * generator snaps either to the chosen scale.
  */
 export function polyrhythmPitch(index: number, count: number, ratio: number, pitchBy: PolyPitchBy): number {
   if (pitchBy === "index") return pendulumPitch(index, count, "up");
@@ -923,7 +924,10 @@ export class PolyrhythmMode implements GameMode {
     if (!series) return;
     let minA = Infinity;
     for (const x of series.a) minA = Math.min(minA, x);
-    v.pitch = series.a.map((x, i) => polyrhythmPitch(i, series.count, x / minA, v.settings.pitchBy));
+    // The harmonic and custom series play their own ratios (ticks per cycle: 3:4:5 is G–C–E); BPM steps have no
+    // small whole ratios, so a voice plays its tempo relative to the slowest one.
+    const arithmetic = v.settings.tempos === "arithmetic";
+    v.pitch = series.a.map((x, i) => polyrhythmPitch(i, series.count, arithmetic ? x / minA : series.perCycle[i], v.settings.pitchBy));
   }
 
   private rebuildGeometry() {
