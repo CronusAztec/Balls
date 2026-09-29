@@ -306,7 +306,8 @@ export class ToneGenerator {
    * pitch is snapped to the current scale, a hit sample is transposed to it and a loaded melody still plays
    * its next note instead. An `accent` (a DVD logo hitting a corner) plays louder and longer – voice, melody
    * note or sample alike. A `chord` (Pendulum Wave bobs in line) plays all its pitches at once as one sound:
-   * one beat-grid slot, one duck, the level shared out with `chordGain()`; a melody still plays one note.
+   * one beat-grid slot, one duck, the level shared out with `chordGain()`; a melody still plays one note, and so
+   * does a hit sample that is not pitched by wall (the copies would all sound the same).
    * `level` (0–1, default 1) scales the loudness of this one hit – voice, melody note or sample (the Collision
    * Playground's soft collision notes, softer still for gentle impacts; see `hitLevel()`).
    */
@@ -335,7 +336,9 @@ export class ToneGenerator {
       const time = this.scheduleTime(now);
       if (this.music.quantizeToBeat && Math.abs(time - this.lastSlotTime) < 1e-6) return;
       this.lastSlotTime = time;
-      const pitches = hitPitches(wallIndex, pitch, chord, MAX_SAMPLE_VOICES);
+      // Without "pitch by wall" every copy of a chord would play at the same rate, and n identical copies only add up
+      // √n times louder (and take every voice): the clip then plays once for the whole chord.
+      const pitches = this.hitSamplePitchByWall ? hitPitches(wallIndex, pitch, chord, MAX_SAMPLE_VOICES) : [pitch];
       const level = (accent ? ACCENT_GAIN : 1) * chordGain(pitches.length);
       for (const f of pitches) this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitches.length > 1 || pitch !== undefined ? f : undefined), time, level * softness);
       this.musicBed.duck(time);
