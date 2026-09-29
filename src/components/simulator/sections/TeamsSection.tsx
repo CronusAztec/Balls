@@ -125,7 +125,9 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
       <Searchable search={search} matches={matches} labelKey="teams">
         <div className="space-y-2">
           <Toggle t={t} labelKey="teams" tipKey="teamsTip" value={on} onChange={(v) => setRoster(v ? resizeRoster([], Math.max(2, effectiveBallCount(s)), names) : [])} caseStyle="title" />
-          {!plays && <p className="text-xs text-amber-500/90 leading-relaxed">{t("teamsModeNote")}</p>}
+          {!plays && s.mode !== "race" && <p className="text-xs text-amber-500/90 leading-relaxed">{t("teamsModeNote")}</p>}
+          {/* --- jdm-race --- the Square Racing Grand Prix names, colours and emoji its first racers from the roster */}
+          {s.mode === "race" && <p className="text-xs text-[#93d119]/80 leading-relaxed" data-testid="teams-race-note">{t("rcTeamsNote")}</p>}
           {plays && maxTeams < MAX_TEAMS && (on || !!search) && (
             <p className="text-xs text-amber-500/90 leading-relaxed" data-testid="teams-cap-note">
               {t("teamsModeCapNote", { max: maxTeams })}

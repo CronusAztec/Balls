@@ -38,3 +38,10 @@ export type { DoublePendulumSettings, DoublePendulumView, DpPendulum, DpString, 
 // --- jdm-illusions ---
 export { IllusionMode } from "./illusion";
 export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionView } from "./illusion";
+// --- jdm-race ---
+export { RaceMode } from "./race";
+export type { RaceSettings, RaceView, RaceCallout, RacePhase, RaceShape, RaceCamera } from "./race";
+// --- jdm-arena-games ---
+export { BattleMode } from "./battle";
+export { CtfMode } from "./ctf";
+export type { ArenaView, ArenaField, ArenaFlag, ArenaBase, ArenaKo, ArenaPowerUp, BattleSettings, CtfSettings, BattleArena } from "./arenaGames";
