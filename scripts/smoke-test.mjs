@@ -2194,6 +2194,156 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 // --- end obstacle-editor + captions ---
 
+// --- jdm-double-pendulum ---
+// 22. Double Pendulum Harp & sparring: the preview image, URL → the "Double pendulum" block of the Mode row, controls →
+// URL, the search box, the finder (Endless hides it; the clip length decides the run length, so a matching target is
+// found with the first seed – keeping the clip length – and a missing one is explained), a default run at 30+ fps whose
+// notes all belong to the harp's C major ladder (OscillatorNode.start is instrumented) with the energy held
+// (data-dp-drift), a sparring run whose mirrored pendulums hit each other, a triple pendulum on a radial harp and a
+// 10 s clip at 8× that finishes after its finale.
+{
+  const res = await page.request.get(`${BASE}/modes/doublePendulum.webp`);
+  check("asset /modes/doublePendulum.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+{
+  /** The On/Off button of a toggle in the Double pendulum block, by the start of its label (tooltips mention other toggles). */
+  const dpToggle = (label) => page.getByTestId("double-pendulum").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpn=3&dpsg=3&dprs=0&dpa1=100&dpa3=-45&dpst=16&dpsl=radial&dpo=3&dptr=6&dpd=0.0015&dpen=1`, { waitUntil: "networkidle" });
+  {
+    const values = { dpn: await sliderValue("Pendulums"), dpa1: await sliderValue("Start Angle 1"), dpa3: await sliderValue("Start Angle 3"), dpst: await sliderValue("Harp Strings"), dpo: await sliderValue("Harp Octaves"), dptr: await sliderValue("Trail Length"), dpd: await sliderValue("Friction") };
+    const triple = await page.getByRole("group", { name: "Arms", exact: true }).getByRole("button", { name: "Triple", exact: true }).getAttribute("aria-pressed");
+    const radial = await page.getByRole("group", { name: "String Layout", exact: true }).getByRole("button", { name: /Radial/ }).getAttribute("aria-pressed");
+    const endless = await dpToggle("Endless").getAttribute("aria-pressed");
+    const randomStart = await dpToggle("Random Start").getAttribute("aria-pressed");
+    const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+    check(
+      "double pendulum loads from URL",
+      values.dpn === "3" && values.dpa1 === "100" && values.dpa3 === "-45" && values.dpst === "16" && values.dpo === "3" && values.dptr === "6" && values.dpd === "0.0015" && triple === "true" && radial === "true" && endless === "true" && randomStart === "false" && finderHidden,
+      `(${JSON.stringify(values)}, triple=${triple}, radial=${radial}, endless=${endless}, random=${randomStart}, finder hidden=${finderHidden})`,
+    );
+  }
+  await page.locator('input[aria-label="Harp Strings"]').evaluate(setRangeValue, "9");
+  await page.getByRole("group", { name: "String Layout", exact: true }).getByRole("button", { name: /Vertical/ }).click();
+  await dpToggle("Sparring").click();
+  await dpToggle("Endless").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const countDisabled = await page.locator('input[aria-label="Pendulums"]').isDisabled();
+    check(
+      "double pendulum mirrors into the URL",
+      /(^|&)dpst=9(&|$)/.test(query) && /(^|&)dpsp=1(&|$)/.test(query) && /(^|&)dpd=0.0015(&|$)/.test(query) && /(^|&)dpsg=3(&|$)/.test(query) && !/(^|&)dpsl=/.test(query) && !/(^|&)dpen=/.test(query) && finderShown && countDisabled,
+      `(${query}, finder shown=${finderShown}, count disabled while sparring=${countDisabled})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("harp octaves");
+  check("search finds the double pendulum controls", (await page.locator('input[aria-label="Harp Octaves"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+}
+// The run always lasts the clip length: a 30 s clip is found with the first seed, a 12 s clip is explained.
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const found = await page.getByText(/Ready to start simulation for 30\.0s/).first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  // The clip length is the run length: the found seed keeps it (no rounding up to a 31 s clip).
+  const query = page.url().split("?")[1] || "";
+  check("finder finds a double pendulum run of the clip length at once, keeping the clip length", found && !/(^|&)dur=/.test(query), `(found=${found}, ${query})`);
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dur=12`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+{
+  const shown = await page.getByText(/Double Pendulum run always lasts exactly 12\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("finder explains a double pendulum run fixed by the clip length", shown);
+  if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const log = [];
+  window.__dpOsc = log;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) log.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(500);
+{
+  // Frame intervals over 4 s of the default harp (one double pendulum, 15 strings, a 4 s trail), in half-second windows.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    4000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__dpOsc);
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  // 15 strings over two octaves of C major from C4 (the chromatic default leaves them unsnapped).
+  const ladder = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
+  const onLadder = pitches.length > 0 && midis.every((m) => ladder.includes(m));
+  check(
+    "simulator mode=doublePendulum plucks the harp at 30+ fps",
+    data.dpPendulums === "1" && data.dpSegments === "2" && data.dpStrings === "15" && data.dpLayout === "vertical" && Number(data.dpPlucks) >= 20 && onLadder && Number(data.dpDrift) < 100 && windows.length >= 6 && minWindow >= 30,
+    `(${data.dpPlucks} plucks, ${pitches.length} tones, MIDI ${[...new Set(midis)].sort((a, b) => a - b).join("/")}, drift ${data.dpDrift} ppm, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps)`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-double-pendulum.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpsp=1&dprs=0&dpa1=45&dpa2=90&dpst=0&dpen=1`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const hit = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.dpHits ?? 0) > 0, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1500);
+  const data = await canvasData();
+  check("double pendulum spars: two mirrored pendulums hit each other, the energy held", hit && data.dpPendulums === "2" && data.dpSpar === "1" && Number(data.dpHits) > 0 && data.dpPlucks === "0" && Number(data.dpDrift) < 100, `(${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-double-pendulum-spar.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpsg=3&dpn=2&dpsl=radial&dpst=12`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const plucked = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.dpPlucks ?? 0) > 3, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("double pendulum runs two triple pendulums on a radial harp", plucked && data.dpSegments === "3" && data.dpPendulums === "2" && data.dpLayout === "radial" && data.dpStrings === "12", `(${JSON.stringify(data)})`);
+  await page.screenshot({ path: path.join(outDir, "sim-double-pendulum-triple.png") });
+}
+// A 10 s clip at 8×: the finale holds the rig under the "TIME!" banner, then the run finishes at the clip length.
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dur=10`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const time = await page.locator("span.tabular-nums").first().innerText();
+  check("a double pendulum run finishes at the clip length after its finale", done && data.dpDone === "1" && Number(data.dpPlucks) > 20 && Number(data.dpDrift) < 100, `(finished=${done}, elapsed ${time}, ${JSON.stringify(data)})`);
+}
+// --- end jdm-double-pendulum ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

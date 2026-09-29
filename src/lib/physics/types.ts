@@ -33,6 +33,8 @@ export const MODE_IDS = [
   "glass",
   // --- boris-multipliers ---
   "multipliers",
+  // --- jdm-double-pendulum ---
+  "doublePendulum",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

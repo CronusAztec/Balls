@@ -32,3 +32,6 @@ export type { GlassSettings, GlassLevel, GlassPane, GlassStage, GlassCrack, Glas
 // --- boris-multipliers ---
 export { MultipliersMode } from "./multipliers";
 export type { MultipliersSettings, MultipliersView, MultiplierBoard, GateKind, Gate, Blocker, BoardLayout } from "./multipliers";
+// --- jdm-double-pendulum ---
+export { DoublePendulumMode } from "./doublePendulum";
+export type { DoublePendulumSettings, DoublePendulumView, DpPendulum, DpString, DpHit, DpField, DpStringLayout, HarpGeometry } from "./doublePendulum";

@@ -25,6 +25,8 @@ import { CollideMode, type CollideSettings, type CollideView } from "./modes/col
 import { GlassMode, type GlassSettings, type GlassView } from "./modes/glass";
 // --- boris-multipliers ---
 import { MultipliersMode, type MultipliersSettings, type MultipliersView } from "./modes/multipliers";
+// --- jdm-double-pendulum ---
+import { DoublePendulumMode, type DoublePendulumSettings, type DoublePendulumView } from "./modes/doublePendulum";
 import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smashesWalls, type MultiplierStat, type MultiplierView } from "./multipliers";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
@@ -184,6 +186,8 @@ export class PhysicsEngine {
   readonly glassMode = new GlassMode();
   // --- boris-multipliers --- the board mode, and the run's stat multipliers (pickups, cap, smash, adaptive sub-steps, outgrow)
   readonly multipliersMode = new MultipliersMode();
+  // --- jdm-double-pendulum --- the Double Pendulum Harp and sparring pendulums (RK4 chains, strings, elastic bob hits)
+  readonly doublePendulumMode = new DoublePendulumMode();
   private readonly multipliers = new MultiplierRuntime({
     burst: (x, y, color, radius) => this.spawnMergeBurst(x, y, color, radius),
     breakWall: (ball, wallIndex) => this.smashWall(ball, wallIndex),
@@ -432,6 +436,10 @@ export class PhysicsEngine {
   initMultipliers() {
     this.activateMode(this.multipliersMode, "none");
   }
+  // --- jdm-double-pendulum ---
+  initDoublePendulum() {
+    this.activateMode(this.doublePendulumMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -474,6 +482,9 @@ export class PhysicsEngine {
       // --- boris-multipliers ---
       case "multipliers":
         return this.initMultipliers();
+      // --- jdm-double-pendulum ---
+      case "doublePendulum":
+        return this.initDoublePendulum();
     }
   }
 
@@ -989,6 +1000,29 @@ export class PhysicsEngine {
     return this.glassMode.getProgress();
   }
   // --- end boris-glass ---
+  // --- jdm-double-pendulum ---
+  isDoublePendulumMode() {
+    return this.currentMode === this.doublePendulumMode;
+  }
+  getDoublePendulumSettings(): DoublePendulumSettings {
+    return this.doublePendulumMode.getSettings();
+  }
+  /** Rig (count, rods, lengths, masses, gravity, start, damping, sparring) applied by the next `initDoublePendulum()`; trails, strings, tuning and the end at once. */
+  setDoublePendulumSettings(settings: Partial<DoublePendulumSettings>) {
+    this.doublePendulumMode.setSettings(settings);
+  }
+  /** Live Double Pendulum state (field, chains, trails, strings, hits, clock, counters) for the canvas and the HUD; the same object every call. */
+  getDoublePendulumView(): DoublePendulumView {
+    return this.doublePendulumMode.getView();
+  }
+  getDoublePendulumProgress() {
+    return this.doublePendulumMode.getProgress();
+  }
+  /** Relative energy drift of the run so far (|E − E₀| over Σ m·g·1): the integrator's error without friction. */
+  getDoublePendulumEnergyDrift() {
+    return this.doublePendulumMode.energyDrift();
+  }
+  // --- end jdm-double-pendulum ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

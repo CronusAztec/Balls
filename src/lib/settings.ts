@@ -27,6 +27,8 @@ import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFie
 // --- obstacle-editor ---
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
+// --- jdm-double-pendulum ---
+import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -362,6 +364,42 @@ export interface SimulatorSettings {
   /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
   captions: Caption[];
   // --- end captions ---
+  // --- jdm-double-pendulum --- Double Pendulum Harp & sparring (lib/physics/modes/doublePendulum.ts); URL keys in DP_URL_KEYS
+  /** Pendulums sharing the pivot, 1–4 (URL `dpn`; sparring always uses two). */
+  dpCount: number;
+  /** Rods per pendulum: 2 (double) or 3 (triple) (URL `dpsg`). */
+  dpSegments: number;
+  /** Relative rod lengths, 0.2–1 (URL `dpl1`, `dpl2`, `dpl3`). */
+  dpLength1: number;
+  dpLength2: number;
+  dpLength3: number;
+  /** Bob masses, 0.2–5 (URL `dpm1`, `dpm2`, `dpm3`). */
+  dpMass1: number;
+  dpMass2: number;
+  dpMass3: number;
+  /** Gravity as a multiple of 9.81 m/s² on a 1 m rig, 0.2–3 (URL `dpg`). */
+  dpGravity: number;
+  /** Start angles in degrees from hanging down, −180…180 (URL `dpa1`, `dpa2`, `dpa3`). */
+  dpAngle1: number;
+  dpAngle2: number;
+  dpAngle3: number;
+  /** Start from angles drawn from the seed (URL `dprs`). */
+  dpRandomStart: boolean;
+  /** Fraction of the angular velocity lost per 60 Hz step, 0–0.01 (URL `dpd`). */
+  dpDamping: number;
+  /** Seconds the rainbow trail of the last bob reaches back, 0–10 (URL `dptr`). */
+  dpTrailSeconds: number;
+  /** Harp strings, 0–24 (URL `dpst`). */
+  dpStrings: number;
+  /** vertical | radial (URL `dpsl`). */
+  dpStringLayout: DpStringLayout;
+  /** Octaves the strings are tuned across, 1–4 (URL `dpo`). */
+  dpOctaves: number;
+  /** Two pendulums side by side whose bobs collide (URL `dpsp`). */
+  dpSpar: boolean;
+  /** Keep swinging after the clip length (URL `dpen`). */
+  dpEndless: boolean;
+  // --- end jdm-double-pendulum ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -459,6 +497,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
     ...defaultCaptionSettings(), // --- captions ---
+    ...doublePendulumSettingFields(DEFAULT_DOUBLE_PENDULUM_SETTINGS), // --- jdm-double-pendulum ---
   };
 }
 
@@ -510,6 +549,7 @@ export const RANGES = {
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
   ...CAPTION_RANGES, // --- captions ---
+  ...DOUBLE_PENDULUM_RANGES, // --- jdm-double-pendulum ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -732,6 +772,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
   writeCaptionParams(settings, params); // --- captions ---: cap
+  writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   return params;
 }
 
@@ -836,6 +877,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   clampMultiplierSettings(settings);
   readObstacleParams(params, settings); // --- obstacle-editor ---
   readCaptionParams(params, settings); // --- captions ---
+  readDoublePendulumParams(params, settings); // --- jdm-double-pendulum --- (clamped to the ranges; bad values fall back)
   return settings;
 }
 
@@ -993,6 +1035,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampMultiplierSettings(merged); // --- boris-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
+  Object.assign(merged, resolveDoublePendulumFields(merged)); // --- jdm-double-pendulum --- numbers clamped, unknown layouts / flags fall back
   return merged;
 }
 
