@@ -32,7 +32,7 @@ import { ACCENT } from "@/lib/site";
 import { CinematicCamera } from "./cameraRenderer";
 import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
 // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
-import { ObstacleEditorLayer, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
+import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CaptionLayer, type CanvasCaptionOptions } from "./captionsRenderer"; // --- captions ---
 
@@ -2270,8 +2270,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      // Typing in a text field keeps its keys; a slider, toggle, dropdown or button left focused by the panel does not.
+      if (isTextEntryTarget(e.target as HTMLElement | null)) return;
       const commit = onObstaclesChangeRef.current;
       if (commit && obstacleLayerRef.current?.deleteSelected(physicsEngine.getEditorObstacles(), commit)) e.preventDefault();
     };
@@ -2285,7 +2285,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     if (!canvas || !layer || !obstacleEditingRef.current) return;
     const field = physicsEngine.getEditorObstacles();
     if (e.type === "pointerdown") {
-      if (layer.pointerDown(e.nativeEvent, canvas, field)) e.preventDefault();
+      if (layer.pointerDown(e.nativeEvent, canvas, field)) {
+        e.preventDefault();
+        // preventDefault() also keeps the focus where it was – often a panel slider just nudged. Let it go, so the
+        // editing keys (Backspace / Delete) reach the canvas' selection instead of a control.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused !== document.body) focused.blur();
+      }
     } else if (e.type === "pointermove") {
       layer.pointerMove(e.nativeEvent, canvas, field, physicsEngine);
     } else if (e.type === "pointerleave") {

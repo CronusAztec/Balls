@@ -1883,9 +1883,10 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
 // --- obstacle-editor ---
 // 20. Obstacle editor: URL → the Obstacles section (a row per obstacle, the bumper boost) and the canvas (data-obstacles),
 // the ready screen shrinks to a bar so the obstacles stay visible and editable; a mouse drag moves a peg (the URL follows
-// on release), a click + Backspace deletes a bumper, a touch drag (pointerType "touch") moves the blocker, the dropdown
-// adds a spinner on a free spot; a run at 8× hits the obstacles (hits, bumper kicks, the spinner turning), pausing makes
-// them draggable again, Clear All empties the layout, and the section is not offered outside the ring modes.
+// on release), a click + Backspace deletes a bumper – also right after a panel slider was used (the click takes the focus
+// off it) –, a touch drag (pointerType "touch") moves the blocker, the dropdown adds a spinner on a free spot; a run at 8×
+// hits the obstacles (hits, bumper kicks, the spinner turning), pausing makes them draggable again, Clear All empties the
+// layout, and the section is not offered outside the ring modes.
 {
   const layout = "p:0.5,0,6;b:-0.5,0,10;k:0,0.5,40,0;s:0,-0.5,50,0,30;b:0.22,0,12";
   await page.goto(`${BASE}/en/simulator/?mode=classic&obs=${encodeURIComponent(layout)}&obb=1.8`, { waitUntil: "networkidle" });
@@ -1928,18 +1929,27 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
   const peg = obsList()[0];
   check("dragging a peg on the canvas moves it and updates the URL", peg[0] === "p" && Math.abs(peg[1] - 0.3) < 0.02 && Math.abs(peg[2] - 0.35) < 0.02 && peg[3] === 6, `(${obsParam()})`);
 
-  // Click the first bumper, then Backspace deletes it.
+  // Nudge a panel slider first (the Bumper Boost, focused and moved; the focus stays on it, as after any slider use – without
+  // scrolling the page, so the canvas stays where it was measured), then click the first bumper: the click takes the focus
+  // off the slider, so Backspace deletes the bumper.
+  const boostSlider = page.locator('input[aria-label="Bumper Boost"]');
+  await boostSlider.evaluate((el) => el.focus({ preventScroll: true }));
+  await boostSlider.evaluate(setRangeValue, "1.85");
+  await settle();
+  const focusBefore = await page.evaluate(() => `${document.activeElement?.tagName}:${document.activeElement?.getAttribute("type") ?? ""}`);
   const bumper = at(-0.5, 0);
   await page.mouse.click(bumper.x, bumper.y);
   await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.obstacleSelected === "1", null, { timeout: 3000 }).catch(() => {});
   const selected = (await canvasData()).obstacleSelected;
+  const focusAfter = await page.evaluate(() => `${document.activeElement?.tagName}:${document.activeElement?.getAttribute("type") ?? ""}`);
   await page.keyboard.press("Backspace");
   await settle();
   const afterDelete = obsList();
+  const nudged = new URL(page.url()).searchParams.get("obb");
   check(
-    "a click selects an obstacle and Backspace deletes it",
-    selected === "1" && afterDelete.length === 4 && afterDelete.filter((o) => o[0] === "b").length === 1 && (await page.getByTestId("obstacle-row").count()) === 4,
-    `(selected=${selected}, ${obsParam()})`,
+    "a click selects an obstacle and Backspace deletes it – also right after a panel slider was used",
+    selected === "1" && focusBefore === "INPUT:range" && !focusAfter.startsWith("INPUT") && nudged === "1.85" && afterDelete.length === 4 && afterDelete.filter((o) => o[0] === "b").length === 1 && (await page.getByTestId("obstacle-row").count()) === 4,
+    `(selected=${selected}, focus ${focusBefore} → ${focusAfter}, obb=${nudged}, ${obsParam()})`,
   );
 
   // A touch drag (pointer events with pointerType "touch") moves the blocker.
@@ -2013,6 +2023,107 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
     sectionButtonsClassic === 1 && offered === 0 && (await canvasData()).obstacles === undefined && obsParam() === layout,
     `(section buttons: classic ${sectionButtonsClassic}, drop ${offered}; obs="${obsParam()}")`,
   );
+}
+// 20b. A found seed and the layout: with a found seed the compact ready bar quotes the found run's length together with the
+// "do not change settings" warning; moving an obstacle drops the seed, so the bar stops quoting it, the warning goes and the
+// finder panel no longer says "Found!". (A 60 s target: runs with this layout are long, so the finder hits one quickly.)
+{
+  const layout = "p:0.5,0,6;b:-0.3,-0.2,10";
+  await page.goto(`${BASE}/en/simulator/?mode=classic&obs=${encodeURIComponent(layout)}`, { waitUntil: "networkidle" });
+  await page.locator("#find-duration").evaluate(setRangeValue, "60");
+  await page.getByRole("button", { name: /Find 60s Simulation/ }).click();
+  await page.waitForTimeout(100);
+  const outcomeText = page.getByText(/Found! \d|Didn't find simulation/).first();
+  const outcome = await outcomeText.waitFor({ timeout: 150000 }).then(() => outcomeText.innerText()).catch(() => "timeout");
+  const bar = page.getByTestId("obstacle-ready-bar");
+  const foundBar = ((await bar.innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+  const warned = await page.getByTestId("obstacle-ready-warning").isVisible().catch(() => false);
+  const box = await page.locator("main canvas").boundingBox();
+  const R = (Math.min(box.width, box.height) / 2) * 0.75;
+  const at = (ax, ay) => ({ x: box.x + box.width / 2 + ax * R, y: box.y + box.height / 2 + ay * R });
+  const from = at(0.5, 0);
+  const to = at(0.2, 0.35);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const moved = (new URL(page.url()).searchParams.get("obs") ?? "").split(";")[0];
+  const movedBar = ((await bar.innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+  const warnedAfter = await page.getByTestId("obstacle-ready-warning").isVisible().catch(() => false);
+  const foundAfter = await page.getByText(/Found! \d/).count();
+  check(
+    "a found seed: the ready bar quotes it with the warning; moving an obstacle drops the seed, its length and the warning",
+    /Found!/.test(outcome) && /Ready to start simulation for \d+(\.\d)?s/.test(foundBar) && warned && moved !== "p:0.5,0,6" && /Ready to start the simulation/.test(movedBar) && !/simulation for/.test(movedBar) && !warnedAfter && foundAfter === 0,
+    `(finder: "${outcome}", bar "${foundBar}" warning=${warned} → moved ${moved}: bar "${movedBar}" warning=${warnedAfter}, "Found!" shown ${foundAfter}×)`,
+  );
+}
+// 20c. The ball stays in its ring. Grow with the panel's first spinner (s:0,-0.3,50,0,20): the spinner's push-out used to
+// carry the grown ball's centre across the sealed ring, which then pushed the ball out for good and left the ring empty –
+// 50 s into a run at 8× (a countdown caption over a 2-minute clip serves as the run's clock) the white ball still fills the
+// ring's inner disc. Lines with a spinner at full speed and length (s:0,0.3,120,0,120): its flings used to throw the ball
+// through the sealed ring within seconds, after which nothing was hit again – 20 s and 40 s in, the ball still hits it.
+{
+  const growLink = `${BASE}/en/simulator/?mode=grow&dur=120&obs=${encodeURIComponent("s:0,-0.3,50,0,20")}&cap=${encodeURIComponent("cd*t*0*0*f*1*ffffff*")}`;
+  await page.goto(growLink, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const reached = await page
+    .waitForFunction(
+      () => {
+        const m = /(\d+):(\d\d)/.exec(document.querySelector("main canvas")?.dataset.captionTexts ?? "");
+        return !!m && 60 * Number(m[1]) + Number(m[2]) <= 70;
+      },
+      null,
+      { timeout: 60000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  /** Share of the ring's inner disc (80 % of its radius, device pixels) drawn bright – the white ball. */
+  const lit = await page.evaluate(() => {
+    const canvas = document.querySelector("main canvas");
+    const c = canvas.getContext("2d");
+    const r = (Math.min(canvas.width, canvas.height) / 2) * 0.75 * 0.8;
+    const size = Math.max(1, Math.round(2 * r));
+    const data = c.getImageData(Math.round(canvas.width / 2 - r), Math.round(canvas.height / 2 - r), size, size).data;
+    let inside = 0;
+    let bright = 0;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x + 0.5 - size / 2;
+        const dy = y + 0.5 - size / 2;
+        if (dx * dx + dy * dy > r * r) continue;
+        inside++;
+        const i = 4 * (y * size + x);
+        if (data[i] + data[i + 1] + data[i + 2] > 3 * 180) bright++;
+      }
+    }
+    return inside ? bright / inside : 0;
+  });
+  await page.screenshot({ path: path.join(outDir, "sim-obstacles-grow.png") });
+  check("Grow with the panel's first spinner keeps its grown ball inside the ring (50 s in at 8×)", reached && lit > 0.3, `(50 s reached=${reached}, ${(100 * lit).toFixed(1)} % of the ring's inner disc lit)`);
+
+  await page.goto(`${BASE}/en/simulator/?mode=lines&dur=120&obs=${encodeURIComponent("s:0,0.3,120,0,120")}&cap=${encodeURIComponent("cd*t*0*0*f*1*ffffff*")}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  /** The spinner's hit count once the countdown shows `left` seconds or less (−1 when it never got there). */
+  const hitsAt = async (left) => {
+    const ok = await page
+      .waitForFunction(
+        (l) => {
+          const m = /(\d+):(\d\d)/.exec(document.querySelector("main canvas")?.dataset.captionTexts ?? "");
+          return !!m && 60 * Number(m[1]) + Number(m[2]) <= l;
+        },
+        left,
+        { timeout: 60000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    return ok ? Number((await canvasData()).obstacleHits ?? -1) : -1;
+  };
+  const hits20 = await hitsAt(100);
+  const hits40 = await hitsAt(80);
+  check("Lines with a spinner at full speed and length keeps the ball in the ring: it still hits the spinner 40 s in", hits20 > 0 && hits40 > hits20, `(spinner hits 20 s in: ${hits20}, 40 s in: ${hits40})`);
 }
 // --- end obstacle-editor ---
 

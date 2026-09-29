@@ -6,6 +6,8 @@ import {
   MAX_OBSTACLES,
   MAX_OBSTACLE_SOUNDS_PER_STEP,
   ObstacleField,
+  RING_CAPTURE_MARGIN,
+  RING_CAPTURE_SHARE,
   addObstacle,
   applyAffine,
   arenaFrameOf,
@@ -18,6 +20,7 @@ import {
   obstacleConfigOf,
   obstacleReach,
   obstacleNote,
+  obstacleSpeedLimit,
   parseObstacles,
   pickObstacle,
   removeObstacle,
@@ -30,6 +33,7 @@ import {
   type EditorObstacle,
 } from "@/lib/physics/obstacleEditor";
 import { BUMPER_TONE, scheduleBumperTone } from "@/lib/audio/bumperTone";
+import { isTextEntryTarget } from "@/components/simulator/obstacleEditorRenderer";
 import type { Ball, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { MODE_IDS } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
@@ -269,6 +273,20 @@ describe("coordinate mapping", () => {
   });
 });
 
+describe("canvas editing keys", () => {
+  it("leaves Backspace / Delete to text fields only: a slider, toggle, dropdown or button the panel left focused does not keep them", () => {
+    // Typing: the key belongs to the field.
+    for (const type of ["text", "search", "number", "email", "url", "tel", "password", "TEXT"]) expect(isTextEntryTarget({ tagName: "INPUT", type })).toBe(true);
+    expect(isTextEntryTarget({ tagName: "INPUT" })).toBe(true); // an input without a type is a text field
+    expect(isTextEntryTarget({ tagName: "TEXTAREA" })).toBe(true);
+    expect(isTextEntryTarget({ tagName: "DIV", isContentEditable: true })).toBe(true);
+    // The panel's sliders (a row's Size, the Bumper Boost), toggles, colour pickers, dropdowns and buttons: the key deletes the selected obstacle.
+    for (const type of ["range", "checkbox", "radio", "button", "submit", "reset", "color", "file", "image"]) expect(isTextEntryTarget({ tagName: "INPUT", type })).toBe(false);
+    for (const tagName of ["SELECT", "BUTTON", "BODY", "CANVAS"]) expect(isTextEntryTarget({ tagName })).toBe(false);
+    expect(isTextEntryTarget(null)).toBe(false);
+  });
+});
+
 describe("the obstacle field", () => {
   it("builds pixel obstacles from the arena-relative layout and rebuilds only on a change", () => {
     const f = field(LAYOUT);
@@ -358,6 +376,40 @@ describe("the obstacle field", () => {
     expect(Math.hypot(c.vx, c.vy)).toBeCloseTo(400, 9);
   });
 
+  it("never lets a spinner fling or a bumper kick carry the ball past a ring's capture band in one sub-step", () => {
+    // A ring catches a ball whose centre lands within radius + RING_CAPTURE_MARGIN px of it: at most RING_CAPTURE_SHARE of that per sub-step.
+    expect(obstacleSpeedLimit(400, 8, 400, DT)).toBeCloseTo(BUMPER_SPEED_CAP * 400, 9); // the 3× cap is the tighter one
+    expect(obstacleSpeedLimit(400, 4, 800, DT)).toBeCloseTo((RING_CAPTURE_SHARE * (4 + RING_CAPTURE_MARGIN)) / DT, 9); // 1296 px/s < 2400
+    expect(obstacleSpeedLimit(3000, 30, 400, DT)).toBe(3000); // a faster ball keeps what it had, within the band
+    // A spinner at the slider maximums (120 % long, 120 rpm) around the ball: its tip moves at ~2,260 px/s.
+    const spinner = field([{ kind: "spinner", x: 0, y: 0, size: 120, angle: 0, rpm: 120 }], 800, 800);
+    const bar = spinner.items[0];
+    const events: SoundEvent[] = [];
+    let fastest = 0;
+    for (let i = 0; i < 64; i++) {
+      // A ball near the bar's outer end on the side its surface turns towards, just into it and moving onto it at the
+      // ball speed: the bar meets it at ~2,000 px/s.
+      const along = 150 + (i % 8) * 4;
+      const a = (i / 64) * 2 * Math.PI;
+      if (bar.kind === "segment") bar.angle = a;
+      const nx = -Math.sin(a);
+      const ny = Math.cos(a);
+      const b = ball(400 + along * Math.cos(a) + nx * 12, 400 + along * Math.sin(a) + ny * 12, -nx * 400, -ny * 400);
+      spinner.beginStep();
+      spinner.collide(b, DT, 1, 40, 400, 0, events);
+      fastest = Math.max(fastest, Math.hypot(b.vx, b.vy));
+    }
+    expect(fastest).toBeGreaterThan(400); // it still flings
+    expect(fastest).toBeLessThanOrEqual(obstacleSpeedLimit(400, 8, 400, DT) + 1e-6);
+    // Bumpers at boost 2 with ball speed 800 and size 4: the kick stops at the band, not at 3 × 800.
+    const bumper = field([defaultObstacle("bumper", 0, 0)], 800, 600, 2);
+    const small = ball(400, 300 - 21.5, 0, 1000, 4); // 0.5 px into an 18 px bumper
+    bumper.collide(small, DT, 1, 40, 800, 0, events);
+    expect(bumper.bumpCount).toBe(1);
+    expect(Math.hypot(small.vx, small.vy)).toBeCloseTo((RING_CAPTURE_SHARE * 6) / DT, 6);
+    expect((Math.hypot(small.vx, small.vy) * DT) / (small.radius + RING_CAPTURE_MARGIN)).toBeLessThan(1);
+  });
+
   it("queues at most MAX_OBSTACLE_SOUNDS_PER_STEP sounds per step, while every hit still counts", () => {
     const f = field([defaultObstacle("peg", 0, 0)]);
     const events: SoundEvent[] = [];
@@ -424,6 +476,65 @@ describe("obstacles in the engine", () => {
     engine.initMode("shatter");
     expect(spinner.kind === "segment" && spinner.angle).toBe(0);
     expect(field.hitCount).toBe(0);
+  });
+
+  /**
+   * Runs `seconds` of a mode with `list` on a square canvas and returns the first time (s) a ball's centre changed sides of
+   * a ring that is still intact after the step (−1 = never): a pass through a gap breaks the ring in these modes, anything
+   * else is a tunnel.
+   */
+  function firstTunnel(mode: "grow" | "lines" | "classic", list: EditorObstacle[], seed: number, seconds: number, size = 800, patch: Partial<PhysicsConfig> = {}, boost = 1.3) {
+    const cfg: PhysicsConfig = { ...config, width: size, height: size, ...patch, ...obstacleConfigOf({ obstacles: list, bumperBoost: boost }) };
+    const engine = createEngineForSettings(cfg, mode, modeSettings, seed);
+    const cx = size / 2;
+    const cy = size / 2;
+    const prev = new Map<number, number>();
+    for (let i = 0; i < seconds * 60; i++) {
+      engine.update(1000 / 60, 0);
+      const walls = engine.getCircularWalls();
+      const broken = engine.getBrokenWalls();
+      for (const b of engine.getBalls()) {
+        const d = Math.hypot(b.x - cx, b.y - cy);
+        const p = prev.get(b.id);
+        if (p !== undefined) {
+          for (let w = 0; w < walls.length; w++) {
+            if (broken.has(w)) continue;
+            if (p < walls[w].radius !== d < walls[w].radius) return i / 60;
+          }
+        }
+        prev.set(b.id, d);
+      }
+    }
+    return -1;
+  }
+
+  it("keep a grown ball inside Grow's sealed ring: a spinner's push-out never carries it across", () => {
+    // The first spinner the panel adds (s:0,-0.3,50,0,20) used to eject the grown ball 10–40 s into every run.
+    const spinner = addObstacle([], "spinner");
+    expect(serializeObstacles(spinner)).toBe("s:0,-0.3,50,0,20");
+    for (const seed of [1, 42, 4242]) expect(firstTunnel("grow", spinner, seed, 45)).toBe(-1);
+    expect(firstTunnel("grow", spinner, 7, 45, 600)).toBe(-1);
+    // And the grown ball still fills its ring.
+    const engine = createEngineForSettings({ ...config, width: 800, height: 800, ...obstacleConfigOf({ obstacles: spinner, bumperBoost: 1.3 }) }, "grow", modeSettings, 12345);
+    for (let i = 0; i < 45 * 60; i++) engine.update(1000 / 60, 0);
+    const b = engine.getBalls()[0];
+    const R = engine.getCircularWalls()[0].radius;
+    expect(b.radius).toBeGreaterThan(0.9 * R);
+    expect(Math.hypot(b.x - 400, b.y - 400) + b.radius).toBeLessThan(R + 3);
+  });
+
+  it("keep the ball inside the rings with a spinner at full speed and length, and with hard bumpers on a small fast ball", () => {
+    const maxSpinner = parseObstacles("s:0,0.3,120,0,120");
+    for (const seed of [1, 2, 3]) {
+      expect(firstTunnel("lines", maxSpinner, seed, 20)).toBe(-1);
+      expect(firstTunnel("classic", maxSpinner, seed, 20)).toBe(-1);
+    }
+    let bumpers: EditorObstacle[] = [];
+    for (let i = 0; i < 6; i++) bumpers = addObstacle(bumpers, "bumper");
+    for (const seed of [1, 2]) {
+      expect(firstTunnel("lines", bumpers, seed, 20, 800, { ballSpeed: 800, ballRadius: 4 }, 2)).toBe(-1);
+      expect(firstTunnel("classic", bumpers, seed, 20, 800, { ballSpeed: 800, ballRadius: 4 }, 2)).toBe(-1);
+    }
   });
 
   it("queue bumper dings as sound events", () => {
