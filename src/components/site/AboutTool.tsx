@@ -29,10 +29,6 @@ export default function AboutTool() {
         <h3 className="text-xl font-bold text-slate-50 pt-4">{t("h3_7")}</h3>
         <p>
           {t("p9_before", v)}{" "}
-          <Link href="/blog" className="font-semibold hover:underline text-cyan-400">
-            {t("blog")}
-          </Link>{" "}
-          {t("p9_mid")}{" "}
           <Link href="/feedback" className="font-semibold hover:underline text-cyan-400">
             {t("feedbackPage")}
           </Link>{" "}

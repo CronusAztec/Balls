@@ -49,11 +49,11 @@ export default function ModesOverview({ interactive = false }: { interactive?: b
                   role="button"
                   tabIndex={0}
                   className={cardClass}
-                  onClick={() => window.dispatchEvent(new CustomEvent("viralballs:select-mode", { detail: id }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail: id }))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      window.dispatchEvent(new CustomEvent("viralballs:select-mode", { detail: id }));
+                      window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail: id }));
                     }
                   }}
                 >

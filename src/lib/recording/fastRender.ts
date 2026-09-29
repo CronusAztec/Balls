@@ -301,8 +301,8 @@ async function createMuxer(format: ExportFormat, width: number, height: number, 
   };
 }
 
-/** Triggers the download of an export (`viralballs-export.mp4` / `.webm`). */
-export function downloadExport(blob: Blob, extension: string, baseName = "viralballs-export") {
+/** Triggers the download of an export (`jumpingballslive-export.mp4` / `.webm`). */
+export function downloadExport(blob: Blob, extension: string, baseName = "jumpingballslive-export") {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

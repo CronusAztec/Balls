@@ -62,7 +62,7 @@ import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { MODE_WALL_BREAK_SOUNDS } from "@/lib/audio/songs"; // --- boris-glass ---
-import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
+import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, migrateLegacyStorage, type SimulatorSettings } from "@/lib/settings";
 import { characterOf } from "@/lib/character/character"; // --- boris-faces ---
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
@@ -198,6 +198,7 @@ export default function Controls(props: ControlsProps) {
 
   useEffect(() => {
     try {
+      migrateLegacyStorage();
       if (localStorage.getItem(ADVANCED_STORAGE_KEY) === "true") setAdvanced(true);
     } catch {
       /* ignore */

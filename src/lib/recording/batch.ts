@@ -11,7 +11,7 @@ import { SHARE_CODE_PARAM, decodeShareCode, mergeShareParams } from "@/lib/share
  */
 
 /** localStorage key of the last batch definition. */
-export const BATCH_STORAGE_KEY = "viralballs_batch_render";
+export const BATCH_STORAGE_KEY = "jumpingballslive_batch_render";
 /** At most this many clips per batch (they are held in memory for the ZIP). */
 export const MAX_BATCH_JOBS = 50;
 /** Random seeds per batch. */
@@ -306,6 +306,15 @@ export function keepExportFormat(settings: SimulatorSettings, format: Pick<Simul
   return { ...settings, recordingResolution: format.recordingResolution, fastExportFps: format.fastExportFps };
 }
 
+/**
+ * The settings of a link's job: the link's, with the batch's export format (`keepExportFormat()`) and the page's wall-break
+ * sound – a link never carries one (neither a built-in clip nor an upload, which only lives in the page that holds it), so
+ * the clip gets the one the page plays, like a mode of the "every mode" variant.
+ */
+export function linkJobSettings(link: SimulatorSettings, page: SimulatorSettings): SimulatorSettings {
+  return { ...keepExportFormat(link, page), wallBreakSound: page.wallBreakSound };
+}
+
 /** The settings with one swept value. */
 export function sweepSettings(settings: SimulatorSettings, key: SweepKey, value: number): SimulatorSettings {
   return { ...settings, [key]: value };
@@ -344,9 +353,9 @@ export function uniqueFileBase(base: string, extension: string, used: Set<string
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
-/** The ZIP's file name (without extension): `viralballs-batch-20260929-1432`. */
+/** The ZIP's file name (without extension): `jumpingballslive-batch-20260929-1432`. */
 export function batchZipBase(date: Date): string {
-  return `viralballs-batch-${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
+  return `jumpingballslive-batch-${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
 }
 
 /** A wall-clock time for the queue: `0:07`, `2:31`, `1:02:03`. */

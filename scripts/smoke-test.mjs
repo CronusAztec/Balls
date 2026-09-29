@@ -131,12 +131,12 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
 }
 {
   const xml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
-  check("sitemap uses site URL with trailing slashes", xml.includes(`${BASE}/en/simulator/`) && xml.includes(`${BASE}/es/blog/`), "");
+  check("sitemap uses site URL with trailing slashes", xml.includes(`${BASE}/en/simulator/`) && xml.includes(`${BASE}/es/about/`), "");
 }
 
 // 1. Static pages in every locale
 for (const locale of ["en", "pl", "es"]) {
-  for (const p of ["", "/blog", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/blog/every-viralballs-mode-explained"]) {
+  for (const p of ["", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer"]) {
     const res = await page.goto(`${BASE}/${locale}${p}/`, { waitUntil: "networkidle" });
     const h1 = await page.locator("h1").first().innerText().catch(() => "");
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
@@ -203,7 +203,7 @@ await page.getByRole("button", { name: /Saved Presets/ }).click();
 await page.getByPlaceholder("Preset name...").fill("smoke");
 await page.getByRole("button", { name: "Save", exact: true }).click();
 check("preset saved", await page.getByText("smoke", { exact: true }).isVisible());
-const stored = await page.evaluate(() => localStorage.getItem("viralballs_saved_settings"));
+const stored = await page.evaluate(() => localStorage.getItem("jumpingballslive_saved_settings"));
 check("preset persisted to localStorage", !!stored && stored.includes("smoke"));
 
 // 4a. Custom hit sample: switch the bounce sound to a sample, pick a built-in clip, check the URL and that it decodes
@@ -3650,7 +3650,7 @@ const plFrameRates = async (ms) => {
 // --- end fast-render ---
 // --- project-files ---
 // 28. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
-// bed downloads as <name>.viralballs.json holding the settings and the track as base64. Import on a fresh page (the
+// bed downloads as <name>.jumpingballslive.json holding the settings and the track as base64. Import on a fresh page (the
 // file input, then a drop on the panel) restores the settings and the track; a JSON file that is not a project is
 // refused with a message. Share: the share button copies a ?c= link (base64url); opening it applies the setup,
 // parameters after the code win, and a damaged code is reported under the canvas; the search box finds the block.
@@ -3687,11 +3687,11 @@ const plFrameRates = async (ms) => {
   }
   const bed = project?.assets?.musicBed;
   check(
-    "Export project downloads <name>.viralballs.json with the settings and the uploaded media",
+    "Export project downloads <name>.jumpingballslive.json with the settings and the uploaded media",
     bedUploaded &&
       /Background music\s*smoke-bed\.wav/.test(mediaText) &&
-      projectDownload.suggestedFilename() === "Smoke project.viralballs.json" &&
-      project?.format === "viralballs-project" &&
+      projectDownload.suggestedFilename() === "Smoke project.jumpingballslive.json" &&
+      project?.format === "jumpingballslive-project" &&
       project?.version === 1 &&
       project?.name === "Smoke project" &&
       project?.settings?.mode === "shatter" &&
@@ -3724,7 +3724,7 @@ const plFrameRates = async (ms) => {
   const dropZone = page.getByTestId("project-drop-zone");
   const dataTransfer = await page.evaluateHandle((text) => {
     const dt = new DataTransfer();
-    dt.items.add(new File([text], "dropped.viralballs.json", { type: "application/json" }));
+    dt.items.add(new File([text], "dropped.jumpingballslive.json", { type: "application/json" }));
     return dt;
   }, projectText);
   await dropZone.dispatchEvent("dragenter", { dataTransfer });
@@ -3760,7 +3760,7 @@ const plFrameRates = async (ms) => {
   await page.getByRole("button", { name: /Custom Sound/ }).click();
   const hitZone = page.locator("label:has(#hit-sample-input)");
   await hitZone.waitFor({ timeout: 10000 });
-  await dropOn(hitZone, "my.viralballs.json", "application/json", projectText);
+  await dropOn(hitZone, "my.jumpingballslive.json", "application/json", projectText);
   const hitDropText = await projectStatus();
   await page.waitForTimeout(300);
   const hitDropParams = linkParams();
@@ -3775,11 +3775,11 @@ const plFrameRates = async (ms) => {
   const wallBreakZone = page.locator('label:has-text("Import Custom Wall Break Sound") + label');
   await wallBreakZone.waitFor({ timeout: 10000 });
   decodeErrors.length = 0;
-  await dropOn(wallBreakZone, "my.viralballs.json", "application/json", projectText);
+  await dropOn(wallBreakZone, "my.jumpingballslive.json", "application/json", projectText);
   await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(300);
   const wallBreakValue = await page.locator("#wallbreak-select").inputValue({ timeout: 5000 }).catch(() => "(missing)");
-  const wallBreakProjectOption = await page.locator("#wallbreak-select option", { hasText: "my.viralballs.json" }).count().catch(() => -1);
+  const wallBreakProjectOption = await page.locator("#wallbreak-select option", { hasText: "my.jumpingballslive.json" }).count().catch(() => -1);
   await page.getByPlaceholder("Search settings...").fill(""); // the search hides the Project file block and its status
   const wallDropText = await projectStatus();
   check(
@@ -3801,7 +3801,7 @@ const plFrameRates = async (ms) => {
   await openProjectBlock();
   await page.locator("#project-file-input").setInputFiles({ name: "other.json", mimeType: "application/json", buffer: Buffer.from('{"hello":"world"}') });
   const refusedText = await projectStatus();
-  check("a JSON file that is not a project is refused", /not a ViralBalls project/.test(refusedText) && linkParams().get("mode") === "lines" && linkParams().get("g") === "450", `(status "${refusedText}", link ${linkParams().toString()})`);
+  check("a JSON file that is not a project is refused", /not a JumpingBallsLive project/.test(refusedText) && linkParams().get("mode") === "lines" && linkParams().get("g") === "450", `(status "${refusedText}", link ${linkParams().toString()})`);
 
   // Short share codes.
   await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin });
@@ -3949,7 +3949,7 @@ await page.evaluate(() => (window.__raceOsc.length = 0)); // the notes of the ra
 }
 // A short race at 8× with the cup on: the podium, the cup table, the finish – scored once into the cup, and a second race adds to it.
 await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1`, { waitUntil: "networkidle" });
-await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+await page.evaluate(() => localStorage.removeItem("jumpingballslive:race-cup"));
 await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.getByRole("button", { name: "8x", exact: true }).click();
 {
@@ -3958,7 +3958,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const cupShown = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.racePhase === "cup", null, { timeout: 15000 }).then(() => true).catch(() => false);
   if (cupShown) await page.screenshot({ path: path.join(outDir, "sim-race-cup.png") });
   const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
-  const cup = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  const cup = await page.evaluate(() => JSON.parse(localStorage.getItem("jumpingballslive:race-cup") || "null"));
   const winner = Number(atPodium.raceWinner);
   check(
     "a short race reaches its podium and the cup table, scored into the cup",
@@ -3970,7 +3970,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
     await restartButton.click();
     await restartButton.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
     const again = await restartButton.waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
-    const cup2 = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+    const cup2 = await page.evaluate(() => JSON.parse(localStorage.getItem("jumpingballslive:race-cup") || "null"));
     const summary = await page.getByTestId("race-cup-summary").innerText().catch(() => "");
     check("a second race adds its points to the cup", again && cup2?.races === 2 && cup2.points.reduce((a, b) => a + b, 0) === 2 * 80 && /2 race/.test(summary), `(finished=${again}, stored ${JSON.stringify(cup2)}, "${summary}")`);
   }
@@ -3980,12 +3980,12 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 if (await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined")) {
   await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1&res=500x500&xfps=30`, { waitUntil: "networkidle" });
   // A new cup (the page reads the stored one when it loads, so it loads again).
-  await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive:race-cup"));
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "8x", exact: true }).click();
   const scored = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 45000 }).then(() => true).catch(() => false);
-  const before = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem("jumpingballslive:race-cup") || "null"));
   // Every "Race n" line the export's (hidden) canvas draws.
   await page.evaluate(() => {
     const main = document.querySelector("main canvas");
@@ -4003,7 +4003,7 @@ if (await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof Audi
   await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
   const status = await page.locator("[data-fast-export]").getAttribute("data-fast-export").catch(() => "");
   const lines = await page.evaluate(() => [...(window.__exportRaceLines ?? [])]);
-  const after = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem("jumpingballslive:race-cup") || "null"));
   check(
     "a fast export of a race the page already scored draws the same cup table (no second race, no doubled points)",
     scored && before?.races >= 1 && !!download && status === "done" && lines.length === 1 && lines[0] === `Race ${before.races}` && after?.races === before.races && JSON.stringify(after.points) === JSON.stringify(before.points),
@@ -4676,7 +4676,7 @@ const jrSeed = async () => (await canvasData()).seed;
   await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes&rrn=6&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
   const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
   if (webCodecs) {
-    await page.evaluate(() => localStorage.removeItem("viralballs_batch_render"));
+    await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
     await page.getByRole("button", { name: /Recording/ }).click();
     const block = page.locator("[data-batch]");
     await block.waitFor({ timeout: 10000 });
@@ -4691,7 +4691,7 @@ const jrSeed = async () => (await canvasData()).seed;
     page.off("download", onDownload);
     const rows = await page.locator("[data-batch-job]").evaluateAll((els) => els.map((e) => ({ status: e.getAttribute("data-batch-job"), text: e.textContent || "" })));
     check("the batch render fails a hand-played Beat Runner's job as played by hand", finished && rows.length === 1 && rows[0].status === "failed" && /played by hand/.test(rows[0].text) && !downloaded, `(rows ${JSON.stringify(rows)}, download=${downloaded})`);
-    await page.evaluate(() => localStorage.removeItem("viralballs_batch_render"));
+    await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
   }
 }
 // --- end jdm-rhythm-runner ---
@@ -4701,9 +4701,12 @@ const jrSeed = async () => (await canvasData()).seed;
 // .webm, "Download all as ZIP" packs exactly those files (read back entry by entry: STORE, UTF-8 flag, CRC-32, the same
 // bytes) and the definition survives a reload (localStorage). A mode variant – Portal and Shatter, rendered in card order –
 // stopped with "Stop after this clip" finishes its first clip in Shatter (the mode card's change), skips the Portal one and
-// gives the page its own mode back. Without WebCodecs the block says so and cannot start.
+// gives the page its own mode back. An uploaded wall-break sound plays in every clip of a sweep (a seed and a share link)
+// and of a mode variant and stays on the page; a run Find Simulation found survives a sweep (the panel, the clip length,
+// the fast export's digest and the page run's first escape are the same afterwards). Without WebCodecs the block says so
+// and cannot start.
 {
-  const BATCH_KEY = "viralballs_batch_render";
+  const BATCH_KEY = "jumpingballslive_batch_render";
   /** CRC-32 (IEEE), as the ZIP stores it. */
   const crc32 = (buf) => {
     let c = ~0 >>> 0;
@@ -4794,7 +4797,7 @@ const jrSeed = async () => (await canvasData()).seed;
     }
     check(
       "batch render: Download all as ZIP packs exactly the rendered clips (STORE, UTF-8 names, CRC-32, same bytes)",
-      /^viralballs-batch-\d{8}-\d{4}\.zip$/.test(zipName) && !!entries && entries.length === 2 && entries.map((e) => e.name).sort().join() === names.join() && entries.every((e) => e.method === 0 && (e.flags & 0x800) && files[e.name] && Buffer.compare(e.data, files[e.name]) === 0 && crc32(e.data) === e.crc),
+      /^jumpingballslive-batch-\d{8}-\d{4}\.zip$/.test(zipName) && !!entries && entries.length === 2 && entries.map((e) => e.name).sort().join() === names.join() && entries.every((e) => e.method === 0 && (e.flags & 0x800) && files[e.name] && Buffer.compare(e.data, files[e.name]) === 0 && crc32(e.data) === e.crc),
       `(${zipName || "no zip"}: ${entries ? entries.map((e) => `${e.name} ${e.data.length} B method ${e.method}`).join(", ") : "unreadable"})`,
     );
     // 3. The definition is remembered; a mode variant stopped after its first clip.
@@ -4826,6 +4829,136 @@ const jrSeed = async () => (await canvasData()).seed;
       "batch render: every mode renders the clip in the picked mode; Stop after this clip finishes it, skips the rest and gives the page its mode back",
       canStop && stopping && stopped && doneLine && modeRows.length === 2 && modeRows[0].status === "done" && /^shatter-303-/.test(modeRows[0].file || "") && modeRows[1].status === "skipped" && modeDownloads.length === 1 && /^shatter-303-/.test(modeDownloads[0]) && pageMode === "classic",
       `(rows ${JSON.stringify(modeRows)}, downloads ${JSON.stringify(modeDownloads)}, page mode ${pageMode}, stopping=${stopping})`,
+    );
+
+    // 4. An uploaded wall-break sound is in every clip and stays on the page: a sweep of a seed and of a share link, and a
+    // mode variant that starts from Target (every clip in Shatter, which plays the wall-break clip on every shattered
+    // segment). The search box shows the Batch block and the Wall Break Sound select together; every 50 ms the select's
+    // value is noted for the clip being rendered, and so is every wall-break clip the export plays (a one-argument
+    // AudioBufferSourceNode.start – the default tones are oscillators) with its length.
+    const wallBreakBatch = async (query, setUp) => {
+      await page.goto(`${BASE}/en/simulator/?${query}&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+      const search = page.getByPlaceholder("Search settings...");
+      await search.fill("wall break");
+      await page.locator('label:has-text("Choose audio file") input[type=file]').first().setInputFiles({ name: "smoke-break.wav", mimeType: "audio/wav", buffer: makeWav(0.5) });
+      const upload = await page
+        .waitForFunction(() => (document.querySelector("#wallbreak-select")?.value.startsWith("blob:") ? document.querySelector("#wallbreak-select").value : null), null, { timeout: 10000 })
+        .then((h) => h.jsonValue())
+        .catch(() => "");
+      await search.fill("nd"); // "Wall Break Sound" and "Batch Render"
+      const batch = page.locator("[data-batch]");
+      await batch.waitFor({ timeout: 10000 });
+      await setUp(batch);
+      await page.evaluate(() => {
+        const job = () => [...document.querySelectorAll("[data-batch-job]")].findIndex((el) => el.getAttribute("data-batch-job") === "rendering");
+        const seen = (window.__wbSeen = []);
+        const plays = (window.__wbPlays = []);
+        const timer = setInterval(() => {
+          const j = job();
+          if (j >= 0) seen.push([j, document.querySelector("#wallbreak-select")?.value ?? ""]);
+        }, 50);
+        const start = AudioBufferSourceNode.prototype.start;
+        window.__wbDone = () => {
+          clearInterval(timer);
+          AudioBufferSourceNode.prototype.start = start;
+        };
+        AudioBufferSourceNode.prototype.start = function () {
+          if (arguments.length === 1 && this.buffer) plays.push([job(), Math.round(this.buffer.duration * 1000) / 1000]);
+          return start.apply(this, arguments);
+        };
+      });
+      await batch.getByRole("button", { name: /Render batch/ }).click();
+      const finished = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "finished", null, { timeout: 300000 }).then(() => true).catch(() => false);
+      await page.waitForTimeout(500);
+      const { seen, plays } = await page.evaluate(() => {
+        window.__wbDone();
+        return { seen: window.__wbSeen, plays: window.__wbPlays };
+      });
+      const rows = await batchRows();
+      const after = await page.locator("#wallbreak-select").inputValue().catch(() => "");
+      const afterName = await page.locator("#wallbreak-select option:checked").innerText().catch(() => "");
+      await search.fill("");
+      const jobs = rows.map((_, j) => ({ values: [...new Set(seen.filter(([k]) => k === j).map(([, v]) => (v === upload ? "upload" : v || "default tones")))], plays: plays.filter(([k]) => k === j).map(([, d]) => d) }));
+      const mode = new URL(page.url()).searchParams.get("mode");
+      return {
+        ok: finished && !!upload && rows.length > 1 && rows.every((r) => r.status === "done") && jobs.every((j) => j.values.join() === "upload" && j.plays.length > 0 && j.plays.every((d) => Math.abs(d - 0.5) < 0.01)) && after === upload && afterName === "smoke-break.wav",
+        mode,
+        detail: `(${rows.map((r, j) => `${r.file || r.status}: select ${jobs[j].values.join("/") || "unseen"}, ${jobs[j].plays.length} wall-break clips of ${[...new Set(jobs[j].plays)].join("/") || "-"} s`).join("; ")}; afterwards ${after === upload ? "the upload" : `"${after}"`} ("${afterName}"), page mode ${mode})`,
+      };
+    };
+    const sweepUpload = await wallBreakBatch("mode=shatter", async (batch) => {
+      await batch.getByRole("button", { name: "Seed list", exact: true }).click();
+      await page.locator("#batch-list").fill(`303\n${BASE}/en/simulator/?mode=shatter&g=500 404`);
+      await batch.getByRole("button", { name: "Sweep a setting", exact: true }).click();
+      await page.locator("#batch-sweep-key").selectOption("gravity");
+      await batch.getByLabel("From", { exact: true }).fill("0");
+      await batch.getByLabel("To", { exact: true }).fill("100");
+      await batch.getByLabel("Steps", { exact: true }).fill("2");
+    });
+    check("batch render: an uploaded wall-break sound plays in every clip of a sweep – of a seed and of a share link – and stays on the page", sweepUpload.ok && sweepUpload.mode === "shatter", sweepUpload.detail);
+    const modesUpload = await wallBreakBatch("mode=target", async (batch) => {
+      await batch.getByRole("button", { name: "Seed list", exact: true }).click();
+      await page.locator("#batch-list").fill("505\n606");
+      await batch.getByRole("button", { name: "Every mode", exact: true }).click();
+      await batch.getByRole("button", { name: "Clear", exact: true }).click();
+      await batch.getByRole("group", { name: "Every mode" }).getByRole("button", { name: "Shatter", exact: true }).click();
+    });
+    check("batch render: an uploaded wall-break sound plays in every clip of a mode variant and stays on the page, back in its own mode", modesUpload.ok && modesUpload.mode === "target", modesUpload.detail);
+
+    // 5. A batch that changes settings gives the page back the run Find Simulation found: after a gravity sweep (stopped
+    // after its first clip) the Found panel, the ready bar and the clip length are as they were, the next fast export
+    // renders the found seed (the same frames: digest) and the page's own run is the found run (the same first escape,
+    // data-first-escape, played at 8× before and after).
+    await page.goto(`${BASE}/en/simulator/?mode=classic&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+    let foundText = "";
+    // (1000 seeds miss a 30 s run now and then – about one search in a hundred: search again)
+    for (let attempt = 0; attempt < 3 && !/^Found! \d/.test(foundText); attempt++) {
+      await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+      await page.waitForTimeout(100);
+      const foundLine = page.getByText(/Found! \d|Didn't find simulation/).first();
+      foundText = await foundLine.waitFor({ timeout: 180000 }).then(() => foundLine.innerText()).catch(() => "timeout");
+    }
+    await page.waitForTimeout(500);
+    const seedLine = () => page.getByText(/^Seed: -?\d+/).first().innerText({ timeout: 2000 }).catch(() => "");
+    const clipLength = () => new URLSearchParams(page.url().split("?")[1] || "").get("dur") ?? "default";
+    const fastDigest = async () => {
+      if ((await page.locator("[data-batch]").count()) === 0) await openBatch();
+      const done = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      await done;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      return page.locator("[data-fast-export]").getAttribute("data-fast-digest").catch(() => null);
+    };
+    const firstEscape = async () => {
+      await page.getByRole("button", { name: /Start Simulator/ }).click();
+      await page.getByRole("button", { name: "8x", exact: true }).click();
+      return page
+        .waitForFunction(() => (document.querySelector("main canvas")?.dataset.firstEscape ?? "-1") !== "-1" && document.querySelector("main canvas").dataset.firstEscape, null, { timeout: 60000 })
+        .then((h) => h.jsonValue())
+        .catch(() => "none");
+    };
+    const before = { found: foundText, seed: await seedLine(), clip: clipLength(), digest: await fastDigest(), escape: await firstEscape() };
+    block = page.locator("[data-batch]");
+    await block.getByRole("button", { name: "Seed list", exact: true }).click();
+    await page.locator("#batch-list").fill("101");
+    await block.getByRole("button", { name: "Sweep a setting", exact: true }).click();
+    await page.locator("#batch-sweep-key").selectOption("gravity");
+    await block.getByLabel("From", { exact: true }).fill("0");
+    await block.getByLabel("To", { exact: true }).fill("100");
+    await block.getByLabel("Steps", { exact: true }).fill("2");
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const stopSweep = block.getByRole("button", { name: /Stop after this clip/ });
+    if (await stopSweep.waitFor({ timeout: 15000 }).then(() => true).catch(() => false)) await stopSweep.click();
+    const sweepStopped = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "stopped", null, { timeout: 300000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    const sweepRows = await batchRows();
+    const foundAfter = await page.getByText(/Found! \d/).first().innerText({ timeout: 2000 }).catch(() => "");
+    const ready = await page.getByText(/Ready to start simulation for/).first().innerText({ timeout: 2000 }).catch(() => "");
+    const after = { found: foundAfter, seed: await seedLine(), clip: clipLength(), digest: await fastDigest(), escape: await firstEscape() };
+    check(
+      "batch render: a batch that changes settings gives back the run Find Simulation found (the panel, the clip length, the fast export's frames, the page's own run)",
+      /^Found! \d/.test(before.found) && /^Seed: -?\d+/.test(before.seed) && !!before.digest && before.escape !== "none" && sweepStopped && sweepRows[0]?.status === "done" && /Ready to start simulation for/.test(ready) && JSON.stringify(after) === JSON.stringify(before),
+      `(before: ${JSON.stringify(before)}; after the batch (${sweepRows.map((r) => r.file || r.status).join(", ")}): ${JSON.stringify(after)}, "${ready}")`,
     );
   } else {
     const disabled = await block.getByRole("button", { name: /Render batch/ }).isDisabled();

@@ -84,7 +84,7 @@ import {
   RANGES,
   defaultSettings,
   loadPresets,
-  presetToSettings,
+  presetToLiveSettings,
   resolutionToSize,
   savePresets,
   settingsFromSearchParams,
@@ -1033,8 +1033,8 @@ export default function Simulator() {
       changeMode(mode);
       document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth" });
     };
-    window.addEventListener("viralballs:select-mode", handler);
-    return () => window.removeEventListener("viralballs:select-mode", handler);
+    window.addEventListener("jumpingballslive:select-mode", handler);
+    return () => window.removeEventListener("jumpingballslive:select-mode", handler);
   }, [changeMode]);
 
   /* ------------------------------------------------------------ start / pause / loop */
@@ -1240,7 +1240,7 @@ export default function Simulator() {
     const recorder = recorderRef.current;
     if (recorder) {
       const blob = await recorder.stopRecording();
-      if (blob) recorder.downloadBlob(blob, "viralballs-export");
+      if (blob) recorder.downloadBlob(blob, "jumpingballslive-export");
     }
     setIsRecording(false);
   }, []);
@@ -1660,9 +1660,10 @@ export default function Simulator() {
       finderAbortRef.current = null;
       setIsSearching(false);
       setSearchResult(null);
-      const loaded = presetToSettings(preset);
-      // A preset saved with an uploaded clip can only use it while that upload is still in memory.
-      if (preset.hitSampleId === CUSTOM_HIT_SAMPLE_ID && customHitSample) loaded.hitSampleId = CUSTOM_HIT_SAMPLE_ID;
+      // A preset saved with an uploaded clip can only use it while that upload is still in memory: the custom hit sample and
+      // the uploaded wall-break sound stay while they are the page's live uploads (--- batch-render --- every batch job and the
+      // batch's return to the page's own settings come through here too).
+      const loaded = presetToLiveSettings(preset, { hitSample: !!customHitSample, wallBreakSound: wallBreakObjectUrlRef.current });
       setSettings(loaded);
       const engine = engineRef.current;
       if (engine) {
@@ -1746,6 +1747,29 @@ export default function Simulator() {
   const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
+  // --- batch-render --- a batch that puts other settings on the page drops a found simulation on the way (the preset loader
+  // clears the result, the physics effects the seed): the batch keeps its seed and result as it starts and, once the page has
+  // its own settings again, sets the found run up once more – exactly as Find Simulation left it (paused at its start)
+  const keepFoundSimulation = useCallback(() => {
+    const found = searchResult?.found ? searchResult : null;
+    const seed = engineRef.current?.getSeed();
+    if (!found || seed === undefined) return null;
+    return () => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const own = themeLookRef.current; // the page's settings as committed (the batch waited for its effects)
+      engine.setSeed(seed);
+      setFinished(false);
+      setIsPaused(true);
+      audioRef.current?.resetCustomNoteIndex();
+      audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
+      audioRef.current?.getMusicBed().stop();
+      engine.setConfig({ ballRadius: own.ballRadius });
+      initEngineForMode(engine, own);
+      setSearchResult(found);
+    };
+  }, [searchResult, initEngineForMode]);
   // --- batch-render --- the Batch block of the Recording section: the fast export job after job, each with its seed, link,
   // mode or swept value put on the page first (loadPresetSettings / changeMode); the page gets its settings back afterwards
   const batchRender = useBatchRender({
@@ -1753,6 +1777,7 @@ export default function Simulator() {
     exportRef: batchExportRef,
     startFastExport,
     applySettings: loadPresetSettings,
+    keepFound: keepFoundSimulation,
     changeMode,
     update,
     pageRunning: isStarted && !isPaused,

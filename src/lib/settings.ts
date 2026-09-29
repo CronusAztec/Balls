@@ -1,5 +1,5 @@
 import type { BallInteraction, ModeId, WallBreakStyle } from "@/lib/physics/types";
-import { DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
+import { CUSTOM_HIT_SAMPLE_ID, DEFAULT_HIT_SAMPLE_ID, isHitSoundMode, normalizeHitSampleId, type HitSoundMode } from "@/lib/audio/sampler";
 import { isInstrumentId, type InstrumentId } from "@/lib/audio/instruments";
 import { BPM_MAX, BPM_MIN, ROOT_NOTE_MAX, ROOT_NOTE_MIN, isQuantizeGrid, isScaleId, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { normalizeWallBreakSound } from "@/lib/audio/songs";
@@ -1193,14 +1193,38 @@ function clampMultiplierSettings(settings: SimulatorSettings) {
 
 /* ------------------------------------------------------------------ presets */
 
-export const PRESETS_STORAGE_KEY = "viralballs_saved_settings";
-export const ADVANCED_STORAGE_KEY = "viralballs_advanced_options";
+export const PRESETS_STORAGE_KEY = "jumpingballslive_saved_settings";
+export const ADVANCED_STORAGE_KEY = "jumpingballslive_advanced_options";
+
+/** Browser-storage keys written before the rename to JumpingBallsLive, and the keys that replaced them. */
+const LEGACY_STORAGE_KEYS: Record<string, string> = {
+  viralballs_saved_settings: PRESETS_STORAGE_KEY,
+  viralballs_advanced_options: ADVANCED_STORAGE_KEY,
+  "viralballs:race-cup": "jumpingballslive:race-cup",
+  viralballs_batch_render: "jumpingballslive_batch_render",
+};
+
+/** Moves saved presets, options, race cups and batches from the old keys to the new ones (once; no-op afterwards). */
+export function migrateLegacyStorage(): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    for (const [oldKey, newKey] of Object.entries(LEGACY_STORAGE_KEYS)) {
+      const value = localStorage.getItem(oldKey);
+      if (value === null) continue;
+      if (localStorage.getItem(newKey) === null) localStorage.setItem(newKey, value);
+      localStorage.removeItem(oldKey);
+    }
+  } catch {
+    // Storage unavailable (private mode, quota): nothing to migrate.
+  }
+}
 
 export type PresetStore = Record<string, Partial<SimulatorSettings>>;
 
 export function loadPresets(): PresetStore {
   if (typeof window === "undefined") return {};
   try {
+    migrateLegacyStorage();
     const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as PresetStore) : {};
   } catch {
@@ -1273,6 +1297,25 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
   return merged;
+}
+
+/** The uploads the page holds right now: whether a hit sample was uploaded, and the blob: URL of the uploaded wall-break sound. */
+export interface LiveUploads {
+  hitSample: boolean;
+  wallBreakSound: string | null;
+}
+
+/**
+ * `presetToSettings()` for settings put on the page while it still holds its uploads (a saved preset, an imported project,
+ * a share code, a batch job and the batch's way back to the page's own settings): a "custom" hit sample stays selected
+ * while a sample is uploaded, and an uploaded wall-break sound (a blob: URL, which `presetToSettings()` drops) while it
+ * is the page's live upload. A dead blob: URL or "custom" without an upload still falls back.
+ */
+export function presetToLiveSettings(preset: Partial<SimulatorSettings>, uploads: LiveUploads): SimulatorSettings {
+  const loaded = presetToSettings(preset);
+  if (preset.hitSampleId === CUSTOM_HIT_SAMPLE_ID && uploads.hitSample) loaded.hitSampleId = CUSTOM_HIT_SAMPLE_ID;
+  if (preset.wallBreakSound && preset.wallBreakSound === uploads.wallBreakSound) loaded.wallBreakSound = preset.wallBreakSound;
+  return loaded;
 }
 
 export function resolutionToSize(resolution: string): { width: number; height: number } {
