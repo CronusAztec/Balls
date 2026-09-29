@@ -2392,8 +2392,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 // URL, the search box, the finder (Endless hides it; the clip length decides the run length, so a matching target is
 // found with the first seed – keeping the clip length – and a missing one is explained), a default run at 30+ fps whose
 // notes all belong to the harp's C major ladder (OscillatorNode.start is instrumented) with the energy held
-// (data-dp-drift), a sparring run whose mirrored pendulums hit each other, a triple pendulum on a radial harp and a
-// 10 s clip at 8× that finishes after its finale.
+// (data-dp-drift), a sparring run whose mirrored pendulums hit each other, a triple pendulum on a radial harp, a
+// 10 s clip at 8× that finishes after its finale and, restarted, plucks the harp through the whole clip again, and a
+// stiff light-over-heavy rig at 8× whose energy holds within 10 ppm.
 {
   const res = await page.request.get(`${BASE}/modes/doublePendulum.webp`);
   check("asset /modes/doublePendulum.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -2534,6 +2535,37 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const data = await canvasData();
   const time = await page.locator("span.tabular-nums").first().innerText();
   check("a double pendulum run finishes at the clip length after its finale", done && data.dpDone === "1" && Number(data.dpPlucks) > 20 && Number(data.dpDrift) < 100, `(finished=${done}, elapsed ${time}, ${JSON.stringify(data)})`);
+  // Restart Simulation re-inits the same mode instance: the new run starts with still strings and plucks the harp
+  // through the whole clip again (the previous run's pluck times, on its own clock, used to mute every string for as
+  // long as that run had lasted – the restarted clip played a pluck or two).
+  if (done) {
+    const restartButton = page.getByRole("button", { name: /Restart Simulation/ });
+    await restartButton.click();
+    await restartButton.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+    const again = await restartButton.waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    const second = await canvasData();
+    check("a restarted double pendulum run plucks the harp again", again && second.dpDone === "1" && Number(second.dpPlucks) > 20, `(first run ${data.dpPlucks} plucks, restarted run ${second.dpPlucks} plucks, finished=${again})`);
+  }
+}
+// A light bob over a heavy one (masses 0.2 over 5, arms 0.2 and 1, gravity 3) is stiff – its light joint whips round at
+// hundreds of rad/s – yet without friction the energy holds (data-dp-drift, ppm of Σm·g·L; sub-steps sized from the
+// rates at the start of a step alone let this rig lose percents of its energy within a minute) and the harp plays on.
+await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpm1=0.2&dpm2=5&dpl1=0.2&dpg=3&dpen=1`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  let worst = 0;
+  let samples = 0;
+  for (let i = 0; i < 24; i++) {
+    await page.waitForTimeout(250);
+    const d = await canvasData();
+    if (d.dpDrift !== undefined) {
+      worst = Math.max(worst, Number(d.dpDrift));
+      samples++;
+    }
+  }
+  const data = await canvasData();
+  check("a light-over-heavy double pendulum holds its energy without friction", samples >= 20 && worst <= 10 && Number(data.dpPlucks) > 20 && data.dpDone !== "1", `(worst drift ${worst} ppm over ${samples} samples, ${JSON.stringify(data)})`);
 }
 // --- end jdm-double-pendulum ---
 // --- jdm-illusions ---

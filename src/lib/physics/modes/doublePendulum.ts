@@ -1,13 +1,14 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
-import { PendulumChain, collideBobs, createContactScratch, type ContactScratch, type Vec2 } from "../pendulumChain";
+import { ChainStepper, PendulumChain, collideBobs, createContactScratch, type ContactScratch, type Vec2 } from "../pendulumChain";
 
 /**
  * Double Pendulum ("doublePendulum" mode, the project.jdm "Double Pendulum HARP" and "2 Pendulums SPAR with Each
  * Other" formats): no rings. One to four double pendulums – or triple pendulums – swing from a pivot in the middle of
- * the centred square the recorder crops to, integrated with a fixed-step RK4 scheme (pendulumChain.ts; 8–96 sub-steps
- * per 60 Hz step, chosen from the fastest rod so a rod never turns more than `MAX_ANGLE_PER_SUBSTEP` per sub-step).
+ * the centred square the recorder crops to, integrated in error-controlled Dormand–Prince 5(4) sub-steps
+ * (pendulumChain.ts, `ChainStepper`: at least eight per 60 Hz step, no rod turning more than `MAX_ANGLE_PER_SUBSTEP` in
+ * one, hundreds where a light bob over a heavy one whips round), so the energy of a run without friction holds.
  * Several pendulums share the pivot and start a hair apart (`BUTTERFLY_OFFSET_DEG` on the last rod), so they swing as
  * one and then fly apart – the butterfly effect.
  *
@@ -317,11 +318,6 @@ export function readDoublePendulumParams(params: URLSearchParams, settings: Doub
 
 /** Gravity of the model (units / s²) at the setting 1: the chain is 1 unit long, so it swings like a 1 m pendulum on Earth. */
 export const DP_GRAVITY = 9.81;
-/** Sub-steps per 60 Hz step: at least this many… */
-export const MIN_SUBSTEPS = 8;
-/** …and at most this many; in between, enough that no rod turns more than `MAX_ANGLE_PER_SUBSTEP` radians per sub-step. */
-export const MAX_SUBSTEPS = 96;
-export const MAX_ANGLE_PER_SUBSTEP = 0.015;
 /** Each further pendulum sharing the pivot starts this much further on its last rod (degrees): together at first, then apart. */
 export const BUTTERFLY_OFFSET_DEG = 0.05;
 /** Sparring: the pivots are this far apart (model units; one chain is 1 long). */
@@ -391,12 +387,6 @@ export function chainLengths(settings: Pick<DoublePendulumSettings, "segments" |
 
 export function chainMasses(settings: Pick<DoublePendulumSettings, "segments" | "mass1" | "mass2" | "mass3">): number[] {
   return [settings.mass1, settings.mass2, settings.mass3].slice(0, settings.segments);
-}
-
-/** Sub-steps for a step of `stepSec` when the fastest rod turns at `maxRate` rad/s. */
-export function subStepsFor(maxRate: number, stepSec: number): number {
-  const n = Math.ceil((maxRate * stepSec) / MAX_ANGLE_PER_SUBSTEP);
-  return Math.max(MIN_SUBSTEPS, Math.min(MAX_SUBSTEPS, Number.isFinite(n) ? n : MAX_SUBSTEPS));
 }
 
 /* ------------------------------------------------------------------ harp tuning */
@@ -620,7 +610,7 @@ export interface DoublePendulumView {
   /** Simulation time (seconds) and steps of the run; the clock stops when the run finishes. */
   timeSec: number;
   step: number;
-  /** Sub-steps of the last step. */
+  /** Sub-steps of the last step (the most any pendulum took). */
   subSteps: number;
   plucks: number;
   hitCount: number;
@@ -687,6 +677,12 @@ export class DoublePendulumMode implements GameMode {
   private readonly stepHits: number[] = [];
   private prevX = new Float64Array(0);
   private prevY = new Float64Array(0);
+  /**
+   * The chains stepped together, each group with its own sub-step controller: the two sparring pendulums (their
+   * contacts need both at the same instant), else every pendulum on its own – pendulums that never touch each other
+   * need not share the short sub-steps of whichever one whips round, and one swings the same with or without the others.
+   */
+  private groups: { pens: DpPendulum[]; chains: PendulumChain[]; stepper: ChainStepper }[] = [];
 
   constructor() {
     for (let i = 0; i < HIT_POOL; i++) this.view.hits.push({ x: 0, y: 0, time: -Infinity, strength: 0 });
@@ -784,6 +780,8 @@ export class DoublePendulumMode implements GameMode {
     }
     this.prevX = new Float64Array(segments);
     this.prevY = new Float64Array(segments);
+    const groups = spar ? [v.pendulums] : v.pendulums.map((pen) => [pen]);
+    this.groups = groups.map((pens) => ({ pens, chains: pens.map((pen) => pen.chain), stepper: new ChainStepper() }));
     this.rebuildLayout();
     for (const pen of v.pendulums) {
       this.placeBobs(pen);
@@ -792,6 +790,9 @@ export class DoublePendulumMode implements GameMode {
     v.energy0 = this.totalEnergy();
     v.energy = v.energy0;
     v.energyScale = Math.max(1e-9, count * masses.reduce((a, b) => a + b, 0) * DP_GRAVITY * s.gravity);
+    // A new run starts with still strings: the previous run's pluck times (on the old clock), amplitudes and counts go.
+    // Only the live re-tune of setSettings() carries them over.
+    v.strings = [];
     this.buildStrings();
     const field = v.field!;
     this.firstId = ctx.getNextId();
@@ -832,8 +833,9 @@ export class DoublePendulumMode implements GameMode {
   onPostSubStep() {}
 
   /**
-   * Advances every pendulum by one 60 Hz step in RK4 sub-steps; after each sub-step the sparring contacts are resolved,
-   * the string crossings of every bob found and the trails sampled. Then the step's plucks go out as one note or
+   * Advances every pendulum by one 60 Hz step in error-controlled sub-steps (a `ChainStepper` per group: each
+   * pendulum on its own, the two sparring ones together); after each sub-step the string crossings of the bobs are
+   * found, the trails sampled and the sparring contacts resolved. Then the step's plucks go out as one note or
    * chord, the hits as percussive notes. Once the finale starts (`finaleStartSec()` of the clip) the rig holds still
    * with the closing chord while the clock runs on, and the run finishes at the clip length (never when endless).
    */
@@ -851,29 +853,29 @@ export class DoublePendulumMode implements GameMode {
       if (v.timeSec >= s.clipSeconds - 1e-9) v.finished = true;
       return;
     }
-    let maxRate = 0;
-    for (const pen of v.pendulums) maxRate = Math.max(maxRate, pen.chain.maxRate());
-    const sub = subStepsFor(maxRate, stepSec);
-    const h = stepSec / sub;
-    v.subSteps = sub;
     this.stepPitches.length = 0;
     this.stepHits.length = 0;
     this.stepLevel = 0;
     const t0 = v.timeSec;
-    for (let n = 0; n < sub; n++) {
-      const t = t0 + (n + 1) * h;
-      for (const pen of v.pendulums) {
-        for (let k = 0; k < v.segments; k++) {
-          this.prevX[k] = pen.bobX[k];
-          this.prevY[k] = pen.bobY[k];
+    let subSteps = 0;
+    for (const { pens, chains, stepper } of this.groups) {
+      stepper.begin(stepSec);
+      for (let h = stepper.subStep(chains); h > 0; h = stepper.subStep(chains)) {
+        const t = t0 + stepper.done;
+        for (const pen of pens) {
+          for (let k = 0; k < v.segments; k++) {
+            this.prevX[k] = pen.bobX[k];
+            this.prevY[k] = pen.bobY[k];
+          }
+          this.placeBobs(pen);
+          this.detectPlucks(pen, h, t);
+          this.pushTrail(pen, t, false);
         }
-        pen.chain.step(h);
-        this.placeBobs(pen);
-        this.detectPlucks(pen, h, t);
-        this.pushTrail(pen, t, false);
+        if (pens.length === 2) this.resolveContacts(t);
       }
-      if (s.spar && v.pendulums.length === 2) this.resolveContacts(t);
+      subSteps = Math.max(subSteps, stepper.count);
     }
+    v.subSteps = subSteps;
     v.step++;
     v.timeSec = v.step * stepSec;
     v.energy = this.totalEnergy();
@@ -955,7 +957,7 @@ export class DoublePendulumMode implements GameMode {
     v.harp = buildHarpGeometry(v.settings.stringLayout, v.strings.length, v.spanHalf, (0.5 * field.side) / field.scale);
   }
 
-  /** Tunes the strings to the scale and lays them out (a live change keeps the vibrations of strings that stay). */
+  /** Tunes the strings to the scale and lays them out (a live change keeps the vibrations of strings that stay; `init()` empties the list first, so a new run starts still). */
   private buildStrings() {
     const v = this.view;
     const s = v.settings;

@@ -1,8 +1,10 @@
 /**
- * A planar chain pendulum – two links (the double pendulum) or three (the triple pendulum) – integrated with a
- * fixed-step, classic fourth-order Runge–Kutta scheme. Pure maths with no allocation after construction, so the
- * Double Pendulum mode (modes/doublePendulum.ts) can step several chains many times per 60 Hz step and stay inside
- * the frame budget, and so the unit tests can check the integrator directly (energy drift, collisions).
+ * A planar chain pendulum – two links (the double pendulum) or three (the triple pendulum) – integrated in
+ * error-controlled sub-steps of the embedded Dormand–Prince 5(4) Runge–Kutta pair (`tryStep()` / `acceptStep()`,
+ * driven by `ChainStepper`), with the classic fourth-order Runge–Kutta step (`step()`) kept for fixed-step use. Pure
+ * maths with no allocation after construction, so the Double Pendulum mode (modes/doublePendulum.ts) can step several
+ * chains many times per 60 Hz step and stay inside the frame budget, and so the unit tests can check the integrator
+ * directly (energy drift, collisions).
  *
  * Model: point masses `m[i]` at the ends of massless rods of length `l[i]`, angle `theta[i]` of rod i measured from
  * the downward vertical (screen coordinates, y pointing down: bob k sits at x = Σ l sin θ, y = Σ l cos θ from the
@@ -13,10 +15,42 @@
  * a symmetric positive definite 2×2 or 3×3 system solved by Gaussian elimination at every stage. Damping is the
  * generalised force −k M θ̇ (θ̈ −= k θ̇ after the solve), which removes energy at the rate 2kT – never adds any.
  * Everything is deterministic: the same parameters and state always give the same numbers.
+ *
+ * Why the step size is error-controlled: a light bob above a heavy one (masses 0.2 over 5, say) is a stiff rig – the
+ * light joint whips round at hundreds of rad/s for a few milliseconds while the heavy bob swings slowly, far faster
+ * than the rates at the start of a 60 Hz step suggest. Sub-steps sized from the rates alone let the truncation error
+ * drain up to half the energy of such a rig in two minutes; the embedded error estimate shortens exactly the sub-steps
+ * that need it (hundreds in a whip, about ten a step for the default rig) and keeps the drift under 1e-6 of Σm·g·L.
  */
 
 /** Most rods a chain may have. */
 export const MAX_CHAIN_LINKS = 3;
+
+/** Sub-steps per 60 Hz step: at least this many (the mode samples the harp crossings and the trail once per sub-step)… */
+export const MIN_SUBSTEPS = 8;
+/** …no rod turns more than this per sub-step (radians), so a bob's path between two sub-steps is nearly straight… */
+export const MAX_ANGLE_PER_SUBSTEP = 0.015;
+/** …every sub-step's estimated error stays under this (angles in radians, rates relative to 1 + |θ̇|; a rejected try is retried shorter)… */
+export const STEP_TOLERANCE = 1e-9;
+/** …and no sub-step is shorter than 1 / MAX_SUBSTEPS of the step, which bounds the work of a step (the error control never needs that many). */
+export const MAX_SUBSTEPS = 1024;
+
+/*
+ * Dormand–Prince 5(4): stage s starts from y + h Σⱼ DP_A[s][j] kⱼ; the fifth-order result is y + h Σ DP_B[j] kⱼ, whose
+ * slope is the seventh stage – the first stage of the next step (FSAL) – and h Σ DP_E[j] kⱼ (fifth minus embedded
+ * fourth order) estimates the error of the step.
+ */
+const DP_A: readonly (readonly number[])[] = [
+  [],
+  [1 / 5],
+  [3 / 40, 9 / 40],
+  [44 / 45, -56 / 15, 32 / 9],
+  [19372 / 6561, -25360 / 2187, 64448 / 6561, -212 / 729],
+  [9017 / 3168, -355 / 33, 46732 / 5247, 49 / 176, -5103 / 18656],
+];
+const DP_B: readonly number[] = [35 / 384, 0, 500 / 1113, 125 / 192, -2187 / 6784, 11 / 84];
+const DP_E: readonly number[] = [71 / 57600, 0, -71 / 16695, 71 / 1920, -17253 / 339200, 22 / 525, -1 / 40];
+const DP_STAGES = 7;
 
 export interface ChainParams {
   /** 2 (double pendulum) or 3 (triple pendulum). */
@@ -95,6 +129,16 @@ export class PendulumChain {
   private readonly k4w: Float64Array;
   private readonly mat: Float64Array;
   private readonly rhs: Float64Array;
+  // Dormand–Prince scratch: the stage slopes of the angles (rates) and of the rates (accelerations), the state the
+  // first stage was taken at (reused while the state is unchanged) and the result of the last try.
+  private readonly stageT: Float64Array[];
+  private readonly stageW: Float64Array[];
+  private readonly firstAtT: Float64Array;
+  private readonly firstAtW: Float64Array;
+  private firstValid = false;
+  /** The fifth-order result of the last `tryStep()` (angles not wrapped yet); `acceptStep()` moves the chain there. */
+  readonly nextTheta: Float64Array;
+  readonly nextOmega: Float64Array;
 
   constructor(params: ChainParams) {
     const n = Math.max(1, Math.min(MAX_CHAIN_LINKS, Math.round(params.links)));
@@ -119,6 +163,12 @@ export class PendulumChain {
     this.k4w = f();
     this.mat = new Float64Array(n * n);
     this.rhs = f();
+    this.stageT = Array.from({ length: DP_STAGES }, f);
+    this.stageW = Array.from({ length: DP_STAGES }, f);
+    this.firstAtT = f();
+    this.firstAtW = f();
+    this.nextTheta = f();
+    this.nextOmega = f();
     for (let i = 0; i < n; i++) {
       this.lengths[i] = params.lengths[i] ?? params.lengths[params.lengths.length - 1] ?? 1;
       this.masses[i] = params.masses[i] ?? params.masses[params.masses.length - 1] ?? 1;
@@ -220,7 +270,90 @@ export class PendulumChain {
     }
   }
 
-  /** Largest |θ̇| of the chain (rad/s): the mode picks its sub-step count from it. */
+  /**
+   * Tries one Dormand–Prince 5(4) step of `h` seconds without changing the state: the fifth-order result goes to
+   * `nextTheta` / `nextOmega`, and the return value is the embedded error estimate relative to `tol` – the largest of
+   * |angle error| / tol and |rate error| / (tol · (1 + |θ̇|)) over the rods; at most 1 means the step is good. The first
+   * stage is the slope at the current state, reused from the previous accepted step (or a rejected try) while the
+   * state is unchanged, so an accepted step costs six evaluations of the accelerations.
+   */
+  tryStep(h: number, tol: number): number {
+    const n = this.links;
+    const { theta, omega, stageT, stageW, ts, ws, nextTheta, nextOmega, firstAtT, firstAtW } = this;
+    let fresh = this.firstValid;
+    for (let i = 0; i < n && fresh; i++) fresh = firstAtT[i] === theta[i] && firstAtW[i] === omega[i];
+    if (!fresh) {
+      for (let i = 0; i < n; i++) {
+        stageT[0][i] = omega[i];
+        firstAtT[i] = theta[i];
+        firstAtW[i] = omega[i];
+      }
+      this.accelerations(theta, omega, stageW[0]);
+      this.firstValid = true;
+    }
+    for (let s = 1; s < DP_STAGES - 1; s++) {
+      const a = DP_A[s];
+      for (let i = 0; i < n; i++) {
+        let dt = 0;
+        let dw = 0;
+        for (let j = 0; j < s; j++) {
+          dt += a[j] * stageT[j][i];
+          dw += a[j] * stageW[j][i];
+        }
+        ts[i] = theta[i] + h * dt;
+        ws[i] = omega[i] + h * dw;
+        stageT[s][i] = ws[i];
+      }
+      this.accelerations(ts, ws, stageW[s]);
+    }
+    const last = DP_STAGES - 1;
+    for (let i = 0; i < n; i++) {
+      let dt = 0;
+      let dw = 0;
+      for (let j = 0; j < last; j++) {
+        dt += DP_B[j] * stageT[j][i];
+        dw += DP_B[j] * stageW[j][i];
+      }
+      nextTheta[i] = theta[i] + h * dt;
+      nextOmega[i] = omega[i] + h * dw;
+      stageT[last][i] = nextOmega[i];
+    }
+    this.accelerations(nextTheta, nextOmega, stageW[last]);
+    let err = 0;
+    for (let i = 0; i < n; i++) {
+      let et = 0;
+      let ew = 0;
+      for (let j = 0; j < DP_STAGES; j++) {
+        et += DP_E[j] * stageT[j][i];
+        ew += DP_E[j] * stageW[j][i];
+      }
+      const e = Math.max(Math.abs(h * et), Math.abs(h * ew) / (1 + Math.max(Math.abs(omega[i]), Math.abs(nextOmega[i]))));
+      if (e > err || Number.isNaN(e)) err = e;
+    }
+    return err / tol;
+  }
+
+  /** Moves the chain to the result of the last `tryStep()` (angles wrapped into (−π, π]); that step's last stage becomes the next step's first. */
+  acceptStep() {
+    const n = this.links;
+    const last = DP_STAGES - 1;
+    for (let i = 0; i < n; i++) {
+      this.theta[i] = wrapAngle(this.nextTheta[i]);
+      this.omega[i] = this.nextOmega[i];
+      this.firstAtT[i] = this.theta[i];
+      this.firstAtW[i] = this.omega[i];
+    }
+    // The last stage is the slope at the new state (up to the rounding of the wrap): swap it into the first slot.
+    const t = this.stageT[0];
+    this.stageT[0] = this.stageT[last];
+    this.stageT[last] = t;
+    const w = this.stageW[0];
+    this.stageW[0] = this.stageW[last];
+    this.stageW[last] = w;
+    this.firstValid = true;
+  }
+
+  /** Largest |θ̇| of the chain (rad/s): `ChainStepper` caps the sub-step from it. */
   maxRate(): number {
     let m = 0;
     for (let i = 0; i < this.links; i++) {
@@ -341,4 +474,71 @@ export function collideBobs(a: PendulumChain, ka: number, b: PendulumChain, kb: 
   a.applyImpulse(ka, -j * nx, -j * ny, scratch.a);
   b.applyImpulse(kb, j * nx, j * ny, scratch.b);
   return -vrel;
+}
+
+/**
+ * Advances the chains of a rig together (the sparring contacts need them at the same instant) through a step of the
+ * mode, in sub-steps of the Dormand–Prince pair:
+ *
+ *   stepper.begin(stepSec);
+ *   for (let h; (h = stepper.subStep(chains)) > 0; ) { …the chains are `stepper.done` seconds into the step… }
+ *
+ * A sub-step is at most 1 / `MIN_SUBSTEPS` of the step, turns no rod more than `MAX_ANGLE_PER_SUBSTEP` (from the
+ * fastest rod at its start), keeps the error estimate of every chain under `STEP_TOLERANCE` – a rejected try is
+ * retried shorter, by the usual 0.9 · err^(−1/5) rule – and is never shorter than 1 / `MAX_SUBSTEPS` of the step
+ * (then taken whatever the estimate). What is left of the step is split evenly, so the last sub-step ends exactly on it.
+ * The length the controller would like next carries over from sub-step to sub-step and step to step (`reset()` for a
+ * new run). Only the state decides, so the sub-steps – and the run – are deterministic.
+ */
+export class ChainStepper {
+  /** Seconds of the current step done so far, and the sub-steps taken in it. */
+  done = 0;
+  count = 0;
+  private stepSec = 0;
+  private want = Infinity;
+
+  /** A new run: forget the length the controller learnt. */
+  reset() {
+    this.want = Infinity;
+    this.done = 0;
+    this.stepSec = 0;
+    this.count = 0;
+  }
+
+  /** Starts a step of `stepSec` seconds. */
+  begin(stepSec: number) {
+    this.stepSec = stepSec;
+    this.done = 0;
+    this.count = 0;
+  }
+
+  /** Takes the next sub-step of every chain and returns its length (seconds), or 0 once the step is complete. */
+  subStep(chains: readonly PendulumChain[]): number {
+    const stepSec = this.stepSec;
+    const rest = stepSec - this.done;
+    if (!(rest > 0) || chains.length === 0) return 0;
+    const minH = stepSec / MAX_SUBSTEPS;
+    let rate = 0;
+    for (const c of chains) rate = Math.max(rate, c.maxRate());
+    let h = Math.min(this.want, stepSec / MIN_SUBSTEPS);
+    if (rate * h > MAX_ANGLE_PER_SUBSTEP) h = MAX_ANGLE_PER_SUBSTEP / rate;
+    if (!(h > minH)) h = minH;
+    h = rest / Math.max(1, Math.ceil(rest / h - 1e-9));
+    let err = 0;
+    for (;;) {
+      err = 0;
+      for (const c of chains) {
+        const e = c.tryStep(h, STEP_TOLERANCE);
+        if (e > err || Number.isNaN(e)) err = e;
+      }
+      if (!(err > 1) || h <= minH) break;
+      h = Math.max(minH, h * Math.max(0.2, 0.9 * Math.pow(err, -0.2)));
+    }
+    for (const c of chains) c.acceptStep();
+    this.done = h >= rest ? stepSec : this.done + h;
+    this.count++;
+    // Grow after an easy sub-step (at most 5×), shrink after a hard one.
+    this.want = err > 0 ? h * Math.min(5, Math.max(0.2, 0.9 * Math.pow(err, -0.2))) : 5 * h;
+    return h;
+  }
 }
