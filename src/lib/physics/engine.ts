@@ -17,6 +17,8 @@ import {
   TargetMode,
 } from "./modes";
 import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView, PicturePaintState } from "./modes";
+// --- jdm-polyrhythm ---
+import { PolyrhythmMode, type PolyrhythmSettings, type PolyrhythmView } from "./modes";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -80,6 +82,8 @@ export const OBSTACLE_HIT_SPEED = 40;
  * folds every ball back into its box in `onBallStep()` and opts out of the pair loop (`ballsPassThrough`).
  * Pendulum Wave (modes/pendulum.ts) does the same with analytic motion: its bobs are ordinary balls whose
  * positions it overwrites at every sub-step from the simulation clock.
+ * Metronomes & Polyrhythms (modes/polyrhythm.ts) too: its dots are balls pinned to positions it computes
+ * once per step from exact tempo fractions of the step counter.
  */
 export class PhysicsEngine {
   private balls: Ball[] = [];
@@ -151,6 +155,8 @@ export class PhysicsEngine {
   readonly dropMode = new DropMode();
   readonly boxMode = new BoxMode();
   readonly pendulumMode = new PendulumMode();
+  // --- jdm-polyrhythm ---
+  readonly polyrhythmMode = new PolyrhythmMode();
 
   readonly ctx: ModeContext;
 
@@ -353,6 +359,10 @@ export class PhysicsEngine {
   initPendulum() {
     this.activateMode(this.pendulumMode, "none");
   }
+  // --- jdm-polyrhythm ---
+  initPolyrhythm() {
+    this.activateMode(this.polyrhythmMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -383,6 +393,9 @@ export class PhysicsEngine {
         return this.initBox();
       case "pendulum":
         return this.initPendulum();
+      // --- jdm-polyrhythm ---
+      case "polyrhythm":
+        return this.initPolyrhythm();
     }
   }
 
@@ -724,6 +737,29 @@ export class PhysicsEngine {
   getPendulumSecondsToAlignment() {
     return this.pendulumMode.secondsToAlignment();
   }
+  // --- jdm-polyrhythm ---
+  isPolyrhythmMode() {
+    return this.currentMode === this.polyrhythmMode;
+  }
+  getPolyrhythmSettings(): PolyrhythmSettings {
+    return this.polyrhythmMode.getSettings();
+  }
+  /** Voices, tempo series, cycle and cycles of Metronomes & Polyrhythms apply on the next `initPolyrhythm()`; layout, polygons, accents, pitch mapping and numbers at once. */
+  setPolyrhythmSettings(settings: Partial<PolyrhythmSettings>) {
+    this.polyrhythmMode.setSettings(settings);
+  }
+  /** Live Metronomes & Polyrhythms state (geometry, voices, clock, counters) for the canvas and the HUD; the same object every call. */
+  getPolyrhythmView(): PolyrhythmView {
+    return this.polyrhythmMode.getView();
+  }
+  getPolyrhythmProgress() {
+    return this.polyrhythmMode.getProgress();
+  }
+  /** Seconds until every voice ticks together again. */
+  getPolyrhythmSecondsToAlignment() {
+    return this.polyrhythmMode.secondsToAlignment();
+  }
+  // --- end jdm-polyrhythm ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

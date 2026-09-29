@@ -98,7 +98,10 @@
     "exportFormatNote": "Se exporta como MP4 si el navegador lo admite; si no, como WebM.",
     "fps": "FPS",
     "shareLink": "Copiar enlace para compartir",
-    "shareLinkCopied": "¡Enlace copiado!"
+    "shareLinkCopied": "¡Enlace copiado!",
+    "canvasPolyrhythmDone": "¡EN FASE!",
+    "canvasPolyrhythmAligned": "Las [count] voces vuelven a estar en fase tras [cycles] ciclo(s)",
+    "finderFixedPolyrhythm": "Metrónomos y polirritmos dura siempre exactamente {duration}s con estos ajustes (los ciclos × la duración del ciclo), sea cual sea la semilla. Cambia la duración del ciclo, los tempos o el número de ciclos en la fila Modo para alcanzar el objetivo."
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los 12 modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
@@ -571,7 +574,50 @@
     "themeTrailRainbow": "Arcoíris",
     "themeTrailCustom": "Personalizado",
     "themeTrailStart": "Color del rastro 1",
-    "themeTrailEnd": "Color del rastro 2"
+    "themeTrailEnd": "Color del rastro 2",
+    "modePolyrhythm": "Metrónomos y polirritmos",
+    "prDesc": "Voces que marcan su propio tempo: cada tic toca una nota y, cuando todas coinciden, la pantalla destella y suena un acorde. Las posiciones son funciones exactas del tiempo, así que incluso 400 voces se reproducen de forma idéntica.",
+    "prLayout": "Disposición",
+    "prLayoutTip": "Anillos: en cada anillo un punto da un número entero de vueltas por ciclo y suena al pasar por las 12. Arcos: los puntos van y vienen a través de un círculo y suenan en ambos extremos. Metrónomos: una cuadrícula de péndulos que suenan en ambos extremos; combínala con los pasos de BPM para un desfase de tempo. Espiral: puntos en órbita cuyos puntos de tic están sobre una espiral que se redibuja en cada alineación. Puedes cambiar la disposición en plena simulación: el ritmo continúa.",
+    "prLayoutRings": "Anillos",
+    "prLayoutArcs": "Arcos",
+    "prLayoutMetronomes": "Metrónomos",
+    "prLayoutSpiral": "Espiral",
+    "prArcStyle": "Tipo de arco",
+    "prArcStyleTip": "Cuerdas: cada punto se desliza por su propia cuerda horizontal de un gran círculo (el efecto de «metrónomos dentro de un círculo»). Semicírculos: cada punto recorre medio círculo y suena sobre la línea base.",
+    "prArcChords": "Cuerdas",
+    "prArcSemicircles": "Semicírculos",
+    "prPolygon": "Polígonos",
+    "prPolygonTip": "Dibuja cada anillo como un polígono con tantos vértices como su proporción (3 tics por ciclo = un triángulo), que gira una vez por ciclo para que un vértice se encuentre con el punto en cada tic.",
+    "prTempos": "Tempos",
+    "prTemposTip": "Armónicos: la voz n suena n veces por ciclo (1:2:3…) y todas vuelven a estar en fase al final de cada ciclo. Pasos de BPM: los tempos suben desde un BPM base con un paso fijo, así que las voces vecinas se separan despacio y solo vuelven a coincidir tras mucho tiempo. Personalizados: tu propia lista de proporciones, como 3,4,5,7.",
+    "prTemposHarmonic": "Armónicos",
+    "prTemposArithmetic": "Pasos de BPM",
+    "prTemposCustom": "Personalizados",
+    "prCount": "Voces",
+    "prCountTip": "Cuántas voces suenan a la vez, hasta 400. Más voces crean patrones más densos; las notas suben por una escala mayor desde la más lenta.",
+    "prCycleSeconds": "Duración del ciclo",
+    "prCycleSecondsTip": "Segundos por ciclo para los tempos armónicos y personalizados: una voz de proporción n suena n veces por ciclo, y al final de cada ciclo todas vuelven a estar en fase.",
+    "prBaseBpm": "Tempo base",
+    "prBaseBpmTip": "Tempo de la primera voz, en pulsos por minuto.",
+    "prBpmStep": "Paso de tempo",
+    "prBpmStepTip": "Cuánto más rápido suena cada voz siguiente, en BPM. Los pasos pequeños dan un desfase lento al estilo de Reich; las voces vuelven a coincidir cuando cada tempo encaja un número entero de tics en el mismo tiempo.",
+    "prCustom": "Proporciones",
+    "prCustomTip": "Números enteros separados por comas, espacios o dos puntos: cada uno es una voz que suena ese número de veces por ciclo (3:4:5 es el polirritmo clásico). Hasta 400 voces.",
+    "prCustomVoices": "{count} voces",
+    "prAccentEvery": "Acento cada",
+    "prAccentEveryTip": "Hace que cada k-ésimo tic de cada voz suene más fuerte y más largo, con un anillo alrededor del punto, como el primer tiempo de un compás. 0 desactiva los acentos.",
+    "prPitchBy": "Altura",
+    "prPitchByTip": "Por voz: cada voz toca el siguiente grado de una escala mayor desde Do4. Por proporción: cada voz toca su proporción de tempo como armónico de Do3, así que 3:4:5 suena como el acorde Sol–Do–Mi. Ambas se ajustan a la escala elegida en la sección de sonido.",
+    "prPitchIndex": "Por voz",
+    "prPitchRatio": "Por proporción",
+    "prNumbers": "Números",
+    "prNumbersTip": "Escribe en cada punto la proporción (o el BPM) de su voz.",
+    "prCycles": "Ciclos",
+    "prCyclesTip": "Ciclos tras los que termina la simulación, con todas las voces de nuevo en fase. 0 la deja sonar para siempre.",
+    "prCyclesNever": "Nunca",
+    "prOff": "No",
+    "prRealign": "Todas las voces coinciden cada {seconds}s"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -592,6 +638,10 @@
     "pendulum": {
       "name": "Onda de péndulos",
       "description": "Péndulos afinados para que cada uno oscile una vez más por ciclo que el anterior: la fila deriva en ondas viajeras, se divide en grupos y vuelve a alinearse cada ciclo, y cada cruce es una nota. Fila, arco, círculo, galaxia, raíles o botes, y un modo de desfase que nunca llega a realinearse del todo."
+    },
+    "polyrhythm": {
+      "name": "Metrónomos y polirritmos",
+      "description": "Hasta 400 voces marcan su propio tempo –puntos que giran en anillos a 3:4:5, puntos que cruzan un círculo de lado a lado, una cuadrícula de metrónomos que se desfasan, una espiral– y cada tic es una nota. Derivan en polirritmos y vuelven a ponerse en fase con un destello y un acorde."
     }
   },
   "Features": {
@@ -733,7 +783,8 @@
     "troubleMidiQ": "Mi archivo MIDI no se carga",
     "troubleMidiA": "Los archivos muy complejos con muchas pistas simultáneas pueden no leerse. Prueba un MIDI más simple con una sola melodía (formato 0 o 1). La herramienta conserva solo la nota más alta en cada instante, así que una exportación de la melodía principal desde tu programa de música funciona mejor.",
     "troubleStuckQ": "¿Sigues atascado?",
-    "troubleStuckA": "Envíanos una nota por la página de comentarios y describe lo que estabas haciendo."
+    "troubleStuckA": "Envíanos una nota por la página de comentarios y describe lo que estabas haciendo.",
+    "modePolyrhythm": "Sin anillos de los que escapar: de 2 a 400 voces marcan cada una su propio tempo y cada tic toca una nota. Anillos (puntos que dan 1, 2, 3… vueltas por ciclo y suenan a las 12, opcionalmente como polígonos giratorios), arcos (puntos que se deslizan por las cuerdas o los semicírculos de un círculo y suenan en ambos extremos), una cuadrícula de metrónomos o una espiral cuyos puntos de tic vuelven a alinearse en cada ciclo. Los tempos siguen la serie armónica, una serie aritmética de BPM (el desfase de tempo al estilo de Reich) o tu propia lista de proporciones, como 3,4,5,7. El instante en que todas las voces coinciden se calcula con exactitud y llega con un acorde y un destello; la simulación termina tras el número de ciclos elegido y siempre dura lo mismo, así que encaja en cualquier clip."
   },
   "Footer": {
     "about": "Acerca de",

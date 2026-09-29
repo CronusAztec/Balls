@@ -98,7 +98,10 @@
     "exportFormatNote": "Exports as MP4 where the browser supports it, otherwise WebM.",
     "fps": "FPS",
     "shareLink": "Copy share link",
-    "shareLinkCopied": "Link copied!"
+    "shareLinkCopied": "Link copied!",
+    "canvasPolyrhythmDone": "IN PHASE!",
+    "canvasPolyrhythmAligned": "All [count] voices back in phase after [cycles] cycle(s)",
+    "finderFixedPolyrhythm": "Metronomes & Polyrhythms always lasts exactly {duration}s with these settings (the cycles × the cycle length), whatever the seed. Change the cycle length, the tempos or the number of cycles in the Mode row to hit the target."
   },
   "HowItWorks": {
     "step1": {
@@ -580,7 +583,50 @@
     "themeTrailRainbow": "Rainbow",
     "themeTrailCustom": "Custom",
     "themeTrailStart": "Trail colour 1",
-    "themeTrailEnd": "Trail colour 2"
+    "themeTrailEnd": "Trail colour 2",
+    "modePolyrhythm": "Metronomes & Polyrhythms",
+    "prDesc": "Voices ticking at their own tempos: every tick plays a note, and whenever all of them tick together the screen flashes and a chord sounds. Positions are exact functions of time, so even 400 voices replay identically.",
+    "prLayout": "Layout",
+    "prLayoutTip": "Rings: a dot on each ring orbits a whole number of times per cycle and ticks at 12 o'clock. Arcs: dots slide back and forth across a circle and tick at both ends. Metronomes: a grid of pendulums ticking at both extremes – pair it with the BPM steps for a tempo phase shift. Spiral: orbiting dots whose tick points lie on a spiral, redrawn at every alignment. You can switch the layout mid-run; the rhythm carries on.",
+    "prLayoutRings": "Rings",
+    "prLayoutArcs": "Arcs",
+    "prLayoutMetronomes": "Metronomes",
+    "prLayoutSpiral": "Spiral",
+    "prArcStyle": "Arc Style",
+    "prArcStyleTip": "Chords: every dot slides along its own horizontal chord of a big circle (the \"metronomes inside a circle\" look). Semicircles: every dot swings along a half circle and ticks on the baseline.",
+    "prArcChords": "Chords",
+    "prArcSemicircles": "Semicircles",
+    "prPolygon": "Polygons",
+    "prPolygonTip": "Draws every ring as a polygon with as many corners as its ratio (3 ticks per cycle = a triangle), turning once per cycle so a corner meets the dot at every tick.",
+    "prTempos": "Tempos",
+    "prTemposTip": "Harmonic: voice n ticks n times per cycle (1:2:3…), all in phase at the end of every cycle. BPM steps: the tempos climb from a base BPM by a fixed step, so neighbours drift apart slowly and line up again only after a long time. Custom: your own list of ratios such as 3,4,5,7.",
+    "prTemposHarmonic": "Harmonic",
+    "prTemposArithmetic": "BPM steps",
+    "prTemposCustom": "Custom",
+    "prCount": "Voices",
+    "prCountTip": "How many voices tick at once, up to 400. More voices make denser patterns; the notes climb a major scale from the slowest one.",
+    "prCycleSeconds": "Cycle Length",
+    "prCycleSecondsTip": "Seconds per cycle for the harmonic and custom tempos: a voice with ratio n ticks n times per cycle, and every voice is in phase again at the end of each cycle.",
+    "prBaseBpm": "Base Tempo",
+    "prBaseBpmTip": "Tempo of the first voice, in beats per minute.",
+    "prBpmStep": "Tempo Step",
+    "prBpmStepTip": "How much faster each next voice ticks, in BPM. Small steps give a slow Reich-style phase shift; the voices line up again once every tempo fits a whole number of ticks into the same time.",
+    "prCustom": "Ratios",
+    "prCustomTip": "Whole numbers separated by commas, spaces or colons – each one is a voice ticking that many times per cycle (3:4:5 is the classic polyrhythm). Up to 400 voices.",
+    "prCustomVoices": "{count} voices",
+    "prAccentEvery": "Accent Every",
+    "prAccentEveryTip": "Makes every k-th tick of each voice louder and longer, with a ring around the dot – like the first beat of a bar. 0 turns accents off.",
+    "prPitchBy": "Pitch",
+    "prPitchByTip": "By voice: each voice plays the next degree of a major scale from C4. By ratio: each voice plays its tempo ratio as a harmonic of C3, so 3:4:5 sounds like the chord G–C–E. Both are snapped to the scale chosen in the Sound section.",
+    "prPitchIndex": "By voice",
+    "prPitchRatio": "By ratio",
+    "prNumbers": "Numbers",
+    "prNumbersTip": "Writes each voice's ratio (or BPM) on its dot.",
+    "prCycles": "Cycles",
+    "prCyclesTip": "Cycles after which the run ends, with every voice back in phase. 0 keeps it ticking forever.",
+    "prCyclesNever": "Never",
+    "prOff": "Off",
+    "prRealign": "All voices line up every {seconds}s"
   },
   "Modes": {
     "classic": {
@@ -634,6 +680,10 @@
     "pendulum": {
       "name": "Pendulum Wave",
       "description": "Pendulums tuned so each one swings once more per cycle than the last: the row drifts into travelling waves, splits into groups and snaps back in line every cycle, every crossing a note. Row, arc, circle, galaxy, sliding or bouncing – and a phasing mode that never quite realigns."
+    },
+    "polyrhythm": {
+      "name": "Metronomes & Polyrhythms",
+      "description": "Up to 400 voices tick at their own tempos – dots orbiting rings in 3:4:5, dots sliding across a circle, a grid of metronomes phasing apart, a spiral – and every tick is a note. They drift into polyrhythms and snap back in phase with a flash and a chord."
     }
   },
   "Features": {
@@ -873,7 +923,8 @@
     "troubleMidiQ": "My custom MIDI file does not load",
     "troubleMidiA": "Very complex files with many simultaneous tracks may not parse. Try a simpler single-melody MIDI (format 0 or 1). The tool keeps only the highest note at each moment, so a lead-melody export from your music software works best.",
     "troubleStuckQ": "Still stuck?",
-    "troubleStuckA": "Send a note through the feedback page and describe what you were doing."
+    "troubleStuckA": "Send a note through the feedback page and describe what you were doing.",
+    "modePolyrhythm": "No rings to escape: 2–400 voices each tick at their own tempo and every tick plays a note. Rings (dots orbiting 1, 2, 3… times per cycle and ticking at 12 o'clock, optionally as rotating polygons), arcs (dots sliding along the chords or semicircles of a circle and ticking at both ends), a grid of metronomes, or a spiral whose tick points line up again every cycle. The tempos follow the harmonic series, an arithmetic BPM series (the Reich-style tempo phase shift) or your own ratio list such as 3,4,5,7. The moment every voice ticks together is computed exactly and lands as a chord and a flash; the run ends after the chosen number of cycles and always lasts the same time, so it fits any clip."
   },
   "Footer": {
     "about": "About",

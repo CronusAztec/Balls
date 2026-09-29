@@ -1086,6 +1086,87 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
   await page.getByPlaceholder("Search settings...").fill("");
 }
 // --- end themes
+// --- jdm-polyrhythm ---
+// 11. Metronomes & Polyrhythms: the preview image, URL → the controls in the Mode row, controls → URL,
+// the cycles at "never" hide the seed finder, the search box finds the controls, a fixed-length run makes the finder say
+// so, and a run ticks, aligns (analytically: data-poly-alignments), plays notes and chords (OscillatorNode.start is
+// instrumented), switches its layout live without restarting, and 400 voices keep running.
+{
+  const res = await page.request.get(`${BASE}/modes/polyrhythm.webp`);
+  check("asset /modes/polyrhythm.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prl=metronomes&prt=custom&prcu=3%2C4%2C5&prcs=2&prc=0&pra=4`, { waitUntil: "networkidle" });
+  const pressed = (group, name) => page.getByRole("group", { name: group, exact: true }).getByRole("button", { name, exact: true }).getAttribute("aria-pressed");
+  {
+    const values = { prcs: await sliderValue("Cycle Length"), prc: await sliderValue("Cycles"), pra: await sliderValue("Accent Every"), prcu: await page.locator("#poly-custom-ratios").inputValue() };
+    const metronomes = await page.getByRole("group", { name: "Layout", exact: true }).getByRole("button", { name: /Metronomes/ }).getAttribute("aria-pressed");
+    const custom = await pressed("Tempos", "Custom");
+    const realign = await page.getByTestId("poly-realign").innerText();
+    const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Voices"]').count()) === 0;
+    check("polyrhythm loads from URL", values.prcs === "2" && values.prc === "0" && values.pra === "4" && values.prcu === "3,4,5" && metronomes === "true" && custom === "true" && /every 2s/.test(realign) && finderHidden && noRingControls, `(${JSON.stringify(values)}, metronomes=${metronomes}, custom=${custom}, "${realign}", finder hidden=${finderHidden})`);
+  }
+  await page.getByRole("group", { name: "Layout", exact: true }).getByRole("button", { name: /Rings/ }).click();
+  await page.getByRole("group", { name: "Tempos", exact: true }).getByRole("button", { name: "Harmonic", exact: true }).click();
+  await page.locator('input[aria-label="Voices"]').evaluate(setRangeValue, "24");
+  await page.locator('input[aria-label="Cycles"]').evaluate(setRangeValue, "2");
+  await page.locator('label:has-text("Polygons") + button').click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    check("polyrhythm mirrors into the URL", /(^|&)prn=24(&|$)/.test(query) && /(^|&)prc=2(&|$)/.test(query) && /(^|&)prp=1(&|$)/.test(query) && /(^|&)prcs=2(&|$)/.test(query) && !/(^|&)prl=/.test(query) && !/(^|&)prt=/.test(query) && finderShown, `(${query}, finder shown=${finderShown})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("accent every");
+  check("search finds the polyrhythm controls", (await page.locator('input[aria-label="Accent Every"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  // Two cycles of 2 s always last 4 s: the finder says so at once instead of testing seeds.
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  {
+    const shown = await page.getByText(/Polyrhythms always lasts exactly 4\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    check("finder explains a fixed-length polyrhythm run", shown);
+    if (shown) await page.getByRole("button", { name: "Try again", exact: true }).click();
+  }
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prl=spiral&prt=custom&prcu=3%2C4%2C5&prcs=2&prc=0&prnum=1`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__polyOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  const polyData = () => page.locator("canvas").first().evaluate((c) => ({ ...c.dataset }));
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(4500);
+  const run1 = await polyData();
+  {
+    const time = await page.locator("span.tabular-nums").first().innerText();
+    const pitches = await page.evaluate(() => window.__polyOsc);
+    // Voices 3, 4 and 5 play the first three degrees of C major from C4 (the chromatic default leaves them unsnapped).
+    const midis = new Set(pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440))));
+    const onScale = pitches.length > 0 && [...midis].every((m) => [60, 62, 64].includes(m));
+    check("simulator runs the polyrhythm: ticks, analytic alignments, notes and chords", /\d/.test(time) && time !== "0.0s" && run1.polyVoices === "3" && Number(run1.polyTicks) >= 20 && Number(run1.polyAlignments) >= 2 && run1.polyLayout === "spiral" && onScale && midis.size === 3, `(elapsed ${time}, ${JSON.stringify(run1)}, ${pitches.length} tones, degrees ${[...midis].join("/")})`);
+    await page.screenshot({ path: path.join(outDir, "sim-polyrhythm.png") });
+  }
+  // The layout switches live: the rhythm carries on (no restart, the counters keep growing).
+  await page.getByRole("group", { name: "Layout", exact: true }).getByRole("button", { name: /Arcs/ }).click();
+  await page.waitForTimeout(1500);
+  {
+    const run2 = await polyData();
+    check("polyrhythm layout switches live without restarting", run2.polyLayout === "arcs" && Number(run2.polyTicks) > Number(run1.polyTicks) && Number(run2.polyAlignments) >= Number(run1.polyAlignments), `(${JSON.stringify(run1)} → ${JSON.stringify(run2)})`);
+  }
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=400&prc=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(3000);
+  {
+    const big = await polyData();
+    const fps = await page.getByText(/\d+ FPS/).first().innerText().catch(() => "?");
+    check("polyrhythm runs 400 voices", big.polyVoices === "400" && Number(big.polyTicks) > 2000, `(${JSON.stringify(big)}, ${fps})`);
+    await page.screenshot({ path: path.join(outDir, "sim-polyrhythm-400.png") });
+  }
+}
+// --- end jdm-polyrhythm ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

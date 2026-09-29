@@ -8,6 +8,8 @@ import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics
 import { BOX_RANGES, DEFAULT_BOX_SETTINGS, boxSettingFields, boxSettingsOf, isBoxShape, isBoxSpeedRatio, resolveBoxSettings, type BoxShape, type BoxSpeedRatio } from "@/lib/physics/modes/box";
 import { DEFAULT_DROP_SETTINGS, DROP_RANGES, dropSettingFields, dropSettingsOf, resolveDropSettings } from "@/lib/physics/modes/drop";
 import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulumPitchDirection, isPendulumSoundOn, pendulumSettingFields, pendulumSettingsOf, resolvePendulumSettings, type PendulumLayout, type PendulumPitchDirection, type PendulumSoundOn } from "@/lib/physics/modes/pendulum";
+// --- jdm-polyrhythm ---
+import { DEFAULT_POLYRHYTHM_SETTINGS, POLYRHYTHM_RANGES, isPolyArcStyle, isPolyLayout, isPolyPitchBy, isPolyTempos, polyrhythmSettingFields, polyrhythmSettingsOf, resolvePolyrhythmSettings, sanitizeCustomRatios, type PolyArcStyle, type PolyLayout, type PolyPitchBy, type PolyTempos } from "@/lib/physics/modes/polyrhythm";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -158,6 +160,33 @@ export interface SimulatorSettings {
   pwWaveChord: boolean;
   /** Full cycles after which the run finishes, 0 = never (URL `pwc`). */
   pwCycles: number;
+  // --- jdm-polyrhythm --- Metronomes & Polyrhythms (lib/physics/modes/polyrhythm.ts): voices ticking at their own tempos
+  /** Voices of the harmonic / arithmetic series, 2–400 (URL `prn`). */
+  prCount: number;
+  /** rings | arcs | metronomes | spiral (URL `prl`). */
+  prLayout: PolyLayout;
+  /** Arcs layout: chords of a circle or concentric semicircles (URL `pras`). */
+  prArcStyle: PolyArcStyle;
+  /** harmonic (ratios 1…N) | arithmetic (base BPM + i × step) | custom (a ratio list) (URL `prt`). */
+  prTempos: PolyTempos;
+  /** Custom ratios, e.g. "3,4,5,7" (URL `prcu`). */
+  prCustom: string;
+  /** Seconds per cycle of the harmonic / custom series (URL `prcs`). */
+  prCycleSeconds: number;
+  /** Arithmetic series: tempo of the first voice and the step between voices, in BPM (URL `prb`, `prbs`). */
+  prBaseBpm: number;
+  prBpmStep: number;
+  /** Rings drawn as rotating polygons with as many vertices as their ratio (URL `prp`). */
+  prPolygon: boolean;
+  /** Accent every k-th tick of a voice, 0 = off (URL `pra`). */
+  prAccentEvery: number;
+  /** A voice's note from its index (scale degree) or its tempo ratio (harmonic) (URL `prpb`). */
+  prPitchBy: PolyPitchBy;
+  /** Ratio / BPM numbers on the dots (URL `prnum`). */
+  prNumbers: boolean;
+  /** Cycles after which the run finishes, back in phase; 0 = never (URL `prc`). */
+  prCycles: number;
+  // --- end jdm-polyrhythm ---
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -282,6 +311,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...dropSettingFields(DEFAULT_DROP_SETTINGS),
     ...boxSettingFields(DEFAULT_BOX_SETTINGS),
     ...pendulumSettingFields(DEFAULT_PENDULUM_SETTINGS),
+    ...polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS), // --- jdm-polyrhythm ---
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
@@ -347,6 +377,7 @@ export const RANGES = {
   ...DROP_RANGES,
   ...BOX_RANGES,
   ...PENDULUM_RANGES,
+  ...POLYRHYTHM_RANGES, // --- jdm-polyrhythm ---
   ...PICTURE_PAINT_RANGES,
   ...CHARACTER_RANGES, // --- boris-faces ---
   ...THEME_RANGES, // --- themes
@@ -421,6 +452,13 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   pwp: "pwPolygon",
   pwtr: "pwTrails",
   pwc: "pwCycles",
+  // --- jdm-polyrhythm --- Metronomes & Polyrhythms
+  prn: "prCount",
+  prcs: "prCycleSeconds",
+  prb: "prBaseBpm",
+  prbs: "prBpmStep",
+  pra: "prAccentEvery",
+  prc: "prCycles",
   // Picture Paint
   pbr: "paintBrush",
   pgh: "paintGhost",
@@ -457,6 +495,8 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   dloop: "dropLoop",
   pwph: "pwPhasing",
   pwch: "pwWaveChord",
+  prp: "prPolygon", // --- jdm-polyrhythm ---
+  prnum: "prNumbers", // --- jdm-polyrhythm ---
   pbeat: "paintBeatSync",
   pgd: "paintGuided",
   pps: "paintPaceToSong",
@@ -500,6 +540,12 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.pwLayout !== base.pwLayout) params.set("pwl", settings.pwLayout);
   if (settings.pwSoundOn !== base.pwSoundOn) params.set("pws", settings.pwSoundOn);
   if (settings.pwPitchDirection !== base.pwPitchDirection) params.set("pwpd", settings.pwPitchDirection);
+  // --- jdm-polyrhythm ---
+  if (settings.prLayout !== base.prLayout) params.set("prl", settings.prLayout);
+  if (settings.prArcStyle !== base.prArcStyle) params.set("pras", settings.prArcStyle);
+  if (settings.prTempos !== base.prTempos) params.set("prt", settings.prTempos);
+  if (settings.prCustom !== base.prCustom) params.set("prcu", settings.prCustom);
+  if (settings.prPitchBy !== base.prPitchBy) params.set("prpb", settings.prPitchBy);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
@@ -570,6 +616,18 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const pwpd = params.get("pwpd");
   if (isPendulumPitchDirection(pwpd)) settings.pwPitchDirection = pwpd;
   clampPendulumSettings(settings);
+  // --- jdm-polyrhythm ---
+  const prl = params.get("prl");
+  if (isPolyLayout(prl)) settings.prLayout = prl;
+  const pras = params.get("pras");
+  if (isPolyArcStyle(pras)) settings.prArcStyle = pras;
+  const prt = params.get("prt");
+  if (isPolyTempos(prt)) settings.prTempos = prt;
+  const prcu = params.get("prcu");
+  if (prcu !== null) settings.prCustom = sanitizeCustomRatios(prcu);
+  const prpb = params.get("prpb");
+  if (isPolyPitchBy(prpb)) settings.prPitchBy = prpb;
+  clampPolyrhythmSettings(settings);
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -631,6 +689,12 @@ function clampBoxSettings(settings: SimulatorSettings) {
 /** Keeps the Pendulum Wave settings inside their ranges, counts as whole numbers; an unknown layout, sound spot or pitch direction falls back to the default (URL parameters and presets alike). */
 function clampPendulumSettings(settings: SimulatorSettings) {
   Object.assign(settings, pendulumSettingFields(resolvePendulumSettings(pendulumSettingsOf(settings))));
+}
+
+// --- jdm-polyrhythm ---
+/** Keeps the Metronomes & Polyrhythms settings inside their ranges, counts as whole numbers, the custom list to its characters; unknown options fall back to the defaults (URL parameters and presets alike). */
+function clampPolyrhythmSettings(settings: SimulatorSettings) {
+  Object.assign(settings, polyrhythmSettingFields(resolvePolyrhythmSettings(polyrhythmSettingsOf(settings))));
 }
 
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
@@ -702,6 +766,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampDropSettings(merged);
   clampBoxSettings(merged);
   clampPendulumSettings(merged);
+  clampPolyrhythmSettings(merged); // --- jdm-polyrhythm ---
   clampPicturePaint(merged);
   clampCharacter(merged); // --- boris-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
