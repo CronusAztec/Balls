@@ -6,12 +6,15 @@ import { useSearchParams } from "next/navigation";
 import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
 import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
 import type { MusicTrackInfo } from "./sections/MusicSection";
+import type { PaintBeatInfo, PaintPictureInfo } from "./sections/PicturePaintSection";
 import Tooltip from "./Tooltip";
 import { PhysicsEngine, TWO_BALL_MODES } from "@/lib/physics/engine";
 import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
 import { dropSettingsOf } from "@/lib/physics/modes/drop";
+import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
+import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
 import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from "@/lib/audio/sampler";
 import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
@@ -34,6 +37,8 @@ import {
 /** Modes where "Find Simulation" makes no sense because the run never "finishes" (Ball Drop only while its rain loops). */
 const NO_FINDER_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
 const SPEEDS = [1, 2, 4, 8];
+/** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
+const PAINT_FINISH_HOLD_MS = 1500;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -86,6 +91,14 @@ export default function Simulator() {
   const [musicTrack, setMusicTrack] = useState<MusicTrackInfo | null>(null);
   const [musicLoading, setMusicLoading] = useState(false);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  // Picture Paint: the picture uploaded in this session (a data: URL kept in memory, like the ball image) and the
+  // beat grids detected in the loaded songs (analysed asynchronously in idle slices; the music bed wins over the slicer).
+  const [paintPicture, setPaintPicture] = useState<PaintPictureInfo | null>(null);
+  const [musicBeats, setMusicBeats] = useState<BeatAnalysis | null>(null);
+  const [sliceBeats, setSliceBeats] = useState<BeatAnalysis | null>(null);
+  const [beatJobs, setBeatJobs] = useState(0);
+  const beatAbortRef = useRef<{ music: AbortController | null; slice: AbortController | null }>({ music: null, slice: null });
+  const paintFinishedAtRef = useRef<number | null>(null);
   const [presets, setPresets] = useState<PresetStore>({});
   const [findDuration, setFindDuration] = useState(30);
   const [findTolerance] = useState(0.5);
@@ -301,6 +314,31 @@ export default function Simulator() {
     audioRef.current?.setMusicSettings(musicSettingsOf(s));
   }, [s.instrument, s.melodyInstrument, s.scale, s.rootNote, s.quantizeToBeat, s.bpm, s.quantizeGrid]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Picture Paint: the beat grid the Paint mode follows – the music bed's song (its start offset and loop align the
+  // grid with the simulation clock), else the slicer's song – and the length the reveal is paced to.
+  const activeBeats = useMemo(() => {
+    if (musicTrack && musicBeats) return { beats: musicBeats, source: "music" as const, offset: s.musicStartOffset, loop: s.musicLoop };
+    if (sliceSongInfo && sliceBeats) return { beats: sliceBeats, source: "slicer" as const, offset: 0, loop: s.sliceLoop };
+    return null;
+  }, [musicTrack, musicBeats, sliceSongInfo, sliceBeats, s.musicStartOffset, s.musicLoop, s.sliceLoop]);
+  const paintTargetSec = paintTargetSeconds(musicTrack ? musicTrack.duration : sliceSongInfo && s.sliceSong ? sliceSongInfo.duration : 0, musicTrack ? s.musicStartOffset : 0, s.recordingDuration);
+  useEffect(() => {
+    engineRef.current?.setPaintOptions({ picture: !!paintPicture, brush: s.paintBrush, beatSync: s.paintBeatSync, beatPulse: s.paintBeatPulse, guided: s.paintGuided, paceToSong: s.paintPaceToSong, targetSec: paintTargetSec });
+  }, [paintPicture, s.paintBrush, s.paintBeatSync, s.paintBeatPulse, s.paintGuided, s.paintPaceToSong, paintTargetSec]);
+  useEffect(() => {
+    engineRef.current?.setPaintBeat({
+      source: s.paintBeatSource,
+      manualBpm: s.bpm,
+      grid: activeBeats ? { bpm: activeBeats.beats.bpm, beatTimes: activeBeats.beats.beatTimes, duration: activeBeats.beats.duration } : null,
+      offset: activeBeats?.offset ?? 0,
+      loop: activeBeats?.loop ?? true,
+    });
+  }, [s.paintBeatSource, s.bpm, activeBeats]);
+  const paintBeat = useMemo<PaintBeatInfo>(
+    () => ({ bpm: activeBeats && activeBeats.beats.bpm > 0 ? activeBeats.beats.bpm : null, analyzing: beatJobs > 0, hasSong: !!musicTrack || !!sliceSongInfo, source: activeBeats?.source ?? null }),
+    [activeBeats, beatJobs, musicTrack, sliceSongInfo],
+  );
+
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
@@ -443,7 +481,13 @@ export default function Simulator() {
         }
       }
       if (engine && isStarted && !isPaused) {
-        const done = engine.isSimulationFinished();
+        let done = engine.isSimulationFinished();
+        // Picture Paint: hold the finished picture crisp for a moment before the end screen covers it.
+        if (done && engine.isPaintMode() && engine.getPaintState().picture) {
+          const now = performance.now();
+          if (paintFinishedAtRef.current === null) paintFinishedAtRef.current = now;
+          if (now - paintFinishedAtRef.current < PAINT_FINISH_HOLD_MS) done = false;
+        } else paintFinishedAtRef.current = null;
         setFinished((prev) => (prev !== done ? done : prev));
       }
       raf = requestAnimationFrame(loop);
@@ -615,6 +659,32 @@ export default function Simulator() {
     [update],
   );
 
+  /**
+   * Picture Paint: detects the beat grid of a decoded song in idle slices (lib/audio/beats.ts). A newer song in
+   * the same slot cancels the running analysis; null clears the slot.
+   */
+  const analyzeSong = useCallback((slot: "music" | "slice", buffer: AudioBuffer | null) => {
+    beatAbortRef.current[slot]?.abort();
+    beatAbortRef.current[slot] = null;
+    const setBeats = slot === "music" ? setMusicBeats : setSliceBeats;
+    setBeats(null);
+    if (!buffer) return;
+    const controller = new AbortController();
+    beatAbortRef.current[slot] = controller;
+    setBeatJobs((n) => n + 1);
+    analyzeBeatsAsync(buffer, {}, { signal: controller.signal })
+      .then((result) => {
+        if (!controller.signal.aborted) setBeats(result);
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) console.error("Beat analysis failed:", err);
+      })
+      .finally(() => {
+        if (beatAbortRef.current[slot] === controller) beatAbortRef.current[slot] = null;
+        setBeatJobs((n) => n - 1);
+      });
+  }, []);
+
   const onSliceSongUpload = useCallback(
     async (file: File) => {
       const audio = audioRef.current;
@@ -625,6 +695,7 @@ export default function Simulator() {
         const buffer = await audio.decodeAudio(await file.arrayBuffer());
         if (uploadId !== sliceUploadIdRef.current) return; // a newer upload replaced this one
         audio.getSlicer().setBuffer(buffer);
+        analyzeSong("slice", buffer);
         setSliceSongInfo({ name: file.name, duration: buffer.duration });
         update({ sliceSong: true });
       } catch (err) {
@@ -635,15 +706,16 @@ export default function Simulator() {
         if (uploadId === sliceUploadIdRef.current) setSliceSongLoading(false);
       }
     },
-    [t, update],
+    [t, update, analyzeSong],
   );
 
   const onSliceSongClear = useCallback(() => {
     sliceUploadIdRef.current++;
     audioRef.current?.getSlicer().setBuffer(null);
+    analyzeSong("slice", null);
     setSliceSongInfo(null);
     setSliceSongLoading(false);
-  }, []);
+  }, [analyzeSong]);
 
   const onMusicUpload = useCallback(
     async (file: File) => {
@@ -655,6 +727,7 @@ export default function Simulator() {
         const buffer = await audio.decodeAudio(await file.arrayBuffer());
         if (uploadId !== musicUploadIdRef.current) return; // a newer upload replaced this one
         audio.getMusicBed().setBuffer(buffer);
+        analyzeSong("music", buffer);
         setMusicTrack({ name: file.name, duration: buffer.duration });
       } catch (err) {
         if (uploadId !== musicUploadIdRef.current) return;
@@ -664,17 +737,46 @@ export default function Simulator() {
         if (uploadId === musicUploadIdRef.current) setMusicLoading(false);
       }
     },
-    [t],
+    [t, analyzeSong],
   );
 
   const onMusicRemove = useCallback(() => {
     musicUploadIdRef.current++;
     audioRef.current?.getMusicBed().setBuffer(null);
+    analyzeSong("music", null);
     setMusicTrack(null);
     setMusicLoading(false);
-  }, []);
+  }, [analyzeSong]);
 
   const getMusicDuckGain = useCallback(() => audioRef.current?.getMusicBed().getDuckGain() ?? 1, []);
+
+  /** Picture Paint: the picture is decoded once here (so a file that is not a picture is refused) and kept as a data: URL. */
+  const onPaintPictureUpload = useCallback(
+    (file: File) => {
+      const reject = () => alert(t("Controls.paintPictureError"));
+      if (!file.type.startsWith("image/")) {
+        reject();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const url = e.target?.result;
+        if (typeof url !== "string") {
+          reject();
+          return;
+        }
+        const img = new Image();
+        img.onload = () => setPaintPicture({ name: file.name, url });
+        img.onerror = reject;
+        img.src = url;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    },
+    [t],
+  );
+
+  const onPaintPictureRemove = useCallback(() => setPaintPicture(null), []);
 
   const onCustomSoundSelect = useCallback(async (id: string | null) => {
     if (!id) {
@@ -792,6 +894,7 @@ export default function Simulator() {
         setBallImage(null);
         setBallEmoji(null);
       }
+      if (section === "visual") setPaintPicture(null);
       if (section === "sound") {
         void onCustomSoundSelect(null);
         onSliceSongClear();
@@ -894,6 +997,10 @@ export default function Simulator() {
       ballsLabel: t("Simulator.canvasBalls"),
       settled: t("Simulator.canvasSettled"),
       ballsAtRest: (n) => fill("Simulator.canvasBallsAtRest", { count: n }),
+      paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
+      paintBehind: t("Simulator.canvasPaintBehind"),
+      paintAhead: t("Simulator.canvasPaintAhead"),
+      paintBeat: (bpm) => fill("Simulator.canvasPaintBeat", { bpm }),
     };
   }, [t]);
 
@@ -936,6 +1043,8 @@ export default function Simulator() {
                   cameraFollow={s.cameraFollow}
                   simSpeed={simSpeed}
                   labels={labels}
+                  paintPicture={paintPicture?.url ?? null}
+                  paintGhost={s.paintGhost}
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -1175,6 +1284,10 @@ export default function Simulator() {
             getMusicDuckGain={getMusicDuckGain}
             onMusicUpload={onMusicUpload}
             onMusicRemove={onMusicRemove}
+            paintPicture={paintPicture}
+            onPaintPictureUpload={onPaintPictureUpload}
+            onPaintPictureRemove={onPaintPictureRemove}
+            paintBeat={paintBeat}
             savedPresetNames={Object.keys(presets)}
             onSavePreset={onSavePreset}
             onLoadPreset={onLoadPreset}

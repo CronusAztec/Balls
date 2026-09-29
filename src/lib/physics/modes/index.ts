@@ -4,7 +4,7 @@ export type { FrozenBall } from "./accumulation";
 export { MultiplyMode } from "./multiply";
 export { LinesMode } from "./lines";
 export { PaintMode } from "./paint";
-export type { PaintPoint } from "./paint";
+export type { PaintPoint, PicturePaintState } from "./paint";
 export { TargetMode } from "./target";
 export type { WrongFlash } from "./target";
 export { PortalMode, PORTAL_COLORS } from "./portal";

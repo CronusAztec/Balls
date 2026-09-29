@@ -6,8 +6,9 @@
  *
  * It checks the root redirect, the 404 page, assets under the base path, opens every page in
  * every locale, starts the simulator in each mode, exercises the physics extras, the ball interactions, the Ball Drop
- * board and the sound features (hit samples, song slicer, instruments, background music bed), records a short clip
- * with the music bed, runs the seed finder, submits the feedback form, switches language and reports console errors.
+ * board, the sound features (hit samples, song slicer, instruments, background music bed) and Picture Paint (a
+ * generated PNG revealed on the beat of a click track), records a short clip with the music bed, runs the seed
+ * finder, submits the feedback form, switches language and reports console errors.
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -34,6 +35,30 @@ page.on("console", (m) => {
 /** A short 16-bit mono PCM WAV (sine sweep) for the song-slicer and music-bed upload checks. */
 function makeWav(seconds = 2, sampleRate = 8000) {
   const frames = Math.round(seconds * sampleRate);
+  const samples = new Int16Array(frames);
+  for (let i = 0; i < frames; i++) {
+    const t = i / sampleRate;
+    samples[i] = Math.round(12000 * Math.sin(2 * Math.PI * (220 + 220 * t) * t));
+  }
+  return pcmWav(samples, sampleRate);
+}
+
+/** A click track (12 ms 1 kHz bursts on every beat, the first 0.25 s in) for the Picture Paint beat-detection check. */
+function makeClickWav(seconds = 8, bpm = 120, sampleRate = 8000) {
+  const frames = Math.round(seconds * sampleRate);
+  const samples = new Int16Array(frames);
+  for (let t = 0.25; t < seconds; t += 60 / bpm) {
+    const start = Math.round(t * sampleRate);
+    for (let j = 0; j < Math.round(0.012 * sampleRate) && start + j < frames; j++) {
+      const tau = j / sampleRate;
+      samples[start + j] = Math.round(28000 * Math.sin(2 * Math.PI * 1000 * tau) * Math.exp(-tau / 0.004));
+    }
+  }
+  return pcmWav(samples, sampleRate);
+}
+
+function pcmWav(samples, sampleRate) {
+  const frames = samples.length;
   const buf = Buffer.alloc(44 + 2 * frames);
   buf.write("RIFF", 0);
   buf.writeUInt32LE(36 + 2 * frames, 4);
@@ -48,10 +73,7 @@ function makeWav(seconds = 2, sampleRate = 8000) {
   buf.writeUInt16LE(16, 34);
   buf.write("data", 36);
   buf.writeUInt32LE(2 * frames, 40);
-  for (let i = 0; i < frames; i++) {
-    const t = i / sampleRate;
-    buf.writeInt16LE(Math.round(12000 * Math.sin(2 * Math.PI * (220 + 220 * t) * t)), 44 + 2 * i);
-  }
+  for (let i = 0; i < frames; i++) buf.writeInt16LE(samples[i], 44 + 2 * i);
   return buf;
 }
 
@@ -521,6 +543,101 @@ await page.getByPlaceholder("Search settings...").fill("ducking");
 check("search finds the ducking control without a track", await page.locator('input[aria-label="Ducking"]').isVisible());
 await page.getByPlaceholder("Search settings...").fill("");
 await page.getByRole("button", { name: /Custom Sound/ }).click();
+
+// 4f. Picture Paint: a PNG generated in the page (canvas.toDataURL → File via DataTransfer) is uploaded as the picture
+// of Paint mode; a click-track music bed gets its tempo detected (the readout shows 120 BPM); the run reveals the
+// picture – the canvas mirrors the coverage % the HUD draws into data-paint-coverage, and the red pixels of the picture
+// multiply inside the arena – and exposes the HUD state (schedule + beat); the settings reach the URL; the search box
+// finds the controls; removing the picture returns to the classic Paint trail (the MODES loop above already runs it).
+await page.goto(`${BASE}/en/simulator/?mode=paint`, { waitUntil: "networkidle" });
+await page.evaluate(() => {
+  const c = document.createElement("canvas");
+  c.width = 200;
+  c.height = 200;
+  const g = c.getContext("2d");
+  g.fillStyle = "#ff2020";
+  g.fillRect(0, 0, 200, 200);
+  g.fillStyle = "#ffffff";
+  g.fillRect(70, 70, 60, 60);
+  const bytes = atob(c.toDataURL("image/png").split(",")[1]);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  const dt = new DataTransfer();
+  dt.items.add(new File([arr], "smoke-picture.png", { type: "image/png" }));
+  const input = document.querySelector("#paint-picture-input");
+  input.files = dt.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+});
+const paintPicture = page.getByTestId("paint-picture");
+const pictureLoaded = await paintPicture.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+check("picture paint accepts a PNG generated in the page", pictureLoaded && (await paintPicture.innerText()).includes("smoke-picture.png"));
+const bpmReadout = page.getByTestId("paint-detected-bpm");
+{
+  const text = await bpmReadout.innerText();
+  check("picture paint asks for a song before a beat is known", text.length > 0 && !/\d+ BPM/.test(text), `(${text.slice(0, 60)})`);
+}
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+await page.locator("#music-file-input").setInputFiles({ name: "smoke-click.wav", mimeType: "audio/wav", buffer: makeClickWav(8, 120) });
+await page.getByTestId("music-track").waitFor({ timeout: 15000 }).catch(() => {});
+const bpmDetected = await page
+  .waitForFunction(() => /120 BPM/.test(document.querySelector('[data-testid="paint-detected-bpm"]')?.textContent || ""), null, { timeout: 20000 })
+  .then(() => true)
+  .catch(() => false);
+check("picture paint detects the tempo of the music bed", bpmDetected, `(${(await bpmReadout.innerText()).slice(0, 60)})`);
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+const paintCanvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+/** Red picture pixels sampled inside the arena of the visible canvas (device pixels; Paint's arena is 0.75 of the half-size). */
+const arenaRedCount = () =>
+  page.evaluate(() => {
+    const canvas = document.querySelector("main canvas");
+    const g = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    const cx = w / 2;
+    const cy = h / 2;
+    const R = (Math.min(w, h) / 2) * 0.75;
+    const data = g.getImageData(0, 0, w, h).data;
+    let red = 0;
+    for (let y = 0; y < h; y += 4) {
+      for (let x = 0; x < w; x += 4) {
+        const dx = x - cx;
+        const dy = y - cy;
+        if (dx * dx + dy * dy > 0.9 * R * R) continue;
+        const i = 4 * (y * w + x);
+        if (data[i] > 150 && data[i + 1] < 90 && data[i + 2] < 90) red++;
+      }
+    }
+    return red;
+  });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(1500);
+const paintData1 = await paintCanvasData();
+const red1 = await arenaRedCount();
+await page.waitForTimeout(4000);
+const paintData2 = await paintCanvasData();
+const red2 = await arenaRedCount();
+check(
+  "picture paint reveals the picture as the ball paints",
+  paintData1.paintPicture === "1" && Number(paintData2.paintCoverage) > Number(paintData1.paintCoverage) && red2 > red1,
+  `(coverage ${paintData1.paintCoverage}% → ${paintData2.paintCoverage}%, red samples ${red1} → ${red2})`,
+);
+check("picture paint HUD shows the schedule and the beat", ["onSchedule", "behind", "ahead"].includes(paintData2.paintPace) && paintData2.paintBeat === "120", `(pace=${paintData2.paintPace}, beat=${paintData2.paintBeat} BPM)`);
+await page.locator('input[aria-label="Brush Size"]').evaluate(setRangeValue, "2");
+await page.locator('label:has-text("Guided Coverage") + button').click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  check("picture paint settings mirror into the URL", /(^|&)pbr=2(&|$)/.test(query) && /(^|&)pgd=0(&|$)/.test(query), `(${query})`);
+}
+await page.getByPlaceholder("Search settings...").fill("brush");
+check("search finds the picture paint controls", (await page.locator('input[aria-label="Brush Size"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.getByRole("button", { name: "Remove picture" }).click();
+await page.waitForTimeout(700);
+{
+  const paintData3 = await paintCanvasData();
+  check("removing the picture returns to the classic paint trail", (await paintPicture.count()) === 0 && paintData3.paintPicture === "0" && Number(paintData3.paintCoverage) >= 0, `(coverage ${paintData3.paintCoverage}%)`);
+}
 
 // 5. Recording: 3-second clip downloads, with the music bed mixed into the audio track
 await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });

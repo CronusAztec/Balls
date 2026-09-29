@@ -14,8 +14,10 @@ import {
   ShatterMode,
   TargetMode,
 } from "./modes";
-import type { DropSettings } from "./modes";
+import type { DropSettings, PicturePaintState } from "./modes";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
+import type { PaintModeOptions } from "./picturePaint";
+import type { BeatClockConfig } from "@/lib/simulation/beatClock";
 import type {
   Ball,
   BallInteractionConfig,
@@ -476,6 +478,21 @@ export class PhysicsEngine {
   }
   getPaintCoverage() {
     return this.paintMode.getPaintCoverage();
+  }
+  /** Picture Paint: brush, beat sync, guidance and pacing of the Paint mode (see physics/picturePaint.ts). */
+  setPaintOptions(patch: Partial<PaintModeOptions>) {
+    this.paintMode.setOptions(patch);
+  }
+  getPaintOptions(): PaintModeOptions {
+    return this.paintMode.getOptions();
+  }
+  /** Picture Paint: the beat the Paint mode moves to – a detected song grid or the manual BPM (see simulation/beatClock.ts). */
+  setPaintBeat(patch: Partial<BeatClockConfig>) {
+    this.paintMode.setBeat(patch);
+  }
+  /** Live Picture Paint state (coverage, beat pulse, pacing…) for the canvas and the HUD; the same object every call. */
+  getPaintState(): PicturePaintState {
+    return this.paintMode.getPicturePaintState();
   }
   isCountdownMode() {
     return this.currentMode === this.targetMode;
@@ -1115,6 +1132,8 @@ export class PhysicsEngine {
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
+          // A mode may steer the rebound further (Paint's guided coverage); it draws no random numbers.
+          if (this.currentMode?.adjustRebound) outAngle = this.currentMode.adjustRebound(this.ctx, ball, w, outAngle);
           ball.vx = Math.cos(outAngle) * speed;
           ball.vy = Math.sin(outAngle) * speed;
         } else if (this.extras.wallBounciness !== 1) {

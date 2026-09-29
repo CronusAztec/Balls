@@ -262,6 +262,12 @@ export interface GameMode {
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number): void;
   onPostSubStep(ctx: ModeContext): void;
   onWallHit(ctx: ModeContext, ball: Ball, wallIndex: number, angle: number): WallHitResult | void;
+  /**
+   * Last word on a default rebound: called with the outgoing angle (radians) after the engine's scatter
+   * and the cinematic director's nudge, right before the velocity is set. Return the angle to use (Paint
+   * steers it toward the least-revealed part of a picture). Not called when `onWallHit` suppressed the bounce.
+   */
+  adjustRebound?(ctx: ModeContext, ball: Ball, wallIndex: number, outAngle: number): number;
   /** Return true when the mode fully handles the gap pass (no default wall break). */
   onGapPass(ctx: ModeContext, ball: Ball, wallIndex: number): boolean;
   onPostUpdate(ctx: ModeContext, dtMs: number): void;

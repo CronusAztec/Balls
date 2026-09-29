@@ -2,7 +2,9 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { PhysicsEngine } from "@/lib/physics/engine";
+import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
+import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import type { RainbowWallMode } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 
@@ -26,6 +28,11 @@ export interface CanvasLabels {
   /** Ball Drop: every ball has come to rest. */
   settled: string;
   ballsAtRest: (n: number) => string;
+  /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
+  paintOnSchedule: string;
+  paintBehind: string;
+  paintAhead: string;
+  paintBeat: (bpm: number) => string;
 }
 
 export interface CanvasHandle {
@@ -65,6 +72,10 @@ export interface CanvasProps {
   simSpeed?: number;
   cameraFollow?: boolean;
   labels?: CanvasLabels;
+  /** Picture Paint: data: URL of the picture the Paint mode reveals (null = the classic rainbow trail). */
+  paintPicture?: string | null;
+  /** Opacity of the greyscale ghost of the unrevealed picture. */
+  paintGhost?: number;
 }
 
 const DEFAULT_LABELS: CanvasLabels = {
@@ -85,6 +96,10 @@ const DEFAULT_LABELS: CanvasLabels = {
   ballsLabel: "balls",
   settled: "SETTLED!",
   ballsAtRest: (n) => `All ${n} balls at rest`,
+  paintOnSchedule: "on schedule",
+  paintBehind: "behind schedule",
+  paintAhead: "ahead of schedule",
+  paintBeat: (bpm) => `♩ ${bpm} BPM`,
 };
 
 const TWO_PI = Math.PI * 2;
@@ -136,6 +151,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     simSpeed = 1,
     cameraFollow = false,
     labels,
+    paintPicture = null,
+    paintGhost = 0.12,
   },
   ref,
 ) {
@@ -156,6 +173,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const camYRef = useRef(0);
   const audioRef = useRef(audioIntensity);
   const songProgressRef = useRef<number | null>(null);
+  /** Picture Paint: the decoded picture (null until it loads, or without one). */
+  const paintImageRef = useRef<HTMLImageElement | null>(null);
   labelsRef.current = labels;
 
   const propsRef = useRef({
@@ -181,6 +200,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     colorTrail,
     simSpeed,
     cameraFollow,
+    paintGhost,
   });
   useEffect(() => {
     propsRef.current = {
@@ -206,6 +226,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       colorTrail,
       simSpeed,
       cameraFollow,
+      paintGhost,
     };
   }, [
     showTrails,
@@ -230,6 +251,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     colorTrail,
     simSpeed,
     cameraFollow,
+    paintGhost,
   ]);
 
   const circleRgbRef = useRef(hexToRgb(circleColor));
@@ -272,6 +294,26 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       imageLoadedRef.current = false;
     }
   }, [ballImage]);
+
+  // Picture Paint: decode the uploaded picture once; the draw loop builds its layers from it.
+  useEffect(() => {
+    if (!paintPicture) {
+      paintImageRef.current = null;
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      paintImageRef.current = img;
+    };
+    img.onerror = () => {
+      paintImageRef.current = null;
+    };
+    img.src = paintPicture;
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [paintPicture]);
 
   useEffect(() => {
     if (ballEmoji) {
@@ -316,6 +358,95 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Scratch space for the obstacle pass (Ball Drop): the age of the latest hit per obstacle and a bar's endpoints.
     let obstacleHitAges = new Float64Array(0);
     const ends: SegmentEnds = { x1: 0, y1: 0, x2: 0, y2: 0 };
+    /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
+    const setCanvasData = (key: string, value: string) => {
+      if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
+    };
+
+    /*
+     * Picture Paint layers, all in device pixels over the arena's bounding square: the picture cover-fitted
+     * into the circle (`source`), its greyscale ghost, the brush mask the dabs are stamped into incrementally
+     * (never redrawn from scratch) and the reveal (`source` through the mask), re-composited only when new
+     * dabs arrived. Rebuilt when the picture or the arena size changes; cleared when the run restarts.
+     */
+    interface PaintLayers {
+      image: HTMLImageElement;
+      size: number;
+      source: HTMLCanvasElement;
+      ghost: HTMLCanvasElement;
+      mask: HTMLCanvasElement;
+      maskCtx: CanvasRenderingContext2D;
+      reveal: HTMLCanvasElement;
+      revealCtx: CanvasRenderingContext2D;
+      /** Paint points already stamped into the mask. */
+      stamped: number;
+      /** The paint run the mask belongs to (`PicturePaintState.generation`). */
+      generation: number;
+      dirty: boolean;
+    }
+    let paintLayers: PaintLayers | null = null;
+    const layerCanvas = (size: number) => {
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      return c;
+    };
+    const ensurePaintLayers = (image: HTMLImageElement, size: number): PaintLayers | null => {
+      if (paintLayers && paintLayers.image === image && paintLayers.size === size) return paintLayers;
+      const iw = image.naturalWidth || image.width;
+      const ih = image.naturalHeight || image.height;
+      if (!(iw > 0 && ih > 0)) return null;
+      const source = layerCanvas(size);
+      const ghost = layerCanvas(size);
+      const mask = layerCanvas(size);
+      const reveal = layerCanvas(size);
+      const sctx = source.getContext("2d");
+      const gctx = ghost.getContext("2d");
+      const maskCtx = mask.getContext("2d");
+      const revealCtx = reveal.getContext("2d");
+      if (!sctx || !gctx || !maskCtx || !revealCtx) return null;
+      // Cover-fit: the shorter side fills the diameter, centred, clipped to the circle.
+      sctx.beginPath();
+      sctx.arc(size / 2, size / 2, size / 2, 0, TWO_PI);
+      sctx.clip();
+      const fit = Math.max(size / iw, size / ih);
+      sctx.drawImage(image, (size - iw * fit) / 2, (size - ih * fit) / 2, iw * fit, ih * fit);
+      // The ghost of what is still hidden: greyscale, through the canvas filter where it exists and by hand elsewhere.
+      if (typeof gctx.filter === "string") {
+        gctx.filter = "grayscale(1)";
+        gctx.drawImage(source, 0, 0);
+        gctx.filter = "none";
+      } else {
+        gctx.drawImage(source, 0, 0);
+        const data = gctx.getImageData(0, 0, size, size);
+        const d = data.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          d[i] = d[i + 1] = d[i + 2] = l;
+        }
+        gctx.putImageData(data, 0, 0);
+      }
+      maskCtx.fillStyle = "#ffffff";
+      paintLayers = { image, size, source, ghost, mask, maskCtx, reveal, revealCtx, stamped: 0, generation: -1, dirty: true };
+      return paintLayers;
+    };
+    /** Stamps the dabs recorded since the last frame into the mask – one path, one fill – in device pixels. */
+    const stampPaintDabs = (layers: PaintLayers, points: PaintPoint[], originX: number, originY: number, scale: number) => {
+      if (layers.stamped >= points.length) return;
+      const m = layers.maskCtx;
+      m.beginPath();
+      for (let i = layers.stamped; i < points.length; i++) {
+        const pt = points[i];
+        const x = (pt.x - originX) * scale;
+        const y = (pt.y - originY) * scale;
+        const r = Math.max(0.5, pt.r * scale);
+        m.moveTo(x + r, y);
+        m.arc(x, y, r, 0, TWO_PI);
+      }
+      m.fill();
+      layers.stamped = points.length;
+      layers.dirty = true;
+    };
 
     const withAlpha = (color: string, alpha: number) => {
       const key = `${color}_${alpha.toFixed(2)}`;
@@ -590,13 +721,49 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
 
-      // Paint trail
+      // Paint: the rainbow trail – or, with a picture loaded, the picture revealed through the brush mask (Picture Paint)
       if (engine.isPaintMode()) {
         const points = engine.getPaintPoints();
         const balls = engine.getBalls();
         const radius = balls.length > 0 ? balls[0].radius : 8;
         const lineWidth = 2 * radius;
-        if (points.length > 0) {
+        const paint = engine.getPaintState();
+        const picture = paint.picture ? paintImageRef.current : null;
+        const baseRadii = engine.getWallBaseRadii();
+        const R = baseRadii.length > 0 ? baseRadii[0] : walls.length > 0 ? walls[0].radius : arena;
+        const layers = picture ? ensurePaintLayers(picture, Math.max(2, Math.round(2 * R * dpr))) : null;
+        if (layers) {
+          if (layers.generation !== paint.generation) {
+            layers.maskCtx.clearRect(0, 0, layers.size, layers.size);
+            layers.stamped = 0;
+            layers.dirty = true;
+            layers.generation = paint.generation;
+          }
+          stampPaintDabs(layers, points, cx - R, cy - R, dpr);
+          if (layers.dirty) {
+            const rc = layers.revealCtx;
+            rc.globalCompositeOperation = "source-over";
+            rc.clearRect(0, 0, layers.size, layers.size);
+            rc.drawImage(layers.source, 0, 0);
+            rc.globalCompositeOperation = "destination-in";
+            rc.drawImage(layers.mask, 0, 0);
+            rc.globalCompositeOperation = "source-over";
+            layers.dirty = false;
+          }
+          const x0 = cx - R;
+          const y0 = cy - R;
+          if (paint.coverage >= COVERAGE_DONE) {
+            // Finished: the whole picture, crisp, until the end screen takes over.
+            ctx.drawImage(layers.source, x0, y0, 2 * R, 2 * R);
+          } else {
+            if (p.paintGhost > 0) {
+              ctx.globalAlpha = p.paintGhost;
+              ctx.drawImage(layers.ghost, x0, y0, 2 * R, 2 * R);
+              ctx.globalAlpha = 1;
+            }
+            ctx.drawImage(layers.reveal, x0, y0, 2 * R, 2 * R);
+          }
+        } else if (points.length > 0) {
           ctx.globalAlpha = 0.75;
           ctx.lineCap = "round";
           ctx.lineJoin = "round";
@@ -956,6 +1123,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
       }
       const personality = engine.getPersonalityState();
+      // Picture Paint: the beat envelope scales the glow and draws a pulse ring around the ball.
+      const paintBeat = engine.isPaintMode() ? engine.getPaintState() : null;
+      const beatEnvelope = paintBeat && paintBeat.beatActive ? paintBeat.envelope : 1;
       balls.forEach((ball, index) => {
         const color = isColorMatch && matchColor ? matchColor : p.rainbowBall ? rainbowColors[index] : ball.color;
         // Trail
@@ -990,7 +1160,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (p.showGlow) {
           const pulse = 1 + 0.15 * Math.sin(time * personality.glowPulseRate * 0.001 * TWO_PI) * personality.glowScale;
           const scale = personality.glowScale * pulse;
-          const glowR = 2 * ball.radius * scale;
+          const glowR = 2 * ball.radius * scale * beatEnvelope;
           const r = Math.round(ball.radius);
           const key = `${color}_${r}`;
           if (p.rainbowBall || isColorMatch) {
@@ -1100,6 +1270,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.lineWidth = 1.5 + personality.tension;
           ctx.beginPath();
           ctx.arc(ball.x, ball.y, ball.radius + 2 * pulse, 0, TWO_PI);
+          ctx.stroke();
+        }
+        if (paintBeat && paintBeat.beatActive && paintBeat.pulse > 0.02) {
+          ctx.strokeStyle = withAlpha(ACCENT, 0.15 + 0.6 * paintBeat.pulse);
+          ctx.lineWidth = 1.5 + 2 * paintBeat.pulse;
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius * (1.3 + 0.9 * paintBeat.pulse) + 2, 0, TWO_PI);
           ctx.stroke();
         }
         if (fading) ctx.restore();
@@ -1243,12 +1420,21 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         }
         if (engine.isPaintMode()) {
-          const coverage = engine.getPaintCoverage();
+          const paint = engine.getPaintState();
+          const coverage = paint.coverage;
           const fs = Math.max(16, 0.05 * minDim);
           const pct = Math.round(100 * coverage);
-          const color = coverage >= 0.95 ? "#4ECDC4" : "#ffffff";
+          const done = coverage >= COVERAGE_DONE;
+          const color = done ? "#4ECDC4" : "#ffffff";
+          // Picture Paint: a second line with the beat the ball moves to and the schedule (on schedule / behind / ahead)
+          const hints: string[] = [];
+          if (paint.picture && paint.beatActive) hints.push(L.paintBeat(Math.round(paint.bpm)));
+          if (paint.picture && paint.pace && !done) hints.push(paint.pace === "behind" ? L.paintBehind : paint.pace === "ahead" ? L.paintAhead : L.paintOnSchedule);
+          const hint = hints.join(" · ");
+          const hintColor = paint.pace === "behind" ? "#f59e0b" : paint.pace === "ahead" ? "#38bdf8" : ACCENT;
+          const sfs = 0.5 * fs;
           blocks.push({
-            height: fs,
+            height: fs + (hint ? 1.4 * sfs : 0),
             draw: (y) => {
               ctx.save();
               ctx.font = `bold ${fs}px sans-serif`;
@@ -1274,11 +1460,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               ctx.fill();
               ctx.globalAlpha = 0.9;
               ctx.fillStyle = color;
-              if (coverage >= 0.95) {
+              if (done) {
                 ctx.shadowColor = color;
                 ctx.shadowBlur = 15;
               }
               ctx.fillText(text, cx, y + 0.5 * fs);
+              if (hint) {
+                ctx.shadowBlur = 0;
+                ctx.font = `600 ${sfs}px sans-serif`;
+                ctx.fillStyle = hintColor;
+                ctx.fillText(hint, cx, y + fs + 0.9 * sfs);
+              }
               ctx.restore();
             },
           });
@@ -1448,6 +1640,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.stroke();
       }
       ctx.restore();
+
+      // Picture Paint: mirror what the HUD shows onto the element (data-paint-*) so tools and the smoke test can read it.
+      if (engine.isPaintMode()) {
+        const paint = engine.getPaintState();
+        setCanvasData("paintCoverage", String(Math.round(100 * paint.coverage)));
+        setCanvasData("paintPicture", paint.picture ? "1" : "0");
+        setCanvasData("paintPace", paint.pace ?? "");
+        setCanvasData("paintBeat", paint.beatActive ? String(Math.round(paint.bpm)) : "0");
+      } else if (canvas.dataset.paintCoverage !== undefined) {
+        for (const key of ["paintCoverage", "paintPicture", "paintPace", "paintBeat"]) delete canvas.dataset[key];
+      }
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

@@ -9,6 +9,7 @@ import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallIn
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
+import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
@@ -64,6 +65,11 @@ export interface ControlsProps {
   getMusicDuckGain: () => number;
   onMusicUpload: (file: File) => void;
   onMusicRemove: () => void;
+  /** Picture Paint: the picture uploaded in this session (kept in memory) and what is known about the song's beat. */
+  paintPicture: PaintPictureInfo | null;
+  onPaintPictureUpload: (file: File) => void;
+  onPaintPictureRemove: () => void;
+  paintBeat: PaintBeatInfo;
   savedPresetNames: string[];
   onSavePreset: (name: string) => void;
   onLoadPreset: (name: string) => void;
@@ -80,7 +86,7 @@ const SCALE_LABELS: Record<ScaleId, string> = { chromatic: "scaleChromatic", maj
 const SECTION_KEYS: Record<ControlSection, string[]> = {
   ball: ["ballSpeed", "ballSize", "gravity", "ballColor", "twoBalls", ...BALL_INTERACTION_KEYS, ...BALL_DROP_KEYS, "bouncier", "ballEmoji", "customBallImage", ...BALL_PHYSICS_EXTRA_KEYS],
   wall: ["wallCount", "wallThickness", "gapSize", "rotation", "wallColor", ...WALL_PHYSICS_EXTRA_KEYS],
-  visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect"],
+  visual: ["trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
 };
@@ -146,6 +152,11 @@ export default function Controls(props: ControlsProps) {
   ];
 
   /* ------------------------------------------------------------ sections */
+
+  /** Picture Paint block: in the Mode row while Paint is the mode, and in the Visual section while the search box is in use. */
+  const picturePaintSection = () => (
+    <PicturePaintSection t={t} search={search} matches={matches} showAdvanced={showAdvanced} settings={s} update={update} picture={props.paintPicture} onUpload={props.onPaintPictureUpload} onRemove={props.onPaintPictureRemove} beat={props.paintBeat} />
+  );
 
   const ballSection = () => (
     <div className="space-y-4">
@@ -408,6 +419,8 @@ export default function Controls(props: ControlsProps) {
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
         </Searchable>
       )}
+      {/* The Picture Paint controls live in the Mode row; while searching only the sections render, so they show up here. */}
+      {s.mode === "paint" && !!search && picturePaintSection()}
       {s.showTrails && showAdvanced && (
         <Slider t={t} search={search} matches={matches} labelKey="trailThickness" tipKey="trailThicknessTip" value={s.trailThickness} range={RANGES.trailThickness} onChange={(v) => update({ trailThickness: v })} display={`${s.trailThickness.toFixed(1)}x`} />
       )}
@@ -980,6 +993,8 @@ export default function Controls(props: ControlsProps) {
         );
       case "drop":
         return <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      case "paint":
+        return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:
         return null;
     }
@@ -1222,7 +1237,24 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         breathingSpeed: d.breathingSpeed,
       };
     case "visual":
-      return { showTrails: d.showTrails, trailThickness: d.trailThickness, showGlow: d.showGlow, showWallGlow: d.showWallGlow, colorTrail: d.colorTrail, reactiveBackground: d.reactiveBackground, cameraFollow: d.cameraFollow, wallBreakStyle: d.wallBreakStyle, cinematicEnabled: d.cinematicEnabled };
+      return {
+        showTrails: d.showTrails,
+        trailThickness: d.trailThickness,
+        showGlow: d.showGlow,
+        showWallGlow: d.showWallGlow,
+        colorTrail: d.colorTrail,
+        reactiveBackground: d.reactiveBackground,
+        cameraFollow: d.cameraFollow,
+        wallBreakStyle: d.wallBreakStyle,
+        cinematicEnabled: d.cinematicEnabled,
+        paintBrush: d.paintBrush,
+        paintGhost: d.paintGhost,
+        paintBeatSync: d.paintBeatSync,
+        paintBeatSource: d.paintBeatSource,
+        paintBeatPulse: d.paintBeatPulse,
+        paintGuided: d.paintGuided,
+        paintPaceToSong: d.paintPaceToSong,
+      };
     case "sound":
       return {
         wallBreakSound: null,

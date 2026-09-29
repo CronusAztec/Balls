@@ -6,6 +6,7 @@ import { normalizeWallBreakSound } from "@/lib/audio/songs";
 import { DEFAULT_PHYSICS_EXTRAS, PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "@/lib/physics/extras";
 import { BALL_INTERACTION_RANGES, DEFAULT_BALL_INTERACTION } from "@/lib/physics/interactions";
 import { DEFAULT_DROP_SETTINGS, DROP_RANGES, dropSettingFields, dropSettingsOf, resolveDropSettings } from "@/lib/physics/modes/drop";
+import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
 
@@ -99,6 +100,21 @@ export interface SimulatorSettings {
   dropSpawnInterval: number;
   /** "Rain": the floor opens and balls that fall out come back in at the top (URL `dloop`). */
   dropLoop: boolean;
+  // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
+  /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
+  paintBrush: number;
+  /** Opacity of the greyscale ghost of the unrevealed picture, 0–0.4 (URL `pgh`). */
+  paintGhost: number;
+  /** The ball speeds up on every beat and glides in between (URL `pbeat`). */
+  paintBeatSync: boolean;
+  /** Beat from the loaded song's detected grid or from the manual `bpm` setting (URL `pbs`). */
+  paintBeatSource: PaintBeatSource;
+  /** How hard a beat kicks the ball, 0–1 (URL `pbp`). */
+  paintBeatPulse: number;
+  /** Rebounds steer toward the least-revealed region (URL `pgd`). */
+  paintGuided: boolean;
+  /** The brush is re-paced every second to finish with the song or the clip (URL `pps`). */
+  paintPaceToSong: boolean;
   // Overlays & recording
   watermarkText: string;
   topText: string;
@@ -191,6 +207,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     growCenterDot: false,
     growLines: false,
     ...dropSettingFields(DEFAULT_DROP_SETTINGS),
+    ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
     bottomText: "",
@@ -252,6 +269,7 @@ export const RANGES = {
   ...PHYSICS_EXTRA_RANGES,
   ...BALL_INTERACTION_RANGES,
   ...DROP_RANGES,
+  ...PICTURE_PAINT_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -309,6 +327,10 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   dgv: "dropGravityVariation",
   drows: "dropRows",
   dsi: "dropSpawnInterval",
+  // Picture Paint
+  pbr: "paintBrush",
+  pgh: "paintGhost",
+  pbp: "paintBeatPulse",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -337,6 +359,9 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   mloop: "musicLoop",
   qz: "quantizeToBeat",
   dloop: "dropLoop",
+  pbeat: "paintBeatSync",
+  pgd: "paintGuided",
+  pps: "paintPaceToSong",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -366,6 +391,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.rainbowWallMode !== base.rainbowWallMode) params.set("rwmode", settings.rainbowWallMode);
   if (settings.wallBreakStyle !== base.wallBreakStyle) params.set("wbreak", settings.wallBreakStyle);
   if (settings.ballInteraction !== base.ballInteraction) params.set("bi", settings.ballInteraction);
+  if (settings.paintBeatSource !== base.paintBeatSource) params.set("pbs", settings.paintBeatSource);
   if (settings.recordingResolution !== base.recordingResolution) params.set("res", settings.recordingResolution);
   if (settings.recordingDuration !== base.recordingDuration) params.set("dur", String(settings.recordingDuration));
   if (settings.hitSoundMode !== base.hitSoundMode) params.set("hsm", settings.hitSoundMode);
@@ -422,6 +448,9 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isBallInteraction(bi)) settings.ballInteraction = bi;
   clampBallInteraction(settings, defaultSettings(mode));
   clampDropSettings(settings);
+  const pbs = params.get("pbs");
+  if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
+  clampPicturePaint(settings);
   const inst = params.get("inst");
   if (isInstrumentId(inst)) settings.instrument = inst;
   const minst = params.get("minst");
@@ -465,6 +494,11 @@ function clampBallInteraction(settings: SimulatorSettings, defaults: SimulatorSe
 /** Keeps the Ball Drop settings inside their slider ranges, counts as whole numbers (URL parameters and presets alike; bad values fall back to the defaults). */
 function clampDropSettings(settings: SimulatorSettings) {
   Object.assign(settings, dropSettingFields(resolveDropSettings(dropSettingsOf(settings))));
+}
+
+/** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
+function clampPicturePaint(settings: SimulatorSettings) {
+  Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
 }
 
 /* ------------------------------------------------------------------ presets */
@@ -523,6 +557,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   merged.ballInteraction = isBallInteraction(preset.ballInteraction) ? preset.ballInteraction : defaults.ballInteraction;
   clampBallInteraction(merged, defaults);
   clampDropSettings(merged);
+  clampPicturePaint(merged);
   return merged;
 }
 
