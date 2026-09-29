@@ -44,6 +44,9 @@ export interface ModeSettings {
   // --- jdm-collisions ---
   /** Collision Playground: count, sizes, container, gravity, restitution and the variants (see modes/collide.ts); the defaults when left out. */
   collide?: Partial<CollideSettings>;
+  // --- teams ---
+  /** Balls the multi-ball modes start with (1–6, a team roster's size); overrides `twoBalls` when set. */
+  ballCount?: number;
   // --- boris-multipliers ---
   /** Multipliers board: rows, gate mix, start balls, ball cap and the count target (see modes/multipliers.ts); the defaults when left out. */
   multipliers?: Partial<MultipliersSettings>;
@@ -128,7 +131,7 @@ export interface FinderResult {
  * identically in the page with the same extras.
  */
 export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, settings: ModeSettings, seed: number): PhysicsEngine {
-  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), twoBalls: settings.twoBalls });
+  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount)
   engine.setBouncier(settings.bouncierEnabled);
   if (mode === "target") {
     engine.setCountdownTotal(settings.countdownTotal);

@@ -64,6 +64,9 @@ export interface Ball {
   gravityScale?: number;
   /** Size of the ball relative to the configured ball radius (Ball Drop's size spread), so a live change of the ball size keeps the spread; 1 when absent. */
   radiusScale?: number;
+  // --- teams ---
+  /** Start slot of the ball (0 … 5) in the multi-ball modes – its team; balls it spawns or splits into inherit it (see ballStats.ts). */
+  team?: number;
   // --- boris-multipliers ---
   /** Stacked stat multipliers – speed, size, damage, bounce, gravity (see multipliers.ts); absent = a plain ×1 ball. */
   mult?: BallMultipliers;
@@ -143,6 +146,9 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   audioIntensity: number;
   twoBalls?: boolean;
   ballColor2?: string;
+  // --- teams ---
+  /** Balls the multi-ball modes start with (1–6); overrides `twoBalls` when set (see ballStats.ts `startBallCount()`). */
+  ballCount?: number;
 }
 
 export interface SoundEvent {
@@ -266,6 +272,9 @@ export interface ModeContext {
    * in two at the end of the step (see interactions.ts).
    */
   reportWallBreak(ball: Ball, wallIndex: number): void;
+  // --- teams ---
+  /** Credits `ball` with a broken wall segment in the per-ball stats only (no split): Color Match's segment breaks. */
+  creditWallBreak?(ball: Ball): void;
   isBouncierEnabled(): boolean;
   getBounceSpeedMultiplier(): number;
   setBounceSpeedMultiplier(value: number): void;

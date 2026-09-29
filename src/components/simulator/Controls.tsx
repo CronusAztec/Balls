@@ -16,8 +16,13 @@ import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type Paint
 import PolyrhythmSection, { POLYRHYTHM_KEYS } from "./sections/PolyrhythmSection"; // --- jdm-polyrhythm ---
 import SongSlicerSection, { SONG_SLICER_KEYS } from "./sections/SongSlicerSection";
 import ThemeSection, { THEME_KEYS, type ThemeImageProps } from "./sections/ThemeSection"; // --- themes
+import CameraSection, { CAMERA_KEYS } from "./sections/CameraSection"; // --- camera ---
 // --- jdm-collisions ---
 import CollisionPlaygroundSection, { COLLISION_PLAYGROUND_KEYS } from "./sections/CollisionPlaygroundSection";
+// --- teams ---
+import TeamsSection, { BallCountControl, TEAM_KEYS } from "./sections/TeamsSection";
+import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
+import { defaultTeamSettings } from "@/lib/teams";
 // --- boris-multipliers ---
 import MultipliersSection, { MULTIPLIER_KEYS, showsMultipliersSection } from "./sections/MultipliersSection";
 import MultipliersModeSection, { MULTIPLIERS_MODE_KEYS } from "./sections/MultipliersModeSection";
@@ -28,6 +33,7 @@ import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio
 import { SONGS, WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { ADVANCED_STORAGE_KEY, RANGES, RESOLUTIONS, defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { characterOf } from "@/lib/character/character"; // --- boris-faces ---
+import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { ACCENT } from "@/lib/site";
@@ -35,7 +41,7 @@ import { ACCENT } from "@/lib/site";
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
 
-export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording";
+export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams"; // --- teams --- ("teams")
 
 export interface ControlsProps {
   settings: SimulatorSettings;
@@ -104,9 +110,13 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   visual: [...THEME_KEYS, "trails", "colorTrail", "cameraFollow", "cinematic", "trailThickness", "wallBreakEffect", ...PICTURE_PAINT_KEYS],
   sound: ["hitSoundMode", "instrument", ...HIT_SAMPLE_KEYS, "song", "melodyInstrument", "importMidi", "scale", "rootNote", "beatLock", "quantizeGrid", ...SONG_SLICER_KEYS, ...MUSIC_BED_KEYS, "wallBreakSound", "importWallBreak"],
   recording: ["videoResolution", "videoDuration", "customWatermark", "topText", "bottomText", "textSize"],
+  teams: TEAM_KEYS, // --- teams ---
 };
+SECTION_KEYS.ball.push("ballCount"); // --- teams --- the ball count slider (it replaced the "Two balls" switch)
 // --- jdm-polyrhythm --- the Metronomes & Polyrhythms block is searched with the Ball section (like the Pendulum wave block).
 SECTION_KEYS.ball.push(...POLYRHYTHM_KEYS);
+// --- camera --- the Camera group (zoom, shake, slow motion, replay) is part of the Visual section.
+SECTION_KEYS.visual.push(...CAMERA_KEYS);
 // --- boris-multipliers --- the Multipliers group of the Ball section and the multipliers-board block of the Mode row.
 SECTION_KEYS.ball.push(...MULTIPLIER_KEYS, ...MULTIPLIERS_MODE_KEYS);
 
@@ -175,6 +185,7 @@ export default function Controls(props: ControlsProps) {
     { id: "visual", icon: "✨", label: t("visualEffectsTab") },
     { id: "sound", icon: "🔊", label: t("customSoundTab") },
     { id: "recording", icon: "🎬", label: t("recordingTab") },
+    { id: "teams", icon: "🏆", label: t("teamsTab") }, // --- teams ---
   ];
 
   /* ------------------------------------------------------------ sections */
@@ -211,19 +222,8 @@ export default function Controls(props: ControlsProps) {
           </div>
         </Searchable>
       )}
-      {TWO_BALL_MODES.includes(s.mode) && (
-        <Searchable search={search} matches={matches} labelKey="twoBalls">
-          <div className="space-y-3">
-            <Toggle t={t} labelKey="twoBalls" tipKey="twoBallsTip" value={s.twoBalls} onChange={(v) => update({ twoBalls: v })} caseStyle="title" />
-            {s.twoBalls && !s.rainbowBall && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300">{t("ballColor2")}</label>
-                <ColorPicker value={s.ballColor2} onChange={(v) => update({ ballColor2: v })} label={t("ballColor2")} />
-              </div>
-            )}
-          </div>
-        </Searchable>
-      )}
+      {/* --- teams --- the ball count (1–6) replaced the "Two balls" switch; Color Match takes several balls too */}
+      {MULTI_BALL_MODES.includes(s.mode) && <BallCountControl t={t} search={search} matches={matches} settings={s} update={update} />}
       {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Ball Drop controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}
@@ -452,6 +452,8 @@ export default function Controls(props: ControlsProps) {
           <Tooltip text={t("cameraFollowTip")} />
         </button>
       </Searchable>
+      {/* --- camera --- the Camera group: zoom toward the ball, screen shake, slow motion on near misses, escape replay */}
+      <CameraSection t={t} search={search} matches={matches} settings={s} update={update} />
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="cinematic">
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
@@ -958,6 +960,9 @@ export default function Controls(props: ControlsProps) {
         return soundSection();
       case "recording":
         return recordingSection();
+      // --- teams ---
+      case "teams":
+        return <TeamsSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
     }
   };
 
@@ -1272,6 +1277,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         spinStrength: d.spinStrength,
         rotatingGravity: d.rotatingGravity,
         ...characterOf(d), // --- boris-faces ---
+        ballCount: d.ballCount, // --- teams --- (a team roster keeps its balls: see the Teams section)
         ...multiplierConfigOf(d), // --- boris-multipliers --- pickups, cap, smash threshold
       };
     case "wall":
@@ -1314,6 +1320,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         particleStyle: d.particleStyle,
         trailColors: d.trailColors,
         // --- end themes
+        ...cameraSettingsOf(d), // --- camera ---
       };
     case "sound":
       return {
@@ -1341,5 +1348,10 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
       };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize };
+    // --- teams --- no roster (the balls stay), names and scoreboard back on, top left
+    case "teams": {
+      const teams = defaultTeamSettings();
+      return { teams: teams.teams, showBallNames: teams.showBallNames, showScoreboard: teams.showScoreboard, scoreboardPosition: teams.scoreboardPosition };
+    }
   }
 }
