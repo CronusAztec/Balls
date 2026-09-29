@@ -27,7 +27,10 @@ export interface CharacterFrameInput {
   now: number;
   /** The run's seed (the blink schedule of each ball derives from it and the ball id). */
   seed: number;
-  /** Speed (px/s) an impact is measured against (the ball speed setting). */
+  /**
+   * The Ball Speed setting (px/s): the squash strength of an impact is measured against it, and the "ouch" of a hit
+   * against the ball's own speed before it, but never against less than `OUCH_SPEED_FLOOR` of this.
+   */
   refSpeed: number;
   /** Smooth acceleration (px/s², gravity + wind) that is never counted as an impact. */
   accelAllowance: number;
@@ -67,6 +70,8 @@ export interface CharacterBallState {
 export const MAX_CHARACTER_BALLS = 80;
 /** A velocity change counts only beyond this many px/s plus the smooth acceleration of the frame (×1.5 margin). */
 const IMPACT_NOISE = 1;
+/** Fraction of the reference speed a hit's "ouch" is measured against at least (see `CharacterFrameInput.refSpeed`). */
+export const OUCH_SPEED_FLOOR = 0.5;
 /** Frames a ball may go unseen before its state is dropped. */
 const STALE_FRAMES = 120;
 
@@ -159,13 +164,20 @@ export class CharacterTracker {
         const dv = Math.hypot(dvx, dvy);
         const excess = dv - allowance;
         if (excess > 0) {
-          impact = excess / refSpeed;
-          if (impact >= SQUASH_MIN_IMPACT) {
+          // The squash follows the absolute strength (against the Ball Speed setting)...
+          const strength = excess / refSpeed;
+          if (strength >= SQUASH_MIN_IMPACT) {
             st.impactAt = now;
-            st.impactStrength = impact;
+            st.impactStrength = strength;
             st.impactNx = dvx / dv;
             st.impactNy = dvy / dv;
           }
+          // ...the "ouch" how hard the hit was for this ball: against its own speed before it (a mirror rebound scores
+          // 2·cos(angle to the normal), so only near head-on ones reach OUCH_IMPACT), and never against less than a
+          // fraction of the Ball Speed, so a slow ball nudging a wall does not count as hurt.
+          const before = Math.hypot(st.vx, st.vy);
+          const floor = OUCH_SPEED_FLOOR * refSpeed;
+          impact = excess / (before > floor ? before : floor > 1 ? floor : 1);
         }
       }
       const dx = ball.x - input.centerX;

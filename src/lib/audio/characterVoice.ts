@@ -36,8 +36,11 @@ export const CHIRPS = {
 
 export type ChirpKind = keyof typeof CHIRPS;
 
-/** Two chirps are at least this far apart (simulation ms), so a pile of balls meows, it does not scream. */
-export const CHIRP_MIN_GAP_MS = 260;
+/**
+ * Two chirps are at least this far apart (simulation ms): the cat comments now and then, it does not meow over every
+ * bounce note, and a pile of balls meows, it does not scream.
+ */
+export const CHIRP_MIN_GAP_MS = 1000;
 
 /** The chirp an expression event plays (none for the calm expressions). */
 export function chirpForExpression(expression: Expression | null): ChirpKind | null {

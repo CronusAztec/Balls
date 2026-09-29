@@ -864,8 +864,11 @@ check("mode card switches mode", page.url().includes("mode=portal"), `(${page.ur
 // "Meet Boris" sets the persona (face, name, squash) and everything mirrors into the URL; the running canvas draws the
 // face and the name label (mirrored into data-face / data-face-count / data-name-label), a custom emoji hides the face
 // until "Face on Image / Emoji" is on, the search box finds the controls, the URL restores a character on the bodies
-// of Bouncing Shapes, the label toggle hides the name, and the cat face chirps through the ToneGenerator
-// (OscillatorNode.start is instrumented: the chirp is the only sawtooth with the default triangle bounce voice).
+// of Bouncing Shapes, the label toggle hides the name, the expressions keep their proportions (sampled from
+// data-face-expression every 100 ms until the escape: in Classic the face is mostly neutral and winces only on the hard
+// rebounds, in Shatter the burst of segment breaks startles it now and then instead of keeping it in shock), and the cat
+// face chirps through the ToneGenerator on a minority of the bounces (OscillatorNode.start is instrumented: the chirp is
+// the only sawtooth with the default triangle bounce voice, one triangle per bounce note).
 const canvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
@@ -923,6 +926,39 @@ await page.waitForTimeout(800);
   const data = await canvasData();
   check("the name label switches off", data.face === "dot" && data.faceCount === "1" && data.nameLabel === "", `(${JSON.stringify(data)})`);
 }
+/** Samples the first face's expression every 100 ms and tallies the samples taken before its escape (the first grin). */
+const sampleExpressions = async (count = 80) => {
+  const seen = [];
+  for (let i = 0; i < count; i++) {
+    await page.waitForTimeout(100);
+    seen.push((await canvasData()).faceExpression ?? "");
+  }
+  const firstGrin = seen.indexOf("grin");
+  const before = firstGrin < 0 ? seen : seen.slice(0, firstGrin);
+  const tally = { neutral: 0, happy: 0, ouch: 0, shock: 0 };
+  for (const e of before) if (e in tally) tally[e]++;
+  return { samples: before.length, ...tally };
+};
+await page.goto(`${BASE}/en/simulator/?mode=classic&face=cute&r=16`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const mix = await sampleExpressions();
+  check(
+    "classic: the face is mostly neutral and winces only on the hard rebounds",
+    mix.samples >= 20 && mix.ouch > 0 && mix.ouch < 0.4 * mix.samples && mix.neutral + mix.happy >= 0.5 * mix.samples,
+    `(${JSON.stringify(mix)})`,
+  );
+}
+await page.goto(`${BASE}/en/simulator/?mode=shatter&face=cute&r=16`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const mix = await sampleExpressions();
+  check(
+    "shatter: the segment breaks startle the face now and then, not all the time",
+    mix.samples >= 20 && mix.shock > 0 && mix.shock <= 0.6 * mix.samples && mix.neutral + mix.happy + mix.ouch >= 0.3 * mix.samples,
+    `(${JSON.stringify(mix)})`,
+  );
+}
 await page.goto(`${BASE}/en/simulator/?mode=classic&face=cat&fsnd=1&r=20`, { waitUntil: "networkidle" });
 await page.evaluate(() => {
   const log = [];
@@ -934,11 +970,13 @@ await page.evaluate(() => {
   };
 });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
-await page.waitForTimeout(5000);
+await page.waitForTimeout(8000);
 {
   const types = await page.evaluate(() => window.__oscTypes);
   const chirps = types.filter((t) => t === "sawtooth").length;
-  check("the cat face chirps through the ToneGenerator", chirps >= 1 && types.includes("triangle"), `(${chirps} chirps, ${types.length} oscillators)`);
+  const notes = types.filter((t) => t === "triangle").length;
+  check("the cat face chirps through the ToneGenerator", chirps >= 1 && notes >= 1, `(${chirps} chirps, ${notes} bounce notes, ${types.length} oscillators)`);
+  check("the cat chirps on a minority of the bounces, not on every note", chirps <= Math.max(2, 0.6 * notes), `(${chirps} chirps, ${notes} bounce notes)`);
   await page.screenshot({ path: path.join(outDir, "sim-character.png") });
 }
 // --- end boris-faces ---

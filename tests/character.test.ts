@@ -15,7 +15,22 @@ import {
   resolveCharacterSettings,
   sanitizeName,
 } from "@/lib/character/character";
-import { GRIN_HOLD_MS, OUCH_IMPACT, OUCH_MS, REST_MS, REST_SPEED, SHOCK_MS, createExpressionState, stepExpression, type ExpressionInput, type ExpressionState } from "@/lib/character/expression";
+import {
+  GRIN_HOLD_MS,
+  OUCH_COOLDOWN_MS,
+  OUCH_IMPACT,
+  OUCH_MS,
+  REST_MS,
+  REST_SPEED,
+  SHOCK_COOLDOWN_MS,
+  SHOCK_MS,
+  createExpressionState,
+  resetExpressionState,
+  stepExpression,
+  type Expression,
+  type ExpressionInput,
+  type ExpressionState,
+} from "@/lib/character/expression";
 import {
   BLINK_MAX_GAP_MS,
   BLINK_MIN_GAP_MS,
@@ -33,11 +48,14 @@ import {
   squashScales,
   type Vec,
 } from "@/lib/character/eyes";
-import { CharacterTracker, MAX_CHARACTER_BALLS, type CharacterFrameInput, type TrackedBall } from "@/lib/character/tracker";
+import { CharacterTracker, MAX_CHARACTER_BALLS, OUCH_SPEED_FLOOR, type CharacterFrameInput, type TrackedBall } from "@/lib/character/tracker";
+import { FaceLayer } from "@/components/simulator/faceRenderer";
 import { CHIRPS, CHIRP_MIN_GAP_MS, chirpAllowed, chirpForExpression, scheduleChirp } from "@/lib/audio/characterVoice";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { PhysicsEngine } from "@/lib/physics/engine";
-import type { PhysicsConfig } from "@/lib/physics/types";
+import { physicsExtrasOf } from "@/lib/physics/extras";
+import { ballInteractionOf } from "@/lib/physics/interactions";
+import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 import { MODE_IDS } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 
@@ -163,13 +181,34 @@ describe("expression state machine", () => {
   it("says ouch on a hard hit, for OUCH_MS, and ignores soft ones", () => {
     const st = createExpressionState();
     expect(stepExpression(st, input({ now: 100, impact: 0.5 * OUCH_IMPACT }))).toBeNull();
+    expect(stepExpression(st, input({ now: 108, impact: 0.97 * OUCH_IMPACT }))).toBeNull();
     expect(st.expression).toBe("neutral");
     expect(stepExpression(st, input({ now: 116, impact: OUCH_IMPACT }))).toBe("ouch");
     expect(st.expression).toBe("ouch");
-    // A second hard hit while wincing extends the ouch without triggering it again.
+    // A second hard hit while wincing neither triggers it again nor extends it.
     expect(stepExpression(st, input({ now: 200, impact: 2 }))).toBeNull();
-    expect(run(st, 200, OUCH_MS - 20)).toBe("ouch");
-    expect(run(st, 200 + OUCH_MS - 20, 40)).toBe("neutral");
+    expect(run(st, 200, OUCH_MS - 110)).toBe("ouch");
+    expect(run(st, 116 + OUCH_MS - 16, 40)).toBe("neutral");
+  });
+
+  it("winces at most once per OUCH_COOLDOWN_MS, however often the ball is hit hard", () => {
+    const st = createExpressionState();
+    const starts: number[] = [];
+    let ouchFrames = 0;
+    let frames = 0;
+    // A ball rattling between two rings: a head-on hit every 100 ms for 10 s.
+    for (let t = 16; t <= 10000; t += 16) {
+      const hit = t % 96 === 0;
+      if (stepExpression(st, input({ now: t, impact: hit ? 2 : 0 })) === "ouch") starts.push(t);
+      frames++;
+      if (st.expression === "ouch") ouchFrames++;
+    }
+    expect(starts[0]).toBe(96);
+    for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(OUCH_COOLDOWN_MS);
+    // ...and a new one as soon as the cooldown is over, so it still reacts.
+    expect(starts.length).toBeGreaterThanOrEqual(Math.floor(9000 / (OUCH_COOLDOWN_MS + 96)));
+    expect(ouchFrames / frames).toBeLessThan(OUCH_MS / OUCH_COOLDOWN_MS + 0.02);
+    expect(ouchFrames / frames).toBeGreaterThan(0.1);
   });
 
   it("goes wide-eyed when a wall breaks, and a hit does not cut the shock short", () => {
@@ -182,6 +221,48 @@ describe("expression state machine", () => {
     // ...but a shock overrides an ouch.
     stepExpression(st, input({ now: 5000, impact: 3 }));
     expect(stepExpression(st, input({ now: 5016, wallBreak: true }))).toBe("shock");
+  });
+
+  it("is not kept in shock by a burst of wall breaks (Shatter breaks a segment every few hundred ms)", () => {
+    const st = createExpressionState();
+    const counts: Record<Expression, number> = { neutral: 0, ouch: 0, shock: 0, grin: 0, happy: 0 };
+    const starts: number[] = [];
+    let frames = 0;
+    // A wall break every 300 ms for 5 s, and a hard hit now and then.
+    for (let t = 16; t <= 5000; t += 16) {
+      const wallBreak = Math.floor(t / 300) !== Math.floor((t - 16) / 300);
+      const triggered = stepExpression(st, input({ now: t, wallBreak, impact: t % 800 < 16 ? 2 : 0 }));
+      if (triggered === "shock") starts.push(t);
+      counts[st.expression]++;
+      frames++;
+    }
+    // A running shock is never re-armed, and the next one waits for the cooldown.
+    expect(starts.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(SHOCK_MS + SHOCK_COOLDOWN_MS);
+    // So the face is out of shock (blinking, wincing, looking around) for a clear share of the time.
+    expect(counts.shock / frames).toBeLessThan(0.5);
+    expect((counts.neutral + counts.ouch) / frames).toBeGreaterThan(0.45);
+    expect(counts.ouch).toBeGreaterThan(0);
+  });
+
+  it("does not stretch a shock by more breaks, and starts over after a reset", () => {
+    const st = createExpressionState();
+    expect(stepExpression(st, input({ now: 50, wallBreak: true }))).toBe("shock");
+    expect(stepExpression(st, input({ now: 300, wallBreak: true }))).toBeNull();
+    expect(run(st, 300, SHOCK_MS - 300 - 20)).toBe("shock");
+    expect(run(st, 50 + SHOCK_MS - 16, 40)).toBe("neutral");
+    // Within the cooldown a break is ignored...
+    expect(stepExpression(st, input({ now: 50 + SHOCK_MS + SHOCK_COOLDOWN_MS - 20, wallBreak: true }))).toBeNull();
+    expect(st.expression).toBe("neutral");
+    // ...after it, it shocks again.
+    expect(stepExpression(st, input({ now: 50 + SHOCK_MS + SHOCK_COOLDOWN_MS, wallBreak: true }))).toBe("shock");
+    // A reset (the tracker's restart) carries no cooldown over.
+    stepExpression(st, input({ now: 50 + SHOCK_MS + SHOCK_COOLDOWN_MS + 16, impact: 2 }));
+    resetExpressionState(st);
+    expect(st).toEqual(createExpressionState());
+    expect(stepExpression(st, input({ now: 30, wallBreak: true }))).toBe("shock");
+    resetExpressionState(st);
+    expect(stepExpression(st, input({ now: 30, impact: 2 }))).toBe("ouch");
   });
 
   it("grins at the escape and at the finish, over everything, and lingers after", () => {
@@ -377,6 +458,38 @@ describe("character tracker", () => {
     expect(tracker.triggered).toBeNull();
   });
 
+  it("counts only near head-on rebounds as hard, against the ball's own speed, and still squashes on glancing ones", () => {
+    /** A mirror rebound off a wall on the right at `angle`° to its normal (both components flip for a corner). */
+    const rebound = (speed: number, angle: number, corner = false) => {
+      const tracker = new CharacterTracker();
+      const a = (angle * Math.PI) / 180;
+      const b = ball(0, 400, 300, speed * Math.cos(a), speed * Math.sin(a));
+      tracker.update([b], frameInput(0));
+      b.vx = -b.vx;
+      if (corner) b.vy = -b.vy;
+      tracker.update([b], frameInput(16.7));
+      const st = tracker.get(0)!;
+      return { expression: st.expression.expression, strength: st.impactStrength };
+    };
+    // Head-on and steep rebounds hurt (a mirror rebound scores 2·cos(angle): 1.8 at 25°)...
+    expect(rebound(400, 0).expression).toBe("ouch");
+    expect(rebound(400, 25).expression).toBe("ouch");
+    expect(rebound(900, 20).expression).toBe("ouch");
+    // ...glancing ones do not, however fast (1.4 at 45°), but they still wobble the ball.
+    for (const speed of [400, 900]) {
+      const glance = rebound(speed, 45);
+      expect(glance.expression).toBe("neutral");
+      expect(glance.strength).toBeGreaterThan(1);
+    }
+    expect(rebound(400, 60).expression).toBe("neutral");
+    // A Bouncing Shapes body at 0.6× the Ball Speed is judged like any other ball: head-on and corners hurt.
+    expect(rebound(0.6 * 400, 0).expression).toBe("ouch");
+    expect(rebound(0.6 * 400, 45).expression).toBe("neutral");
+    expect(rebound(0.6 * 400, 45, true).expression).toBe("ouch");
+    // A ball that barely moves (below OUCH_SPEED_FLOOR of the Ball Speed) is not hurt by a nudge.
+    expect(rebound(0.6 * OUCH_SPEED_FLOOR * 400, 0).expression).toBe("neutral");
+  });
+
   it("shocks every ball at a wall break, grins at the escape and the finish", () => {
     const tracker = new CharacterTracker();
     const balls = [ball(0, 400, 300, 300, 0), ball(1, 420, 300, -300, 0)];
@@ -480,6 +593,93 @@ describe("character tracker", () => {
     expect(a.seen).toContain("ouch");
     expect(a.seen).toContain("neutral");
     if (a.broken > 0) expect(a.seen).toContain("shock");
+  });
+});
+
+/**
+ * A seeded run of `mode` with the page's default settings, driven the way the page drives the canvas: every "gap"
+ * sound event reaches the FaceLayer as a wall break and the layer advances the characters once per frame (a cat face
+ * with sounds on). Counts the first ball's expressions (before its escape), its visible blinks, the hits and the chirps.
+ */
+function pageRun(mode: ModeId, seed: number, seconds: number) {
+  const s = defaultSettings(mode);
+  const engine = new PhysicsEngine({
+    gravity: s.gravity,
+    damping: 0,
+    bounce: s.bounce,
+    width: 800,
+    height: 600,
+    audioIntensity: 0,
+    ballSpeed: s.ballSpeed,
+    rotationSpeed: s.rotationEnabled ? s.rotationSpeed : 0,
+    wallCount: s.wallCount,
+    gapSize: s.gapSize,
+    ballColor: s.ballColor,
+    ballRadius: 16,
+    twoBalls: s.twoBalls,
+    ballColor2: s.ballColor2,
+    ...physicsExtrasOf(s),
+    ...ballInteractionOf(s),
+  });
+  engine.setBouncier(s.bouncierEnabled);
+  engine.setWallBreakStyle(s.wallBreakStyle);
+  engine.setCinematicEnabled(s.cinematicEnabled);
+  engine.setSeed(seed);
+  engine.initMode(mode);
+  const faces = new FaceLayer();
+  const options = { face: "cat" as const, faceOverImage: false, label: "", squash: 0.6, sounds: true };
+  const counts: Record<Expression, number> = { neutral: 0, ouch: 0, shock: 0, grin: 0, happy: 0 };
+  let frames = 0;
+  let blinkFrames = 0;
+  let hits = 0;
+  let wallBreaks = 0;
+  let chirps = 0;
+  let escaped = false;
+  for (let frame = 0; frame < 60 * seconds; frame++) {
+    engine.update(1000 / 60);
+    for (const ev of engine.consumeSoundEvents()) {
+      if (ev.type === "gap") {
+        faces.noteWallBreak();
+        wallBreaks++;
+      } else if (ev.type === "hit") hits++;
+    }
+    if (faces.beginFrame(engine, options, { started: true })) chirps++;
+    const e = faces.tracker.primaryExpression;
+    if (e === "grin") escaped = true;
+    if (escaped || e === "") continue;
+    counts[e]++;
+    frames++;
+    // A blink shows only on open eyes: a shocked face is wide-eyed, a wincing one squints.
+    if ((e === "neutral" || e === "grin") && faces.tracker.get(engine.getBalls()[0].id)!.closure > 0.55) blinkFrames++;
+  }
+  return { counts, frames, blinkFrames, hits, wallBreaks, chirps };
+}
+
+describe("characters on a real run", () => {
+  it("classic: an ouch on the hard rebounds only, a neutral face most of the time and a chirp on a minority of the bounces", () => {
+    for (const seed of [1234, 7, 99]) {
+      const run = pageRun("classic", seed, 20);
+      expect(run.frames).toBeGreaterThan(0.9 * 60 * 20);
+      expect(run.counts.ouch).toBeGreaterThan(0);
+      expect(run.counts.ouch / run.frames).toBeLessThan(0.25);
+      expect(run.counts.neutral / run.frames).toBeGreaterThan(0.6);
+      expect(run.blinkFrames).toBeGreaterThan(0);
+      expect(run.chirps).toBeGreaterThan(0);
+      expect(run.chirps).toBeLessThan(0.4 * run.hits);
+      expect(run.chirps).toBeLessThanOrEqual(20 * (1000 / CHIRP_MIN_GAP_MS) + 1);
+    }
+  });
+
+  it("shatter: a burst of segment breaks startles the face now and then, and it still blinks and winces between", () => {
+    const run = pageRun("shatter", 1234, 12);
+    // Shatter breaks a segment every few hundred ms, each a "gap" event.
+    expect(run.wallBreaks).toBeGreaterThan(10);
+    expect(run.frames).toBeGreaterThan(5 * 60);
+    expect(run.counts.shock).toBeGreaterThan(0);
+    expect(run.counts.shock / run.frames).toBeLessThan(0.5);
+    expect((run.counts.neutral + run.counts.ouch) / run.frames).toBeGreaterThan(0.45);
+    expect(run.counts.ouch).toBeGreaterThan(0);
+    expect(run.blinkFrames).toBeGreaterThan(0);
   });
 });
 
