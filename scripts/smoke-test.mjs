@@ -2387,6 +2387,111 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 // --- end obstacle-editor + captions ---
 
+// --- rigged ---
+// 22. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
+// warning and the note under the canvas, controls → URL, the search box; a Never Escape run at 8× in which the rig acts
+// and no ball escapes; a three-team race won by the Forced Winner; Find Simulation's Outcome select – a run without an
+// escape in Classic, a first escape at a chosen second in Multiply (whose finder shows now) and a won race.
+{
+  const rigQuery = () => new URLSearchParams(page.url().split("?")[1] || "");
+  const finderResult = async (timeout = 120_000) => {
+    const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout }).then(() => true).catch(() => false);
+    return done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  };
+  await page.goto(`${BASE}/en/simulator/?mode=classic&ne=1&wc=3&gap=0.6`, { waitUntil: "networkidle" });
+  await page.getByLabel("Show advanced options").check();
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  const section = page.getByTestId("rigged-section");
+  const neverToggle = section.locator('label:has-text("Never Escape") + button');
+  {
+    const shown = await section.isVisible();
+    const pressed = await neverToggle.getAttribute("aria-pressed").catch(() => null);
+    const warning = await page.getByTestId("rigged-warning").isVisible();
+    const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    check("rigged outcomes load from the URL", shown && pressed === "true" && warning && /no ball can escape/.test(note), `(section=${shown}, never escape=${pressed}, warning=${warning}, note="${note}")`);
+  }
+  await neverToggle.click();
+  await page.waitForTimeout(300);
+  const offQuery = rigQuery();
+  const noteGone = (await page.getByTestId("rigged-note").count()) === 0;
+  await neverToggle.click();
+  await page.waitForTimeout(300);
+  check("never escape mirrors into the URL", !offQuery.has("ne") && noteGone && rigQuery().get("ne") === "1", `(off: ne=${offQuery.get("ne")}, note gone=${noteGone}; on: ne=${rigQuery().get("ne")})`);
+  await page.getByPlaceholder("Search settings...").fill("forced winner");
+  check("search finds the forced winner", (await page.locator("#forced-winner-select").isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForTimeout(12_000);
+  {
+    const data = await canvasData();
+    const ended = await page.getByRole("button", { name: /Restart Simulation/ }).isVisible();
+    const acted = Number(data.rigSteers) + Number(data.rigGuides) + Number(data.rigSeals);
+    await page.screenshot({ path: path.join(outDir, "sim-rigged-never-escape.png") });
+    check(
+      "a Never Escape run at 8× keeps every ball in while the rig steers",
+      data.rigNeverEscape === "1" && data.firstEscape === "-1" && !ended && acted > 0,
+      `(${JSON.stringify({ never: data.rigNeverEscape, firstEscape: data.firstEscape, steers: data.rigSteers, guides: data.rigGuides, seals: data.rigSeals, nearMisses: data.rigNearMisses })}, ended=${ended})`,
+    );
+  }
+  // A three-team race – three rings with wide gaps and fast balls, as in section 14 – that Green is set to win.
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Green*22c55e*🍀";
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&fw=2&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
+  const winnerNote = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  {
+    const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 45_000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    await page.screenshot({ path: path.join(outDir, "sim-rigged-winner.png") });
+    check("a Forced Winner race is won by the chosen team", won && data.teamWinner === "Green" && data.rigWinner === "2" && /Green wins/.test(winnerNote), `(winner=${data.teamWinner}, rig winner=${data.rigWinner}, stats=${data.teamStats}, note="${winnerNote}")`);
+  }
+  // The story carries over a mode change, with the roster it belongs to.
+  await page.locator('[role="button"]', { hasText: "Shatter" }).first().click();
+  await page.waitForTimeout(500);
+  {
+    const after = rigQuery();
+    check("the rig carries over a mode change", after.get("mode") === "shatter" && after.get("fw") === "2" && after.get("teams") === roster, `(mode=${after.get("mode")}, fw=${after.get("fw")}, teams=${after.get("teams")})`);
+  }
+  // Find Simulation: a Classic run without an escape for the whole clip.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  {
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    await page.locator("#find-outcome").selectOption("never-escapes");
+    const button = page.getByRole("button", { name: /Find a 30s Run Without an Escape/ });
+    const labelled = await button.isVisible();
+    await button.click();
+    const text = await finderResult();
+    const ready = await page.getByText(/Ready to start simulation for 30\.0s/).first().isVisible().catch(() => false);
+    check("Find Simulation finds a run without an escape", options.join(",") === "duration,never-escapes,escapes-at" && labelled && /Found! No escape in 30\.0s/.test(text) && ready, `(options=${options.join(",")}, "${text}", ready=${ready})`);
+  }
+  // Multiply never ends, so it had no finder; its outcomes give it one: the first escape at a chosen second.
+  await page.goto(`${BASE}/en/simulator/?mode=multiply`, { waitUntil: "networkidle" });
+  {
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    await page.locator("#find-outcome").selectOption("escapes-at");
+    await page.locator("#find-escape-at").evaluate(setRangeValue, "4");
+    const button = page.getByRole("button", { name: /Find a Run That Escapes at 4\.0s/ });
+    const labelled = await button.isVisible();
+    await button.click();
+    const text = await finderResult();
+    const at = Number((/First escape at ([\d.]+)s/.exec(text) || [])[1]);
+    check("Find Simulation finds a first escape at a chosen second in Multiply", options.join(",") === "never-escapes,escapes-at" && labelled && Math.abs(at - 4) <= 0.52, `(options=${options.join(",")}, "${text}")`);
+  }
+  // A won race, searched for: Blue wins.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
+  {
+    await page.locator("#find-outcome").selectOption("winner");
+    await page.locator("#find-winner").selectOption("1");
+    const button = page.getByRole("button", { name: /Find a Run Blue Wins/ });
+    const labelled = await button.isVisible();
+    await button.click();
+    const text = await finderResult();
+    check("Find Simulation finds a race the chosen team wins", labelled && /Found! Blue wins/.test(text), `("${text}")`);
+  }
+}
+// --- end rigged ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

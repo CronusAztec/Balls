@@ -36,6 +36,7 @@ import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } fr
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CaptionLayer, type CanvasCaptionOptions, type CaptionView } from "./captionsRenderer"; // --- captions ---
 import { edgeTextBounds, emptyEdgeTextLines, exportEdgeTextLines, liveEdgeTextLines } from "@/lib/captions"; // --- captions ---
+import { writeRigDataset } from "./riggedRenderer"; // --- rigged ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -2309,6 +2310,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.multSpeed !== undefined) {
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
+      writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

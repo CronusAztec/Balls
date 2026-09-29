@@ -34,6 +34,8 @@ import ObstaclesSection, { OBSTACLE_KEYS } from "./sections/ObstaclesSection";
 import { defaultObstacleSettings, supportsObstacles } from "@/lib/physics/obstacleEditor";
 import CaptionsSection, { CAPTION_KEYS } from "./sections/CaptionsSection"; // --- captions ---
 import { defaultCaptionSettings } from "@/lib/captions"; // --- captions ---
+import RiggedSection, { RIGGED_KEYS } from "./sections/RiggedSection"; // --- rigged ---
+import { riggedConfigOf } from "@/lib/physics/rigged"; // --- rigged ---
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -131,6 +133,8 @@ SECTION_KEYS.visual.push(...CAMERA_KEYS);
 SECTION_KEYS.ball.push(...GLASS_KEYS);
 // --- boris-multipliers --- the Multipliers group of the Ball section and the multipliers-board block of the Mode row.
 SECTION_KEYS.ball.push(...MULTIPLIER_KEYS, ...MULTIPLIERS_MODE_KEYS);
+// --- rigged --- the Rigged Outcomes group (never escape, forced winner) sits under the Drama Director in the Visual section.
+SECTION_KEYS.visual.push(...RIGGED_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -478,6 +482,8 @@ export default function Controls(props: ControlsProps) {
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
         </Searchable>
       )}
+      {/* --- rigged --- the director's hard constraints: never escape and the forced winner, with the storytelling warning */}
+      {showAdvanced && <RiggedSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Picture Paint controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "paint" && !!search && picturePaintSection()}
       {s.showTrails && showAdvanced && (
@@ -1350,6 +1356,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         trailColors: d.trailColors,
         // --- end themes
         ...cameraSettingsOf(d), // --- camera ---
+        ...riggedConfigOf(d), // --- rigged --- never escape off, no forced winner
       };
     case "sound":
       return {
