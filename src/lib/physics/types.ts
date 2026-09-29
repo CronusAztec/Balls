@@ -27,6 +27,8 @@ export const MODE_IDS = [
   "polyrhythm",
   // --- jdm-collisions ---
   "collide",
+  // --- boris-glass ---
+  "glass",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

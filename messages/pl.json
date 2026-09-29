@@ -102,7 +102,11 @@
     "canvasPolyrhythmDone": "W FAZIE!",
     "canvasPolyrhythmAligned": "Wszystkie głosy ([count]) znów w fazie po cyklach: [cycles]",
     "finderFixedPolyrhythm": "Metronomy i polirytmy przy tych ustawieniach trwają zawsze dokładnie {duration}s (cykle × długość cyklu), niezależnie od ziarna. Zmień długość cyklu, tempa albo liczbę cykli w wierszu Tryb, żeby trafić w cel.",
-    "canvasCollideAnti": "ANTYKOLIZJA"
+    "canvasCollideAnti": "ANTYKOLIZJA",
+    "canvasGlassStage": "ETAP [n]",
+    "canvasGlassHome": "DOM",
+    "canvasGlassHomeTitle": "W DOMU!",
+    "canvasGlassHomeSub": "Rozbite tafle: [panes] · etapy: [stages]"
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z 12 trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
@@ -643,7 +647,22 @@
     "cpAntiCollisionAtTip": "Sekunda przebiegu, w której system kolizji się wyłącza: kule zmieniają kolor i przenikają przez siebie (od pojemnika wciąż się odbijają). Wył. oznacza zderzenia bez końca.",
     "cpAntiOff": "Wył.",
     "cpRing": "Lizaki na pierścieniu",
-    "cpRingTip": "Przypina ciała do okrągłego toru: każde to lizak – patyczek od środka do krążka – który zderza się z sąsiadami wzdłuż pierścienia. Z grawitacją kołyszą się jak wahadła wokół dołu."
+    "cpRingTip": "Przypina ciała do okrągłego toru: każde to lizak – patyczek od środka do krążka – który zderza się z sąsiadami wzdłuż pierścienia. Z grawitacją kołyszą się jak wahadła wokół dołu.",
+    "modeGlass": "Rozbijanie szkła",
+    "glassTitle": "Szkło",
+    "glassDesc": "Między piłką a DOMEM stoją etapy szklanych tafli. Każde lądowanie zostawia pęknięcie na tafli i gra kolejną nutę (następną nutę melodii albo stopień skali według rzędu); ostatnie uderzenie roztrzaskuje taflę z dźwiękiem przebicia ściany – szklanym klipem, chyba że wybierzesz inny. Każdy kolejny etap ma więcej tafli, grubsze szkło, tafle jeżdżące na boki i tafle z dziurami.",
+    "glassRows": "Tafle na etap",
+    "glassRowsTip": "Ile szklanych tafli ma pierwszy etap – od 3 do 30. Każdy następny dokłada jedną trzecią więcej (najwyżej 30), ułożonych gęściej, więc im głębiej, tym szybciej padają uderzenia.",
+    "glassHp": "Uderzenia na taflę",
+    "glassHpTip": "Ile lądowań wytrzymuje tafla pierwszego etapu, zanim się roztrzaska – od 1 do 5; każde uderzenie wypuszcza z miejsca trafienia kolejne pęknięcie. Co drugi etap szkło wytrzymuje o jedno uderzenie więcej (najwyżej o dwa).",
+    "glassStages": "Etapy",
+    "glassStagesTip": "Przez ile etapów piłka musi się przebić, zanim dotrze do DOMU – od 1 do 10. Kamera zjeżdża do każdego nowego etapu, a baner go zapowiada.",
+    "glassMoving": "Jeżdżące tafle",
+    "glassMovingTip": "Od trzeciego etapu część tafli jest węższa i jeździ w lewo i w prawo: piłka może ją minąć i spaść obok – szczęśliwa ucieczka – albo uderzyć w nią od spodu.",
+    "glassHoles": "Tafle z dziurami",
+    "glassHolesTip": "Od drugiego etapu część tafli ma dziurę, którą piłka musi ominąć, żeby dalej tłuc szkło. Wpadając w dziurę, pomija taflę (od spodu wciąż może ją pęknąć).",
+    "glassRunSize": "Cały bieg: tafle – {panes}, uderzenia – do {hits}, etapy – {stages}, a na końcu DOM.",
+    "wallBreakSoundModeDefault": "Domyślny dla trybu ({name})"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -672,6 +691,10 @@
     "collide": {
       "name": "Poligon zderzeń",
       "description": "Setki różnorodnych kul zderza się w okręgu albo w kwadracie, a każde zderzenie gra cichą nutę zależną od rozmiaru. Zrób je galaretowate, puść je synchronicznie, wyłącz kolizje w trakcie albo ustaw lizaki na pierścieniu."
+    },
+    "glass": {
+      "name": "Rozbijanie szkła",
+      "description": "Boris jest zdeterminowany, żeby rozbić całe szkło: spada szybem pełnym szklanych tafli, każde lądowanie zostawia pęknięcie na tafli pod nim i gra nutę, a ostatnie uderzenie roztrzaskuje ją w drobny mak. Z etapu na etap szkła przybywa, jest grubsze, zaczyna jeździć na boki i ma dziury – aż Boris wtoczy się w drzwi z napisem DOM."
     }
   },
   "Features": {
@@ -815,7 +838,8 @@
     "troubleStuckQ": "Nadal masz problem?",
     "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś.",
     "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu.",
-    "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru."
+    "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru.",
+    "modeGlass": "Szklany format borisbounces, bez pierścieni: pionowy szyb z poziomymi szklanymi taflami dzieli piłkę od drzwi z napisem DOM. Piłka spada, a każde lądowanie zostawia pęknięcie na tafli pod nią – proceduralna rysa rośnie od miejsca uderzenia – i gra kolejną nutę melodii albo, bez melodii, stopień skali według rzędu; przy ostatnim uderzeniu tafla rozpada się na odłamki z akcentowaną nutą i dźwiękiem tłuczonego szkła, a piłka przebija się do następnej tafli. Po ostatniej tafli etapu kamera zjeżdża do kolejnego: więcej tafli, grubsze szkło, tafle jeżdżące w lewo i w prawo oraz tafle z dziurami, które piłka musi ominąć. Ostatni etap kończy się wtoczeniem piłki w drzwi i świętowaniem. Każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno do długości klipu."
   },
   "Footer": {
     "about": "O nas",

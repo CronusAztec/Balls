@@ -102,7 +102,11 @@
     "canvasPolyrhythmDone": "IN PHASE!",
     "canvasPolyrhythmAligned": "All [count] voices back in phase after [cycles] cycle(s)",
     "finderFixedPolyrhythm": "Metronomes & Polyrhythms always lasts exactly {duration}s with these settings (the cycles × the cycle length), whatever the seed. Change the cycle length, the tempos or the number of cycles in the Mode row to hit the target.",
-    "canvasCollideAnti": "ANTI-COLLISION"
+    "canvasCollideAnti": "ANTI-COLLISION",
+    "canvasGlassStage": "STAGE [n]",
+    "canvasGlassHome": "HOME",
+    "canvasGlassHomeTitle": "HOME!",
+    "canvasGlassHomeSub": "[panes] panes smashed in [stages] stage(s)"
   },
   "HowItWorks": {
     "step1": {
@@ -652,7 +656,22 @@
     "cpAntiCollisionAtTip": "Second of the run at which the collision system switches off: the orbs change colour and pass straight through each other (they still bounce off the container). Off keeps them colliding forever.",
     "cpAntiOff": "Off",
     "cpRing": "Lollipops on a Ring",
-    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom."
+    "cpRingTip": "Constrains the bodies to a circular track: each one is a lollipop – a stick from the centre to a disc – that collides with its neighbours along the ring. With gravity they swing like pendulums around the bottom.",
+    "modeGlass": "Glass Smash",
+    "glassTitle": "Glass",
+    "glassDesc": "Stages of glass panes stand between the ball and HOME. Every landing cracks a pane and plays the next note (the next melody note, or a scale degree by row); the last hit shatters it with the wall-break sound – a glass clip unless you pick another. Each new stage brings more panes, thicker ones, sliding ones and ones with holes.",
+    "glassRows": "Panes per Stage",
+    "glassRowsTip": "How many glass panes the first stage holds, from 3 to 30. Every later stage adds a third more (up to 30), packed closer together, so the hits speed up as the ball gets deeper.",
+    "glassHp": "Hits per Pane",
+    "glassHpTip": "How many landings a pane of the first stage takes before it shatters, from 1 to 5; every hit grows another crack from the impact point. Every other stage the glass gets one hit thicker (at most two more).",
+    "glassStages": "Stages",
+    "glassStagesTip": "How many stages the ball smashes through before it reaches HOME, from 1 to 10. The camera scrolls down to each new stage and a banner announces it.",
+    "glassMoving": "Sliding Panes",
+    "glassMovingTip": "From the third stage on, some panes are narrower and slide left and right: the ball can miss one and drop past it – a lucky escape – or bounce up into it from below.",
+    "glassHoles": "Panes with Holes",
+    "glassHolesTip": "From the second stage on, some panes have a hole the ball must miss to keep smashing. Dropping through it skips that pane (the ball can still crack it from below).",
+    "glassRunSize": "Whole run: {panes} panes and up to {hits} hits over {stages} stage(s), then HOME.",
+    "wallBreakSoundModeDefault": "Mode default ({name})"
   },
   "Modes": {
     "classic": {
@@ -714,6 +733,10 @@
     "collide": {
       "name": "Collision Playground",
       "description": "Hundreds of varied orbs collide in a circle or a box and every collision plays a soft note pitched by size. Make them squishy, drop them in sync, switch the collisions off mid-run or put lollipops on a ring."
+    },
+    "glass": {
+      "name": "Glass Smash",
+      "description": "Boris is determined to smash all of the glass: he drops down a shaft of glass panes, every landing cracks the pane under him and plays a note, and the last hit shatters it. Stage after stage the glass gets denser and thicker, starts to slide and grows holes – until he rolls through the door marked HOME."
     }
   },
   "Features": {
@@ -955,7 +978,8 @@
     "troubleStuckQ": "Still stuck?",
     "troubleStuckA": "Send a note through the feedback page and describe what you were doing.",
     "modePolyrhythm": "No rings to escape: 2–400 voices each tick at their own tempo and every tick plays a note. Rings (dots orbiting 1, 2, 3… times per cycle and ticking at 12 o'clock, optionally as rotating polygons), arcs (dots sliding along the chords or semicircles of a circle and ticking at both ends), a grid of metronomes, or a spiral whose tick points line up again every cycle. The tempos follow the harmonic series, an arithmetic BPM series (the Reich-style tempo phase shift) or your own ratio list such as 3,4,5,7. The moment every voice ticks together is computed exactly and lands as a chord and a flash; the run ends after the chosen number of cycles and always lasts the same time, so it fits any clip.",
-    "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track."
+    "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track.",
+    "modeGlass": "The borisbounces glass format, no rings: a portrait shaft of horizontal glass panes stands between the ball and a doorway marked HOME. The ball falls and every landing cracks the pane below it – a procedural crack grows from the impact point – and plays the next note of your melody or, without one, a scale degree by row; on its last hit a pane shatters into shards with an accented note and a glass-break sound, and the ball crashes through to the next pane. After the last pane of a stage the camera scrolls down to the next one: more panes, thicker glass, panes that slide left and right and panes with holes the ball must miss. The final stage ends with the ball rolling into the doorway and a celebration. Every run is deterministic, so Find Simulation can pick a seed for your clip length."
   },
   "Footer": {
     "about": "About",

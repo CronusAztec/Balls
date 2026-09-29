@@ -9,6 +9,8 @@ import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSetti
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 // --- jdm-collisions ---
 import type { CollideSettings } from "@/lib/physics/modes/collide";
+// --- boris-glass ---
+import type { GlassSettings } from "@/lib/physics/modes/glass";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -42,6 +44,9 @@ export interface ModeSettings {
   // --- jdm-collisions ---
   /** Collision Playground: count, sizes, container, gravity, restitution and the variants (see modes/collide.ts); the defaults when left out. */
   collide?: Partial<CollideSettings>;
+  // --- boris-glass ---
+  /** Glass Smash: rows, hit points, stages, sliding panes and holes (see modes/glass.ts); the defaults when left out. Every run ends at HOME, so the finder searches it. */
+  glass?: Partial<GlassSettings>;
 }
 
 /** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
@@ -143,6 +148,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "polyrhythm") engine.setPolyrhythmSettings(settings.polyrhythm ?? {}); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   if (mode === "collide") engine.setCollideSettings(settings.collide ?? {});
+  // --- boris-glass ---
+  if (mode === "glass") engine.setGlassSettings(settings.glass ?? {});
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

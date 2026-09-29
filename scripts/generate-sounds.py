@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Synthesises the built-in sound effects:
 
-- public/wallBreak/*.wav  – wall-break sounds (pop, chime)
+- public/wallBreak/*.wav  – wall-break sounds (pop, chime, glass)
 - public/hitSounds/*.wav  – short hit samples played on every wall bounce (click, pluck, kick)
 
 Pure Python (no numpy). Run `python3 scripts/generate-sounds.py` to regenerate.
@@ -55,6 +55,44 @@ def chime(duration: float = 0.9) -> list[float]:
             s += a * math.sin(2 * math.pi * f * tt) * math.exp(-tt * 4.5)
         out.append(s * 0.28)
     return out
+
+
+# --- boris-glass ---
+def glass(duration: float = 0.7) -> list[float]:
+    """A pane of glass shattering: a bright noise crash and a low thump under a shower of inharmonic tinkles.
+
+    Glass Smash plays it on every shattered pane by default (src/lib/audio/songs.ts, modeWallBreakSound()).
+    """
+    rng = random.Random(23)
+    tinkles = []
+    for k in range(26):
+        onset = 0.0 if k == 0 else rng.random() ** 2 * 0.4
+        f = 2200 + rng.random() * 5200
+        amp = 0.25 + 0.5 * rng.random()
+        decay = 18 + 30 * rng.random()
+        tinkles.append((onset, amp, decay, ((f, 1.0), (f * 2.76, 0.5), (f * 5.4, 0.25))))
+    out = []
+    prev = 0.0
+    n = int(RATE * duration)
+    for i in range(n):
+        t = i / RATE
+        white = rng.random() * 2 - 1
+        crash = (white - prev) * math.exp(-t * 14) * 0.55  # first difference: a high-passed burst
+        prev = white
+        s = crash + math.sin(2 * math.pi * 180 * t) * math.exp(-t * 40) * 0.35
+        for onset, amp, decay, partials in tinkles:
+            if t < onset:
+                continue
+            tt = t - onset
+            env = math.exp(-tt * decay)
+            if env < 1e-3:
+                continue
+            for f, a in partials:
+                s += amp * a * math.sin(2 * math.pi * f * tt) * env * 0.12
+        out.append(s)
+    peak = max(abs(x) for x in out) or 1.0
+    return [x * 0.9 / peak for x in out]
+# --- end boris-glass ---
 
 
 # ---------------------------------------------------------------- hit samples
@@ -118,6 +156,8 @@ def main() -> None:
     write_wav(wall_break / "pop.wav", pop())
     write_wav(wall_break / "chime.wav", chime())
     print("wrote wallBreak/pop.wav and wallBreak/chime.wav")
+    write_wav(wall_break / "glass.wav", glass())  # --- boris-glass ---
+    print("wrote wallBreak/glass.wav")
 
     hit = root / "hitSounds"
     hit.mkdir(parents=True, exist_ok=True)

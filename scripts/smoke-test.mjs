@@ -1370,6 +1370,113 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
   check(`a character from the URL shows on the ${mode} bodies`, face === "cute" && Number(faceCount) === faces && nameLabel === "Boris", `(face=${face}, faces=${faceCount}, label=${nameLabel})`);
 }
 
+// --- boris-glass ---
+// 14. Glass Smash: the preview image and the glass clip, URL → the "Glass" block of the Mode row, controls → URL, the
+// search box, the finder shown (every run ends at HOME), the Sound section naming the mode's default wall-break clip,
+// a default run at 30+ fps whose pane hits are scale degrees of C major (OscillatorNode.start is instrumented) and whose
+// shatters play the glass clip (the only one-argument AudioBufferSourceNode.start), and a short run to HOME at 8×
+// (data-glass-*: stages, hits, shattered panes, camera, HOME) that ends with the finished overlay.
+for (const asset of ["/modes/glass.webp", "/wallBreak/glass.wav"]) {
+  const res = await page.request.get(`${BASE}${asset}`);
+  check(`asset ${asset}`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+/** The On/Off button of a toggle in the Glass block, by the start of its label. */
+const glassToggle = (label) => page.getByTestId("glass-smash").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+await page.goto(`${BASE}/en/simulator/?mode=glass&glr=9&glhp=3&gls=5&glm=0`, { waitUntil: "networkidle" });
+{
+  const values = { glr: await sliderValue("Panes per Stage"), glhp: await sliderValue("Hits per Pane"), gls: await sliderValue("Stages") };
+  const moving = await glassToggle("Sliding Panes").getAttribute("aria-pressed");
+  const holes = await glassToggle("Panes with Holes").getAttribute("aria-pressed");
+  const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  const runSize = await page.getByTestId("glass-run-size").innerText().catch(() => "");
+  check("glass smash loads from URL", values.glr === "9" && values.glhp === "3" && values.gls === "5" && moving === "false" && holes === "true" && finderShown && noRingControls && /\d+ panes/.test(runSize), `(${JSON.stringify(values)}, moving=${moving}, holes=${holes}, finder shown=${finderShown}, "${runSize}")`);
+}
+await page.locator('input[aria-label="Stages"]').evaluate(setRangeValue, "2");
+await glassToggle("Panes with Holes").click();
+await page.waitForTimeout(300);
+{
+  const query = page.url().split("?")[1] || "";
+  check("glass smash mirrors into the URL", /(^|&)gls=2(&|$)/.test(query) && /(^|&)glh=0(&|$)/.test(query) && /(^|&)glr=9(&|$)/.test(query) && /(^|&)glm=0(&|$)/.test(query), `(${query})`);
+}
+await page.getByPlaceholder("Search settings...").fill("hits per pane");
+check("search finds the glass smash controls", (await page.locator('input[aria-label="Hits per Pane"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
+await page.getByPlaceholder("Search settings...").fill("");
+await page.goto(`${BASE}/en/simulator/?mode=glass`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Custom Sound/ }).click();
+{
+  const label = await page.locator("#wallbreak-select option").first().innerText();
+  check("the Sound section names the glass clip as the mode's wall-break sound", label === "Mode default (Glass)", `("${label}")`);
+}
+await page.evaluate(() => {
+  const osc = [];
+  const clips = [];
+  window.__glassOsc = osc;
+  window.__glassClips = clips;
+  const start = OscillatorNode.prototype.start;
+  OscillatorNode.prototype.start = function () {
+    if (this.frequency.value !== 1) osc.push(this.frequency.value);
+    return start.apply(this, arguments);
+  };
+  const bufferStart = AudioBufferSourceNode.prototype.start;
+  AudioBufferSourceNode.prototype.start = function () {
+    if (arguments.length === 1 && this.buffer) clips.push(this.buffer.duration);
+    return bufferStart.apply(this, arguments);
+  };
+});
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.waitForTimeout(400);
+{
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    6000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const data = await canvasData();
+  const pitches = await page.evaluate(() => window.__glassOsc);
+  const clips = await page.evaluate(() => window.__glassClips);
+  const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const onScale = midis.length > 0 && midis.every((m) => m >= 48 && m <= 84 && [0, 2, 4, 5, 7, 9, 11].includes(m % 12));
+  check("simulator mode=glass smashes panes at 30+ fps", Number(data.glassHits) >= 8 && Number(data.glassShattered) >= 3 && data.glassPanes === "36" && data.glassStages === "4" && windows.length >= 10 && minWindow >= 30, `(${data.glassHits} hits, ${data.glassShattered}/${data.glassPanes} shattered, stage ${data.glassStage}/${data.glassStages}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps)`);
+  check("glass pane hits play scale degrees and shatters play the glass clip", onScale && new Set(midis).size >= 3 && clips.length >= 1 && clips.every((d) => d > 0.6 && d < 0.8), `(${pitches.length} tones, ${new Set(midis).size} distinct degrees, ${clips.length} glass clips)`);
+  await page.screenshot({ path: path.join(outDir, "sim-glass.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=glass&glr=3&glhp=1&gls=2&face=cute&bn=Boris`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("glass smash reaches HOME through every stage and finishes", done && data.glassHome === "1" && data.glassStage === "2" && Number(data.glassCamera) > 0 && Number(data.glassShattered) >= 3 && data.face === "cute", `(finished=${done}, home=${data.glassHome}, stage ${data.glassStage}/${data.glassStages}, camera ${data.glassCamera}, ${data.glassShattered}/${data.glassPanes} shattered, face=${data.face})`);
+  await page.screenshot({ path: path.join(outDir, "sim-glass-home.png") });
+}
+// --- end boris-glass ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

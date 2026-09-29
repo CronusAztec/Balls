@@ -12,6 +12,8 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 import { DEFAULT_POLYRHYTHM_SETTINGS, POLYRHYTHM_RANGES, isPolyArcStyle, isPolyLayout, isPolyPitchBy, isPolyTempos, polyrhythmSettingFields, polyrhythmSettingsOf, resolvePolyrhythmSettings, sanitizeCustomRatios, type PolyArcStyle, type PolyLayout, type PolyPitchBy, type PolyTempos } from "@/lib/physics/modes/polyrhythm";
 // --- jdm-collisions ---
 import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide";
+// --- boris-glass ---
+import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
@@ -208,6 +210,18 @@ export interface SimulatorSettings {
   cpAntiCollisionAt: number;
   /** Lollipops on a ring: bodies constrained to a circular track (URL `cpr`). */
   cpRing: boolean;
+  // --- boris-glass --- Glass Smash (lib/physics/modes/glass.ts): stages of glass panes between the ball and HOME
+  /** Panes in the first stage, 3–30; later stages add more (URL `glr`). */
+  glassRows: number;
+  /** Hits a pane of the first stage takes, 1–5; later stages get thicker (URL `glhp`). */
+  glassHp: number;
+  /** Stages from the top to HOME, 1–10 (URL `gls`). */
+  glassStages: number;
+  /** From the third stage on some panes slide left and right (URL `glm`). */
+  glassMoving: boolean;
+  /** From the second stage on some panes have a hole the ball must miss (URL `glh`). */
+  glassHoles: boolean;
+  // --- end boris-glass ---
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -335,6 +349,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS), // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     ...collideSettingFields(DEFAULT_COLLIDE_SETTINGS),
+    // --- boris-glass ---
+    ...glassSettingFields(DEFAULT_GLASS_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
     topText: "",
@@ -406,6 +422,8 @@ export const RANGES = {
   ...THEME_RANGES, // --- themes
   // --- jdm-collisions ---
   ...COLLIDE_RANGES,
+  // --- boris-glass ---
+  ...GLASS_RANGES,
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -496,6 +514,10 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   cpg: "cpGravity",
   cpe: "cpRestitution",
   cpac: "cpAntiCollisionAt",
+  // --- boris-glass --- Glass Smash
+  glr: "glassRows",
+  glhp: "glassHp",
+  gls: "glassStages",
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -539,6 +561,9 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   cpsq: "cpSquishy",
   cpsy: "cpSyncStart",
   cpr: "cpRing",
+  // --- boris-glass --- Glass Smash
+  glm: "glassMoving",
+  glh: "glassHoles",
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -669,6 +694,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const cpc = params.get("cpc");
   if (isCollideContainer(cpc)) settings.cpContainer = cpc;
   clampCollideSettings(settings);
+  clampGlassSettings(settings); // --- boris-glass ---
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -744,6 +770,12 @@ function clampCollideSettings(settings: SimulatorSettings) {
   Object.assign(settings, collideSettingFields(resolveCollideSettings(collideSettingsOf(settings))));
 }
 
+// --- boris-glass ---
+/** Keeps the Glass Smash settings inside their ranges as whole numbers; a non-boolean flag falls back to the default (URL parameters and presets alike). */
+function clampGlassSettings(settings: SimulatorSettings) {
+  Object.assign(settings, glassSettingFields(resolveGlassSettings(glassSettingsOf(settings))));
+}
+
 /** Keeps the Picture Paint settings inside their ranges; an unknown beat source or a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampPicturePaint(settings: SimulatorSettings) {
   Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
@@ -816,6 +848,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPolyrhythmSettings(merged); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   clampCollideSettings(merged);
+  clampGlassSettings(merged); // --- boris-glass ---
   clampPicturePaint(merged);
   clampCharacter(merged); // --- boris-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
