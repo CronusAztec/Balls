@@ -10,6 +10,8 @@ import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulum
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 // --- jdm-collisions ---
 import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
+// --- boris-glass ---
+import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, type GlassRenderOptions } from "./glassRenderer";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 // --- boris-faces ---
 import { FaceLayer } from "./faceRenderer";
@@ -67,6 +69,12 @@ export interface CanvasLabels {
   collideAnti?: string;
   /** --- camera --- the badge over the escape replay. */
   replay?: string;
+  // --- boris-glass ---
+  /** Glass Smash: the stage banner and markers ("STAGE 3"), the sign over the door, and the banner at the end. */
+  glassStage?: (n: number) => string;
+  glassHome?: string;
+  glassHomeTitle?: string;
+  glassHomeSub?: (panes: number, stages: number) => string;
 }
 
 export interface CanvasHandle {
@@ -171,6 +179,11 @@ const DEFAULT_LABELS: CanvasLabels = {
   // --- jdm-collisions ---
   collideAnti: "ANTI-COLLISION",
   replay: "REPLAY", // --- camera ---
+  // --- boris-glass ---
+  glassStage: (n) => `STAGE ${n}`,
+  glassHome: "HOME",
+  glassHomeTitle: "HOME!",
+  glassHomeSub: (panes, stages) => `${panes} panes smashed in ${stages} stage${stages !== 1 ? "s" : ""}`,
 };
 
 const TWO_PI = Math.PI * 2;
@@ -515,6 +528,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- camera --- the cinematic camera (view transform, slow-motion clock, escape replay) of this loop
     const cam = new CinematicCamera();
     cinematicRef.current = cam;
+    // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
+    const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -736,6 +751,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         camXRef.current = 0;
         camYRef.current = 0;
       }
+      // --- boris-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
+      // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
+      const glassView = engine.isGlassMode() ? engine.getGlassView() : null;
+      if (glassView) {
+        ctx.restore();
+        ctx.save();
+        applyGlassCamera(ctx, glassView);
+      }
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
       const conicGradient = (alpha?: number) => {
@@ -901,6 +924,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         collideRender.showTrails = p.showTrails;
         collideRender.trailThickness = p.trailThickness;
         drawCollideArena(ctx, engine.getCollideView(), collideRender);
+      }
+
+      // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
+      if (glassView) {
+        const GL = labelsRef.current ?? DEFAULT_LABELS;
+        glassRender.wallColor = wallColor;
+        glassRender.wallThickness = p.wallThickness;
+        glassRender.showGlow = p.showGlow;
+        glassRender.stageLabel = GL.glassStage ?? DEFAULT_LABELS.glassStage!;
+        glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
+        drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       }
 
       // Color Match segments
@@ -1542,6 +1576,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         faces.drawOverlays(ctx, balls, isBox ? boxBodyColor : bobBodyColor, boxView ? { shape: boxView.shape, countdown: boxView.countdown > 0 } : null);
       }
 
+      // --- boris-glass --- the shards of shattered panes fly over the ball.
+      if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
+
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
         const a = (flash.life / flash.maxLife) * 0.6;
@@ -1637,6 +1674,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isPoly) drawPolyrhythmAlignFlash(ctx, size.width, size.height, engine.getPolyrhythmView());
       // --- jdm-collisions --- Collision Playground: the flash and caption of the anti-collision switch.
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
+      // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
+      if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
 
       // HUD: mode counters in the centre
       {
@@ -1793,6 +1832,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isPoly) {
           const prog = engine.getPolyrhythmProgress();
           if (prog.finished) bigBanner(L.polyrhythmDone, L.polyrhythmAligned(prog.count, prog.total), "#a3e635");
+        }
+        // --- boris-glass --- Glass Smash: Boris is HOME.
+        if (glassView && glassView.homeReached) {
+          const prog = engine.getGlassProgress();
+          bigBanner(L.glassHomeTitle ?? DEFAULT_LABELS.glassHomeTitle!, (L.glassHomeSub ?? DEFAULT_LABELS.glassHomeSub!)(prog.shattered, prog.stages), "#a3e635");
         }
         if (isColorMatch) {
           const prog = engine.getColorMatchProgress();
@@ -2020,6 +2064,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
       } else if (canvas.dataset.teams !== undefined) {
         for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard"]) delete canvas.dataset[key];
+      }
+      // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME and the camera (data-glass-*) for tools and the smoke test.
+      if (glassView) {
+        const prog = engine.getGlassProgress();
+        setCanvasData("glassStage", String(prog.stage));
+        setCanvasData("glassStages", String(prog.stages));
+        setCanvasData("glassHits", String(prog.hits));
+        setCanvasData("glassShattered", String(prog.shattered));
+        setCanvasData("glassPanes", String(prog.panes));
+        setCanvasData("glassHome", prog.home ? "1" : "0");
+        setCanvasData("glassCamera", String(Math.round(glassView.cameraY)));
+      } else if (canvas.dataset.glassStage !== undefined) {
+        for (const key of ["glassStage", "glassStages", "glassHits", "glassShattered", "glassPanes", "glassHome", "glassCamera"]) delete canvas.dataset[key];
       }
 
       // FPS estimate

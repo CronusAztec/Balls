@@ -26,3 +26,6 @@ export type { PolyrhythmSettings, PolyLayout, PolyArcStyle, PolyTempos, PolyPitc
 // --- jdm-collisions ---
 export { CollideMode } from "./collide";
 export type { CollideSettings, CollideContainer, CollideField, CollideView } from "./collide";
+// --- boris-glass ---
+export { GlassMode } from "./glass";
+export type { GlassSettings, GlassLevel, GlassPane, GlassStage, GlassCrack, GlassHome, GlassField, GlassView } from "./glass";

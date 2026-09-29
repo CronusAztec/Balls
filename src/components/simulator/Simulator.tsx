@@ -18,6 +18,9 @@ import { pendulumSettingsOf } from "@/lib/physics/modes/pendulum";
 import { parseCustomRatios, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm"; // --- jdm-polyrhythm ---
 // --- jdm-collisions ---
 import { collideSettingsOf } from "@/lib/physics/modes/collide";
+// --- boris-glass ---
+import { glassSettingsOf } from "@/lib/physics/modes/glass";
+import { modeWallBreakSound } from "@/lib/audio/songs";
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -152,6 +155,7 @@ export default function Simulator() {
     engine.setPolyrhythmSettings(polyrhythmSettingsOf(s)); // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     engine.setCollideSettings(collideSettingsOf(s));
+    engine.setGlassSettings(glassSettingsOf(s)); // --- boris-glass ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -357,9 +361,35 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
+  // --- boris-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes) restarts it.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setGlassSettings(glassSettingsOf(s));
+    if (s.mode === "glass" && engine.getCurrentModeName() === "glass") {
+      engine.initGlass();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles]);
+  // A Glass Smash change invalidates a found seed too.
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles]);
+  // --- end boris-glass ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
+  // --- boris-glass --- Glass Smash shatters its panes with the glass clip unless a wall-break sound was chosen: the effect
+  // above applies a chosen sound, this one the mode's default – and the plain sound again once the default no longer applies.
+  const modeBreakRef = useRef<string | null>(null);
+  useEffect(() => {
+    const url = modeWallBreakSound(s.mode, s.wallBreakSound);
+    const isDefault = url !== s.wallBreakSound;
+    if (isDefault ? modeBreakRef.current === url : modeBreakRef.current === null) return;
+    modeBreakRef.current = isDefault ? url : null;
+    audioRef.current?.setWallBreakSound(url);
+  }, [s.mode, s.wallBreakSound]);
   useEffect(() => {
     audioRef.current?.setHitSoundMode(s.hitSoundMode);
   }, [s.hitSoundMode]);
@@ -1088,6 +1118,7 @@ export default function Simulator() {
           // --- jdm-collisions ---
           collide: collideSettingsOf(settings),
           ballCount: effectiveBallCount(settings), // --- teams ---
+          glass: glassSettingsOf(settings), // --- boris-glass ---
         },
       },
       (p) => setSearchProgress(p),
@@ -1161,6 +1192,11 @@ export default function Simulator() {
       // --- jdm-collisions ---
       collideAnti: t("Simulator.canvasCollideAnti"),
       replay: t("Simulator.canvasReplay"), // --- camera ---
+      // --- boris-glass ---
+      glassStage: (n) => fill("Simulator.canvasGlassStage", { n }),
+      glassHome: t("Simulator.canvasGlassHome"),
+      glassHomeTitle: t("Simulator.canvasGlassHomeTitle"),
+      glassHomeSub: (panes, stages) => fill("Simulator.canvasGlassHomeSub", { panes, stages }),
     };
   }, [t]);
 

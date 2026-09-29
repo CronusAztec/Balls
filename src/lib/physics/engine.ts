@@ -21,6 +21,8 @@ import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView
 import { PolyrhythmMode, type PolyrhythmSettings, type PolyrhythmView } from "./modes";
 // --- jdm-collisions ---
 import { CollideMode, type CollideSettings, type CollideView } from "./modes/collide";
+// --- boris-glass ---
+import { GlassMode, type GlassSettings, type GlassView } from "./modes/glass";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -166,6 +168,8 @@ export class PhysicsEngine {
   readonly polyrhythmMode = new PolyrhythmMode();
   // --- jdm-collisions ---
   readonly collideMode = new CollideMode();
+  // --- boris-glass ---
+  readonly glassMode = new GlassMode();
 
   readonly ctx: ModeContext;
 
@@ -384,6 +388,10 @@ export class PhysicsEngine {
   initCollide() {
     this.activateMode(this.collideMode, "none");
   }
+  // --- boris-glass ---
+  initGlass() {
+    this.activateMode(this.glassMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -420,6 +428,9 @@ export class PhysicsEngine {
       // --- jdm-collisions ---
       case "collide":
         return this.initCollide();
+      // --- boris-glass ---
+      case "glass":
+        return this.initGlass();
     }
   }
 
@@ -874,6 +885,25 @@ export class PhysicsEngine {
     }
   }
   // --- end teams ---
+  // --- boris-glass ---
+  isGlassMode() {
+    return this.currentMode === this.glassMode;
+  }
+  getGlassSettings(): GlassSettings {
+    return this.glassMode.getSettings();
+  }
+  /** Rows, hit points, stages, sliding panes and holes of Glass Smash; applied by the next `initGlass()`. */
+  setGlassSettings(settings: Partial<GlassSettings>) {
+    this.glassMode.setSettings(settings);
+  }
+  /** Live Glass Smash state (level, panes, cracks, shards, camera, stage, HOME) for the canvas and the HUD; the same object every call. */
+  getGlassView(): GlassView {
+    return this.glassMode.getView();
+  }
+  getGlassProgress() {
+    return this.glassMode.getProgress();
+  }
+  // --- end boris-glass ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
