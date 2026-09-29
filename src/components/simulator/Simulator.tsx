@@ -21,6 +21,9 @@ import { collideSettingsOf } from "@/lib/physics/modes/collide";
 // --- boris-glass ---
 import { glassSettingsOf } from "@/lib/physics/modes/glass";
 import { modeWallBreakSound } from "@/lib/audio/songs";
+// --- boris-multipliers ---
+import { multiplierConfigOf } from "@/lib/physics/multipliers";
+import { multipliersSettingsOf } from "@/lib/physics/modes/multipliers";
 import { paintTargetSeconds } from "@/lib/physics/picturePaint";
 import type { ModeId } from "@/lib/physics/types";
 import { analyzeBeatsAsync, type BeatAnalysis } from "@/lib/audio/beats";
@@ -52,6 +55,8 @@ import {
 } from "@/lib/settings";
 
 const SPEEDS = [1, 2, 4, 8];
+/** --- boris-multipliers --- who makes it home when the ball has no name. */
+const DEFAULT_BORIS_NAME = "Boris";
 /** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
 const PAINT_FINISH_HOLD_MS = 1500;
 /** --- teams --- How long the winner banner and its confetti play before the end screen covers them (a recording keeps them). */
@@ -156,6 +161,7 @@ export default function Simulator() {
     // --- jdm-collisions ---
     engine.setCollideSettings(collideSettingsOf(s));
     engine.setGlassSettings(glassSettingsOf(s)); // --- boris-glass ---
+    engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -377,6 +383,31 @@ export default function Simulator() {
     engineRef.current?.setSeed(null);
   }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles]);
   // --- end boris-glass ---
+  // --- boris-multipliers --- pickups, cap and smash threshold travel in the physics config (like the physics extras);
+  // a change of the multipliers board restarts it, the count target only matters to the finder.
+  useEffect(() => {
+    engineRef.current?.setConfig(multiplierConfigOf(s));
+  }, [s.mpUnlimited, s.mpCap, s.wallSmashThreshold, s.multiplierPickups, s.pickupRate, s.pickupTypes, s.pickupLifetime]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setMultipliersSettings(multipliersSettingsOf(s));
+    if (s.mode === "multipliers" && engine.getCurrentModeName() === "multipliers") {
+      engine.initMultipliers();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.mpRows, s.mpGateMix, s.mpStartBalls, s.mpMaxBalls]);
+  useEffect(() => {
+    engineRef.current?.setMultipliersSettings({ target: s.mpTarget });
+  }, [s.mpTarget]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.mpUnlimited, s.mpCap, s.wallSmashThreshold, s.multiplierPickups, s.pickupRate, s.pickupTypes, s.pickupLifetime, s.mpRows, s.mpGateMix, s.mpStartBalls, s.mpMaxBalls]);
+  // The ball's name for the "N Boris made it home" banner (read by the canvas labels).
+  const ballNameRef = useRef(s.ballName);
+  ballNameRef.current = s.ballName;
+  // --- end boris-multipliers ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -589,6 +620,7 @@ export default function Simulator() {
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
           else if (ev.type === "gap") audio.playGapPass();
+          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2); // --- boris-multipliers --- the rising arpeggio
           else audio.playInteraction(ev.type);
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
@@ -1119,6 +1151,7 @@ export default function Simulator() {
           collide: collideSettingsOf(settings),
           ballCount: effectiveBallCount(settings), // --- teams ---
           glass: glassSettingsOf(settings), // --- boris-glass ---
+          multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
         },
       },
       (p) => setSearchProgress(p),
@@ -1197,6 +1230,22 @@ export default function Simulator() {
       glassHome: t("Simulator.canvasGlassHome"),
       glassHomeTitle: t("Simulator.canvasGlassHomeTitle"),
       glassHomeSub: (panes, stages) => fill("Simulator.canvasGlassHomeSub", { panes, stages }),
+      // --- boris-multipliers ---
+      multipliers: {
+        speed: t("Simulator.canvasMpSpeed"),
+        size: t("Simulator.canvasMpSize"),
+        damage: t("Simulator.canvasMpDamage"),
+        bounce: t("Simulator.canvasMpBounce"),
+        gravity: t("Simulator.canvasMpGravity"),
+        balls: t("Simulator.canvasMpBalls"),
+        release: t("Simulator.canvasMpRelease"),
+        home: t("Simulator.canvasMpHome"),
+        slowMo: (factor) => fill("Simulator.canvasMpSlowMo", { factor }),
+      },
+      outgrew: t("Simulator.canvasMpOutgrew"),
+      outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
+      madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_BORIS_NAME }),
+      madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
     };
   }, [t]);
 
@@ -1236,6 +1285,8 @@ export default function Simulator() {
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings) });
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : "Simulator.finderFixed";
+  // --- boris-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
+  const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
@@ -1354,7 +1405,7 @@ export default function Simulator() {
                           <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
                         </div>
                         <p className="text-xs text-slate-400 font-mono">{t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
-                        {searchProgress.bestDuration > 0 && <p className="text-xs text-slate-500">{t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
+                        {searchProgress.bestDuration > 0 && <p className="text-xs text-slate-500">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
                       </div>
                     )}
                     <button type="button" onClick={cancelFinder} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
@@ -1369,7 +1420,7 @@ export default function Simulator() {
                     <div className="text-5xl">❌</div>
                     <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
                     <p className="text-xs text-slate-500">
-                      {searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
+                      {searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(finderFixedKey, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance })}
                     </p>
                     <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
                       {t("Simulator.tryAgain")}
@@ -1447,7 +1498,7 @@ export default function Simulator() {
                   <span className="text-sm">❌</span>
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
-                    <p className="text-[10px] text-zinc-500">{searchResult.fixedDuration ? t("Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested })}</p>
+                    <p className="text-[10px] text-zinc-500">{searchResult.fixedDuration ? t("Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested })}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕
@@ -1458,7 +1509,7 @@ export default function Simulator() {
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">
                   <span className="text-sm">✅</span>
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-emerald-400">{t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) })}</p>
+                    <p className="text-xs font-semibold text-emerald-400">{mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) })}</p>
                     <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
@@ -1481,7 +1532,7 @@ export default function Simulator() {
                     <span className="animate-pulse">🔍</span> {t("Controls.cancelSearch")}
                   </>
                 ) : (
-                  <>🔍 {t("Controls.findDurationSimulation", { duration: findDuration })}</>
+                  <>🔍 {mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration })}</>
                 )}
               </button>
             </div>

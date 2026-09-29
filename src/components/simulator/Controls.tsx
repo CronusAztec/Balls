@@ -25,6 +25,10 @@ import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { defaultTeamSettings } from "@/lib/teams";
 // --- boris-glass ---
 import GlassSection, { GLASS_KEYS } from "./sections/GlassSection";
+// --- boris-multipliers ---
+import MultipliersSection, { MULTIPLIER_KEYS, showsMultipliersSection } from "./sections/MultipliersSection";
+import MultipliersModeSection, { MULTIPLIERS_MODE_KEYS } from "./sections/MultipliersModeSection";
+import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -118,6 +122,8 @@ SECTION_KEYS.ball.push(...POLYRHYTHM_KEYS);
 SECTION_KEYS.visual.push(...CAMERA_KEYS);
 // --- boris-glass --- the Glass block is searched with the Ball section too.
 SECTION_KEYS.ball.push(...GLASS_KEYS);
+// --- boris-multipliers --- the Multipliers group of the Ball section and the multipliers-board block of the Mode row.
+SECTION_KEYS.ball.push(...MULTIPLIER_KEYS, ...MULTIPLIERS_MODE_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -176,6 +182,8 @@ export default function Controls(props: ControlsProps) {
     collide: t("modeCollide"),
     // --- boris-glass ---
     glass: t("modeGlass"),
+    // --- boris-multipliers ---
+    multipliers: t("modeMultipliers"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -233,6 +241,9 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "collide" && !!search && <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- boris-glass --- */}
       {s.mode === "glass" && !!search && <GlassSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- boris-multipliers --- pickups, cap and smash threshold; the board block while searching */}
+      {s.mode === "multipliers" && !!search && <MultipliersModeSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {(showsMultipliersSection(s.mode) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
@@ -311,10 +322,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass"].includes(s.mode);
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass"].includes(s.mode);
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers"].includes(s.mode);
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers"].includes(s.mode);
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass";
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers";
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1047,6 +1058,9 @@ export default function Controls(props: ControlsProps) {
       // --- boris-glass ---
       case "glass":
         return <GlassSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- boris-multipliers ---
+      case "multipliers":
+        return <MultipliersModeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:
@@ -1277,6 +1291,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         rotatingGravity: d.rotatingGravity,
         ...characterOf(d), // --- boris-faces ---
         ballCount: d.ballCount, // --- teams --- (a team roster keeps its balls: see the Teams section)
+        ...multiplierConfigOf(d), // --- boris-multipliers --- pickups, cap, smash threshold
       };
     case "wall":
       return {

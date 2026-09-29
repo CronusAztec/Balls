@@ -221,7 +221,8 @@ describe("BoxMode in the engine", () => {
     expect(MODE_CATEGORIES.drop).toBe("rhythm");
     expect(MODE_CATEGORIES.classic).toBe("escape");
     expect(MODE_CATEGORY_IDS.flatMap((c) => modesInCategory(c)).sort()).toEqual([...MODE_CARD_ORDER].sort());
-    expect(modesInCategory("escape")).toHaveLength(10);
+    // The escape family starts with the ten ring modes in card order (later escape modes – the multipliers board – are appended).
+    expect(modesInCategory("escape").slice(0, 10)).toEqual(["classic", "accumulation", "multiply", "lines", "paint", "target", "grow", "shatter", "colorMatch", "portal"]);
   });
 
   it("starts the shapes in the centre with speeds in the chosen ratio, no rings and pass-through", () => {

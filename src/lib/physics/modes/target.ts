@@ -1,5 +1,6 @@
 import type { Ball, GameMode, ModeContext, WallHitResult } from "../types";
 import { arenaRadius, TWO_PI } from "../types";
+import { hitDamage } from "../multipliers"; // --- boris-multipliers ---
 
 export interface WrongFlash {
   segment: number;
@@ -46,6 +47,11 @@ export class TargetMode implements GameMode {
     if (number === this.target) {
       this.hit.add(number);
       this.target--;
+      // --- boris-multipliers --- damage ×n clears n numbers with one correct hit
+      for (let extra = Math.floor(hitDamage(ball)) - 1; extra > 0 && this.target > 0; extra--) {
+        this.hit.add(this.target);
+        this.target--;
+      }
       if (this.target <= 0) {
         this.complete = true;
         ctx.getBrokenWalls().add(wallIndex);

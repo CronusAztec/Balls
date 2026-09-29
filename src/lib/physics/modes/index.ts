@@ -29,3 +29,6 @@ export type { CollideSettings, CollideContainer, CollideField, CollideView } fro
 // --- boris-glass ---
 export { GlassMode } from "./glass";
 export type { GlassSettings, GlassLevel, GlassPane, GlassStage, GlassCrack, GlassHome, GlassField, GlassView } from "./glass";
+// --- boris-multipliers ---
+export { MultipliersMode } from "./multipliers";
+export type { MultipliersSettings, MultipliersView, MultiplierBoard, GateKind, Gate, Blocker, BoardLayout } from "./multipliers";

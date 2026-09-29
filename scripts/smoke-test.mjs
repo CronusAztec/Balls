@@ -1684,6 +1684,50 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   await page.screenshot({ path: path.join(outDir, "sim-glass-home.png") });
 }
 // --- end boris-glass ---
+// --- boris-multipliers ---
+// 18. Multipliers: the preview image; the "Multipliers" group of the Ball section (URL → controls); pickups in Classic
+// (three orbs per 10 s that float for 20 s) are taken and change the HUD badges – the canvas mirrors them into
+// data-mult-* –; the multipliers board shows its Mode-row block, counts arrivals HOME at 8× (data-mult-home grows) and
+// finishes with every ball home or gone.
+{
+  const res = await page.request.get(`${BASE}/modes/multipliers.webp`);
+  check("asset /modes/multipliers.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+}
+await page.goto(`${BASE}/en/simulator/?mode=classic&mpk=1&mpr=3&mpl=20&mpty=speed%2Csize%2Cdamage`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Ball & Physics/ }).click();
+{
+  const section = page.getByTestId("multipliers-section");
+  const shown = await section.isVisible().catch(() => false);
+  const pressed = await section.getByRole("button", { name: /Speed/ }).first().getAttribute("aria-pressed").catch(() => null);
+  const ballsOff = await section.getByRole("button", { name: /Balls/ }).first().getAttribute("aria-pressed").catch(() => null);
+  check("multipliers group shows in the Ball section with the URL's pickups", shown && pressed === "true" && ballsOff === "false", `(shown=${shown}, speed=${pressed}, balls=${ballsOff})`);
+}
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  const took = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.multPickups ?? 0) >= 1, null, { timeout: 45000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(200);
+  const data = await canvasData();
+  const product = Number(data.multSpeed) * Number(data.multSize) * Number(data.multDamage);
+  check("multiplier pickups in Classic change the HUD badges", took && product > 1, `(${data.multPickups} taken, speed x${data.multSpeed}, size x${data.multSize}, dmg x${data.multDamage}, ${data.multOrbs} orbs afloat)`);
+  await page.screenshot({ path: path.join(outDir, "sim-multipliers-pickups.png") });
+}
+await page.goto(`${BASE}/en/simulator/?mode=multipliers&mprw=4&mpsb=3`, { waitUntil: "networkidle" });
+{
+  const block = await page.getByTestId("multipliers-board").isVisible().catch(() => false);
+  check("multipliers board controls show in the Mode row", block, "");
+}
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+{
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, "sim-multipliers.png") });
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const arrived = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.multHome ?? 0) > 0, null, { timeout: 40000 }).then(() => true).catch(() => false);
+  const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.multDone === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  check("the multipliers board counts arrivals home and finishes", arrived && done && Number(data.multHome) > 0 && data.multActive === "0", `(home ${data.multHome}, clones ${data.multClones}, gate passes ${data.multGates}, in play ${data.multActive}, done ${data.multDone})`);
+  await page.screenshot({ path: path.join(outDir, "sim-multipliers-home.png") });
+}
+// --- end boris-multipliers ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

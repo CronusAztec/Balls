@@ -33,6 +33,8 @@ const MODES = {
   collide: { wait: 5000, query: "cpsq=1&glow=1" },
   // --- boris-glass --- mid-stage 3: sliding panes, holes, cracks and shards in view
   glass: { wait: 11500, query: "face=cute&glow=1" },
+  // --- boris-multipliers ---
+  multipliers: { wait: 3000, query: "mpsb=3&mprw=10" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

@@ -1,6 +1,7 @@
 import type { Ball, CircularWall, GameMode, ModeContext } from "../types";
 import { TWO_PI } from "../types";
 import { allBallsFarAway } from "./classic";
+import { hitDamage } from "../multipliers"; // --- boris-multipliers ---
 
 export interface ShatterSegment {
   wallIndex: number;
@@ -86,7 +87,7 @@ export class ShatterMode implements GameMode {
     const wallWeakened = maxDamage >= segment.maxHp / 2;
     if (!(isMostDamaged || wallWeakened)) return;
 
-    segment.hp--;
+    segment.hp -= hitDamage(ball); // --- boris-multipliers --- the damage multiplier (1 for a plain ball)
     segment.hitAngles.push(local);
     if (segment.hp > 0) return;
 

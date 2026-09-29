@@ -1,5 +1,6 @@
 import type { Ball, GameMode, ModeContext } from "../types";
 import { arenaRadius } from "../types";
+import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
 
 /** Multiply: every ball that escapes the single ring spawns several new balls. */
 export class MultiplyMode implements GameMode {
@@ -38,16 +39,19 @@ export class MultiplyMode implements GameMode {
         ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
           const a = ctx.random() * Math.PI * 2;
-          const speed = ctx.config.ballSpeed || 400;
+          // --- boris-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
+          const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);
+          const size = ball.mult ? ball.mult.size : 1;
           ctx.addBall({
             x: cx,
             y: cy,
             vx: Math.cos(a) * speed,
             vy: Math.sin(a) * speed,
-            radius: ctx.config.ballRadius || 8,
+            radius: (ctx.config.ballRadius || 8) * size,
             // --- teams --- the new balls play for the team of the ball that escaped (the other slots keep their colour)
             color: ball.team ? ball.color : ctx.config.ballColor || "#FFFFFF",
             ...(ball.team !== undefined ? { team: ball.team } : {}),
+            ...(ball.mult ? { mult: copyMultipliers(ball.mult), radiusScale: size, gravityScale: ball.mult.gravity } : {}),
           });
         }
         spawned = true;
