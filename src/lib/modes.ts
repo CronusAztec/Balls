@@ -13,6 +13,11 @@ MODE_CARD_ORDER.push("multipliers");
 }
 // --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Boris ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
+// --- jdm-race --- the Square Racing Grand Prix joins the project.jdm modes of the rhythm family (before the Boris family's Glass Smash)
+{
+  const at = MODE_CARD_ORDER.indexOf("glass");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "race");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -49,6 +54,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   doublePendulum: "rhythm",
   // --- jdm-illusions ---
   illusion: "rhythm",
+  // --- jdm-race --- every obstacle a racer hits is its note, every pass a chime
+  race: "rhythm",
 };
 
 /** The modes of a category in card order. */

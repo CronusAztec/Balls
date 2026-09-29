@@ -39,6 +39,8 @@ const MODES = {
   doublePendulum: { wait: 7000, query: "dprs=0&dpa1=150&dpa2=120&dptr=8&glow=1" },
   // --- jdm-illusions --- the white spaces mid-reveal: the painted arena, the painters and the hidden heart emerging
   illusion: { wait: 11000, query: "ilt=whitespace&ilpt=heart&glow=1" },
+  // --- jdm-race --- ten racers mid-race: the standings, the mini-map, swap zones, turbo pads and a pass callout in view
+  race: { wait: 8000, query: "rcn=10&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

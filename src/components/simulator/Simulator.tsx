@@ -55,6 +55,12 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+// --- jdm-race ---
+import { raceSettingsOf } from "@/lib/physics/modes/race";
+import { raceCupStore } from "@/lib/raceCup";
+import { raceRoster } from "@/lib/raceRoster";
+import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
+import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
 import {
   RANGES,
   defaultSettings,
@@ -87,6 +93,8 @@ const MULT_FINISH_HOLD_MS = 2000;
 const END_HOLD_FALLBACK_MS = 12000;
 /** --- jdm-illusions --- How long the Circle Illusion's revealed picture (whitespace) stays on screen before the end screen covers it (a recording keeps it). */
 const ILLUSION_REVEAL_HOLD_MS = 2000;
+/** --- jdm-race --- This page's prefix of the race run keys: a finished race is scored into the cup once. */
+const RACE_RUN_PREFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -196,6 +204,7 @@ export default function Simulator() {
     engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
+    engine.setRaceSettings(raceSettingsOf(s)); // --- jdm-race ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -519,6 +528,45 @@ export default function Simulator() {
   }, [s.ballRadius]);
   const illusionRevealAtRef = useRef<number | null>(null);
   // --- end jdm-illusions ---
+  // --- jdm-race --- Square Racing Grand Prix: a new track (racers, length, laps, obstacle mix) or favourite restarts the race and
+  // drops a found seed; the camera and the shape follow live; the cup only lengthens the run (the cup table), so it drops the seed.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setRaceSettings(raceSettingsOf(s));
+    if (s.mode === "race" && engine.getCurrentModeName() === "race") {
+      engine.initRace();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.rcRacers, s.rcTrackLength, s.rcLaps, s.rcFeature, s.rcWinner]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.rcRacers, s.rcTrackLength, s.rcLaps, s.rcFeature, s.rcWinner, s.rcCup]);
+  useEffect(() => {
+    engineRef.current?.setRaceSettings({ camera: s.rcCamera, shape: s.rcShape, cup: s.rcCup });
+  }, [s.rcCamera, s.rcShape, s.rcCup]);
+  // The track is laid out for the racers' size: a Ball Size change restarts the race.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || s.mode !== "race" || engine.getCurrentModeName() !== "race") return;
+    engine.initRace();
+    setFinished(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ballRadius]);
+  // The cup: a race that reached its podium is scored once (its run key) into the table kept in this browser.
+  const raceCup = useRaceCup();
+  useEffect(() => {
+    if (!isStarted || s.mode !== "race" || !s.rcCup) return;
+    const id = setInterval(() => {
+      const engine = engineRef.current;
+      if (!engine || !engine.isRaceMode()) return;
+      const view = engine.getRaceView();
+      if (view.phase === "podium" || view.phase === "cup" || view.phase === "done") raceCupStore.addRace(raceResultOf(view), runKey(RACE_RUN_PREFIX, view));
+    }, 200);
+    return () => clearInterval(id);
+  }, [isStarted, s.mode, s.rcCup]);
+  // --- end jdm-race ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -752,6 +800,11 @@ export default function Simulator() {
       const audio = audioRef.current;
       if (engine && audio) {
         for (const ev of engine.consumeSoundEvents()) {
+          // --- jdm-race --- a pass plays the rising chime, the winner the fanfare
+          if (ev.race) {
+            audio.playRaceArpeggio(ev.race, ev.frequency);
+            continue;
+          }
           // --- obstacle-editor --- a bumper kick plays the pinball ding instead of a bounce tone
           if (ev.bumper) {
             audio.playBumper(ev.frequency);
@@ -1320,6 +1373,7 @@ export default function Simulator() {
           multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
+          race: raceSettingsOf(settings), // --- jdm-race ---
         },
         outcome, // --- rigged ---
       },
@@ -1472,6 +1526,47 @@ export default function Simulator() {
     [s.captions, s.recordingDuration, t],
   );
 
+  // --- jdm-race --- the racers' names, colours and emoji (the Teams roster, then the racer palette), the overlays, the cup and
+  // the translated words the canvas draws with (null outside the race)
+  const raceRender = useMemo<CanvasRaceOptions | null>(() => {
+    if (s.mode !== "race") return null;
+    const ct = (key: string) => t(`Controls.${key}`);
+    const roster = raceRoster(s.teams, defaultRacerNames(ct));
+    const fill = (key: string, vars: Record<string, string | number>) => {
+      let text = t(key);
+      for (const [k, v] of Object.entries(vars)) text = text.replace(`[${k}]`, () => String(v)); // a name may hold "$&"
+      return text;
+    };
+    return {
+      ...roster,
+      showStandings: s.rcStandings,
+      showMiniMap: s.rcMiniMap,
+      cupEnabled: s.rcCup,
+      cup: raceCup,
+      cupTitle: cupTitleOf(ct, s),
+      runKeyPrefix: RACE_RUN_PREFIX,
+      labels: {
+        go: t("Simulator.canvasRaceGo"),
+        standings: t("Simulator.canvasRaceStandings"),
+        leader: t("Simulator.canvasRaceLeader"),
+        lap: (n, total) => fill("Simulator.canvasRaceLap", { n, total }),
+        finalLap: t("Simulator.canvasRaceFinalLap"),
+        finish: t("Simulator.canvasRaceFinish"),
+        swap: t("Simulator.canvasRaceSwap"),
+        passes: (a, b) => fill("Simulator.canvasRacePasses", { a, b }),
+        takesLead: (a) => fill("Simulator.canvasRaceTakesLead", { a }),
+        swapped: (a, b) => fill("Simulator.canvasRaceSwapped", { a, b }),
+        wins: (a) => fill("Simulator.canvasRaceWins", { a }),
+        dnf: t("Simulator.canvasRaceDnf"),
+        podium: t("Simulator.canvasRacePodium"),
+        place: (n) => (n >= 1 && n <= 3 ? t(`Simulator.canvasRacePlace${n}`) : fill("Simulator.canvasRacePlaceN", { n })),
+        race: (n) => fill("Simulator.canvasRaceNumber", { n }),
+        points: t("Simulator.canvasRacePoints"),
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
+
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings) }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
@@ -1539,6 +1634,7 @@ export default function Simulator() {
                   onObstaclesChange={onObstaclesChange}
                   captions={captionRender} // --- captions ---
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
+                  race={raceRender} // --- jdm-race ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -1682,6 +1778,12 @@ export default function Simulator() {
             {riggedNote && (
               <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="rigged-note">
                 🎭 {riggedNote}
+              </p>
+            )}
+            {/* --- jdm-race --- a staged winner is said here too, outside the canvas */}
+            {raceRender && s.rcWinner >= 0 && s.rcWinner < s.rcRacers && (
+              <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="race-rigged-note">
+                🎭 {t("Controls.rcRigNote", { name: raceRender.names[s.rcWinner] ?? "" })}
               </p>
             )}
           </div>

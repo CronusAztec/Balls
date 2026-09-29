@@ -38,6 +38,8 @@ export const MODE_IDS = [
   "doublePendulum",
   // --- jdm-illusions ---
   "illusion",
+  // --- jdm-race ---
+  "race",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -203,6 +205,9 @@ export interface SoundEvent {
   // --- obstacle-editor ---
   /** A "hit" on a bumper of the obstacle editor: the page plays the pinball ding (`ToneGenerator.playBumper()`) at `frequency`. */
   bumper?: boolean;
+  // --- jdm-race ---
+  /** A "hit" that plays a tune of the race (`ToneGenerator.playRaceArpeggio()`): the rising chime of a pass, the winner's fanfare; rooted on `frequency`. */
+  race?: "chime" | "fanfare";
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
