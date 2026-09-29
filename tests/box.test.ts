@@ -11,11 +11,16 @@ import {
   BOX_WALL_RIGHT,
   BOX_WALL_TOP,
   DEFAULT_BOX_SETTINGS,
+  DVD_AXIS_PERIOD_RATIOS,
   MAX_SHAPE_FRACTION,
+  MIN_AIM_ANGLE,
+  TEMPO_SPREAD,
   boxSettingFields,
   boxSettingsOf,
   boxSizeUnit,
   buildBoxField,
+  cornerAimAngle,
+  hitsPerCornerCycle,
   launchAngle,
   parseSpeedRatio,
   reflectAxis,
@@ -146,16 +151,40 @@ describe("speed ratios and launch angles", () => {
   });
 
   it("gives an angle whose vertical / horizontal bounce periods are in the requested ratio", () => {
-    for (const q of AXIS_PERIOD_RATIOS) {
+    for (const [p, q] of [...AXIS_PERIOD_RATIOS, ...DVD_AXIS_PERIOD_RATIOS]) {
       const innerW = 300;
       const innerH = 560;
-      const a = launchAngle(innerW, innerH, q);
+      const a = launchAngle(innerW, innerH, p / q);
       const px = innerW / Math.cos(a);
       const py = innerH / Math.sin(a);
-      expect(py / px).toBeCloseTo(q, 9);
+      expect(py / px).toBeCloseTo(p / q, 9);
       expect(a).toBeGreaterThan(0);
       expect(a).toBeLessThan(Math.PI / 2);
     }
+  });
+
+  it("keeps the DVD ratios odd/odd in lowest terms (the only ratios with a corner on the schedule) and the square ones mostly even", () => {
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    for (const [p, q] of DVD_AXIS_PERIOD_RATIOS) {
+      expect(p % 2).toBe(1);
+      expect(q % 2).toBe(1);
+      expect(gcd(p, q)).toBe(1);
+      expect(hitsPerCornerCycle([p, q])).toBe(p + q - 1);
+    }
+    expect(AXIS_PERIOD_RATIOS.filter(([p, q]) => p % 2 === 1 && q % 2 === 1)).toHaveLength(1);
+  });
+
+  it("aims a shape at a corner: from the centre the corner aim is the launch angle, and the unfolded paths cover both axes in the same time", () => {
+    const innerW = 300;
+    const innerH = 560;
+    for (const [p, q] of DVD_AXIS_PERIOD_RATIOS) {
+      expect(cornerAimAngle(innerW / 2, innerH / 2, innerW, innerH, (p + 1) / 2, (q + 1) / 2)).toBeCloseTo(launchAngle(innerW, innerH, p / q), 12);
+    }
+    // 40 px from the wall ahead across, 100 px from the one ahead down, the corner two side hits and one floor hit
+    // away: the unfolded paths are 40 + 300 across and 100 down, so tan a = 100 / 340.
+    expect(Math.tan(cornerAimAngle(40, 100, innerW, innerH, 2, 1))).toBeCloseTo(100 / 340, 12);
+    expect(MIN_AIM_ANGLE).toBeGreaterThan(0);
+    expect(MIN_AIM_ANGLE).toBeLessThan(Math.PI / 4);
   });
 });
 
@@ -209,9 +238,11 @@ describe("BoxMode in the engine", () => {
       expect(b.y).toBeCloseTo((field.top + field.bottom) / 2, 6);
     }
     const speeds = balls.map((b) => Math.hypot(b.vx, b.vy));
-    expect(speeds[0]).toBeCloseTo(400 * 0.6, 6);
-    expect(speeds[1]).toBeCloseTo(400 * 0.8, 6);
-    expect(speeds[2]).toBeCloseTo(400, 6);
+    expect(view.tempo).toBeGreaterThanOrEqual(1 - TEMPO_SPREAD / 2);
+    expect(view.tempo).toBeLessThanOrEqual(1 + TEMPO_SPREAD / 2);
+    expect(speeds[0]).toBeCloseTo(400 * view.tempo * 0.6, 6);
+    expect(speeds[1]).toBeCloseTo(400 * view.tempo * 0.8, 6);
+    expect(speeds[2]).toBeCloseTo(400 * view.tempo, 6);
     // All three share the launch angle (mirrored), so the polyrhythm between them is exact.
     const angles = balls.map((b) => Math.atan2(Math.abs(b.vy), Math.abs(b.vx)));
     expect(angles[1]).toBeCloseTo(angles[0], 9);
@@ -363,8 +394,8 @@ describe("BoxMode in the engine", () => {
     run(falling, 30);
     const speedStill = Math.hypot(still.getBalls()[0].vx, still.getBalls()[0].vy);
     const speedFalling = Math.hypot(falling.getBalls()[0].vx, falling.getBalls()[0].vy);
-    expect(speedStill).toBeCloseTo(400, 6);
-    expect(speedFalling).not.toBeCloseTo(400, 1);
+    expect(speedStill).toBeCloseTo(400 * still.getBoxView().tempo, 6);
+    expect(speedFalling).not.toBeCloseTo(400 * falling.getBoxView().tempo, 1);
     const view = falling.getBoxView();
     const field = view.field!;
     for (let f = 0; f < 1800; f++) {
@@ -380,9 +411,10 @@ describe("BoxMode in the engine", () => {
     const engine = boxEngine({ shapeCount: 2, countdown: 0, speedRatio: "2:3" });
     engine.setConfig({ ballSpeed: 200 });
     engine.update(1000 / 60, 0);
+    const tempo = engine.getBoxView().tempo;
     const speeds = engine.getBalls().map((b) => Math.hypot(b.vx, b.vy));
-    expect(speeds[0]).toBeCloseTo(200 * (2 / 3), 6);
-    expect(speeds[1]).toBeCloseTo(200, 6);
+    expect(speeds[0]).toBeCloseTo(200 * tempo * (2 / 3), 6);
+    expect(speeds[1]).toBeCloseTo(200 * tempo, 6);
     const r0 = engine.getBalls()[0].radius;
     engine.setConfig({ ballRadius: 16 });
     engine.update(1000 / 60, 0);
@@ -405,6 +437,101 @@ describe("BoxMode in the engine", () => {
     };
     expect(trace(42)).toEqual(trace(42));
     expect(trace(42).balls).not.toEqual(trace(43).balls);
+  });
+
+  it("draws the run's tempo from the seed (±15 %), the same for every shape, so the ratios stay exact while the tempo differs across seeds", () => {
+    const tempos = new Set<number>();
+    for (let seed = 1; seed <= 30; seed++) {
+      const engine = boxEngine({ shapeCount: 3, speedRatio: "2:3", countdown: 0 }, seed);
+      const tempo = engine.getBoxView().tempo;
+      expect(tempo).toBeGreaterThanOrEqual(1 - TEMPO_SPREAD / 2);
+      expect(tempo).toBeLessThanOrEqual(1 + TEMPO_SPREAD / 2);
+      const speeds = engine.getBalls().map((b) => Math.hypot(b.vx, b.vy));
+      expect(speeds[0] / speeds[1]).toBeCloseTo(2 / 3, 9);
+      expect(speeds[1]).toBeCloseTo(400 * tempo, 9);
+      expect(speeds[2]).toBeCloseTo(speeds[0], 9);
+      tempos.add(Math.round(tempo * 1e6));
+    }
+    expect(tempos.size).toBeGreaterThan(25);
+  });
+
+  it("brings a DVD logo to a corner in every seed, on the schedule of its odd ratio, even while it grows and whatever the box", () => {
+    for (const box of [{ growPerHit: 1 }, { growPerHit: 3 }, { aspect: 1.78 }, { aspect: 0.5, growPerHit: 2 }]) {
+      for (let seed = 1; seed <= 12; seed++) {
+        const engine = boxEngine({ shape: "dvd", shapeCount: 1, countdown: 0, ...box }, seed, { width: 1000, height: 562 });
+        for (let f = 0; f < 60 * 60; f++) {
+          engine.update(1000 / 60, 0);
+          engine.consumeSoundEvents();
+        }
+        const view = engine.getBoxView();
+        const st = view.shapes.get(engine.getBalls()[0].id)!;
+        expect(DVD_AXIS_PERIOD_RATIOS).toContainEqual(st.axisRatio);
+        expect(view.cornerHits).toBeGreaterThanOrEqual(3);
+        // One corner every p + q − 1 hits from the first cycle on (the launch from the centre is half a cycle in).
+        expect(Math.abs(view.cornerHits - view.totalHits / hitsPerCornerCycle(st.axisRatio))).toBeLessThanOrEqual(1);
+      }
+    }
+  }, 20_000);
+
+  it("keeps the corners coming with three growing logos at 3:4:5 counting down from 60 (the preview settings)", () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const engine = boxEngine({ shape: "dvd", shapeCount: 3, countdown: 60, speedRatio: "3:4:5" }, seed, { width: 1000, height: 562 });
+      for (let f = 0; f < 60 * 120 && !engine.isSimulationFinished(); f++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+      }
+      const view = engine.getBoxView();
+      expect(view.finished).toBe(true);
+      expect(view.totalHits).toBe(180);
+      expect(view.cornerHits).toBeGreaterThanOrEqual(12);
+    }
+  }, 20_000);
+
+  it("turns a DVD logo by a fraction of a degree per hit at most (the corner lock is invisible) and never re-aims squares", () => {
+    const heading = (b: { vx: number; vy: number }) => Math.atan2(Math.abs(b.vy), Math.abs(b.vx));
+    const dvd = boxEngine({ shape: "dvd", shapeCount: 1, countdown: 0, growPerHit: 1 }, 3);
+    const ball = dvd.getBalls()[0];
+    const st = dvd.getBoxView().shapes.get(ball.id)!;
+    let last = heading(ball);
+    let hits = 0;
+    let maxTurn = 0;
+    for (let f = 0; f < 60 * 60; f++) {
+      dvd.update(1000 / 60, 0);
+      dvd.consumeSoundEvents();
+      if (st.hits !== hits) {
+        hits = st.hits;
+        maxTurn = Math.max(maxTurn, Math.abs(heading(ball) - last));
+        last = heading(ball);
+      }
+    }
+    expect(hits).toBeGreaterThan(30);
+    expect(maxTurn).toBeGreaterThan(0);
+    expect(maxTurn).toBeLessThan(Math.PI / 180);
+    const square = boxEngine({ shape: "square", shapeCount: 2, countdown: 0, growPerHit: 3, speedRatio: "1:1" }, 3);
+    const headings = square.getBalls().map(heading);
+    run(square, 60 * 30);
+    square.getBalls().forEach((b, i) => expect(heading(b)).toBeCloseTo(headings[i], 9));
+  });
+
+  it("gives the finder a run length that varies continuously with the seed, so a 30 s target is within reach of the default box", () => {
+    const page = defaultSettings("box");
+    const request: FinderRequest = {
+      targetDurationSec: 30,
+      toleranceSec: 0.5,
+      maxSeeds: 100,
+      maxSimTimeSec: 60,
+      physicsConfig: { ...config, width: 1000, height: 562, ballSpeed: page.ballSpeed, ballRadius: page.ballRadius },
+      mode: "box",
+      modeSettings: { ...modeSettings, box: boxSettingsOf(page) },
+    };
+    const durations: number[] = [];
+    for (let seed = 1; seed <= 100; seed++) durations.push(simulateSeed(seed, request, 60_000) / 1000);
+    // Before the seeded tempo a seed could only give one of five run lengths (the five axis ratios).
+    expect(new Set(durations.map((d) => Math.round(d * 1000))).size).toBeGreaterThan(80);
+    expect(Math.min(...durations)).toBeLessThan(29.5);
+    expect(Math.max(...durations)).toBeGreaterThan(30.5);
+    expect(Math.max(...durations) / Math.min(...durations)).toBeLessThan(1.6);
+    expect(durations.filter((d) => Math.abs(d - 30) <= 0.5).length).toBeGreaterThanOrEqual(3);
   });
 
   it("finishes for the finder while the countdown is on and says so when it is off", () => {

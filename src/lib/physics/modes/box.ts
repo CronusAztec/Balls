@@ -17,10 +17,14 @@ import type { Ball, GameMode, ModeContext } from "../types";
  * is folded back, so the bounce period of a shape stays exactly (box − size) / speed and the rhythm
  * never drifts. The launch angle is picked so a shape's vertical and horizontal bounce periods are in
  * a small whole-number ratio too (`launchAngle()`), which gives every shape its own top/bottom vs
- * left/right rhythm and, for the odd ratios, an exact corner hit every few sides. Everything random
- * (the axis ratio, the launch directions) comes from `ctx.random()`, so a seed replays identically and
- * Find Simulation works while the countdown is on. The shapes pass through each other, so their
- * rhythms never disturb one another (`ballsPassThrough`).
+ * left/right rhythm. A DVD logo always gets an odd/odd ratio (`DVD_AXIS_PERIOD_RATIOS`), the only kind
+ * that brings a centre-launched shape exactly into a corner, and the corner lock (`lockCorner()`)
+ * re-aims it by a hair at every bounce so the next scheduled corner stays exact while the logo grows.
+ * Everything random comes from `ctx.random()`: the axis ratio, the launch directions and the run's
+ * tempo (`TEMPO_SPREAD`: ±15 % on every shape's speed – the ratios between the shapes stay exact, the
+ * run length varies continuously with the seed, which is what lets Find Simulation hit a clip length
+ * while the countdown is on). The shapes pass through each other, so their rhythms never disturb one
+ * another (`ballsPassThrough`).
  */
 
 export const BOX_SHAPES = ["square", "circle", "dvd"] as const;
@@ -164,12 +168,48 @@ export function speedFactors(ratio: BoxSpeedRatio, count: number): number[] {
   return out;
 }
 
+/** A ratio `p : q` of the vertical to the horizontal bounce period: `p` side-wall hits take as long as `q` top/bottom hits. */
+export type AxisPeriodRatio = readonly [p: number, q: number];
+
 /**
- * Ratios of the vertical to the horizontal bounce period a run may pick for its shapes (`launchAngle()`).
- * The even-numbered ones (2, 3/2, 4/3, 5/2) never let a shape started in the centre reach a corner
- * exactly; 5/3 makes it kiss a corner every fifth side hit – the DVD payoff, every few bars.
+ * Ratios of the vertical to the horizontal bounce period a run may pick for squares and circles
+ * (`launchAngle()`). A shape launched from the centre reaches a corner only when the ratio is odd/odd,
+ * so these mostly even ones (2, 3/2, 4/3, 5/2) keep two notes from landing on one hit; 5/3 lets a
+ * square kiss a corner now and then for variety.
  */
-export const AXIS_PERIOD_RATIOS: readonly number[] = [2, 1.5, 4 / 3, 5 / 3, 2.5];
+export const AXIS_PERIOD_RATIOS: readonly AxisPeriodRatio[] = [
+  [2, 1],
+  [3, 2],
+  [4, 3],
+  [5, 3],
+  [5, 2],
+];
+
+/**
+ * Ratios for DVD logos: odd/odd only, so the corner accent – the payoff of the format – is on the schedule
+ * of every seed. With `p : q` the logo, launched from the centre, is in a corner at its ((p + 1) / 2)-th
+ * side-wall hit and then every p side-wall / q top-bottom hits, i.e. one corner every p + q − 1 hits:
+ * 5:3 every 7, 7:5 every 11, 3:1 every 3, 7:3 every 9, 9:5 every 13.
+ */
+export const DVD_AXIS_PERIOD_RATIOS: readonly AxisPeriodRatio[] = [
+  [5, 3],
+  [7, 5],
+  [3, 1],
+  [7, 3],
+  [9, 5],
+];
+
+/** Hits between two corners of a DVD logo with the axis ratio `p : q` (the corner itself counts as one hit). */
+export function hitsPerCornerCycle([p, q]: AxisPeriodRatio): number {
+  return p + q - 1;
+}
+
+/**
+ * Width of the seeded tempo band: every shape's speed is the Ball Speed × its speed factor × a tempo drawn
+ * per run from 1 ± TEMPO_SPREAD / 2 (0.85–1.15). The ratios between the shapes stay exact; the run length
+ * becomes a continuous function of the seed, so Find Simulation can land within its tolerance.
+ */
+export const TEMPO_SPREAD = 0.3;
 
 /**
  * Launch angle (radians, first quadrant) at which a shape's bounce periods are in the ratio
@@ -179,6 +219,21 @@ export const AXIS_PERIOD_RATIOS: readonly number[] = [2, 1.5, 4 / 3, 5 / 3, 2.5]
 export function launchAngle(innerW: number, innerH: number, periodRatio: number): number {
   return Math.atan2(Math.max(1e-6, innerH) / periodRatio, Math.max(1e-6, innerW));
 }
+
+/**
+ * Direction (radians from the horizontal, first quadrant) that puts a shape in a corner exactly on
+ * schedule: its `hitsX`-th side-wall hit from now and its `hitsY`-th top/bottom hit from now happen at
+ * the same instant. `dx` / `dy` are the distances from the shape's centre to the wall ahead in each axis
+ * and `innerW` × `innerH` the room its centre has, so the unfolded paths are dx + (hitsX − 1) × innerW
+ * and dy + (hitsY − 1) × innerH. From the centre with hitsX = (p + 1) / 2, hitsY = (q + 1) / 2 this is
+ * exactly `launchAngle(innerW, innerH, p / q)`.
+ */
+export function cornerAimAngle(dx: number, dy: number, innerW: number, innerH: number, hitsX: number, hitsY: number): number {
+  return Math.atan2(Math.max(0, dy) + (hitsY - 1) * innerH, Math.max(0, dx) + (hitsX - 1) * innerW);
+}
+
+/** The corner lock never aims closer than this (radians) to a wall; a schedule that would is out of sync and restarts instead. */
+export const MIN_AIM_ANGLE = (3 * Math.PI) / 180;
 
 /* ------------------------------------------------------------------ geometry */
 
@@ -297,6 +352,12 @@ export interface BoxShapeState {
   speedFactor: number;
   /** A corner was predicted on the last hit: the other wall's hit within `CORNER_REACH_SUBSTEPS` is part of it (silent). */
   cornerUntilTick: number;
+  /** The shape's axis period ratio `p : q` (see `AXIS_PERIOD_RATIOS` / `DVD_AXIS_PERIOD_RATIOS`). */
+  axisRatio: AxisPeriodRatio;
+  /** Side-wall hits into the current corner cycle of a DVD logo (0 … p − 1; the corner is hit number p). */
+  cycleX: number;
+  /** Top/bottom hits into the current corner cycle of a DVD logo (0 … q − 1). */
+  cycleY: number;
 }
 
 /** What the canvas needs to draw the box: the field, the shapes and the recent hits (sub-step ticks, `tickMs` each). */
@@ -312,6 +373,8 @@ export interface BoxView {
   wallLastHitTick: number[];
   /** Tick of the last corner accent, −Infinity before the first. */
   lastCornerTick: number;
+  /** The run's seeded tempo (1 ± TEMPO_SPREAD / 2): every shape's speed is the Ball Speed × its speed factor × this. */
+  tempo: number;
   countdown: number;
   totalHits: number;
   cornerHits: number;
@@ -348,6 +411,7 @@ export class BoxMode implements GameMode {
     tickMs: 0,
     wallLastHitTick: [-Infinity, -Infinity, -Infinity, -Infinity],
     lastCornerTick: -Infinity,
+    tempo: 1,
     countdown: DEFAULT_BOX_SETTINGS.countdown,
     totalHits: 0,
     cornerHits: 0,
@@ -400,18 +464,24 @@ export class BoxMode implements GameMode {
     const radius = this.shapeRadius(ctx, field, 1);
     const factors = speedFactors(s.speedRatio, s.shapeCount);
     const shared = !factors.every((f) => f === factors[0]);
-    // The axis ratio and the first shape's direction come from the seed; a shared angle keeps the
-    // polyrhythm exact between shapes, while equal speeds ("1:1") give every shape its own rhythm.
+    // The axis ratio, the run's tempo and the first shape's direction come from the seed; a shared angle
+    // keeps the polyrhythm exact between shapes, while equal speeds ("1:1") give every shape its own rhythm.
+    // DVD logos draw from the odd/odd ratios only, so every seed has corners on its schedule.
     const innerW = field.width - 2 * shapeHalfWidth(s.shape, radius);
     const innerH = field.height - 2 * shapeHalfHeight(s.shape, radius);
-    const sharedAngle = launchAngle(innerW, innerH, AXIS_PERIOD_RATIOS[Math.floor(ctx.random() * AXIS_PERIOD_RATIOS.length)]);
+    const ratios = s.shape === "dvd" ? DVD_AXIS_PERIOD_RATIOS : AXIS_PERIOD_RATIOS;
+    const drawRatio = () => ratios[Math.floor(ctx.random() * ratios.length)];
+    const sharedRatio = drawRatio();
+    const tempo = 1 + (ctx.random() - 0.5) * TEMPO_SPREAD;
+    v.tempo = tempo;
     const sx0 = ctx.random() < 0.5 ? -1 : 1;
     const sy0 = ctx.random() < 0.5 ? -1 : 1;
     const cx = (field.left + field.right) / 2;
     const cy = (field.top + field.bottom) / 2;
-    const speed = this.lastBallSpeed;
+    const speed = this.lastBallSpeed * tempo;
     for (let k = 0; k < s.shapeCount; k++) {
-      const angle = shared ? sharedAngle : launchAngle(innerW, innerH, AXIS_PERIOD_RATIOS[Math.floor(ctx.random() * AXIS_PERIOD_RATIOS.length)]);
+      const axisRatio = shared ? sharedRatio : drawRatio();
+      const angle = launchAngle(innerW, innerH, axisRatio[0] / axisRatio[1]);
       const sx = sx0 * (k % 2 === 1 ? -1 : 1);
       const sy = sy0 * ((k >> 1) % 2 === 1 ? -1 : 1);
       const hue = (200 + (k * 360) / s.shapeCount) % 360;
@@ -426,7 +496,24 @@ export class BoxMode implements GameMode {
         radiusScale: radius / this.lastBallRadius,
       });
       const id = ctx.getNextId() - 1;
-      this.shapes.set(id, { id, hue, count: s.countdown, done: false, hits: 0, lastHitTick: -Infinity, lastWall: BOX_WALL_TOP, scale: 1, speedFactor: factors[k], cornerUntilTick: -Infinity });
+      // From the centre the first corner of a p : q logo is its ((p + 1) / 2)-th side-wall hit and ((q + 1) / 2)-th
+      // top/bottom hit, i.e. the launch is already (p − 1) / 2 and (q − 1) / 2 hits into the first cycle.
+      const dvd = s.shape === "dvd";
+      this.shapes.set(id, {
+        id,
+        hue,
+        count: s.countdown,
+        done: false,
+        hits: 0,
+        lastHitTick: -Infinity,
+        lastWall: BOX_WALL_TOP,
+        scale: 1,
+        speedFactor: factors[k],
+        cornerUntilTick: -Infinity,
+        axisRatio,
+        cycleX: dvd ? (axisRatio[0] - 1) / 2 : 0,
+        cycleY: dvd ? (axisRatio[1] - 1) / 2 : 0,
+      });
     }
   }
 
@@ -485,23 +572,60 @@ export class BoxMode implements GameMode {
       if (yHit && !st.done) this.hit(ctx, ball, st, wallY, false);
       return;
     }
+    // A DVD logo: every crossing advances its corner cycle (the silent half of a corner too), a corner is one
+    // accented hit, and afterwards the corner lock re-aims the logo at the next corner of its schedule.
+    if (xHit) st.cycleX = (st.cycleX + 1) % st.axisRatio[0];
+    if (yHit) st.cycleY = (st.cycleY + 1) % st.axisRatio[1];
     if (xHit && yHit) {
       this.hit(ctx, ball, st, wallX, true);
-      return;
-    }
-    // One wall now: the second half of a corner already accented a moment ago is silent; otherwise a corner
-    // is predicted when the other wall is within reach of the next couple of sub-steps and the accent
-    // plays now (the other wall's hit will then be the silent half).
-    if (v.tick <= st.cornerUntilTick) {
+    } else if (v.tick <= st.cornerUntilTick) {
+      // The second half of a corner already accented a moment ago is silent.
       st.cornerUntilTick = -Infinity;
-      return;
+    } else {
+      // One wall now: a corner is predicted when the other wall is within reach of the next couple of sub-steps
+      // and the accent plays now (the other wall's hit will then be the silent half).
+      const reach = CORNER_REACH_SUBSTEPS * dtSec;
+      const otherNear = xHit ? (ball.vy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH)) <= reach * speedY : (ball.vx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW)) <= reach * speedX;
+      if (otherNear && (xHit ? speedY : speedX) >= MIN_HIT_SPEED) {
+        st.cornerUntilTick = v.tick + CORNER_REACH_SUBSTEPS + 1;
+        this.hit(ctx, ball, st, xHit ? wallX : wallY, true);
+      } else this.hit(ctx, ball, st, xHit ? wallX : wallY, false);
     }
-    const reach = CORNER_REACH_SUBSTEPS * dtSec;
-    const otherNear = xHit ? (ball.vy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH)) <= reach * speedY : (ball.vx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW)) <= reach * speedX;
-    if (otherNear && (xHit ? speedY : speedX) >= MIN_HIT_SPEED) {
-      st.cornerUntilTick = v.tick + CORNER_REACH_SUBSTEPS + 1;
-      this.hit(ctx, ball, st, xHit ? wallX : wallY, true);
-    } else this.hit(ctx, ball, st, xHit ? wallX : wallY, false);
+    // Straight-line motion only (under gravity there is no schedule); while a corner is pending its second
+    // half is a sub-step away and the lock waits for it.
+    if (!st.done && this.settings.gravity === 0 && v.tick > st.cornerUntilTick) this.lockCorner(ball, st, field);
+  }
+
+  /**
+   * The corner lock of a DVD logo: after a hit, re-aims the logo (its speed unchanged) so that the next corner
+   * of its p : q schedule is exact – `cycleX` / `cycleY` say how many side-wall and top/bottom hits away it
+   * is, `cornerAimAngle()` turns the two unfolded paths into the one direction that covers both in the same
+   * time. Without it the growth at every hit, which takes a little more room across than down, detunes the
+   * ratio and turns the exact corners into near misses within a cycle or two; with it the correction is a
+   * fraction of a degree per hit, invisible in the flight. A schedule that would need a grazing angle (after
+   * a live change or a hit that did not register) is out of sync and a fresh cycle starts from here instead.
+   */
+  private lockCorner(ball: Ball, st: BoxShapeState, field: BoxField) {
+    const halfW = shapeHalfWidth("dvd", ball.radius);
+    const halfH = shapeHalfHeight("dvd", ball.radius);
+    const innerW = field.width - 2 * halfW;
+    const innerH = field.height - 2 * halfH;
+    const speed = Math.hypot(ball.vx, ball.vy);
+    if (innerW <= 0 || innerH <= 0 || speed < MIN_HIT_SPEED) return;
+    const sx = ball.vx < 0 ? -1 : 1;
+    const sy = ball.vy < 0 ? -1 : 1;
+    const dx = sx > 0 ? field.right - halfW - ball.x : ball.x - (field.left + halfW);
+    const dy = sy > 0 ? field.bottom - halfH - ball.y : ball.y - (field.top + halfH);
+    const [p, q] = st.axisRatio;
+    const maxAngle = Math.PI / 2 - MIN_AIM_ANGLE;
+    let angle = cornerAimAngle(dx, dy, innerW, innerH, p - st.cycleX, q - st.cycleY);
+    if (angle < MIN_AIM_ANGLE || angle > maxAngle) {
+      st.cycleX = 0;
+      st.cycleY = 0;
+      angle = Math.min(maxAngle, Math.max(MIN_AIM_ANGLE, cornerAimAngle(dx, dy, innerW, innerH, p, q)));
+    }
+    ball.vx = sx * Math.cos(angle) * speed;
+    ball.vy = sy * Math.sin(angle) * speed;
   }
 
   onPostSubStep() {

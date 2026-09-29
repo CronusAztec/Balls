@@ -454,6 +454,51 @@ await page.waitForTimeout(3500);
   await page.screenshot({ path: path.join(outDir, "sim-box-arena.png") });
 }
 
+// 4b''''''. A DVD logo reaches a corner in every seed (odd axis ratio + corner lock): the first corner comes within its
+// first few hits and the canvas mirrors the count into data-box-corners
+await page.goto(`${BASE}/en/simulator/?mode=box&bxs=dvd&bxn=1&bxc=0`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Start Simulator/ }).click();
+await page.getByRole("button", { name: "8x", exact: true }).click();
+{
+  let corners = 0;
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    corners = Number(await page.locator("canvas").first().getAttribute("data-box-corners"));
+    if (corners >= 1) break;
+    await page.waitForTimeout(250);
+  }
+  const hits = Number(await page.locator("canvas").first().getAttribute("data-box-hits"));
+  check("dvd logo reaches a corner", corners >= 1 && hits <= 12, `(${corners} corner(s) after ${hits} hits)`);
+  await page.screenshot({ path: path.join(outDir, "sim-box-corner.png") });
+}
+
+// 4b'''''''. The seed finder works for Bouncing Shapes: the seeded tempo makes the run length continuous, so "Find 30s
+// Simulation" finds a seed once the target is inside the ±15 % band. The band scales with the box on screen (the shapes
+// move in px/s), so when 30 s is out of reach at this viewport the check does what the "closest" message tells a user
+// to do – scales the countdown accordingly – and searches once more.
+await page.goto(`${BASE}/en/simulator/?mode=box`, { waitUntil: "networkidle" });
+{
+  const runFinder = async () => {
+    await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 90_000 }).then(() => true).catch(() => false);
+    return done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  };
+  let text = await runFinder();
+  let countdown = 30;
+  if (!/Found!/.test(text)) {
+    const closestText = await page.getByText(/Closest/).first().innerText().catch(() => "");
+    const closest = Number((closestText.match(/([\d.]+)s/) || [])[1]);
+    if (closest > 0) {
+      countdown = Math.max(1, Math.min(99, Math.round((30 * 30) / closest)));
+      await page.locator('input[aria-label="Countdown"]').evaluate(setRangeValue, String(countdown));
+      await page.waitForTimeout(300);
+      text = await runFinder();
+    }
+    text += ` [closest ${closest}s → countdown ${countdown}]`;
+  }
+  check("find simulation finds a 30 s bouncing shapes run", /Found! (29\.[5-9]|30\.[0-5])s/.test(text), `(${text})`);
+}
+
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
 await page.goto(`${BASE}/en/simulator/?mode=classic&inst=marimba&scale=minor&root=9&qz=1&bpm=140&grid=1%2F16`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Custom Sound/ }).click();
