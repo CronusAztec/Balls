@@ -312,10 +312,14 @@ export function rankTeams(stats: readonly Readonly<BallStats>[], count: number, 
   out.length = 0;
   const n = Math.max(0, Math.min(count, stats.length));
   for (let i = 0; i < n; i++) {
-    // Insertion sort: at most six teams, stable.
+    // Insertion sort (at most six teams, stable), shifting in place so no temporary arrays are made.
     let j = out.length;
-    while (j > 0 && compareTeamStats(stats[i], stats[out[j - 1]]) < 0) j--;
-    out.splice(j, 0, i);
+    out.push(i);
+    while (j > 0 && compareTeamStats(stats[i], stats[out[j - 1]]) < 0) {
+      out[j] = out[j - 1];
+      j--;
+    }
+    out[j] = i;
   }
   return out;
 }
