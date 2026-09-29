@@ -5,6 +5,7 @@ import Tooltip from "./Tooltip";
 import { selectClass, sliderStyle, type Translate } from "./ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
+import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 
@@ -35,8 +36,10 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams">, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number }, name: (kind: "team" | "ball", n: number) => string): string[] {
   const count = effectiveBallCount(settings);
+  // --- odd-string-battle --- the String Battle's balls go by the roster's names, then by their palette names (HOTPINK, AQUA…)
+  if (settings.mode === "stringBattle") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : stringBattleBallName(i)));
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     if (settings.teams.length > 0) out.push(settings.teams[i]?.name || name("team", i + 1));

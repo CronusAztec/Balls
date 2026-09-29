@@ -42,6 +42,10 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 // --- jdm-illusions --- wobbly walls (every ring mode and the Circle Illusion) and the Circle Illusion's own drawing
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
+// --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
+import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
+import type { Ball } from "@/lib/physics/types";
+import type { TeamEntry } from "@/lib/teams";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -108,6 +112,9 @@ export interface CanvasLabels {
   /** Circle Illusion: the whitespace picture is revealed; the cycles a lines / rings run finished after. */
   illusionRevealed?: string;
   illusionCycles?: (n: number) => string;
+  // --- odd-string-battle ---
+  /** String Battle: the HUD title and thread count, the warning badge, the winner banner. */
+  stringBattle?: StringBattleLabels;
 }
 
 export interface CanvasHandle {
@@ -194,6 +201,7 @@ export interface CanvasProps {
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
+const NO_ROSTER: readonly TeamEntry[] = []; // --- odd-string-battle ---
 
 const DEFAULT_LABELS: CanvasLabels = {
   escaped: "ESCAPED!",
@@ -636,6 +644,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const illusionLayer = new IllusionLayer();
     const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr, nowMs: 0 };
     const illusionLabels: IllusionLabels = { revealed: DEFAULT_LABELS.illusionRevealed!, painted: DEFAULT_LABELS.painted };
+    // --- odd-string-battle --- the String Battle's layer, its per-frame options and the simulation time of the last frame
+    const sbLayer = new StringBattleLayer();
+    const sbRender: StringBattleRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: 0, simDtMs: 0, contacts: null, width: 0, height: 0 };
+    let sbLastMs = 0;
+    const sbBodyColor = (ball: Ball) => sbLayer.colorOf(ball.team ?? 0);
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -1093,6 +1106,24 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionRender.trailThickness = p.trailThickness;
         illusionRender.nowMs = engine.getElapsedMs();
         illusionLayer.drawStage(ctx, illusionView, illusionRender, wobble);
+      }
+
+      // --- odd-string-battle --- String Battle: the ring (the neon style's jelly ring and outline rings), the threads and the threads leaving.
+      const sbView = engine.isStringBattleMode() ? engine.getStringBattleView() : null;
+      if (sbView) {
+        const tr = teamsRef.current;
+        sbRender.roster = tr ? tr.roster : NO_ROSTER;
+        sbRender.showNames = !!tr && tr.showNames;
+        sbRender.wallThickness = p.wallThickness;
+        sbRender.labels = (labelsRef.current ?? DEFAULT_LABELS).stringBattle ?? DEFAULT_STRING_BATTLE_LABELS;
+        const simNow = engine.getElapsedMs();
+        sbRender.simDtMs = simNow >= sbLastMs ? simNow - sbLastMs : 0;
+        sbLastMs = simNow;
+        sbRender.nowMs = simNow;
+        sbRender.contacts = engine.getWallContacts();
+        sbRender.width = size.width;
+        sbRender.height = size.height;
+        sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
       }
 
       // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
@@ -1574,6 +1605,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
+      else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1765,6 +1797,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
+      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
 
       // --- boris-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
@@ -1886,6 +1919,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
         multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid);
       }
+
+      // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
+      if (sbView) sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
 
       // HUD: mode counters in the centre
       {
@@ -2267,6 +2303,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
       const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
+      if (sbView) sbLayer.applyGlitch(ctx); // --- odd-string-battle --- the neon style's glitch bars over the finished frame
       ctx.restore();
 
       // Picture Paint: mirror what the HUD shows onto the element (data-paint-*) so tools and the smoke test can read it.
@@ -2368,6 +2405,44 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("wobblePeak", wobble.runPeak.toFixed(3));
       } else if (canvas.dataset.wobble !== undefined) for (const key of ["wobble", "wobbleMaxPx", "wobblePeak"]) delete canvas.dataset[key];
       // --- end jdm-illusions ---
+      // --- odd-string-battle --- String Battle (data-sb-*): balls, lives, kills, threads, the rule and style, the finale, the verdict, the rig and what was drawn
+      if (sbView) {
+        let lives = "";
+        let kills = "";
+        for (let i = 0; i < sbView.fighters.length; i++) {
+          lives += `${i > 0 ? "," : ""}${sbView.fighters[i].lives}`;
+          kills += `${i > 0 ? "," : ""}${sbView.fighters[i].kills}`;
+        }
+        setCanvasData("sbBalls", String(sbView.count));
+        setCanvasData("sbAlive", String(sbView.alive));
+        setCanvasData("sbLives", lives);
+        setCanvasData("sbKills", kills);
+        setCanvasData("sbStrings", String(sbView.liveStrings));
+        setCanvasData("sbCuts", String(sbView.cuts));
+        setCanvasData("sbLivesLost", String(sbView.livesLost));
+        setCanvasData("sbBounces", String(sbView.bounces));
+        setCanvasData("sbRule", sbView.settings.rule);
+        setCanvasData("sbStyle", sbView.settings.style);
+        setCanvasData("sbFinale", sbView.finale ? "1" : "0");
+        setCanvasData("sbSpeed", sbView.finaleFactor.toFixed(2));
+        setCanvasData("sbFinished", sbView.finished ? "1" : "0");
+        setCanvasData("sbWinner", String(sbView.winner));
+        setCanvasData("sbWinnerName", sbView.finished && sbView.winner >= 0 ? sbLayer.nameOf(sbView.winner) : "");
+        setCanvasData("sbRig", String(sbView.forcedWinner));
+        setCanvasData("sbShields", String(sbView.shields));
+        setCanvasData("sbSlowMos", String(sbView.slowMos));
+        setCanvasData("sbGlitches", String(sbLayer.glitches));
+        setCanvasData("sbStrobe", String(sbLayer.strobeFrames));
+        setCanvasData("sbPainted", String(sbLayer.painted));
+        setCanvasData("sbWobble", String(sbLayer.wobbling));
+        setCanvasData("sbBadge", sbLayer.badgeDrawn ? "1" : "0");
+        setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
+        setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
+        setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
+      } else if (canvas.dataset.sbBalls !== undefined) {
+        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion"]) delete canvas.dataset[key];
+      }
+      // --- end odd-string-battle ---
       cam.syncData(canvas); // --- camera --- replay phase, view scale, time scale and the shake / slow-motion / replay counts (data-camera-*)
       // --- obstacle-editor --- obstacles in play, editing, the selection, hits, bumper kicks and the first spinner's angle (data-obstacle*) for tools and the smoke test
       if (editorField) {

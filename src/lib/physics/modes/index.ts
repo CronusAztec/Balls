@@ -38,3 +38,6 @@ export type { DoublePendulumSettings, DoublePendulumView, DpPendulum, DpString, 
 // --- jdm-illusions ---
 export { IllusionMode } from "./illusion";
 export type { IllusionSettings, IllusionType, IllusionPatternChoice, IllusionView } from "./illusion";
+// --- odd-string-battle ---
+export { StringBattleMode } from "./stringBattle";
+export type { StringBattleSettings, StringBattleView, SbFighter, SbString, SbGhost, SbBurst, SbRule, SbStyle } from "./stringBattle";

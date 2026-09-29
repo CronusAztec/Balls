@@ -3144,6 +3144,191 @@ const instrumentOscillators = () =>
 }
 // --- end timeline ---
 
+// --- odd-string-battle ---
+// 26. String Battle: the preview image and the card under the battle heading; URL → the String Battle block of the Mode row
+// (rule, style, fighters, lives, threads, clip limit, finale, wobble, badge), controls → URL, the search box, the finder's
+// outcomes; a default battle at 4× that ends with one ball standing – threads cut, lives lost, bounce notes on the pentatonic
+// ladder, plucks and shatter noise bursts (OscillatorNode / AudioBufferSourceNode.start instrumented), the badge, the HUD,
+// the winner banner, the slow motion on the final cut and a held end screen; the frame rate of the defaults; the neon style
+// (the painted moiré, the jelly ring, glitch bars, no HUD); a roster whose rigged Blue wins under the teams banner; and Find
+// Simulation's winner outcome.
+{
+  const res = await page.request.get(`${BASE}/modes/stringBattle.webp`);
+  check("asset /modes/stringBattle.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const card = await page.locator('img[src$="/modes/stringBattle.webp"]').count();
+  const heading = await page.getByRole("heading", { name: "Battle modes" }).count();
+  check("the String Battle card is on the landing page under the battle heading", card === 1 && heading === 1, `(cards=${card}, heading=${heading})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=5&sbl=6&sbm=20&sbr=touch&sbst=neon&sbd=60&sbf=2.4&sbw=0.3&sbb=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("string-battle-section");
+  const pick = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name: new RegExp(name) });
+  const toggle = (label) => section.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  {
+    const values = { sbn: await sliderValue("Fighters"), sbl: await sliderValue("Lives"), sbm: await sliderValue("Threads per Ball"), sbd: await sliderValue("Clip Limit"), sbf: await sliderValue("Finale Speed"), sbw: await sliderValue("Ring Wobble") };
+    const touch = await pick("Combat Rule", "Touch").getAttribute("aria-pressed");
+    const neon = await pick("Style", "Neon").getAttribute("aria-pressed");
+    const badge = await toggle("Warning Badge").getAttribute("aria-pressed");
+    const noHudToggle = (await toggle("WEB DOMINION HUD").count()) === 0;
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    check(
+      "string battle loads from URL",
+      values.sbn === "5" && values.sbl === "6" && values.sbm === "20" && values.sbd === "60" && values.sbf === "2.4" && values.sbw === "0.3" && touch === "true" && neon === "true" && badge === "false" && noHudToggle && noRingControls && options.join(",") === "duration,winner",
+      `(${JSON.stringify(values)}, touch=${touch}, neon=${neon}, badge=${badge}, hud toggle hidden=${noHudToggle}, finder outcomes=${options.join(",")})`,
+    );
+  }
+  await pick("Combat Rule", "Cut").click();
+  await pick("Style", "Web").click();
+  await page.locator('input[aria-label="Fighters"]').evaluate(setRangeValue, "3");
+  await toggle("Warning Badge").click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const hudShown = (await toggle("WEB DOMINION HUD").count()) === 1;
+    check(
+      "string battle mirrors into the URL",
+      query.get("mode") === "stringBattle" && query.get("sbn") === "3" && query.get("sbl") === "6" && !query.has("sbr") && !query.has("sbst") && !query.has("sbb") && query.get("sbd") === "60" && hudShown,
+      `(${query.toString()}, hud toggle=${hudShown})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("clip limit");
+  const found = await page.locator('input[aria-label="Clip Limit"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the string battle controls", found && hidden, `(clip limit=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // A default battle at 4×: four balls, four lives each, the cut rule, the web style.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const buffers = [];
+    window.__sbOsc = osc;
+    window.__sbBuffers = buffers;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const play = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function () {
+      buffers.push(this.buffer ? this.buffer.duration : 0);
+      return play.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // The frame rate of the defaults at 1×, before the finish.
+  const deltas = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + ms;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    5000,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  const minWindow = Math.min(...windows);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle.png") });
+  check(
+    "simulator mode=stringBattle anchors threads and runs at 30+ fps",
+    early.sbBalls === "4" && Number(early.sbBounces) > 4 && Number(early.sbStrings) > 0 && early.sbBadge === "1" && early.sbHud === "1" && early.sbStyle === "web" && windows.length >= 8 && minWindow >= fpsFloor(30),
+    `(${JSON.stringify({ balls: early.sbBalls, bounces: early.sbBounces, strings: early.sbStrings, lives: early.sbLives })}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(800);
+  const data = await canvasData();
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-winner.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10_000 }).then(() => true).catch(() => false);
+  const lives = (data.sbLives || "").split(",").map(Number);
+  const winner = Number(data.sbWinner);
+  check(
+    "a default string battle ends with one ball standing, its winner banner held before the end screen",
+    ended && data.sbAlive === "1" && winner >= 0 && lives[winner] > 0 && lives.filter((l) => l === 0).length === 3 && Number(data.sbCuts) >= 12 && Number(data.sbLivesLost) >= 12 && data.sbSlowMos === "1" && data.sbBanner === "1" && !!data.sbWinnerName && held && endScreen,
+    `(${JSON.stringify({ alive: data.sbAlive, winner: data.sbWinner, name: data.sbWinnerName, lives: data.sbLives, kills: data.sbKills, cuts: data.sbCuts, lost: data.sbLivesLost, finale: data.sbFinale, speed: data.sbSpeed, strobe: data.sbStrobe })}, held=${held}, end screen=${endScreen})`,
+  );
+  const pitches = await page.evaluate(() => window.__sbOsc);
+  const buffers = await page.evaluate(() => window.__sbBuffers);
+  const notes = pitches.filter((f) => f < 1100).map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  const ladder = [72, 74, 76, 79, 81, 84];
+  const tinkles = pitches.filter((f) => Math.abs(f - 2637.02) < 1 || Math.abs(f - 3520) < 1 || Math.abs(f - 4186.01) < 1).length;
+  check(
+    "string battle bounces play one pentatonic degree per ball, cuts pluck and shatters burst",
+    notes.length > 10 && notes.every((m) => ladder.includes(m)) && new Set(notes).size >= 3 && tinkles >= 9 && buffers.length >= 3 + 1,
+    `(${notes.length} notes, MIDI ${[...new Set(notes)].sort((a, b) => a - b).join("/")}, ${tinkles} shard tinkles, ${buffers.length} buffer sources)`,
+  );
+}
+{
+  // The neon style: endless lines painted into a layer that is never cleared, the jelly ring, glitch bars, no HUD.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=neon`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  const wobbled = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbWobble === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  const glitched = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbGlitches ?? 0) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-neon.png") });
+  const reduced = data.sbReducedMotion === "1";
+  check(
+    "the neon string battle paints moiré lines, wobbles its ring and glitches on a lost life",
+    data.sbStyle === "neon" && Number(data.sbPainted) > 100 && wobbled && (glitched || reduced) && data.sbHud === "0" && data.sbBadge === "1",
+    `(${JSON.stringify({ painted: data.sbPainted, glitches: data.sbGlitches, wobble: wobbled, hud: data.sbHud, lost: data.sbLivesLost, reduced: data.sbReducedMotion })})`,
+  );
+}
+{
+  // A roster: Red and Blue (the other two balls take the palette); Blue is the Forced Winner, and the teams banner crowns it.
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧";
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&teams=${encodeURIComponent(roster)}&fw=1`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-teams.png") });
+  check(
+    "a rigged string battle is won by the chosen roster ball under the teams banner",
+    won && data.teamWinner === "Blue" && data.sbWinner === "1" && data.sbWinnerName === "Blue" && data.teams === "4" && data.sbBanner === "0" && /Blue wins/.test(note),
+    `(winner=${data.teamWinner}, sb winner=${data.sbWinner} ${data.sbWinnerName}, teams=${data.teams}, stats=${data.teamStats}, own banner=${data.sbBanner}, note="${note}")`,
+  );
+}
+{
+  // Find Simulation: a battle ACID (the third ball) wins.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("2");
+  const button = page.getByRole("button", { name: /Find a Run ACID Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  check("Find Simulation finds a string battle the chosen ball wins", labelled && /Found! ACID wins/.test(text), `("${text}")`);
+}
+// --- end odd-string-battle ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

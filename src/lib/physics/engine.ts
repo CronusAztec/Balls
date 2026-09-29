@@ -31,6 +31,7 @@ import { MultiplierRuntime, copyMultipliers, cruiseSpeed, effectiveBounce, smash
 // --- jdm-illusions --- the Circle Illusion mode and the wall-contact log of the wobbly walls
 import { IllusionMode, type IllusionSettings, type IllusionView } from "./modes/illusion";
 import { WallContactLog, wobbleStrength } from "./wobble";
+import { StringBattleMode, type StringBattleSettings, type StringBattleView } from "./modes/stringBattle"; // --- odd-string-battle ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -233,6 +234,8 @@ export class PhysicsEngine {
   // --- jdm-illusions --- the Circle Illusion mode, and every wall contact of the run for the canvas' wobbly walls (render-only)
   readonly illusionMode = new IllusionMode();
   private readonly wallContacts = new WallContactLog();
+  // --- odd-string-battle --- the String Battle (threads anchored on the ring, cut / touch / collide combat)
+  readonly stringBattleMode = new StringBattleMode();
 
   readonly ctx: ModeContext;
 
@@ -296,6 +299,16 @@ export class PhysicsEngine {
       getMultipliers: () => this.multipliers, // --- boris-multipliers ---
       isWallSealed: (ball, wallIndex) => this.rigOn && this.rigSeals(ball, wallIndex), // --- rigged ---
       recordWallContact: (wallIndex, angle, strength, timeMs) => this.wallContacts.record(wallIndex, angle, strength, timeMs ?? this._elapsedMs), // --- jdm-illusions ---
+      // --- odd-string-battle --- a battle mode's score (bounces, the win) and its camera moments (slow motion, shake)
+      creditBounce: (ball) => this.ballStats.bounce(ball),
+      creditEscape: (ball) => {
+        this.ballStats.escape(ball, this._elapsedMs);
+      },
+      noteNearMiss: () => this.cinematicDirector.noteRigNearMiss(),
+      noteImpact: () => {
+        this.wallBreakSerial++;
+      },
+      // --- end odd-string-battle ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -473,6 +486,10 @@ export class PhysicsEngine {
   initIllusion() {
     this.activateMode(this.illusionMode, "none");
   }
+  // --- odd-string-battle --- the mode owns its ring (like the rhythm modes own their playfields)
+  initStringBattle() {
+    this.activateMode(this.stringBattleMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -521,6 +538,9 @@ export class PhysicsEngine {
       // --- jdm-illusions ---
       case "illusion":
         return this.initIllusion();
+      // --- odd-string-battle ---
+      case "stringBattle":
+        return this.initStringBattle();
     }
   }
 
@@ -1082,6 +1102,25 @@ export class PhysicsEngine {
     return this.wallContacts;
   }
   // --- end jdm-illusions ---
+  // --- odd-string-battle ---
+  isStringBattleMode() {
+    return this.currentMode === this.stringBattleMode;
+  }
+  getStringBattleSettings(): StringBattleSettings {
+    return this.stringBattleMode.getSettings();
+  }
+  /** Balls, lives, threads, rule, clip limit and finale speed of the String Battle apply on the next `initStringBattle()`; the style, HUD, badge and wobble at once. */
+  setStringBattleSettings(settings: Partial<StringBattleSettings>) {
+    this.stringBattleMode.setSettings(settings);
+  }
+  /** Live String Battle state (ring, fighters, threads, effects, finale, verdict) for the canvas and the HUD; the same object every call. */
+  getStringBattleView(): StringBattleView {
+    return this.stringBattleMode.getView();
+  }
+  getStringBattleProgress() {
+    return this.stringBattleMode.getProgress();
+  }
+  // --- end odd-string-battle ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
