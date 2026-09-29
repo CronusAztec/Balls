@@ -75,9 +75,10 @@ import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSectio
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 import { useBatchRender, type BatchExportRequest } from "./useBatchRender"; // --- batch-render ---
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
-import { runnerSettingsOf, type RunnerBeatInput } from "@/lib/physics/modes/runner";
+import { runnerPlanOf, runnerSettingsOf, sameRunnerPlan, type RunnerBeatInput, type RunnerPlan } from "@/lib/physics/modes/runner";
 import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
-import { jdmRhythmFinderSettingsOf } from "@/lib/physics/modes/jdmRhythmFields";
+import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
+import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 import {
   RANGES,
   defaultSettings,
@@ -296,22 +297,37 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Restarts the current mode from scratch: the run and everything that plays along with it – the melody from its first
+   * note, the slicer from the start of its song, the beat grid, the music bed from its start offset. The R key and the
+   * Restart button resume a paused run (`keepPaused` false); --- jdm-rhythm-runner --- a setting that re-plans the Beat
+   * Runner, whose course lands on the music bed's beats, restarts it with `keepPaused`: a paused run stays paused, and its
+   * bed starts from its start offset when it resumes.
+   */
+  const restartRun = useCallback(
+    (keepPaused: boolean) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const paused = keepPaused && isPaused;
+      setFinished(false);
+      if (!paused) setIsPaused(false);
+      audioRef.current?.resetCustomNoteIndex();
+      audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
+      // The music bed starts over from its start offset with the run (the lifecycle effect below
+      // cannot tell a restart from "still running", so it is done here).
+      if (isStarted && !paused) audioRef.current?.getMusicBed().restart();
+      else audioRef.current?.getMusicBed().stop();
+      engine.setConfig({ ballRadius: settings.ballRadius });
+      initEngineForMode(engine, settings);
+    },
+    [settings, isStarted, isPaused, initEngineForMode],
+  );
   /** Restart the current mode from scratch (R key / Restart button). */
-  const restart = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    setFinished(false);
-    setIsPaused(false);
-    audioRef.current?.resetCustomNoteIndex();
-    audioRef.current?.getSlicer().reset();
-    audioRef.current?.resetBeatGrid();
-    // The music bed starts over from its start offset with the run (the lifecycle effect below
-    // cannot tell a restart from "still running", so it is done here).
-    if (isStarted) audioRef.current?.getMusicBed().restart();
-    else audioRef.current?.getMusicBed().stop();
-    engine.setConfig({ ballRadius: settings.ballRadius });
-    initEngineForMode(engine, settings);
-  }, [settings, isStarted, initEngineForMode]);
+  const restart = useCallback(() => restartRun(false), [restartRun]);
+  /** --- jdm-rhythm-runner --- The latest `restartRun()`, for the effect that re-plans the Beat Runner (it runs on setting changes only). */
+  const restartRunRef = useRef(restartRun);
+  restartRunRef.current = restartRun;
 
   // Keep the engine in sync with the settings object.
   const s = settings;
@@ -771,8 +787,13 @@ export default function Simulator() {
     [activeBeats, beatJobs, musicTrack, sliceSongInfo],
   );
   // --- jdm-rhythm-runner --- Beat Runner: the course is planned for the beat it follows (the loaded song's detected grid, the
-  // same one Picture Paint follows, else the Sound section's BPM), so a change of the course (auto jump, obstacles, speed,
-  // jump height, density, mix, beat source), of the tempo or of the Gravity restarts the run and drops a found seed.
+  // same one Picture Paint follows, else the Sound section's BPM) and lands on the music bed's beats, which play from the bed's
+  // start offset with the run. So a change of what the run is planned from (`runnerPlanOf()`: auto jump, obstacles, speed,
+  // jump height, density, mix, the beat the course follows, the Gravity) restarts the whole run – the course and the music
+  // it lands on, the melody, the slicer and the beat grid (`restartRun()`) – and a change of the beat it follows drops a found
+  // seed; an input the course does not follow (the BPM of a run on a song's grid, a song finishing its analysis under a run
+  // on the BPM) changes nothing, and neither the BPM nor a song touches a seed in any other mode. A change of a Beat Runner
+  // or Paddle Keep-Up setting drops a found seed whatever the mode (like every mode's settings), before either re-plans.
   // Paddle Keep-Up restarts on a change of the game (or of the Gravity / Ball Size its flight is scaled with). The Sound
   // section's scale and root – the notes – follow live in both.
   const rhythmBeat = useMemo<RunnerBeatInput | null>(
@@ -781,18 +802,24 @@ export default function Simulator() {
   );
   rhythmBeatRef.current = rhythmBeat;
   useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp]);
+  /** What the page engine's Beat Runner course was last planned from (null until the first settings pass). */
+  const runnerPlanRef = useRef<RunnerPlan | null>(null);
+  useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeat));
-    if (s.mode === "runner" && engine.getCurrentModeName() === "runner") {
-      engine.initRunner();
-      setFinished(false);
-    }
+    const plan = runnerPlanOf(engine.getRunnerSettings(), s.gravity);
+    const before = runnerPlanRef.current;
+    runnerPlanRef.current = plan;
+    // The engine was created with these settings, or nothing the course is planned from changed.
+    if (!before || sameRunnerPlan(before, plan)) return;
+    if (s.mode !== "runner" || engine.getCurrentModeName() !== "runner") return;
+    if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
+    restartRunRef.current(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, rhythmBeat]);
-  useEffect(() => {
-    engineRef.current?.setSeed(null);
-  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, rhythmBeat, s.pdAuto, s.pdSkill, s.pdMisses, s.pdWidth, s.pdSpin, s.pdSpeedUp]);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -809,7 +836,8 @@ export default function Simulator() {
   }, [s.scale, s.rootNote]);
   // Played by hand: Space (or ↑ / W) jumps in the Beat Runner – instead of pausing, Escape pauses there – and ← → (A / D) or
   // the pointer over the canvas move the paddle; a tap on the canvas jumps too. Only while the run is going.
-  const handPlay = isStarted && !isPaused && !finished && ((s.mode === "runner" && !s.runnerAutoJump) || (s.mode === "paddle" && !s.pdAuto));
+  const handPlayed = jdmRhythmPlayedByHand(s); // (the fast export and the batch render leave such a run to Record Video)
+  const handPlay = isStarted && !isPaused && !finished && handPlayed;
   useEffect(() => {
     if (!handPlay) return;
     const engine = engineRef.current;
@@ -1027,9 +1055,10 @@ export default function Simulator() {
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
-          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
+          // --- jdm-rhythm-runner --- `melody: false` accompanies the tune (a paddle's wall bounce, a runner's crash): no melody note used up
+          if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
           else if (ev.type === "gap") audio.playGapPass();
-          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2); // --- boris-multipliers --- the rising arpeggio
+          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2, ev.melody !== false); // --- boris-multipliers --- the rising arpeggio
           else audio.playInteraction(ev.type);
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
@@ -1256,6 +1285,9 @@ export default function Simulator() {
     const page = engineRef.current;
     if (!page || fastAbortRef.current || isRecording || isSearching) return;
     const s = settings;
+    // --- jdm-rhythm-runner --- a run played by hand needs its player: the export's fresh engine would run it with no input
+    // (the button is off and says so; the batch render fails such a job with its own reason before it gets here).
+    if (jdmRhythmPlayedByHand(s)) return;
     const resolution = resolutionToSize(s.recordingResolution);
     const fps = resolveFastExportFps(s.fastExportFps);
     if (!fastRenderSupported()) {
@@ -2423,7 +2455,7 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
-            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders)
+            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
           />

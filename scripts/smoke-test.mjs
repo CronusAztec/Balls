@@ -4487,6 +4487,213 @@ const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//l
     check(`a 1080×1920 ${mode} recording keeps 20+ fps and downloads`, size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
   }
 }
+// 31b. Review fixes of the rhythm modes. A melody on Paddle Keep-Up: every catch plays the melody's next note and only a
+// catch does (the walls, the ceiling and the streak chime accompany it with the bounce instrument). A Beat Runner re-plans
+// only when what its course follows changes, and then restarts the music bed with the course: a song analysed under a run
+// on the BPM changes nothing, switching it onto the song's beat restarts the bed with the course and the landings fall on
+// the song's clicks, the BPM of a run on a song changes nothing; the BPM drops a found seed only for a runner on the BPM,
+// never in Classic. A run played by hand has no fast export (the button is off and says so) and its batch job fails as
+// "played by hand".
+/** Logs every oscillator (time, audio time, scheduled time, pitch, waveform) and buffer source (the music bed: start(0, offset)). */
+const jrInstrumentAudio = () =>
+  page.evaluate(() => {
+    const osc = [];
+    const src = [];
+    window.__jrAudio = { osc, src };
+    const oscStart = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function (when) {
+      if (this.frequency.value !== 1) osc.push({ t: performance.now(), ctx: this.context.currentTime, when: typeof when === "number" && when > 0 ? when : this.context.currentTime, f: this.frequency.value, type: this.type });
+      return oscStart.apply(this, arguments);
+    };
+    const srcStart = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function () {
+      src.push({ t: performance.now(), ctx: this.context.currentTime, args: [...arguments], dur: this.buffer ? this.buffer.duration : 0 });
+      return srcStart.apply(this, arguments);
+    };
+  });
+/** The music bed's starts (a buffer source started as start(0, offset) on a track longer than `minSec`). */
+const jrBedStarts = async (minSec = 20) => (await page.evaluate(() => window.__jrAudio.src)).filter((s) => s.args.length === 2 && s.dur > minSec);
+const jrMark = () => page.evaluate(() => performance.now());
+const jrSeed = async () => (await canvasData()).seed;
+{
+  // A melody on Paddle Keep-Up (the saw voice) – the bounce tones keep the triangle.
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pdsk=1&minst=saw`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator("#song-select").selectOption("fur-elise");
+  const loaded = await page
+    .waitForFunction(() => {
+      const select = document.querySelector("#song-select");
+      return !!select && !select.disabled && select.value === "fur-elise";
+    }, null, { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await jrInstrumentAudio();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(14000);
+  await page.getByRole("button", { name: /Pause/ }).click();
+  await page.waitForTimeout(400);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__jrAudio.osc);
+  const melody = tones.filter((o) => o.type === "sawtooth");
+  const bounce = tones.filter((o) => o.type === "triangle");
+  const hits = Number(data.pdHits);
+  const walls = Number(data.pdWalls) + Number(data.pdCeiling);
+  check(
+    "paddle keep-up with a melody: each catch plays the melody's next note and only a catch – walls and ceiling keep the bounce tone",
+    loaded && hits >= 5 && walls >= 1 && melody.length === hits && bounce.length >= walls,
+    `(${hits} catches, ${data.pdWalls} wall + ${data.pdCeiling} ceiling bounces; ${melody.length} melody notes, ${bounce.length} bounce tones)`,
+  );
+}
+{
+  // A song analysed under a run on the BPM changes nothing; switching the run onto the song's beat restarts the course and
+  // the music bed together, and the landings then fall on the song's clicks. The square's position is logged every frame,
+  // so a restart of the course cannot hide between two reads.
+  const P = 60 / 128;
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=60&rrd=1&rrbs=bpm`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await jrInstrumentAudio();
+  await page.evaluate(() => {
+    const log = [];
+    window.__rrXLog = log;
+    const frame = () => {
+      const x = Number(document.querySelector("main canvas")?.dataset.rrX);
+      if (Number.isFinite(x)) log.push({ t: performance.now(), x });
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  await page.locator("#music-file-input").setInputFiles({ name: "smoke-click-128.wav", mimeType: "audio/wav", buffer: makeClickWav(30, 128) });
+  await page.getByTestId("music-track").waitFor({ timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(3000);
+  const onBpm = await canvasData();
+  const bedsBefore = await jrBedStarts();
+  const switchAt = await jrMark();
+  await page.getByRole("group", { name: "Beat", exact: true }).getByRole("button", { name: /Song/ }).click();
+  const switched = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.rrBpm) !== 120, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const switchedAt = await jrMark();
+  await page.waitForTimeout(5500);
+  const onSong = await canvasData();
+  const beds = await jrBedStarts();
+  const xLog = await page.evaluate(() => window.__rrXLog);
+  const restartBed = beds.find((b) => b.t >= switchAt - 20);
+  const tones = await page.evaluate(() => window.__jrAudio.osc);
+  // On the BPM the square only ever moves on; after the switch it starts over from the beginning of the new course.
+  const beforeSwitch = xLog.filter((e) => e.t < switchAt);
+  const steady = beforeSwitch.length > 100 && beforeSwitch.every((e, i) => i === 0 || e.x >= beforeSwitch[i - 1].x - 1e-6);
+  const restartedCourse = xLog.some((e) => e.t >= switchAt && e.x < 1) && Number(onSong.rrX) > 5;
+  // The landing notes (the bounce instrument) after the restart, against the clicks of the bed (0.25 s + k · P into the song).
+  const notes = restartBed ? tones.filter((o) => o.type === "triangle" && o.when > restartBed.ctx + 0.05) : [];
+  const phase = notes.map((o) => {
+    let e = (((o.when - restartBed.ctx + restartBed.args[1] - 0.25) % P) + P) % P;
+    if (e > P / 2) e -= P;
+    return e;
+  });
+  const sorted = phase.map(Math.abs).sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : Infinity;
+  check(
+    "beat runner on the BPM: a song loaded and analysed mid-run does not restart the run",
+    bedsBefore.length === 1 && onBpm.rrBpm === "120" && steady && onBpm.rrAttempt === "1" && Number(onBpm.rrLandings) >= 2,
+    `(bed starts ${bedsBefore.length}, x only moving on=${steady} over ${beforeSwitch.length} frames to ${onBpm.rrX}, bpm ${onBpm.rrBpm}, landings ${onBpm.rrLandings})`,
+  );
+  check(
+    "beat runner: switching onto the song's beat restarts the music bed with the course, and the landings fall on the song's clicks",
+    switched && switchedAt - switchAt < 1500 && Math.abs(Number(onSong.rrBpm) - 128) <= 2 && restartedCourse && !!restartBed && restartBed.args[1] === 0 && restartBed.t - switchAt < 1000 && notes.length >= 3 && median < 0.08,
+    `(bpm ${onSong.rrBpm} after ${Math.round(switchedAt - switchAt)} ms, course restarted=${restartedCourse}, bed restarted ${restartBed ? `${Math.round(restartBed.t - switchAt)} ms after the switch at offset ${restartBed.args[1]}` : "never"}, ${notes.length} landings, phase to the clicks ${phase.map((e) => Math.round(1000 * e)).join("/")} ms, median |${Math.round(1000 * median)}| ms${loadNote()})`,
+  );
+}
+{
+  // The BPM of a run on a song's beat changes nothing (the Beat lock shows the BPM slider).
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=60&qz=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator("#music-file-input").setInputFiles({ name: "smoke-click-128.wav", mimeType: "audio/wav", buffer: makeClickWav(30, 128) });
+  const onSong = await page.waitForFunction(() => Math.abs(Number(document.querySelector("main canvas")?.dataset.rrBpm) - 128) <= 2, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  await jrInstrumentAudio();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const before = await canvasData();
+  const changeAt = await jrMark();
+  await page.locator('input[aria-label="BPM"]').evaluate(setRangeValue, "100");
+  await page.waitForTimeout(700);
+  const after = await canvasData();
+  const beds = await jrBedStarts();
+  const query = page.url().split("?")[1] || "";
+  check(
+    "beat runner on a song's beat: the BPM changes nothing (no restart of the run or the music)",
+    onSong && /(^|&)bpm=100(&|$)/.test(query) && Number(after.rrX) > Number(before.rrX) && after.rrAttempt === "1" && after.rrBpm === before.rrBpm && beds.length === 1 && beds.every((b) => b.t < changeAt),
+    `(song beat=${onSong}, x ${before.rrX} → ${after.rrX}, bpm ${before.rrBpm} → ${after.rrBpm}, bed starts ${beds.length}, ${query})`,
+  );
+}
+{
+  // A found seed: the BPM keeps it in Classic (R restarts the found run) and drops it for a runner that follows the BPM.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&qz=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const classicFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const found = await jrSeed();
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator('input[aria-label="BPM"]').evaluate(setRangeValue, "128");
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("r");
+  await page.waitForTimeout(400);
+  const restarted = await jrSeed();
+  check("classic: a BPM change keeps a found seed (R restarts the found run)", classicFound && !!found && restarted === found && /(^|&)bpm=128(&|$)/.test(page.url()), `(found ${found}, after the BPM and R ${restarted})`);
+  await page.goto(`${BASE}/en/simulator/?mode=runner&qz=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const runnerFound = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const runnerSeed = await jrSeed();
+  await page.getByRole("button", { name: /Custom Sound/ }).click();
+  await page.locator('input[aria-label="BPM"]').evaluate(setRangeValue, "128");
+  await page.waitForTimeout(400);
+  const replanned = await canvasData();
+  check("beat runner on the BPM: a BPM change re-plans the course and drops the found seed", runnerFound && !!runnerSeed && replanned.seed !== runnerSeed && replanned.rrBpm === "128", `(found ${runnerSeed}, after the BPM ${replanned.seed}, course at ${replanned.rrBpm} BPM)`);
+}
+{
+  // Played by hand: no fast export (the button is off and says to use Record Video); Auto Jump brings it back.
+  const fastState = async () => {
+    const panel = page.locator("[data-fast-export]");
+    return {
+      disabled: await page.getByRole("button", { name: /Fast export/ }).isDisabled(),
+      hand: await panel.getAttribute("data-fast-hand-play"),
+      note: await page.getByText(/can't be exported fast/).first().isVisible().catch(() => false),
+    };
+  };
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes&rrn=6`, { waitUntil: "networkidle" });
+  const runnerHand = await fastState();
+  await jrToggle("runner-section", "Auto Jump").click();
+  await page.waitForTimeout(300);
+  const runnerAuto = await fastState();
+  await page.goto(`${BASE}/en/simulator/?mode=paddle&pda=0`, { waitUntil: "networkidle" });
+  const paddleHand = await fastState();
+  check(
+    "a run played by hand has no fast export: the button is off and points to Record Video (Auto Jump brings it back)",
+    runnerHand.disabled && runnerHand.hand === "1" && runnerHand.note && !runnerAuto.disabled && runnerAuto.hand === null && !runnerAuto.note && paddleHand.disabled && paddleHand.hand === "1" && paddleHand.note,
+    `(runner by hand ${JSON.stringify(runnerHand)}, with Auto Jump ${JSON.stringify(runnerAuto)}, paddle by hand ${JSON.stringify(paddleHand)})`,
+  );
+  // The batch render fails such a job with its own reason (and downloads nothing).
+  await page.goto(`${BASE}/en/simulator/?mode=runner&rra=0&rrm=spikes&rrn=6&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => localStorage.removeItem("viralballs_batch_render"));
+    await page.getByRole("button", { name: /Recording/ }).click();
+    const block = page.locator("[data-batch]");
+    await block.waitFor({ timeout: 10000 });
+    await block.getByRole("button", { name: "Seed list", exact: true }).click();
+    await page.locator("#batch-list").fill("101");
+    let downloaded = false;
+    const onDownload = () => (downloaded = true);
+    page.on("download", onDownload);
+    await block.getByRole("button", { name: /Render batch/ }).click();
+    const finished = await page.waitForFunction(() => ["finished", "stopped"].includes(document.querySelector("[data-batch]")?.getAttribute("data-batch") || ""), null, { timeout: 60000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    page.off("download", onDownload);
+    const rows = await page.locator("[data-batch-job]").evaluateAll((els) => els.map((e) => ({ status: e.getAttribute("data-batch-job"), text: e.textContent || "" })));
+    check("the batch render fails a hand-played Beat Runner's job as played by hand", finished && rows.length === 1 && rows[0].status === "failed" && /played by hand/.test(rows[0].text) && !downloaded, `(rows ${JSON.stringify(rows)}, download=${downloaded})`);
+    await page.evaluate(() => localStorage.removeItem("viralballs_batch_render"));
+  }
+}
 // --- end jdm-rhythm-runner ---
 
 // --- batch-render --- Batch render (the Batch block at the end of the Recording section): a pasted list of two seeds and a

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACCENT_GAIN, DEFAULT_MUSIC_SETTINGS, MAX_CHORD_VOICES, ToneGenerator, chordGain, hitPitches } from "@/lib/audio/toneGenerator";
+import { arpeggioNotes } from "@/lib/audio/multiplierTones";
+import { fakeGraph } from "./fakeAudio";
 
 /**
  * Drives the ToneGenerator through a minimal fake Web Audio graph to check how a wall hit is
@@ -7,72 +9,6 @@ import { ACCENT_GAIN, DEFAULT_MUSIC_SETTINGS, MAX_CHORD_VOICES, ToneGenerator, c
  * in "sample" mode, otherwise a synthesised voice (melody notes keep their own instrument),
  * and the beat lock placing voices and samples alike on the grid.
  */
-
-interface OscLog {
-  type: string;
-  frequency: number;
-  startAt: number;
-}
-interface SourceLog {
-  startArgs: number[];
-  playbackRate: number;
-}
-
-function fakeGraph() {
-  const oscillators: OscLog[] = [];
-  const sources: SourceLog[] = [];
-  /** Every value set on a gain node's AudioParam (envelopes, sample levels), so a test can see how loud a sound was. */
-  const gains: number[] = [];
-  const param = (value = 0) => ({
-    value,
-    setValueAtTime: () => undefined,
-    linearRampToValueAtTime: () => undefined,
-    exponentialRampToValueAtTime: () => undefined,
-    cancelScheduledValues: () => undefined,
-  });
-  const ctx = {
-    state: "running",
-    currentTime: 0,
-    sampleRate: 48000,
-    destination: {},
-    resume: async () => undefined,
-    close: async () => undefined,
-    decodeAudioData: async () => ({ duration: 0.3 }),
-    createGain: () => ({ gain: { ...param(1), setValueAtTime: (value: number) => void gains.push(value) }, connect: () => undefined, disconnect: () => undefined }),
-    createAnalyser: () => ({ fftSize: 0, smoothingTimeConstant: 0, frequencyBinCount: 128, connect: () => undefined, disconnect: () => undefined }),
-    createMediaStreamDestination: () => ({ stream: {}, connect: () => undefined }),
-    createOscillator: () => {
-      const osc = {
-        type: "sine",
-        frequency: param(0),
-        connect: () => undefined,
-        disconnect: () => undefined,
-        onended: null as (() => void) | null,
-        start: (when = 0) => {
-          // The near-silent keep-alive oscillator runs at 1 Hz and is never a bounce sound.
-          if (osc.frequency.value !== 1) oscillators.push({ type: osc.type, frequency: osc.frequency.value, startAt: when });
-        },
-        stop: () => undefined,
-      };
-      return osc;
-    },
-    createBufferSource: () => {
-      const source = {
-        buffer: null as unknown,
-        context: ctx,
-        playbackRate: param(1),
-        connect: () => undefined,
-        disconnect: () => undefined,
-        onended: null as (() => void) | null,
-        start: (...args: number[]) => sources.push({ startArgs: args, playbackRate: source.playbackRate.value }),
-        stop: () => undefined,
-      };
-      return source;
-    },
-    createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, copyToChannel: () => undefined }),
-  };
-  return { ctx, oscillators, sources, gains };
-}
 
 describe("ToneGenerator wall-hit dispatch", () => {
   let graph: ReturnType<typeof fakeGraph>;
@@ -334,5 +270,78 @@ describe("ToneGenerator wall-hit dispatch", () => {
     hitAt(1.1);
     hitAt(1.2);
     expect(graph.sources.map((s) => s.startArgs)).toEqual([[1.5]]);
+  });
+
+  // --- jdm-rhythm-runner ---
+  it("plays an accompaniment hit (melody false: a paddle's wall, a runner's crash) under a melody without using up a note, the cooldown, a slice or a beat-lock slot", async () => {
+    const at = (t: number) => graph.oscillators.filter((o) => Math.abs(o.startAt - t) < 1e-9);
+    /** The oscillators `play` starts. */
+    const started = (play: () => void) => {
+      const from = graph.oscillators.length;
+      play();
+      return graph.oscillators.slice(from).map((o) => ({ type: o.type, frequency: o.frequency }));
+    };
+    tone.setCustomNotes([440, 660, 880]);
+    graph.ctx.currentTime = 1;
+    expect(started(() => tone.playWallHit(0))).toEqual([{ type: "sine", frequency: 440 }]); // a note of the tune
+    // Inside the melody's cooldown an accompaniment hit still sounds, with its own pitch and the bounce instrument.
+    graph.ctx.currentTime = 1.05;
+    expect(started(() => tone.playWallHit(0, 523.25, false, undefined, 0.3, false))).toEqual([{ type: "triangle", frequency: 523.25 }]);
+    graph.ctx.currentTime = 1.3;
+    expect(started(() => tone.playWallHit(0, 587.33, false, undefined, 1, false))).toEqual([{ type: "triangle", frequency: 587.33 }]);
+    // The streak chime: unrooted, with the bounce instrument.
+    expect(started(() => tone.playMultiplier(10, false))).toEqual(arpeggioNotes(10).map((n) => ({ type: "triangle", frequency: n.frequency })));
+    // Right after them the tune goes on with its NEXT note.
+    graph.ctx.currentTime = 1.34;
+    expect(started(() => tone.playWallHit(0))).toEqual([{ type: "sine", frequency: 660 }]);
+    // The game over: its whole chord.
+    graph.ctx.currentTime = 1.6;
+    expect(started(() => tone.playWallHit(0, 261.63, true, [261.63, 329.63, 392], 1, false)).map((o) => o.frequency)).toEqual([261.63, 329.63, 392]);
+    // A multiplier of the tune is rooted on the melody's next note (880) and uses it up, so the melody wraps round.
+    const rooted = started(() => tone.playMultiplier(10));
+    expect(rooted.every((o) => o.type === "sine")).toBe(true);
+    expect(rooted[0].frequency).toBeCloseTo(880, 6);
+    graph.ctx.currentTime = 1.9;
+    expect(started(() => tone.playWallHit(0))).toEqual([{ type: "sine", frequency: 440 }]);
+    expect(at(1.05)).toHaveLength(1);
+    // The song slicer: an accompaniment hit plays its tone and leaves the song where it is.
+    tone.clearCustomNotes();
+    tone.getSlicer().setBuffer({ duration: 2 } as AudioBuffer);
+    tone.getSlicer().setEnabled(true);
+    graph.ctx.currentTime = 2;
+    tone.playWallHit(0, 523.25, false, undefined, 1, false);
+    tone.playMultiplier(20, false);
+    expect(graph.sources).toHaveLength(0);
+    expect(at(2)[0]).toEqual({ type: "triangle", frequency: 523.25, startAt: 2 });
+    graph.ctx.currentTime = 2.5;
+    tone.playWallHit(0);
+    expect(graph.sources.map((s) => s.startArgs)).toEqual([[2.5, 0, 0.25]]); // the first slice, from the start of the song
+    tone.getSlicer().setEnabled(false);
+    // The beat lock: it fills a free slot but leaves it to the tune, and it is dropped from a slot the tune holds.
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, quantizeToBeat: true, bpm: 120, quantizeGrid: "1/4" }); // 0.5 s steps from the run start
+    tone.setCustomNotes([440, 660]);
+    graph.oscillators.length = 0;
+    graph.ctx.currentTime = 3.1;
+    tone.playWallHit(0, 523.25, false, undefined, 1, false);
+    graph.ctx.currentTime = 3.2;
+    tone.playWallHit(0);
+    graph.ctx.currentTime = 3.3;
+    tone.playWallHit(0, 523.25, false, undefined, 1, false);
+    expect(graph.oscillators).toEqual([
+      { type: "triangle", frequency: 523.25, startAt: 3.5 },
+      { type: "sine", frequency: 440, startAt: 3.5 },
+    ]);
+    // A hit sample alike.
+    tone.clearCustomNotes();
+    tone.setHitSoundMode("sample");
+    tone.setHitSample("/hitSounds/click.wav");
+    await vi.waitFor(() => expect(tone.isHitSampleReady()).toBe(true));
+    graph.ctx.currentTime = 4.1;
+    tone.playWallHit(0, 400, false, undefined, 1, false);
+    graph.ctx.currentTime = 4.2;
+    tone.playWallHit(0, 400);
+    graph.ctx.currentTime = 4.3;
+    tone.playWallHit(0, 400, false, undefined, 1, false);
+    expect(graph.sources.slice(1).map((s) => s.startArgs)).toEqual([[4.5], [4.5]]);
   });
 });

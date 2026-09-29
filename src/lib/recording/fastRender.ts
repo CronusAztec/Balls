@@ -207,9 +207,9 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     return;
   }
   if (ev.type === "gap") onWallBreak();
-  if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level);
+  if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();
-  else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2);
+  else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);
   else audio.playInteraction(ev.type);
 }
 

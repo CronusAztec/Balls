@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   APEX_CENTRE,
   APEX_EDGE,
@@ -35,6 +35,9 @@ import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, se
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { frequencyToMidi } from "@/lib/audio/scales";
 import { rhythmDegreeMidi } from "@/lib/physics/modes/jdmRhythm";
+import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
+import { playSoundEvent } from "@/lib/recording/fastRender";
+import { fakeGraph } from "./fakeAudio";
 
 /**
  * Paddle Keep-Up (feature jdm-rhythm-runner): the flight predictor, the catch controller (skill 1 never misses; below it
@@ -330,6 +333,25 @@ describe("PaddleMode in the engine", () => {
     expect(view.bestStreak).toBeGreaterThanOrEqual(10);
   });
 
+  it("only the catches are notes of the tune: the walls, the ceiling, the streak chime, a miss and the game over accompany it (melody: false)", () => {
+    const engine = engineFor({ skill: 0.7, spin: 1 }, 42);
+    const log = play(engine);
+    const view = engine.getPaddleView();
+    const tune = log.sounds.filter((s) => (s.event.type === "hit" || s.event.type === "multiplier") && s.event.melody !== false);
+    expect(tune.length).toBe(view.hits);
+    expect(tune.map((s) => s.atMs)).toEqual(log.hitMs);
+    expect(tune.every((s) => s.event.type === "hit" && !s.event.chord && s.event.level === undefined)).toBe(true);
+    const accompaniment = log.sounds.filter((s) => s.event.melody === false);
+    expect(accompaniment.filter((s) => s.event.level === 0.3).length).toBe(view.wallHits);
+    expect(accompaniment.filter((s) => s.event.level === 0.45).length).toBe(view.ceilingHits);
+    expect(accompaniment.filter((s) => s.event.level === 0.9).length).toBe(view.misses);
+    expect(accompaniment.filter((s) => s.event.chord).length).toBe(1);
+    expect(accompaniment.filter((s) => s.event.type === "multiplier").length).toBe(log.sounds.filter((s) => s.event.type === "multiplier").length);
+    expect(view.wallHits).toBeGreaterThan(0);
+    expect(view.ceilingHits).toBeGreaterThan(0);
+    expect(view.bestStreak).toBeGreaterThanOrEqual(10);
+  });
+
   it("keeps the ball between the walls and under the ceiling, speeds up per catch and bounces off the walls and the ceiling", () => {
     const engine = engineFor({ skill: 1, speedUp: 0.05, spin: 1 }, 7);
     const log = play(engine, 60_000);
@@ -460,5 +482,48 @@ describe("Paddle Keep-Up and the finder", () => {
     } finally {
       globalThis.requestAnimationFrame = raf;
     }
+  });
+});
+
+/* ------------------------------------------------------------------ a loaded melody (the page's sound path) */
+
+describe("Paddle Keep-Up with a melody", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("every catch plays the melody's next note – and only the catches advance it: walls, ceiling, streak chimes, misses and the game over sound on their own", async () => {
+    const graph = fakeGraph();
+    vi.stubGlobal("window", { AudioContext: function FakeAudioContext() { return graph.ctx; } });
+    const tone = new ToneGenerator();
+    await tone.start();
+    // The melody's own voice (square) tells its notes from the bounce instrument (triangle) and the break arpeggio (sine).
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS, melodyInstrument: "square" });
+    const melody = [329.63, 311.13, 329.63, 311.13, 329.63, 246.94, 293.66, 261.63, 220]; // Für Elise
+    tone.setCustomNotes(melody);
+    const engine = engineFor({ skill: 0.7, spin: 1 }, 42);
+    const view = engine.getPaddleView();
+    const catchesAt: number[] = [];
+    let hits = 0;
+    for (let t = 0; t < 400_000 && !engine.isSimulationFinished(); t += STEP) {
+      engine.update(STEP, 0);
+      // The page plays a step's sounds right after it (the sound loop polls once per frame), at the audio clock's now.
+      graph.ctx.currentTime = engine.getElapsedMs() / 1000;
+      if (view.hits !== hits) {
+        hits = view.hits;
+        catchesAt.push(graph.ctx.currentTime);
+      }
+      for (const ev of engine.consumeSoundEvents()) playSoundEvent(tone, ev, () => undefined);
+    }
+    expect(engine.isSimulationFinished()).toBe(true);
+    expect(view.over).toBe(true);
+    expect(view.wallHits + view.ceilingHits).toBeGreaterThan(10);
+    expect(view.bestStreak).toBeGreaterThanOrEqual(10);
+    // One note per catch, none silent, in the melody's order, at the catch.
+    const notes = graph.oscillators.filter((o) => o.type === "square");
+    expect(notes.length).toBe(view.hits);
+    expect(notes.map((n) => n.frequency)).toEqual(catchesAt.map((_, i) => melody[i % melody.length]));
+    for (const [i, n] of notes.entries()) expect(n.startAt).toBeCloseTo(catchesAt[i], 9);
+    // Everything else with the bounce instrument: a tone per wall, ceiling and miss bounce, the game-over chord, the chimes.
+    const accompaniment = graph.oscillators.filter((o) => o.type === "triangle");
+    expect(accompaniment.length).toBeGreaterThanOrEqual(view.wallHits + view.ceilingHits + view.misses + 3);
   });
 });

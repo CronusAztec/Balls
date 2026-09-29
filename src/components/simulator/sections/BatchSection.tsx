@@ -81,7 +81,7 @@ function JobRow({ job, index, current, progress, t, b, onDownload }: { job: Batc
     tone = "text-zinc-200";
   } else if (job.status === "failed") {
     const e = job.error;
-    const reason = e === "link" ? b("errorLink") : e === "code" ? b("errorCode") : e === "busy" ? b("errorBusy") : e === "unsupported" ? b("errorUnsupported") : e ? b("errorOther", { message: e.message }) : "";
+    const reason = e === "link" ? b("errorLink") : e === "code" ? b("errorCode") : e === "busy" ? b("errorBusy") : e === "unsupported" ? b("errorUnsupported") : e === "handPlay" ? b("errorHandPlay") /* --- jdm-rhythm-runner --- */ : e ? b("errorOther", { message: e.message }) : "";
     status = `✕ ${b("failed")}${reason ? ` – ${reason}` : ""}`;
     tone = "text-red-400";
   } else status = b(job.status);

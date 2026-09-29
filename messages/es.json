@@ -1760,6 +1760,7 @@
     "fallbackWebCodecs": "Este navegador no puede codificar vídeo por sí mismo (no tiene WebCodecs), así que el clip se graba en tiempo real con Grabar vídeo.",
     "fallbackCodecs": "Este navegador no tiene un codificador H.264, VP9 ni VP8 con sonido AAC u Opus para la exportación rápida, así que el clip se graba en tiempo real con Grabar vídeo.",
     "unsupportedNote": "La exportación rápida necesita WebCodecs (Chrome, Edge, Safari o Firefox recientes); aquí se graba en tiempo real.",
+    "handPlayNote": "Una partida jugada a mano no se puede exportar rápido: la exportación la jugaría sin ti. Grábala en tiempo real con Grabar vídeo o vuelve a activar el salto automático / la plataforma automática.",
     "error": "La exportación rápida falló ({message}). Grabar vídeo sigue funcionando."
   },
   "ArenaGames": {
@@ -1855,6 +1856,7 @@
     "errorCode": "este navegador no puede leer el código para compartir",
     "errorBusy": "había una grabación, una búsqueda u otra exportación en marcha",
     "errorUnsupported": "no hay codificador para esta resolución y estos fotogramas por segundo",
+    "errorHandPlay": "jugada a mano (salto automático / plataforma automática desactivados): grábala con Grabar vídeo",
     "errorOther": "{message}",
     "downloadJob": "Descargar {name}",
     "downloadAll": "Descargar todo en ZIP",

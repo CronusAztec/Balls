@@ -877,6 +877,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       setCanvasData("background", themeLook.backgroundType === "image" && !bgImageRef.current ? "solid" : themeLook.backgroundType);
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
+      // The run's seed (data-seed), for tools and the smoke test: a found run is the one the page restarts.
+      setCanvasData("seed", String(engine.getSeed()));
       const cx = size.width / 2;
       const cy = size.height / 2;
       const arena = (Math.min(size.width, size.height) / 2) * 0.85;
