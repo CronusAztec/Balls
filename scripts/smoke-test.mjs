@@ -1128,7 +1128,7 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
 // 11. Metronomes & Polyrhythms: the preview image, URL → the controls in the Mode row, controls → URL,
 // the cycles at "never" hide the seed finder, the search box finds the controls, a fixed-length run makes the finder say
 // so, and a run ticks, aligns (analytically: data-poly-alignments), plays notes and chords (OscillatorNode.start is
-// instrumented), switches its layout live without restarting, and 400 voices keep running.
+// instrumented), switches its layout live without restarting, pitches 3:4:5 by ratio as G4–C5–E5, and 400 voices keep running.
 {
   const res = await page.request.get(`${BASE}/modes/polyrhythm.webp`);
   check("asset /modes/polyrhythm.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -1193,6 +1193,25 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
   {
     const run2 = await polyData();
     check("polyrhythm layout switches live without restarting", run2.polyLayout === "arcs" && Number(run2.polyTicks) > Number(run1.polyTicks) && Number(run2.polyAlignments) >= Number(run1.polyAlignments), `(${JSON.stringify(run1)} → ${JSON.stringify(run2)})`);
+  }
+  // Pitch by ratio: every voice plays its own tempo ratio as a harmonic of C3, so 3:4:5 sounds G4–C5–E5 (MIDI 67, 72,
+  // 76: harmonics 3, 4 and 5), as the tooltip says – not the ratios over the slowest voice (C3–F3–A3).
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prt=custom&prcu=3%2C4%2C5&prcs=2&prc=0&prpb=ratio`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__polyOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  {
+    const pitches = await page.evaluate(() => window.__polyOsc);
+    const midis = new Set(pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440))));
+    check("polyrhythm pitch by ratio plays 3:4:5 as the chord G4–C5–E5", pitches.length > 0 && midis.size === 3 && [67, 72, 76].every((m) => midis.has(m)), `(${pitches.length} tones, MIDI ${[...midis].sort((a, b) => a - b).join("/")})`);
   }
   await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=400&prc=0`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
