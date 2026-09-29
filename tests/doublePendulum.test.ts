@@ -196,7 +196,7 @@ describe("chain integrator", () => {
       expect(flips, JSON.stringify(c)).toBeGreaterThan(5);
       if (c.whips) expect(fastest, JSON.stringify(c)).toBeGreaterThan(40);
     }
-  });
+  }, 30_000); // eight rigs for two simulated minutes each: ~2 s alone, over the 5 s default when the whole suite shares a busy machine
 
   it("holds the energy of light-over-heavy rigs through the engine, like the default rig's", () => {
     // What the mode runs: settings → createEngineForSettings, no friction, endless, two minutes (the drift the canvas

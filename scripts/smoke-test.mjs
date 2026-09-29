@@ -3330,7 +3330,7 @@ const instrumentOscillators = () =>
 // --- end odd-string-battle ---
 
 // --- odd-power-layers ---
-// 26. Power Layers: the preview image and the card; URL → the Power layers block of the Mode row (layers, sequence, drift,
+// 27. Power Layers: the preview image and the card; URL → the Power layers block of the Mode row (layers, sequence, drift,
 // bounce speed, corner badge, rule pills), controls → URL and the search box; the finder (the default run's fixed 8.8 s –
 // 7 hits × 1 s + the finale – is explained at once, chaos seeds are searched and keep their promise); a default run at 1×
 // – a hit every bounce period, each level the next C-major degree (OscillatorNode.start is instrumented), the stack
