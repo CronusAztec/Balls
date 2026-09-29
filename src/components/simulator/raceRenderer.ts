@@ -50,6 +50,12 @@ export interface CanvasRaceOptions {
   cupTitle: string;
   /** Prefix of this page's run keys (`runKey()`), so a race is scored once however often the table is drawn. */
   runKeyPrefix: string;
+  /**
+   * --- fast-render --- The run key to score this race under instead of `runKey(runKeyPrefix, view)`. The fast export draws
+   * the page's run on a fresh engine, whose run serial starts again at 1: it passes the page's key, so a race the page has
+   * already scored is not added a second time (and one it has not scored yet is added under the key the page will use).
+   */
+  runKey?: string;
   labels: RaceLabels;
 }
 
@@ -83,6 +89,19 @@ export const DEFAULT_RACE_LABELS: RaceLabels = {
 /** The key a finished run is scored under in the cup (see lib/raceCup.ts). */
 export function runKey(prefix: string, view: Pick<RaceView, "runSerial">): string {
   return `${prefix}:${view.runSerial}`;
+}
+
+/** The key the cup table scores this race under: the page's override (`CanvasRaceOptions.runKey`), else this run's key. */
+export function cupRunKey(race: Pick<CanvasRaceOptions, "runKey" | "runKeyPrefix">, view: Pick<RaceView, "runSerial">): string {
+  return race.runKey ?? runKey(race.runKeyPrefix, view);
+}
+
+/**
+ * --- fast-render --- The race options of the export's canvas: the page's, scored under the page's run key (`pageRunKey`,
+ * the key of the run being exported on the page's engine) so the exported cup table matches the page's.
+ */
+export function exportRaceOptions(race: CanvasRaceOptions | null | undefined, pageRunKey: string | undefined): CanvasRaceOptions | null | undefined {
+  return race && pageRunKey ? { ...race, runKey: pageRunKey } : race;
 }
 
 /** The finished race as a cup result (finishers in order; DNFs score nothing). */
@@ -971,7 +990,7 @@ export class RaceLayer {
     const track = view.track!;
     const f = track.field;
     const S = f.size;
-    const key = runKey(race.runKeyPrefix, view);
+    const key = cupRunKey(race, view);
     if (this.cupFor !== key || this.cupSource !== race.cup) {
       this.cupFor = key;
       this.cupSource = race.cup;

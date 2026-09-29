@@ -1176,6 +1176,8 @@ export default function Simulator() {
       loop: activeBeats?.loop ?? true,
     };
     const teamsPlay = teamsPlayRef.current;
+    // The export's engine is new, so its race's run serial starts at 1: its cup table scores the race under the page's key.
+    const raceKey = page.isRaceMode() ? runKey(RACE_RUN_PREFIX, page.getRaceView()) : undefined;
     let lastProgress = 0;
     try {
       const result = await renderFast({
@@ -1196,6 +1198,7 @@ export default function Simulator() {
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
+        raceKey,
         textOverlay: { topText: s.topText, bottomText: s.bottomText, textSize: s.textSize, watermarkText: s.watermarkText },
         backgroundColor: s.backgroundColors[0],
         onProgress: (p) => {

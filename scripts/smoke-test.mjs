@@ -3855,6 +3855,41 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
     check("a second race adds its points to the cup", again && cup2?.races === 2 && cup2.points.reduce((a, b) => a + b, 0) === 2 * 80 && /2 race/.test(summary), `(finished=${again}, stored ${JSON.stringify(cup2)}, "${summary}")`);
   }
 }
+// --- fast-render --- A race the page has already scored, then fast-exported: the export's cup table shows it as the same race
+// ("Race 1", the page's run key), not as a second one with doubled points, and the export stores nothing.
+if (await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined")) {
+  await page.goto(`${BASE}/en/simulator/?mode=race&rcn=5&rcl=3&rccup=1&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  // A new cup (the page reads the stored one when it loads, so it loads again).
+  await page.evaluate(() => localStorage.removeItem("viralballs:race-cup"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const scored = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 45000 }).then(() => true).catch(() => false);
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  // Every "Race n" line the export's (hidden) canvas draws.
+  await page.evaluate(() => {
+    const main = document.querySelector("main canvas");
+    const seen = new Set();
+    window.__exportRaceLines = seen;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (this.canvas !== main && /^Race \d+$/.test(String(text))) seen.add(String(text));
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  const downloadWait = page.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+  await page.getByRole("button", { name: /Fast export/ }).click();
+  const download = await downloadWait;
+  await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+  const status = await page.locator("[data-fast-export]").getAttribute("data-fast-export").catch(() => "");
+  const lines = await page.evaluate(() => [...(window.__exportRaceLines ?? [])]);
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem("viralballs:race-cup") || "null"));
+  check(
+    "a fast export of a race the page already scored draws the same cup table (no second race, no doubled points)",
+    scored && before?.races >= 1 && !!download && status === "done" && lines.length === 1 && lines[0] === `Race ${before.races}` && after?.races === before.races && JSON.stringify(after.points) === JSON.stringify(before.points),
+    `(scored=${scored}, stored before ${JSON.stringify(before)}, export ${status}, drawn ${JSON.stringify(lines)}, stored after ${JSON.stringify(after)})`,
+  );
+}
 // A staged winner: the director favours racer 3 (Gold) at the swap zones and turbo pads – and Gold wins.
 await page.goto(`${BASE}/en/simulator/?mode=race&rcn=6&rcl=4&rcw=3`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
