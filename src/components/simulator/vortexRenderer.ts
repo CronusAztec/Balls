@@ -79,14 +79,16 @@ export class VortexLayer {
   private throat: CanvasGradient | null = null;
   private readonly dash = [0, 0];
   private readonly noDash: number[] = [];
-  private readonly colorCache = new Map<string, string>();
+  /** hsla() strings by a numeric key (hue, lightness, alpha in hundredths), so a frame builds no strings once they are cached. */
+  private readonly colorCache = new Map<number, string>();
 
   private hsla(h: number, l: number, a: number) {
-    const key = `${h}|${l}|${a.toFixed(2)}`;
+    const alpha = Math.max(0, Math.min(100, Math.round(100 * a)));
+    const key = (Math.round(h) * 101 + Math.round(l)) * 101 + alpha;
     let c = this.colorCache.get(key);
     if (!c) {
-      if (this.colorCache.size > 600) this.colorCache.clear();
-      c = `hsla(${h}, 92%, ${l}%, ${a.toFixed(2)})`;
+      if (this.colorCache.size > 2000) this.colorCache.clear();
+      c = `hsla(${Math.round(h)}, 92%, ${Math.round(l)}%, ${(alpha / 100).toFixed(2)})`;
       this.colorCache.set(key, c);
     }
     return c;
@@ -290,7 +292,7 @@ export class VortexLayer {
 }
 
 /** The data-vortex-* attributes the canvas mirrors for tools and the smoke test. */
-export const VORTEX_DATA_KEYS = ["vortexBalls", "vortexEntered", "vortexSwallowed", "vortexInFlight", "vortexNotes", "vortexChords", "vortexRings", "vortexDeepest", "vortexLoop", "vortexTempo", "vortexDepth", "vortexFinished", "vortexFinishedMs"];
+export const VORTEX_DATA_KEYS = ["vortexBalls", "vortexEntered", "vortexSwallowed", "vortexInFlight", "vortexNotes", "vortexChords", "vortexRings", "vortexDeepest", "vortexLoop", "vortexTempo", "vortexDepth", "vortexAllSwallowed", "vortexFinished", "vortexFinishedMs"];
 
 export function writeVortexDataset(view: VortexView, set: (key: string, value: string) => void) {
   set("vortexBalls", String(view.slotCount));
@@ -304,6 +306,7 @@ export function writeVortexDataset(view: VortexView, set: (key: string, value: s
   set("vortexLoop", view.settings.loop ? "1" : "0");
   set("vortexTempo", view.tempo.toFixed(3));
   set("vortexDepth", String(view.settings.depthScale));
+  set("vortexAllSwallowed", view.allSwallowed ? "1" : "0");
   set("vortexFinished", view.finished ? "1" : "0");
   set("vortexFinishedMs", String(Math.round(view.finishedMs)));
 }

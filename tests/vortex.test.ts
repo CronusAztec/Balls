@@ -346,6 +346,32 @@ describe("ring crossings and notes", () => {
     expect(finishedAt).toBeLessThanOrEqual(range.max + 0.1);
   });
 
+  it("the last swallow raises the banner flag and the run finishes SWALLOW_HOLD_SEC later; never with the loop", () => {
+    const engine = vortexEngine({ balls: 2, stagger: 0.5, duration: 4 }, 6);
+    const view = engine.getVortexView();
+    let flaggedAt = -1;
+    let lastPewAt = -1;
+    const { finishedAt, events } = run(engine, 30, (e) => {
+      const t = e.getElapsedMs() / 1000;
+      if (flaggedAt < 0 && e.getVortexView().allSwallowed) flaggedAt = t;
+      // The flag goes up only once every ball is gone.
+      if (!e.getVortexView().allSwallowed) expect(e.getVortexView().swallowed).toBeLessThan(2);
+    });
+    for (const e of events) if (e.ev.pew) lastPewAt = e.t;
+    expect(view.swallowed).toBe(2);
+    expect(flaggedAt).toBeCloseTo(lastPewAt, 9);
+    expect(finishedAt - flaggedAt).toBeGreaterThanOrEqual(SWALLOW_HOLD_SEC - 1e-6);
+    expect(finishedAt - flaggedAt).toBeLessThan(SWALLOW_HOLD_SEC + 0.02);
+    expect(engine.getVortexProgress()).toMatchObject({ allSwallowed: true, finished: true });
+    const looping = vortexEngine({ balls: 2, stagger: 0.5, duration: 4, loop: true }, 6);
+    run(looping, 12);
+    expect(looping.getVortexView().swallowed).toBeGreaterThanOrEqual(4);
+    expect(looping.getVortexView().allSwallowed).toBe(false);
+    // A restart lowers it again.
+    engine.initMode("vortex");
+    expect(view.allSwallowed).toBe(false);
+  });
+
   it("the depth cue shrinks a ball as it sinks; at 0 it keeps the Ball Size", () => {
     for (const depthScale of [0, 1]) {
       const engine = vortexEngine({ balls: 1, depthScale }, 2);

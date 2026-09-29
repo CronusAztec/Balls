@@ -4840,9 +4840,10 @@ const jrSeed = async () => (await canvasData()).seed;
 // 32. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
 // time, pull, depth cue, loop, the run summary), controls → URL and the search box; the Respawn Loop hides the finder and
 // says why; a short run at 1× at 30+ fps whose ring notes climb the C-major degrees ring by ring and whose swallows pew –
-// a sweep from an octave above the innermost ring (OscillatorNode.start is instrumented) – and then finishes; the finder
-// lands a 30 s seed and the run keeps the promise at 8×; the default run at 1× keeps 30+ fps; and a 1080×1920 recording
-// keeps 20+ fps (the software encoder's share of a headless frame) and downloads.
+// a sweep from an octave above the innermost ring (OscillatorNode.start is instrumented) – and whose last swallow holds the
+// PEW! banner for a moment before the run finishes; the finder
+// lands a 30 s seed and the run keeps the promise at 8×; the default run at 1× keeps 30+ fps; a 1080×1920 recording
+// keeps 20+ fps (the software encoder's share of a headless frame) and downloads; and a fast export pews through its own audio.
 {
   const res = await page.request.get(`${BASE}/modes/vortex.webp`);
   check("asset /modes/vortex.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -4935,12 +4936,27 @@ const vxFrameRates = async (ms) => {
   const fps = await vxFrameRates(4500);
   const mid = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-vortex.png") });
+  // The last swallow raises the "PEW!" banner, which holds for a second before the run finishes and the end screen covers it.
+  const banner = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.vortexAllSwallowed === "1" && d?.vortexFinished === "0";
+    }, null, { timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
   const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
   const data = await canvasData();
   const tones = await page.evaluate(() => window.__vxOsc);
   const midis = tones.map((o) => Math.round(69 + 12 * Math.log2(o.f / 440)));
-  const notes = midis.filter((m) => m >= 60 && m <= 79);
-  const pews = midis.filter((m) => m === 91);
+  // A pew starts two oscillators: the sweep from G6 (MIDI 91) and, right after it, its sub an octave below – not a ring note.
+  const notes = [];
+  let pews = 0;
+  for (let i = 0; i < midis.length; i++) {
+    if (midis[i] === 91) {
+      pews++;
+      i++;
+    } else if (midis[i] >= 60 && midis[i] <= 79) notes.push(midis[i]);
+  }
   // The first ball's first notes: rings 0 and 1 – C4, D4 (the second ball's first ring comes after them); the innermost ring is G5.
   const firstTwo = notes.slice(0, 2).join(",");
   check(
@@ -4949,9 +4965,9 @@ const vxFrameRates = async (ms) => {
     `(notes ${mid.vortexNotes}, in flight ${mid.vortexInFlight}, first MIDI ${firstTwo}, ${tones.length} tones, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
   );
   check(
-    "sound vortex: every ball is swallowed with a pew and the run finishes",
-    done && data.vortexSwallowed === "3" && data.vortexNotes === "36" && data.vortexDeepest === "11" && data.vortexFinished === "1" && pews.length === 3 && data.face === "cute",
-    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("vortex"))))}, ${pews.length} pews)`,
+    "sound vortex: every ball is swallowed with a pew, the PEW! banner holds, then the run finishes",
+    banner && done && data.vortexSwallowed === "3" && data.vortexNotes === "36" && notes.length === 36 && data.vortexDeepest === "11" && data.vortexAllSwallowed === "1" && data.vortexFinished === "1" && pews === 3 && data.face === "cute",
+    `(banner=${banner}, finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("vortex"))))}, ${notes.length} ring tones, ${pews} pews)`,
   );
 }
 {
@@ -5004,6 +5020,47 @@ const vxFrameRates = async (ms) => {
     size = fs.statSync(file).size;
   }
   check("a 1080×1920 sound vortex recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // ⚡ Fast export of a short run (3 balls, 3 s spirals, about 5 s): rendered offline, every pew goes through the export's own
+  // audio (the ToneGenerator's offline twin – OscillatorNode.start is instrumented), the clip ends half a second after the run
+  // instead of at the 10 s clip length, and a second export of the same seed renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=3&vxs=0.5&vxd=3&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const log = [];
+      window.__vxFastOsc = log;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.frequency.value !== 1) log.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `vortex-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const pews = await page.evaluate(() => window.__vxFastOsc.splice(0).filter((f) => Math.round(69 + 12 * Math.log2(f / 440)) === 91).length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), pews };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a sound vortex fast export pews through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.pews === 3 && a.seconds > 4 && a.seconds < 7 && b.status === "done" && b.pews === 3 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the sound vortex has no fast export to check (Record Video is covered above)", true);
 }
 // --- end boris-vortex ---
 

@@ -2296,8 +2296,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
           bigBanner(PL.freedom, PL.freedomSub(plView.hits, plView.freedSec.toFixed(1)), "#a3e635");
         }
-        // --- boris-vortex --- Sound Vortex: every ball swallowed – pew!
-        if (vortexView && vortexView.finished) {
+        // --- boris-vortex --- Sound Vortex: every ball swallowed – pew! (from the last swallow, through the hold before the end)
+        if (vortexView && vortexView.allSwallowed) {
           const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
           bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
         }

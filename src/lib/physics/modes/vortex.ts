@@ -455,6 +455,8 @@ export interface VortexView {
   deepestRing: number;
   inFlight: number;
   lastSwallowMs: number;
+  /** Every ball has been swallowed (never with the loop): the "PEW!" banner shows through the `SWALLOW_HOLD_SEC` hold before the end. */
+  allSwallowed: boolean;
   finished: boolean;
   /** Simulation time (ms) the run finished at (−1 while it has not). */
   finishedMs: number;
@@ -492,6 +494,7 @@ function createView(): VortexView {
     deepestRing: -1,
     inFlight: 0,
     lastSwallowMs: -Infinity,
+    allSwallowed: false,
     finished: false,
     finishedMs: -1,
   };
@@ -569,6 +572,7 @@ export class VortexMode implements GameMode {
       deepestRing: v.deepestRing,
       loop: v.settings.loop,
       tempo: v.tempo,
+      allSwallowed: v.allSwallowed,
       finished: v.finished,
     };
   }
@@ -608,6 +612,7 @@ export class VortexMode implements GameMode {
     v.deepestRing = -1;
     v.inFlight = 0;
     v.lastSwallowMs = -Infinity;
+    v.allSwallowed = false;
     v.finished = false;
     v.finishedMs = -1;
     for (let i = 0; i < s.balls; i++) {
@@ -762,7 +767,7 @@ export class VortexMode implements GameMode {
       // It comes back at the rim a moment later, as a new entry.
       v.slotState[slot] = WAITING;
       this.entryAt[slot] = this.clockMs / 1000 + RESPAWN_DELAY_SEC;
-    }
+    } else if (v.swallowed >= v.slotCount) v.allSwallowed = true;
   }
 
   onPostSubStep() {}
