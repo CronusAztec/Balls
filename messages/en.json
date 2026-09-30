@@ -1312,7 +1312,42 @@
     "pdSpeedUpTip": "Every catch makes the flight this much faster (up to twice as fast): the longer the game, the harder it gets.",
     "pdInfoPerfect": "At 100% skill the controller never misses – the game never ends (Find Simulation needs a lower skill).",
     "pdInfoAuto": "{lives} lives – the controller's misses come from the seed, so Find Simulation can time the game over.",
-    "pdInfoManual": "Move the platform with the pointer or ← →. Find Simulation needs Auto Platform."
+    "pdInfoManual": "Move the platform with the pointer or ← →. Find Simulation needs Auto Platform.",
+    "splitTab": "Arenas & Split Screen",
+    "splitIntro": "Race 2 or 4 arenas at once on one canvas and in one recording. Every arena plays the settings above; give each one a label and, if you like, its own seed, gravity, ball speed, ball colour or mode.",
+    "splitArenaCount": "Arenas",
+    "splitArenaCountTip": "How many arenas race at the same time. 1 is the classic single view; 2 and 4 split the exported square between them.",
+    "splitLayout": "Layout",
+    "splitLayoutTip": "Row puts the arenas side by side. Grid makes a 2 × 2 grid of four, or stacks two on top of each other – the better fit for vertical 1080×1920 clips.",
+    "splitLayoutRow": "Row",
+    "splitLayoutGrid": "Grid",
+    "splitSound": "Sound",
+    "splitSoundTip": "Whose bounces you hear: only the first arena's (the cleanest mix), or every arena's (the other arenas a little softer).",
+    "splitSoundFirst": "First arena",
+    "splitSoundAll": "Every arena",
+    "splitArenas": "Arena overrides",
+    "splitArenasTip": "Every arena plays the shared settings. Anything you set here replaces them for that one arena only.",
+    "splitArenaN": "Arena {n}",
+    "splitArenaLabel": "Label",
+    "splitArenaMode": "Mode",
+    "splitArenaModeShared": "Same as the page",
+    "splitArenaModeFirst": "The first arena always plays the mode picked above.",
+    "splitArenaSeed": "Seed",
+    "splitArenaSeedTip": "A fixed seed replays exactly the same run in this arena on every restart. Leave it empty for a new random run each time. Find Simulation fills the seeds in for you.",
+    "splitArenaSeedRandom": "random",
+    "splitArenaSeedDice": "Roll a random seed",
+    "splitArenaSeedClear": "Clear the seed",
+    "splitArenaGravity": "Gravity",
+    "splitArenaBallSpeed": "Ball speed",
+    "splitArenaBallColor": "Ball colour",
+    "splitShared": "shared: {value}",
+    "splitSharedColor": "shared",
+    "splitOverride": "Override",
+    "splitUseShared": "Use shared",
+    "splitRaceNote": "A banner shows which arena escaped – or finished – first, and when. Every arena is timed on its own simulation clock, so the race is fair at any frame rate.",
+    "splitFinderNote": "Find Simulation searches a seed for every arena (the same target) and stores them above; the clip then lasts until the last arena is done.",
+    "splitFastExportNote": "Fast export renders a single arena – record a race with Record Video.",
+    "splitSingleNote": "Pick 2 or 4 arenas to start a split-screen race."
   },
   "Modes": {
     "classic": {
@@ -2088,5 +2123,11 @@
     "gameOverSub": "Score [hits] · best streak [best]",
     "streak": "[n] in a row",
     "moveHint": "← → or the pointer moves the platform"
+  },
+  "SplitScreen": {
+    "escaped": "{label} escaped first!",
+    "finished": "{label} finished first!",
+    "tie": "{labels} tie!",
+    "seconds": "{seconds} s"
   }
 }
