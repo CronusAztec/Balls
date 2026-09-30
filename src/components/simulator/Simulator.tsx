@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useLocale, useMessages } from "next-intl"; // --- viral-bot ---
+import { useViralBot } from "./useViralBot"; // --- viral-bot ---
+import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
+import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
 import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
 import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
@@ -1787,6 +1791,51 @@ export default function Simulator() {
     disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import",
   });
   // --- end batch-render ---
+  // --- viral-bot --- the Viral video bot block after the Batch block: it plans clips (lib/bot/planner.ts) in this page's
+  // world, opens one on the page (its settings, its melody and – pinned like a found simulation – its seed) and renders a
+  // plan through the batch renderer; a link's `seed=` (the bot's share links carry one) pins the page's first run on it
+  const pinBotSeed = useCallback(
+    (seed: number) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const own = themeLookRef.current; // the page's settings as committed
+      engine.setSeed(seed);
+      setFinished(false);
+      audioRef.current?.resetCustomNoteIndex();
+      audioRef.current?.getSlicer().reset();
+      audioRef.current?.resetBeatGrid();
+      audioRef.current?.getMusicBed().stop();
+      engine.setConfig({ ballRadius: own.ballRadius });
+      initEngineForMode(engine, own);
+    },
+    [initEngineForMode],
+  );
+  const botLocale = useLocale();
+  const botMessages = useMessages() as Record<string, unknown>;
+  const viralBot = useViralBot({
+    locale: isBotLocale(botLocale) ? botLocale : "en",
+    copy: (botMessages.ViralBot ?? {}) as BotCopy,
+    getWorld: () => (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
+    applySettings: loadPresetSettings,
+    selectMelody: onCustomSoundSelect,
+    currentMelody: customSoundId,
+    pinSeed: pinBotSeed,
+    runJobs: batchRender.runJobs,
+    stopBatch: batchRender.panel.onStop,
+    batchRun: batchRender.panel.run,
+    jobProgress: batchRender.panel.jobProgress,
+    supported: fastSupported,
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || batchRender.running,
+  });
+  const urlSeedPinned = useRef(false);
+  useEffect(() => {
+    if (!engineReady || urlSeedPinned.current) return;
+    urlSeedPinned.current = true;
+    const seed = parseSeed(searchParams.get("seed"));
+    if (seed !== null) pinBotSeed(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineReady]);
+  // --- end viral-bot ---
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -2494,6 +2543,7 @@ export default function Simulator() {
             fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
+            bot={viralBot} // --- viral-bot ---
           />
         </ProjectDropZone>
       </div>
