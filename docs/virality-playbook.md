@@ -66,6 +66,59 @@ Ordered by how strongly the sources and the observations agree.
 - The ballsimulator.com figures ("70 percent completion", "sound is 50 percent of virality", "1 to 3 videos a day") are marketing claims without sources.
 - Nothing here replaces measurement: track average watch time, sends per reach, saves and first-hour comments per clip in Instagram Insights, and let the bot's recipe scores be corrected by what actually performs.
 
+## 5. How the bot applies it, and what building it taught us
+
+The bot (README, "Viral video bot") turns §3 into 15 recipes in three series that rotate day by day: **escape** (ring escape,
+Pip escapes, grow until it fills, clone per pass, multipliers board, power layers), **rhythm** (pendulum wave, polyrhythm, drop
+symphony, glass smash) and **battle** (string battle, territory, battle royale, square race, maze race). Every clip gets the
+rule as a caption for the first 2–3 s, a countdown, a payoff planned with the seed finder, a note per bounce, neon on black, a
+series label and a recurring cast, and a 0–100 score against the checklist below. The weights are ours, not measured:
+
+| Checklist item | Points | §3 step |
+| --- | --- | --- |
+| Motion in the first second (first impact ≤ 1 s) | 10 | 1 |
+| Hook on screen from 0 s for 2–3 s, inside the safe zone | 15 | 2 |
+| A visible countdown (caption or the mode's HUD) | 10 | 3 |
+| Payoff at 80–90 % of the clip (resolved) or 0.5–1 s after the cut | 20 | 4, 5 |
+| Length inside the bucket, a bucket that suits the platform | 10 | 7 |
+| Sound: a melody (or the mode's note ladder) on a scale, piano / xylophone | 10 | 6 |
+| Ending: a tight loop after the payoff, or a closing question on a cut | 10 | 5 |
+| Series: label, episode, recurring cast | 10 | 11 |
+| Look: neon on black, glow, trails | 5 | 9 |
+
+What the simulator taught us while building it **[observed in our own planner runs, not on Instagram]**:
+
+- **A run that ends on its own ends right after its payoff.** Classic finishes about a second after the escape, Power Layers
+  1.8 s after the ball breaks free, Ball Drop a second after the last ball settles. On a 15–30 s clip that puts the payoff at
+  85–94 %; on a 60–90 s clip at 95–97 %. The bot accepts up to 97 % and the score marks anything past 90 % down; endless formats
+  (pendulum wave, polyrhythm, grow, clone) are cut at exactly 85 %.
+- **Battles are short.** String battles, battle royales and capture the flag are over in 10–30 s and then hold a 3 s winner
+  banner, so they cannot fill a 60–90 s TikTok cut or an 8–15 s short one; the bot plays them in the standard bucket. The long
+  bucket goes to pendulum waves, polyrhythms, clone loops, power layers, slow ring escapes, long glass runs, races and territory.
+- **A race's 3-2-1-GO breaks rule 1.** The square race's gate opens at 1.8 s; the score flags it ("first impact at 1.8 s").
+- **Growth varies by seed.** At two clones per escape Multiply takes 20–90 s to put 60 balls on screen; at four, most seeds fill
+  it in 15–25 s. The planner measures the fill per seed instead of guessing.
+- **The safe zone is a width limit.** A caption centred in a 1080×1920 frame stays out of the right 12 % only while it is at
+  most 76 % of the frame wide; the bot splits the hook into one-line pills of at most ~68 % of the width (a conservative text
+  estimate), and everything it places stays inside the centred square, above the bottom fifth.
+- **Posting needs a public MP4.** The Instagram Graph API publishes a Reel in two steps (a `REELS` container from a public video
+  URL, then `media_publish` once its `status_code` is `FINISHED`) and takes MP4 (H.264 + AAC). A Chromium without H.264 + AAC
+  encoders exports WebM – Playwright's Chromium on Linux has neither, and Google Chrome on Linux has no AAC encoder – so the
+  CLI converts every WebM clip to MP4 with ffmpeg before anything is uploaded (the daily job installs it) and never posts a WebM.
+- **The race is won at the line, not on the podium.** The square race names its winner – callout, fanfare, "wins!" badge – the
+  moment the first racer crosses; the podium comes 5–10 s later. The bot times the payoff (and a cliffhanger's cut) at that
+  first crossing and cuts a resolved race at 85 % instead of waiting for the podium.
+- **Say the rule the clip plays by.** Power Layers only reaches a long clip with a slower sequence than doubling (Fibonacci,
+  +1 per hit); the hook names the sequence the clip really uses, and #itdoubles is only added when it doubles.
+- **Arena games own the top of the square.** Battle royale and capture the flag draw their scoreboard band ("7 LEFT", the
+  score and the clock) where the Top Text goes, so their series label is the Bottom Text and the captions start below the band.
+- **Posting times are placeholders.** The slots (Reels 12:00 / 18:00 / 21:00, TikTok 13:00 / 19:00 / 22:00, Shorts 12:00 /
+  17:00 / 20:00 local) are the usual lunch / after-work / evening windows **[inferred]**; replace them with the hours your own
+  Insights show.
+
+Next: feed each clip's average watch time, sends per reach, saves and first-hour comments back into the checklist weights, and
+compare the resolved and cliffhanger clips the bot alternates.
+
 Sources: instagram.com/project.jdm, instagram.com/borisbounces and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your
 Bouncing Ball Videos Go Viral"; creatorflow.so, "Instagram Algorithm 2026: What Changed"; clixie.ai, "Instagram
