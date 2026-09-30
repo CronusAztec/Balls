@@ -231,6 +231,8 @@ export class BounceMathRuntime {
   private breakLen = 0;
   private readonly passes = new Map<number, number>();
   private readonly hues = new WeakMap<Ball, { base: string; written: string }>();
+  /** The bounciness each ball's speed already carries from rebounds a mode set itself (`modeReboundFactor()`). */
+  private carried = new WeakMap<Ball, number>();
   private readonly ruleCtx: RuleContext;
   private readonly view: BounceMathView = freshView();
 
@@ -300,6 +302,7 @@ export class BounceMathRuntime {
     this.breakBalls.fill(null, 0, this.breakLen);
     this.breakLen = 0;
     this.passes.clear();
+    this.carried = new WeakMap();
     this.counts.fill(0);
     this.fires.fill(0);
     const v = this.view;
@@ -635,9 +638,24 @@ export class BounceMathRuntime {
     return written;
   }
 
+  /**
+   * The factor for a mirror reflection a mode made itself, keeping the speed (Bouncing Shapes' walls): the change of the ball's bounciness since its last such rebound – so its speed carries the bounciness exactly
+   * once (natural speed × bounciness, like the engine's ring rebounds) instead of compounding it hit after hit. 1 when
+   * nothing changed; a ball stopped by a bounciness of 0 stays stopped (its velocity has no direction to scale).
+   */
+  modeReboundFactor(ball: Ball): number {
+    const r = ball.restitution ?? 1;
+    const carried = this.carried.get(ball) ?? 1;
+    if (r === carried) return 1;
+    this.carried.set(ball, r);
+    return carried > 0 ? r / carried : 1;
+  }
+
   /** A clone or a split half carries its parent's bounce-math values (restitution, hue, pitch). */
   inherit(parent: Ball, child: Ball) {
     if (parent.restitution !== undefined) child.restitution = parent.restitution;
+    const carried = this.carried.get(parent);
+    if (carried !== undefined) this.carried.set(child, carried);
     if (parent.pitchShift !== undefined) child.pitchShift = parent.pitchShift;
     if (parent.hueShift !== undefined) {
       child.hueShift = parent.hueShift;

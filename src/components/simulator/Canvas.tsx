@@ -2602,6 +2602,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           let bottom = cy + side / 2 - (live ? 56 : 0);
           if (p.bottomText) bottom = Math.min(bottom, edgeLines.bottomY - 0.75 * edgeLines.fontSize);
           if (songProgressRef.current !== null) bottom = Math.min(bottom, size.height - 14);
+          if (multBoard) bottom = Math.min(bottom, cy + side / 2 - 0.025 * side - 1.5 * Math.max(16, 0.06 * side) - 6); // (above the multipliers board's HOME counter)
           const slowMo = multView.active && multView.dilation < 1 ? 0.025 * side + 1.6 * Math.max(11, 0.034 * side) + 6 : 0;
           const top = Math.max(cy - side / 2 + (live ? 52 : 0) + slowMo, teamLayer.isActive() ? teamLayer.scoreboardBottom + 6 : 0, p.topText ? edgeLines.topY + 0.75 * edgeLines.fontSize : 0);
           const bmLabels = (labelsRef.current ?? DEFAULT_LABELS).bounceMath ?? DEFAULT_BOUNCE_MATH_LABELS;

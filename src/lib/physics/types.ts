@@ -426,8 +426,12 @@ export interface ModeContext {
    */
   shiftWorld?(dx: number, dy: number): void;
   // --- bounce-math ---
-  /** A mode that resolves its own walls reports a bounce of `ball` (bounce math's "bounce" trigger); changes nothing else. */
-  noteBounce?(ball: Ball): void;
+  /**
+   * A mode that resolves its own walls reports a bounce of `ball` (bounce math's "bounce" trigger). `rebound`: the mode has
+   * just reflected the ball keeping its speed (Bouncing Shapes' walls) – the ball's bounce-math bounciness then applies to
+   * that rebound once; without it nothing else changes.
+   */
+  noteBounce?(ball: Ball, rebound?: boolean): void;
   // --- end bounce-math ---
 }
 

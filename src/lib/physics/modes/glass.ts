@@ -930,7 +930,7 @@ export class GlassMode implements GameMode {
     for (const pane of level.panes) {
       if (pane.shattered || Math.abs(ball.y - pane.y) > pane.thickness / 2 + reachY) continue;
       for (const seg of pane.segments) {
-        const impact = resolveBallSegment(ball, seg, dtSec);
+        const impact = resolveBallSegment(ball, seg, dtSec, ball.restitution ?? 1); // --- bounce-math --- (the ball's bounciness; 1 without a rule)
         if (impact < 0) continue;
         // A knock from below needs HIT_SPEED to count. A contact from above is always a landing, however slow – a graze
         // on the end of a hole's glass, a sliding pane lifting the ball onto its top – so the ball never comes to rest on

@@ -54,8 +54,23 @@ export class BounceMathLayer {
   /** The badge drawn in the last frame (x, y, w, h), or null. */
   readonly rect = { x: 0, y: 0, w: 0, h: 0 };
   drawn = false;
+  /** The badge's chips (a pool reused frame after frame: `chipCount` of them are in use). */
   private readonly chips: { text: string; color: string; pop: boolean }[] = [];
+  private chipCount = 0;
   private readonly widths: number[] = [];
+
+  private addChip(text: string, color: string, pop: boolean) {
+    let chip = this.chips[this.chipCount];
+    if (!chip) {
+      chip = { text, color, pop };
+      this.chips.push(chip);
+    } else {
+      chip.text = text;
+      chip.color = color;
+      chip.pop = pop;
+    }
+    this.chipCount++;
+  }
 
   /** The canvas props with the rules' wall thickness – the same object while no rule changed it (and the same copy per frame). */
   props<P extends { wallThickness?: number }>(p: P, view: BounceMathView): P {
@@ -78,19 +93,20 @@ export class BounceMathLayer {
     this.drawn = false;
     if (!view.active || !view.showValues) return;
     const chips = this.chips;
-    chips.length = 0;
+    this.chipCount = 0;
     if (view.hasBall) {
-      chips.push({ text: `${labels.bounce} ${formatBounceValue(view.bounciness)}`, color: "#fbbf24", pop: false });
-      chips.push({ text: `${labels.speed} ${formatBounceValue(view.speed)}`, color: "#22d3ee", pop: false });
-      chips.push({ text: `${labels.size} ${formatBounceValue(view.size)}`, color: "#a78bfa", pop: false });
+      this.addChip(`${labels.bounce} ${formatBounceValue(view.bounciness)}`, "#fbbf24", false);
+      this.addChip(`${labels.speed} ${formatBounceValue(view.speed)}`, "#22d3ee", false);
+      this.addChip(`${labels.size} ${formatBounceValue(view.size)}`, "#a78bfa", false);
     }
-    chips.push({ text: `${labels.gravity} ${formatBounceValue(view.gravity)}`, color: "#60a5fa", pop: false });
-    const firstRuleChip = chips.length;
+    this.addChip(`${labels.gravity} ${formatBounceValue(view.gravity)}`, "#60a5fa", false);
+    const firstRuleChip = this.chipCount;
     const age = nowMs - view.lastFireMs;
     const popping = age >= 0 && age < POP_MS;
     if (view.fires.length <= MAX_RULE_CHIPS) {
-      for (let i = 0; i < view.fires.length; i++) chips.push({ text: labels.rule(i + 1, formatBounceValue(view.fires[i])), color: ACCENT, pop: popping && view.lastRule === i });
-    } else chips.push({ text: `Σ ×${formatBounceValue(view.totalFires)}`, color: ACCENT, pop: popping });
+      for (let i = 0; i < view.fires.length; i++) this.addChip(labels.rule(i + 1, formatBounceValue(view.fires[i])), ACCENT, popping && view.lastRule === i);
+    } else this.addChip(`Σ ×${formatBounceValue(view.totalFires)}`, ACCENT, popping);
+    const count = this.chipCount;
 
     const { x0, y0, side } = place;
     const fs = Math.max(10, 0.028 * side);
@@ -107,7 +123,7 @@ export class BounceMathLayer {
     let rowW = 0;
     const widths = this.widths;
     widths.length = 0;
-    for (let i = 0; i < chips.length; i++) {
+    for (let i = 0; i < count; i++) {
       const w = ctx.measureText(chips[i].text).width + 1.1 * fs;
       widths.push(w);
       const newRow = i === firstRuleChip || (rowW > 0 && rowW + gap + w > maxW);
@@ -125,7 +141,7 @@ export class BounceMathLayer {
     let maxX = -Infinity;
     const startY = y;
     rowW = 0;
-    for (let i = 0; i < chips.length; i++) {
+    for (let i = 0; i < count; i++) {
       const w = widths[i];
       const newRow = i === firstRuleChip || (rowW > 0 && rowW + gap + w > maxW);
       if (newRow && rowW > 0) {

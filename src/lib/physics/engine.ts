@@ -379,8 +379,10 @@ export class PhysicsEngine {
         creditWallBreak?.(ball);
         if (this.bounceMath.on) this.bounceMath.noteBreakBall(ball);
       },
-      noteBounce: (ball: Ball) => {
-        if (this.bounceMath.on) this.bounceMath.note(BM_BOUNCE, ball);
+      noteBounce: (ball: Ball, rebound?: boolean) => {
+        if (!this.bounceMath.on) return;
+        if (rebound && ball.restitution !== undefined) this.scaleModeRebound(ball);
+        this.bounceMath.note(BM_BOUNCE, ball);
       },
     });
     // --- end bounce-math ---
@@ -1938,6 +1940,19 @@ export class PhysicsEngine {
   getBounceMathRuntime(): BounceMathRuntime {
     return this.bounceMath;
   }
+
+  /**
+   * The ball's bounciness on a mirror reflection a mode without rings made itself, keeping the speed (Bouncing Shapes'
+   * walls: every shape at its own speed): the speed takes the change of the bounciness since the ball's last such rebound,
+   * so it carries the bounciness exactly once – its own speed × the bounciness, like the engine's ring rebounds – and never
+   * compounds.
+   */
+  private scaleModeRebound(ball: Ball) {
+    const k = this.bounceMath.modeReboundFactor(ball);
+    if (k === 1 || !Number.isFinite(k)) return;
+    ball.vx *= k;
+    ball.vy *= k;
+  }
   // --- end bounce-math ---
 
   /** Direction (radians, screen coordinates: π/2 = straight down) of the gravity in the last step – rotating gravity turns it. */
@@ -2474,11 +2489,11 @@ export class PhysicsEngine {
           ball.vy *= this.extras.wallBounciness;
         }
         // --- bounce-math --- the ball's bounciness applies to a rebound the mode set itself too – at most once: a mode that keeps
-        // the incoming speed would otherwise compound it hit after hit, so the result stays within its cruising speed × the bounciness
+        // the incoming speed would otherwise compound it hit after hit, so above 1 it lifts the speed up to the cruising speed ×
+        // the bounciness (never slowing a ball that is already faster); below 1 the rebound loses that share of the speed
         if (result?.suppressBounce && ball.restitution !== undefined) {
           const r = ball.restitution;
-          const cap = cruiseSpeed(ball, this._config.ballSpeed || 400) * Math.max(1, r);
-          const k = Math.min(r, cap / Math.max(1e-9, Math.hypot(ball.vx, ball.vy)));
+          const k = r < 1 ? r : Math.max(1, Math.min(r, (cruiseSpeed(ball, this._config.ballSpeed || 400) * r) / Math.max(1e-9, Math.hypot(ball.vx, ball.vy))));
           ball.vx *= k;
           ball.vy *= k;
         }

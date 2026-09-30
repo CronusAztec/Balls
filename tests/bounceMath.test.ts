@@ -5,6 +5,7 @@ import { PhysicsEngine } from "@/lib/physics/engine";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { wallHitFrequency } from "@/lib/audio/sampler";
 import { MULTIPLY_MAX_BALLS } from "@/lib/physics/modes/multiply";
+import { BOX_WALL_NOTES } from "@/lib/physics/modes/box";
 import { BM_BOUNCE, BounceMathRuntime, PITCH_MAX_HZ, bounceHitEvent, bounceParamApplies, pitchedFrequency, resizeTrail } from "@/lib/physics/bounceMathRuntime";
 import { createEngineForSettings, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
@@ -701,6 +702,42 @@ describe("bounce math in the engine", () => {
     }
     expect(bounceParamApplies("gap", "portal")).toBe(false);
     expect(bounceParamApplies("gap", "classic")).toBe(true);
+  });
+
+  it("lifts a Bouncing Shapes shape's own speed by its bounciness exactly once, and pitches the box's wall notes", () => {
+    const speeds = (e: PhysicsEngine) => e.getBalls().map((b) => Math.hypot(b.vx, b.vy));
+    const plain = makeEngine(null, "box", 5);
+    run(plain, 4, () => plain.consumeSoundEvents());
+    const bm = makeEngine([rule({ trigger: "start", op: "set", amount: 2, scope: "all" }), rule({ trigger: "start", param: "pitch", op: "set", amount: 12, scope: "all" })], "box", 5);
+    const hits: SoundEvent[] = [];
+    run(bm, 4, () => hits.push(...bm.consumeSoundEvents().filter((e) => e.type === "hit")));
+    const before = speeds(plain);
+    const after = speeds(bm);
+    expect(after.length).toBe(before.length);
+    // every shape keeps its own speed ratio and carries the bounciness once (× 2), never compounding hit after hit
+    after.forEach((v, i) => expect(v / before[i]).toBeCloseTo(2, 6));
+    expect(hits.length).toBeGreaterThan(0);
+    for (const e of hits) expect(BOX_WALL_NOTES.map((f) => 2 * f).some((f) => Math.abs(f - (e.frequency ?? 0)) < 1e-6)).toBe(true);
+    // "Bouncier every bounce" in the box: the speed grows with the bounciness (× 1.05 per bounce), like the ring rebounds
+    const bouncier = makeEngine([rule()], "box", 5);
+    run(bouncier, 4, () => bouncier.consumeSoundEvents());
+    const grown = speeds(bouncier);
+    grown.forEach((v, i) => {
+      const r = bouncier.getBalls()[i].restitution ?? 1;
+      expect(v / before[i]).toBeGreaterThan(1);
+      expect(v / before[i]).toBeLessThanOrEqual(r + 1e-9);
+    });
+  });
+
+  it("applies the bounciness once to a rebound a ring mode sets itself (Grow): above 1 it lifts, it never compounds", () => {
+    let max = 0;
+    const engine = makeEngine([rule({ trigger: "start", op: "set", amount: 1.5 })], "grow", 5);
+    run(engine, 10, () => {
+      engine.consumeSoundEvents();
+      for (const b of engine.getBalls()) max = Math.max(max, Math.hypot(b.vx, b.vy));
+    });
+    expect(max).toBeGreaterThan(400 * 1.2);
+    expect(max).toBeLessThan(400 * 1.5 * 2.5);
   });
 
   it("queues its triggers without touching a run whose rules do not listen to them", () => {
