@@ -15,7 +15,10 @@ import { polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers";
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle";
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye";
+import { journeySettingsOf } from "@/lib/physics/modes/journey";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex";
+import { beatDropSettingsOf } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { riggedConfigOf } from "@/lib/physics/rigged";
@@ -24,6 +27,7 @@ import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
 import { engineTimelineOf } from "@/lib/simulation/timeline";
 import { effectiveBallCount } from "@/lib/teams";
+import { onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
 
 /*
  * --- viral-bot --- The seed finder's view of a settings object, without a page: the physics config and the mode settings the
@@ -91,6 +95,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     growRate: s.growRate,
     portalCount: d.portalCount,
     twoBalls: s.twoBalls,
+    cinematicEnabled: s.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run, as in the page)
     drop: dropSettingsOf(s),
     box: boxSettingsOf(s),
     pendulum: pendulumSettingsOf(s),
@@ -109,6 +114,10 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     ctf: ctfSettingsOf(s),
     ...jdmRhythmFinderSettingsOf(s, null),
     vortex: vortexSettingsOf(s),
+    journey: journeySettingsOf(s), // --- boris-journey ---
+    bullseye: bullseyeSettingsOf(s), // --- boris-bullseye ---
+    beatDrop: beatDropSettingsOf(s), // --- beat-drop --- (the BPM setting's beat: the bot plans without a loaded song)
+    onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)
   };
 }
 

@@ -477,7 +477,10 @@ export class CtfMode implements GameMode {
     return true;
   }
 
-  /** A canvas resize lays the field out again and maps the squares, bases and flags onto it. */
+  /**
+   * A canvas resize lays the field out again and maps the squares, bases and flags onto it. The squares' speeds scale with
+   * the field too (by its side, never per axis), so a found game plays on unchanged.
+   */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     const v = this.view;
     const old = v.field;
@@ -494,6 +497,8 @@ export class CtfMode implements GameMode {
       ball.x = cx + ((ball.x - cx) * k) / (sx || 1);
       ball.y = cy + ((ball.y - cy) * k) / (sy || 1);
       ball.radius *= k;
+      ball.vx *= k; // --- review fix (modes-rhythm) --- (the speeds follow the field, like Race's rescale())
+      ball.vy *= k;
       ball.radiusScale = ball.radius / (ctx.config.ballRadius || 8);
     }
     for (const flag of v.flags) {

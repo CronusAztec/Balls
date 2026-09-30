@@ -309,6 +309,19 @@ export class CinematicCamera {
     }
   }
 
+  // --- beat-drop --- a mode that owns its camera (Beat Drop) applies the screen shake itself
+  private readonly shakeInfo = { amount: 0, ageMs: 0, seed: 0 };
+  /** The screen shake running this frame – its strength, age (ms) and seed, for `shakeOffset()` – or null while there is none. */
+  shakeNow(): { amount: number; ageMs: number; seed: number } | null {
+    const amount = this.settings.screenShake;
+    if (!(amount > 0) || !(this.shakeAge < SHAKE_DECAY_MS)) return null;
+    this.shakeInfo.amount = amount;
+    this.shakeInfo.ageMs = this.shakeAge;
+    this.shakeInfo.seed = this.shakeSeed;
+    return this.shakeInfo;
+  }
+  // --- end beat-drop ---
+
   /** The camera needs the view: zoom (or a zoom still easing out), shake or the replay. */
   private ownsView() {
     const s = this.settings;

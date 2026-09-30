@@ -11,6 +11,7 @@ import { engineTimelineOf } from "./timeline";
 import type { FinderProgress, FinderRequest, FinderResult } from "./finder";
 import type { InteractionKind } from "@/lib/audio/interactionTones";
 import type { RaceArpeggioKind } from "@/lib/audio/raceTones";
+import type { BeatDropPadKind } from "./beatDropPlan"; // --- beat-drop ---
 import {
   EXTRA_ARENA_LEVEL,
   arenaParticleBudget,
@@ -100,6 +101,12 @@ export interface ArenaSoundSink {
   playRaceArpeggio(kind: RaceArpeggioKind, root?: number): void;
   /** --- boris-vortex --- a ball swallowed by the Sound Vortex. */
   playPew(frequency?: number): void;
+  /** --- boris-bullseye --- a Bullseye landing. */
+  playThud(frequency?: number, level?: number): void;
+  /** --- boris-journey --- a Journey stage transition. */
+  playSwoosh(): void;
+  /** --- beat-drop --- a Beat Drop landing's drum and pad accent (or an off-beat hat). */
+  playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent?: boolean, level?: number): void;
 }
 
 /**
@@ -111,6 +118,9 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.bumper) return sink.playBumper(ev.frequency);
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
   if (ev.pew) return sink.playPew(ev.frequency); // --- boris-vortex --- (not a wall hit)
+  if (ev.thud) return sink.playThud(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- boris-bullseye --- (a landing's thud, not a wall hit)
+  if (ev.swoosh) return sink.playSwoosh(); // --- boris-journey --- (a stage transition's whoosh, not a wall hit)
+  if (ev.bdDrum) return sink.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- beat-drop --- (a drum, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);

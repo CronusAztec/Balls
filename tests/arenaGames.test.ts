@@ -60,7 +60,7 @@ import {
 import { FLAG_RETURN_SEC, captureFlag, ctfBases, ctfOutcome, dropFlag, flagHome, flagTimedOut, insideBase, touchFlag } from "@/lib/physics/modes/ctf";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
-import { createEngineForSettings, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
+import { createEngineForSettings, fixedRunDurationSec, runNeverFinishes, seedSurvivesResize, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 
 /* ------------------------------------------------------------------ helpers */
@@ -515,6 +515,55 @@ describe("battle in the engine", () => {
       expect(Math.abs(b.x - f.cx)).toBeLessThanOrEqual(f.halfW);
       expect(Math.abs(b.y - f.cy)).toBeLessThanOrEqual(f.halfH);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ review fixes (modes-rhythm) */
+
+describe("arena games: the Cinematic switch and resizes", () => {
+  it("the finder runs a seed with the page's Cinematic switch: off plays another battle than on, and replays it exactly", () => {
+    const cfg = { ...config, width: 800, height: 600 };
+    const request = (cinematicEnabled?: boolean): FinderRequest => ({ targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 1, maxSimTimeSec: 120, physicsConfig: cfg, mode: "battle", modeSettings: { ...modeSettings, battle: {}, ...(cinematicEnabled === undefined ? {} : { cinematicEnabled }) } });
+    expect(createEngineForSettings(cfg, "battle", { ...modeSettings, cinematicEnabled: false }, 1).isCinematicEnabled()).toBe(false);
+    expect(createEngineForSettings(cfg, "battle", { ...modeSettings, cinematicEnabled: true }, 1).isCinematicEnabled()).toBe(true);
+    expect(createEngineForSettings(cfg, "battle", modeSettings, 1).isCinematicEnabled()).toBe(true); // on when left out, like the page
+    for (const seed of [1, 3]) {
+      const off = simulateSeed(seed, request(false), 120_000);
+      const on = simulateSeed(seed, request(true), 120_000);
+      expect(simulateSeed(seed, request(), 120_000)).toBe(on);
+      // The page: a fresh engine with the director switched off, stepped frame by frame.
+      const page = createEngineForSettings(cfg, "battle", { ...modeSettings, battle: {} }, seed);
+      page.setCinematicEnabled(false);
+      expect(play(page, 120).sec * 1000).toBeCloseTo(off, 6);
+      expect(off, `seed ${seed}`).not.toBe(on);
+    }
+  });
+
+  it("a resize before the start or mid-game plays the same game: speeds scale with the field (battle and capture the flag)", () => {
+    const run = (mode: "battle" | "ctf", seed: number, resize?: { atStep: number; width: number; height: number }) => {
+      const engine = createEngineForSettings({ ...config, width: 450, height: 800 }, mode, { ...modeSettings, battle: {}, ctf: {} }, seed);
+      let step = 0;
+      while (step < 180 * 60 && !engine.isSimulationFinished()) {
+        if (resize && step === resize.atStep) engine.setConfig({ width: resize.width, height: resize.height });
+        engine.update(STEP, 0);
+        engine.consumeSoundEvents();
+        step++;
+      }
+      const v = engine.getArenaView()!;
+      return { winner: v.winner, finishMs: v.finishMs, kos: v.kos.map((k) => `${k.index}@${k.timeMs}`), scores: mode === "ctf" ? engine.getCtfProgress().scores.slice() : [] };
+    };
+    for (const mode of ["battle", "ctf"] as const) {
+      for (const seed of [1, 2, 3]) {
+        const ref = run(mode, seed);
+        expect(ref.finishMs).toBeGreaterThan(0);
+        expect(run(mode, seed, { atStep: 600, width: 900, height: 1600 }), `${mode} seed ${seed} → 900×1600 at step 600`).toEqual(ref);
+        expect(run(mode, seed, { atStep: 0, width: 617, height: 1100 }), `${mode} seed ${seed} → 617×1100 before the start`).toEqual(ref);
+      }
+    }
+    expect(seedSurvivesResize("battle")).toBe(true);
+    expect(seedSurvivesResize("ctf")).toBe(true);
+    expect(seedSurvivesResize("race")).toBe(false);
+    expect(seedSurvivesResize("box")).toBe(false);
   });
 });
 
