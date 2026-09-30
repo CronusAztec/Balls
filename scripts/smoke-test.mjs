@@ -5065,7 +5065,8 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   );
   // R restarts every arena together: the clocks go back, the race is cleared.
   await page.keyboard.press("r");
-  await page.waitForTimeout(150);
+  // (the canvas mirrors the clocks on its next frame, which can take a few hundred ms on a busy machine)
+  await page.waitForFunction(() => Math.max(...(document.querySelector("main canvas")?.dataset.splitElapsed || "0").split(",").map(Number)) < 2500, null, { timeout: 5000 }).catch(() => {});
   const restarted = await canvasData();
   const rs = splitElapsedSpread(restarted);
   check("split screen: a restart starts every arena over together", rs.max < 2500 && rs.max - rs.min <= 34 && restarted.splitWinner === "" && restarted.splitMarks === "-,-,-,-", `(elapsed ${restarted.splitElapsed}, marks ${restarted.splitMarks})`);
@@ -5137,6 +5138,50 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     "split screen: Find Simulation finds a seed for every arena, stored in the link, and the race replays them",
     /Found!/.test(text) && seeds.length === 2 && engineSeeds[0] === seeds[0] && engineSeeds[1] === seeds[1] && finishes.length === 2 && finishes.every((f) => f > 0) && Math.abs(Math.max(...finishes) / 1000 - foundSec) <= 0.2,
     `(${text}, ar=${ar}, engines ${data.splitSeeds}, finishes ${finishes.join(",")})`,
+  );
+}
+{
+  // Cancelling Find Simulation – or changing the mode – while another arena is searched applies nothing of the search: the
+  // first arena's run was already found, but no "Found!", no seeds in the link and no page engine put back into the mode
+  // the search started with. (Arena B – a slow ball, no gravity – takes a long search, so there is time to act during it.)
+  const url = `${BASE}/en/simulator/?mode=classic&wc=4&gap=0.5&ac=2&ar=${encodeURIComponent("A|B~v50~g0")}`;
+  const searchSecondArena = async () => {
+    await page.goto(url, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitDrawn === "2", null, { timeout: 15000 }).catch(() => {});
+    await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    const reached = await page.waitForSelector('[data-search-arena="1"]', { state: "attached", timeout: 180000 }).then(() => true).catch(() => false);
+    // Act just after a batch of arena B's seeds was reported; the time to that report is how long a batch takes (an aborted
+    // search stops at the end of its batch).
+    const before = await page.evaluate(() => document.querySelector("[data-search-arena]")?.textContent ?? "");
+    const t0 = Date.now();
+    await page.waitForFunction((prev) => document.querySelector("[data-search-arena]")?.textContent !== prev, before, { timeout: 60000 }).catch(() => {});
+    return { reached, batchMs: Date.now() - t0 };
+  };
+  const statusText = () => page.locator("body").innerText().catch(() => "");
+  const cancelled = await searchSecondArena();
+  await page.getByRole("button", { name: /Cancel Search/ }).click();
+  const idle = await page.getByRole("button", { name: /Find 30s Simulation/ }).waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(800);
+  const cancelText = await statusText();
+  const cancelAr = new URL(page.url()).searchParams.get("ar") || "";
+  const cancelData = await canvasData();
+  check(
+    "split screen: cancelling Find Simulation while another arena is searched applies nothing (no Found!, no seeds)",
+    cancelled.reached && idle && !/Found!|Ready to start simulation for/.test(cancelText) && !/~s-?\d/.test(cancelAr) && cancelData.splitModes === "classic,classic",
+    `(reached arena B=${cancelled.reached}, idle=${idle}, found shown=${/Found!/.test(cancelText)}, ar=${cancelAr}, modes ${cancelData.splitModes})`,
+  );
+  const switched = await searchSecondArena();
+  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).waitFor({ timeout: 30000 }).catch(() => {});
+  // the aborted search ends within a batch or two (before the fix, its "found" result then put arena A back into Classic)
+  await page.waitForTimeout(Math.min(20000, 2 * switched.batchMs + 1500));
+  const switchText = await statusText();
+  const switchData = await canvasData();
+  const switchUrl = new URL(page.url()).searchParams;
+  check(
+    "split screen: changing the mode while another arena is searched leaves every arena in the new mode",
+    switched.reached && switchUrl.get("mode") === "portal" && switchData.splitModes === "portal,portal" && !/Found!|Ready to start simulation for/.test(switchText) && !/~s-?\d/.test(switchUrl.get("ar") || ""),
+    `(reached arena B=${switched.reached}, batch ${switched.batchMs} ms, mode=${switchUrl.get("mode")}, modes ${switchData.splitModes}, found shown=${/Found!/.test(switchText)}, ar=${switchUrl.get("ar")})`,
   );
 }
 {
