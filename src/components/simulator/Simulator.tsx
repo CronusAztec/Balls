@@ -90,6 +90,7 @@ import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOv
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
 import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 import {
   RANGES,
   defaultSettings,
@@ -271,6 +272,7 @@ export default function Simulator() {
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
     engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
+    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -747,6 +749,26 @@ export default function Simulator() {
     engineRef.current?.setSeed(null);
   }, [s.journeyStages, s.journeyAutoStages]);
   // --- end boris-journey ---
+  // --- boris-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
+  // drops a found seed; the Sound section's scale and root (the peg notes and the thuds) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBullseyeSettings(bullseyeSettingsOf(s));
+    if (s.mode === "bullseye" && engine.getCurrentModeName() === "bullseye") {
+      engine.initBullseye();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setBullseyeSettings(bullseyeSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.scale, s.rootNote]);
+  // --- end boris-bullseye ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1024,6 +1046,7 @@ export default function Simulator() {
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+        engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- boris-bullseye --- (the scale and root follow live; the rest waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1227,6 +1250,11 @@ export default function Simulator() {
           // --- boris-journey --- a Journey stage transition swooshes
           if (ev.swoosh) {
             audio.playSwoosh();
+            continue;
+          }
+          // --- boris-bullseye --- a Bullseye landing thuds
+          if (ev.thud) {
+            audio.playThud(ev.frequency, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -2079,6 +2107,7 @@ export default function Simulator() {
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
           journey: journeySettingsOf(settings), // --- boris-journey ---
+          bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
         },
         outcome, // --- rigged ---
       },
@@ -2278,6 +2307,16 @@ export default function Simulator() {
         homeTitle: t("Journey.canvasHomeTitle"),
         homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
         score: (points) => fill("Journey.canvasScore", { points }),
+      },
+      // --- boris-bullseye ---
+      bullseye: {
+        title: t("Bullseye.canvasTitle"),
+        shot: (n, total) => fill("Bullseye.canvasShot", { n, total }),
+        total: t("Bullseye.canvasTotal"),
+        bullseye: t("Bullseye.canvasBullseye"),
+        miss: t("Bullseye.canvasMiss"),
+        finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
+        finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
       },
     };
   }, [t]);

@@ -36,6 +36,7 @@ import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 // --- boris-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
 import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- boris-journey ---
+import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -115,6 +116,9 @@ export interface ModeSettings {
   // --- boris-journey ---
   /** Journey: the stage list or the auto count (see modes/journey.ts); the defaults when left out. Every journey reaches HOME (the stages never hold the ball for good), so the finder searches it. */
   journey?: Partial<JourneySettings>;
+  // --- boris-bullseye ---
+  /** Bullseye: shots, interval, chaos, rings, the moving target and the perfect shot (see modes/bullseye.ts); the defaults when left out. Every run ends after the last landing, and the seed moves that (the last flight, the bullseyes' slow motion), so the finder searches it. */
+  bullseye?: Partial<BullseyeSettings>;
 }
 
 // --- odd-string-battle ---
@@ -287,6 +291,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
   if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- boris-journey ---
+  if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- boris-bullseye ---
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

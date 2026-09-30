@@ -216,6 +216,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playSwoosh();
     return;
   }
+  // --- boris-bullseye --- a Bullseye landing thuds
+  if (ev.thud) {
+    audio.playThud(ev.frequency, ev.level);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

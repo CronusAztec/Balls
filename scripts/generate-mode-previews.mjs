@@ -56,6 +56,8 @@ const MODES = {
   vortex: { wait: 14200, query: "face=cute&glow=1" },
   // --- boris-journey --- a large rings stage mid-escape: the chamber bulging out of the column, the mini-map and the clock beside it
   journey: { wait: 2400, query: "js=rings-l,glass,pegs,home&face=cute&glow=1" },
+  // --- boris-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
+  bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

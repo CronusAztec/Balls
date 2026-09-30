@@ -47,6 +47,8 @@ import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } fr
 import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
 // --- boris-journey --- the Journey (a multi-stage commute home)
 import { JourneyMode, type JourneySettings, type JourneyView } from "./modes/journey";
+// --- boris-bullseye --- Bullseye (a scoring target under a peg field)
+import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/bullseye";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -265,6 +267,8 @@ export class PhysicsEngine {
   readonly vortexMode = new VortexMode();
   // --- boris-journey ---
   readonly journeyMode = new JourneyMode();
+  // --- boris-bullseye ---
+  readonly bullseyeMode = new BullseyeMode();
 
   readonly ctx: ModeContext;
 
@@ -550,6 +554,10 @@ export class PhysicsEngine {
   initJourney() {
     this.activateMode(this.journeyMode, "none");
   }
+  // --- boris-bullseye --- the mode builds its playfield out of obstacles (no rings)
+  initBullseye() {
+    this.activateMode(this.bullseyeMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -623,6 +631,9 @@ export class PhysicsEngine {
       // --- boris-journey ---
       case "journey":
         return this.initJourney();
+      // --- boris-bullseye ---
+      case "bullseye":
+        return this.initBullseye();
     }
   }
 
@@ -1387,6 +1398,25 @@ export class PhysicsEngine {
     }
   }
   // --- end boris-journey ---
+  // --- boris-bullseye ---
+  isBullseyeMode() {
+    return this.currentMode === this.bullseyeMode;
+  }
+  getBullseyeSettings(): BullseyeSettings {
+    return this.bullseyeMode.getSettings();
+  }
+  /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next `initBullseye()`; the scale and root at once. */
+  setBullseyeSettings(settings: Partial<BullseyeSettings>) {
+    this.bullseyeMode.setSettings(settings);
+  }
+  /** Live Bullseye state (field, target, shots, scores, slow motion) for the canvas and the HUD; the same object every call. */
+  getBullseyeView(): BullseyeView {
+    return this.bullseyeMode.getView();
+  }
+  getBullseyeProgress() {
+    return this.bullseyeMode.getProgress();
+  }
+  // --- end boris-bullseye ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

@@ -38,6 +38,11 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ct
 }
 // --- boris-journey --- the Journey opens its own family (a run through several stages to HOME), after the others
 MODE_CARD_ORDER.push("journey");
+// --- boris-bullseye --- Bullseye joins the Boris family of the rhythm cards, right before the Sound Vortex (then Glass Smash)
+{
+  const at = MODE_CARD_ORDER.indexOf("vortex");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "bullseye");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -90,6 +95,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   vortex: "rhythm",
   // --- boris-journey --- a multi-stage commute home: its own family
   journey: "journey",
+  // --- boris-bullseye --- every peg a ball bounces off is a note and every landing a thud: the sound-first family
+  bullseye: "rhythm",
 };
 
 /** The modes of a category in card order. */

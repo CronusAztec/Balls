@@ -8,6 +8,7 @@ import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringB
 import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
 import { scheduleSwooshTone } from "./swooshTone"; // --- boris-journey ---
+import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- boris-bullseye ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -710,6 +711,35 @@ export class ToneGenerator {
     }
   }
   // --- end boris-journey ---
+  // --- boris-bullseye ---
+  /**
+   * A Bullseye landing: the thud (thudTone.ts) at `frequency` – the ring's pitch –, `level` loud (0–1), snapped to the
+   * scale, on the beat grid when the beat lock is on (it never takes a bounce's slot), ducking the music bed; in sample
+   * mode the hit sample plays instead, two octaves above the thud's pitch.
+   */
+  playThud(frequency = DEFAULT_THUD_FREQUENCY, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleThud(frequency, level));
+      return;
+    }
+    this.scheduleThud(frequency, level);
+  }
+
+  private scheduleThud(frequency: number, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      // The sample plays two octaves above the thud (a bass pitch would stretch the clip six times over).
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, 4 * this.snap(frequency)), time, thudLevel(level));
+      else scheduleThudTone(this.audioContext, this.masterGain, frequency, time, (f) => this.snap(f), level);
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the thud:", err);
+    }
+  }
+  // --- end boris-bullseye ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

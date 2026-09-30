@@ -122,6 +122,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- boris-journey --- Journey: its own column of stages; recorded when the mode was added (seed 12345, the default route – 10 s in, the ball is
   // still in the first stage's rings, which are the engine's own walls there, five of them broken).
   journey: { samples: [[385083,309284],[424939,272610],[363033,334004],[220976,314591]], broken: [0, 1, 2, 3, 4], walls: [39168,70502,101837,133171,164506,195840] },
+  // --- boris-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
+  bullseye: { samples: [[261123,524036],[387945,104306],[261123,524036],[457992,524036],[261123,524036],[457992,524036],[261123,524036],[457992,524036]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

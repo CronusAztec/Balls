@@ -53,6 +53,8 @@ import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, r
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
 // --- boris-journey --- the Journey mode
 import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourneyFields, writeJourneyParams } from "@/lib/physics/modes/journey";
+// --- boris-bullseye --- the Bullseye mode
+import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBullseyeFields, writeBullseyeParams } from "@/lib/physics/modes/bullseye";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -601,6 +603,20 @@ export interface SimulatorSettings {
   /** 0: play the list; 1–12: a seeded random journey of that many stages before HOME (URL `jsa`). */
   journeyAutoStages: number;
   // --- end boris-journey ---
+  // --- boris-bullseye --- Bullseye (lib/physics/modes/bullseye.ts): shots through a peg field onto a scoring target
+  /** Balls launched at the target, 1–30 (URL `bys`). */
+  byShots: number;
+  /** Seconds between two launches, 0.3–4 (URL `byi`). */
+  byInterval: number;
+  /** 0–1: how many pegs and bumpers stand in the way (URL `byc`). */
+  byChaos: number;
+  /** Scoring rings of the target, 3–10 (URL `byr`). */
+  byRings: number;
+  /** The target slides left and right (URL `bym`). */
+  byTargetMoving: boolean;
+  /** Rigging: the shot (1-based) the director steers into the bull; 0 = off (URL `byp`). */
+  byPerfect: number;
+  // --- end boris-bullseye ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -713,6 +729,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- boris-vortex ---
     ...defaultJourneyFields(), // --- boris-journey ---
+    ...defaultBullseyeFields(), // --- boris-bullseye ---
   };
 }
 
@@ -779,6 +796,7 @@ export const RANGES = {
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- boris-vortex ---
   ...JOURNEY_RANGES, // --- boris-journey ---
+  ...BULLSEYE_RANGES, // --- boris-bullseye ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1015,6 +1033,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
   writeJourneyParams(settings, base, params); // --- boris-journey ---: js, jsa
+  writeBullseyeParams(settings, base, params); // --- boris-bullseye ---: bys, byi, byc, byr, bym, byp
   return params;
 }
 
@@ -1132,6 +1151,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
   readJourneyParams(params, settings); // --- boris-journey --- (the stage list normalised, the auto count clamped)
+  readBullseyeParams(params, settings); // --- boris-bullseye --- (clamped onto the sliders; bad values fall back)
   return settings;
 }
 
@@ -1326,6 +1346,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveJourneyFields(merged)); // --- boris-journey --- a normalised stage list, a clamped auto count
+  Object.assign(merged, resolveBullseyeFields(merged)); // --- boris-bullseye --- clamped numbers on their steps, a real boolean
   return merged;
 }
 

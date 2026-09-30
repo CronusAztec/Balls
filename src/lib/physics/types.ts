@@ -54,6 +54,8 @@ export const MODE_IDS = [
   "vortex",
   // --- boris-journey --- Journey: a multi-stage commute home
   "journey",
+  // --- boris-bullseye --- Bullseye (a scoring target at the bottom of a peg field)
+  "bullseye",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -240,6 +242,9 @@ export interface SoundEvent {
   // --- boris-journey ---
   /** A Journey stage transition: the page plays the swoosh (`ToneGenerator.playSwoosh()`) – a filtered noise whoosh, not a note. */
   swoosh?: boolean;
+  // --- boris-bullseye ---
+  /** A Bullseye landing: the page plays the thud (`ToneGenerator.playThud()`) at `frequency`, `level` loud. */
+  thud?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

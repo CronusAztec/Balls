@@ -62,3 +62,6 @@ export type { VortexSettings, VortexField, VortexView, SpiralState } from "./vor
 // --- boris-journey ---
 export { JourneyMode } from "./journey";
 export type { JourneySettings, JourneyView, JourneyFields } from "./journey";
+// --- boris-bullseye ---
+export { BullseyeMode } from "./bullseye";
+export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye";

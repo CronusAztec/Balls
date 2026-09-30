@@ -62,6 +62,7 @@ import ArenasSection, { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { defaultSplitScreenFields } from "@/lib/splitScreen";
 import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- boris-vortex --- the Vortex block of the Mode row
 import JourneySection, { JOURNEY_KEYS } from "./sections/JourneySection"; // --- boris-journey --- the Journey block of the Mode row
+import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // --- boris-bullseye --- the Bullseye block of the Mode row
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -195,6 +196,8 @@ SECTION_KEYS.ball.push(...VORTEX_KEYS);
 SECTION_KEYS.recording.push(...BOT_KEYS);
 // --- boris-journey --- the Journey block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...JOURNEY_KEYS);
+// --- boris-bullseye --- the Bullseye block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -276,6 +279,8 @@ export default function Controls(props: ControlsProps) {
     vortex: t("modeVortex"),
     // --- boris-journey ---
     journey: t("modeJourney"),
+    // --- boris-bullseye ---
+    bullseye: t("modeBullseye"),
   };
 
   const sections: { id: ControlSection; icon: string; label: string }[] = [
@@ -359,6 +364,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "vortex" && !!search && <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- boris-journey --- */}
       {s.mode === "journey" && !!search && <JourneySection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- boris-bullseye --- */}
+      {s.mode === "bullseye" && !!search && <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
@@ -438,10 +445,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- boris-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- boris-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- boris-bullseye --- (bullseye)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- boris-bullseye --- (bullseye)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- boris-vortex --- (the sound rings)
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex" || s.mode === "bullseye"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- boris-vortex --- (the sound rings) --- boris-bullseye --- (the walls, the landing line, the target's rim)
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1225,6 +1232,9 @@ export default function Controls(props: ControlsProps) {
       // --- boris-journey ---
       case "journey":
         return <JourneySection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- boris-bullseye ---
+      case "bullseye":
+        return <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:
