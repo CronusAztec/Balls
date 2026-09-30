@@ -23,6 +23,7 @@ import {
   type BatchDefinition,
   type BatchListParse,
   type BatchVariant,
+  type BatchJobPlan, // --- viral-bot ---
 } from "@/lib/recording/batch";
 import { zipBlobs } from "@/lib/recording/zip";
 import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
@@ -140,6 +141,28 @@ export interface UseBatchRenderOptions {
   disabled: boolean;
 }
 
+// --- viral-bot --- a job handed in whole by another feature (the Bot section): its own settings, seed and file name
+/** A clip of `runJobs()`: rendered with these settings and this seed, named `name`, after `prepare()` (e.g. loading its melody). */
+export interface CustomBatchJob {
+  seed: number;
+  settings: SimulatorSettings;
+  name: string;
+  /** Called once the job's settings are on the page, before its export (awaited; the page settles again afterwards). */
+  prepare?: () => Promise<void>;
+  /** Download the clip on its own as soon as it is done (the Batch block's switch does not apply). */
+  download?: boolean;
+}
+
+/** A clip `runJobs()` rendered: its 1-based place in the jobs handed in, its file name and the file. */
+export interface CustomBatchFile {
+  index: number;
+  name: string;
+  extension: string;
+  blob: Blob;
+  durationSec: number;
+}
+// --- end viral-bot ---
+
 /** After new settings: time for the page's asynchronous set-up (a hit sample or wall-break clip decoding) before the export copies it. */
 const SETTLE_MS = 250;
 
@@ -153,7 +176,7 @@ function initialJob(job: { id: number; seed: number; link: string | null; varian
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPanelProps; running: boolean } {
+export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPanelProps; running: boolean; runJobs: (jobs: CustomBatchJob[]) => Promise<CustomBatchFile[]> /* --- viral-bot --- */ } {
   // The page's latest callbacks and state: a job waits for a commit, then calls what that render created.
   const latest = useRef(options);
   latest.current = options;
@@ -202,7 +225,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
   const runningRef = useRef(false);
   const stopRef = useRef(false);
   const mounted = useRef(true);
-  const files = useRef(new Map<number, { name: string; extension: string; blob: Blob }>());
+  const files = useRef(new Map<number, { name: string; extension: string; blob: Blob; durationSec?: number /* --- viral-bot --- */ }>());
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -215,12 +238,13 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
     setRun((r) => ({ ...r, jobs: r.jobs.map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (custom?: CustomBatchJob[]): Promise<CustomBatchFile[]> => {
     const o = latest.current;
-    if (runningRef.current || o.disabled) return;
+    if (runningRef.current || o.disabled) return [];
     const def = definitionRef.current;
-    const { jobs } = planBatch(def, parseBatchList(def.list));
-    if (jobs.length === 0) return;
+    // --- viral-bot --- jobs handed in whole render as they are (their settings, seed and name), in order
+    const { jobs } = custom ? { jobs: custom.map((c, i): BatchJobPlan => ({ id: i + 1, seed: c.seed, link: null, variant: { kind: "none" } })) } : planBatch(def, parseBatchList(def.list));
+    if (jobs.length === 0) return [];
     runningRef.current = true;
     stopRef.current = false;
     files.current.clear();
@@ -247,6 +271,8 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
         patchJob(job.id, { status: "preparing" });
         // 1. The job's settings: the page's (as the batch started) or its link's, with a swept value; then its mode.
         let target = snapshot;
+        const customJob = custom?.[job.id - 1]; // --- viral-bot ---
+        if (customJob) target = customJob.settings;
         if (job.link) {
           const r = await resolveLinkSettings(job.link);
           if (!r.ok) {
@@ -270,6 +296,12 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
             latest.current.update({ recordingDuration: target.recordingDuration });
             await settle();
           }
+        }
+        // --- viral-bot --- the job's own set-up (its melody), once its settings are on the page
+        if (customJob?.prepare) {
+          await customJob.prepare();
+          changed = true;
+          await settle();
         }
         if (!mounted.current) break;
         const s = latest.current.settings;
@@ -306,9 +338,9 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
         else {
           const { result } = outcome;
           const extension = result.format.extension;
-          const base = uniqueFileBase(batchFileBase({ mode, seed: job.seed, durationSec: result.durationSec, variant: job.variant }), extension, used);
-          files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob });
-          if (definitionRef.current.downloadEach) downloadExport(result.blob, extension, base);
+          const base = uniqueFileBase(customJob ? customJob.name : batchFileBase({ mode, seed: job.seed, durationSec: result.durationSec, variant: job.variant }), extension, used); // --- viral-bot --- (its own name)
+          files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob, durationSec: result.durationSec });
+          if (customJob ? customJob.download : definitionRef.current.downloadEach) downloadExport(result.blob, extension, base);
           patchJob(job.id, { status: "done", wallMs, durationSec: result.durationSec, bytes: result.blob.size, fileName: `${base}.${extension}` });
         }
       }
@@ -327,9 +359,12 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
       const stopped = stopRef.current || abort;
       if (mounted.current) setRun((r) => ({ ...r, status: stopped ? "stopped" : "finished", finishedAt: Date.now() }));
     }
+    // --- viral-bot --- the files of the batch, in job order
+    return [...files.current.entries()].sort((a, b) => a[0] - b[0]).map(([id, f]) => ({ index: id, name: f.name, extension: f.extension, blob: f.blob, durationSec: f.durationSec ?? 0 }));
   }, [patchJob, settle, nextCommit]);
 
   const onStart = useCallback(() => void start(), [start]);
+  const runJobs = useCallback((jobs: CustomBatchJob[]) => start(jobs), [start]); // --- viral-bot ---
   const onStop = useCallback(() => {
     if (!runningRef.current) return;
     stopRef.current = true;
@@ -386,5 +421,5 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
     onDownloadAll: () => void onDownloadAll(),
     onClear,
   };
-  return { panel, running: busy };
+  return { panel, running: busy, runJobs /* --- viral-bot --- */ };
 }
