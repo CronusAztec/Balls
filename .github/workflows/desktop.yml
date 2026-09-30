@@ -1,0 +1,168 @@
+name: Windows app
+
+# --- desktop-exe --- Builds the Windows desktop app (desktop/, Electron) on a Windows runner:
+#   1. the site's static export for the app (empty base path, share links on the public site),
+#   2. the app's install, type check and unit tests,
+#   3. the installer and the portable EXE (electron-builder, x64) – code-signed when the WIN_CSC_LINK /
+#      WIN_CSC_KEY_PASSWORD secrets exist, unsigned otherwise (SmartScreen: "More info" → "Run anyway"),
+#   4. a smoke run of the packaged app (`--smoke`: loads the simulator, checks the bridge, reports the GPU, exits 0),
+#   5. the EXEs as workflow artifacts and – on a `desktop-v*` tag, or a manual run with a version and "publish" ticked –
+#      a GitHub Release with the versioned EXEs, their blockmaps, electron-updater's latest.yml and copies under fixed
+#      names (JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe) that the site's download page links through
+#      …/releases/latest/download/.
+on:
+  push:
+    tags: ["desktop-v*"]
+  pull_request:
+    paths: ["desktop/**", "src/lib/desktop/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "App version (e.g. 1.2.0); empty: desktop/package.json's"
+        required: false
+        default: ""
+      publish:
+        description: "Publish a GitHub Release (tag desktop-v<version>)"
+        type: boolean
+        default: false
+      cuda:
+        description: "Pack the llama.cpp CUDA build too (NVIDIA; ~180 MB more)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then v="${GITHUB_REF#refs/tags/desktop-v}";
+          elif [[ -n "${{ inputs.version }}" ]]; then v="${{ inputs.version }}";
+          else v="$(node -p "require('./desktop/package.json').version")"; fi
+          if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then echo "::error::'$v' is not a semantic version"; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          cd desktop && npm version "$v" --no-git-tag-version --allow-same-version
+
+      - name: Install the site's dependencies
+        run: npm ci
+
+      - name: Build the site for the app (empty base path)
+        run: node desktop/scripts/build-site.mjs
+        env:
+          DESKTOP_SITE_URL: https://cronusaztec.github.io/Balls
+          NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+
+      - name: Install the app's dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Type-check and test the app
+        working-directory: desktop
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Code-signing certificate (optional)
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if [[ -n "$WIN_CSC_LINK" ]]; then
+            echo "WIN_CSC_LINK=$WIN_CSC_LINK" >> "$GITHUB_ENV"
+            echo "WIN_CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "Signing with the WIN_CSC_LINK certificate."
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+            echo "::notice::No WIN_CSC_LINK secret: the EXEs are unsigned (SmartScreen will warn)."
+          fi
+
+      - name: Package the installer and the portable EXE
+        working-directory: desktop
+        env:
+          JBL_CUDA: ${{ inputs.cuda && '1' || '0' }}
+        run: npm run dist
+
+      - name: Smoke-run the packaged app
+        working-directory: desktop
+        env:
+          JBL_SMOKE_DATA: ${{ runner.temp }}\jbl-smoke-data
+          JBL_SMOKE_TIMEOUT_MS: "120000"
+        run: |
+          ./release/win-unpacked/JumpingBallsLive.exe --smoke 2>&1 | tee smoke.log
+          grep -q "SMOKE OK" smoke.log
+
+      - name: Fixed-name copies for the site's download links
+        working-directory: desktop/release
+        run: |
+          v="${{ steps.version.outputs.version }}"
+          cp "JumpingBallsLive-Setup-$v.exe" JumpingBallsLive-Setup.exe
+          cp "JumpingBallsLive-$v-portable.exe" JumpingBallsLive-portable.exe
+          ls -la
+          sha256sum *.exe > SHA256SUMS.txt
+
+      - name: Upload the EXEs
+        uses: actions/upload-artifact@v4
+        with:
+          name: JumpingBallsLive-windows-${{ steps.version.outputs.version }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+            desktop/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/desktop-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the EXEs
+        uses: actions/download-artifact@v4
+        with:
+          name: JumpingBallsLive-windows-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          tag="desktop-v$VERSION"
+          notes="JumpingBallsLive for Windows $VERSION.
+
+          - **Installer** (per user, no admin): JumpingBallsLive-Setup-$VERSION.exe – updates itself from this page.
+          - **Portable**: JumpingBallsLive-$VERSION-portable.exe – runs without installing.
+
+          Unsigned builds: Windows SmartScreen shows \"Windows protected your PC\" – click *More info* → *Run anyway*. Checksums: SHA256SUMS.txt."
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --title "JumpingBallsLive for Windows $VERSION" --notes "$notes" --target "$GITHUB_SHA"
+          fi

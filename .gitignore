@@ -30,3 +30,9 @@ yarn-error.log*
 
 # --- viral-bot --- the bot CLI's default output folder
 /bot-output/
+
+# --- desktop-exe --- the Windows app's install, build output and packaged EXEs (never commit binaries or models)
+/desktop/node_modules/
+/desktop/dist/
+/desktop/release/
+*.gguf

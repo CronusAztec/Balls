@@ -33,6 +33,7 @@ import {
   type ExportFormat,
   type FastExportPhase,
 } from "./fastRenderPlan";
+import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVideoConfig } from "@/lib/desktop/gpuEncode"; // --- desktop-exe ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -237,8 +238,9 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
 
 /** Asks the browser's encoders (the probe `selectExportFormat()` uses). */
 async function browserSupportsVideo(codec: string, width: number, height: number, fps: number): Promise<boolean> {
-  const support = await VideoEncoder.isConfigSupported({ codec, width, height, framerate: fps, bitrate: videoBitrate(width, height, fps) });
-  return support.supported === true;
+  // --- desktop-exe --- in the desktop app the GPU encoder is asked first ("prefer-hardware"), the plain config is the fallback
+  const config = await resolveVideoConfig({ codec, width, height, framerate: fps, bitrate: videoBitrate(width, height, fps) }, (c) => VideoEncoder.isConfigSupported(c));
+  return config !== null;
 }
 async function browserSupportsAudio(codec: string): Promise<boolean> {
   const support = await AudioEncoder.isConfigSupported({ codec, sampleRate: EXPORT_SAMPLE_RATE, numberOfChannels: EXPORT_CHANNELS, bitrate: AUDIO_BITRATE });
@@ -248,7 +250,9 @@ async function browserSupportsAudio(codec: string): Promise<boolean> {
 /** The format the browser can write for this export size, or null. */
 export function pickExportFormat(width: number, height: number, fps: number): Promise<ExportFormat | null> {
   if (!fastRenderSupported()) return Promise.resolve(null);
-  return selectExportFormat(width, height, fps, { video: (codec) => browserSupportsVideo(codec, width, height, fps), audio: browserSupportsAudio });
+  const probe = { video: (codec: string) => browserSupportsVideo(codec, width, height, fps), audio: browserSupportsAudio };
+  // --- desktop-exe --- the desktop render queue's HEVC / AV1 MP4 first when it asks for one (else the usual formats)
+  return pickDesktopFormat(width, height, fps, probe).then((desktop) => desktop ?? selectExportFormat(width, height, fps, probe));
 }
 
 /** Lets the page breathe (progress bar, Cancel) without the clamping and background throttling of timers. */
@@ -295,7 +299,7 @@ async function createMuxer(format: ExportFormat, width: number, height: number, 
   if (format.container === "mp4") {
     const { Muxer, ArrayBufferTarget } = await import("mp4-muxer");
     const target = new ArrayBufferTarget();
-    const muxer = new Muxer({ target, video: { codec: "avc", width, height, frameRate: fps }, audio: { codec: format.audioTrackCodec === "aac" ? "aac" : "opus", ...audio }, fastStart: "in-memory" });
+    const muxer = new Muxer({ target, video: { codec: format.videoTrackCodec === "hevc" || format.videoTrackCodec === "av1" ? format.videoTrackCodec : "avc" /* --- desktop-exe --- */, width, height, frameRate: fps }, audio: { codec: format.audioTrackCodec === "aac" ? "aac" : "opus", ...audio }, fastStart: "in-memory" });
     return {
       addVideoChunk: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
       addAudioChunk: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
@@ -406,14 +410,19 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const muxer = await createMuxer(format, width, height, fps);
     let failure: unknown = null;
     videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => (failure = e) });
+    // --- desktop-exe --- the config the probe settled on: with the GPU hint in the desktop app when the GPU takes it
+    const videoConfig: VideoEncoderConfig = { codec: format.videoCodec, width, height, bitrate: videoBitrate(width, height, fps), framerate: fps };
+    const accelerated = hardwarePreferred() ? ((await resolveVideoConfig(videoConfig, (c) => VideoEncoder.isConfigSupported(c))) ?? videoConfig) : videoConfig;
+    noteVideoAcceleration(format.videoCodec, accelerated);
     videoEncoder.configure({
+      ...accelerated, // --- desktop-exe ---
       codec: format.videoCodec,
       width,
       height,
       bitrate: videoBitrate(width, height, fps),
       framerate: fps,
       latencyMode: "quality",
-      ...(format.container === "mp4" ? { avc: { format: "avc" as const } } : {}),
+      ...(format.videoTrackCodec === "avc" ? { avc: { format: "avc" as const } } : {}), // --- desktop-exe --- (was: format.container === "mp4"; an HEVC / AV1 MP4 keeps the encoder's defaults)
     });
 
     // The export frame (letterbox background, the square of the world, Top / Bottom Text) and the digest's thumbnail.
