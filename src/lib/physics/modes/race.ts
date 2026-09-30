@@ -34,8 +34,9 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
  *
  * Rigging (`winner`, the director's favourite): the favoured racer never arms a swap zone (so it is never pulled back),
  * a zone it has not reached yet waits for it (only it can trigger the swap), the final swap zone of the last lap hands
- * it the place of the first racer to reach it (the leader), turbo pads boost it harder and the final turbo strip of the
- * last lap drags everybody else – all deterministic, so a rigged seed replays the same staged win.
+ * it the place of the first racer to reach it (the leader) – a swap with the favourite leaves it the faster of the two
+ * speeds –, turbo pads boost it harder and the final turbo strip of the last lap drags everybody else – all deterministic,
+ * so a rigged seed replays the same staged win.
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -254,6 +255,8 @@ export const CALLOUT_GAP_MS = 700;
 export const CALLOUT_MS = 1500;
 /** Contacts at least this fast (field sizes per second) are hits: a note, a flash. */
 export const HIT_SPEED = 0.08;
+/** Gap left between a racer and an obstacle after a push-out (field sizes: 0.01 px on a 400 px field), so the push-out scales with the field. */
+export const RACE_SEPARATION_REL = 2.5e-5;
 /** A racer plays at most one note per this many ms; a step queues at most this many notes (events always pass). */
 export const SOUND_COOLDOWN_MS = 110;
 export const MAX_RACE_SOUNDS_PER_STEP = 3;
@@ -692,10 +695,11 @@ export class RaceMode implements GameMode {
     const reach = r + 2;
     const rows = track.rows;
     const bounciness = ctx.getPhysicsExtras().wallBounciness;
+    const separation = RACE_SEPARATION_REL * track.field.size; // --- review fix (modes-rhythm) --- (scale-free, not a fixed 0.01 px)
     for (let k = firstRowFrom(rows, ball.y - reach); k < rows.length && rows[k].top <= ball.y + reach; k++) {
       const row = rows[k];
       for (const o of row.obstacles) {
-        const impact = resolveBallObstacle(ball, o.shape, dtSec, bounciness);
+        const impact = resolveBallObstacle(ball, o.shape, dtSec, bounciness, separation);
         if (impact < 0) continue;
         if (o.role === "bumper" && impact > 0) this.kick(ball, o.shape.x, o.shape.y);
         if (impact < this.hitSpeed) continue;
@@ -823,7 +827,11 @@ export class RaceMode implements GameMode {
     return this.swap(ctx, i, zone.first, zone);
   }
 
-  /** Swaps the positions (and velocities) of racers a and b; false when there was nothing to swap. */
+  /**
+   * Swaps the positions (and velocities) of racers a and b; false when there was nothing to swap. In a staged race a swap
+   * with the favourite leaves it the faster of the two downward speeds (a turbo-boosted favourite arriving from behind would
+   * otherwise hand its speed to the rival it just passed, and lose).
+   */
   private swap(ctx: ModeContext, a: number, b: number, zone: RaceSwapZone): boolean {
     const v = this.view;
     const A = this.racerBall[a];
@@ -843,6 +851,20 @@ export class RaceMode implements GameMode {
     x = A.vy;
     A.vy = B.vy;
     B.vy = x;
+    // --- review fix (modes-rhythm) --- the favourite keeps the faster of the two speeds
+    const fav = v.favoured;
+    if (fav >= 0 && (a === fav || b === fav)) {
+      const F = a === fav ? A : B;
+      const R = a === fav ? B : A;
+      if (R.vy > F.vy) {
+        x = R.vx;
+        R.vx = F.vx;
+        F.vx = x;
+        x = R.vy;
+        R.vy = F.vy;
+        F.vy = x;
+      }
+    }
     A.trail.length = 0;
     A.trailIndex = 0;
     B.trail.length = 0;
@@ -1107,8 +1129,9 @@ export class RaceMode implements GameMode {
 
   /**
    * A canvas resize before the first step lays the track out afresh for the new size from the same random numbers
-   * (exactly what an init at that size gives, so the race is the one Find Simulation measured); later it rescales the
-   * whole track, the racers and the camera onto the new field.
+   * (exactly what an init at that size gives); later it rescales the whole track, the racers and the camera onto the new
+   * field. The layout and the physics scale with the field, but float rounding can still play a race out differently at
+   * another canvas size, so the page drops a found seed when the canvas is resized (Canvas `onSizeChange`).
    */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     const track = this.view.track;

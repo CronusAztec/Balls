@@ -238,6 +238,11 @@ export interface CanvasProps {
   obstacleEditing?: boolean;
   /** A drag (on release) or a delete on the canvas changed the obstacle list. */
   onObstaclesChange?: (obstacles: EditorObstacle[]) => void;
+  /**
+   * --- review fix (modes-rhythm) --- The canvas' size changed after its first measurement (the engine already has the new
+   * size): a seed found at the old size may play out differently now, so the page drops it. Never called offline.
+   */
+  onSizeChange?: (width: number, height: number) => void;
   /** --- captions --- Animated captions drawn in the exported square on the simulation clock (null = none); see captionsRenderer.ts. */
   captions?: CanvasCaptionOptions | null;
   /** --- jdm-illusions --- Wobbly Walls, 0–1: circular walls deform with a travelling wave where a ball hits them (0 = perfect circles). */
@@ -383,6 +388,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     camera = DEFAULT_CAMERA_SETTINGS, // --- camera ---
     obstacleEditing = false, // --- obstacle-editor ---
     onObstaclesChange,
+    onSizeChange, // --- review fix (modes-rhythm) ---
     captions = null, // --- captions ---
     wallWobble = 0, // --- jdm-illusions ---
     offline = null, // --- fast-render ---
@@ -435,6 +441,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   obstacleEditingRef.current = obstacleEditing;
   const onObstaclesChangeRef = useRef(onObstaclesChange);
   onObstaclesChangeRef.current = onObstaclesChange;
+  // --- review fix (modes-rhythm) --- the size the engine got last (null before the first measurement, which sets the initial size)
+  const onSizeChangeRef = useRef(onSizeChange);
+  onSizeChangeRef.current = onSizeChange;
+  const measuredSizeRef = useRef<{ width: number; height: number } | null>(null);
   // --- end obstacle-editor ---
   // --- captions --- the caption options, read by the draw loop
   const captionsRef = useRef<CanvasCaptionOptions | null>(captions);
@@ -666,6 +676,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       canvas.height = rect.height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (!offline) engine.setConfig({ width: rect.width, height: rect.height }); // --- fast-render --- (the export's engine already has the page's size)
+      // --- review fix (modes-rhythm) --- a real size change after the first measurement invalidates a found seed
+      if (!offline) {
+        const last = measuredSizeRef.current;
+        measuredSizeRef.current = { width: rect.width, height: rect.height };
+        if (last && (last.width !== rect.width || last.height !== rect.height)) onSizeChangeRef.current?.(rect.width, rect.height);
+      }
     };
     resize();
     if (!offline) window.addEventListener("resize", resize); // --- fast-render ---

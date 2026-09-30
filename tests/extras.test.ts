@@ -107,8 +107,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
   // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
   powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
-  // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library); recorded when the mode was added.
-  race: { samples: [[366652,232223],[410818,232223],[516984,1191014],[544677,780631],[458837,2078020],[360939,1556027],[612916,2583260],[551558,2261944]], broken: [], walls: [] },
+  // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library);
+  // re-recorded when the obstacle push-out gap became a fraction of the field (RACE_SEPARATION_REL; review fix modes-rhythm).
+  race: { samples: [[366652,232223],[410818,232223],[517030,1190987],[544823,780700],[382814,2031574],[351419,1570399],[557840,2621068],[506624,2436924]], broken: [], walls: [] },
   // --- jdm-arena-games --- Battle Royale and Capture the Flag: no rings; recorded when the modes were added (seed 12345, defaults: 8 squares in a box / 2 – 2).
   // Re-recorded when the battle's fixed margins became reference pixels scaled with the field (a seed plays the same on any canvas).
   battle: { samples: [[374459,349977],[329182,250770],[338535,110954],[267052,343771],[595188,183924],[337396,292032],[459252,122349],[517487,427594]], broken: [], walls: [] },
