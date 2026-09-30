@@ -4,6 +4,7 @@ import { SITE_DOMAIN } from "@/lib/site";
 
 export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
   const t = useTranslations("Footer");
+  const gallery = useTranslations("Gallery"); // --- daily-gallery ---
   const links: { href: string; label: string }[] = [
     { href: "/about", label: t("about") },
     { href: "/tiktok-ball-videos", label: t("tiktok") },
@@ -11,6 +12,7 @@ export default function Footer({ showShortcuts = false }: { showShortcuts?: bool
     { href: "/terms", label: t("terms") },
     { href: "/disclaimer", label: t("disclaimer") },
     { href: "/feedback", label: t("feedback") },
+    { href: "/gallery", label: gallery("navLabel") }, // --- daily-gallery ---
   ];
   return (
     <footer className="mt-16 border-t border-zinc-800 py-6">

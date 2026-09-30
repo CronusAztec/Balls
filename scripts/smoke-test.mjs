@@ -136,7 +136,7 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
 
 // 1. Static pages in every locale
 for (const locale of ["en", "pl", "es"]) {
-  for (const p of ["", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer"]) {
+  for (const p of ["", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */]) {
     const res = await page.goto(`${BASE}/${locale}${p}/`, { waitUntil: "networkidle" });
     const h1 = await page.locator("h1").first().innerText().catch(() => "");
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
@@ -5590,6 +5590,126 @@ const vxFrameRates = async (ms) => {
   await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
 }
 // --- end viral-bot ---
+
+// --- daily-gallery --- the preset gallery (cards, preview images, Try it) and the daily challenge (the landing card, daily=
+// links, the Play today's seed button, the end-of-run panel that copies the challenge link, the streak)
+{
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin });
+  const basePath = new URL(BASE).pathname.replace(/\/+$/, "");
+  const search = () => new URLSearchParams(new URL(page.url()).search);
+  const pinnedRun = (mode, seed, daily) =>
+    page
+      .waitForFunction(
+        ([m, sd, d]) => {
+          const p = new URLSearchParams(location.search);
+          return p.get("mode") === m && document.querySelector("main canvas")?.getAttribute("data-seed") === sd && (d === null || p.get("daily") === d);
+        },
+        [mode, seed, daily],
+        { timeout: 15000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+
+  // 1. The gallery: a dozen or more cards, every preview image served under the base path, linked from the navbar, the
+  //    footer and the sitemap.
+  await page.goto(`${BASE}/en/gallery/`, { waitUntil: "networkidle" });
+  const cards = await page.$$eval("[data-gallery-card]", (els) => els.map((el) => ({ id: el.getAttribute("data-gallery-card"), mode: el.getAttribute("data-gallery-mode"), query: el.getAttribute("data-gallery-query"), img: el.querySelector("img")?.getAttribute("src") ?? "" })));
+  const served = [];
+  for (const card of cards) {
+    const res = await page.request.get(new URL(card.img, page.url()).href);
+    served.push({ id: card.id, ok: res.ok() && /image\/webp/.test(res.headers()["content-type"] ?? "") && card.img.startsWith(`${basePath}/gallery/`) });
+  }
+  const firstImg = page.locator("[data-gallery-card] img").first();
+  await firstImg.scrollIntoViewIfNeeded().catch(() => {});
+  const firstLoaded = await firstImg.evaluate((img) => (img.complete && img.naturalWidth > 0) || new Promise((r) => { img.onload = () => r(img.naturalWidth > 0); img.onerror = () => r(false); setTimeout(() => r(img.naturalWidth > 0), 5000); })).catch(() => false);
+  check("gallery: at least 12 preset cards, every preview image served (WebP, under the base path) and shown", cards.length >= 12 && served.every((x) => x.ok) && firstLoaded, `(${cards.length} cards, missing: ${served.filter((x) => !x.ok).map((x) => x.id).join(", ") || "none"})`);
+  const navLink = await page.locator("header").getByRole("link", { name: "Gallery", exact: true }).first().isVisible().catch(() => false);
+  const footerLink = await page.locator("footer").getByRole("link", { name: "Gallery", exact: true }).count();
+  const sitemapXml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
+  check("gallery: linked from the navbar and the footer, and in the sitemap in every language", navLink && footerLink > 0 && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/gallery/`)), `(nav ${navLink}, footer ${footerLink})`);
+  await page.screenshot({ path: path.join(outDir, "gallery.png") });
+
+  // 2. Try it: the simulator opens with the preset's settings and its pinned seed, and the run plays.
+  const firstCard = cards[0];
+  const preset = new URLSearchParams(firstCard?.query ?? "");
+  await page.locator(`[data-gallery-card="${firstCard?.id}"]`).getByRole("link", { name: /Try it/ }).click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  const presetPinned = await pinnedRun(firstCard?.mode, preset.get("seed"), null);
+  const presetKept = [...preset].filter(([k]) => k !== "seed").every(([k, v]) => search().get(k) === v);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const presetTime = await page.locator("span.tabular-nums").first().innerText().catch(() => "");
+  check("gallery: Try it opens the simulator with the preset applied and its seed pinned, and the run plays", presetPinned && presetKept && /\d/.test(presetTime) && presetTime !== "0.0s", `(${firstCard?.id}: pinned ${presetPinned}, settings kept ${presetKept}, elapsed ${presetTime})`);
+  await page.goto(`${BASE}/pl/gallery/`, { waitUntil: "networkidle" });
+  const plTry = await page.getByRole("link", { name: /Wypróbuj/ }).count();
+  check("gallery: the Polish gallery speaks Polish", plTry === cards.length, `(${plTry} "Wypróbuj" links)`);
+
+  // 3. The landing card: today's (UTC) challenge right below the hero.
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_daily"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => !!document.querySelector("[data-testid=daily-card]")?.getAttribute("data-daily-mode"), null, { timeout: 10000 }).catch(() => {});
+  const daily = await page.getByTestId("daily-card").evaluate((el) => ({ date: el.getAttribute("data-daily-date"), mode: el.getAttribute("data-daily-mode"), seed: el.getAttribute("data-daily-seed") })).catch(() => ({}));
+  const belowHero = await page.evaluate(() => {
+    const card = document.querySelector("[data-testid=daily-card]");
+    const hero = document.querySelector("h1");
+    const modes = document.getElementById("modes");
+    return !!card && !!hero && !!modes && !!(hero.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(card.compareDocumentPosition(modes) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  check("daily: the landing card shows today's UTC challenge (mode, seed) between the hero and the mode cards", daily.date === todayUtc && !!daily.mode && /^\d+$/.test(daily.seed ?? "") && belowHero, `(${JSON.stringify(daily)})`);
+
+  // 4. Its Play button opens daily=1: today's mode with its seed pinned, the address keeps daily=<date>.
+  await page.getByTestId("daily-play").click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  const cardPinned = await pinnedRun(daily.mode, daily.seed, daily.date);
+  const barActive = await page.getByTestId("daily-bar").getAttribute("data-daily-active").catch(() => null);
+  check("daily: the card's Play today's seed opens today's mode with its seed pinned (daily=<date> in the address)", cardPinned && barActive === daily.date, `(${page.url().slice(0, 140)}, bar ${barActive})`);
+
+  // 5. A mode change ends the challenge: the bar forgets it and the address drops daily=.
+  await page.evaluate((mode) => window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail: mode })), daily.mode === "lines" ? "classic" : "lines");
+  const ended = await page.waitForFunction(() => document.querySelector("[data-testid=daily-bar]")?.getAttribute("data-daily-active") === "" && !new URLSearchParams(location.search).has("daily"), null, { timeout: 10000 }).then(() => true).catch(() => false);
+  check("daily: changing the mode ends the challenge (the bar and the address forget it)", ended, `(${page.url().slice(0, 120)})`);
+
+  // 6. The simulator's Play today's seed button loads it from any setup.
+  await page.goto(`${BASE}/en/simulator/?mode=lines&g=450&ac=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Play today's seed/ }).click();
+  const buttonPinned = await pinnedRun(daily.mode, daily.seed, daily.date);
+  check("daily: the simulator's Play today's seed button loads today's challenge over any setup (a race ends)", buttonPinned && !search().has("ac") && search().get("g") !== "450", `(${page.url().slice(0, 140)})`);
+
+  // 7. The finished run: the end-of-run panel with the run length and the streak; its button copies the challenge link;
+  //    the landing card then shows the day as played.
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const panel = await page.getByTestId("daily-result").waitFor({ timeout: 150000 }).then(() => true).catch(() => false);
+  const panelText = panel ? await page.getByTestId("daily-result").innerText() : "";
+  await page.screenshot({ path: path.join(outDir, "daily-result.png") });
+  let copied = "";
+  if (panel) {
+    await page.getByRole("button", { name: /Copy challenge link/ }).click();
+    await page.getByText(/Copied – paste it anywhere/).waitFor({ timeout: 5000 }).catch(() => {});
+    copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+  }
+  check(
+    "daily: a finished daily run shows the end-of-run panel (number, run length, streak) and copies the challenge link",
+    panel && /#\d+/.test(panelText) && /\d+\.\d s/.test(panelText) && /1 day in a row/.test(panelText) && copied === `${new URL(BASE).origin}${basePath}/en/simulator/?daily=${daily.date}`,
+    `(${panelText.replace(/\s+/g, " ").slice(0, 120)} → ${copied})`,
+  );
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const played = await page.getByTestId("daily-played").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("daily: the landing card shows today's challenge as played, with the streak", played && (await page.getByText(/1 day in a row/).count()) > 0, "");
+
+  // 8. A shared link opens that day's challenge; a bad or future date opens the link as usual.
+  await page.goto(`${BASE}/en/simulator/?daily=2026-09-30`, { waitUntil: "networkidle" });
+  const epoch = await page.waitForFunction(() => document.querySelector("[data-testid=daily-bar]")?.getAttribute("data-daily-active") === "2026-09-30", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const epochBar = await page.getByTestId("daily-bar").innerText().catch(() => "");
+  await page.goto(`${BASE}/en/simulator/?daily=2999-01-01&mode=lines&g=450`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  const ignored = search().get("mode") === "lines" && search().get("g") === "450" && !search().has("daily") && (await page.getByTestId("daily-bar").getAttribute("data-daily-active")) === "";
+  check("daily: daily=<date> opens that day's challenge (#1 on 2026-09-30); a future or bad date opens the link as usual", epoch && /#1 /.test(epochBar) && ignored, `(${epochBar.split("\n")[0]}, ignored ${ignored})`);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_daily"));
+}
+// --- end daily-gallery ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
