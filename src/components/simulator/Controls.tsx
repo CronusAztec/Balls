@@ -62,6 +62,9 @@ import ArenasSection, { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { defaultSplitScreenFields } from "@/lib/splitScreen";
 import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- boris-vortex --- the Vortex block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
+import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
+import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
+import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { INSTRUMENT_IDS, type InstrumentId } from "@/lib/audio/instruments";
 import { NOTE_NAMES, QUANTIZE_GRIDS, SCALE_IDS, type ScaleId } from "@/lib/audio/scales";
@@ -137,6 +140,8 @@ export interface ControlsProps {
   project?: ProjectPanelProps;
   /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
   batch?: BatchPanelProps;
+  /** --- video-beats --- the "Beats from a video" block of the Sound section (left out without it). */
+  videoBeats?: VideoBeatsPanelProps;
   /** --- viral-bot --- the Viral video bot block after it: plans, scores and renders clips (left out without it). */
   bot?: BotPanelProps;
 }
@@ -191,6 +196,8 @@ SECTION_KEYS.recording.push(...BATCH_KEYS);
 SECTION_KEYS.ball.push(...JDM_RHYTHM_KEYS);
 // --- boris-vortex --- the Vortex block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...VORTEX_KEYS);
+// --- video-beats --- the "Beats from a video" block (source picker, import, markers, On beat) closes the music part of the Sound section.
+SECTION_KEYS.sound.push(...VIDEO_BEATS_KEYS);
 // --- viral-bot --- the Viral video bot block comes after the Batch block in the Recording section.
 SECTION_KEYS.recording.push(...BOT_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
@@ -879,6 +886,8 @@ export default function Controls(props: ControlsProps) {
           onUpload={props.onMusicUpload}
           onRemove={props.onMusicRemove}
         />
+        {/* --- video-beats --- */}
+        {props.videoBeats && <VideoBeatsSection t={t} search={search} matches={matches} showAdvanced={showAdvanced} settings={s} update={update} panel={props.videoBeats} />}
         <Searchable search={search} matches={matches} labelKey="wallBreakSound">
           <div className="space-y-2">
             <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
@@ -1527,6 +1536,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         musicDuckRelease: d.musicDuckRelease,
         musicLoop: d.musicLoop,
         musicStartOffset: d.musicStartOffset,
+        ...defaultVideoBeatsFields(), // --- video-beats --- the song's beat, no markers, On beat off, no video background
       };
     case "recording":
       return { recordingResolution: d.recordingResolution, recordingDuration: d.recordingDuration, watermarkText: d.watermarkText, topText: d.topText, bottomText: d.bottomText, textSize: d.textSize, fastExportFps: d.fastExportFps }; // --- fast-render --- (fastExportFps)

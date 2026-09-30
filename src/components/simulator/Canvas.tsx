@@ -64,6 +64,7 @@ import { withSplitScreen, type SplitScreenCanvasOptions } from "./splitScreenCan
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
+import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -242,6 +243,8 @@ export interface CanvasProps {
   // --- end fast-render ---
   /** --- jdm-race --- The race's names, colours and emoji (Teams roster), overlays and cup (null outside the race). */
   race?: CanvasRaceOptions | null;
+  /** --- video-beats --- The imported video, drawn dimmed behind the arena on the simulation clock (null = none). */
+  videoBackground?: VideoBackgroundLayer | null;
   /** --- split-screen --- A split-screen race: its engines, layout and labels (null / one engine = this canvas alone); see splitScreenCanvas.tsx. */
   splitScreen?: SplitScreenCanvasOptions | null;
 }
@@ -373,6 +376,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     offline = null, // --- fast-render ---
     fastRender = null, // --- fast-render ---
     race = null, // --- jdm-race ---
+    videoBackground = null, // --- video-beats ---
   },
   ref,
 ) {
@@ -436,6 +440,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   // --- jdm-race --- the race options, read by the draw loop
   const raceRef = useRef<CanvasRaceOptions | null>(race);
   raceRef.current = race;
+  // --- video-beats --- the video background layer, read by the draw loop
+  const videoLayerRef = useRef<VideoBackgroundLayer | null>(videoBackground);
+  videoLayerRef.current = videoBackground;
   // --- themes: the look the draw loop reads, the decoded background picture and the painter (shared with the recorder)
   const themeLookRef = useRef({ backgroundType, backgroundColors, backgroundDim, trailColors });
   useEffect(() => {
@@ -901,6 +908,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       setCanvasData("background", themeLook.backgroundType === "image" && !bgImageRef.current ? "solid" : themeLook.backgroundType);
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
+      // --- video-beats --- the imported video, dimmed, over the background and under everything else (on the simulation clock)
+      const videoLayer = videoLayerRef.current;
+      if (videoLayer?.isActive()) videoLayer.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline);
       // The run's seed (data-seed), for tools and the smoke test: a found run is the one the page restarts.
       setCanvasData("seed", String(engine.getSeed()));
       const cx = size.width / 2;
@@ -2824,6 +2834,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- beat-drop --- landings (measured times and their beats), error, tempo, pads alive, drums, camera, finish (data-bd-*)
       if (bdView) writeBeatDropDataset(bdView, bdLayer, setCanvasData);
       else if (canvas.dataset.bdLanded !== undefined) for (const key of BEAT_DROP_DATA_KEYS) delete canvas.dataset[key];
+      // --- video-beats --- On beat: how the timed wall hits land on the grid (data-onbeat-*)
+      const onBeat = engine.getOnBeatStats();
+      if (onBeat.active) {
+        setCanvasData("onbeatHits", String(onBeat.hits));
+        setCanvasData("onbeatOnBeat", String(onBeat.onBeat));
+        setCanvasData("onbeatFree", String(onBeat.unplanned));
+        setCanvasData("onbeatMaxErr", onBeat.maxErrMs.toFixed(1));
+        setCanvasData("onbeatMeanErr", onBeat.meanErrMs.toFixed(1));
+        setCanvasData("onbeatBeats", String(onBeat.beatsCovered));
+        setCanvasData("onbeatWarp", onBeat.warp.toFixed(2));
+      } else if (canvas.dataset.onbeatHits !== undefined) for (const key of ["onbeatHits", "onbeatOnBeat", "onbeatFree", "onbeatMaxErr", "onbeatMeanErr", "onbeatBeats", "onbeatWarp"]) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

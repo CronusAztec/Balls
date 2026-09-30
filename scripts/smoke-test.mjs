@@ -5434,6 +5434,136 @@ const vxFrameRates = async (ms) => {
 }
 // --- end boris-vortex ---
 
+// --- video-beats --- Beats from a video: a generated click-track WAV (120 BPM from 0.25 s, 44.1 kHz, every 4th click accented) is
+// imported in the Sound section's "Beats from a video" block – the panel detects its tempo and beats, the file becomes the music
+// bed and the Media source; the waveform strip adds and removes a marker on a click; "Use detected beats" turns the grid into
+// markers (the Manual source, shared as `bm`); tap tempo gives an estimate; with On beat on the classic run's timed wall hits land
+// within 30 ms of the beat grid (read off the canvas' data-onbeat-*); and a short recording downloads with an audio track.
+{
+  try {
+    const vbClickWav = (seconds, bpm, sampleRate) => {
+      const frames = Math.round(seconds * sampleRate);
+      const samples = new Int16Array(frames);
+      for (let k = 0, t = 0.25; t < seconds; k++, t = 0.25 + (k * 60) / bpm) {
+        const start = Math.round(t * sampleRate);
+        const amp = k % 4 === 0 ? 30000 : 14000;
+        for (let j = 0; j < Math.round(0.012 * sampleRate) && start + j < frames; j++) {
+          const tau = j / sampleRate;
+          samples[start + j] = Math.round(amp * Math.sin(2 * Math.PI * 1000 * tau) * Math.exp(-tau / 0.004));
+        }
+      }
+      return pcmWav(samples, sampleRate);
+    };
+    await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&grid=1%2F8`, { waitUntil: "networkidle" });
+    // Open the Sound section (again, if a click landed before the page was interactive).
+    const vbSoundTab = page.getByRole("button", { name: /Custom Sound/ });
+    let vbInput = false;
+    for (let attempt = 0; attempt < 3 && !vbInput; attempt++) {
+      if ((await vbSoundTab.getAttribute("aria-expanded").catch(() => null)) !== "true") await vbSoundTab.click().catch(() => {});
+      vbInput = await page.locator("#video-beats-file-input").waitFor({ state: "attached", timeout: 10000 }).then(() => true).catch(() => false);
+    }
+    const vb = page.getByTestId("video-beats");
+    if (vbInput) await page.locator("#video-beats-file-input").setInputFiles({ name: "smoke-clicks.wav", mimeType: "audio/wav", buffer: vbClickWav(16, 120, 44100) });
+    const vbReady = await page.waitForFunction(() => document.querySelector('[data-testid="video-beats"]')?.getAttribute("data-vb-state") === "ready", null, { timeout: 60000 }).then(() => true).catch(() => false);
+    const vbBpm = Number(await vb.getAttribute("data-vb-bpm"));
+    const vbBeats = Number(await vb.getAttribute("data-vb-beats"));
+    const vbSource = await vb.getAttribute("data-vb-source");
+    const vbBed = await page.getByTestId("music-track").isVisible().catch(() => false);
+    const vbDetected = await page.getByTestId("vb-detected").innerText().catch(() => "");
+    check(
+      "a click-track WAV imports as the beat media: tempo, beats, the Media source and the music bed",
+      vbInput &&
+        vbReady && Math.abs(vbBpm - 120) < 0.5 && vbBeats >= 28 && vbSource === "media" && vbBed && new URL(page.url()).searchParams.get("bsrc") === "media",
+      `(file input=${vbInput}, ready=${vbReady}, ${vbBpm} BPM, ${vbBeats} beats, source ${vbSource}, bed ${vbBed}, "${vbDetected}")`,
+    );
+    // The waveform strip: a click away from the markers adds one, a click on it removes it again.
+    const strip = page.getByTestId("vb-waveform");
+    const box = await strip.boundingBox();
+    const markerCount = async () => Number(await vb.getAttribute("data-vb-markers"));
+    let added = -1;
+    let removed = -1;
+    if (box) {
+      await strip.click({ position: { x: Math.round(box.width * 0.37), y: Math.round(box.height / 2) } });
+      await page.waitForTimeout(250);
+      added = await markerCount();
+      await strip.click({ position: { x: Math.round(box.width * 0.37), y: Math.round(box.height / 2) } });
+      await page.waitForTimeout(250);
+      removed = await markerCount();
+    }
+    check("the waveform strip adds a marker on a click and removes it on a second click", added === 1 && removed === 0, `(after add ${added}, after remove ${removed})`);
+    // Markers from the detected beats: the Manual source, in the link.
+    await page.getByTestId("vb-use-detected").click();
+    await page.waitForTimeout(400);
+    const vbMarkers = await markerCount();
+    const bm = new URL(page.url()).searchParams.get("bm") ?? "";
+    const vbManual = await vb.getAttribute("data-vb-source");
+    const markerLabel = await page.getByTestId("vb-marker-count").innerText().catch(() => "");
+    check("Use detected beats writes the markers: the Manual source, shared as bm", vbMarkers === vbBeats && vbManual === "manual" && /^\d+(\.\d+(\*\d+)?)+$/.test(bm) && /120\.\d BPM/.test(markerLabel), `(${vbMarkers} markers, source ${vbManual}, bm=${bm.slice(0, 32)}…, "${markerLabel}")`);
+    // Tap tempo while the preview plays: the estimate follows the pace of the taps (measured here, as a busy machine slows clicks).
+    await vb.getByRole("button", { name: /Play/ }).click();
+    await page.waitForTimeout(300);
+    const tapTimes = [];
+    for (let i = 0; i < 6; i++) {
+      tapTimes.push(await page.evaluate(() => performance.now()));
+      await page.getByTestId("vb-tap").click();
+      await page.waitForTimeout(500);
+    }
+    const tapText = await page.getByTestId("vb-tap-result").innerText().catch(() => "");
+    const tapBpm = Number(/([\d.]+) BPM/.exec(tapText)?.[1] ?? NaN);
+    const tapGaps = tapTimes.slice(1).map((t, i) => t - tapTimes[i]).sort((a, b) => a - b);
+    const tapExpected = 60000 / tapGaps[tapGaps.length >> 1];
+    await vb.getByRole("button", { name: /Pause/ }).click().catch(() => {});
+    check("tap tempo estimates the tempo from taps on the preview", Number.isFinite(tapBpm) && Math.abs(tapBpm / tapExpected - 1) < 0.2, `("${tapText}", taps at about ${tapExpected.toFixed(1)} BPM)`);
+    // On beat: the timed wall hits of the classic run land on the grid.
+    await page.evaluate(() => {
+      const root = document.querySelector('[data-testid="video-beats"]');
+      const label = [...(root?.querySelectorAll("label") ?? [])].find((l) => /^On beat(?! range)/.test(l.textContent ?? ""));
+      const button = label?.parentElement?.querySelector("button[aria-pressed]");
+      button?.click();
+    });
+    await page.waitForTimeout(300);
+    const onBeatUrl = new URL(page.url()).searchParams.get("onbeat");
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    const onBeatData = await page
+      .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.onbeatHits ?? 0) >= 10, null, { timeout: 60000 })
+      .then(() => canvasData())
+      .catch(() => canvasData());
+    const obHits = Number(onBeatData.onbeatHits ?? 0);
+    const obOn = Number(onBeatData.onbeatOnBeat ?? 0);
+    const obErr = Number(onBeatData.onbeatMaxErr ?? NaN);
+    const obFree = Number(onBeatData.onbeatFree ?? 0);
+    const statsLine = await page.getByTestId("vb-onbeat-stats").innerText().catch(() => "");
+    await page.screenshot({ path: path.join(outDir, "video-beats-onbeat.png") });
+    check(
+      "On beat lands the classic run's timed wall hits within 30 ms of the beat grid",
+      onBeatUrl === "1" && obHits >= 10 && obOn === obHits && obErr <= 30 && obHits >= obFree,
+      `(hits ${obHits}, on the beat ${obOn}, worst ${obErr} ms, free ${obFree}, beats ${onBeatData.onbeatBeats}, "${statsLine}")`,
+    );
+    // A short recording carries the media's audio (it is the music bed); the run starts over first (R), so it is still going.
+    await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+    await page.keyboard.press("r");
+    await page.waitForTimeout(300);
+    const vbDownload = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+      (async () => {
+        await page.getByRole("button", { name: /Record Video/ }).click();
+        await page.waitForTimeout(3500);
+        await page.getByRole("button", { name: /Stop & Export/ }).click();
+      })(),
+    ]).then(([d]) => d);
+    let vbFile = null;
+    if (vbDownload) {
+      const out = path.join(outDir, `video-beats-${vbDownload.suggestedFilename()}`);
+      await vbDownload.saveAs(out);
+      const buf = fs.readFileSync(out);
+      vbFile = { name: vbDownload.suggestedFilename(), bytes: buf.length, audio: buf.includes(Buffer.from("A_OPUS")) || buf.includes(Buffer.from("A_VORBIS")) || buf.includes(Buffer.from("mp4a")) || buf.includes(Buffer.from("soun")) };
+    }
+    check("a recording with the beat media downloads with an audio track", !!vbFile && vbFile.bytes > 10000 && vbFile.audio, `(${vbFile ? `${vbFile.name}, ${vbFile.bytes} bytes, audio=${vbFile.audio}` : "no download"})`);
+  } catch (err) {
+    check("the beats-from-a-video checks run to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  }
+}
+// --- end video-beats ---
 // --- viral-bot --- Viral video bot (the Bot block after the Batch block of the Recording section): "Today's plan" plans three
 // clips in the page (recipe, hook, mode, seed, length, ending and a score with its nine reasons), the plan survives a reload
 // (localStorage), the page exposes the planner to the CLI (window.__jumpingBallsBot, whose text files hold the manifest and

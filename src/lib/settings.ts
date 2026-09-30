@@ -54,6 +54,9 @@ import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFiel
 // --- beat-drop --- the Beat Drop mode
 import { BEAT_DROP_RANGES, beatDropModeDefaults, defaultBeatDropFields, readBeatDropParams, resolveBeatDropFields, writeBeatDropParams, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
 import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
+// --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
+import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
+import type { BeatSourceKind } from "@/lib/simulation/beatSource";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -614,6 +617,21 @@ export interface SimulatorSettings {
   /** The ball's motion trail (URL `bdt`). */
   bdTrail: boolean;
   // --- end beat-drop ---
+  // --- video-beats --- Beats from a video (lib/simulation/beatSource.ts, videoBeatsSettings.ts, physics/onBeat.ts)
+  /** The grid every rhythm feature follows: bpm | song | media | manual (URL `bsrc`). */
+  beatSource: BeatSourceKind;
+  /** Hand-placed beat markers, delta-encoded ms (URL `bm`). */
+  beatMarkers: string;
+  /** Downbeat among the markers, 0–3, −1 = the loudest (URL `bdb`). */
+  beatDownbeat: number;
+  /** The ring modes land their wall hits on the grid (URL `onbeat`). */
+  onBeat: boolean;
+  /** How far On beat may retime a flight, 0.1–0.8 (URL `obr`). */
+  onBeatRange: number;
+  /** The imported video behind the arena (URL `vbg`) and its opacity (URL `vbgo`). */
+  videoBackground: boolean;
+  videoBgOpacity: number;
+  // --- end video-beats ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -728,6 +746,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- beat-drop --- the feature's fields, and the mode's own ball size (radius 14) in Beat Drop only
     ...defaultBeatDropFields(),
     ...beatDropModeDefaults(mode),
+    ...defaultVideoBeatsFields(), // --- video-beats ---
   };
 }
 
@@ -794,6 +813,7 @@ export const RANGES = {
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- boris-vortex ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
+  ...VIDEO_BEATS_RANGES, // --- video-beats ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1030,6 +1050,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
+  writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   return params;
 }
 
@@ -1147,6 +1168,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
+  readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   return settings;
 }
 
@@ -1341,6 +1363,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
+  Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   return merged;
 }
 

@@ -13,6 +13,8 @@ import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
 import { clockedAudioContext } from "./offlineContext"; // --- fast-render ---
+import { nextGridPointSec } from "@/lib/simulation/beatSource"; // --- video-beats ---
+import type { BeatClockConfig } from "@/lib/simulation/beatClock"; // --- video-beats ---
 
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
@@ -117,6 +119,10 @@ export class ToneGenerator {
   private gridOrigin = 0;
   /** Grid slot already holding a bounce sound; later hits in the same slot are dropped. */
   private lastSlotTime = -1;
+  // --- video-beats --- the beat lock on a video's beats or hand-placed markers: the grid (simulation seconds) and the
+  // simulation clock the hits are placed on (null = the BPM grid anchored at the run's start, as before)
+  private beatSourceClock: BeatClockConfig | null = null;
+  private beatSourceSimTime: (() => number) | null = null;
 
   async start() {
     if (this.isPlaying) return;
@@ -136,6 +142,19 @@ export class ToneGenerator {
     return { ...this.music };
   }
 
+  // --- video-beats ---
+  /**
+   * The beat lock follows `clock` (a media or manual beat grid; beatSource.ts) instead of the BPM: a sound is delayed to
+   * the next point of that grid – subdivided by the grid setting (1/4 = the beats, 1/8 halves, 1/16 quarters) – measured
+   * on the simulation clock `simTime` (seconds), so it lands where the music bed's beat is. Null restores the BPM grid.
+   */
+  setBeatSourceClock(clock: BeatClockConfig | null, simTime: (() => number) | null) {
+    this.beatSourceClock = clock;
+    this.beatSourceSimTime = clock ? simTime : null;
+    this.lastSlotTime = -1;
+  }
+  // --- end video-beats ---
+
   /** Re-anchors the beat grid at "now" (call when a run starts or restarts). */
   resetBeatGrid() {
     this.gridOrigin = this.audioContext?.currentTime ?? 0;
@@ -148,6 +167,12 @@ export class ToneGenerator {
    */
   private scheduleTime(now: number): number {
     if (!this.music.quantizeToBeat) return now;
+    // --- video-beats --- on a media / manual grid: the delay to its next point on the simulation clock
+    if (this.beatSourceClock && this.beatSourceSimTime) {
+      const sim = this.beatSourceSimTime();
+      const next = nextGridPointSec(this.beatSourceClock, sim - 0.001, this.music.quantizeGrid === "1/4" ? 1 : this.music.quantizeGrid === "1/8" ? 2 : 4);
+      if (Number.isFinite(next)) return now + Math.max(0, next - sim);
+    }
     return nextGridTime(now, this.music.bpm, this.music.quantizeGrid, this.gridOrigin);
   }
 
@@ -846,6 +871,7 @@ export class ToneGenerator {
     twin.isInitialized = true;
     twin.isPlaying = true;
     twin.resetBeatGrid();
+    if (this.beatSourceClock) twin.setBeatSourceClock(this.beatSourceClock, clock); // --- video-beats --- (the export's clock is the simulation's)
     if (twin.hitSoundMode === "sample" && twin.hitSampleUrl) await twin.sampler.load(twin.hitSampleUrl);
     if (twin.wallBreakSoundUrl && !twin.wallBreakBuffer) await twin.decodeWallBreakSound(twin.wallBreakSoundUrl);
     twin.musicBed.play();

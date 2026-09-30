@@ -37,6 +37,7 @@ import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
+import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -120,6 +121,9 @@ export interface ModeSettings {
    * fits in the clip, so the finder only picks a seed and reports how long the run covering the target's beats lasts.
    */
   beatDrop?: Partial<BeatDropSettings>;
+  // --- video-beats ---
+  /** On beat (physics/onBeat.ts): the ring modes' flights timed onto the beat grid – part of the run, so the finder searches with it. */
+  onBeat?: Partial<OnBeatConfig>;
 }
 
 // --- odd-string-battle ---
@@ -235,6 +239,10 @@ export interface FinderResult {
   escapeAt?: number;
   /** An outcome search: the run found ended (the mode's own finish) within the clip – the page holds its end screen. */
   finished?: boolean;
+  // --- video-beats ---
+  /** On beat: the distinct beats the found run's wall hits land on, and its timed hits (set when On beat applies). */
+  beatsCovered?: number;
+  beatHits?: number;
 }
 
 /**
@@ -292,6 +300,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
+  if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -330,6 +339,23 @@ export function findBeatDropRun(request: Pick<FinderRequest, "targetDurationSec"
   return { found: true, seed, duration: engine.getBeatDropProgress().plannedMs / 1000, seedsTested: 1 };
 }
 // --- end beat-drop ---
+// --- video-beats ---
+/**
+ * With On beat on (a ring mode, a grid to follow): replays the found seed for `durationMs` and reports how many distinct
+ * beats its wall hits landed on and how many hits were timed – the "beats covered" the page shows with a found run.
+ */
+export function beatCoverage(seed: number, request: FinderRequest, durationMs: number): { beatsCovered?: number; beatHits?: number } {
+  if (!request.modeSettings.onBeat?.enabled) return {};
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  for (let elapsed = 0; elapsed < durationMs - 1e-6; elapsed += step) {
+    engine.update(step, 0);
+    engine.consumeSoundEvents();
+  }
+  const stats = engine.getOnBeatStats();
+  return stats.active ? { beatsCovered: stats.beatsCovered, beatHits: stats.hits } : {};
+}
+// --- end video-beats ---
 
 // --- boris-multipliers ---
 /** The count target of a request (a multipliers board with `target` > 0), or 0 for a search by duration. */
@@ -420,7 +446,7 @@ export function findSimulation(
           bestSeed = seed;
         }
         if (diff <= toleranceMs) {
-          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i + 1 });
+          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i + 1, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
           return;
         }
       }
