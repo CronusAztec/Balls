@@ -4,7 +4,7 @@ import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import FeedbackForm from "@/components/site/FeedbackForm";
 import { SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "../layout";
+import { localeAlternates } from "@/i18n/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;

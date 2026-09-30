@@ -51,7 +51,7 @@ import { showsMultipliersSection } from "@/components/simulator/sections/Multipl
 /**
  * Glass Smash (lib/physics/modes/glass.ts): the settings (URL, presets, ranges), the stage progression, the level
  * generation and its determinism, the cracks and the shatter state, the sound events, the camera and the stages, the
- * HOME finish, a resize mid-run, the finder, the mode's default wall-break clip and – boris-multipliers – the damage,
+ * HOME finish, a resize mid-run, the finder, the mode's default wall-break clip and – gerald-multipliers – the damage,
  * speed and size multipliers on the glass and the multiplier gate rows.
  */
 
@@ -357,7 +357,7 @@ describe("GlassMode in the engine", () => {
     expect(MODE_IDS).toContain("glass");
     expect(MODE_CARD_ORDER).toContain("glass");
     expect(MODE_CATEGORIES.glass).toBe("rhythm");
-    // The escape family ends with the multipliers board (boris-multipliers); the sound-first family ends with Glass Smash.
+    // The escape family ends with the multipliers board (gerald-multipliers); the sound-first family ends with Glass Smash.
     expect(modesInCategory("rhythm").at(-1)).toBe("glass");
     expect(modesInCategory("escape")).not.toContain("glass");
   });
@@ -637,7 +637,7 @@ describe("GlassMode in the engine", () => {
   });
 });
 
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 describe("Glass Smash with multipliers", () => {
   it("lays a row of the three gates above every stage's glass only when they are on, leaving the glass as it was", () => {
     const off = buildGlassLevel(800, 600, { stages: 5 }, 8, rng(9));
@@ -877,7 +877,7 @@ describe("Glass Smash with multipliers", () => {
     expect(Math.abs(seconds * 1000 - a)).toBeLessThan(1000 / 60 + 1e-6);
   });
 });
-// --- end boris-multipliers ---
+// --- end gerald-multipliers ---
 
 describe("Glass Smash and the finder", () => {
   it("is never endless: every run ends at HOME, so seeds are searched", () => {

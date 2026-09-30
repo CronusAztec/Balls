@@ -8,6 +8,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 
 export default function Navbar({ backHref, backLabel }: { backHref?: string; backLabel?: string }) {
   const t = useTranslations("Navbar");
+  const gallery = useTranslations("Gallery"); // --- daily-gallery ---
   const [open, setOpen] = useState(false);
   return (
     <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-50">
@@ -24,6 +25,10 @@ export default function Navbar({ backHref, backLabel }: { backHref?: string; bac
           )}
           <Link href="/simulator" className="hidden sm:inline-flex text-sm text-zinc-400 hover:text-[#93d119] transition-colors font-medium">
             {t("simulator")}
+          </Link>
+          {/* --- daily-gallery --- */}
+          <Link href="/gallery" className="hidden sm:inline-flex text-sm text-zinc-400 hover:text-[#93d119] transition-colors font-medium">
+            {gallery("navLabel")}
           </Link>
           <div className="hidden sm:block">
             <LanguageSwitcher />
@@ -45,6 +50,10 @@ export default function Navbar({ backHref, backLabel }: { backHref?: string; bac
         <nav className="flex flex-col gap-1 px-4 pb-4 pt-1 border-t border-zinc-800">
           <Link href="/simulator" className="px-3 py-2 text-sm text-zinc-300 hover:text-[#93d119] transition-colors font-medium" onClick={() => setOpen(false)}>
             {t("simulator")}
+          </Link>
+          {/* --- daily-gallery --- */}
+          <Link href="/gallery" className="px-3 py-2 text-sm text-zinc-300 hover:text-[#93d119] transition-colors font-medium" onClick={() => setOpen(false)}>
+            {gallery("navLabel")}
           </Link>
           <div className="px-3 py-2">
             <LanguageSwitcher isMobileMenu />

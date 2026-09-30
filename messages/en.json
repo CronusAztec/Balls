@@ -613,8 +613,8 @@
     "faceCat": "Cat",
     "faceAngry": "Angry",
     "ballName": "Name",
-    "ballNameTip": "A small name label drawn under the (first) ball, e.g. Boris.",
-    "ballNamePlaceholder": "e.g. Boris",
+    "ballNameTip": "A small name label drawn under the (first) ball, e.g. Gerald.",
+    "ballNamePlaceholder": "e.g. Gerald",
     "nameLabel": "Name Label",
     "nameLabelTip": "Show the name under the ball, with a subtle outline so it reads on any background.",
     "ballSquash": "Squash & Stretch",
@@ -624,8 +624,8 @@
     "faceSounds": "Cat Sounds",
     "faceSoundsTip": "The cat face chirps a synthesised meow when it gets hit, when a wall breaks and when it escapes – on the beat grid and in the recording. Not used while the bounce sound is an audio sample.",
     "faceSoundsSampleNote": "Silent while the bounce sound is an audio sample – switch back to tones to hear the cat.",
-    "borisPersona": "Meet Boris",
-    "borisPersonaDesc": "Boris always escapes – freedom lasts about 4 seconds. One click sets his face, name and squash.",
+    "geraldPersona": "Meet Gerald",
+    "geraldPersonaDesc": "Gerald always escapes – freedom lasts about 4 seconds. One click sets his face, name and squash.",
     "theme": "Theme",
     "themeTip": "One-click looks: a theme sets the wall, ball, line, background and trail colours and the particle style. Every colour stays editable afterwards – click the theme again to restore it.",
     "themeDefault": "Default",
@@ -794,7 +794,7 @@
     "glassHoles": "Panes with Holes",
     "glassHolesTip": "From the second stage on, some panes have a hole the ball must miss to keep smashing. Dropping through it skips that pane (the ball can still crack it from below).",
     "glassGates": "Multiplier Gates",
-    "glassGatesTip": "A row of three gates above every stage's glass – x2 DMG (a pane loses two hit points a hit), x1.5 SPEED (every hop runs faster) and x1.25 SIZE – in a seeded order. The gate Boris falls through stacks its multiplier on him (with no cap unless you set one in the Ball section's Multipliers group) and the HUD shows it.",
+    "glassGatesTip": "A row of three gates above every stage's glass – x2 DMG (a pane loses two hit points a hit), x1.5 SPEED (every hop runs faster) and x1.25 SIZE – in a seeded order. The gate Gerald falls through stacks its multiplier on him (with no cap unless you set one in the Ball section's Multipliers group) and the HUD shows it.",
     "glassRunSize": "Whole run: {panes} panes and up to {hits} hits over {stages} stage(s), then HOME.",
     "wallBreakSoundModeDefault": "Mode default ({name})",
     "modeMultipliers": "Multipliers",
@@ -1131,7 +1131,7 @@
     "projectFiles": "Project file",
     "projectFilesDesc": "Save the whole setup – every setting with its obstacles, keyframes, captions and teams, plus the pictures and sounds you uploaded – in one .jumpingballslive.json file, and open it again later or on another computer.",
     "projectName": "Project name",
-    "projectNamePlaceholder": "e.g. boris-vs-glass",
+    "projectNamePlaceholder": "e.g. gerald-vs-glass",
     "projectMediaNone": "No uploaded media – the file holds the settings only.",
     "projectMediaTotal": "Media in the file",
     "projectMediumBallImage": "Ball image",
@@ -1575,11 +1575,11 @@
     },
     "glass": {
       "name": "Glass Smash",
-      "description": "Boris is determined to smash all of the glass: he drops down a shaft of glass panes, every landing cracks the pane under him and plays a note, and the last hit shatters it. Stage after stage the glass gets denser and thicker, starts to slide and grows holes – until he rolls through the door marked HOME."
+      "description": "Gerald is determined to smash all of the glass: he drops down a shaft of glass panes, every landing cracks the pane under him and plays a note, and the last hit shatters it. Stage after stage the glass gets denser and thicker, starts to slide and grows holes – until he rolls through the door marked HOME."
     },
     "multipliers": {
       "name": "Multipliers",
-      "description": "Boris uses the multipliers to get home: balls fall through rows of gates – x2, x3 and x5 clone them, x2 SPEED, x1.5 SIZE and x2 DMG stack with no cap, ÷2 takes half away and release doors let them through in bursts – past bumpers and blockers, while a live counter shows how many make it home."
+      "description": "Gerald uses the multipliers to get home: balls fall through rows of gates – x2, x3 and x5 clone them, x2 SPEED, x1.5 SIZE and x2 DMG stack with no cap, ÷2 takes half away and release doors let them through in bursts – past bumpers and blockers, while a live counter shows how many make it home."
     },
     "doublePendulum": {
       "name": "Double Pendulum Harp",
@@ -1623,7 +1623,7 @@
     },
     "journey": {
       "name": "Journey",
-      "description": "Boris bounces through his commute: a column of stages – rings to escape, glass to smash, pegs, multiplier gates, a funnel, a bullseye – one after another while the camera scrolls down, each with its banner and a swoosh, until he walks through his own front door at HOME."
+      "description": "Gerald bounces through his commute: a column of stages – rings to escape, glass to smash, pegs, multiplier gates, a funnel, a bullseye – one after another while the camera scrolls down, each with its banner and a swoosh, until he walks through his own front door at HOME."
     },
     "bullseye": {
       "name": "Bullseye",
@@ -1876,8 +1876,8 @@
     "troubleStuckA": "Send a note through the feedback page and describe what you were doing.",
     "modePolyrhythm": "No rings to escape: 2–400 voices each tick at their own tempo and every tick plays a note. Rings (dots orbiting 1, 2, 3… times per cycle and ticking at 12 o'clock, optionally as rotating polygons), arcs (dots sliding along the chords or semicircles of a circle and ticking at both ends), a grid of metronomes, or a spiral whose tick points line up again every cycle. The tempos follow the harmonic series, an arithmetic BPM series (the Reich-style tempo phase shift) or your own ratio list such as 3,4,5,7. The moment every voice ticks together is computed exactly and lands as a chord and a flash; the run ends after the chosen number of cycles and always lasts the same time, so it fits any clip.",
     "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track.",
-    "modeGlass": "The borisbounces glass format, no rings: a portrait shaft of horizontal glass panes stands between the ball and a doorway marked HOME. The ball falls and every landing cracks the pane below it – a procedural crack grows from the impact point – and plays the next note of your melody or, without one, a scale degree by row; on its last hit a pane shatters into shards with an accented note and a glass-break sound, and the ball crashes through to the next pane. After the last pane of a stage the camera scrolls down to the next one: more panes, thicker glass, panes that slide left and right and panes with holes the ball must miss. The final stage ends with the ball rolling into the doorway and a celebration. Every run is deterministic, so Find Simulation can pick a seed for your clip length.",
-    "modeMultipliers": "A tall board the camera scrolls down, always following the lowest ball. Every row is split into 2–4 gates: count gates (x2, x3, x5) clone each ball that passes – up to a ball cap you choose, from 50 to 2000 –, speed, size and damage gates stack multipliers on it with no upper limit, ÷2 gates absorb every second ball and release gates hold a pile on a door that opens in bursts. Splitter pegs, kicking bumpers, funnels and blockers with hit points (the damage multiplier wears them down faster) sit between the rows, every hit is a note on a pentatonic plinko piano, and the HOME zone at the bottom counts the arrivals live until the final “N Boris made it home”. A ball that grows wider than the board outgrows it and ends the run with a celebration. Set a target count and Find Simulation looks for a seed whose final count lands within 5 % of it. The same multipliers float as pickup orbs in the ring modes (Ball section → Multipliers).",
+    "modeGlass": "The geraldbounces glass format, no rings: a portrait shaft of horizontal glass panes stands between the ball and a doorway marked HOME. The ball falls and every landing cracks the pane below it – a procedural crack grows from the impact point – and plays the next note of your melody or, without one, a scale degree by row; on its last hit a pane shatters into shards with an accented note and a glass-break sound, and the ball crashes through to the next pane. After the last pane of a stage the camera scrolls down to the next one: more panes, thicker glass, panes that slide left and right and panes with holes the ball must miss. The final stage ends with the ball rolling into the doorway and a celebration. Every run is deterministic, so Find Simulation can pick a seed for your clip length.",
+    "modeMultipliers": "A tall board the camera scrolls down, always following the lowest ball. Every row is split into 2–4 gates: count gates (x2, x3, x5) clone each ball that passes – up to a ball cap you choose, from 50 to 2000 –, speed, size and damage gates stack multipliers on it with no upper limit, ÷2 gates absorb every second ball and release gates hold a pile on a door that opens in bursts. Splitter pegs, kicking bumpers, funnels and blockers with hit points (the damage multiplier wears them down faster) sit between the rows, every hit is a note on a pentatonic plinko piano, and the HOME zone at the bottom counts the arrivals live until the final “N Gerald made it home”. A ball that grows wider than the board outgrows it and ends the run with a celebration. Set a target count and Find Simulation looks for a seed whose final count lands within 5 % of it. The same multipliers float as pickup orbs in the ring modes (Ball section → Multipliers).",
     "modeDoublePendulum": "No rings: one to four double pendulums – or triple pendulums – swing from a pivot in the middle of the video, integrated step by step (an adaptive fifth-order Runge–Kutta scheme whose sub-steps shorten wherever the swing gets violent), so the chaos is real physics and the energy holds for the whole clip. Up to 24 harp strings stand across the playfield, vertical or radial; every bob that crosses one plucks it – the string vibrates and plays its note, tuned to the scale of the Custom Sound section across one to four octaves – while the last bob draws a long rainbow trail. Several pendulums start a hair apart and fly apart after a few seconds (the butterfly effect); sparring hangs two side by side whose bobs collide elastically, every hit a percussive note and a flash. Arm lengths, masses, gravity, friction and the start angles (or a seeded random start) are all adjustable, and the run ends with the clip or never.",
     "modeIllusion": "No rings to escape: four project.jdm illusions. Lines – N balls each slide back and forth on a diameter of the big circle, ball i at the angle i·π/N with the phase offset i·π/N, so together they form a smaller circle rolling around inside; each ball plays its note when it touches the rim. Rings – concentric rings with one bouncing ball each; the rings turn at different speeds, so the bounces ripple outward in spirals and line up again every cycle. Nested – a circle bouncing inside a circle inside a circle (2–5 layers) with elastic collisions and walls that wobble where they are hit. White spaces – the balls paint the white arena black but bounce off shapes they can never enter, so a hidden picture chosen by the seed is revealed at the end. Everything is deterministic, and the Wobbly Walls slider of the Visual section makes the walls of every ring mode bounce like jelly too.",
     "modeStringBattle": "The oddplayground WEB DOMINION duel: 2–6 numbered balls bounce inside one thin ring on black, and every wall bounce anchors a glowing thread from the impact point to the ball, so each ball drags a fan of threads behind it (the oldest detach and fade). Cut: crossing an enemy thread snaps it with a pluck and costs its owner a life; Touch: the threads are lasers that burn whoever touches them; Collide: the slower ball of every collision loses a life. A ball at 0 lives shatters like glass and its threads dissolve; when two are left and one is a cut from elimination the finale speeds everything up and the halos strobe, and the last ball standing wins – with slow motion on the final cut when the camera's slow motion is on. The neon style turns the threads into endless lines that paint moiré art across the whole canvas, with a jelly ring and glitch bars. Every seed replays exactly, Find Simulation searches a battle's length or its winner, and a team roster lends the balls its colours and names.",
@@ -1887,9 +1887,9 @@
     "modeCtf": "No rings: two teams of one to four squares play capture the flag in a box with a base and a flag at each end. A square that touches the enemy flag carries it and scores when it reaches its own base; a carrier hit by an enemy drops the flag where it is – the enemy can grab it again, its own team sends it home. The director nudges rebounds toward each square's goal, the scoreboard shows the captures and the clock, and every capture plays a goal fanfare. The first team to the target score wins, otherwise the better score when the clip ends.",
     "modeRunner": "The project.jdm \"realistic gravity in Geometry Dash\" rhythm runner, no rings: a square runs along a floor at a constant speed under a scrolling camera. The course is planned on the beat of the loaded song (its detected beat – the same detector as Picture Paint) or of the BPM: for every obstacle – a row of spikes, a pit, a block to jump onto and later drop off – the jump solver takes the flight time of a jump under real gravity with a fixed take-off speed and times the take-off so that the landing falls exactly on a beat. With Auto Jump the square jumps at those times and never fails; without it you jump with Space and a crash restarts the section. Every landing plays the next note with a puff of dust; the finish plays a chord.",
     "modePaddle": "The \"Ball Bounce Game with Moving Platform\" format, no rings: a ball falls under real gravity onto a platform that slides left and right; a catch launches it back up – higher from the centre, lower and sideways with spin from the edges – so it wanders off the walls and the ceiling, and every catch plays the next note. The auto controller predicts every landing and heads there; its Skill decides how often it arrives early or late, so the misses (and the game over after the allowed ones) are deterministic for a seed. Or move the platform yourself.",
-    "modeVortex": "The borisbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length.",
-    "modeJourney": "The borisbounces commute format – \"Boris bounces through his commute\", \"let him out!\": a column of stages the ball clears one after another while the camera scrolls down. Rings is a compact Classic escape (3–9 rings with rotating gaps; the ball drops down a chute into the core), Glass a few Glass Smash panes that crack on every landing and shatter, Pegs a Ball Drop peg field whose rows play a rising scale, Multipliers two or three rows of gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) that power the ball up for the rest of the trip, Funnel a converging funnel, Bullseye a landing target that scores 10–100 before its trapdoor opens, and HOME the doorway with confetti and the total time. Every stage change shows a banner and plays a swoosh, a mini-map beside the column shows how far Boris has come, and every note goes through your instrument, scale, beat lock, hit samples and melody. Build the route in the Journey block (sizes, order, add and remove) or let the seed draw a random one; every run is deterministic and always reaches HOME, so Find Simulation can pick a seed for your clip length.",
-    "modeBullseye": "The borisbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length.",
+    "modeVortex": "The geraldbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length.",
+    "modeJourney": "The geraldbounces commute format – \"Gerald bounces through his commute\", \"let him out!\": a column of stages the ball clears one after another while the camera scrolls down. Rings is a compact Classic escape (3–9 rings with rotating gaps; the ball drops down a chute into the core), Glass a few Glass Smash panes that crack on every landing and shatter, Pegs a Ball Drop peg field whose rows play a rising scale, Multipliers two or three rows of gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) that power the ball up for the rest of the trip, Funnel a converging funnel, Bullseye a landing target that scores 10–100 before its trapdoor opens, and HOME the doorway with confetti and the total time. Every stage change shows a banner and plays a swoosh, a mini-map beside the column shows how far Gerald has come, and every note goes through your instrument, scale, beat lock, hit samples and melody. Build the route in the Journey block (sizes, order, add and remove) or let the seed draw a random one; every run is deterministic and always reaches HOME, so Find Simulation can pick a seed for your clip length.",
+    "modeBullseye": "The geraldbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length.",
     "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers.",
     "modeMaze": "oddplayground's maze reels (“who else thought that was blood”): a seeded perfect maze with glowing green walls on near-black – a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls drop in one after another and work their way through physically (a downward pull, perfectly elastic walls), steered by a brain: pure bounce, a wall follower or an explorer that prefers the corridors it has not visited. Every cell a ball passes is painted red, every wall hit is a note that climbs as the ball nears the exit, and the first ball out wins – with a distance-to-exit bar per ball in the HUD and optional fog over the unvisited cells for suspense. Find Simulation times the run or picks the winner."
   },
@@ -2744,6 +2744,47 @@
     "canvasMiss": "MISS",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Best shot #[shot]: [score] pts · bullseyes: [bullseyes]"
+  },
+  "Daily": {
+    "cardBadge": "Daily challenge",
+    "cardTitle": "Today: {mode}",
+    "cardLoading": "Today's challenge",
+    "cardText": "One mode and one seed a day – the same for everyone. Press play, watch how today's run unfolds, then send the challenge to a friend.",
+    "cardSeed": "Seed {seed}",
+    "cardPlayed": "Played today · {seconds} s",
+    "cardImageAlt": "{mode} – today's challenge mode",
+    "play": "Play today's seed",
+    "nextIn": "Next challenge in {time}",
+    "streak": "{days, plural, one {# day} other {# days}} in a row",
+    "barActive": "Daily challenge #{number} · {mode} · seed {seed}",
+    "barIdle": "Daily challenge: one mode, one seed, the same for everyone today",
+    "resultTitle": "Daily challenge #{number} done",
+    "resultTime": "{seconds} s",
+    "resultInvite": "Send your friends the same seed and compare your runs.",
+    "copyResult": "Copy challenge link",
+    "copied": "Copied – paste it anywhere"
+  },
+  "Gallery": {
+    "navLabel": "Gallery",
+    "metaTitle": "Preset Gallery – {count} Ready-Made Ball Simulations | {siteName}",
+    "metaDescription": "{count} curated bouncing-ball setups – neon escapes, pendulum galaxies, string art, battles and races. Open any of them in the free simulator with one click and make it yours.",
+    "badge": "Gallery",
+    "title": "Preset gallery",
+    "intro": "{count} hand-tuned setups to start from. Every card opens the simulator with the preset applied – the same look, the same seed – ready to record or remix.",
+    "imageAlt": "Preview of the {name} preset",
+    "tryIt": "Try it",
+    "tryAria": "Try it: {name}",
+    "outro": "Changed something and love the result? Copy the share link under the canvas and your setup travels with it.",
+    "cta": "Start from scratch"
+  },
+  "Pwa": {
+    "installApp": "Install app",
+    "installAppTip": "Install {siteName} on this device: it opens in its own window, starts from your home screen or dock and works offline.",
+    "offlinePageTitle": "Offline – {siteName}",
+    "offlineTitle": "You're offline",
+    "offlineBody": "This page isn't saved on this device yet. The home page and the simulator work offline once you've opened the site online – reconnect, or open the simulator below.",
+    "offlineRetry": "Try again",
+    "offlineSimulator": "Open the simulator"
   },
   "Maze": {
     "canvasTitle": "MAZE",

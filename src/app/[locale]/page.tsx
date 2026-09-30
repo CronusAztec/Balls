@@ -11,6 +11,7 @@ import Features from "@/components/site/Features";
 import FAQ from "@/components/site/FAQ";
 import { FAQ_KEYS } from "@/lib/faq";
 import JsonLd from "@/components/site/JsonLd";
+import DailyChallengeCard from "@/components/site/DailyChallengeCard"; // --- daily-gallery ---
 import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -49,6 +50,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <JsonLd data={faqJsonLd} />
       <Navbar />
       <Hero />
+      {/* --- daily-gallery --- today's challenge, below the hero */}
+      <DailyChallengeCard />
       <ModesOverview />
       <AboutTool />
       <HowItWorks />

@@ -16,10 +16,10 @@ import { segmentBetween, type Obstacle, type SegmentObstacle } from "../obstacle
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent, WallHitResult } from "../types";
 
 /**
- * Journey ("journey" mode, feature boris-journey – the borisbounces "Boris bounces through his commute", "The last stage
+ * Journey ("journey" mode, feature gerald-journey – the geraldbounces "Gerald bounces through his commute", "The last stage
  * is so satisfying", "let him out!" clips): a vertical sequence of stages the ball clears one after another, the camera
  * scrolling down with it – a compact rings escape, glass panes, a peg field, multiplier gates, a funnel, a scoring
- * bullseye – until HOME, where Boris walks through his door, the confetti flies and the total time shows. The stage
+ * bullseye – until HOME, where Gerald walks through his door, the confetti flies and the total time shows. The stage
  * list is a setting (`journeyStages`, URL `js`: "rings,pegs,glass,multipliers,home", a size suffix "-s" / "-l" per
  * stage) or, with `journeyAutoStages` N, a seeded random sequence of N stages.
  *

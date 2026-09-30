@@ -2,7 +2,7 @@ import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type Sc
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 
 /**
- * Sound Vortex ("vortex" mode, feature boris-vortex – the borisbounces "sound vortex, pew" clips). No rings to escape:
+ * Sound Vortex ("vortex" mode, feature gerald-vortex – the geraldbounces "sound vortex, pew" clips). No rings to escape:
  * a spiral funnel seen from above – concentric "sound rings" over a glowing whirlpool – with a hole in the middle.
  * 1–30 balls enter at the rim one after another (`stagger` seconds apart), each with a tangential velocity, and spiral
  * inward under a central pull that grows toward the centre plus a light drag; every ring line a ball crosses on its way
@@ -409,7 +409,7 @@ export const MAX_SPLASHES = 32;
 
 export const VORTEX_BALL_COLORS = ["#ffffff", "#ff5d73", "#ffb238", "#f7f052", "#93d119", "#2de2e6", "#4d9dff", "#b388ff", "#ff7ad9", "#5dffb0", "#ff8f5d", "#c6ff5d"];
 
-/** Colour of ball slot `slot`: the first ball wears the Ball Colour (Boris), the others a rainbow palette. */
+/** Colour of ball slot `slot`: the first ball wears the Ball Colour (Gerald), the others a rainbow palette. */
 export function vortexBallColor(slot: number, ballColor: string): string {
   if (slot === 0) return ballColor || "#ffffff";
   return VORTEX_BALL_COLORS[1 + ((slot - 1) % (VORTEX_BALL_COLORS.length - 1))];

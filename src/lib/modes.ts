@@ -2,43 +2,43 @@ import type { ModeId } from "@/lib/physics/types";
 
 /** Display order of the mode cards on the landing and simulator pages (edit to reorder). */
 export const MODE_CARD_ORDER: ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "grow", "shatter", "colorMatch", "portal", "drop", "box", "pendulum", "polyrhythm", "collide"];
-// --- boris-glass ---
+// --- gerald-glass ---
 MODE_CARD_ORDER.push("glass");
-// --- boris-multipliers --- the multipliers board joins the escape family (Boris uses the multipliers to get home)
+// --- gerald-multipliers --- the multipliers board joins the escape family (Gerald uses the multipliers to get home)
 MODE_CARD_ORDER.push("multipliers");
-// --- jdm-double-pendulum --- with the other project.jdm modes, before the Boris family's Glass Smash (which ends the rhythm cards)
+// --- jdm-double-pendulum --- with the other project.jdm modes, before the Gerald family's Glass Smash (which ends the rhythm cards)
 {
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "doublePendulum");
 }
-// --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Boris ones)
+// --- jdm-illusions --- the Circle Illusion joins the rhythm family, after the other project.jdm modes (before the Gerald ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("collide") + 1, 0, "illusion");
 // --- odd-string-battle --- the oddplayground String Battle opens the battle family (its cards come after the others)
 MODE_CARD_ORDER.push("stringBattle");
 // --- odd-power-layers --- Power Layers (oddplayground) joins the escape family – a ball working its way out through the layers – right
 // before the multipliers board (which closes the escape cards)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("multipliers") >= 0 ? MODE_CARD_ORDER.indexOf("multipliers") : MODE_CARD_ORDER.length, 0, "powerLayers");
-// --- jdm-race --- the Square Racing Grand Prix joins the project.jdm modes of the rhythm family (before the Boris family's Glass Smash)
+// --- jdm-race --- the Square Racing Grand Prix joins the project.jdm modes of the rhythm family (before the Gerald family's Glass Smash)
 {
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "race");
 }
-// --- jdm-arena-games --- the two team games join the rhythm family after the other project.jdm modes (before the Boris ones)
+// --- jdm-arena-games --- the two team games join the rhythm family after the other project.jdm modes (before the Gerald ones)
 MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ctf");
 // --- jdm-rhythm-runner --- the Beat Runner and Paddle Keep-Up join the rhythm family right after the arena games
 {
   const at = MODE_CARD_ORDER.indexOf("ctf");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "runner", "paddle");
 }
-// --- boris-vortex --- the Sound Vortex joins the Boris family at the end of the rhythm cards, right before Glass Smash (which
+// --- gerald-vortex --- the Sound Vortex joins the Gerald family at the end of the rhythm cards, right before Glass Smash (which
 // closes them)
 {
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "vortex");
 }
-// --- boris-journey --- the Journey opens its own family (a run through several stages to HOME), after the others
+// --- gerald-journey --- the Journey opens its own family (a run through several stages to HOME), after the others
 MODE_CARD_ORDER.push("journey");
-// --- boris-bullseye --- Bullseye joins the Boris family of the rhythm cards, right before the Sound Vortex (then Glass Smash)
+// --- gerald-bullseye --- Bullseye joins the Gerald family of the rhythm cards, right before the Sound Vortex (then Glass Smash)
 {
   const at = MODE_CARD_ORDER.indexOf("vortex");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "bullseye");
@@ -59,7 +59,7 @@ MODE_CARD_ORDER.push("journey");
  * working its way out of concentric walls), "rhythm" the project.jdm-style formats built around sound
  * (Ball Drop, Bouncing Shapes, Pendulum Wave) where every hit is a note and the physics writes a polyrhythm.
  */
-export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle", "journey"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing) --- boris-journey --- ("journey": multi-stage runs home)
+export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle", "journey"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing) --- gerald-journey --- ("journey": multi-stage runs home)
 export type ModeCategory = (typeof MODE_CATEGORY_IDS)[number];
 
 export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
@@ -80,10 +80,10 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   polyrhythm: "rhythm",
   // --- jdm-collisions ---
   collide: "rhythm",
-  // --- boris-glass --- Glass Smash: every pane hit is a note (the ASMR piano bounces of borisbounces), so it joins the
+  // --- gerald-glass --- Glass Smash: every pane hit is a note (the ASMR piano bounces of geraldbounces), so it joins the
   // sound-first family; "escape" keeps the ten ring modes (and the multipliers board after them).
   glass: "rhythm",
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   multipliers: "escape",
   // --- jdm-double-pendulum --- the Double Pendulum Harp: every string a bob crosses is a note
   doublePendulum: "rhythm",
@@ -101,11 +101,11 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   // --- jdm-rhythm-runner --- every landing on the beat / every catch is a note
   runner: "rhythm",
   paddle: "rhythm",
-  // --- boris-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
+  // --- gerald-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
   vortex: "rhythm",
-  // --- boris-journey --- a multi-stage commute home: its own family
+  // --- gerald-journey --- a multi-stage commute home: its own family
   journey: "journey",
-  // --- boris-bullseye --- every peg a ball bounces off is a note and every landing a thud: the sound-first family
+  // --- gerald-bullseye --- every peg a ball bounces off is a note and every landing a thud: the sound-first family
   bullseye: "rhythm",
   // --- beat-drop --- every landing is a beat: a drum, a note, or both
   beatDrop: "rhythm",

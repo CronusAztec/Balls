@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  BORIS_MIN_RADIUS,
-  BORIS_PERSONA,
+  GERALD_MIN_RADIUS,
+  GERALD_PERSONA,
   CHARACTER_RANGES,
   DEFAULT_CHARACTER,
   FACE_STYLES,
   MAX_NAME_LENGTH,
   TINY_FACE_RADIUS,
-  borisPersonaPatch,
+  geraldPersonaPatch,
   characterRenderOptions,
   characterSoundsOn,
   faceGeometry,
@@ -60,7 +60,7 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 
 /**
- * Ball characters (lib/character, the "Boris" persona): the settings and their URL / preset validation, the face
+ * Ball characters (lib/character, the "Gerald" persona): the settings and their URL / preset validation, the face
  * geometry, the expression state machine, the eye-tracking maths, the seeded blink schedule, the squash maths, the
  * per-ball tracker (also on a real engine run, which it must never disturb) and the cat chirp.
  */
@@ -81,10 +81,10 @@ describe("character settings", () => {
   });
 
   it("round-trip through face / bn / nl / sq / fimg / fsnd", () => {
-    const s = { ...defaultSettings("drop"), ballFace: "cat" as const, ballName: "Boris", nameLabel: false, ballSquash: 0.65, faceOverImage: true, faceSounds: true };
+    const s = { ...defaultSettings("drop"), ballFace: "cat" as const, ballName: "Gerald", nameLabel: false, ballSquash: 0.65, faceOverImage: true, faceSounds: true };
     const params = settingsToSearchParams(s);
     expect(params.get("face")).toBe("cat");
-    expect(params.get("bn")).toBe("Boris");
+    expect(params.get("bn")).toBe("Gerald");
     expect(params.get("nl")).toBe("0");
     expect(params.get("sq")).toBe("0.65");
     expect(params.get("fimg")).toBe("1");
@@ -92,7 +92,7 @@ describe("character settings", () => {
     const back = settingsFromSearchParams(params);
     expect({ ballFace: back.ballFace, ballName: back.ballName, nameLabel: back.nameLabel, ballSquash: back.ballSquash, faceOverImage: back.faceOverImage, faceSounds: back.faceSounds }).toEqual({
       ballFace: "cat",
-      ballName: "Boris",
+      ballName: "Gerald",
       nameLabel: false,
       ballSquash: 0.65,
       faceOverImage: true,
@@ -101,16 +101,16 @@ describe("character settings", () => {
   });
 
   it("reject unknown faces, trim names and clamp the squash from URLs and presets", () => {
-    const fromUrl = settingsFromSearchParams(new URLSearchParams(`face=robot&bn=${encodeURIComponent("  Boris\nthe Magnificent Round Escape Artist  ")}&sq=7`));
+    const fromUrl = settingsFromSearchParams(new URLSearchParams(`face=robot&bn=${encodeURIComponent("  Gerald\nthe Magnificent Round Escape Artist  ")}&sq=7`));
     expect(fromUrl.ballFace).toBe("none");
     expect(fromUrl.ballName.length).toBeLessThanOrEqual(MAX_NAME_LENGTH);
-    expect(fromUrl.ballName.startsWith("Boris the")).toBe(true);
+    expect(fromUrl.ballName.startsWith("Gerald the")).toBe(true);
     expect(fromUrl.ballSquash).toBe(1);
     expect(settingsFromSearchParams(new URLSearchParams("sq=-3")).ballSquash).toBe(0);
     const preset = presetToSettings({ mode: "classic", ballFace: "wink" as never, ballName: 42 as never, nameLabel: "yes" as never, ballSquash: Number.NaN, faceSounds: 1 as never });
     expect({ ballFace: preset.ballFace, ballName: preset.ballName, nameLabel: preset.nameLabel, ballSquash: preset.ballSquash, faceSounds: preset.faceSounds }).toEqual({ ballFace: "none", ballName: "", nameLabel: true, ballSquash: 0, faceSounds: false });
-    const good = presetToSettings({ mode: "box", ballFace: "cool", ballName: "Boris", ballSquash: 0.3 });
-    expect([good.ballFace, good.ballName, good.ballSquash]).toEqual(["cool", "Boris", 0.3]);
+    const good = presetToSettings({ mode: "box", ballFace: "cool", ballName: "Gerald", ballSquash: 0.3 });
+    expect([good.ballFace, good.ballName, good.ballSquash]).toEqual(["cool", "Gerald", 0.3]);
     // Presets saved before the feature existed load with the character off.
     expect(presetToSettings({ mode: "classic", gravity: 500 }).ballFace).toBe("none");
   });
@@ -125,16 +125,16 @@ describe("character settings", () => {
     expect(resolveCharacterSettings(null)).toEqual(DEFAULT_CHARACTER);
   });
 
-  it("the Boris persona sets the face, the name and the squash and only ever grows the ball", () => {
-    expect(borisPersonaPatch({ ballRadius: 8 })).toEqual({ ...BORIS_PERSONA, ballRadius: BORIS_MIN_RADIUS });
-    expect(borisPersonaPatch({ ballRadius: 25 }).ballRadius).toBe(25);
-    expect(BORIS_PERSONA.ballName).toBe("Boris");
+  it("the Gerald persona sets the face, the name and the squash and only ever grows the ball", () => {
+    expect(geraldPersonaPatch({ ballRadius: 8 })).toEqual({ ...GERALD_PERSONA, ballRadius: GERALD_MIN_RADIUS });
+    expect(geraldPersonaPatch({ ballRadius: 25 }).ballRadius).toBe(25);
+    expect(GERALD_PERSONA.ballName).toBe("Gerald");
   });
 
   it("render options: the label follows the toggle, the cat chirps only without a hit sample", () => {
     const base = { ...DEFAULT_CHARACTER, hitSoundMode: "tones" };
-    expect(characterRenderOptions({ ...base, ballName: "Boris" }).label).toBe("Boris");
-    expect(characterRenderOptions({ ...base, ballName: "Boris", nameLabel: false }).label).toBe("");
+    expect(characterRenderOptions({ ...base, ballName: "Gerald" }).label).toBe("Gerald");
+    expect(characterRenderOptions({ ...base, ballName: "Gerald", nameLabel: false }).label).toBe("");
     expect(characterSoundsOn({ ballFace: "cat", faceSounds: true, hitSoundMode: "tones" })).toBe(true);
     expect(characterSoundsOn({ ballFace: "cat", faceSounds: true, hitSoundMode: "sample" })).toBe(false);
     expect(characterSoundsOn({ ballFace: "cute", faceSounds: true, hitSoundMode: "tones" })).toBe(false);

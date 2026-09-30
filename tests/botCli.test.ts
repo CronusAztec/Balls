@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { mp4Args, parseArgs, retargetTextFiles, transcodeClips } from "../scripts/viral-bot.mjs";
+import { expectedDownloads, mp4Args, parseArgs, retargetTextFiles, transcodeClips } from "../scripts/viral-bot.mjs";
 
 /**
  * The headless CLI (scripts/viral-bot.mjs): its options, and a real --dry-run in Node – the planner bundled with esbuild,
@@ -15,6 +15,19 @@ const CLI = path.join(ROOT, "scripts", "viral-bot.mjs");
 const env = { ...process.env, NEXT_PUBLIC_SITE_URL: "https://example.com/Balls", IG_ACCESS_TOKEN: "", IG_USER_ID: "" };
 
 describe("viral-bot CLI", () => {
+  it("lists the downloads the browser owes for the rendered clips, once each, skipping failed ones", () => {
+    const rendered = [
+      { id: "a", status: "done", file: "ep1-a-1.webm" },
+      { id: "b", status: "failed", file: null },
+      { id: "c", status: "done", file: "clips/ep1-c-3.mp4" },
+      { id: "d", status: "done", file: "ep1-a-1.webm" },
+      { id: "e", status: "done", file: "" },
+    ];
+    expect(expectedDownloads(rendered)).toEqual(["ep1-a-1.webm", "ep1-c-3.mp4"]);
+    expect(expectedDownloads([])).toEqual([]);
+    expect(expectedDownloads(undefined)).toEqual([]);
+  });
+
   it("parses its options and refuses bad ones", () => {
     expect(parseArgs([])).toMatchObject({ count: 3, platform: "reels", out: "bot-output", family: "all", bucket: "auto", ending: "auto", locale: "en", dryRun: false, post: false });
     expect(parseArgs(["--count", "5", "--platform", "shorts", "--out", "x", "--date", "2026-10-01", "--family", "escape", "--ending", "resolved", "--dry-run"])).toMatchObject({ count: 5, platform: "shorts", out: "x", date: "2026-10-01", family: "escape", ending: "resolved", dryRun: true });

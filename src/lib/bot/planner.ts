@@ -638,7 +638,7 @@ export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext): BuiltSett
   // §3.8 vertical 1080 × 1920 at 60 fps
   s.recordingResolution = BOT_FRAME.resolution;
   s.fastExportFps = BOT_FRAME.fps;
-  // §1 borisbounces: a character with a face and a name
+  // §1 geraldbounces: a character with a face and a name
   if (recipe.character) {
     s.ballFace = MASCOT.face;
     s.ballName = MASCOT.name;

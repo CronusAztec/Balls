@@ -10,18 +10,18 @@ import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulum
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 // --- jdm-collisions ---
 import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
-// --- boris-glass ---
+// --- gerald-glass ---
 import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, type GlassRenderOptions } from "./glassRenderer";
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 import { DEFAULT_MULTIPLIER_LABELS, MULTIPLIER_DATA_KEYS, drawMultiplierHud, drawMultipliersBalls, drawMultipliersBoard, drawPickupOrbs, writeMultiplierDataset, type MultiplierLabels, type MultiplierRenderOptions } from "./multiplierRenderer";
 import { formatMultiplier } from "@/lib/physics/multipliers";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
-// --- boris-faces ---
+// --- gerald-faces ---
 import { FaceLayer } from "./faceRenderer";
 import type { CharacterRenderOptions } from "@/lib/character/character";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
 import type { BoxView } from "@/lib/physics/modes";
-// --- end boris-faces ---
+// --- end gerald-faces ---
 import { BackgroundPainter, drawStyledParticle, drawThemedTrail, trailColorTable, type BackgroundLook } from "./themeRenderer"; // --- themes
 import { recordingTextLayout, type RecordingCrop } from "@/lib/recording/recorder"; // --- themes (--- captions --- the export's text lines)
 import { DEFAULT_BACKGROUND_COLORS, type BackgroundType } from "@/lib/themes"; // --- themes
@@ -45,6 +45,7 @@ import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
 import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 import type { Ball } from "@/lib/physics/types";
+import { gapWrap } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
 // --- odd-power-layers --- the Power Layers playfield, stack, particles, badges and rule pills
 import { DEFAULT_POWER_LAYERS_LABELS, PowerLayersLayer, type PowerLayersLabels, type PowerLayersRenderOptions } from "./powerLayersRenderer";
@@ -60,11 +61,11 @@ import { HUD_BAND } from "@/lib/physics/modes/arenaGames"; // --- viral-bot --- 
 import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_KEYS, RunnerLayer, writePaddleDataset, writeRunnerDataset, type JdmRhythmLabels, type JdmRhythmRenderOptions } from "./jdmRhythmRenderer";
 // --- split-screen --- 2 or 4 arenas: every arena drawn by its own offline instance of this canvas, composed by the wrapper
 import { withSplitScreen, type SplitScreenCanvasOptions } from "./splitScreenCanvas";
-// --- boris-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
+// --- gerald-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
-// --- boris-journey --- the Journey: the stages in view, the banner, the mini-map, the clock and score
+// --- gerald-journey --- the Journey: the stages in view, the banner, the mini-map, the clock and score
 import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDataset, type JourneyLabels, type JourneyRenderOptions } from "./journeyRenderer";
-// --- boris-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
+// --- gerald-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
 import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
@@ -112,19 +113,19 @@ export interface CanvasLabels {
   collideAnti?: string;
   /** --- camera --- the badge over the escape replay. */
   replay?: string;
-  // --- boris-glass ---
+  // --- gerald-glass ---
   /** Glass Smash: the stage banner and markers ("STAGE 3"), the sign over the door, and the banner at the end. */
   glassStage?: (n: number) => string;
   glassHome?: string;
   glassHomeTitle?: string;
   glassHomeSub?: (panes: number, stages: number) => string;
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** Stat words, RELEASE, HOME and SLOW-MO of the multipliers HUD, gates and orbs. */
   multipliers?: MultiplierLabels;
   /** A ball outgrew the arena (the run is over), with its size multiplier. */
   outgrew?: string;
   outgrewSub?: (size: string) => string;
-  /** The multipliers board is done: "N Boris made it home", with the clones made along the way. */
+  /** The multipliers board is done: "N Gerald made it home", with the clones made along the way. */
   madeItHome?: (n: number) => string;
   madeItHomeSub?: (clones: number) => string;
   // --- jdm-double-pendulum ---
@@ -149,13 +150,13 @@ export interface CanvasLabels {
   // --- jdm-rhythm-runner ---
   /** Beat Runner / Paddle Keep-Up: LEVEL COMPLETE!, the attempt counter, the tempo badge, score, MISS! and GAME OVER. */
   jdmRhythm?: JdmRhythmLabels;
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   /** Sound Vortex: the HUD title, the swallowed / pew counter and the banner when every ball is gone. */
   vortex?: VortexLabels;
-  // --- boris-journey ---
+  // --- gerald-journey ---
   /** Journey: the stage banner ("Stage 2/5: Glass"), the stage names, the sign over the door, the finish banner and the score. */
   journey?: JourneyLabels;
-  // --- boris-bullseye ---
+  // --- gerald-bullseye ---
   /** Bullseye: the HUD title, the shot counter, the total, BULLSEYE!, MISS and the final banner. */
   bullseye?: BullseyeLabels;
   // --- beat-drop ---
@@ -178,7 +179,7 @@ export interface CanvasHandle {
   /** Song slicer position (0–1) for the HUD progress bar; null hides the bar. */
   setSongProgress: (v: number | null) => void;
   fpsRef: React.RefObject<number>;
-  /** --- boris-faces --- A wall broke (a "gap" sound event): the ball characters look shocked. */
+  /** --- gerald-faces --- A wall broke (a "gap" sound event): the ball characters look shocked. */
   noteWallBreak: () => void;
   // --- themes: the recorder paints each exported frame's background through this (gradient / picture, seamless letterbox bars)
   paintRecordingBackground: (ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => void;
@@ -219,7 +220,7 @@ export interface CanvasProps {
   paintPicture?: string | null;
   /** Opacity of the greyscale ghost of the unrevealed picture. */
   paintGhost?: number;
-  // --- boris-faces ---
+  // --- gerald-faces ---
   /** Ball characters: face, name label and squash (null = none); see lib/character and faceRenderer.ts. */
   character?: CharacterRenderOptions | null;
   /** Called when a cat face chirps (an ouch, a breaking wall, an escape); the page plays it through the ToneGenerator. */
@@ -303,16 +304,16 @@ const DEFAULT_LABELS: CanvasLabels = {
   // --- jdm-collisions ---
   collideAnti: "ANTI-COLLISION",
   replay: "REPLAY", // --- camera ---
-  // --- boris-glass ---
+  // --- gerald-glass ---
   glassStage: (n) => `STAGE ${n}`,
   glassHome: "HOME",
   glassHomeTitle: "HOME!",
   glassHomeSub: (panes, stages) => `${panes} panes smashed in ${stages} stage${stages !== 1 ? "s" : ""}`,
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   multipliers: DEFAULT_MULTIPLIER_LABELS,
   outgrew: "OUTGREW THE ARENA",
   outgrewSub: (size) => `SIZE ${size}`,
-  madeItHome: (n) => `${n} Boris made it home`,
+  madeItHome: (n) => `${n} Gerald made it home`,
   madeItHomeSub: (clones) => `${clones} clones along the way`,
   // --- jdm-double-pendulum ---
   dpDone: "TIME!",
@@ -323,9 +324,9 @@ const DEFAULT_LABELS: CanvasLabels = {
   illusionRevealed: "REVEALED!",
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
   powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
-  vortex: DEFAULT_VORTEX_LABELS, // --- boris-vortex ---
-  journey: DEFAULT_JOURNEY_LABELS, // --- boris-journey ---
-  bullseye: DEFAULT_BULLSEYE_LABELS, // --- boris-bullseye ---
+  vortex: DEFAULT_VORTEX_LABELS, // --- gerald-vortex ---
+  journey: DEFAULT_JOURNEY_LABELS, // --- gerald-journey ---
+  bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   maze: DEFAULT_MAZE_LABELS, // --- odd-maze ---
 };
@@ -427,7 +428,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   /** Picture Paint: the decoded picture (null until it loads, or without one). */
   const paintImageRef = useRef<HTMLImageElement | null>(null);
   labelsRef.current = labels;
-  // --- boris-faces --- the characters' options and chirp callback, read by the draw loop; the face layer lives with the loop
+  // --- gerald-faces --- the characters' options and chirp callback, read by the draw loop; the face layer lives with the loop
   const characterRef = useRef<CharacterRenderOptions | null>(character);
   characterRef.current = character;
   const chirpRef = useRef(onCharacterChirp);
@@ -603,7 +604,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       songProgressRef.current = v;
     },
     fpsRef,
-    noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- boris-faces ---
+    noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- gerald-faces ---
     // --- themes
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
@@ -704,11 +705,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Pendulum Wave: the renderer's options and the scratch placement the trails are sampled into (one object each for the life of the loop).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     const pendulumTrailPoint = { x: 0, y: 0, angle: 0 };
-    // --- boris-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
+    // --- gerald-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
     const teamLayer = new TeamLayer(); // --- teams ---
-    const scoreboardBox = { x: 0, y: 0, w: 0, h: 0 }; // --- boris-multipliers --- where the scoreboard goes this frame (the HUD keeps clear)
+    const scoreboardBox = { x: 0, y: 0, w: 0, h: 0 }; // --- gerald-multipliers --- where the scoreboard goes this frame (the HUD keeps clear)
     let multHudTop = -1;
     const boxHueColors: string[] = [];
     const boxBodyColor = (ball: { id: number }) => {
@@ -734,9 +735,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const exportText = { fontSize: 0, topY: 0, bottomY: 0 };
     /** The numbers data-caption-stack and data-edge-text were last written for (the strings are rebuilt only on a change). */
     const mirrored = { stackTop: NaN, stackBottom: NaN, textTop: NaN, textBottom: NaN, textFs: NaN };
-    // --- boris-glass --- Glass Smash: the renderer's options, refreshed per frame.
+    // --- gerald-glass --- Glass Smash: the renderer's options, refreshed per frame.
     const glassRender: GlassRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, stageLabel: DEFAULT_LABELS.glassStage!, homeLabel: DEFAULT_LABELS.glassHome! };
-    // --- boris-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
+    // --- gerald-multipliers --- the board / orbs / HUD renderer's options, refreshed per frame.
     const multRender: MultiplierRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, rainbowBall: false, time: 0 };
     // --- obstacle-editor --- the editor obstacles' renderer options, refreshed per frame, and the layer that draws and edits them
     const obstacleRender: ObstacleRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, gradient: false, editing: false };
@@ -765,13 +766,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const pdLayer = new PaddleLayer();
     const jrRender: JdmRhythmRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, showGlow: false, showTrails: true, bodyColor: "#fff" };
     const jrBodyColor = () => jrRender.bodyColor;
-    // --- boris-vortex --- the Sound Vortex's layer (cached gradients) and its per-frame options
+    // --- gerald-vortex --- the Sound Vortex's layer (cached gradients) and its per-frame options
     const vortexLayer = new VortexLayer();
     const vortexRender: VortexRenderOptions = { wallAlpha: () => "#fff", rainbow: true, wallThickness: 2, showWallGlow: true, ballRadius: 8 };
-    // --- boris-journey --- the Journey's layer (the stage painter) and its per-frame options
+    // --- gerald-journey --- the Journey's layer (the stage painter) and its per-frame options
     const journeyLayer = new JourneyLayer();
     const journeyRender: JourneyRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, showWallGlow: true, gapSize: 0.3, ballRadius: 8 };
-    // --- boris-bullseye --- the Bullseye layer, its per-frame options and the data-bullseye-* writer
+    // --- gerald-bullseye --- the Bullseye layer, its per-frame options and the data-bullseye-* writer
     const bullseyeLayer = new BullseyeLayer();
     const bullseyeRender: BullseyeRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const bullseyeData = new BullseyeDataset();
@@ -1005,7 +1006,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       ctx.lineWidth = p.wallThickness;
       ctx.globalAlpha = 0.6;
       ctx.save();
-      const isMult = engine.isMultipliersMode(); // --- boris-multipliers --- the board has its own scrolling camera (below)
+      const isMult = engine.isMultipliersMode(); // --- gerald-multipliers --- the board has its own scrolling camera (below)
       if (!isMult && cam.applyView(ctx, engine, p.cameraFollow, cx, cy, arena, Math.min(size.width, size.height), camXRef.current, camYRef.current)) {
         // --- camera --- zoom, shake or the replay own the view; the classic follow picks up from where it is
         camXRef.current = -cam.view.offsetX;
@@ -1025,13 +1026,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         camXRef.current = 0;
         camYRef.current = 0;
         if (isMult) {
-          // --- boris-multipliers --- no zoom or shake on the board: the view stays the board's own
+          // --- gerald-multipliers --- no zoom or shake on the board: the view stays the board's own
           cam.view.offsetX = 0;
           cam.view.offsetY = 0;
           cam.view.scale = 1;
         }
       }
-      // --- boris-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
+      // --- gerald-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
       // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
       const glassView = engine.isGlassMode() ? engine.getGlassView() : null;
       if (glassView) {
@@ -1054,7 +1055,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.save();
         rrLayer.applyCamera(ctx, rrView);
       }
-      // --- boris-journey --- the Journey scrolls down its stages with its own camera, like Glass Smash (the view set up above is dropped)
+      // --- gerald-journey --- the Journey scrolls down its stages with its own camera, like Glass Smash (the view set up above is dropped)
       const journeyView = engine.isJourneyMode() ? engine.getJourneyView() : null;
       if (journeyView) {
         ctx.restore();
@@ -1083,20 +1084,20 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         bdRender.colorTrail = p.colorTrail;
         bdRender.ballColor = drawnBalls[0]?.color ?? "#ffffff";
       }
-      // --- boris-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
+      // --- gerald-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
       const multView = engine.getMultiplierView();
       const multLabels = (labelsRef.current ?? DEFAULT_LABELS).multipliers ?? DEFAULT_MULTIPLIER_LABELS;
       const multTop = multBoard ? multBoard.cameraY : 0;
       const multBottom = multTop + size.height;
       if (multBoard) ctx.translate(0, -multBoard.cameraY);
-      // --- end boris-multipliers ---
+      // --- end gerald-multipliers ---
 
       // --- jdm-illusions --- the Circle Illusion's view, and this frame's wobbly walls: new contacts, the simulation time, the amount
       const illusionView = engine.isIllusionMode() ? engine.getIllusionView() : null;
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
-      const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- boris-vortex ---
-      const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- boris-bullseye ---
+      const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
+      const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
@@ -1150,13 +1151,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.fill();
           }
         } else {
-          let cursor = 0;
+          // The wall between the gaps (sorted, starting in [0, 2π)); a last gap across 0 (ending above 2π) moves the start past its end.
+          const c0 = gapWrap(wall.gaps);
+          let cursor = c0;
           for (const gap of wall.gaps) {
             const start = gap.startAngle + rot;
             if (start > cursor + rot) strokeArc(i, wall.radius, cursor + rot, start);
             cursor = gap.endAngle;
           }
-          if (cursor < TWO_PI) strokeArc(i, wall.radius, cursor + rot, TWO_PI + rot);
+          if (cursor < TWO_PI + c0) strokeArc(i, wall.radius, cursor + rot, TWO_PI + c0 + rot);
         }
       }
       ctx.globalAlpha = 1;
@@ -1353,7 +1356,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         arenaLayer.drawStage(ctx, arenaView, arenaRender);
       }
 
-      // --- boris-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
+      // --- gerald-glass --- Glass Smash: stage markers, panes, cracks and the HOME doorway under the ball.
       if (glassView) {
         const GL = labelsRef.current ?? DEFAULT_LABELS;
         glassRender.wallColor = wallColor;
@@ -1361,7 +1364,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         glassRender.showGlow = p.showGlow;
         glassRender.stageLabel = GL.glassStage ?? DEFAULT_LABELS.glassStage!;
         glassRender.homeLabel = GL.glassHome ?? DEFAULT_LABELS.glassHome!;
-        glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- boris-multipliers --- the gate labels
+        glassRender.multLabels = GL.multipliers ?? DEFAULT_MULTIPLIER_LABELS; // --- gerald-multipliers --- the gate labels
         drawGlassWorld(ctx, glassView, glassRender, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       }
       // --- odd-power-layers --- Power Layers: the navy playfield, the rainbow stack, the ceiling bar and the ball's halo under the ball.
@@ -1370,7 +1373,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         plRender.showWallGlow = p.showWallGlow;
         plLayer.drawWorld(ctx, plView, drawnBalls, plRender);
       }
-      // --- boris-vortex --- Sound Vortex: the funnel, the whirlpool arms, the sound rings, the rim and the hole under the balls.
+      // --- gerald-vortex --- Sound Vortex: the funnel, the whirlpool arms, the sound rings, the rim and the hole under the balls.
       if (vortexView) {
         vortexRender.wallAlpha = circleAlpha;
         vortexRender.rainbow = p.rainbowWalls;
@@ -1379,7 +1382,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         vortexRender.ballRadius = engine.config.ballRadius || 8;
         vortexLayer.drawWorld(ctx, vortexView, vortexRender);
       }
-      // --- boris-journey --- Journey: the stage markers and every stage in view (rings, glass, gates, funnels, bullseye, HOME) under the ball.
+      // --- gerald-journey --- Journey: the stage markers and every stage in view (rings, glass, gates, funnels, bullseye, HOME) under the ball.
       if (journeyView) {
         const JL = labelsRef.current ?? DEFAULT_LABELS;
         journeyRender.wallColor = wallColor;
@@ -1391,7 +1394,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         journeyRender.ballRadius = drawnBalls[0]?.radius ?? (engine.config.ballRadius || 8);
         journeyLayer.drawWorld(ctx, journeyView, journeyRender, JL.journey ?? DEFAULT_JOURNEY_LABELS, size.height);
       }
-      // --- boris-bullseye --- Bullseye: the bumper rings, the landing line, the target and the launcher under the balls.
+      // --- gerald-bullseye --- Bullseye: the bumper rings, the landing line, the target and the launcher under the balls.
       if (bullseyeView) {
         bullseyeRender.wallAlpha = circleAlpha;
         bullseyeRender.wallThickness = p.wallThickness;
@@ -1420,7 +1423,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (rrView) rrLayer.drawWorld(ctx, rrView, jrRender);
         if (pdView) pdLayer.drawWorld(ctx, pdView, jrRender);
       }
-      // --- boris-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
+      // --- gerald-multipliers --- the multipliers board (gates, pegs, bumpers, blockers, HOME) and the pickup orbs of the ring modes
       multRender.wallColor = wallColor;
       multRender.wallThickness = p.wallThickness;
       multRender.showWallGlow = p.showWallGlow;
@@ -1759,13 +1762,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.globalAlpha = 1;
           } else {
             const arcs: { start: number; end: number }[] = [];
-            let cursor = 0;
+            const c0 = gapWrap(wall.gaps);
+            let cursor = c0;
             for (const gap of wall.gaps) {
               const start = gap.startAngle + rot;
               if (start > cursor + rot) arcs.push({ start: cursor + rot, end: start });
               cursor = gap.endAngle;
             }
-            if (cursor < TWO_PI) arcs.push({ start: cursor + rot, end: TWO_PI + rot });
+            if (cursor < TWO_PI + c0) arcs.push({ start: cursor + rot, end: TWO_PI + c0 + rot });
             for (const layer of GLOW_LAYERS) {
               ctx.lineWidth = (4 + 4 * strength) * layer.widthMult;
               const alpha = strength * layer.alphaMult;
@@ -1873,7 +1877,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // Picture Paint: the beat envelope scales the glow and draws a pulse ring around the ball.
       const paintBeat = engine.isPaintMode() ? engine.getPaintState() : null;
       const beatEnvelope = paintBeat && paintBeat.beatActive ? paintBeat.envelope : 1;
-      // --- boris-faces --- advance the characters on the simulation clock; a cat face may chirp
+      // --- gerald-faces --- advance the characters on the simulation clock; a cat face may chirp
       const chirp = faces.beginFrame(engine, characterRef.current, { started: p.isStarted });
       if (chirp) chirpRef.current?.(chirp);
       const hasSprite = !!emojiCanvasRef.current || (imageLoadedRef.current && !!imageRef.current);
@@ -1885,7 +1889,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
-      else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- boris-multipliers --- hundreds of balls, batched
+      else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- gerald-multipliers --- hundreds of balls, batched
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
@@ -1970,7 +1974,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.save();
           ctx.globalAlpha = ball.lifetime! / 1000;
         }
-        // --- boris-faces --- squash-and-stretch around the body, the cat's ears behind it
+        // --- gerald-faces --- squash-and-stretch around the body, the cat's ears behind it
         const squashed = faces.pushSquash(ctx, ball);
         const bdSquashed = bdView ? bdLayer.pushBallSquash(ctx, ball, bdView) : false; // --- beat-drop --- squash on impact, stretch in flight
         faces.drawBehind(ctx, ball, color, hasSprite || !!teamSprite, index);
@@ -2047,7 +2051,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.drawImage(sprite, ball.x - ball.radius, ball.y - ball.radius, 2 * ball.radius, 2 * ball.radius);
           }
         }
-        // --- boris-faces --- the face on the body (squashed with it), then the name label under the ball
+        // --- gerald-faces --- the face on the body (squashed with it), then the name label under the ball
         faces.drawFront(ctx, ball, color, hasSprite || !!teamSprite, index);
         if (bdSquashed) ctx.restore(); // --- beat-drop ---
         if (squashed) ctx.restore();
@@ -2076,7 +2080,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (fading) ctx.restore();
         ctx.globalAlpha = 1;
       });
-      // --- boris-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
+      // --- gerald-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
       // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
       if (faces.isActive() && (isBox || isPendulum || isPoly || isCollide || isMult)) {
         const boxView: BoxView | null = isBox ? engine.getBoxView() : null;
@@ -2094,13 +2098,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && arenaView) faces.drawOverlays(ctx, balls, arenaLayer.bodyColor, { shape: "square", countdown: false });
       if (faces.isActive() && rrView && rrView.alive) faces.drawOverlays(ctx, balls, jrBodyColor, { shape: "square", countdown: false }); // --- jdm-rhythm-runner --- a face on the square
 
-      // --- boris-glass --- the shards of shattered panes fly over the ball.
+      // --- gerald-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
       if (rrView) rrLayer.drawParticles(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- landing dust, crash debris, finish sparks
-      if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- boris-vortex --- the throat's shade, note pulses and splashes over the balls
-      if (journeyView) journeyLayer.drawEffects(ctx, journeyView, size.height); // --- boris-journey --- the glass stages' shards over the ball
-      if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- boris-bullseye --- score popups and the bullseye's starburst
+      if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- gerald-vortex --- the throat's shade, note pulses and splashes over the balls
+      if (journeyView) journeyLayer.drawEffects(ctx, journeyView, size.height); // --- gerald-journey --- the glass stages' shards over the ball
+      if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
 
       // Wall-break flashes and shockwaves
@@ -2200,7 +2204,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isCollide) drawCollideOverlay(ctx, size.width, size.height, engine.getCollideView(), (labelsRef.current ?? DEFAULT_LABELS).collideAnti ?? DEFAULT_LABELS.collideAnti ?? "");
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
-      // --- boris-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
+      // --- gerald-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
       if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
       // --- jdm-race --- standings, mini-map, callouts, the countdown, the podium and the cup table (screen space, part of the recording);
       // live, below the page's buttons over a nearly square canvas
@@ -2214,11 +2218,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
       if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
-      // --- boris-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
+      // --- gerald-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
-      // --- boris-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
+      // --- gerald-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
       if (journeyView) journeyLayer.drawOverlay(ctx, journeyView, (labelsRef.current ?? DEFAULT_LABELS).journey ?? DEFAULT_JOURNEY_LABELS);
-      // --- boris-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
+      // --- gerald-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
       if (bullseyeView) bullseyeLayer.drawOverlay(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- beat-drop --- Beat Drop: the title, the tempo, the landings and the bar's beats (screen space, part of the recording)
       if (bdView) bdLayer.drawOverlay(ctx, bdView, (labelsRef.current ?? DEFAULT_LABELS).beatDrop ?? DEFAULT_BEAT_DROP_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
@@ -2231,7 +2235,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- teams --- live, a canvas about as wide as it is tall has the page's Restart / Pause buttons over its top corners:
       // the scoreboard moves below them (the multipliers HUD, drawn before it, keeps clear of where it will be)
       const teamInset = !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
-      // --- boris-multipliers --- stat badges, SLOW-MO and the HOME counter, inside the square the recorder crops to (so exports
+      // --- gerald-multipliers --- stat badges, SLOW-MO and the HOME counter, inside the square the recorder crops to (so exports
       // have them), clear of the teams' scoreboard in a top corner of the same square
       multHudTop = -1;
       if (multView.active) {
@@ -2380,7 +2384,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             });
           }
         }
-        // --- boris-multipliers --- the outgrow finish and the "N Boris made it home" banner (auto-fitted to the square)
+        // --- gerald-multipliers --- the outgrow finish and the "N Gerald made it home" banner (auto-fitted to the square)
         const fitBanner = (text: string, sub: string, color: string) => {
           const base = Math.max(24, 0.08 * minDim);
           ctx.font = `bold ${base}px sans-serif`;
@@ -2414,7 +2418,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         };
         if (multView.outgrown) fitBanner(L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), "#c4b5fd");
         else if (multBoard && multBoard.done) fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones), "#a3e635");
-        // --- end boris-multipliers ---
+        // --- end gerald-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
           const prog = engine.getShatterProgress();
           bigBanner(L.shattered, L.segmentsDestroyed(prog.broken, prog.total), "#ef4444");
@@ -2451,17 +2455,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const PL = L.powerLayers ?? DEFAULT_POWER_LAYERS_LABELS;
           bigBanner(PL.freedom, PL.freedomSub(plView.hits, plView.freedSec.toFixed(1)), "#a3e635");
         }
-        // --- boris-vortex --- Sound Vortex: every ball swallowed – pew! (from the last swallow, through the hold before the end)
+        // --- gerald-vortex --- Sound Vortex: every ball swallowed – pew! (from the last swallow, through the hold before the end)
         if (vortexView && vortexView.allSwallowed) {
           const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
           bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
         }
-        // --- boris-journey --- Journey: Boris is HOME – the stages, the total time and the score.
+        // --- gerald-journey --- Journey: Gerald is HOME – the stages, the total time and the score.
         if (journeyView && journeyView.homeReached) {
           const JL = L.journey ?? DEFAULT_JOURNEY_LABELS;
           bigBanner(JL.homeTitle, JL.homeSub(journeyView.stages.length, (journeyView.homeAtMs / 1000).toFixed(1), journeyView.score), "#a3e635");
         }
-        // --- boris-bullseye --- Bullseye: every shot has landed – the total and the best shot (from the last landing, through the hold)
+        // --- gerald-bullseye --- Bullseye: every shot has landed – the total and the best shot (from the last landing, through the hold)
         if (bullseyeView && bullseyeView.allLanded) {
           const BY = L.bullseye ?? DEFAULT_BULLSEYE_LABELS;
           bigBanner(BY.finalTitle(bullseyeView.total), BY.finalSub(bullseyeView.bestShot + 1, bullseyeView.best, bullseyeView.bullseyes), "#a3e635");
@@ -2471,7 +2475,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const BD = L.beatDrop ?? DEFAULT_BEAT_DROP_LABELS;
           bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs.toFixed(3)), "#a3e635");
         }
-        // --- boris-glass --- Glass Smash: Boris is HOME.
+        // --- gerald-glass --- Glass Smash: Gerald is HOME.
         if (glassView && glassView.homeReached) {
           const prog = engine.getGlassProgress();
           bigBanner(L.glassHomeTitle ?? DEFAULT_LABELS.glassHomeTitle!, (L.glassHomeSub ?? DEFAULT_LABELS.glassHomeSub!)(prog.shattered, prog.stages), "#a3e635");
@@ -2565,7 +2569,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           height: size.height,
           dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
           inset: teamInset,
-          // The mode's own banner in the middle – an escape, or --- boris-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
+          // The mode's own banner in the middle – an escape, or --- gerald-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
           modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
         });
@@ -2695,7 +2699,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of ["polyVoices", "polyTicks", "polyAlignments", "polyCycles", "polyLayout"]) delete canvas.dataset[key];
       }
 
-      // --- boris-faces --- the characters (face style, the first ball's expression, faces drawn, label) as data-face-* for tools and the smoke test
+      // --- gerald-faces --- the characters (face style, the first ball's expression, faces drawn, label) as data-face-* for tools and the smoke test
       if (faces.isActive()) {
         setCanvasData("face", faces.face());
         setCanvasData("faceExpression", faces.primaryExpression());
@@ -2856,7 +2860,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("teamWinner", teamLayer.winnerText());
         setCanvasData("teamLabels", String(teamLayer.labelsDrawn));
         setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
-        setCanvasData("scoreboardBottom", String(Math.round(teamLayer.scoreboardBottom))); // --- boris-multipliers --- the HUD starts below it
+        setCanvasData("scoreboardBottom", String(Math.round(teamLayer.scoreboardBottom))); // --- gerald-multipliers --- the HUD starts below it
       } else if (canvas.dataset.teams !== undefined) {
         for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard", "scoreboardBottom"]) delete canvas.dataset[key];
       }
@@ -2889,7 +2893,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         mirrored.stackTop = NaN;
         mirrored.textTop = NaN;
       }
-      // --- boris-glass --- Glass Smash: stage, hits, shattered / total panes, HOME, the camera and the gate rows gone through (data-glass-*) for tools and the smoke test.
+      // --- gerald-glass --- Glass Smash: stage, hits, shattered / total panes, HOME, the camera and the gate rows gone through (data-glass-*) for tools and the smoke test.
       if (glassView) {
         const prog = engine.getGlassProgress();
         setCanvasData("glassStage", String(prog.stage));
@@ -2899,11 +2903,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("glassPanes", String(prog.panes));
         setCanvasData("glassHome", prog.home ? "1" : "0");
         setCanvasData("glassCamera", String(Math.round(glassView.cameraY)));
-        setCanvasData("glassGates", String(prog.gates)); // --- boris-multipliers ---
+        setCanvasData("glassGates", String(prog.gates)); // --- gerald-multipliers ---
       } else if (canvas.dataset.glassStage !== undefined) {
         for (const key of ["glassStage", "glassStages", "glassHits", "glassShattered", "glassPanes", "glassHome", "glassCamera", "glassGates"]) delete canvas.dataset[key];
       }
-      // --- boris-multipliers --- the badges (data-mult-speed / -size / -damage / -balls …), pickups, slow-mo, outgrow and the board's counters
+      // --- gerald-multipliers --- the badges (data-mult-speed / -size / -damage / -balls …), pickups, slow-mo, outgrow and the board's counters
       if (multView.active) {
         if (!multBoard && canvas.dataset.multHome !== undefined) for (const key of ["multHome", "multActive", "multClones", "multGates", "multDone"]) delete canvas.dataset[key];
         writeMultiplierDataset(multView, multBoard, setCanvasData);
@@ -2940,13 +2944,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (canvas.dataset.rrEvents !== undefined) for (const key of RUNNER_DATA_KEYS) delete canvas.dataset[key];
       if (pdView) writePaddleDataset(pdView, pdLayer, setCanvasData);
       else if (canvas.dataset.pdHits !== undefined) for (const key of PADDLE_DATA_KEYS) delete canvas.dataset[key];
-      // --- boris-vortex --- balls, entered, swallowed, in flight, notes, chords, rings, the deepest ring, loop, tempo, depth, finished (data-vortex-*)
+      // --- gerald-vortex --- balls, entered, swallowed, in flight, notes, chords, rings, the deepest ring, loop, tempo, depth, finished (data-vortex-*)
       if (vortexView) writeVortexDataset(vortexView, setCanvasData);
       else if (canvas.dataset.vortexBalls !== undefined) for (const key of VORTEX_DATA_KEYS) delete canvas.dataset[key];
-      // --- boris-journey --- stage, stages, kind, sequence, swooshes, score, HOME and its time, finished, camera, notes (data-journey-*)
+      // --- gerald-journey --- stage, stages, kind, sequence, swooshes, score, HOME and its time, finished, camera, notes (data-journey-*)
       if (journeyView) writeJourneyDataset(journeyView, setCanvasData);
       else if (canvas.dataset.journeyStage !== undefined) for (const key of JOURNEY_DATA_KEYS) delete canvas.dataset[key];
-      // --- boris-bullseye --- shots, landings, total, best, bullseyes, scores, notes, thuds, slow motion, target, perfect shot, finished (data-bullseye-*)
+      // --- gerald-bullseye --- shots, landings, total, best, bullseyes, scores, notes, thuds, slow motion, target, perfect shot, finished (data-bullseye-*)
       if (bullseyeView) bullseyeData.write(bullseyeView, setCanvasData);
       else if (canvas.dataset.bullseyeShots !== undefined) for (const key of BULLSEYE_DATA_KEYS) delete canvas.dataset[key];
       // --- beat-drop --- landings (measured times and their beats), error, tempo, pads alive, drums, camera, finish (data-bd-*)

@@ -1,5 +1,5 @@
 /**
- * The landing thud of Bullseye (lib/physics/modes/bullseye.ts, feature boris-bullseye): a ball that lands on the target
+ * The landing thud of Bullseye (lib/physics/modes/bullseye.ts, feature gerald-bullseye): a ball that lands on the target
  * sticks with a short, pitched "thock" – the ring decides the pitch (the bull thuds highest), so a run's landings play a
  * little bass line under the peg notes. A sine body drops quickly from `bend` × the pitch onto it and dies away, and a
  * short triangle "knock" an octave and a fifth above gives it the attack of a dart hitting a board. The ToneGenerator
