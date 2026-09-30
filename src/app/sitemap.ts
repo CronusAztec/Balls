@@ -10,6 +10,7 @@ export const dynamic = "force-static";
 export default function sitemap(): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
   const paths = [...STATIC_PATHS];
+  paths.push("/gallery"); // --- daily-gallery --- the preset gallery
   for (const p of paths) {
     const languages: Record<string, string> = {};
     for (const l of routing.locales) languages[l] = pageUrl(l, p);

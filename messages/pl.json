@@ -2468,5 +2468,37 @@
     "canvasMiss": "PUDŁO",
     "canvasFinal": "SUMA [total]",
     "canvasFinalSub": "Najlepszy strzał #[shot]: [score] pkt · dziesiątki: [bullseyes]"
+  },
+  "Daily": {
+    "cardBadge": "Wyzwanie dnia",
+    "cardTitle": "Dziś: {mode}",
+    "cardLoading": "Dzisiejsze wyzwanie",
+    "cardText": "Jeden tryb i jedno ziarno dziennie – takie same dla wszystkich. Naciśnij play, zobacz, jak potoczy się dzisiejsza symulacja, i wyślij wyzwanie znajomym.",
+    "cardSeed": "Ziarno {seed}",
+    "cardPlayed": "Zagrane dziś · {seconds} s",
+    "cardImageAlt": "{mode} – tryb dzisiejszego wyzwania",
+    "play": "Zagraj dzisiejsze ziarno",
+    "nextIn": "Następne wyzwanie za {time}",
+    "streak": "{days, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}} z rzędu",
+    "barActive": "Wyzwanie dnia #{number} · {mode} · ziarno {seed}",
+    "barIdle": "Wyzwanie dnia: jeden tryb, jedno ziarno – dziś takie same dla wszystkich",
+    "resultTitle": "Wyzwanie dnia #{number} ukończone",
+    "resultTime": "{seconds} s",
+    "resultInvite": "Wyślij znajomym to samo ziarno i porównajcie swoje przebiegi.",
+    "copyResult": "Kopiuj link do wyzwania",
+    "copied": "Skopiowano – wklej go, gdzie chcesz"
+  },
+  "Gallery": {
+    "navLabel": "Galeria",
+    "metaTitle": "Galeria presetów – {count, plural, one {# gotowa symulacja} few {# gotowe symulacje} many {# gotowych symulacji} other {# gotowej symulacji}} piłek | {siteName}",
+    "metaDescription": "{count, plural, one {# dopracowane ustawienie} few {# dopracowane ustawienia} many {# dopracowanych ustawień} other {# dopracowanego ustawienia}} odbijających się piłek – neonowe ucieczki, galaktyki wahadeł, string art, bitwy i wyścigi. Otwórz dowolne w darmowym symulatorze jednym kliknięciem i dopasuj je do siebie.",
+    "badge": "Galeria",
+    "title": "Galeria presetów",
+    "intro": "{count, plural, one {# ręcznie dopracowane ustawienie} few {# ręcznie dopracowane ustawienia} many {# ręcznie dopracowanych ustawień} other {# ręcznie dopracowanego ustawienia}} na dobry początek. Każda karta otwiera symulator z zastosowanym presetem – ten sam wygląd, to samo ziarno – gotowy do nagrania albo remiksu.",
+    "imageAlt": "Podgląd presetu {name}",
+    "tryIt": "Wypróbuj",
+    "tryAria": "Wypróbuj: {name}",
+    "outro": "Zmieniłeś coś i efekt ci się podoba? Skopiuj link do udostępnienia pod płótnem – twoje ustawienia pójdą razem z nim.",
+    "cta": "Zacznij od zera"
   }
 }

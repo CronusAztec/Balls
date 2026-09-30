@@ -2691,5 +2691,37 @@
     "canvasMiss": "MISS",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Best shot #[shot]: [score] pts · bullseyes: [bullseyes]"
+  },
+  "Daily": {
+    "cardBadge": "Daily challenge",
+    "cardTitle": "Today: {mode}",
+    "cardLoading": "Today's challenge",
+    "cardText": "One mode and one seed a day – the same for everyone. Press play, watch how today's run unfolds, then send the challenge to a friend.",
+    "cardSeed": "Seed {seed}",
+    "cardPlayed": "Played today · {seconds} s",
+    "cardImageAlt": "{mode} – today's challenge mode",
+    "play": "Play today's seed",
+    "nextIn": "Next challenge in {time}",
+    "streak": "{days, plural, one {# day} other {# days}} in a row",
+    "barActive": "Daily challenge #{number} · {mode} · seed {seed}",
+    "barIdle": "Daily challenge: one mode, one seed, the same for everyone today",
+    "resultTitle": "Daily challenge #{number} done",
+    "resultTime": "{seconds} s",
+    "resultInvite": "Send your friends the same seed and compare your runs.",
+    "copyResult": "Copy challenge link",
+    "copied": "Copied – paste it anywhere"
+  },
+  "Gallery": {
+    "navLabel": "Gallery",
+    "metaTitle": "Preset Gallery – {count} Ready-Made Ball Simulations | {siteName}",
+    "metaDescription": "{count} curated bouncing-ball setups – neon escapes, pendulum galaxies, string art, battles and races. Open any of them in the free simulator with one click and make it yours.",
+    "badge": "Gallery",
+    "title": "Preset gallery",
+    "intro": "{count} hand-tuned setups to start from. Every card opens the simulator with the preset applied – the same look, the same seed – ready to record or remix.",
+    "imageAlt": "Preview of the {name} preset",
+    "tryIt": "Try it",
+    "tryAria": "Try it: {name}",
+    "outro": "Changed something and love the result? Copy the share link under the canvas and your setup travels with it.",
+    "cta": "Start from scratch"
   }
 }

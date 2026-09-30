@@ -95,6 +95,10 @@ import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropP
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
+// --- daily-gallery --- the daily challenge (lib/daily.ts): `daily=` links, the Play today's seed button, the end-of-run panel
+import { DAILY_PARAM, dailyFromParam, dailySettings } from "@/lib/daily";
+import { useDailyChallenge } from "./useDailyChallenge";
+import { DailyBar, DailyResultPanel } from "./DailyChallengeUi";
 import {
   RANGES,
   defaultSettings,
@@ -180,8 +184,10 @@ export default function Simulator() {
   const musicUploadIdRef = useRef(0);
   const projectUploadsRef = useRef<ProjectUploads>({}); // --- project-files --- the uploads' original files (decoded songs keep no bytes)
 
+  // --- daily-gallery --- a `daily=` link opens that day's challenge: its settings are the first settings (its seed is pinned below)
+  const [dailyAtLoad] = useState(() => dailyFromParam(searchParams.get(DAILY_PARAM)));
   // Initial settings come from the URL (?mode=..., plus any shared parameters).
-  const [settings, setSettings] = useState<SimulatorSettings>(() => settingsFromSearchParams(new URLSearchParams(searchParams.toString())));
+  const [settings, setSettings] = useState<SimulatorSettings>(() => (dailyAtLoad ? dailySettings(dailyAtLoad) : settingsFromSearchParams(new URLSearchParams(searchParams.toString()))));
   const [engineReady, setEngineReady] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -2100,6 +2106,18 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engineReady]);
   // --- end viral-bot ---
+  // --- daily-gallery --- the daily challenge on the page (after the page's seed effects: its seed is pinned last)
+  const daily = useDailyChallenge({
+    initial: dailyAtLoad,
+    settings,
+    engineReady,
+    getEngine: () => engineRef.current,
+    applySettings: loadPresetSettings,
+    pinSeed: pinBotSeed,
+    isStarted,
+    finished,
+  });
+  // --- end daily-gallery ---
 
   const onResetSection = useCallback(
     (section: ControlSection) => {
@@ -2626,6 +2644,8 @@ export default function Simulator() {
                   </button>
                 </div>
               )}
+              {/* --- daily-gallery --- a finished daily run: its result and the invitation to share it (never on the canvas, so never recorded) */}
+              {isStarted && finished && !isRecording && daily.result && <DailyResultPanel result={daily.result} />}
               {isSearching && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
                   <div className="text-center space-y-5 max-w-xs px-4">
@@ -2706,6 +2726,8 @@ export default function Simulator() {
             </div>
             {/* --- project-files --- a ?c= share code that could not be read */}
             <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
+            {/* --- daily-gallery --- the daily challenge on the page and the Play today's seed button */}
+            <DailyBar active={daily.active} busy={daily.busy} disabled={isRecording || isSearching || fastRunning || batchRender.running || !engineReady} onPlay={() => void daily.playToday()} />
             {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}
             {obstacleEditing && (
               <p className="mt-1.5 text-[11px] text-[#93d119]/80 leading-relaxed" data-testid="obstacle-canvas-hint">
