@@ -71,7 +71,7 @@ import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LA
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
 // --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
-import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
+import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
 import { FrameBudget } from "@/lib/simulation/frameBudget";
 import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
 
@@ -922,8 +922,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           accumulator -= 16.666;
           if (frameBudget.exceeded(performance.now())) accumulator = 0; // --- unlimited ---
         }
-        frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
-      }
+        if (engine.isSimulationFinished()) frameBudget.reset(); // --- unlimited --- (a finished run's clock stands still: not slow motion)
+        else frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
+      } else frameBudget.reset(); // --- unlimited --- (paused or not started: no slow-motion badge)
       cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
@@ -2107,7 +2108,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
 
       // Wall-break flashes and shockwaves
-      for (const flash of engine.getWallBreakFlashes()) {
+      for (const flash of cappedEffects(engine.getWallBreakFlashes(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
         const a = (flash.life / flash.maxLife) * 0.6;
         ctx.save();
         ctx.globalAlpha = a;
@@ -2120,7 +2121,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.stroke();
         ctx.restore();
       }
-      for (const wave of engine.getShockwaves()) {
+      for (const wave of cappedEffects(engine.getShockwaves(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
         const a = (wave.life / wave.maxLife) * 0.5;
         ctx.save();
         ctx.globalAlpha = a;
@@ -2245,7 +2246,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- unlimited --- the ball count, "x0.4 real time" and ARENA FULL, bottom right of the square the recorder crops to
       if (unlimitedView.on) {
         const sq = Math.min(size.width, size.height);
-        const liveInset = !recordingRef.current && (size.width - sq) / 2 < 170 ? 52 : 0; // live: clear of the playback-speed buttons
+        const liveInset = !recordingRef.current ? 52 : 0; // live: above the playback-speed buttons (never in a recording, which crops them away)
         unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset);
       }
 
@@ -2419,7 +2420,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             },
           });
         };
-        if (multView.outgrown) fitBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA)
+        if (multView.outgrown) fitBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(unlimitedView.ate && multView.size <= 1 ? ateSizeLabel(unlimitedView.ateRadius) : formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA; a Ball Size past the arena shows its size in px)
         else if (multBoard && multBoard.done) fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones), "#a3e635");
         // --- end gerald-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {

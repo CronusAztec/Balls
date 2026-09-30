@@ -418,6 +418,8 @@ export interface ModeContext {
   unlimitedRoom?(): number | null;
   /** With No limits on, adds `count` balls to the crowd at (x, y), fanned out from `angle` at `speed`; false once the crowd is full. */
   spawnCrowd?(count: number, x: number, y: number, speed: number, radius: number, angle: number, slot: number): boolean;
+  /** With No limits on, a mode refused a clone at its ball limit (a mode without a crowd): the canvas shows ARENA FULL. A no-op while the switch is off. */
+  noteArenaFull?(): void;
 }
 
 export interface GameMode {

@@ -848,7 +848,10 @@ export class MultipliersMode implements GameMode {
           const copies = Math.round(gate.factor) - 1;
           let made = 0;
           for (let c = 0; c < copies; c++) {
-            if (balls.length - this.removals >= maxBalls) break;
+            if (balls.length - this.removals >= maxBalls) {
+              ctx.noteArenaFull?.(); // --- unlimited --- (ARENA FULL with No limits on; nothing without)
+              break;
+            }
             this.cloneFrom(ctx, ball, gate.row);
             made++;
           }

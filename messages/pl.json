@@ -2522,7 +2522,7 @@
     "typeValue": "Wpisz wartość: {label}",
     "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
     "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",
-    "finderLimited": "Bez limitów: ciężka symulacja – sprawdzono tylko {count} seedów, po kawałku każdej klatki.",
+    "finderLimited": "Bez limitów: ciężka symulacja – sprawdzono tylko {count, plural, one {# ziarno} few {# ziarna} many {# ziaren} other {# ziarna}}, po kawałku każdej klatki.",
     "canvasRealTime": "x[ratio] CZASU RZECZYWISTEGO",
     "canvasArenaFull": "ARENA PEŁNA",
     "canvasBalls": "[count] KULEK",

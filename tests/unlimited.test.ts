@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { Crowd } from "@/lib/physics/crowd";
-import { LOD_POINTS_FROM, MAX_SAFE_SPEED, MAX_SOUNDS_PER_FRAME, PAIR_COLLISIONS_UP_TO, STEP_WORK_CAP, UnlimitedRuntime, unlimitedConfigOf, unlimitedExtrasOf } from "@/lib/physics/limits";
-import { MAX_EFFECTIVE_BOUNCE, MULTIPLIER_CEILING, effectiveBounce, type StepPlan } from "@/lib/physics/multipliers";
+import { BREAK_EFFECTS_PER_STEP, CROWD_POUR_PER_STEP, DENSE_RINGS_FROM, OBJECT_MIN, RING_OBJECT_WORK, STEP_RING_WORK, WALL_HITS_KEPT, fitIntoSortedRings, objectLimitFor, LOD_POINTS_FROM, MAX_SAFE_SPEED, MAX_SOUNDS_PER_FRAME, PAIR_COLLISIONS_UP_TO, STEP_WORK_CAP, UnlimitedRuntime, unlimitedConfigOf, unlimitedExtrasOf } from "@/lib/physics/limits";
+import { MAX_EFFECTIVE_BOUNCE, MULTIPLIER_CEILING, effectiveBounce, fitBallToRings, type RingFit, type StepPlan } from "@/lib/physics/multipliers";
+import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
+import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { createEngineForSettings } from "@/lib/simulation/finder";
+import { effectiveBallCount } from "@/lib/teams";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { FRAME_BUDGET_MS, FrameBudget, formatRealTime } from "@/lib/simulation/frameBudget";
+import { EFFECT_RENDER_CAP, ateSizeLabel, cappedEffects } from "@/components/simulator/unlimitedRenderer";
 import { FINDER_MIN_SEEDS, findSimulationBudgeted, seedsWithinBudget, usesBudgetedSearch } from "@/lib/simulation/unlimitedFinder";
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
@@ -13,6 +18,7 @@ import { decodeShareCode, encodeShareCode, supportsShareCodes } from "@/lib/shar
 import {
   BOUNDED_KEYS,
   CROWD_LIMIT,
+  SEMANTIC_MAX,
   LIVE_WALL_LIMIT,
   OBJECT_BALL_LIMIT,
   UNLIMITED_SLIDER_CEILING,
@@ -215,8 +221,9 @@ describe("No limits: the engine", () => {
 
   it("a step with 200,000 balls finishes inside the budget through time-slicing, without throwing", () => {
     const engine = engineFor("classic", { crowdCount: 200_000, ballCount: 6 });
-    engine.update(1000 / 60, 0); // the crowd appears
-    expect(engine.getUnlimitedView().crowd).toBe(200_000);
+    for (let i = 0; i < Math.ceil(200_000 / CROWD_POUR_PER_STEP); i++) engine.update(1000 / 60, 0); // the crowd pours in
+    expect(engine.getCrowd().spawned).toBe(200_000);
+    expect(engine.getUnlimitedView().crowd).toBeGreaterThan(190_000);
     // The canvas loop: 100 ms of wall time asks for six steps; the budget stops after the step that used it up.
     const budget = new FrameBudget();
     budget.enabled = true;
@@ -307,6 +314,8 @@ describe("No limits: the engine", () => {
     huge.update(1000 / 60, 0);
     const events = huge.consumeSoundEvents();
     expect(huge.getUnlimitedView().ate).toBe(true);
+    expect(huge.getUnlimitedView().ateRadius).toBe(1e6); // the banner shows the Ball Size that ate it ("1M px")
+    expect(ateSizeLabel(huge.getUnlimitedView().ateRadius)).toBe("1M px");
     expect(huge.isSimulationFinished()).toBe(true);
     expect(events.filter((e) => e.ate)).toHaveLength(1);
     expect(huge.endsWithMultiplierFinish()).toBe(true);
@@ -386,8 +395,41 @@ describe("No limits: the engine", () => {
     expect(plan.dilation).toBeCloseTo((0.5 * plan.subSteps) / 64, 10);
     expect(rt.pairsAllowed(PAIR_COLLISIONS_UP_TO)).toBe(true);
     expect(rt.pairsAllowed(PAIR_COLLISIONS_UP_TO + 1)).toBe(false);
+    // A thousand rings: every ball is checked against each of them, so the step gets fewer sub-steps (never below four).
+    const ringPlan: StepPlan = { subSteps: 64, dilation: 1 };
+    rt.boundPlan(ringPlan, 6, LIVE_WALL_LIMIT);
+    expect(ringPlan.subSteps).toBe(Math.max(4, Math.floor(STEP_RING_WORK / (6 * LIVE_WALL_LIMIT))));
+    expect(ringPlan.dilation).toBeCloseTo(ringPlan.subSteps / 64, 10);
+    const defaultPlan: StepPlan = { subSteps: 64, dilation: 1 };
+    rt.boundPlan(defaultPlan, 1, 7);
+    expect(defaultPlan).toEqual({ subSteps: 64, dilation: 1 });
     rt.configure({ unlimited: false });
     expect(rt.pairsAllowed(1e6)).toBe(true);
+  });
+
+  it("holds fewer full-physics balls the more rings they bounce in (the rest join the crowd)", () => {
+    expect(objectLimitFor(0)).toBe(OBJECT_BALL_LIMIT);
+    expect(objectLimitFor(7)).toBe(OBJECT_BALL_LIMIT);
+    expect(objectLimitFor(100)).toBe(RING_OBJECT_WORK / 100);
+    expect(objectLimitFor(LIVE_WALL_LIMIT)).toBe(Math.max(OBJECT_MIN, RING_OBJECT_WORK / LIVE_WALL_LIMIT));
+    const engine = engineFor("classic", { wallCount: 1e5 });
+    engine.update(1000 / 60, 0);
+    const ball = engine.getBalls()[0];
+    engine.applyBallMultiplier(ball, "speed", 1.01);
+    engine.getMultiplierRuntime().cloneBall(engine.ctx, ball, 500, objectLimitFor(LIVE_WALL_LIMIT));
+    expect(engine.getBalls()).toHaveLength(objectLimitFor(LIVE_WALL_LIMIT));
+    let worst = 0;
+    for (let i = 0; i < 30; i++) {
+      const t0 = performance.now();
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      worst = Math.max(worst, performance.now() - t0);
+    }
+    expect(engine.getCrowd().spawned).toBe(500 - objectLimitFor(LIVE_WALL_LIMIT));
+    expect(allFinite(engine)).toBe(true);
+    expect(worst).toBeLessThan(400); // packed rings: one rebound a pass (DENSE_RINGS_FROM), bounded sub-steps
+    expect(engine.getCircularWalls().length).toBeGreaterThanOrEqual(DENSE_RINGS_FROM);
+    expect(engine.getWallHits().length).toBeLessThanOrEqual(WALL_HITS_KEPT);
   });
 
   it("hands at most a handful of sounds to the synth per frame, breaks first", () => {
@@ -425,6 +467,61 @@ describe("No limits: the engine", () => {
     }
   });
 
+  it("runs every mode from settings far past every range, through the page's own path (settings → config → engine)", () => {
+    // Every unlimited setting at 1e9 (the settings with a meaning that ends at that end): once with a Ball Size bigger than
+    // any arena (the ring modes are eaten at once) and once at the default size (a million-ball crowd, a thousand rings…).
+    for (const bigBall of [true, false]) {
+      for (const mode of MODE_IDS) {
+        const preset: Record<string, unknown> = { ...defaultSettings(mode), unlimited: true };
+        for (const key of unlimitedSettingKeys()) preset[key] = SEMANTIC_MAX[key] ?? Math.max(ranges[key].max, 1e9);
+        if (!bigBall) preset.ballRadius = defaultSettings(mode).ballRadius;
+        const s = presetToSettings(preset as Partial<SimulatorSettings>);
+        const physics = { ...physicsConfigOfSettings(s), ...unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(mode)) };
+        const engine = createEngineForSettings(physics, mode, modeSettingsOfSettings(s), 3);
+        for (let i = 0; i < 8; i++) {
+          engine.update(1000 / 60, 0);
+          expect(engine.consumeSoundEvents().length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
+        }
+        expect([mode, bigBall, allFinite(engine)]).toEqual([mode, bigBall, true]);
+        expect(engine.getCircularWalls().length).toBeLessThanOrEqual(LIVE_WALL_LIMIT);
+        expect(engine.getBalls().length).toBeLessThanOrEqual(OBJECT_BALL_LIMIT);
+        expect(engine.getCrowd().count).toBeLessThanOrEqual(CROWD_LIMIT);
+      }
+    }
+  });
+
+  it("fits a ball into a thousand rings in one quick pass, exactly as the multipliers' ring fit does", () => {
+    // The sorted walk gives the same bursts, in the same order, as fitBallToRings() on rings of distinct radii.
+    let seed = 12345;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let trial = 0; trial < 300; trial++) {
+      const n = 1 + Math.floor(rand() * 40);
+      const radii = new Set<number>();
+      while (radii.size < n) radii.add(Math.round(20 + rand() * 600));
+      const walls = [...radii].map((radius) => ({ radius, gaps: [] }));
+      const broken = new Set<number>();
+      for (let w = 0; w < n; w++) if (rand() < 0.2) broken.add(w);
+      const dist = rand() * 650;
+      const radius = 31 + rand() * rand() * 700;
+      const order = walls.map((_, w) => w).sort((a, b) => walls[a].radius - walls[b].radius);
+      const a: RingFit = { burst: [], outgrown: false, dist: 0 };
+      const b: RingFit = { burst: [], outgrown: false, dist: 0 };
+      fitBallToRings(dist, radius, walls, broken, 30, a);
+      fitIntoSortedRings(dist, radius, walls, order, n, broken, 30, b);
+      expect(b).toEqual(a);
+    }
+    // A ball bigger than a thousand rings: every ring but the arena bursts (the first few with their effect) and the arena is eaten.
+    const engine = engineFor("classic", { wallCount: 1e5, ballRadius: 1e6 });
+    engine.setWallBreakStyle("all");
+    const start = performance.now();
+    engine.update(1000 / 60, 0);
+    const took = performance.now() - start;
+    expect(engine.getUnlimitedView().ate).toBe(true);
+    expect(engine.getBrokenWalls().size).toBe(LIVE_WALL_LIMIT - 1);
+    expect(engine.getShockwaves().length).toBeLessThanOrEqual(BREAK_EFFECTS_PER_STEP);
+    expect(took).toBeLessThan(250);
+  });
+
   it("changes nothing with the switch off", () => {
     const trace = (patch: Partial<PhysicsConfig>) => {
       const engine = new PhysicsEngine({ ...config, ...patch });
@@ -445,6 +542,70 @@ describe("No limits: the engine", () => {
 describe("No limits: the crowd renderer's level of detail", () => {
   it("draws points past the points threshold", () => {
     expect(LOD_POINTS_FROM).toBeGreaterThan(OBJECT_BALL_LIMIT);
+  });
+
+  it("draws at most the newest few wall-break effects with the switch on (a render cap, not a simulation cap)", () => {
+    const waves = Array.from({ length: 1000 }, (_, i) => i);
+    expect(cappedEffects(waves, { on: true })).toEqual(waves.slice(1000 - EFFECT_RENDER_CAP));
+    expect(cappedEffects(waves, { on: false })).toBe(waves);
+    const few = [1, 2, 3];
+    expect(cappedEffects(few, { on: true })).toBe(few);
+  });
+});
+
+describe("No limits: the crowd pours in and clone storms overflow into it", () => {
+  it("pours a big crowd in over whole steps, the same way for a seed", () => {
+    const pour = () => {
+      const engine = engineFor("classic", { crowdCount: 120_000, rotationSpeed: 0 }, 9);
+      const counts: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        counts.push(engine.getCrowd().spawned);
+      }
+      const crowd = engine.getCrowd();
+      return { counts, sample: [crowd.x[0], crowd.y[0], crowd.vx[60_000], crowd.vy[119_999], crowd.color[50_001]] };
+    };
+    const a = pour();
+    expect(a.counts).toEqual([CROWD_POUR_PER_STEP, 2 * CROWD_POUR_PER_STEP, 120_000, 120_000]);
+    expect(pour()).toEqual(a);
+  });
+
+  it("x2 BALLS clones go past the split limit and, past the full-physics balls, join the crowd", () => {
+    const engine = engineFor("classic");
+    engine.update(1000 / 60, 0); // the run has started (its first step sets the crowd up)
+    const ball = engine.getBalls()[0];
+    engine.applyBallMultiplier(ball, "speed", 2);
+    const runtime = engine.getMultiplierRuntime();
+    runtime.cloneBall(engine.ctx, ball, OBJECT_BALL_LIMIT + 500, OBJECT_BALL_LIMIT);
+    expect(engine.getBalls()).toHaveLength(OBJECT_BALL_LIMIT);
+    engine.update(1000 / 60, 0);
+    expect(engine.getCrowd().spawned).toBeGreaterThanOrEqual(500);
+    expect(allFinite(engine)).toBe(true);
+    // Without the switch a clone past the limit is simply not made.
+    const off = new PhysicsEngine({ ...config });
+    off.setSeed(7);
+    off.initMode("classic");
+    const offBall = off.getBalls()[0];
+    off.applyBallMultiplier(offBall, "speed", 2);
+    off.getMultiplierRuntime().cloneBall(off.ctx, offBall, 50, 16);
+    expect(off.getBalls()).toHaveLength(16);
+    expect(off.getCrowd().count).toBe(0);
+  });
+
+  it("says ARENA FULL when a mode refuses a clone at its limit with the switch on only", () => {
+    const rt = new UnlimitedRuntime();
+    rt.configure({ unlimited: false });
+    rt.noteFull();
+    expect(rt.getView(0).full).toBe(false);
+    rt.configure({ unlimited: true });
+    rt.noteFull();
+    expect(rt.getView(0).full).toBe(true);
+    rt.reset();
+    expect(rt.getView(0).full).toBe(false);
+    expect(rt.cloneLimit(16)).toBe(OBJECT_BALL_LIMIT);
+    rt.configure({ unlimited: false });
+    expect(rt.cloneLimit(16)).toBe(16);
   });
 });
 

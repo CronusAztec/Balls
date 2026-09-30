@@ -53,7 +53,7 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
 // --- unlimited --- No limits: soft ceilings, the crowd, finite numbers, the ate-the-arena finish
-import { UnlimitedRuntime, type LimitsHost, type UnlimitedView } from "./limits";
+import { UnlimitedRuntime, WALL_HITS_KEPT, type LimitsHost, type UnlimitedView } from "./limits";
 import type { Crowd } from "./crowd";
 import { MAX_EFFECTIVE_BOUNCE } from "./multipliers";
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
@@ -285,7 +285,15 @@ export class PhysicsEngine {
   // --- end video-beats ---
   // --- unlimited --- No limits (limits.ts): soft ceilings, the crowd, finite numbers, the ate-the-arena finish
   private readonly limits = new UnlimitedRuntime();
-  private readonly limitsHost: LimitsHost = { breakWall: (ball, wallIndex) => this.smashWall(ball, wallIndex) };
+  private readonly limitsHost: LimitsHost = {
+    breakWall: (ball, wallIndex, quiet) => {
+      // A burst past the step's first few: the smash without its particles and shockwave (visual only, no seeded draws).
+      const style = this.wallBreakStyle;
+      if (quiet) this.wallBreakStyle = "none";
+      this.smashWall(ball, wallIndex);
+      this.wallBreakStyle = style;
+    },
+  };
   // --- end unlimited ---
 
   readonly ctx: ModeContext;
@@ -365,6 +373,7 @@ export class PhysicsEngine {
       // --- unlimited --- spawns past the full-physics balls join the crowd
       unlimitedRoom: () => (this.limits.on ? this.limits.objectRoom(this.balls.length) : null),
       spawnCrowd: (count, x, y, speed, radius, angle, slot) => this.limits.overflow(count, x, y, speed, radius, angle, slot),
+      noteArenaFull: () => this.limits.noteFull(),
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -2019,7 +2028,7 @@ export class PhysicsEngine {
       if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
       if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
       const plan = multActive || limitsOn ? mult.planStep(this.balls, this.FIXED_STEP_MS / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
-      if (limitsOn && plan) this.limits.boundPlan(plan, this.balls.length); // --- unlimited --- (thousands of fast balls: a bounded step)
+      if (limitsOn && plan) this.limits.boundPlan(plan, this.balls.length, this.circularWalls.length); // --- unlimited --- (thousands of fast balls, a thousand rings: a bounded step)
       const stepMs = plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS;
       this._elapsedMs += stepMs;
       const orbsLive = multActive && mult.pickupsLive(modeName);
@@ -2172,7 +2181,7 @@ export class PhysicsEngine {
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
       if (this.onBeat.wants()) this.stepOnBeat(stepMs, subSteps, audioIntensity, gDirX, gDirY, keepMoving); // --- video-beats ---
-      if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- gerald-multipliers --- orbs taken, grown balls refitted, HUD
+      if (multActive) mult.endStep(this.ctx, this.limits.cloneLimit(this.interaction.maxBalls), this.circularWalls.length > 0); // --- gerald-multipliers --- orbs taken, grown balls refitted, HUD (--- unlimited --- x2 BALLS clones past the split limit)
       // --- unlimited --- the crowd moves, non-finite balls are rescued, big balls burst their rings or eat the arena
       if (limitsOn) {
         const g = this.gravityAccel(audioIntensity);
@@ -2458,6 +2467,7 @@ export class PhysicsEngine {
         // The rings after this one were tested against where the move left the ball, not where it is now: the next pass
         // resolves them from its new place.
         if (crossedRing) return true;
+        if (this.limits.onePerPass) return true; // --- unlimited --- (packed rings: one rebound a pass, the next pass resolves the rest)
       }
     }
     return collided;
@@ -2686,6 +2696,7 @@ export class PhysicsEngine {
   }
 
   private addWallHit(wallIndex: number, angle: number, radius: number) {
+    if (this.limits.on && this.wallHits.length >= WALL_HITS_KEPT) this.wallHits.splice(0, this.wallHits.length >> 1); // --- unlimited --- (thousands of hits a second: the newest few hundred light the walls; the glow is visual only)
     this.wallHits.push({ wallIndex, angle, radius, timestamp: Date.now() });
     const cutoff = Date.now() - 1000;
     let drop = 0;

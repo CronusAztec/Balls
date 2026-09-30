@@ -6753,14 +6753,16 @@ const bdInstrument = () =>
     spawned && Number(first.unlimitedBalls) >= 45000 && sliced && Number(data.unlimitedRealtime) < 0.9 && latencies.length === 3 && worstClick < 300 && toggleOn && speedInput === "1000000",
     `(spawned=${spawned}, balls ${first.unlimitedBalls} → ${data.unlimitedBalls}, sliced=${sliced}, real time x${data.unlimitedRealtime}, lod ${first.unlimitedLod}, clicks ${latencies.map((l) => Math.round(l)).join("/")} ms, toggle ${toggleOn}, speed input "${speedInput}"${loadNote()})`,
   );
-  // A recording of the extreme run still downloads.
+  // A recording of the extreme run still downloads. At this speed the six team balls may escape within a second or two, which
+  // ends the run – and the recording stops and downloads by itself; otherwise Stop & Export ends it.
   await page.getByRole("button", { name: /Restart/ }).first().click().catch(() => {});
   const extremeDownload = await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }),
     (async () => {
       await page.getByRole("button", { name: /Record Video/ }).click();
       await page.waitForTimeout(3500);
-      await page.getByRole("button", { name: /Stop & Export/ }).click();
+      const stop = page.getByRole("button", { name: /Stop & Export/ });
+      if (await stop.isVisible().catch(() => false)) await stop.click().catch(() => {});
     })(),
   ])
     .then(([dl]) => dl)

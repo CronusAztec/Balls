@@ -1,6 +1,7 @@
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
+import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
 import {
@@ -439,6 +440,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     let bedStopped = false;
     let exported = 0;
     let lastYield = performance.now();
+    const yieldAfterMs = engine.getUnlimitedView().on ? FRAME_BUDGET_MS : 32; // --- unlimited --- (a heavy run yields every frame budget: the page stays responsive)
     for (let simFrame = 0; simFrame < lastFrame; simFrame++) {
       const t = simFrameTimeMs(simFrame);
       if (simFrame > 0 && t >= tracker.endMs) break;
@@ -470,7 +472,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       }
       exported = index + 1;
       await drainQueue(videoEncoder, 6);
-      if (performance.now() - lastYield > 32) {
+      if (performance.now() - lastYield > yieldAfterMs) {
         report("frames", expectedFrames > 0 ? exported / expectedFrames : 1, exported, t / 1000);
         await yieldTask();
         lastYield = performance.now();

@@ -36,6 +36,22 @@ export const DEFAULT_UNLIMITED_LABELS: UnlimitedLabels = {
 
 /** A ball bigger than this (px) skips the sprite caches (they would allocate a canvas 4 × its radius wide). */
 export const SPRITE_MAX_RADIUS = 256;
+/**
+ * The most wall-break flashes and shockwaves drawn per frame with No limits on (the newest ones): a ball that bursts a
+ * thousand rings in one step leaves a thousand glowing circles in the engine's (visual-only) lists. A render cap, not a
+ * simulation cap – the engine's state is untouched.
+ */
+export const EFFECT_RENDER_CAP = 48;
+
+/** The size in the ate-the-arena banner when the Ball Size itself (not a size multiplier) outgrew the arena: "100K px". */
+export function ateSizeLabel(radius: number): string {
+  return `${formatHuge(Math.round(radius))} px`;
+}
+
+/** The effects of a list the canvas draws this frame: all of them, or the newest `EFFECT_RENDER_CAP` with No limits on. */
+export function cappedEffects<T>(effects: readonly T[], view: Pick<UnlimitedView, "on">): readonly T[] {
+  return view.on && effects.length > EFFECT_RENDER_CAP ? effects.slice(effects.length - EFFECT_RENDER_CAP) : effects;
+}
 
 /** What the frame budget tells the HUD. */
 export interface RealTimeState {

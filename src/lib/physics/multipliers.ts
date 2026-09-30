@@ -779,7 +779,11 @@ export class MultiplierRuntime {
     const host = this.host;
     const copies = Math.max(0, Math.round(factor) - 1);
     for (let k = 0; k < copies; k++) {
-      if (ctx.getBalls().length >= maxBalls) return;
+      if (ctx.getBalls().length >= maxBalls) {
+        // --- unlimited --- with No limits on the clones past the full-physics balls join the crowd (ARENA FULL once it is full)
+        if (ctx.unlimitedRoom?.() != null) ctx.spawnCrowd?.(copies - k, ball.x, ball.y, Math.hypot(ball.vx, ball.vy), ball.radius, Math.atan2(ball.vy, ball.vx), 0);
+        return;
+      }
       const turn = (ctx.random() < 0.5 ? -1 : 1) * (0.35 + 0.35 * ctx.random());
       const c = Math.cos(turn);
       const s = Math.sin(turn);
