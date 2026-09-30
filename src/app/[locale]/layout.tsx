@@ -1,23 +1,24 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { SITE_NAME, SITE_URL, absoluteUrl, pageUrl } from "@/lib/site";
 import Analytics from "@/components/site/Analytics";
+import { localeAlternates } from "@/i18n/alternates";
+// --- pwa ---
+import PwaRegister from "@/components/site/PwaRegister";
+import { PWA_ICON_FILES, PWA_THEME_COLOR } from "@/lib/pwa";
+import { assetPath } from "@/lib/site";
+// --- end pwa ---
 import "../globals.css";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-/** Builds hreflang alternates for a path (used by every page's metadata). */
-export function localeAlternates(path: string) {
-  const languages: Record<string, string> = {};
-  for (const l of routing.locales) languages[l] = pageUrl(l, path);
-  languages["x-default"] = pageUrl(routing.defaultLocale, path);
-  return languages;
-}
+// --- pwa --- browser UI colour of the page and of the installed app
+export const viewport: Viewport = { themeColor: PWA_THEME_COLOR };
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -29,7 +30,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     title,
     description,
     // Absolute URLs so they stay correct when the site lives in a sub-folder (GitHub Pages).
-    icons: { icon: absoluteUrl("/icon.svg") },
+    icons: { icon: absoluteUrl("/icon.svg"), apple: absoluteUrl(PWA_ICON_FILES.appleTouch) },
+    // --- pwa --- installable app: the web app manifest (src/app/manifest.ts) and the iOS home-screen title
+    manifest: assetPath("/manifest.webmanifest"),
+    appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "black-translucent" },
     alternates: { canonical: pageUrl(locale), languages: localeAlternates("") },
     openGraph: { title, description, url: pageUrl(locale), siteName: SITE_NAME, type: "website", images: [absoluteUrl("/og.png")] },
     twitter: { card: "summary_large_image", title, description, images: [absoluteUrl("/og.png")] },
@@ -52,6 +56,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
       <body className="antialiased">
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
         <Analytics />
+        <PwaRegister />
       </body>
     </html>
   );

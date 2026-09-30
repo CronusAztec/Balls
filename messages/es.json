@@ -2500,5 +2500,14 @@
     "tryAria": "Pruébalo: {name}",
     "outro": "¿Has cambiado algo y te encanta el resultado? Copia el enlace para compartir bajo el lienzo y tu configuración irá con él.",
     "cta": "Empezar desde cero"
+  },
+  "Pwa": {
+    "installApp": "Instalar la aplicación",
+    "installAppTip": "Instala {siteName} en este dispositivo: se abre en su propia ventana, se inicia desde la pantalla de inicio o el dock y funciona sin conexión.",
+    "offlinePageTitle": "Sin conexión – {siteName}",
+    "offlineTitle": "Estás sin conexión",
+    "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio y el simulador funcionan sin conexión una vez que has abierto el sitio con conexión: vuelve a conectarte o abre el simulador aquí abajo.",
+    "offlineRetry": "Reintentar",
+    "offlineSimulator": "Abrir el simulador"
   }
 }
