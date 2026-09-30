@@ -544,8 +544,32 @@ describe("BoxMode in the engine", () => {
     expect(runNeverFinishes("box", { drop: {}, box: { countdown: 0 } })).toBe(true);
     expect(runNeverFinishes("drop", { drop: { loop: true }, box: {} })).toBe(true);
     expect(runNeverFinishes("drop", { drop: {}, box: {} })).toBe(false);
-    expect(runNeverFinishes("paint", { drop: {}, box: {} })).toBe(true);
+    // --- review fix (modes-rhythm) --- classic Paint ends at 95 % coverage and is searched; Picture Paint is not
+    expect(runNeverFinishes("paint", { drop: {}, box: {} })).toBe(false);
+    expect(runNeverFinishes("paint", { drop: {}, box: {}, paintPicture: true })).toBe(true);
     expect(runNeverFinishes("classic", { drop: {}, box: {} })).toBe(false);
+  });
+
+  // --- review fix (modes-rhythm) ---
+  it("times classic Paint: every seed finishes at 95 % coverage, as the page's engine does", () => {
+    const paintConfig = { ...config, width: 450, height: 800, ballRadius: 20 };
+    const request: FinderRequest = { targetDurationSec: 90, toleranceSec: 0.5, maxSeeds: 1, maxSimTimeSec: 150, physicsConfig: paintConfig, mode: "paint", modeSettings };
+    const lengths = new Set<number>();
+    for (const seed of [1, 2, 3]) {
+      const ms = simulateSeed(seed, request, 150_000);
+      expect(ms, `seed ${seed}`).toBeLessThan(150_000);
+      const page = createEngineForSettings(paintConfig, "paint", modeSettings, seed);
+      let t = 0;
+      while (t < 150_000 && !page.isSimulationFinished()) {
+        page.update(1000 / 60, 0);
+        page.consumeSoundEvents();
+        t += 1000 / 60;
+      }
+      expect(t).toBe(ms);
+      expect(page.getPaintCoverage()).toBeGreaterThanOrEqual(0.95);
+      lengths.add(Math.round(ms / 100));
+    }
+    expect(lengths.size).toBeGreaterThan(1);
   });
 
   it("the finder resolves at once with `endless` instead of simulating an endless box", async () => {

@@ -56,6 +56,12 @@ export interface ModeSettings {
   growRate: number;
   portalCount: number;
   twoBalls: boolean;
+  // --- review fix (modes-rhythm) ---
+  /**
+   * The Cinematic switch (director on/off); on when left out, like the page's default. The director draws from the run's
+   * seeded RNG and steers rebounds, so a seed plays out differently with it off: the finder must run it as the page will.
+   */
+  cinematicEnabled?: boolean;
   /** Ball Drop: ball count, size / gravity spread, rows, release interval and rain (see modes/drop.ts). */
   drop: Partial<DropSettings>;
   /** Bouncing Shapes: shape count / kind, box aspect, gravity, countdown, growth and speed ratio (see modes/box.ts). */
@@ -108,6 +114,13 @@ export interface ModeSettings {
   runner?: Partial<RunnerSettings>;
   /** Paddle Keep-Up (see modes/paddle.ts): the auto controller below skill 1 misses deterministically, so the finder times the game over; manual or perfect play never ends. */
   paddle?: Partial<PaddleSettings>;
+  // --- review fix (modes-rhythm) ---
+  /**
+   * Paint: true while a picture is loaded (Picture Paint). Its brush, beat sync, guidance and pacing follow the page's picture
+   * and song, which a headless engine does not have, so the finder does not search it (`runNeverFinishes()`); classic Paint
+   * (no picture) always ends at `COVERAGE_DONE` and is searched like any mode.
+   */
+  paintPicture?: boolean;
   // --- boris-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
@@ -125,8 +138,26 @@ export const RACE_FINDER_BATCH = 3;
 /** Seeds of the Circle Illusion simulated per animation frame (a whitespace seed paints a grid for tens of seconds). */
 export const ILLUSION_FINDER_BATCH = 4;
 
-/** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
-export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
+// --- review fix (modes-rhythm) ---
+/** Seeds of Paint simulated per animation frame (a seed paints for a minute or more before it covers the circle). */
+export const PAINT_FINDER_BATCH = 2;
+
+// --- review fix (modes-rhythm) ---
+/**
+ * True when a seed of `mode` plays the same run on any canvas size, a resize before Start or mid-run included (every margin,
+ * size and speed is in field units; tests/arenaGames.test.ts checks it exactly), so the page keeps a found seed when the
+ * canvas is resized. Any other mode's run can play out differently at another size (px speeds, float rounding), so a
+ * resize drops its found seed.
+ */
+export function seedSurvivesResize(mode: ModeId): boolean {
+  return mode === "battle" || mode === "ctf";
+}
+
+/**
+ * Modes whose run never "finishes" (there is no escape to time), whatever the settings. Paint is not one: it finishes at
+ * `COVERAGE_DONE` (the finder searches classic Paint; Picture Paint is left out in `runNeverFinishes()`).
+ */
+export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
 
 /**
  * True when a run of `mode` with these settings can never finish, so there is no duration to search
@@ -134,8 +165,10 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
+  // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
+  if (mode === "paint") return settings.paintPicture === true;
   // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
   if (mode === "collide") return true;
   if (mode === "drop") return resolveDropSettings(settings.drop).loop;
@@ -282,6 +315,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
+  engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -366,7 +400,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "paint" ? PAINT_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;

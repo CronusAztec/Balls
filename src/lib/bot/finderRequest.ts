@@ -91,6 +91,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     growRate: s.growRate,
     portalCount: d.portalCount,
     twoBalls: s.twoBalls,
+    cinematicEnabled: s.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run, as in the page)
     drop: dropSettingsOf(s),
     box: boxSettingsOf(s),
     pendulum: pendulumSettingsOf(s),

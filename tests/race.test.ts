@@ -8,6 +8,7 @@ import {
   PODIUM_MS,
   RACE_MS_PER_SCREEN,
   RACE_RANGES,
+  RACE_SEPARATION_REL,
   RaceMode,
   currentCallout,
   defaultRaceFields,
@@ -677,6 +678,54 @@ describe("race mode in the engine", () => {
       winners.add(engine.getRaceView().winner);
     }
     expect(winners.size).toBeGreaterThan(2);
+  });
+
+  // --- review fix (modes-rhythm) ---
+  it("a staged favourite keeps the faster speed through a swap: a turbo-boosted favourite swapped from behind still wins", () => {
+    const cases: [Partial<PhysicsConfig>, Partial<RaceSettings>, number][] = [
+      // The review's three: the first one lost before (the rival took the favourite's turbo speed at the final zone).
+      [{ width: 450, height: 800, ballSpeed: 800, ballRadius: 4 }, { racers: 2, trackLength: 8, laps: 1, feature: "turbo", winner: 0 }, 986772],
+      [{ width: 720, height: 1280, ballSpeed: 400, ballRadius: 4 }, { racers: 3, trackLength: 5, laps: 2, feature: "turbo", winner: 0 }, 182374],
+      [{ width: 800, height: 600, ballSpeed: 200, ballRadius: 8 }, { racers: 7, trackLength: 4, laps: 2, feature: "turbo", winner: 3 }, 791399],
+      // Staged races that also lost to a swapped rival before the fix.
+      [{ width: 720, height: 1280, ballSpeed: 800, ballRadius: 4 }, { racers: 3, trackLength: 3, laps: 1, feature: "turbo", winner: 2 }, 48545],
+      [{ width: 800, height: 600, ballSpeed: 400, ballRadius: 4 }, { racers: 2, trackLength: 5, laps: 1, feature: "turbo", winner: 0 }, 292838],
+      [{ width: 720, height: 1280, ballSpeed: 400, ballRadius: 8 }, { racers: 3, trackLength: 3, laps: 1, feature: "turbo", winner: 0 }, 347050],
+      [{ width: 540, height: 960, ballSpeed: 400, ballRadius: 4 }, { racers: 2, trackLength: 7, laps: 1, feature: "turbo", winner: 1 }, 136859],
+      [{ width: 540, height: 960, ballSpeed: 800, ballRadius: 4 }, { racers: 3, trackLength: 6, laps: 1, feature: "turbo", winner: 2 }, 842105],
+    ];
+    for (const [cfg, race, seed] of cases) {
+      const engine = raceEngine(race, seed, cfg);
+      runRace(engine);
+      const view = engine.getRaceView();
+      expect(view.winner, `${JSON.stringify({ cfg, race })} seed ${seed}`).toBe(race.winner);
+      expect(view.finishOrder[0]).toBe(race.winner);
+    }
+  });
+
+  it("a seed runs the same race on a canvas twice the size, and after a 2× resize before the start or mid-race", () => {
+    // The layout, the racers and the push-out gap (RACE_SEPARATION_REL) all scale with the field; other sizes can still
+    // round differently, which is why the page drops a found seed on a resize (seedSurvivesResize).
+    const run = (width: number, height: number, seed: number, resize?: { atStep: number; width: number; height: number }) => {
+      const engine = raceEngine({}, seed, { width, height });
+      let step = 0;
+      while (step < 18000 && !engine.isSimulationFinished()) {
+        if (resize && step === resize.atStep) engine.setConfig({ width: resize.width, height: resize.height });
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        step++;
+      }
+      const view = engine.getRaceView();
+      return { winner: view.winner, finishOrder: view.finishOrder.slice(0, 8), steps: step };
+    };
+    for (const seed of [1, 2, 3]) {
+      const ref = run(450, 800, seed);
+      expect(ref.winner).toBeGreaterThanOrEqual(0);
+      expect(run(900, 1600, seed), `seed ${seed} at 900×1600`).toEqual(ref);
+      expect(run(450, 800, seed, { atStep: 0, width: 900, height: 1600 }), `seed ${seed} resized before the start`).toEqual(ref);
+      expect(run(450, 800, seed, { atStep: 400, width: 900, height: 1600 }), `seed ${seed} resized mid-race`).toEqual(ref);
+    }
+    expect(RACE_SEPARATION_REL * 400).toBeCloseTo(0.01, 12); // the old fixed 0.01 px on the reference field
   });
 
   it("frees stuck racers, gives the stragglers a grace period and ends every race", () => {
