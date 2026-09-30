@@ -6,6 +6,7 @@ import type { PaintBeatInfo } from "./PicturePaintSection";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { BEAT_DROP_COLOR_MODES, BEAT_DROP_SOUNDS, beatDropRunInfo, beatDropSettingsOf, parseBeatDropKinds, toggleBeatDropKind, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
 import { BEAT_DROP_KINDS, BEAT_DROP_SCROLLS, type BeatDropPadKind, type BeatDropScroll } from "@/lib/simulation/beatDropPlan";
+import type { BeatSourceKind } from "@/lib/simulation/beatSource"; // --- video-beats ---
 
 export interface BeatDropSectionProps {
   t: Translate;
@@ -15,6 +16,11 @@ export interface BeatDropSectionProps {
   update: (patch: Partial<SimulatorSettings>) => void;
   /** The loaded song's detected beat (Picture Paint's detector): the beat Beat Drop lands on while there is one. */
   beat?: PaintBeatInfo | null;
+  /**
+   * --- video-beats --- The beat source in effect (the Sound section's "Beats from a video" picker, after its fallbacks):
+   * an imported video's beats or the hand-placed markers reach Beat Drop as that grid, and the beat line names them.
+   */
+  beatSource?: BeatSourceKind;
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
@@ -54,11 +60,13 @@ const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium tr
  * lib/physics/modes/beatDrop.ts) and re-plans – restarts – the run when the mix, drift, scroll, bounce, anticipation or
  * the beat changes (sound, colours, trail and the scale follow live).
  */
-export default function BeatDropSection({ t, search, matches, settings: s, update, beat }: BeatDropSectionProps) {
+export default function BeatDropSection({ t, search, matches, settings: s, update, beat, beatSource }: BeatDropSectionProps) {
   const kinds = parseBeatDropKinds(s.bdKinds);
   const followsSong = !!beat?.bpm;
   const info = !search ? beatDropRunInfo({ ...beatDropSettingsOf(s), bpm: followsSong ? beat!.bpm! : s.bpm }) : null;
-  const beatLine = followsSong ? t("bdBeatSong", { bpm: Math.round(beat!.bpm!) }) : beat?.analyzing ? t("bdBeatAnalyzing") : t("bdBeatBpm", { bpm: s.bpm });
+  const gridKey = beatSource === "media" ? "bdBeatMedia" : beatSource === "manual" ? "bdBeatMarkers" : "bdBeatSong"; // --- video-beats ---
+  // (a song still being analysed is only waited for when the picked source is not the BPM)
+  const beatLine = followsSong ? t(gridKey, { bpm: Math.round(beat!.bpm!) }) : beat?.analyzing && s.beatSource !== "bpm" ? t("bdBeatAnalyzing") : t("bdBeatBpm", { bpm: s.bpm });
   return (
     <div className="space-y-3 pt-2" data-testid="beat-drop">
       {!search && (
