@@ -130,6 +130,7 @@
     "canvasMpOutgrewSub": "Size [size] – too big to hold",
     "canvasMpMadeItHome": "[count] [name] made it home",
     "canvasMpMadeItHomeSub": "[count] clones along the way",
+    "canvasMpMadeItHomeLost": "[count] lost",
     "finderMpClosestCount": "Closest: {count} home",
     "finderMpTestedClosest": "Tested {tested} seeds. The closest final count was {closest} (target: {target} ±5 %)",
     "canvasCaptionWall": "Wall [n]/[total]",

@@ -2312,6 +2312,7 @@ export default function Simulator() {
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
       madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_BORIS_NAME }),
       madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
+      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-boris-odd) ---
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
       dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),

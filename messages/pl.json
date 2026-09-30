@@ -130,6 +130,7 @@
     "canvasMpOutgrewSub": "Rozmiar [size] – nie mieści się",
     "canvasMpMadeItHome": "[name] w domu: [count]",
     "canvasMpMadeItHomeSub": "Klony po drodze: [count]",
+    "canvasMpMadeItHomeLost": "Zgubione: [count]",
     "finderMpClosestCount": "Najbliżej: {count} w domu",
     "finderMpTestedClosest": "Sprawdzono {tested} ziaren. Najbliższy wynik to {closest} (cel: {target} ±5 %)",
     "canvasCaptionWall": "Ściana [n]/[total]",

@@ -126,6 +126,8 @@ export interface CanvasLabels {
   /** The multipliers board is done: "N Boris made it home", with the clones made along the way. */
   madeItHome?: (n: number) => string;
   madeItHomeSub?: (clones: number) => string;
+  /** --- review fix (modes-boris-odd) --- "N lost" after the clones when balls got stuck for good (they are not hidden). */
+  madeItHomeLost?: (lost: number) => string;
   // --- jdm-double-pendulum ---
   /** Double Pendulum: the banner at the end of the clip, with the plucks, the sparring hits or the seconds of chaos. */
   dpDone?: string;
@@ -315,6 +317,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   outgrewSub: (size) => `SIZE ${size}`,
   madeItHome: (n) => `${n} Boris made it home`,
   madeItHomeSub: (clones) => `${clones} clones along the way`,
+  madeItHomeLost: (lost) => `${lost} lost`,
   // --- jdm-double-pendulum ---
   dpDone: "TIME!",
   dpPlucks: (n) => `${n} strings plucked`,
@@ -2409,7 +2412,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           });
         };
         if (multView.outgrown) fitBanner(L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), "#c4b5fd");
-        else if (multBoard && multBoard.done) fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones), "#a3e635");
+        else if (multBoard && multBoard.done) {
+          // (--- review fix (modes-boris-odd) --- and the balls lost on the way, when there are any)
+          const sub = (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones);
+          fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
+        }
         // --- end boris-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
           const prog = engine.getShatterProgress();

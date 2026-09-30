@@ -74,7 +74,6 @@ export function withSplitScreen(Inner: CanvasComponent): CanvasComponent {
   return CanvasWithSplitScreen;
 }
 
-/** The page's background look (the canvas' sides and the recording's letterbox bars show it, like a single canvas). */
 /** --- review fix (modes-boris-odd) --- The most real time the camera's slow motion has added to any of the first `n` arenas' runs (ms). */
 function slowLagOf(slots: readonly (ArenaSlot | undefined)[], n: number): number {
   let lag = 0;
@@ -82,6 +81,7 @@ function slowLagOf(slots: readonly (ArenaSlot | undefined)[], n: number): number
   return lag;
 }
 
+/** The page's background look (the canvas' sides and the recording's letterbox bars show it, like a single canvas). */
 function lookOf(p: CanvasProps, image: HTMLImageElement | null): BackgroundLook {
   return { type: p.backgroundType ?? "solid", colors: p.backgroundColors ?? DEFAULT_BACKGROUND_COLORS, dim: p.backgroundDim ?? 0.35, image };
 }

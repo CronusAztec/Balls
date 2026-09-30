@@ -6424,21 +6424,23 @@ const bdInstrument = () =>
 // (data-caption-mode-hud) in Power Layers, Glass Smash, String Battle and on the multipliers board. 3. With a team roster and
 // the HUD off, the String Battle's warning badge takes the top-right corner (the scoreboard has the top-left one).
 {
-  await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=8`, { waitUntil: "networkidle" });
+  // (a 10 s clip – the shortest Clip Length – at the slowest slow motion, whose windows last 1.5 s)
+  const CLIP_MS = 10000;
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=10`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Recording/ }).click();
   const lagNow = () => page.evaluate(() => Number(document.querySelector("main canvas")?.dataset.cameraSlowLag ?? 0));
-  const lag0 = await lagNow();
-  const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+  const downloadWait = page.waitForEvent("download", { timeout: 150000 }).catch(() => null);
   const t0 = Date.now();
   await page.getByRole("button", { name: /Record Video/ }).click();
-  await page.waitForTimeout(Math.max(0, 8150 - (Date.now() - t0)));
+  const lag0 = await lagNow();
+  await page.waitForTimeout(Math.max(0, CLIP_MS + 150 - (Date.now() - t0)));
   const extra = (await lagNow()) - lag0;
   const recording = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
   const download = await downloadWait;
   const wallMs = Date.now() - t0;
   check(
     "a recording is extended by the real time the slow motion added, so the clip covers its length of the run",
-    !!download && (extra > 1000 ? recording && wallMs > 8000 + 0.8 * extra : true),
+    !!download && (extra > 1000 ? recording && wallMs > CLIP_MS + 0.8 * extra : true),
     `(slow motion added ${extra} ms by the clip length, recording then=${recording}, download after ${wallMs} ms${extra > 1000 ? "" : " – too little slow motion to tell"})`,
   );
 }
