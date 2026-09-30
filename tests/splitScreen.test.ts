@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { createEngineForSettings, simulateSeed, type FinderRequest, type FinderResult, type ModeSettings } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateSeed, type FinderProgress, type FinderRequest, type FinderResult, type ModeSettings } from "@/lib/simulation/finder";
 import { MultiArenaRunner, arenaFinderRequest, arenaPhysicsConfig, configPatch, findArenaSeeds, playArenaSound, type ArenaHooks, type ArenaSoundSink } from "@/lib/simulation/multi";
 import {
   EXTRA_ARENA_LEVEL,
@@ -595,5 +595,53 @@ describe("split-screen: sounds and the finder", () => {
     let n = 0;
     const endlessSecond = async (): Promise<FinderResult> => (n++ === 1 ? { found: false, seed: 0, duration: 0, seedsTested: 0, endless: true } : { found: true, seed: 7 + n, duration: 10, seedsTested: 2 });
     expect((await findArenaSeeds(endlessSecond, request, () => {}, undefined, plan)).arenaSeeds).toEqual([8, undefined, 10]);
+  });
+
+  it("finds nothing when the search is aborted while another arena is searched (Cancel, a mode change, a preset load)", async () => {
+    // The first arena was found; the abort comes during the second or the third arena's search.
+    for (const abortAt of [1, 2]) {
+      const controller = new AbortController();
+      let calls = 0;
+      const find = async (_r: FinderRequest, _p: unknown, signal?: AbortSignal): Promise<FinderResult> => {
+        const index = calls++;
+        if (index === abortAt) {
+          controller.abort();
+          expect(signal?.aborted).toBe(true);
+          return { found: false, seed: 9, duration: 44, seedsTested: 300 };
+        }
+        return { found: true, seed: 5, duration: 30, seedsTested: 4 };
+      };
+      const result = await findArenaSeeds(find, request, () => {}, controller.signal, plan);
+      expect(calls).toBe(abortAt + 1);
+      expect(result.found).toBe(false);
+      expect(result.arenaSeeds).toBeUndefined();
+    }
+    // Aborted just as the first arena's search was found: nothing more is searched, and nothing is found either.
+    const controller = new AbortController();
+    let calls = 0;
+    const foundThenAborted = async (): Promise<FinderResult> => {
+      calls++;
+      controller.abort();
+      return { found: true, seed: 5, duration: 30, seedsTested: 4 };
+    };
+    const race = await findArenaSeeds(foundThenAborted, request, () => {}, controller.signal, plan);
+    expect([calls, race.found, race.arenaSeeds]).toEqual([1, false, undefined]);
+    // The same outside a race.
+    const single = new AbortController();
+    const hitThenAborted = async (): Promise<FinderResult> => {
+      single.abort();
+      return { found: true, seed: 5, duration: 30, seedsTested: 4 };
+    };
+    expect((await findArenaSeeds(hitThenAborted, request, () => {}, single.signal, null)).found).toBe(false);
+  });
+
+  it("reports which arena is being searched", async () => {
+    const progress: (number | undefined)[] = [];
+    const find = async (_r: FinderRequest, onProgress: (p: FinderProgress) => void): Promise<FinderResult> => {
+      onProgress({ seedsTested: 50, maxSeeds: 100, currentSeed: 1, bestDuration: 12, bestSeed: 1 });
+      return { found: true, seed: 5, duration: 30, seedsTested: 60 };
+    };
+    await findArenaSeeds(find, request, (p) => progress.push(p.arena), undefined, plan);
+    expect(progress).toEqual([undefined, 1, 2]);
   });
 });

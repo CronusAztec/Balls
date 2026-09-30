@@ -39,7 +39,7 @@ import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
-import { findSimulation, runNeverFinishes, type FinderProgress, type FinderResult } from "@/lib/simulation/finder";
+import { findSimulation, runNeverFinishes, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
 // --- teams ---
@@ -85,7 +85,7 @@ import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/
 import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 // --- split-screen --- 2 or 4 arenas racing on one canvas and one recording
 import { useSyncExternalStore } from "react";
-import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaHooks } from "@/lib/simulation/multi";
+import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaFinderProgress, type ArenaHooks } from "@/lib/simulation/multi";
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
@@ -223,7 +223,7 @@ export default function Simulator() {
   const [findTolerance] = useState(0.5);
   const [findMaxSeeds] = useState(1000);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchProgress, setSearchProgress] = useState<FinderProgress | null>(null);
+  const [searchProgress, setSearchProgress] = useState<ArenaFinderProgress | null>(null); // --- split-screen --- (the arena being searched in a race)
   const [searchResult, setSearchResult] = useState<FinderResult | null>(null);
   // --- rigged --- Find Simulation's outcome (duration, never escapes, escapes at, winner), its fields and the outcome of the running search
   const [findOutcome, setFindOutcome] = useState<FinderOutcomeKind>("duration");
@@ -2117,8 +2117,13 @@ export default function Simulator() {
       controller.signal,
       splitRunnerRef.current?.finderPlan() ?? null, // --- split-screen ---
     );
-    finderAbortRef.current = null;
-    setIsSearching(false);
+    // A search cancelled, or superseded by a mode change or a preset load (they abort it and reset the search state
+    // themselves – a newer search may even be running by now), applies nothing: the settings it started with may be stale.
+    if (finderAbortRef.current === controller) {
+      finderAbortRef.current = null;
+      setIsSearching(false);
+    }
+    if (controller.signal.aborted) return;
     setSearchResult(result);
     if (result.found) {
       engine.setSeed(result.seed);
@@ -2666,7 +2671,7 @@ export default function Simulator() {
                 </div>
               </div>
               {isSearching && searchProgress && (
-                <div className="space-y-2">
+                <div className="space-y-2" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
                   <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                     <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
                   </div>
