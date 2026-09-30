@@ -50,6 +50,8 @@ export const MODE_IDS = [
   // --- jdm-rhythm-runner --- Beat Runner (a Geometry Dash-style runner on the beat) and Paddle Keep-Up (a moving platform)
   "runner",
   "paddle",
+  // --- boris-vortex --- Sound Vortex
+  "vortex",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -230,6 +232,9 @@ export interface SoundEvent {
    * next note of the song. Absent: the hit is a note of the tune like every other.
    */
   melody?: false;
+  // --- boris-vortex ---
+  /** A ball swallowed by the Sound Vortex: the page plays the "pew" (`ToneGenerator.playPew()`), a fast downward sweep from `frequency`. */
+  pew?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

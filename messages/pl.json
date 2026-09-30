@@ -1338,7 +1338,26 @@
     "splitRaceNote": "Baner pokazuje, która arena pierwsza się wydostała – albo pierwsza skończyła – i kiedy. Każda arena jest mierzona własnym zegarem symulacji, więc wyścig jest uczciwy przy każdej liczbie klatek.",
     "splitFinderNote": "Znajdź symulację szuka ziarna dla każdej areny (z tym samym celem) i zapisuje je powyżej; klip trwa wtedy, aż skończy ostatnia arena.",
     "splitFastExportNote": "Szybki eksport renderuje tylko jedną arenę – wyścig nagraj przyciskiem Nagraj wideo.",
-    "splitSingleNote": "Wybierz 2 lub 4 areny, aby rozpocząć wyścig na podzielonym ekranie."
+    "splitSingleNote": "Wybierz 2 lub 4 areny, aby rozpocząć wyścig na podzielonym ekranie.",
+    "modeVortex": "Dźwiękowy wir",
+    "vxTitle": "Wir",
+    "vxDesc": "Kulki wchodzą na krawędzi jedna po drugiej i spiralą wpadają do dziury, przyciągane przez środek. Każdy dźwiękowy pierścień, który kulka minie, gra kolejną nutę Twojej skali (Skala i Dźwięk podstawowy z ustawień dźwięku); dziura połyka ją z „pew”.",
+    "vxBalls": "Kulki w wirze",
+    "vxBallsTip": "Ile kulek wpada do wiru (1–30). Każda gra po drodze wszystkie pierścienie, więc więcej kulek to gęstsze arpeggia.",
+    "vxStagger": "Odstęp wejścia",
+    "vxStaggerTip": "Sekundy między wejściem dwóch kolejnych kulek na krawędzi. 0 wpuszcza wszystkie naraz, rozłożone wokół krawędzi; dłuższy odstęp zamienia nuty w kanon.",
+    "vxRings": "Pierścienie dźwiękowe",
+    "vxRingsTip": "Ile pierścieni leży między krawędzią a dziurą (6–24). Pierścień przy krawędzi gra najniższą nutę, a każdy kolejny w głąb – następną nutę skali.",
+    "vxDuration": "Czas spirali",
+    "vxDurationTip": "Ile sekund kulka leci od krawędzi do dziury. Pierścienie są rozmieszczone tak, żeby mijała je w równym tempie; ziarno zmienia to tempo najwyżej o ±8 % – i właśnie tego szuka Znajdź symulację.",
+    "vxGravity": "Przyciąganie środka",
+    "vxGravityTip": "Jak mocno ciągnie środek. Ustala szybkość wirowania – ile okrążeń kulka zrobi w drodze na dno – a nie to, ile ta droga trwa.",
+    "vxDepthScale": "Efekt głębi",
+    "vxDepthScaleTip": "Wrażenie trójwymiaru: kulki maleją, opadając ku dziurze, a gardziel lejka ciemnieje. 0 zostawia wszystko płaskie.",
+    "vxLoop": "Pętla odrodzeń",
+    "vxLoopTip": "Połknięta kulka od razu wraca na krawędź, więc wir nigdy się nie kończy – świetne do długich pętli, ale Znajdź symulację nie ma wtedy czego mierzyć.",
+    "vxRunInfo": "Nuty z pierścieni: {notes}; bieg trwa około {seconds}s (tempo ziarna: {min}–{max}s), więc Znajdź symulację trafi w długość z tego przedziału.",
+    "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1411,6 +1430,10 @@
     "paddle": {
       "name": "Piłka na platformie",
       "description": "Utrzymaj piłkę w grze platformą, która jeździ w lewo i w prawo: każde złapanie to nuta, uderzenia poza środkiem posyłają ją w bok z podkręceniem, od ścian i sufitu – aż skończą się pudła i nadejdzie koniec gry."
+    },
+    "vortex": {
+      "name": "Dźwiękowy wir",
+      "description": "Pew! Kulki wpadają do wiru dźwiękowych pierścieni i spiralą opadają do dziury pośrodku – każdy mijany pierścień gra kolejną nutę, więc każda kulka to wznoszące się glissando, a kulki wpuszczane jedna po drugiej splatają się w arpeggia. Na dnie dziura połyka je z „pew” i pluskiem."
     }
   },
   "Features": {
@@ -1563,7 +1586,8 @@
     "modeBattle": "Bez pierścieni: od 2 do 20 kwadratów z punktami życia odbija się w pudełku lub w kole i wpada na siebie. Przy zderzeniu szybszy kwadrat zadaje obrażenia proporcjonalne do prędkości zbliżania; trafiony kwadrat błyska i trochę się kurczy, a przy 0 HP rozpada się na odłamki z napisem KO. Opcjonalna bezpieczna strefa zamyka się od ósmej sekundy i spycha ocalałych do siebie, a bonusy – leczenie, tarcza i przyspieszenie – pojawiają się w chwilach wyznaczonych przez ziarno. Ostatni kwadrat na placu boju wygrywa pod banerem z konfetti. Przebieg zależy tylko od ziarna, więc Znajdź symulację potrafi wyszukać bitwę o zadanej długości.",
     "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu.",
     "modeRunner": "Rytmiczny bieg w stylu project.jdm „realistyczna grawitacja w Geometry Dash”, bez pierścieni: kwadrat biegnie po podłodze ze stałą prędkością pod przewijaną kamerą. Trasa jest planowana na bitach wczytanej piosenki (jej wykryty bit – ten sam detektor co w Malowaniu obrazka) albo tempa BPM: dla każdej przeszkody – rzędu kolców, dziury, bloku, na który się wskakuje, a potem z niego zeskakuje – solver skoków bierze czas lotu skoku z prawdziwą grawitacją i stałą prędkością wybicia i ustawia wybicie tak, żeby lądowanie wypadło dokładnie na bicie. Z automatycznym skokiem kwadrat skacze w tych chwilach i nigdy się nie myli; bez niego skaczesz Spacją, a zderzenie wznawia odcinek. Każde lądowanie gra kolejną nutę i wzbija obłoczek kurzu; meta gra akord.",
-    "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie."
+    "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie.",
+    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu."
   },
   "Footer": {
     "about": "O nas",
@@ -1906,5 +1930,12 @@
     "finished": "Pierwszy finisz: {label}!",
     "tie": "Remis: {labels}!",
     "seconds": "{seconds} s"
+  },
+  "Vortex": {
+    "canvasTitle": "DŹWIĘKOWY WIR",
+    "canvasSwallowed": "połknięte: [count] / [total]",
+    "canvasPews": "[count] × PEW",
+    "canvasDone": "PEW!",
+    "canvasDoneSub": "połknięte kulki: [balls] · nuty: [notes]"
   }
 }

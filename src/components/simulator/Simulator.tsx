@@ -84,6 +84,7 @@ import { useSyncExternalStore } from "react";
 import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaHooks } from "@/lib/simulation/multi";
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
+import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
 import {
   RANGES,
   defaultSettings,
@@ -263,6 +264,7 @@ export default function Simulator() {
     // --- jdm-rhythm-runner ---
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
+    engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -704,6 +706,26 @@ export default function Simulator() {
   }, [s.recordingDuration]);
   const arenaWinAtRef = useRef<number | null>(null);
   // --- end jdm-arena-games ---
+  // --- boris-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
+  // restarts the run and drops a found seed; the depth cue and the Sound section's scale and root (the ring notes) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setVortexSettings(vortexSettingsOf(s));
+    if (s.mode === "vortex" && engine.getCurrentModeName() === "vortex") {
+      engine.initVortex();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.vxBalls, s.vxStagger, s.vxRings, s.vxDuration, s.vxGravity, s.vxLoop]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.vxBalls, s.vxStagger, s.vxRings, s.vxDuration, s.vxGravity, s.vxLoop]);
+  useEffect(() => {
+    engineRef.current?.setVortexSettings(vortexSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.vxDepthScale, s.scale, s.rootNote]);
+  // --- end boris-vortex ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -929,7 +951,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- boris-vortex --- (the loop) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
@@ -1173,6 +1195,11 @@ export default function Simulator() {
           // --- odd-string-battle --- a cut thread's pluck, a ball's shatter
           if (ev.sbSound) {
             audio.playStringBattle(ev.sbSound, ev.frequency);
+            continue;
+          }
+          // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
+          if (ev.pew) {
+            audio.playPew(ev.frequency);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -1976,6 +2003,7 @@ export default function Simulator() {
           battle: battleSettingsOf(settings),
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
+          vortex: vortexSettingsOf(settings), // --- boris-vortex ---
         },
         outcome, // --- rigged ---
       },
@@ -2151,6 +2179,14 @@ export default function Simulator() {
         streak: (n) => fill("JdmRhythm.streak", { n }),
         moveHint: t("JdmRhythm.moveHint"),
       },
+      // --- boris-vortex ---
+      vortex: {
+        title: t("Vortex.canvasTitle"),
+        swallowed: (n, total) => fill("Vortex.canvasSwallowed", { count: n, total }),
+        pews: (n) => fill("Vortex.canvasPews", { count: n }),
+        done: t("Vortex.canvasDone"),
+        doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+      },
     };
   }, [t]);
 
@@ -2235,7 +2271,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- boris-vortex --- (the loop) */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

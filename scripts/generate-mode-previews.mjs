@@ -52,6 +52,8 @@ const MODES = {
   // beat markers lit) and Paddle Keep-Up mid-rally (the ball over the platform, sparks of a catch, the score and the hearts)
   runner: { wait: 5300, query: "rrn=40&rrd=1&face=cute&glow=1" },
   paddle: { wait: 4200, query: "pdsk=1&pdsp=1&glow=1" },
+  // --- boris-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
+  vortex: { wait: 14200, query: "face=cute&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

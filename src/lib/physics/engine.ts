@@ -43,6 +43,8 @@ import type { ArenaView, BattleSettings, CtfSettings } from "./modes/arenaGames"
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
 import { RunnerMode, type RunnerSettings, type RunnerView } from "./modes/runner";
 import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } from "./modes/paddle";
+// --- boris-vortex --- the Sound Vortex (a spiral funnel of sound rings)
+import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -257,6 +259,8 @@ export class PhysicsEngine {
   // --- jdm-rhythm-runner --- the Beat Runner (obstacles on the beat) and Paddle Keep-Up (a ball on a moving platform)
   readonly runnerMode = new RunnerMode();
   readonly paddleMode = new PaddleMode();
+  // --- boris-vortex ---
+  readonly vortexMode = new VortexMode();
 
   readonly ctx: ModeContext;
 
@@ -533,6 +537,10 @@ export class PhysicsEngine {
   initPaddle() {
     this.activateMode(this.paddleMode, "none");
   }
+  // --- boris-vortex --- the mode owns its funnel (no rings)
+  initVortex() {
+    this.activateMode(this.vortexMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -600,6 +608,9 @@ export class PhysicsEngine {
         return this.initRunner();
       case "paddle":
         return this.initPaddle();
+      // --- boris-vortex ---
+      case "vortex":
+        return this.initVortex();
     }
   }
 
@@ -1300,6 +1311,25 @@ export class PhysicsEngine {
     return null;
   }
   // --- end jdm-arena-games ---
+  // --- boris-vortex ---
+  isVortexMode() {
+    return this.currentMode === this.vortexMode;
+  }
+  getVortexSettings(): VortexSettings {
+    return this.vortexMode.getSettings();
+  }
+  /** Balls, stagger, rings, duration, pull and loop of the Sound Vortex apply on the next `initVortex()`; the depth cue, scale and root at once. */
+  setVortexSettings(settings: Partial<VortexSettings>) {
+    this.vortexMode.setSettings(settings);
+  }
+  /** Live Sound Vortex state (funnel, rings, balls, splashes, counters) for the canvas and the HUD; the same object every call. */
+  getVortexView(): VortexView {
+    return this.vortexMode.getView();
+  }
+  getVortexProgress() {
+    return this.vortexMode.getProgress();
+  }
+  // --- end boris-vortex ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

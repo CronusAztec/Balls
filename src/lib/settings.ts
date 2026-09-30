@@ -49,6 +49,8 @@ import { JDM_RHYTHM_RANGES, defaultJdmRhythmFields, readJdmRhythmParams, resolve
 import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 // --- split-screen --- 2 or 4 arenas racing on one canvas (lib/splitScreen.ts, lib/simulation/multi.ts)
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
+// --- boris-vortex --- the Sound Vortex mode
+import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -575,6 +577,22 @@ export interface SimulatorSettings {
   /** Whose bounces are heard: the first arena's or every arena's (URL `sa`). */
   soundArena: SoundArena;
   // --- end split-screen ---
+  // --- boris-vortex --- Sound Vortex (lib/physics/modes/vortex.ts): balls spiral down a funnel of sound rings into a hole
+  /** Balls that go down the vortex, 1–30 (URL `vxn`). */
+  vxBalls: number;
+  /** Seconds between two balls entering, 0–3 (URL `vxs`). */
+  vxStagger: number;
+  /** Sound rings, 6–24: a note each (URL `vxr`). */
+  vxRings: number;
+  /** Seconds from the rim to the hole, 3–30 (URL `vxd`). */
+  vxDuration: number;
+  /** 0.2–3: the central pull – how fast the balls whirl (URL `vxg`). */
+  vxGravity: number;
+  /** Swallowed balls come back at the rim: the vortex never ends (URL `vxl`). */
+  vxLoop: boolean;
+  /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
+  vxDepthScale: number;
+  // --- end boris-vortex ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -685,6 +703,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
+    ...defaultVortexFields(), // --- boris-vortex ---
   };
 }
 
@@ -749,6 +768,7 @@ export const RANGES = {
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
+  ...VORTEX_RANGES, // --- boris-vortex ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -983,6 +1003,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
+  writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
   return params;
 }
 
@@ -1098,6 +1119,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
+  readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
   return settings;
 }
 
@@ -1290,6 +1312,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
+  Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
   return merged;
 }
 
