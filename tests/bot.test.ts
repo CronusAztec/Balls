@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
@@ -8,9 +8,12 @@ import { sameSettings } from "@/lib/recording/batch";
 import { RANGES, presetToSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { clipHashtags, fillTemplate, parseHashtags, postCopy, type BotCopy } from "@/lib/bot/copy";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
+import { createEngineForSettings } from "@/lib/simulation/finder";
+import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
 import { MANIFEST_FORMAT, batchTextFiles, buildManifest, captionFileName, captionFileText, reasonText, scheduleMarkdown } from "@/lib/bot/output";
 import {
   BOT_FAMILIES,
+  BOT_FRAME,
   BUCKET_SECONDS,
   CHECKLIST,
   HASHTAG_COUNT,
@@ -19,6 +22,7 @@ import {
   PLATFORMS,
   RECIPES,
   SERIES_ROSTER,
+  TOP_HUD_MODES,
   recipeBucket,
   recipeById,
   recipesOfFamily,
@@ -29,6 +33,7 @@ import {
   captionBoxAt,
   daySlots,
   dayIndexOf,
+  edgeTextBox,
   estimateTextWidth,
   inSafeZone,
   planClip,
@@ -47,6 +52,9 @@ import { parseBotState } from "@/lib/bot/store";
  * manifest, caption files and posting schedule.
  */
 
+// Planning simulates physics seed by seed: a busy machine can take many times the usual couple of seconds per test.
+vi.setConfig({ testTimeout: 60_000 });
+
 const COPY: Record<string, BotCopy> = { en: en.ViralBot as BotCopy, pl: pl.ViralBot as BotCopy, es: es.ViralBot as BotCopy };
 const copy = COPY.en;
 
@@ -61,6 +69,8 @@ function rangeViolations(s: SimulatorSettings): string[] {
   }
   return bad;
 }
+
+const points = (plan: ClipPlan, id: ChecklistId) => scoreClip(plan).reasons.find((r) => r.id === id)!.points;
 
 const keysOf = (o: unknown, prefix = ""): string[] =>
   o && typeof o === "object" && !Array.isArray(o) ? Object.entries(o as Record<string, unknown>).flatMap(([k, v]) => (v && typeof v === "object" ? keysOf(v, `${prefix}${k}.`) : [`${prefix}${k}`])) : [];
@@ -162,6 +172,137 @@ describe("planner determinism", () => {
   });
 });
 
+describe("square race: the payoff is the first finisher", () => {
+  // The race names its winner (callout, fanfare, "wins!" badge) the moment the first racer crosses – not at the podium.
+  const world = { width: 790, height: 444 };
+  const firstFinishSec = (plan: ClipPlan, untilSec: number) => {
+    const request = finderRequestOfSettings(plan.settings, plan.world, untilSec);
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, plan.seed);
+    let t = 0;
+    let winnerAtCut: number | null = null;
+    while (t < untilSec * 1000) {
+      engine.update(1000 / 60, 0);
+      t += 1000 / 60;
+      engine.consumeSoundEvents();
+      if (winnerAtCut === null && t >= plan.timing.recordingDuration * 1000 - 1e-6) winnerAtCut = engine.getRaceProgress().winner;
+      if (engine.getRaceProgress().winner >= 0) return { sec: t / 1000, winnerAtCut: winnerAtCut ?? -1, winner: engine.getRaceProgress().winner };
+    }
+    return { sec: -1, winnerAtCut: winnerAtCut ?? -1, winner: -1 };
+  };
+
+  it("a cut clip ends before anybody crosses the line, 0.5–1 s before the winner does", () => {
+    for (const planSeed of [101, 202, 303, 404]) {
+      const plan = planClip(recipeById("square-race")!, planSeed, "reels", { copy, bucket: "standard", ending: "cliffhanger", world, maxSeeds: 24 });
+      expect(plan.timing.found, `${planSeed}`).toBe(true);
+      const first = firstFinishSec(plan, 60);
+      expect(first.winnerAtCut, `${planSeed}: winner at the cut`).toBe(-1);
+      expect(first.sec - plan.timing.recordingDuration, `${planSeed}`).toBeGreaterThanOrEqual(0.5 - 1e-6);
+      expect(first.sec - plan.timing.recordingDuration, `${planSeed}`).toBeLessThanOrEqual(1 + 1 / 60 + 1e-6);
+      expect(plan.payoff.atSec!).toBeCloseTo(first.sec, 6);
+      expect(plan.payoff.winner).toBe(plan.settings.teams[first.winner].name);
+    }
+  });
+
+  it("a resolved clip shows the winner cross in its last 10–20 %", () => {
+    for (const planSeed of [101, 202, 303, 404]) {
+      const plan = planClip(recipeById("square-race")!, planSeed, "reels", { copy, bucket: "standard", ending: "resolved", world, maxSeeds: 24 });
+      expect(plan.timing.found, `${planSeed}`).toBe(true);
+      const first = firstFinishSec(plan, 60);
+      expect(plan.payoff.atSec!).toBeCloseTo(first.sec, 6);
+      expect(first.sec / plan.timing.clipSec, `${planSeed}`).toBeGreaterThanOrEqual(0.8);
+      expect(first.sec / plan.timing.clipSec, `${planSeed}`).toBeLessThanOrEqual(0.9 + 1e-6);
+    }
+  });
+});
+
+describe("power layers: the hook states the rule the clip plays by", () => {
+  it("names the sequence of its settings in every language, and tags #itdoubles only when it doubles", () => {
+    const seen = new Set<string>();
+    for (const locale of ["en", "pl", "es"] as const) {
+      const c = COPY[locale];
+      const rules = c.plRules as Record<string, string>;
+      const tags = c.plTags as Record<string, string>;
+      for (const bucket of LENGTH_BUCKETS) {
+        for (const ending of ["resolved", "cliffhanger"] as const) {
+          for (let seed = 1; seed <= 8; seed++) {
+            const plan = planClip(recipeById("power-layers")!, seed * 31 + bucket.length, "reels", { copy: c, locale, bucket, ending, search: false });
+            const sequence = plan.settings.plSequence;
+            const where = `${locale}/${bucket}/${ending}/${seed}: ${sequence} "${plan.hook}"`;
+            seen.add(sequence);
+            expect(rules[sequence], where).toBeTruthy();
+            expect(plan.hook.startsWith(rules[sequence]), where).toBe(true);
+            for (const [other, text] of Object.entries(rules)) if (other !== sequence) expect(plan.hook, where).not.toContain(text);
+            // The hook caption on screen is that hook (plPills is off: it is the only rule shown).
+            const onScreen = plan.settings.captions.filter((_, i) => plan.captionRoles[i] === "hook").map((k) => k.text).join(" ");
+            expect(onScreen, where).toBe(plan.hook);
+            expect(plan.settings.plPills).toBe(false);
+            const doubles = plan.post.hashtags.some((h) => h.toLowerCase() === tags.double.toLowerCase());
+            expect(doubles, where).toBe(sequence === "double");
+            if (tags[sequence]) expect(plan.post.hashtags, where).toContain(tags[sequence]);
+            expect(plan.post.caption, where).not.toMatch(/\{\w+\}/);
+            if (locale === "en" && sequence !== "double") expect(`${plan.post.caption} ${plan.hook}`, where).not.toMatch(/doubl/i);
+          }
+        }
+      }
+    }
+    expect(seen.has("double")).toBe(true);
+    expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+describe("the series label and the arena games' scoreboard", () => {
+  const arena = RECIPES.filter((r) => r.modes.some((m) => TOP_HUD_MODES.includes(m)));
+
+  it("puts the label in the Bottom Text of battle royale and capture the flag, the Top Text elsewhere", () => {
+    expect(arena.map((r) => r.id).sort()).toEqual(["battle-royale", "territory"]);
+    for (const recipe of RECIPES) {
+      for (const ending of ["resolved", "cliffhanger"] as const) {
+        const plan = planClip(recipe, 17, "reels", { copy, ending, search: false, episode: 3 });
+        const s = plan.settings;
+        if (TOP_HUD_MODES.includes(s.mode)) {
+          expect(s.topText, recipe.id).toBe("");
+          expect(s.bottomText, recipe.id).toBe(plan.series.label);
+          expect(inSafeZone(edgeTextBox(s.bottomText, "bottom"))).toBe(true);
+        } else {
+          expect(s.topText, recipe.id).toBe(plan.series.label);
+          expect(s.bottomText, recipe.id).toBe("");
+        }
+        expect(points(plan, "series"), recipe.id).toBe(10);
+      }
+    }
+  });
+
+  it("keeps the top captions below the scoreboard band (as the canvas stacks them)", () => {
+    for (const recipe of arena) {
+      const plan = planClip(recipe, 5, "reels", { copy, search: false });
+      const s = plan.settings;
+      const band = (BOT_FRAME.height - BOT_FRAME.width) / 2 + HUD_BAND * BOT_FRAME.width;
+      for (let i = 0; i < s.captions.length; i++) {
+        if (s.captions[i].position !== "top") continue;
+        const box = captionBoxAt(s.captions, i, s.captions[i].start + 0.1, BOT_FRAME, false, true)!;
+        expect(box.top, `${recipe.id} "${s.captions[i].text}"`).toBeGreaterThan(band);
+        expect(inSafeZone(box)).toBe(true);
+      }
+    }
+  });
+
+  it("scores a Top Text over the scoreboard down: the countdown and the label cannot be read", () => {
+    const plan = planClip(recipeById("battle-royale")!, 5, "reels", { copy, search: false });
+    expect(plan.countdown.source).toBe("hud");
+    expect(points(plan, "countdown")).toBe(10);
+    expect(points(plan, "series")).toBe(10);
+    const covered: ClipPlan = JSON.parse(JSON.stringify(plan));
+    covered.settings.topText = plan.series.label;
+    covered.settings.bottomText = "";
+    const reasons = scoreClip(covered).reasons;
+    expect(reasons.find((r) => r.id === "countdown")).toMatchObject({ key: "countdownHudCovered" });
+    expect(points(covered, "countdown")).toBeLessThan(10);
+    expect(reasons.find((r) => r.id === "series")).toMatchObject({ key: "seriesCovered" });
+    expect(points(covered, "series")).toBe(6);
+    for (const r of reasons) expect(reasonText(copy, r)).not.toMatch(/\{\w+\}/);
+  });
+});
+
 describe("daily rotation", () => {
   it("never plans a recipe two days in a row, whatever the count or the series", () => {
     for (const family of ["all", ...BOT_FAMILIES] as const) {
@@ -213,7 +354,6 @@ describe("daily rotation", () => {
 describe("scoreClip", () => {
   const base = planClip(recipeById("ring-escape")!, 99, "reels", { copy, bucket: "standard", ending: "resolved", maxSeeds: 12 });
   const cut = planClip(recipeById("maze-race")!, 5, "reels", { copy, bucket: "standard", ending: "cliffhanger", maxSeeds: 12 });
-  const points = (plan: ClipPlan, id: ChecklistId) => scoreClip(plan).reasons.find((r) => r.id === id)!.points;
   const clone = (plan: ClipPlan): ClipPlan => JSON.parse(JSON.stringify(plan));
   const withCaptions = (plan: ClipPlan, f: (captions: Caption[], roles: ClipPlan["captionRoles"]) => void) => {
     const p = clone(plan);
@@ -356,7 +496,7 @@ describe("safe zone", () => {
             const s = plan.settings;
             for (let i = 0; i < s.captions.length; i++) {
               const c = s.captions[i];
-              const box = captionBoxAt(s.captions, i, c.start + 0.1, undefined, !!s.topText);
+              const box = captionBoxAt(s.captions, i, c.start + 0.1, undefined, !!s.topText, TOP_HUD_MODES.includes(s.mode));
               expect(box, `${locale}/${recipe.id}/${i}`).not.toBeNull();
               expect(inSafeZone(box!), `${locale}/${recipe.id} "${c.text}"`).toBe(true);
             }

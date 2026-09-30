@@ -2022,6 +2022,7 @@
       "hookMissing": "No hay texto de gancho – quien mira sin sonido no conoce la regla.",
       "countdownCaption": "Cuenta atrás en pantalla ({kind}).",
       "countdownHud": "El modo muestra la cuenta atrás ({kind}).",
+      "countdownHudCovered": "El modo muestra la cuenta atrás ({kind}), pero el texto superior la tapa.",
       "countdownUnsafe": "El texto de la cuenta atrás sale en parte de la zona segura.",
       "countdownMissing": "No se ve ninguna cuenta atrás hasta el desenlace.",
       "payoffOk": "Desenlace a los {sec} s – al {pct} % del clip.",
@@ -2043,6 +2044,7 @@
       "endingNoQuestion": "Cortado sin pregunta en pantalla.",
       "seriesOk": "Parte de una serie: «{label}», con reparto fijo.",
       "seriesWeak": "Poca continuidad de serie (falta la etiqueta o el reparto).",
+      "seriesCovered": "La etiqueta de la serie queda sobre el marcador del propio modo: no se lee ninguno de los dos.",
       "lookOk": "Neón sobre negro, brillo y estelas.",
       "lookOff": "No tiene el estilo de neón sobre negro."
     },
@@ -2086,6 +2088,20 @@
       "ending": "Final",
       "score": "Puntuación",
       "hook": "Gancho"
+    },
+    "plRules": {
+      "double": "Cada golpe duplica el poder",
+      "fibonacci": "El poder crece como Fibonacci",
+      "primes": "El poder sube por los números primos",
+      "plusOne": "Cada golpe suma +1 de poder",
+      "random": "Cada golpe tiene un poder al azar"
+    },
+    "plTags": {
+      "double": "#seduplica",
+      "fibonacci": "#fibonacci",
+      "primes": "#numerosprimos",
+      "plusOne": "",
+      "random": ""
     },
     "recipes": {
       "ringEscape": {
@@ -2147,13 +2163,13 @@
       "powerLayers": {
         "name": "Capas de poder",
         "series": "Capas de poder",
-        "hook": "Cada golpe duplica el poder. Quedan {layers} capas.",
+        "hook": "{rule}. Quedan {layers} capas.",
         "payoff": "LIBERTAD 🌈",
         "cliffQuestion": "¿Un golpe más? 👇",
         "postQuestion": "¿Cuántos golpes hicieron falta para romper {layers} capas?",
         "cliffPostQuestion": "¿Cuántos golpes para atravesarlas? Adivina 👇",
-        "keywords": "Una pelota rompe una pila arcoíris de capas y su poder se duplica en cada golpe – una simulación de romper capas muy satisfactoria.",
-        "hashtags": "#capasdepoder #seduplica #capasarcoiris"
+        "keywords": "Una pelota rompe una pila arcoíris de capas y golpea más fuerte en cada rebote – una simulación de romper capas muy satisfactoria.",
+        "hashtags": "#capasdepoder {ruleTag} #capasarcoiris"
       },
       "pendulumWave": {
         "name": "Onda de péndulos",

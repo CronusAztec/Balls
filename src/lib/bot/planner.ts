@@ -1,12 +1,14 @@
 import { CAPTION_MARGIN, defaultCaption, sanitizeCaptionText, type Caption } from "@/lib/captions";
 import { startBallCount } from "@/lib/physics/ballStats";
+import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
 import { polyrhythmCycleSeconds, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, type FinderRequest } from "@/lib/simulation/finder";
 import { outcomeMatches, type FinderOutcome, type RunSummary } from "@/lib/simulation/outcomes";
+import { recordingTextLayout } from "@/lib/recording/recorder";
 import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
-import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
+import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
 import {
   BOT_EPOCH,
@@ -26,6 +28,7 @@ import {
   RISING_MELODIES,
   SAFE_ZONE,
   SERIES_ROSTER,
+  TOP_HUD_MODES,
   pick,
   powerLayersPayoffSec,
   recipeBucket,
@@ -202,10 +205,11 @@ export interface CaptionBox {
 
 /**
  * Where caption `index` of `captions` sits in a 1080 × 1920 frame at simulation second `t` (null: not on screen then), as the
- * canvas stacks them: inside the centred square, the top stack growing down from its top margin (below the Top Text), the
- * bottom one up from its bottom margin, the centre one around the middle; each box as wide as its text plus padding.
+ * canvas stacks them: inside the centred square, the top stack growing down from its top margin (below the Top Text and –
+ * `topHud`, an arena game – below the mode's scoreboard band), the bottom one up from its bottom margin, the centre one
+ * around the middle; each box as wide as its text plus padding.
  */
-export function captionBoxAt(captions: readonly Caption[], index: number, t: number, frame: { width: number; height: number } = BOT_FRAME, topText = false): CaptionBox | null {
+export function captionBoxAt(captions: readonly Caption[], index: number, t: number, frame: { width: number; height: number } = BOT_FRAME, topText = false, topHud = false): CaptionBox | null {
   const visible = (c: Caption) => t >= c.start && (c.end <= c.start || t < c.end);
   const c = captions[index];
   if (!c || !visible(c)) return null;
@@ -227,7 +231,9 @@ export function captionBoxAt(captions: readonly Caption[], index: number, t: num
     return { width, height };
   };
   // The Top Text line (recorder: about 0.045 × side, a little smaller) sits at the top of the square.
-  const topStart = squareTop + margin + (topText ? 1.4 * 0.045 * side : 0);
+  let topStart = squareTop + margin + (topText ? 1.4 * 0.045 * side : 0);
+  // An arena game's scoreboard band covers the top of the square: the canvas starts the top stack below it (Canvas.tsx).
+  if (topHud) topStart = Math.max(topStart, squareTop + HUD_BAND * side + 0.5 * margin);
   let y = c.position === "bottom" ? squareTop + side - margin : topStart;
   if (c.position === "center") {
     let total = 0;
@@ -247,6 +253,19 @@ export function captionBoxAt(captions: readonly Caption[], index: number, t: num
     y += c.position === "bottom" ? -(b.height + gap) : b.height + gap;
   }
   return null;
+}
+
+/** The box of the Top or Bottom Text line in the export frame, where the recorder draws it (recordingTextLayout()). */
+export function edgeTextBox(text: string, where: "top" | "bottom", frame: { width: number; height: number } = BOT_FRAME, textSize = 1): CaptionBox {
+  const layout = recordingTextLayout(frame.width, frame.height, textSize);
+  const y = where === "top" ? layout.topY : layout.bottomY;
+  const width = estimateTextWidth(text, layout.fontSize);
+  return { left: frame.width / 2 - width / 2, right: frame.width / 2 + width / 2, top: y - 0.6 * layout.fontSize, bottom: y + 0.6 * layout.fontSize };
+}
+
+/** The mode's own scoreboard band covers the top of the square (TOP_HUD_MODES): no Top Text there. */
+export function hasTopHud(mode: SimulatorSettings["mode"]): boolean {
+  return TOP_HUD_MODES.includes(mode);
 }
 
 /** Inside the safe zone: clear of the bottom 20 % and the right 12 % of the frame (and inside it). */
@@ -392,6 +411,8 @@ export function resolveEnding(choice: EndingChoice | undefined, episode: number,
 const clampInt = (v: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(v)));
 const half = (v: number) => Math.max(0, Math.min(120, Math.round(v * 2) / 2));
 const R_DUR = RANGES.recordingDuration;
+/** The middle of the payoff band (85 %): where a run that goes on past its payoff is cut. */
+const PAYOFF_MID = (PAYOFF_BAND.from + PAYOFF_BAND.to) / 2;
 
 /** What one simulated candidate did (seconds; -1 = never within the run followed). */
 export interface RunFacts {
@@ -402,7 +423,7 @@ export interface RunFacts {
   homeSec: number;
   /** Grow: the ball fills its ring; Multiply: the balls fill the screen. */
   fillSec: number;
-  /** Square race: the podium is complete (the first three – or every racer of a smaller field – are home). */
+  /** Square race: the first racer crosses the finish line – the mode names its winner (callout, fanfare). */
   winSec: number;
   /** The winner the mode itself names (race, battle royale, capture the flag), −1 without one. */
   winnerIndex: number;
@@ -448,9 +469,11 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
       atEscape = snapshot(elapsed, engine.isSimulationFinished());
     }
     if (request.mode === "glass" && facts.homeSec < 0 && engine.getGlassProgress().home) facts.homeSec = sec;
+    // The race names its winner as the first racer crosses the line (race.ts finish(): the "winner" callout and the
+    // fanfare) – that is the payoff, not the complete podium seconds later.
     if (request.mode === "race" && facts.winSec < 0) {
       const race = engine.getRaceProgress();
-      if (race.finished >= Math.min(3, race.racers)) {
+      if (race.winner >= 0) {
         facts.winSec = sec;
         facts.winnerIndex = race.winner;
       }
@@ -506,7 +529,11 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
 function runEndSec(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSettings, facts: RunFacts | null, payoff: number): number | null {
   if (recipe.strategy === "fixed") return payoff + 1.8; // Power Layers: the freedom celebration, then the end
   if (recipe.strategy === "cycle" || recipe.strategy === "fill") return null;
-  return facts && facts.finishSec >= 0 ? facts.finishSec : null;
+  if (!facts || facts.finishSec < 0) return null;
+  // A square race goes on after its winner crosses (the others finish, then the podium): the clip is cut at the payoff's
+  // 85 % mark instead – unless the run is over (podium included) before that anyway.
+  if (settings.mode === "race") return facts.finishSec + endHoldsSec(settings) <= payoff / PAYOFF_MID ? facts.finishSec : null;
+  return facts.finishSec;
 }
 
 export interface ClipTiming {
@@ -546,7 +573,7 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
     recordingDuration = clampInt(Math.ceil(natural), R_DUR.min, R_DUR.max);
     clipSec = Math.min(recordingDuration, natural);
   } else {
-    const target = payoff / ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2);
+    const target = payoff / PAYOFF_MID;
     recordingDuration = clampInt(Math.max(target, payoff + 1), R_DUR.min, R_DUR.max);
     clipSec = recordingDuration;
   }
@@ -686,8 +713,13 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   const index = options.index ?? 1;
   const settings: SimulatorSettings = { ...built.settings, recordingDuration: timing.recordingDuration };
   const label = seriesLabel(copy, recipe, episode);
-  settings.topText = sanitizeCaptionText(label, 60);
-  const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), episode };
+  // The series label is the Top Text – but an arena game's scoreboard band is where the recorder draws that line, so there
+  // it is the Bottom Text (still above the bottom 20 % of the frame).
+  if (hasTopHud(settings.mode)) {
+    settings.topText = "";
+    settings.bottomText = sanitizeCaptionText(label, 60);
+  } else settings.topText = sanitizeCaptionText(label, 60);
+  const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
   const hook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
   const winnerName = winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
   const payoffText = recipeText(copy, recipe, "payoff", { ...vars, winner: winnerName ?? "" });
@@ -824,6 +856,9 @@ export function scoreClip(plan: ClipPlan): { score: number; reasons: ScoreReason
   const max = (id: ChecklistId) => CHECKLIST.find((c) => c.id === id)!.points;
   const add = (id: ChecklistId, points: number, key: string, values: Record<string, string | number> = {}) => reasons.push({ id, points: Math.max(0, Math.min(max(id), points)), max: max(id), key, values });
   const topText = !!s.topText.trim();
+  // The Top Text over an arena game's scoreboard band: neither can be read.
+  const topHud = hasTopHud(s.mode);
+  const covered = topText && topHud;
 
   // 1. motion in the first second
   const impact = plan.timing.firstImpactSec;
@@ -840,7 +875,7 @@ export function scoreClip(plan: ClipPlan): { score: number; reasons: ScoreReason
   else {
     const timed = hookCaps.every((c) => c.start <= 0.05 && c.end >= HOOK_SEC.min - 1e-9 && c.end <= HOOK_SEC.max + 0.5 + 1e-9);
     const safe = hookIdx.every((i) => {
-      const box = captionBoxAt(s.captions, i, 0.1, BOT_FRAME, topText);
+      const box = captionBoxAt(s.captions, i, 0.1, BOT_FRAME, topText, topHud);
       return !!box && inSafeZone(box);
     });
     add("hook", (timed ? 8 : 3) + (safe ? 7 : 0), safe ? (timed ? "hookOk" : "hookTiming") : "hookUnsafe", { text: hookText });
@@ -849,9 +884,12 @@ export function scoreClip(plan: ClipPlan): { score: number; reasons: ScoreReason
   // 3. a visible countdown
   const cdIdx = plan.captionRoles.findIndex((r) => r === "countdown");
   if (cdIdx >= 0 && s.captions[cdIdx]) {
-    const box = captionBoxAt(s.captions, cdIdx, Math.max(0.1, (s.captions[cdIdx].start || 0) + 0.1), BOT_FRAME, topText);
+    const box = captionBoxAt(s.captions, cdIdx, Math.max(0.1, (s.captions[cdIdx].start || 0) + 0.1), BOT_FRAME, topText, topHud);
     add("countdown", box && inSafeZone(box) ? 10 : 5, box && inSafeZone(box) ? "countdownCaption" : "countdownUnsafe", { kind: plan.countdown.kind });
-  } else if (plan.countdown.source === "hud" && hudShowsCountdown(s)) add("countdown", 10, "countdownHud", { kind: plan.countdown.kind });
+  } else if (plan.countdown.source === "hud" && hudShowsCountdown(s)) {
+    if (covered) add("countdown", 3, "countdownHudCovered", { kind: plan.countdown.kind });
+    else add("countdown", 10, "countdownHud", { kind: plan.countdown.kind });
+  }
   else add("countdown", 0, "countdownMissing");
 
   // 4. the payoff: the last 10–20 % of a resolved clip, 0.5–1 s after the end of a cut one
@@ -896,9 +934,12 @@ export function scoreClip(plan: ClipPlan): { score: number; reasons: ScoreReason
     add("ending", q >= 0 && s.captions[q] ? 10 : 4, q >= 0 ? "endingQuestion" : "endingNoQuestion");
   }
 
-  // 8. series: the label on the clip, the episode, the recurring cast
+  // 8. series: the label on the clip (the Top Text, or the Bottom Text under an arena game's scoreboard) where it can be read,
+  // the episode, the recurring cast
   const castOk = recipe?.teams ? s.teams.length > 0 && s.teams.every((t) => SERIES_ROSTER.some((r) => r.name === t.name && r.color === t.color)) : recipe?.character ? s.ballName === MASCOT.name : true;
-  add("series", (topText ? 4 : 0) + (plan.episode >= 1 ? 3 : 0) + (castOk ? 3 : 0), topText && castOk ? "seriesOk" : "seriesWeak", { label: s.topText });
+  const label = topText ? s.topText.trim() : s.bottomText.trim();
+  const labelShown = !!label && !covered && inSafeZone(edgeTextBox(label, topText ? "top" : "bottom", BOT_FRAME, s.textSize));
+  add("series", (labelShown ? 4 : 0) + (plan.episode >= 1 ? 3 : 0) + (castOk ? 3 : 0), covered ? "seriesCovered" : labelShown && castOk ? "seriesOk" : "seriesWeak", { label });
 
   // 9. the look: neon on black, glow and trails
   const dark = s.backgroundColors.every((c) => luminance(c) < 0.12);

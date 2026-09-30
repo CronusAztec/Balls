@@ -502,7 +502,7 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   | `grow-fill` – “It grows every bounce…” | escape | Grow | percentage bar | fill | oddplayground's “It starts tiny and gets out of control” |
   | `clone-per-pass` – “Every escape spawns 3 more balls.” | escape | Multiply | timer | fill | the multiply / retention loop (§1) |
   | `multipliers-board` – “x2 x4 x8… until it breaks.” | escape | Multipliers board | percentage bar | fill | borisbounces' multipliers |
-  | `power-layers` – “Every hit doubles the power.” | escape | Power Layers | the stack itself | escape | oddplayground's doubling layer breakers |
+  | `power-layers` – “Every hit doubles the power.” (the rule of the clip's sequence: `ViralBot.plRules`) | escape | Power Layers | the stack itself | escape | oddplayground's doubling layer breakers |
   | `pendulum-wave` – “20 pendulums. Wait for the chord.” | rhythm | Pendulum Wave | percentage bar | flip (back in line) | project.jdm's pendulum waves (music-first) |
   | `polyrhythm` – “12 rhythms. When do they all meet?” | rhythm | Polyrhythm | percentage bar | flip (all meet) | project.jdm's “Rhythm Theory” formats |
   | `drop-symphony` – “18 balls. Every peg is a note.” | rhythm | Ball Drop | timer | fill | project.jdm's sound-first drops |
@@ -517,15 +517,19 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   land, point the recipe's `modes` and `settings()` at them.
 - **Planner** – `src/lib/bot/planner.ts`, pure and deterministic (seeded generators keyed by the inputs; the only date is the
   one passed in). `planClip(recipe, planSeed, platform, options)` builds the settings (the mode's defaults, the look, the
-  voices, 1080×1920 at 60 fps, the recipe's seeded numbers, the Top Text series label), then searches physics seeds with the
+  voices, 1080×1920 at 60 fps, the recipe's seeded numbers, the series label – the Top Text, or the Bottom Text in the modes
+  whose own scoreboard band covers the top of the square, `TOP_HUD_MODES`: battle royale and capture the flag, where the canvas
+  also starts the top captions below that band), then searches physics seeds with the
   seed finder's engine (`createEngineForSettings()` – `finderRequest.ts` rebuilds the page's physics config and mode settings
   from the settings and the page canvas's world size, so a planned seed replays exactly in the fast export) and its
   predicates (`outcomes.ts`: escapes-at for a resolved escape inside the last 20 %, never-escapes + escapes-at for a cut
-  0.5–1 s before it, winner for the races; the finder's duration search for the modes that end on their own; the fixed length of
+  0.5–1 s before it, winner for the races; the finder's duration search for the modes that end on their own – a square race's
+  payoff is its first finisher, when the mode names the winner, and a resolved race is cut at 85 % instead of at the podium; the fixed length of
   Power Layers; the analytic cycle of the Pendulum Wave and Polyrhythm; a measured fill for Grow and Multiply). It models the
   clip's real end (the run's own finish, the page's banner holds, the recorder's 0.5 s), fills the captions (the hook split into
-  one-line pills that fit the safe zone, the countdown, the payoff text or the closing question), the share link (with `seed=`,
-  which the page now pins) and the post (`copy.ts`: caption, specific question, keywords, 5–10 hashtags, posting note, in the
+  one-line pills that fit the safe zone, the countdown, the payoff text or the closing question; a recipe's `copyVars` fill
+  words from the copy, e.g. Power Layers' `{rule}` names the sequence the clip plays by), the share link (with `seed=`, which
+  the page reads in its first render and pins on its first run) and the post (`copy.ts`: caption, specific question, keywords, 5–10 hashtags, posting note, in the
   locale's `ViralBot` messages). Every accepted candidate is scored by `scoreClip()` (motion in the first second, hook present
   and safe, visible countdown, payoff timing, length bucket vs platform, sound, ending, series, look – each with a reason) and
   the best is kept. `planDay(date, platform, count)` rotates the leading family daily and splits every family into two halves
@@ -551,10 +555,14 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   `IG_GRAPH_VERSION` / `IG_GRAPH_HOST` – see `.env.example`; keep them in `.env.local` or secrets, never in the repository.
   Publishing (`src/lib/bot/instagram.ts`, pure request builders and a flow with an injected `fetch`) creates a `REELS` media
   container from the video URL, polls its `status_code` until `FINISHED` and publishes it; a failure names its step, hides the
-  token and prints the manual upload steps. Instagram takes MP4 (H.264 + AAC): a Chromium without an H.264 encoder renders WebM,
-  which the CLI will not post.
+  token and prints the manual upload steps. Instagram takes MP4 (H.264 + AAC): a Chromium without H.264 + AAC encoders renders
+  WebM (Playwright's Chromium on Linux has neither; Google Chrome on Linux has no AAC encoder), so after rendering the CLI
+  converts every WebM clip with ffmpeg (on `PATH`, or `FFMPEG_PATH`: `-c:v libx264 -pix_fmt yuv420p -r 60 -c:a aac -b:a 192k
+  -movflags +faststart`), removes the WebM and points `manifest.json` and `posting-schedule.md` at the `.mp4`; without ffmpeg
+  the WebM stays, with a warning, and is never posted.
 - **Scheduled job** – `.github/workflows/bot.yml`: every day at 05:47 UTC and by hand (inputs `count`, `platform`, `post`) it
-  installs, builds with the Pages base path, serves `out/`, runs the CLI and uploads `bot-output` as an artifact kept 14 days.
+  installs (with ffmpeg, when the runner lacks it, checked for its libx264 and aac encoders), builds with the Pages base path,
+  serves `out/`, runs the CLI (which converts the WebM clips to MP4) and uploads `bot-output` as an artifact kept 14 days.
   It posts only when run by hand with `post` ticked and the `IG_USER_ID`, `IG_ACCESS_TOKEN` and `BOT_VIDEO_BASE_URL` secrets
   plus a `BOT_UPLOAD_COMMAND` repository variable (the command that uploads `bot-output` to that public folder, e.g.
   `aws s3 sync bot-output s3://my-bucket/bot --acl public-read` with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets) exist;
@@ -562,15 +570,19 @@ one planner. Everything is client-side or runs on your own machine / runner – 
 - **Add a recipe** – append a `BotRecipe` to `RECIPES` in `playbook.ts`: `id`, `copyKey`, `family`, `modes`, `payoff`,
   `countdown` (`caption` or the mode's `hud`), `strategy` (how the payoff is timed), optionally `teams`, `character`,
   `musicFirst`, `endings` and `buckets` (what the mode can fill), a `settings(ctx)` generator that keeps every value on its
-  `RANGES` step (use `ctx.rng`, `ctx.bucket` and `ctx.payoffTarget`) and `hookVars()`; then add its copy under
+  `RANGES` step (use `ctx.rng`, `ctx.bucket` and `ctx.payoffTarget`), `hookVars()` and, for words that depend on the settings,
+  `copyVars()` (variable → path under `ViralBot`); a mode whose own HUD covers the top of the square goes in `TOP_HUD_MODES`;
+  then add its copy under
   `ViralBot.recipes.<copyKey>` in the three messages files (`name`, `series`, `hook`, `payoff`, `cliffQuestion`, `postQuestion`,
   `cliffPostQuestion`, `keywords`, `hashtags`, optionally `cliffHook`). `tests/bot.test.ts` checks every recipe against `RANGES`
   for many seeds, the copy in three languages and the safe zone; update the recipe table above and the playbook's §5.
-- **Tests and checks** – `tests/bot.test.ts` (recipes vs RANGES, determinism of planClip / planDay, the daily rotation, the
-  score item by item, the safe zone, captions and hashtags per locale, the manifest, caption files and schedule),
+- **Tests and checks** – `tests/bot.test.ts` (recipes vs RANGES, determinism of planClip / planDay, the square race cut
+  before its first finisher, Power Layers' hook vs its sequence, the series label and the arena scoreboard, the daily rotation,
+  the score item by item, the safe zone, captions and hashtags per locale, the manifest, caption files and schedule),
   `tests/instagram.test.ts` (the request builders and the publishing flow with a mocked `fetch`), `tests/botCli.test.ts` (the
-  options and a real `--dry-run` in Node); the smoke test plans three clips in the Bot block, reloads, opens one, and renders a
-  one-clip short plan into a ZIP it reads back.
+  options, a real `--dry-run` in Node and the WebM → MP4 conversion with a stand-in ffmpeg); the smoke test plans three clips
+  in the Bot block, opens their share links (the canvas' `data-seed` is the planned seed), reloads, opens one, keeps an arena
+  game's captions below its scoreboard band, and renders a one-clip short plan into a ZIP it reads back.
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.
