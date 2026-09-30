@@ -79,7 +79,7 @@ import type {
   WallBreakStyle,
   WallHit,
 } from "./types";
-import { TWO_PI } from "./types";
+import { TWO_PI, passableGap } from "./types";
 
 /**
  * Approach speed (px/s) from which an obstacle contact counts as a hit (sound + glow); resting contacts stay
@@ -411,7 +411,7 @@ export class PhysicsEngine {
       this.wallRotations = [];
     } else if (layout === "single-gap") {
       const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
-      const gap = this._config.gapSize || 0.3;
+      const gap = passableGap(this._config.gapSize || 0.3, r, this.ringPassRadius());
       const start = 0.25 * Math.PI;
       this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
       this.wallRotations = [0];
@@ -469,7 +469,7 @@ export class PhysicsEngine {
     this.currentMode = this.accumulationMode;
     this.cinematicDirector.reset();
     const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
-    const gap = this._config.gapSize || 0.3;
+    const gap = passableGap(this._config.gapSize || 0.3, r, this.ringPassRadius());
     const start = 0.25 * Math.PI;
     this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
     this.wallRotations = [0];
@@ -1158,7 +1158,9 @@ export class PhysicsEngine {
    * `count` balls from the centre.
    */
   setBallCount(count: number) {
+    const oldPass = this.ringPassRadius();
     this._config = { ...this._config, ballCount: count };
+    if (this.ringPassRadius() !== oldPass) this.refitGaps(); // (merge: more balls can fuse into a bigger one)
     const mode = this.currentMode;
     if (!mode || !MULTI_BALL_MODES.includes(mode.name)) return;
     const n = startBallCount(this._config, mode.name);
@@ -1573,6 +1575,53 @@ export class PhysicsEngine {
     ball.x = cx + dx * k;
     ball.y = cy + dy * k;
   }
+
+  /** The balls the ring-side guard follows through a sub-step's pair pass and mode pushes, and their squared distances before (reused). */
+  private sideBalls: Ball[] = [];
+  private sideDists = new Float64Array(0);
+
+  /** Notes every ball and its squared distance from the centre (before the pair pass); returns how many. No allocation once grown. */
+  private recordRingSides(cx: number, cy: number): number {
+    const balls = this.balls;
+    if (this.sideDists.length < balls.length) this.sideDists = new Float64Array(Math.max(2 * this.sideDists.length, balls.length, 8));
+    for (let i = 0; i < balls.length; i++) {
+      const ball = balls[i];
+      const dx = ball.x - cx;
+      const dy = ball.y - cy;
+      this.sideBalls[i] = ball;
+      this.sideDists[i] = dx * dx + dy * dy;
+    }
+    return balls.length;
+  }
+
+  /**
+   * Every noted ball that a push carried across an intact ring goes back radially to the distance it had before the push
+   * (keeping its new direction from the centre), so it stays on its side: the next wall pass resolves it from there – a
+   * rebound, or a pass when it is in a gap. A push that crossed no ring changes nothing. A ball merged away is no longer in
+   * play: moving it is harmless. No allocation.
+   */
+  private restoreRingSides(count: number, cx: number, cy: number) {
+    const walls = this.circularWalls;
+    for (let k = 0; k < count; k++) {
+      const ball = this.sideBalls[k];
+      const beforeSq = this.sideDists[k];
+      const dx = ball.x - cx;
+      const dy = ball.y - cy;
+      const afterSq = dx * dx + dy * dy;
+      if (afterSq === beforeSq || afterSq === 0) continue; // (most balls: the pass did not move them)
+      let crossed = false;
+      for (let w = 0; w < walls.length && !crossed; w++) {
+        if (this.brokenWalls.has(w)) continue;
+        const R2 = walls[w].radius * walls[w].radius;
+        crossed = beforeSq < R2 ? R2 <= afterSq : afterSq < R2;
+      }
+      // (a ball the rings do not resolve – Multiply's escaped ones – goes where it was pushed)
+      if (!crossed || this.currentMode?.shouldSkipWallCollision(ball)) continue;
+      const scale = Math.sqrt(beforeSq / afterSq);
+      ball.x = cx + dx * scale;
+      ball.y = cy + dy * scale;
+    }
+  }
   // --- end obstacle-editor ---
   getElapsedMs() {
     return this._elapsedMs;
@@ -1621,13 +1670,18 @@ export class PhysicsEngine {
   getFirstEscapeMs(): number {
     return this.cinematicDirector.rig.getFirstEscapeMs();
   }
-  /** `ball` is inside wall `w` and the rig keeps that wall closed to it. */
+  /**
+   * `ball` is inside wall `w` – or was at the start of the step (`heldAtStart()`: a fast ball may be past it within one
+   * sub-step) – and the rig keeps that wall closed to it.
+   */
   private rigSeals(ball: Ball, w: number): boolean {
     const wall = this.circularWalls[w];
     if (!wall) return false;
+    const rig = this.cinematicDirector.rig;
+    if (!rig.closes(ball, w)) return false;
     const dx = ball.x - this._config.width / 2;
     const dy = ball.y - this._config.height / 2;
-    return dx * dx + dy * dy < wall.radius * wall.radius && this.cinematicDirector.rig.closes(ball, w);
+    return dx * dx + dy * dy < wall.radius * wall.radius || rig.heldAtStart(ball, w);
   }
   // --- end rigged ---
   /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
@@ -1689,6 +1743,7 @@ export class PhysicsEngine {
   setConfig(patch: Partial<PhysicsConfig>) {
     // --- timeline --- keyframed settings keep following their keyframes; the rest of the patch applies as always
     if (!this.timelineApplying && (patch.timeline !== undefined || this.timeline.active)) return this.setConfigWithTimeline(patch);
+    const oldPass = this.ringPassRadius();
     const oldW = this._config.width;
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
@@ -1707,8 +1762,13 @@ export class PhysicsEngine {
     const sizeChanged =
       (patch.width !== undefined && patch.width !== oldW) || (patch.height !== undefined && patch.height !== oldH);
     if (sizeChanged && oldW > 0 && oldH > 0) {
-      const sx = this._config.width / oldW;
-      const sy = this._config.height / oldH;
+      // The rings scale with the canvas's smaller side: in the ring modes every ball (and Accumulation's frozen balls, Lines'
+      // points) scales by that same factor about the centre, so it keeps its side of every ring; the other modes follow the
+      // canvas's own axes (those that map their own world – Journey, even in a rings stage – undo that per-axis stretch).
+      const k = Math.min(this._config.width, this._config.height) / Math.min(oldW, oldH);
+      const rings = this.circularWalls.length > 0 && supportsObstacles(this.currentMode?.name); // (the ring modes' list)
+      const sx = rings ? k : this._config.width / oldW;
+      const sy = rings ? k : this._config.height / oldH;
       const oldCx = oldW / 2;
       const oldCy = oldH / 2;
       const cx = this._config.width / 2;
@@ -1726,10 +1786,22 @@ export class PhysicsEngine {
     if (sizeChanged || wallCountChanged || gapChanged) {
       // Modes rebuild or rescale the walls from their base radii, never from a breathing pulse.
       this.restoreWallRadii();
+      const walls = this.circularWalls;
       const handled = this.currentMode?.onConfigChange(this.ctx, sizeChanged, wallCountChanged, gapChanged);
-      if (!handled) this.initializeCircularWalls();
+      if (!handled) {
+        // The classic rings: a new wall count builds them anew; a new canvas size (a window resize) or gap size changes
+        // them in place – the radii a fresh build would give, the gaps resized – so the run goes on with its broken rings.
+        if (wallCountChanged) this.initializeCircularWalls();
+        else {
+          if (sizeChanged) this.resizeCircularWalls();
+          this.refitGaps();
+        }
+      }
       this.syncWallBaseRadii();
-      this.brokenWalls.clear();
+      // Broken rings stay broken, unless a new wall count built the rings anew.
+      if (wallCountChanged && this.circularWalls !== walls) this.brokenWalls.clear();
+    } else if (this.ringPassRadius() !== oldPass) {
+      this.refitGaps(); // a bigger (or merged) ball: a gap it can no longer pass is widened, in place
     }
     // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off – but
     // not while update() applies a step's keyframes: the step's first sub-step moves the walls then, and sweeps the move.
@@ -1773,7 +1845,18 @@ export class PhysicsEngine {
   /** A keyframed gap size: the config takes it and the rings' gaps resize in place – no rebuild, so broken rings stay broken (see `resizeGaps()`). */
   private setTimelineGap(gap: number) {
     this._config = { ...this._config, gapSize: gap };
-    resizeGaps(this.circularWalls, gap, this.currentMode?.name);
+    resizeGaps(this.circularWalls, gap, this.currentMode?.name, this.ringPassRadius());
+  }
+
+  /** The gap-sized rings' gaps at the configured gap size, widened where the biggest ball could not pass (`resizeGaps()`); in place. */
+  private refitGaps() {
+    resizeGaps(this.circularWalls, this._config.gapSize || 0.3, this.currentMode?.name, this.ringPassRadius());
+  }
+
+  /** The biggest ball the rings must let through (the Ball Size, or all starting balls merged): see `ringPassRadius()`. */
+  private ringPassRadius(): number {
+    const r = this._config.ballRadius || 8;
+    return this.interaction.ballInteraction === "merge" ? r * Math.sqrt(startBallCount(this._config, this.currentMode?.name ?? "classic")) : r;
   }
 
   /** Whether the keyframes drive `key` (its config value is then the keyframed one; the page's own waits as its base). */
@@ -1959,6 +2042,10 @@ export class PhysicsEngine {
       // --- obstacle-editor --- the creator's obstacles (ring modes only)
       const editorLive = this.editorObstaclesLive();
       if (editorLive) this.editorObstacles.beginStep();
+      // The ring pass judges a ball that its own move carried across a ring by where it was before the move
+      // (processWallCollisions(): each ball's squared distance from this centre is noted before it moves)
+      const ringCx = this._config.width / 2;
+      const ringCy = this._config.height / 2;
       for (let s = 0; s < subSteps; s++) {
         // Breathing walls move once per sub-step (a quarter of the per-step jump or less) and the collision
         // pass below sweeps each wall over that move, so even the fastest, widest pulse cannot step over a
@@ -2003,6 +2090,9 @@ export class PhysicsEngine {
               ball.vy *= boost;
             }
           }
+          const bx = ball.x - ringCx;
+          const by = ball.y - ringCy;
+          const beforeSq = this.circularWalls.length > 0 ? bx * bx + by * by : -1;
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
           this.currentMode?.onBallStep(this.ctx, ball, subSec);
@@ -2017,10 +2107,14 @@ export class PhysicsEngine {
           }
           if (hasObstacles) this.handleObstacleCollisions(ball, subSec);
           if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
-          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
+          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball, beforeSq);
         }
+        // The pair pass and the mode's pushes (Accumulation's frozen balls) ignore the rings: a push that carries a ball's
+        // centre across an intact ring is undone radially (restoreRingSides()), so the next wall pass resolves it from its side.
+        const sides = this.circularWalls.length > 0 && (this.balls.length > 1 || this.currentMode === this.accumulationMode) ? this.recordRingSides(ringCx, ringCy) : 0;
         this.handleBallCollisions(multActive);
         this.currentMode?.onPostSubStep(this.ctx);
+        if (sides > 0) this.restoreRingSides(sides, ringCx, ringCy);
       }
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
@@ -2100,7 +2194,8 @@ export class PhysicsEngine {
     if (drop > 0) this.obstacleHits.splice(0, drop);
   }
 
-  private handleCircularWallCollisions(ball: Ball) {
+  /** `beforeSq`: the ball's squared distance from the centre before this sub-step moved it (−1: unknown; see `processWallCollisions()`). */
+  private handleCircularWallCollisions(ball: Ball, beforeSq = -1) {
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     for (let iter = 0; iter < 5; iter++) {
@@ -2128,7 +2223,7 @@ export class PhysicsEngine {
       }
       // Only the first pass sweeps the walls over their last move: the later passes resolve what the
       // push-outs of the first one (or a mode's teleport) left overlapping, against the current radii.
-      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0)) break;
+      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0, iter === 0 ? beforeSq : -1)) break;
     }
   }
 
@@ -2139,8 +2234,13 @@ export class PhysicsEngine {
    * so a wall that jumped over the ball still hits it and pushes it back to the side it came from,
    * and a gap that swept past the ball's centre counts as a pass. With `prev === radius` the swept
    * test is exactly the plain one, so a run without breathing walls takes the original code path.
+   * `beforeSq` (≥ 0 on the first pass of a sub-step) is the ball's squared distance from the centre before the sub-step moved it:
+   * a ball whose move carried its centre across a ring (`movedAcross()`: from clear of the ring, or through solid wall –
+   * a fast ball can land beyond the ±(radius + 2) hit band) is judged from the side it came from, so a solid ring pushes
+   * it back and rebounds it instead of letting it through (a crossing through a gap still passes). A ball that crossed no
+   * ring takes exactly the old path.
    */
-  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false): boolean {
+  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false, beforeSq = -1): boolean {
     const dx = ball.x - cx;
     const dy = ball.y - cy;
     let outermostBelow = -1;
@@ -2151,22 +2251,25 @@ export class PhysicsEngine {
     const isShatter = this.currentMode?.name === "shatter";
     let collided = false;
     for (let w = 0; w < this.circularWalls.length; w++) {
-      // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
-      if (this.brokenWalls.has(w) && !(this.rigOn && dist < this.circularWalls[w].radius && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const wall = this.circularWalls[w];
+      // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
+      if (this.brokenWalls.has(w) && !(this.rigOn && (dist < wall.radius || (beforeSq >= 0 && beforeSq < wall.radius * wall.radius)) && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const rotation = this.wallRotations[w];
       const inner = dist - ball.radius - 2;
       const outer = dist + ball.radius + 2;
       let inside: boolean;
       /** The wall (with its gap) moved past the ball's centre since the last pass: an inside ball is now outside it. */
       let crossed = false;
+      /** The ball's own move took its centre across the ring (`beforeSq`): it is judged from the side it came from. */
+      let crossedRing = false;
       if (swept) {
         const prev = w < this.wallPrevRadii.length ? this.wallPrevRadii[w] : wall.radius;
-        inside = dist < prev;
+        inside = this.movedAcross(ball, beforeSq, dist, prev, wall, rotation, angle) ? beforeSq < prev * prev : dist < prev;
         if (inside ? outer < wall.radius : inner > wall.radius) continue;
         crossed = inside && dist >= wall.radius;
       } else {
-        if (!(inner <= wall.radius && outer >= wall.radius)) continue;
+        crossedRing = this.movedAcross(ball, beforeSq, dist, wall.radius, wall, rotation, angle);
+        if (!crossedRing && !(inner <= wall.radius && outer >= wall.radius)) continue;
         inside = dist < wall.radius;
       }
 
@@ -2201,11 +2304,13 @@ export class PhysicsEngine {
       const ny = dy / dist;
       // --- rigged --- a wall closed to this ball (never escape's barrier, a forced winner's locked walls): its gaps do not
       // let the ball out – it rebounds as off the wall (the safety net under the director's steering)
+      // (a ball inside it at the start of the step is held even when a fast sub-step already carried its centre past it)
       let sealedGap = false;
-      if (inGap && this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) {
+      if (inGap && this.rigOn && this.cinematicDirector.rig.closes(ball, w) && (inside || this.cinematicDirector.rig.heldAtStart(ball, w))) {
         inGap = false;
         sealedGap = true;
-        if (ball.vx * nx + ball.vy * ny > 0 || crossed) this.cinematicDirector.rig.noteSeal();
+        if (ball.vx * nx + ball.vy * ny > 0 || crossed || !inside) this.cinematicDirector.rig.noteSeal();
+        inside = true; // the push-out below puts it back inside the wall
       }
       if (inGap) {
         const movingOut = ball.vx * nx + ball.vy * ny > 0;
@@ -2223,7 +2328,8 @@ export class PhysicsEngine {
           if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
           if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, false); // --- video-beats --- the next flight is planned
           const handled = this.currentMode?.onGapPass(this.ctx, ball, w);
-          if (!handled) {
+          // --- rigged --- (a wall the rig keeps closed to this ball never breaks under it, whichever side it came from)
+          if (!handled && !(this.rigOn && this.cinematicDirector.rig.closes(ball, w))) {
             if (!this.brokenWalls.has(w)) {
               this.spawnWallBreakByStyle(w, ball.x, ball.y);
               this.pendingSoundEvents.push({ type: "gap", wallIndex: w });
@@ -2234,8 +2340,10 @@ export class PhysicsEngine {
           }
         }
       } else {
+        // A move through solid wall: the ball goes back to the side it came from (a refused pass keeps it inside).
+        if (crossedRing && !sealedGap) inside = beforeSq < wall.radius * wall.radius;
         // --- boris-multipliers --- enough damage smashes the ring on contact: no gap needed
-        if (ball.mult && !(this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
+        if (ball.mult && !(this.rigOn && this.cinematicDirector.rig.closes(ball, w) && (inside || this.cinematicDirector.rig.heldAtStart(ball, w))) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
           this.smashWall(ball, w);
           this.multipliers.noteSmash();
           continue;
@@ -2289,19 +2397,52 @@ export class PhysicsEngine {
         }
         if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, !result?.suppressBounce); // --- video-beats --- a fresh rebound is at its natural speed
         collided = true;
+        // The rings after this one were tested against where the move left the ball, not where it is now: the next pass
+        // resolves them from its new place.
+        if (crossedRing) return true;
       }
     }
     return collided;
   }
 
+  /**
+   * The ball's own move (from √`beforeSq` to `dist`; −1 = unknown) took its centre across the ring at radius `R` through solid
+   * wall – a tunnelling move, judged from the side it came from. Not when it was already touching the ring inside the span
+   * of a gap: a ball straddling the ring in a gap keeps the judgement by its centre it always had (it passes the gap's
+   * edge). Allocation-free; the gaps are only looked at for such a straddling crossing.
+   */
+  private movedAcross(ball: Ball, beforeSq: number, dist: number, R: number, wall: CircularWall, rotation: number, angle: number): boolean {
+    if (beforeSq < 0 || (beforeSq < R * R) === (dist < R)) return false;
+    if (Math.abs(Math.sqrt(beforeSq) - R) > ball.radius + 2) return true;
+    for (const gap of wall.gaps) {
+      const start = (((gap.startAngle + rotation) % TWO_PI) + TWO_PI) % TWO_PI;
+      let width = gap.endAngle - gap.startAngle;
+      if (width >= TWO_PI) return false;
+      width = ((width % TWO_PI) + TWO_PI) % TWO_PI;
+      let rel = angle - start;
+      if (rel < 0) rel += TWO_PI;
+      if (rel <= width) return false;
+    }
+    return true;
+  }
+
+  /** The classic rings' radii for the current canvas, exactly as `initializeCircularWalls()` builds them; gaps, rotations and broken rings stay. */
+  private resizeCircularWalls() {
+    const maxR = (Math.min(this._config.width, this._config.height) / 2) * 0.85;
+    const count = this.circularWalls.length;
+    for (let i = 0; i < count; i++) this.circularWalls[i].radius = maxR * (0.4 + (0.6 / count) * (i + 1));
+  }
+
   private initializeCircularWalls() {
     const maxR = (Math.min(this._config.width, this._config.height) / 2) * 0.85;
     const count = this._config.wallCount || 7;
+    const passRadius = this.ringPassRadius();
     this.circularWalls = [];
     this.wallRotations = [];
     for (let i = 0; i < count; i++) {
       const radius = maxR * (0.4 + (0.6 / count) * (i + 1));
-      const gap = this._config.gapSize || 0.3;
+      // (widened only where the ball could never pass it – see passableGap(); every gap a ball fits through stays as set)
+      const gap = passableGap(this._config.gapSize || 0.3, radius, passRadius);
       const start = (TWO_PI * i) / count;
       this.circularWalls.push({ radius, gaps: [{ startAngle: start, endAngle: start + gap }] });
       this.wallRotations.push(0);

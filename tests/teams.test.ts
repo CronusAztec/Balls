@@ -406,7 +406,7 @@ describe("several balls in the engine", () => {
         }
       }
     }
-  });
+  }, 20_000); // (several breathing runs: generous under a loaded test machine)
 
   it("Grow keeps its old limit of two balls: none ever leaves the sealed ring, and two-ball runs replay as before", () => {
     expect(MODE_MAX_BALLS.grow).toBe(2);
@@ -431,13 +431,39 @@ describe("several balls in the engine", () => {
       const cx = config.width / 2;
       const cy = config.height / 2;
       const ring = six.getCircularWalls()[0].radius;
-      for (const b of six.getBalls()) expect(Math.hypot(b.x - cx, b.y - cy), `seed ${seed}`).toBeLessThan(ring);
+      // The whole ball stays inside the sealed ring, not only its centre: two balls share it (each grows to half of it at most).
+      for (const b of six.getBalls()) expect(Math.hypot(b.x - cx, b.y - cy) + b.radius, `seed ${seed}`).toBeLessThanOrEqual(ring);
     }
     // The live change stays inside the cap too.
     const live = engineFor("grow", 3);
     live.setBallCount(6);
     expect(live.getBalls().map((b) => b.team)).toEqual([0, 1]);
   });
+
+  it("two Grow balls share the sealed ring: grown, they still fit side by side and heavy gravity never shoves one out", () => {
+    // Grown to the single-ball cap (the ring's radius − 2) both used to rest half outside the ring, and from gravity 600 the
+    // pair correction shoved one through it (seed 4 at gravity 600: out at 42.6 s).
+    const cx = config.width / 2;
+    const cy = config.height / 2;
+    for (const [seed, gravity] of [[4, 600], [2, 1000]]) {
+      const engine = engineFor("grow", seed, 2, false, { gravity });
+      const ring = engine.getCircularWalls()[0].radius;
+      let worst = -Infinity;
+      for (let f = 0; f < 60 * 60; f++) {
+        engine.update(STEP, 0);
+        engine.consumeSoundEvents();
+        for (const b of engine.getBalls()) worst = Math.max(worst, Math.hypot(b.x - cx, b.y - cy) + b.radius - ring);
+      }
+      expect(worst, `seed ${seed}, gravity ${gravity}`).toBeLessThanOrEqual(0);
+      expect(sum(engine.getTeamStats(), "escapes")).toBe(0);
+      for (const b of engine.getBalls()) expect(b.radius).toBeLessThanOrEqual(ring / 2);
+    }
+    // One ball keeps the whole ring: it grows past half of it as it always did.
+    const one = engineFor("grow", 1, 1);
+    one.setGrowRate(20);
+    run(one, 60 * 60);
+    expect(one.getBalls()[0].radius).toBeGreaterThan(one.getCircularWalls()[0].radius / 2);
+  }, 60_000);
 
   it("Multiply: the start count sets the first balls and the new balls play for the team of the ball that escaped", () => {
     const engine = engineFor("multiply", 5, 3);

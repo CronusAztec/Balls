@@ -64,6 +64,15 @@ export function startBallCount(config: Pick<PhysicsConfig, "ballCount" | "twoBal
   return Math.max(1, Math.min(modeBallCap(mode), Math.round(n)));
 }
 
+/**
+ * The biggest ball the rings of `mode` must let through: the Ball Size – with the merge interaction, the ball all the
+ * starting balls can fuse into (the same total area: × √count). Ring gaps are widened for it (`passableGap()`).
+ */
+export function ringPassRadius(config: Pick<PhysicsConfig, "ballRadius" | "ballCount" | "twoBalls" | "ballInteraction">, mode: ModeId): number {
+  const r = config.ballRadius || 8;
+  return config.ballInteraction === "merge" ? r * Math.sqrt(startBallCount(config, mode)) : r;
+}
+
 /** Colour of the starting ball in slot `slot` (0 = the ball colour, 1 = the second ball colour, then EXTRA_BALL_COLORS). */
 export function startBallColor(slot: number, config: Pick<PhysicsConfig, "ballColor" | "ballColor2">): string {
   if (slot <= 0) return config.ballColor || "#FFFFFF";

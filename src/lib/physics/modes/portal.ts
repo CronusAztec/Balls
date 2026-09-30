@@ -14,6 +14,12 @@ export interface Portal {
 
 export const PORTAL_COLORS = ["#ff6b6b", "#4ecdc4", "#ffd93d", "#6c5ce7", "#00b894"];
 
+/** The exit a burnt-out portal at `angle` leaves in the ring: its start normalised into [0, 2π). */
+function portalGap(angle: number, halfWidth: number): Gap {
+  const start = (((angle - halfWidth) % TWO_PI) + TWO_PI) % TWO_PI;
+  return { startAngle: start, endAngle: start + 2 * halfWidth };
+}
+
 /** Portal: colour-matched portal pairs teleport the ball; used-up portals become gaps. */
 export class PortalMode implements GameMode {
   readonly name = "portal";
@@ -33,7 +39,15 @@ export class PortalMode implements GameMode {
     ctx.setBounceSpeedMultiplier(1);
     this.generatePortals(ctx);
   }
-  onPreUpdate() {}
+  /**
+   * The portals sit at fixed angles (the canvas draws them there and `isAngleInPortal()` tests world angles), so the ring
+   * does not turn: the exits a burnt-out portal leaves stay where the portal was. Runs in every fixed step after the
+   * engine advanced the rotations and before the sub-steps, so the collisions and the canvas both see rotation 0.
+   */
+  onPreUpdate(ctx: ModeContext) {
+    const rot = ctx.getWallRotations();
+    if (rot.length > 0) rot[0] = 0;
+  }
   onBallStep() {}
   onPostSubStep() {}
   onWallHit(ctx: ModeContext, ball: Ball, _wallIndex: number, angle: number): WallHitResult | void {
@@ -162,13 +176,19 @@ export class PortalMode implements GameMode {
     ctx.setWallRotations([0]);
   }
 
+  /**
+   * The exits of the burnt-out portals, as the canvas draws a ring's gaps: each starting in [0, 2π), sorted by start. A gap
+   * across 0 stays one gap ending above 2π (the engine's gap test wraps it; split in two, each half would be too narrow to
+   * count as passable).
+   */
   private buildGaps(): Gap[] {
     const gaps: Gap[] = [];
     for (const p of this.portals) {
       if (!p.exhausted) continue;
-      gaps.push({ startAngle: p.angleA - p.halfWidth, endAngle: p.angleA + p.halfWidth });
-      gaps.push({ startAngle: p.angleB - p.halfWidth, endAngle: p.angleB + p.halfWidth });
+      gaps.push(portalGap(p.angleA, p.halfWidth));
+      gaps.push(portalGap(p.angleB, p.halfWidth));
     }
+    gaps.sort((a, b) => a.startAngle - b.startAngle);
     return gaps;
   }
 }

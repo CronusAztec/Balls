@@ -275,6 +275,8 @@ export class RigDirector {
   private flightsLeft = MAX_FLIGHTS_PER_STEP;
   /** The balls inside their closed way out at the start of the step (`markInside()`), reused every step. */
   private readonly held: Ball[] = [];
+  /** The closed way out (wall index) of each ball in `held`, at the start of the step. */
+  private readonly heldWalls: number[] = [];
 
   /** A new run: nothing passed, nobody out, counters at zero. */
   reset() {
@@ -515,6 +517,7 @@ export class RigDirector {
    */
   markInside(balls: readonly Ball[]) {
     this.held.length = 0;
+    this.heldWalls.length = 0;
     if (!this.on) return;
     if (this.winner >= 0 && !this.winnerOut && !this.released) {
       let inPlay = false;
@@ -528,8 +531,21 @@ export class RigDirector {
       const limit = this.walls[w].radius + 2;
       const dx = ball.x - this.cx;
       const dy = ball.y - this.cy;
-      if (dx * dx + dy * dy < limit * limit) this.held.push(ball);
+      if (dx * dx + dy * dy < limit * limit) {
+        this.held.push(ball);
+        this.heldWalls.push(w);
+      }
     }
+  }
+
+  /**
+   * `ball` was inside wall `w`, its closed way out, at the start of the step (`markInside()`). The engine refuses a gap pass
+   * through such a wall even when a fast sub-step already carried the ball's centre past it, so the guarantee does not hang
+   * on the collision band's width. O(held) – asked only for a ball found outside a closed wall. Allocation-free.
+   */
+  heldAtStart(ball: Ball, w: number): boolean {
+    for (let i = 0; i < this.held.length; i++) if (this.held[i] === ball) return this.heldWalls[i] === w;
+    return false;
   }
 
   /**
@@ -562,6 +578,7 @@ export class RigDirector {
       this.seals++;
     }
     this.held.length = 0;
+    this.heldWalls.length = 0;
   }
 
   /**
