@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MIN_SLICE_SEC, formatSongTime, normalizeSliceOptions, planSlice, positionAt, sliceCount, sliceProgress, songEnded, type SliceOptions } from "@/lib/audio/slicer";
-import { SlicePlayer } from "@/lib/audio/slicePlayer";
+import { SlicePlayer, sliceGainAt } from "@/lib/audio/slicePlayer";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 
 const opts: SliceOptions = { sliceSec: 0.25, fadeSec: 0.008, loop: true };
@@ -268,5 +268,47 @@ describe("song slicer settings", () => {
     const s = presetToSettings({ mode: "classic", gravity: 100 });
     expect(s.sliceSong).toBe(false);
     expect(s.sliceMs).toBe(250);
+  });
+});
+
+// --- review fix (audio) ---
+describe("SlicePlayer cut fade", () => {
+  it("knows a slice's gain: fade in, plateau of 1, fade out", () => {
+    expect(sliceGainAt(-0.1, 1, 0.01, 0.01)).toBe(0);
+    expect(sliceGainAt(0, 1, 0.01, 0.01)).toBe(0);
+    expect(sliceGainAt(0.005, 1, 0.01, 0.01)).toBeCloseTo(0.5, 12);
+    expect(sliceGainAt(0.5, 1, 0.01, 0.01)).toBe(1);
+    expect(sliceGainAt(0.995, 1, 0.01, 0.01)).toBeCloseTo(0.5, 12);
+    expect(sliceGainAt(1, 1, 0.01, 0.01)).toBe(0);
+    expect(sliceGainAt(0, 1, 0, 0)).toBe(1); // no fade: full level from the first sample
+  });
+
+  it("fades a cut slice out from where its fade in got to, not from the param's last rendered value", () => {
+    const calls: [string, number, number][][] = [];
+    const ctx = {
+      currentTime: 100,
+      createGain: () => {
+        const log: [string, number, number][] = [];
+        calls.push(log);
+        const gain = {
+          value: 1, // what an unrendered param reads
+          setValueAtTime: (v: number, t: number) => void log.push(["set", v, t]),
+          linearRampToValueAtTime: (v: number, t: number) => void log.push(["linear", v, t]),
+          cancelScheduledValues: (t: number) => void log.push(["cancel", 0, t]),
+        };
+        return { gain, connect: () => undefined, disconnect: () => undefined };
+      },
+      createBufferSource: () => ({ buffer: null, context: ctx, onended: null, connect: () => undefined, start: () => undefined, stop: () => undefined }),
+    };
+    const player = new SlicePlayer();
+    player.setBuffer({ duration: 10 } as AudioBuffer);
+    player.setOptions({ sliceSec: 1, fadeSec: 0.008, loop: true });
+    player.setEnabled(true);
+    player.trigger(ctx as unknown as AudioContext, {} as AudioNode);
+    player.stop(100.002); // a quarter of the way into the 8 ms fade in
+    const log = calls[0];
+    const cancel = log.findIndex(([m]) => m === "cancel");
+    expect(log[cancel + 1][0]).toBe("set");
+    expect(log[cancel + 1][1]).toBeCloseTo(0.25, 9);
   });
 });

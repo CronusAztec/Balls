@@ -356,6 +356,7 @@
     "musicRemove": "Usuń muzykę",
     "musicPlaying": "Gra",
     "musicDecodeError": "Nie udało się zdekodować tego pliku audio. Spróbuj z plikiem MP3, OGG, WAV lub M4A.",
+    "wallBreakDecodeError": "Nie udało się zdekodować tego pliku audio – przebicia ścian zachowują domyślny dźwięk. Spróbuj z plikiem MP3, OGG, WAV lub M4A.",
     "musicDuckMeter": "Poziom muzyki (przycisza się przy każdym odbiciu)",
     "musicVolume": "Głośność muzyki",
     "musicVolumeTip": "Jak głośno muzyka gra pod dźwiękami odbić – w głośnikach i w eksportowanym wideo.",

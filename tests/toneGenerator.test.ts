@@ -345,3 +345,107 @@ describe("ToneGenerator wall-hit dispatch", () => {
     expect(graph.sources.slice(1).map((s) => s.startArgs)).toEqual([[4.5], [4.5]]);
   });
 });
+
+// --- review fix (audio) ---
+describe("ToneGenerator master bus, same-time voices and wall-break fallback", () => {
+  let graph: ReturnType<typeof fakeGraph>;
+  let tone: ToneGenerator;
+  let fetches: string[];
+
+  beforeEach(async () => {
+    graph = fakeGraph();
+    fetches = [];
+    vi.stubGlobal("window", { AudioContext: function FakeAudioContext() { return graph.ctx; } });
+    vi.stubGlobal("fetch", async (url: string) => {
+      fetches.push(url);
+      return { ok: !url.includes("missing"), status: url.includes("missing") ? 404 : 200, arrayBuffer: async () => new ArrayBuffer(8) };
+    });
+    tone = new ToneGenerator();
+    await tone.start();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends the mix through a limiter just under full scale (a hard knee: the default 30 dB knee does not limit)", () => {
+    expect(graph.compressors).toHaveLength(1);
+    const [c] = graph.compressors;
+    expect([c.threshold.value, c.knee.value, c.ratio.value, c.attack.value]).toEqual([-3, 0, 20, 0]);
+  });
+
+  it("lets same-frame hits on one wall add up to √n × one hit instead of n ×, and starts at most MAX_CHORD_VOICES voices at one time", () => {
+    graph.ctx.currentTime = 1;
+    for (let i = 0; i < 6; i++) tone.playWallHit(0);
+    expect(graph.oscillators).toHaveLength(6);
+    expect(graph.gains[0]).toBe(0.25); // the first one is the classic hit
+    expect(graph.gains.reduce((a, b) => a + b, 0)).toBeCloseTo(0.25 * Math.sqrt(6), 9);
+    // The next frame starts over.
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 1.02;
+    tone.playWallHit(0);
+    expect(graph.gains).toEqual([0.25]);
+    // Different walls are different pitches: each plays at full level…
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 2;
+    tone.playWallHit(0);
+    tone.playWallHit(1);
+    expect(graph.gains).toEqual([0.25, 0.25]);
+    // …but a pile-up of hits in one frame starts no more than MAX_CHORD_VOICES oscillators.
+    graph.oscillators.length = 0;
+    graph.ctx.currentTime = 3;
+    for (let i = 0; i < 30; i++) tone.playWallHit(i % 5);
+    expect(graph.oscillators).toHaveLength(MAX_CHORD_VOICES);
+  });
+
+  it("shares a hit sample's level out the same way between same-frame copies", async () => {
+    tone.setHitSoundMode("sample");
+    tone.setHitSample("/hitSounds/click.wav");
+    await vi.waitFor(() => expect(tone.isHitSampleReady()).toBe(true));
+    graph.gains.length = 0;
+    graph.ctx.currentTime = 5;
+    for (let i = 0; i < 4; i++) tone.playWallHit(0);
+    // Each voice sets its plateau level twice (the fade-in target is a ramp; the fade-out start a set) and 0 once.
+    const plateaus = graph.gains.filter((g) => g > 0);
+    expect(plateaus).toHaveLength(4);
+    expect(plateaus[0]).toBe(1);
+    expect(plateaus.reduce((a, b) => a + b, 0)).toBeCloseTo(Math.sqrt(4), 9);
+  });
+
+  it("plays the synthesised effect while the wall-break clip decodes or when it cannot be decoded, and fetches a broken clip only once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    graph.ctx.decodeAudioData = async () => {
+      throw new Error("EncodingError");
+    };
+    tone.setWallBreakSound("blob:undecodable-upload");
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    for (let i = 0; i < 5; i++) {
+      graph.ctx.currentTime = 10 + i;
+      tone.playGapPass();
+    }
+    expect(graph.oscillators).toHaveLength(20); // the four-note arpeggio every time, never silence
+    expect(graph.sources).toHaveLength(0);
+    graph.oscillators.length = 0;
+    tone.playPew();
+    expect(graph.oscillators.length).toBeGreaterThan(0); // the Sound Vortex's pew falls back the same way
+    expect(fetches).toEqual(["blob:undecodable-upload"]); // not fetched and decoded again on every break
+    // A clip the server does not have (404) fails the same way.
+    tone.setWallBreakSound("/wallBreak/missing.wav");
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(2));
+    tone.playGapPass();
+    tone.playGapPass();
+    expect(fetches.filter((u) => u.includes("missing"))).toHaveLength(1);
+    warn.mockRestore();
+    // A good clip: the effect plays while it decodes, the clip once it is ready.
+    graph.ctx.decodeAudioData = async () => ({ duration: 0.3 });
+    graph.oscillators.length = 0;
+    graph.sources.length = 0;
+    tone.setWallBreakSound("/wallBreak/pop.wav");
+    tone.playGapPass();
+    expect(graph.oscillators).toHaveLength(4);
+    await vi.waitFor(() => {
+      graph.oscillators.length = 0;
+      tone.playGapPass();
+      expect(graph.oscillators).toHaveLength(0);
+    });
+    expect(graph.sources.length).toBeGreaterThan(0);
+    expect(fetches.filter((u) => u === "/wallBreak/pop.wav")).toHaveLength(1);
+  });
+});
