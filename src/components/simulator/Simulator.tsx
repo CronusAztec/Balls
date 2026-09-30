@@ -39,7 +39,7 @@ import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
-import { findSimulation, runNeverFinishes, type FinderResult } from "@/lib/simulation/finder";
+import { findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
 // --- teams ---
@@ -89,6 +89,12 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
+import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
+// --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
+import { useVideoBeats } from "./useVideoBeats";
+import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
 import {
   RANGES,
   defaultSettings,
@@ -269,6 +275,9 @@ export default function Simulator() {
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
+    engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
+    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
+    engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -384,6 +393,8 @@ export default function Simulator() {
   }, [s.bouncierEnabled]);
   useEffect(() => {
     engineRef.current?.setCinematicEnabled(s.cinematicEnabled);
+    // --- review fix (modes-rhythm) --- the director changes how a seed plays out: a found run's promise goes with the switch
+    setSearchResult((r) => (r?.found ? null : r));
   }, [s.cinematicEnabled]);
   useEffect(() => {
     engineRef.current?.setGrowRate(s.growRate);
@@ -730,6 +741,41 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
   // --- end boris-vortex ---
+  // --- boris-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setJourneySettings(journeySettingsOf(s));
+    if (s.mode === "journey" && engine.getCurrentModeName() === "journey") {
+      engine.initJourney();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.journeyStages, s.journeyAutoStages]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.journeyStages, s.journeyAutoStages]);
+  // --- end boris-journey ---
+  // --- boris-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
+  // drops a found seed; the Sound section's scale and root (the peg notes and the thuds) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBullseyeSettings(bullseyeSettingsOf(s));
+    if (s.mode === "bullseye" && engine.getCurrentModeName() === "bullseye") {
+      engine.initBullseye();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setBullseyeSettings(bullseyeSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.scale, s.rootNote]);
+  // --- end boris-bullseye ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -795,15 +841,34 @@ export default function Simulator() {
 
   // Picture Paint: the beat grid the Paint mode follows – the music bed's song (its start offset and loop align the
   // grid with the simulation clock), else the slicer's song – and the length the reveal is paced to.
-  const activeBeats = useMemo(() => {
+  const songBeats = useMemo(() => {
     if (musicTrack && musicBeats) return { beats: musicBeats, source: "music" as const, offset: s.musicStartOffset, loop: s.musicLoop };
     if (sliceSongInfo && sliceBeats) return { beats: sliceBeats, source: "slicer" as const, offset: 0, loop: s.sliceLoop };
     return null;
   }, [musicTrack, musicBeats, sliceSongInfo, sliceBeats, s.musicStartOffset, s.musicLoop, s.sliceLoop]);
+  // --- video-beats --- the beat source picker (BPM | Song | Media | Manual): every rhythm feature below follows the grid it
+  // resolves to – the song grid above for "song", an imported video's beats or the hand-placed markers, none for "bpm"
+  const videoBeats = useVideoBeats({ settings: s, update, audioRef, engineRef, musicTrack, setMusicTrack, musicBeats, setMusicBeats, musicUploadIdRef, beatAbortRef, projectUploadsRef, songBeats, isStarted, isPaused });
+  const videoBeatsRef = useRef(videoBeats);
+  videoBeatsRef.current = videoBeats;
+  const { resolveActive: resolveActiveBeats } = videoBeats;
+  const activeBeats = useMemo(() => resolveActiveBeats(songBeats), [resolveActiveBeats, songBeats]);
+  // --- end video-beats ---
   const paintTargetSec = paintTargetSeconds(musicTrack ? musicTrack.duration : sliceSongInfo && s.sliceSong ? sliceSongInfo.duration : 0, musicTrack ? s.musicStartOffset : 0, s.recordingDuration);
   useEffect(() => {
     engineRef.current?.setPaintOptions({ picture: !!paintPicture, brush: s.paintBrush, beatSync: s.paintBeatSync, beatPulse: s.paintBeatPulse, guided: s.paintGuided, paceToSong: s.paintPaceToSong, targetSec: paintTargetSec });
   }, [paintPicture, s.paintBrush, s.paintBeatSync, s.paintBeatPulse, s.paintGuided, s.paintPaceToSong, paintTargetSec]);
+  // --- review fix (modes-rhythm) --- a Paint seed is found for the classic run: loading (or removing) a picture changes the run
+  // (brush, beat sync, guidance, pacing), so it drops a found seed and its promise
+  const hasPaintPicture = !!paintPicture;
+  const prevHasPaintPictureRef = useRef(hasPaintPicture);
+  useEffect(() => {
+    if (prevHasPaintPictureRef.current === hasPaintPicture) return;
+    prevHasPaintPictureRef.current = hasPaintPicture;
+    if (s.mode !== "paint") return;
+    engineRef.current?.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [hasPaintPicture]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setPaintBeat({
       source: s.paintBeatSource,
@@ -927,12 +992,39 @@ export default function Simulator() {
   }, [handPlay, s.mode]);
   // --- end jdm-rhythm-runner ---
 
+  // --- beat-drop --- Beat Drop plans every landing on the beat it follows (the loaded song's detected grid – the one the Beat
+  // Runner follows – else the Sound section's BPM), and the landings sit on the music bed's beats: a change of what the run
+  // is planned from (`beatDropPlanKeyOf()`: the mix, drift, scroll, bounce height, anticipation and the beat) restarts the
+  // whole run with its music (`restartRun()`, like the Beat Runner), and a change of a Beat Drop setting drops a found seed.
+  // What a landing plays, the pad colours, the trail, the clip length (where the run ends) and the scale follow live.
+  const beatDropPlanRef = useRef<BeatDropPlanKey | null>(null);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.bdKinds, s.bdDrift, s.bdScroll, s.bdBounceHeight, s.bdAnticipation]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeat));
+    const plan = beatDropPlanKeyOf(engine.getBeatDropSettings());
+    const before = beatDropPlanRef.current;
+    beatDropPlanRef.current = plan;
+    if (!before || sameBeatDropPlan(before, plan)) return;
+    if (s.mode !== "beatDrop" || engine.getCurrentModeName() !== "beatDrop") return;
+    if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
+    restartRunRef.current(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.bdKinds, s.bdDrift, s.bdScroll, s.bdBounceHeight, s.bdAnticipation, s.bpm, rhythmBeat]);
+  useEffect(() => {
+    engineRef.current?.setBeatDropSettings({ sound: s.bdSound, colorMode: s.bdColorMode, trail: s.bdTrail, clipSec: s.recordingDuration, scale: s.scale, rootNote: s.rootNote });
+  }, [s.bdSound, s.bdColorMode, s.bdTrail, s.recordingDuration, s.scale, s.rootNote]);
+  // --- end beat-drop ---
+
   // Any physics-relevant change invalidates a seed found by the finder – and its promise: the panel stops quoting a run the
   // page no longer plays (the Cinematic director and Bouncier draw from the seeded RNG and change the rebounds too).
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.cinematicEnabled, s.bouncierEnabled, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
+  }, [s.mode, s.bouncierEnabled, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -957,7 +1049,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- boris-vortex --- (the loop) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- boris-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
@@ -996,6 +1088,7 @@ export default function Simulator() {
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setPaintOptions(page.getPaintOptions());
         engine.setPaintBeat(splitBeatRef.current);
+        engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- every arena's flights land on the same grid
         // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
         initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
       },
@@ -1009,6 +1102,8 @@ export default function Simulator() {
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+        engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- boris-bullseye --- (the scale and root follow live; the rest waits for a restart)
+        engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1129,6 +1224,7 @@ export default function Simulator() {
       Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
       Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
+      Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
       setSettings(fresh);
       if (engine) {
@@ -1207,6 +1303,21 @@ export default function Simulator() {
           // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
+            continue;
+          }
+          // --- boris-journey --- a Journey stage transition swooshes
+          if (ev.swoosh) {
+            audio.playSwoosh();
+            continue;
+          }
+          // --- boris-bullseye --- a Bullseye landing thuds
+          if (ev.thud) {
+            audio.playThud(ev.frequency, ev.level);
+            continue;
+          }
+          // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
+          if (ev.bdDrum) {
+            audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -1496,6 +1607,8 @@ export default function Simulator() {
     const raceKey = page.isRaceMode() ? runKey(RACE_RUN_PREFIX, page.getRaceView()) : undefined;
     const exportRaceKey = batchJob && raceKey ? `${RACE_RUN_PREFIX}:batch-${batchJob.key}` : raceKey; // --- batch-render --- (a batch job's race is a race of its own)
     let lastProgress = 0;
+    // --- video-beats --- the video background seeks to every exported frame (left out, with a note, when seeking is too slow)
+    const videoLayerOn = await videoBeatsRef.current.prepareExport().catch(() => false);
     try {
       const result = await renderFast({
         host: fastRenderHost,
@@ -1506,6 +1619,7 @@ export default function Simulator() {
           engine.setParticleStyle(s.particleStyle, particlePalette(s));
           engine.setPaintOptions(paintOptions);
           engine.setPaintBeat(paintBeat);
+          engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- the export's flights land on the same grid
           initEngineForMode(engine, s);
           return engine;
         },
@@ -1525,6 +1639,7 @@ export default function Simulator() {
           setFastExport({ status: "running", ...p });
         },
         signal: controller.signal,
+        beforeFrame: videoLayerOn ? videoBeatsRef.current.exportFrame : undefined, // --- video-beats ---
       });
       batchJob?.settle(result ? { result } : { cancelled: true }); // --- batch-render --- the batch names, downloads and zips its files
       if (!result) setFastExport({ status: "cancelled" });
@@ -1541,6 +1656,7 @@ export default function Simulator() {
       }
     } finally {
       fastAbortRef.current = null;
+      videoBeatsRef.current.finishExport(); // --- video-beats ---
       if (resume) setIsPaused(false);
     }
   }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t]); // --- split-screen --- (t: a race refuses the export with the panel's note)
@@ -1874,6 +1990,7 @@ export default function Simulator() {
       customMidiName,
       paintPicture,
       backgroundImage,
+      beatMediaName: videoBeats.mediaName, // --- video-beats ---
     },
     actions: {
       loadSettings: loadPresetSettings,
@@ -1890,6 +2007,7 @@ export default function Simulator() {
       onMusicRemove,
       onCustomMidiUpload,
       onCustomSoundSelect,
+      onBeatMediaUpload: videoBeats.onImport, // --- video-beats ---
     },
   });
   const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
@@ -2029,7 +2147,6 @@ export default function Simulator() {
         mode: settings.mode,
         modeSettings: {
           bouncierEnabled: settings.bouncierEnabled,
-          cinematicEnabled: settings.cinematicEnabled, // the director draws from the seeded RNG: a found run needs the page's setting
           countdownTotal: settings.targetCount,
           countdownRandom: settings.countdownRandom,
           colorMatchColorCount: settings.colorMatchColorCount,
@@ -2042,6 +2159,7 @@ export default function Simulator() {
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
+          cinematicEnabled: settings.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run)
           drop: dropSettingsOf(settings),
           box: boxSettingsOf(settings),
           pendulum: pendulumSettingsOf(settings),
@@ -2061,6 +2179,11 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          journey: journeySettingsOf(settings), // --- boris-journey ---
+          bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
+          beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
+          onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
+          paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
         outcome, // --- rigged ---
       },
@@ -2101,7 +2224,7 @@ export default function Simulator() {
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam]); // --- rigged --- (the outcome)
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture)
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
@@ -2249,6 +2372,42 @@ export default function Simulator() {
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
       },
+      // --- boris-journey ---
+      journey: {
+        banner: (n, total, name) => fill("Journey.canvasBanner", { n, total, name }),
+        names: {
+          rings: t("Journey.stage_rings"),
+          glass: t("Journey.stage_glass"),
+          pegs: t("Journey.stage_pegs"),
+          multipliers: t("Journey.stage_multipliers"),
+          funnel: t("Journey.stage_funnel"),
+          bullseye: t("Journey.stage_bullseye"),
+          home: t("Journey.stage_home"),
+        },
+        home: t("Journey.canvasHome"),
+        homeTitle: t("Journey.canvasHomeTitle"),
+        homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
+        score: (points) => fill("Journey.canvasScore", { points }),
+      },
+      // --- boris-bullseye ---
+      bullseye: {
+        title: t("Bullseye.canvasTitle"),
+        shot: (n, total) => fill("Bullseye.canvasShot", { n, total }),
+        total: t("Bullseye.canvasTotal"),
+        bullseye: t("Bullseye.canvasBullseye"),
+        miss: t("Bullseye.canvasMiss"),
+        finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
+        finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
+      },
+      // --- beat-drop ---
+      beatDrop: {
+        title: t("BeatDrop.canvasTitle"),
+        bpm: (bpm) => fill("BeatDrop.canvasBpm", { bpm }),
+        landings: (n, total) => fill("BeatDrop.canvasLandings", { count: n, total }),
+        song: t("BeatDrop.canvasSong"),
+        done: t("BeatDrop.canvasDone"),
+        doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
+      },
     };
   }, [t]);
 
@@ -2333,7 +2492,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- boris-vortex --- (the loop) */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- boris-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
@@ -2343,6 +2502,14 @@ export default function Simulator() {
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
   const obstacleEditing = supportsObstacles(s.mode) && s.obstacles.length > 0 && (!isStarted || isPaused) && !finished && !isRecording && !isSearching;
   const onObstaclesChange = useCallback((obstacles: EditorObstacle[]) => update({ obstacles }), [update]);
+  // --- review fix (modes-rhythm) --- a found seed was measured at the old canvas size (another size can play out differently,
+  // float rounding alone sees to that): a resize drops it and its promise, like the other edits that change the run – but
+  // not in the arena games, whose seeds replay exactly on any canvas (seedSurvivesResize)
+  const onCanvasSizeChange = useCallback(() => {
+    if (seedSurvivesResize(settings.mode)) return;
+    engineRef.current?.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [settings.mode]);
   // --- end obstacle-editor ---
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
@@ -2399,10 +2566,12 @@ export default function Simulator() {
                   // --- obstacle-editor ---
                   obstacleEditing={obstacleEditing}
                   onObstaclesChange={onObstaclesChange}
+                  onSizeChange={onCanvasSizeChange} // --- review fix (modes-rhythm) ---
                   captions={captionRender} // --- captions ---
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
                   fastRender={fastRenderHost} // --- fast-render ---
                   race={raceRender} // --- jdm-race ---
+                  videoBackground={videoBeats.videoLayer} // --- video-beats ---
                   splitScreen={splitRender} // --- split-screen ---
                 />
               )}
@@ -2623,6 +2792,12 @@ export default function Simulator() {
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-emerald-400">{outcomeFoundText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) }))}</p>
                     <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
+                    {/* --- video-beats --- On beat: how many beats the found run's wall hits land on */}
+                    {searchResult.beatsCovered !== undefined && (
+                      <p className="text-[10px] text-[#93d119]/80" data-testid="finder-beats-covered">
+                        ♩ {t("VideoBeats.finderBeats", { beats: searchResult.beatsCovered, hits: searchResult.beatHits ?? 0 })}
+                      </p>
+                    )}
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕
@@ -2702,6 +2877,7 @@ export default function Simulator() {
             fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
+            videoBeats={videoBeats.panel} // --- video-beats ---
             bot={viralBot} // --- viral-bot ---
           />
         </ProjectDropZone>

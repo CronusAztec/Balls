@@ -106,7 +106,8 @@ export const RACER_REFERENCE_FIELD = 400;
 
 /**
  * Radius of a racer (its collision circle; a square is drawn inside it): the Ball Size scaled with the field, so a race
- * looks – and runs – the same on every canvas size (a seed replays the same race after a resize), at most 2.8 % of it.
+ * looks the same on every canvas size, at most 2.8 % of it. (It runs the same at the same size; another size can play
+ * out differently through float rounding, so the page drops a found seed on a resize.)
  */
 export function racerRadius(ballRadius: number, fieldSize: number): number {
   const r = Number.isFinite(ballRadius) && ballRadius > 0 ? ballRadius : 8;

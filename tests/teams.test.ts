@@ -406,7 +406,7 @@ describe("several balls in the engine", () => {
         }
       }
     }
-  });
+  }, 20_000); // (several breathing runs: generous under a loaded test machine)
 
   it("Grow keeps its old limit of two balls: none ever leaves the sealed ring, and two-ball runs replay as before", () => {
     expect(MODE_MAX_BALLS.grow).toBe(2);

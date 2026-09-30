@@ -69,7 +69,10 @@ export const DEFAULT_OBSTACLE_RESTITUTION = 0.7;
 export const DEFAULT_OBSTACLE_FRICTION = 0.02;
 /** Highest restitution an obstacle may end up with (the wall-bounciness extra scales it), so a ball can never gain energy forever on a floor. */
 export const MAX_OBSTACLE_RESTITUTION = 0.98;
-/** Gap left between a ball and an obstacle after a push-out, so the next sub-step does not re-detect the same contact. */
+/**
+ * Gap left between a ball and an obstacle after a push-out, so the next sub-step does not re-detect the same contact (px).
+ * The resolvers take it as their last argument; a scale-free caller passes one relative to its field (see Race).
+ */
 const SEPARATION = 0.01;
 
 export function circleObstacle(x: number, y: number, radius: number, options: ObstacleOptions = {}): CircleObstacle {
@@ -134,12 +137,12 @@ export function advanceObstacles(obstacles: readonly Obstacle[], dtSec: number):
  * contact normal (≥ 0; 0 for a resting or already separating contact). Callers use it to decide
  * whether the contact counts as a "hit" worth a sound and a glow.
  */
-export function resolveBallObstacle(ball: Ball, obstacle: Obstacle, dtSec: number, restitutionScale = 1): number {
-  return obstacle.kind === "circle" ? resolveBallCircle(ball, obstacle, dtSec, restitutionScale) : resolveBallSegment(ball, obstacle, dtSec, restitutionScale);
+export function resolveBallObstacle(ball: Ball, obstacle: Obstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION): number {
+  return obstacle.kind === "circle" ? resolveBallCircle(ball, obstacle, dtSec, restitutionScale, separation) : resolveBallSegment(ball, obstacle, dtSec, restitutionScale, separation);
 }
 
 /** Ball vs peg: swept circle-circle test, so the contact normal is taken where the ball first touched the peg. */
-export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number, restitutionScale = 1): number {
+export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION): number {
   const R = ball.radius + peg.radius;
   const dx = ball.x - peg.x;
   const dy = ball.y - peg.y;
@@ -183,8 +186,8 @@ export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number
       ny = speed > 1e-9 ? -ball.vy / speed : -1;
     }
   }
-  ball.x = peg.x + nx * (R + SEPARATION);
-  ball.y = peg.y + ny * (R + SEPARATION);
+  ball.x = peg.x + nx * (R + separation);
+  ball.y = peg.y + ny * (R + separation);
   return rebound(ball, nx, ny, 0, 0, peg.restitution * restitutionScale, peg.friction);
 }
 
@@ -194,7 +197,7 @@ export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number
  * from. A spinning bar's surface velocity at the contact point is taken into account, so it can
  * fling the ball.
  */
-export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: number, restitutionScale = 1): number {
+export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION): number {
   const ux = Math.cos(bar.angle);
   const uy = Math.sin(bar.angle);
   const reach = ball.radius + bar.thickness / 2;
@@ -241,8 +244,8 @@ export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: numb
       ny = ux;
     }
   }
-  ball.x = baseX + nx * (reach + SEPARATION);
-  ball.y = baseY + ny * (reach + SEPARATION);
+  ball.x = baseX + nx * (reach + separation);
+  ball.y = baseY + ny * (reach + separation);
   // Surface velocity of a spinning bar at the contact point: ω × r.
   let sx = 0;
   let sy = 0;

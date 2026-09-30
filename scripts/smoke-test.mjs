@@ -736,6 +736,8 @@ await page.getByRole("button", { name: /Custom Sound/ }).click();
 // multiply inside the arena – and exposes the HUD state (schedule + beat); the settings reach the URL; the search box
 // finds the controls; removing the picture returns to the classic Paint trail (the MODES loop above already runs it).
 await page.goto(`${BASE}/en/simulator/?mode=paint`, { waitUntil: "networkidle" });
+// --- review fix (modes-rhythm) --- classic Paint ends at 95 % coverage, so Find Simulation is offered (hidden with a picture, below)
+const paintFinderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
 await page.evaluate(() => {
   const c = document.createElement("canvas");
   c.width = 200;
@@ -757,6 +759,11 @@ await page.evaluate(() => {
 const paintPicture = page.getByTestId("paint-picture");
 const pictureLoaded = await paintPicture.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
 check("picture paint accepts a PNG generated in the page", pictureLoaded && (await paintPicture.innerText()).includes("smoke-picture.png"));
+{
+  // --- review fix (modes-rhythm) --- a picture run follows the page's picture and song, which the finder cannot replay
+  const paintFinderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  check("classic Paint offers Find Simulation; a loaded picture hides it", paintFinderShown && paintFinderHidden, `(shown ${paintFinderShown}, hidden with a picture ${paintFinderHidden})`);
+}
 const bpmReadout = page.getByTestId("paint-detected-bpm");
 {
   const text = await bpmReadout.innerText();
@@ -4042,6 +4049,19 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 {
   const found = await page.getByText(/Ready to start simulation for (29\.[5-9]|30\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
   check("finder finds a 30 s race", found);
+  // --- review fix (modes-rhythm) --- another canvas size can play a race out differently (float rounding), so a resize after
+  // Find drops the found run – its "Ready to start simulation for …" promise and the Found! line go with it
+  if (found) {
+    const box0 = await page.locator("main canvas").boundingBox();
+    await page.setViewportSize({ width: 800, height: 1300 });
+    await page.waitForTimeout(600);
+    const box1 = await page.locator("main canvas").boundingBox();
+    const ready = await page.getByText(/Ready to start simulation for/).count();
+    const foundLine = await page.getByText(/Found! [\d.]+s/).count();
+    const resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
+    check("a resize after Find drops a found race", resized && ready === 0 && foundLine === 0, `(canvas ${box0 ? `${Math.round(box0.width)}×${Math.round(box0.height)}` : "?"} → ${box1 ? `${Math.round(box1.width)}×${Math.round(box1.height)}` : "?"}, ready ${ready}, found ${foundLine})`);
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
 }
 // --- end jdm-race ---
 // --- jdm-arena-games ---
@@ -4166,6 +4186,33 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
     );
     await page.setViewportSize({ width: 1400, height: 900 });
   }
+}
+{
+  // --- review fix (modes-rhythm) --- the finder runs the seed with the page's Cinematic switch (the director draws from the
+  // run's random numbers), and a battle's speeds scale with the field: a battle found with Cinematic off, the window resized
+  // before Start, keeps its seed and its "Found!" line and replays to the length it was found with
+  await page.goto(`${BASE}/en/simulator/?mode=battle&cine=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  let replay = NaN;
+  let kept = false;
+  let resized = false;
+  if (foundSec > 0) {
+    const box0 = await page.locator("main canvas").boundingBox();
+    await page.setViewportSize({ width: 800, height: 1300 });
+    await page.waitForTimeout(600);
+    const box1 = await page.locator("main canvas").boundingBox();
+    resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
+    kept = (await page.getByText(/Found! [\d.]+s/).count()) > 0;
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click().catch(() => {});
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    replay = Number((await canvasData()).arenaFinishSec);
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
+  check("a battle found with Cinematic off replays to its length, after a resize before Start too", foundSec > 0 && resized && kept && Math.abs(replay - foundSec) <= 0.051, `(${text}, resized ${resized}, kept ${kept}, replay ${replay}s)`);
 }
 {
   // Capture the flag, first to two: captures are counted and the score decides (or the clock, if nobody gets there).
@@ -5434,6 +5481,136 @@ const vxFrameRates = async (ms) => {
 }
 // --- end boris-vortex ---
 
+// --- video-beats --- Beats from a video: a generated click-track WAV (120 BPM from 0.25 s, 44.1 kHz, every 4th click accented) is
+// imported in the Sound section's "Beats from a video" block – the panel detects its tempo and beats, the file becomes the music
+// bed and the Media source; the waveform strip adds and removes a marker on a click; "Use detected beats" turns the grid into
+// markers (the Manual source, shared as `bm`); tap tempo gives an estimate; with On beat on the classic run's timed wall hits land
+// within 30 ms of the beat grid (read off the canvas' data-onbeat-*); and a short recording downloads with an audio track.
+{
+  try {
+    const vbClickWav = (seconds, bpm, sampleRate) => {
+      const frames = Math.round(seconds * sampleRate);
+      const samples = new Int16Array(frames);
+      for (let k = 0, t = 0.25; t < seconds; k++, t = 0.25 + (k * 60) / bpm) {
+        const start = Math.round(t * sampleRate);
+        const amp = k % 4 === 0 ? 30000 : 14000;
+        for (let j = 0; j < Math.round(0.012 * sampleRate) && start + j < frames; j++) {
+          const tau = j / sampleRate;
+          samples[start + j] = Math.round(amp * Math.sin(2 * Math.PI * 1000 * tau) * Math.exp(-tau / 0.004));
+        }
+      }
+      return pcmWav(samples, sampleRate);
+    };
+    await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&grid=1%2F8`, { waitUntil: "networkidle" });
+    // Open the Sound section (again, if a click landed before the page was interactive).
+    const vbSoundTab = page.getByRole("button", { name: /Custom Sound/ });
+    let vbInput = false;
+    for (let attempt = 0; attempt < 3 && !vbInput; attempt++) {
+      if ((await vbSoundTab.getAttribute("aria-expanded").catch(() => null)) !== "true") await vbSoundTab.click().catch(() => {});
+      vbInput = await page.locator("#video-beats-file-input").waitFor({ state: "attached", timeout: 10000 }).then(() => true).catch(() => false);
+    }
+    const vb = page.getByTestId("video-beats");
+    if (vbInput) await page.locator("#video-beats-file-input").setInputFiles({ name: "smoke-clicks.wav", mimeType: "audio/wav", buffer: vbClickWav(16, 120, 44100) });
+    const vbReady = await page.waitForFunction(() => document.querySelector('[data-testid="video-beats"]')?.getAttribute("data-vb-state") === "ready", null, { timeout: 60000 }).then(() => true).catch(() => false);
+    const vbBpm = Number(await vb.getAttribute("data-vb-bpm"));
+    const vbBeats = Number(await vb.getAttribute("data-vb-beats"));
+    const vbSource = await vb.getAttribute("data-vb-source");
+    const vbBed = await page.getByTestId("music-track").isVisible().catch(() => false);
+    const vbDetected = await page.getByTestId("vb-detected").innerText().catch(() => "");
+    check(
+      "a click-track WAV imports as the beat media: tempo, beats, the Media source and the music bed",
+      vbInput &&
+        vbReady && Math.abs(vbBpm - 120) < 0.5 && vbBeats >= 28 && vbSource === "media" && vbBed && new URL(page.url()).searchParams.get("bsrc") === "media",
+      `(file input=${vbInput}, ready=${vbReady}, ${vbBpm} BPM, ${vbBeats} beats, source ${vbSource}, bed ${vbBed}, "${vbDetected}")`,
+    );
+    // The waveform strip: a click away from the markers adds one, a click on it removes it again.
+    const strip = page.getByTestId("vb-waveform");
+    const box = await strip.boundingBox();
+    const markerCount = async () => Number(await vb.getAttribute("data-vb-markers"));
+    let added = -1;
+    let removed = -1;
+    if (box) {
+      await strip.click({ position: { x: Math.round(box.width * 0.37), y: Math.round(box.height / 2) } });
+      await page.waitForTimeout(250);
+      added = await markerCount();
+      await strip.click({ position: { x: Math.round(box.width * 0.37), y: Math.round(box.height / 2) } });
+      await page.waitForTimeout(250);
+      removed = await markerCount();
+    }
+    check("the waveform strip adds a marker on a click and removes it on a second click", added === 1 && removed === 0, `(after add ${added}, after remove ${removed})`);
+    // Markers from the detected beats: the Manual source, in the link.
+    await page.getByTestId("vb-use-detected").click();
+    await page.waitForTimeout(400);
+    const vbMarkers = await markerCount();
+    const bm = new URL(page.url()).searchParams.get("bm") ?? "";
+    const vbManual = await vb.getAttribute("data-vb-source");
+    const markerLabel = await page.getByTestId("vb-marker-count").innerText().catch(() => "");
+    check("Use detected beats writes the markers: the Manual source, shared as bm", vbMarkers === vbBeats && vbManual === "manual" && /^\d+(\.\d+(\*\d+)?)+$/.test(bm) && /120\.\d BPM/.test(markerLabel), `(${vbMarkers} markers, source ${vbManual}, bm=${bm.slice(0, 32)}…, "${markerLabel}")`);
+    // Tap tempo while the preview plays: the estimate follows the pace of the taps (measured here, as a busy machine slows clicks).
+    await vb.getByRole("button", { name: /Play/ }).click();
+    await page.waitForTimeout(300);
+    const tapTimes = [];
+    for (let i = 0; i < 6; i++) {
+      tapTimes.push(await page.evaluate(() => performance.now()));
+      await page.getByTestId("vb-tap").click();
+      await page.waitForTimeout(500);
+    }
+    const tapText = await page.getByTestId("vb-tap-result").innerText().catch(() => "");
+    const tapBpm = Number(/([\d.]+) BPM/.exec(tapText)?.[1] ?? NaN);
+    const tapGaps = tapTimes.slice(1).map((t, i) => t - tapTimes[i]).sort((a, b) => a - b);
+    const tapExpected = 60000 / tapGaps[tapGaps.length >> 1];
+    await vb.getByRole("button", { name: /Pause/ }).click().catch(() => {});
+    check("tap tempo estimates the tempo from taps on the preview", Number.isFinite(tapBpm) && Math.abs(tapBpm / tapExpected - 1) < 0.2, `("${tapText}", taps at about ${tapExpected.toFixed(1)} BPM)`);
+    // On beat: the timed wall hits of the classic run land on the grid.
+    await page.evaluate(() => {
+      const root = document.querySelector('[data-testid="video-beats"]');
+      const label = [...(root?.querySelectorAll("label") ?? [])].find((l) => /^On beat(?! range)/.test(l.textContent ?? ""));
+      const button = label?.parentElement?.querySelector("button[aria-pressed]");
+      button?.click();
+    });
+    await page.waitForTimeout(300);
+    const onBeatUrl = new URL(page.url()).searchParams.get("onbeat");
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    const onBeatData = await page
+      .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.onbeatHits ?? 0) >= 10, null, { timeout: 60000 })
+      .then(() => canvasData())
+      .catch(() => canvasData());
+    const obHits = Number(onBeatData.onbeatHits ?? 0);
+    const obOn = Number(onBeatData.onbeatOnBeat ?? 0);
+    const obErr = Number(onBeatData.onbeatMaxErr ?? NaN);
+    const obFree = Number(onBeatData.onbeatFree ?? 0);
+    const statsLine = await page.getByTestId("vb-onbeat-stats").innerText().catch(() => "");
+    await page.screenshot({ path: path.join(outDir, "video-beats-onbeat.png") });
+    check(
+      "On beat lands the classic run's timed wall hits within 30 ms of the beat grid",
+      onBeatUrl === "1" && obHits >= 10 && obOn === obHits && obErr <= 30 && obHits >= obFree,
+      `(hits ${obHits}, on the beat ${obOn}, worst ${obErr} ms, free ${obFree}, beats ${onBeatData.onbeatBeats}, "${statsLine}")`,
+    );
+    // A short recording carries the media's audio (it is the music bed); the run starts over first (R), so it is still going.
+    await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+    await page.keyboard.press("r");
+    await page.waitForTimeout(300);
+    const vbDownload = await Promise.all([
+      page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+      (async () => {
+        await page.getByRole("button", { name: /Record Video/ }).click();
+        await page.waitForTimeout(3500);
+        await page.getByRole("button", { name: /Stop & Export/ }).click();
+      })(),
+    ]).then(([d]) => d);
+    let vbFile = null;
+    if (vbDownload) {
+      const out = path.join(outDir, `video-beats-${vbDownload.suggestedFilename()}`);
+      await vbDownload.saveAs(out);
+      const buf = fs.readFileSync(out);
+      vbFile = { name: vbDownload.suggestedFilename(), bytes: buf.length, audio: buf.includes(Buffer.from("A_OPUS")) || buf.includes(Buffer.from("A_VORBIS")) || buf.includes(Buffer.from("mp4a")) || buf.includes(Buffer.from("soun")) };
+    }
+    check("a recording with the beat media downloads with an audio track", !!vbFile && vbFile.bytes > 10000 && vbFile.audio, `(${vbFile ? `${vbFile.name}, ${vbFile.bytes} bytes, audio=${vbFile.audio}` : "no download"})`);
+  } catch (err) {
+    check("the beats-from-a-video checks run to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  }
+}
+// --- end video-beats ---
 // --- viral-bot --- Viral video bot (the Bot block after the Batch block of the Recording section): "Today's plan" plans three
 // clips in the page (recipe, hook, mode, seed, length, ending and a score with its nine reasons), the plan survives a reload
 // (localStorage), the page exposes the planner to the CLI (window.__jumpingBallsBot, whose text files hold the manifest and
@@ -5590,6 +5767,635 @@ const vxFrameRates = async (ms) => {
   await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
 }
 // --- end viral-bot ---
+
+// --- boris-journey ---
+// 33. Journey: the preview image and the card under its own "Journey modes" heading; URL → the Journey block of the Mode
+// row (the stage rows with their sizes, the stage code, the run line, no Wall Count), the panel's edits → URL (move with
+// the arrows, a size, remove, add before HOME, a pasted stage code, Random Stages) and the search box; a short route at 1×
+// that clears its stages in order at 30+ fps with a swoosh at every transition (OscillatorNode.start is instrumented: the
+// swoosh's sine glide starts at 180 Hz) and finishes at HOME; the finder lands a 30 s seed of the default route and the
+// run keeps the promise at 8×; a 1080×1920 recording keeps 20+ fps and downloads; a fast export swooshes through its own
+// audio and replays the same frames.
+{
+  const res = await page.request.get(`${BASE}/modes/journey.webp`);
+  check("asset /modes/journey.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const card = (await page.locator('img[src$="/modes/journey.webp"]').count()) === 1;
+  const heading = (await page.getByRole("heading", { name: "Journey modes" }).count()) === 1;
+  check("the Journey card is on the landing page under its own heading", card && heading, `(card=${card}, heading=${heading})`);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const jyFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+/** The stage rows of the Journey block as "kind-size". */
+const jyRows = () => page.getByTestId("journey-stages").locator("li").evaluateAll((els) => els.map((e) => `${e.dataset.stage}-${e.dataset.size}`));
+const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
+{
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=rings-s,pegs-l,glass,home`, { waitUntil: "networkidle" });
+  {
+    const rows = await jyRows();
+    const code = await page.locator('input[aria-label="Stage Code"]').inputValue();
+    const run = await page.getByTestId("journey-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noWallCount = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "journey loads its route from the URL",
+      rows.join(",") === "rings-s,pegs-l,glass-m,home-m" && code === "rings-s,pegs-l,glass,home" && /3 stages, then HOME/.test(run) && finderShown && noWallCount,
+      `(${rows.join(",")}, code "${code}", "${run}", finder shown=${finderShown}, no Wall Count=${noWallCount})`,
+    );
+  }
+  await page.getByRole("button", { name: "Move down 1", exact: true }).click();
+  await page.getByRole("button", { name: "Glass 3: Large", exact: true }).click();
+  await page.getByRole("button", { name: "Remove stage 2", exact: true }).click();
+  await page.locator('select[aria-label="Stage to add"]').selectOption("bullseye");
+  await page.getByRole("button", { name: "+ Add", exact: true }).click();
+  await page.waitForTimeout(300);
+  const edited = { rows: (await jyRows()).join(","), query: jyQuery() };
+  await page.locator('input[aria-label="Stage Code"]').fill("funnel-s, bogus, home");
+  await page.locator('input[aria-label="Stage Code"]').press("Enter");
+  await page.waitForTimeout(300);
+  const pasted = { rows: (await jyRows()).join(","), query: jyQuery(), code: await page.locator('input[aria-label="Stage Code"]').inputValue() };
+  check(
+    "journey edits (arrows, size, remove, add, pasted code) mirror into the URL",
+    edited.rows === "pegs-l,glass-l,bullseye-m,home-m" && /(^|&)js=pegs-l,glass-l,bullseye,home(&|$)/.test(edited.query) && pasted.rows === "funnel-s,home-m" && pasted.code === "funnel-s,home" && /(^|&)js=funnel-s,home(&|$)/.test(pasted.query),
+    `(${JSON.stringify(edited)}, ${JSON.stringify(pasted)})`,
+  );
+  await page.locator('input[aria-label="Random Stages"]').evaluate(setRangeValue, "5");
+  await page.waitForTimeout(300);
+  {
+    const run = await page.getByTestId("journey-run").innerText();
+    const listHidden = (await page.getByTestId("journey-stages").count()) === 0;
+    check("Random Stages replaces the list with a seeded route", /random journey of 5 stages/.test(run) && listHidden && /(^|&)jsa=5(&|$)/.test(jyQuery()), `("${run}", list hidden=${listHidden}, ${jyQuery()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("random stages");
+  const found = await page.locator('input[aria-label="Random Stages"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the journey controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A short route at 1×: a small peg field, two glass panes, HOME – stages in order, a swoosh at each of the two transitions.
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=pegs-s,glass-s,home&face=cute`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__jyOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const kinds = [];
+    window.__jyKinds = kinds;
+    const poll = () => {
+      const k = document.querySelector("main canvas")?.dataset.journeyKind;
+      if (k && kinds[kinds.length - 1] !== k) kinds.push(k);
+      if (document.querySelector("main canvas")?.dataset.journeyFinished !== "1") requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await jyFrameRates(3500);
+  await page.screenshot({ path: path.join(outDir, "sim-journey.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const kinds = await page.evaluate(() => window.__jyKinds);
+  const swooshes = await page.evaluate(() => window.__jyOsc.filter((f) => f === 180).length);
+  check(
+    "journey: a short route clears its stages in order with a swoosh at every transition at 30+ fps and finishes at HOME",
+    done && kinds.join(",") === "pegs,glass,home" && swooshes === 2 && data.journeySwooshes === "2" && data.journeyHome === "1" && data.journeyFinished === "1" && Number(data.journeyNotes) >= 3 && data.face === "cute" && fps.windows.length >= 6 && fps.min >= fpsFloor(30),
+    `(finished=${done}, stages ${kinds.join(",")}, ${swooshes} swoosh tones, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("journey") && k !== "journeySequence")))}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+}
+{
+  // The finder: the seed moves the default route's length (the rings above all) around the default 30 s clip – a found seed keeps its promise.
+  await page.goto(`${BASE}/en/simulator/?mode=journey`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.journeyFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a 30s journey seed and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.journeyFinished === "1" && data.journeyHome === "1" && Math.abs(Number(data.journeyFinishedMs) / 1000 - promised) < 0.1 && data.journeySwooshes === "7",
+    `(ready=${ready}, "${readyText}", finished at ${data.journeyFinishedMs} ms, swooshes ${data.journeySwooshes})`,
+  );
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default route, glow on.
+  await page.goto(`${BASE}/en/simulator/?mode=journey&dur=10&glow=1`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await jyFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `journey-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 journey recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // ⚡ Fast export of a two-stage route: the swoosh goes through the export's own audio (the offline twin of the
+  // ToneGenerator), the clip ends with the run instead of at the 10 s clip length, and a second export renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=pegs-s,home&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const log = [];
+      window.__jyFastOsc = log;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.frequency.value !== 1) log.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `journey-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const swooshes = await page.evaluate(() => window.__jyFastOsc.splice(0).filter((f) => f === 180).length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), swooshes };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a journey fast export swooshes through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.swooshes === 1 && a.seconds > 2 && a.seconds < 9.5 && b.status === "done" && b.swooshes === 1 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the journey has no fast export to check (Record Video is covered above)", true);
+}
+// --- end boris-journey ---
+
+// --- boris-bullseye ---
+// 34. Bullseye: the preview image and the card; URL → the Bullseye block of the Mode row (shots, interval, chaos, rings,
+// moving target, perfect shot, the run summary), controls → URL and the search box; a short rigged run at 1× (OscillatorNode
+// .start is instrumented): the perfect shot scores 10 with the fanfare and the slow motion, every landing thuds once (a sine
+// body – the only sine voice of the mode – and a triangle knock), the final banner holds before the end; the moving target
+// slides and freezes on pause, R restarts the run; the finder lands a 30 s seed that the run keeps at 8×; the default run keeps
+// 30+ fps; a 1080×1920 recording keeps 20+ fps and downloads; and a fast export thuds through its own audio and replays the same
+// frames.
+{
+  const res = await page.request.get(`${BASE}/modes/bullseye.webp`);
+  check("asset /modes/bullseye.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Bullseye card is on the landing page", (await page.locator('img[src$="/modes/bullseye.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("bullseye");
+  const byToggle = (label) => block.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const bySlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=6&byi=0.6&byc=0.25&byr=6&byp=2`, { waitUntil: "networkidle" });
+  {
+    const values = { bys: await bySlider("Shots").inputValue(), byi: await bySlider("Launch Interval").inputValue(), byc: await bySlider("Chaos").inputValue(), byr: await bySlider("Target Rings").inputValue(), byp: await bySlider("Perfect Shot").inputValue() };
+    const moving = await byToggle("Moving Target").getAttribute("aria-pressed");
+    const runText = await page.getByTestId("bullseye-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    check(
+      "bullseye loads from the URL",
+      values.bys === "6" && values.byi === "0.6" && values.byc === "0.25" && values.byr === "6" && values.byp === "2" && moving === "false" && /\b6 shots\b/.test(runText) && /Shot 2 is rigged/.test(runText) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, moving=${moving}, "${runText}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await bySlider("Shots").evaluate(setRangeValue, "9");
+  await bySlider("Target Rings").evaluate(setRangeValue, "8");
+  await byToggle("Moving Target").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "bullseye mirrors into the URL",
+      /(^|&)bys=9(&|$)/.test(query) && /(^|&)byr=8(&|$)/.test(query) && /(^|&)bym=1(&|$)/.test(query) && /(^|&)byp=2(&|$)/.test(query) && /(^|&)byc=0\.25(&|$)/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("launch interval");
+  const found = await page.locator('input[aria-label="Launch Interval"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the bullseye controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A short rigged run at 1×: 3 shots 0.6 s apart, the second steered into the bull.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=3&byi=0.6&byp=2&face=cute`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__byOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, type: this.type });
+      return start.apply(this, arguments);
+    };
+    // The slowest the world clock ran, polled every frame.
+    window.__byMinScale = 1;
+    const poll = () => {
+      const d = document.querySelector("main canvas")?.dataset;
+      if (d?.bullseyeTimeScale) window.__byMinScale = Math.min(window.__byMinScale, Number(d.bullseyeTimeScale));
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const banner = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.bullseyeAllLanded === "1" && d?.bullseyeFinished === "0";
+    }, null, { timeout: 25000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.screenshot({ path: path.join(outDir, "sim-bullseye.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__byOsc);
+  const minScale = await page.evaluate(() => window.__byMinScale);
+  const scores = (data.bullseyeScores || "").split(",").map(Number);
+  // A thud is a sine body followed by a triangle knock at 3 / 2.2 of its start; the sine is the mode's only sine voice.
+  let thuds = 0;
+  for (let i = 0; i + 1 < tones.length; i++) if (tones[i].type === "sine" && tones[i + 1].type === "triangle" && Math.abs(tones[i + 1].f / tones[i].f - 3 / 2.2) < 0.01) thuds++;
+  const sines = tones.filter((o) => o.type === "sine").length;
+  // The fanfare climbs to C6 (MIDI 84), above every peg note and below the stuck-ball tick.
+  const fanfare = tones.some((o) => o.type !== "sine" && Math.round(69 + 12 * Math.log2(o.f / 440)) === 84);
+  check(
+    "bullseye: the rigged shot scores 10 with a fanfare and slow motion, every landing thuds, the final banner holds, then the run ends",
+    banner && done && data.bullseyeLanded === "3" && scores.length === 3 && scores[1] === 10 && Number(data.bullseyeTotal) === scores.reduce((a, b) => a + b, 0) && Number(data.bullseyeBullseyes) >= 1 && Number(data.bullseyeSlowMos) >= 1 && minScale <= 0.35 && thuds === 3 && sines === 3 && data.bullseyeThuds === "3" && fanfare && data.bullseyeFinished === "1" && data.face === "cute",
+    `(banner=${banner}, finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("bullseye"))))}, slowest ${minScale}, ${thuds} thuds / ${sines} sines, fanfare=${fanfare}, ${tones.length} tones)`,
+  );
+}
+{
+  // The moving target slides; Space freezes it; R restarts the run.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bym=1&bys=5&byi=0.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const xs = [];
+  for (let i = 0; i < 10; i++) {
+    await page.waitForTimeout(250);
+    xs.push(Number((await canvasData()).bullseyeTargetX));
+  }
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(200);
+  const pausedA = await canvasData();
+  await page.waitForTimeout(700);
+  const pausedB = await canvasData();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("KeyR");
+  await page.waitForTimeout(150);
+  const restarted = await canvasData();
+  const spread = Math.max(...xs) - Math.min(...xs);
+  check(
+    "bullseye: the moving target slides, pauses with the run and a restart starts the shots over",
+    spread > 15 && pausedA.bullseyeTargetX === pausedB.bullseyeTargetX && pausedA.bullseyeLaunched === pausedB.bullseyeLaunched && Number(pausedA.bullseyeLaunched) >= 3 && restarted.bullseyeMoving === "1" && Number(restarted.bullseyeLaunched) <= 1 && restarted.bullseyeLanded === "0",
+    `(target x spread ${spread.toFixed(1)} px, paused ${pausedA.bullseyeTargetX} → ${pausedB.bullseyeTargetX}, launched ${pausedA.bullseyeLaunched} → after restart ${restarted.bullseyeLaunched}, landed ${restarted.bullseyeLanded})`,
+  );
+}
+{
+  // The finder: the seed moves the run length (the last flight, the bullseyes' slow motion) – a found seed keeps its promise.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.bullseyeFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a bullseye seed for 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.bullseyeFinished === "1" && Math.abs(Number(data.bullseyeFinishedMs) / 1000 - promised) < 0.1 && data.bullseyeLanded === "12",
+    `(ready=${ready}, "${readyText}", finished at ${data.bullseyeFinishedMs} ms, landed ${data.bullseyeLanded})`,
+  );
+}
+{
+  // The default run at 1× (glow and trails on), a few balls already stuck in the target.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&glow=1&face=cute`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(7000);
+  const fps = await vxFrameRates(4000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-bullseye-full.png") });
+  check("the default bullseye keeps 30+ fps with balls stuck in the target", Number(data.bullseyeLanded) >= 3 && fps.windows.length >= 6 && fps.min >= fpsFloor(30), `(landed ${data.bullseyeLanded}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default run.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await vxFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `bullseye-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 bullseye recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // ⚡ Fast export of a short rigged run (2 shots over a clear field, the first in the bull, about 5 s): every landing thuds
+  // through the export's own audio (OscillatorNode.start is instrumented), the clip ends with the run instead of at the 10 s clip
+  // length, and a second export renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=2&byi=0.5&byc=0&byp=1&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const log = [];
+      window.__byFastOsc = log;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.frequency.value !== 1) log.push(this.type);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `bullseye-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const thuds = await page.evaluate(() => window.__byFastOsc.splice(0).filter((t) => t === "sine").length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), thuds };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a bullseye fast export thuds through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.thuds === 2 && a.seconds > 3 && a.seconds < 8 && b.status === "done" && b.thuds === 2 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the bullseye has no fast export to check (Record Video is covered above)", true);
+}
+// --- end boris-bullseye ---
+
+// --- beat-drop ---
+// 33. Beat Drop: the preview image and the card; URL → the Beat Drop block of the Mode row (the mix, drift, scrolling, bounce
+// height, fly-in time, landing sound, colours, trail, the run summary that says it cannot fail), controls → URL and the search
+// box; a 20 s run at 120 BPM at 1× lands on the beats – the measured landings (data-bd-landing-times) sit on multiples of
+// 500 ms within 1 ms – with the kick of the drum kit on the landings (OscillatorNode.start is instrumented: its 150 Hz body)
+// at a 60 fps floor scaled by the machine's load; a 1080×1920 recording keeps 20+ fps with the obstructions alive and
+// downloads; the finder resolves at once (every seed lands every beat) and the run keeps the promise at 8×; and a fast
+// export plays the same kicks through its own audio and replays the same frames.
+{
+  const res = await page.request.get(`${BASE}/modes/beatDrop.webp`);
+  check("asset /modes/beatDrop.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Beat Drop card is on the landing page", (await page.locator('img[src$="/modes/beatDrop.webp"]').count()) === 1);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const bdFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+const bdData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+/** The kicks started since the instrumentation (the kick's body starts at 150 Hz). */
+const bdInstrument = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__bdOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+{
+  const bdPressed = (name) => page.getByTestId("beat-drop").getByRole("button", { name, exact: false }).first().getAttribute("aria-pressed");
+  const bdToggle = (label) => page.getByTestId("beat-drop").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdk=spring,drum&bdd=0.8&bds=arena&bdh=0.33&bda=0.85&bdsn=drums&bdc=rainbow&bdt=0`, { waitUntil: "networkidle" });
+  {
+    const values = { bdd: await sliderValue("Drift"), bdh: await sliderValue("Bounce Height"), bda: await sliderValue("Fly-in Time") };
+    const pressed = {
+      spring: await bdPressed(/Spring/),
+      drum: await bdPressed(/Drum pad/),
+      plank: await bdPressed(/Plank/),
+      arena: await bdPressed(/Arena/),
+      drums: await bdPressed(/^Drums$/),
+      rainbow: await bdPressed(/Rainbow/),
+    };
+    const trail = await bdToggle("Motion Trail").getAttribute("aria-pressed");
+    const run = await page.getByTestId("beat-drop-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    // 120 BPM, a 30 s clip: landings at 0.5 … 29 s (58 of them), the run ends at 29.6 s.
+    check(
+      "beat drop loads from the URL",
+      values.bdd === "0.8" && values.bdh === "0.33" && values.bda === "0.85" && pressed.spring === "true" && pressed.drum === "true" && pressed.plank === "false" && pressed.arena === "true" && pressed.drums === "true" && pressed.rainbow === "true" && trail === "false" && /\b58 landings at 120 BPM/.test(run) && /29\.6s/.test(run) && /can't miss/.test(run) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, ${JSON.stringify(pressed)}, trail=${trail}, "${run}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await page.getByTestId("beat-drop").getByRole("button", { name: /Wedge/ }).click();
+  await page.locator('input[aria-label="Drift"]').evaluate(setRangeValue, "0.3");
+  await page.getByTestId("beat-drop").getByRole("button", { name: /Endless/ }).click();
+  await bdToggle("Motion Trail").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "beat drop mirrors into the URL",
+      /(^|&)bdk=spring%2Cwedge%2Cdrum(&|$)/.test(query) && /(^|&)bdd=0\.3(&|$)/.test(query) && !/(^|&)bds=/.test(query) && !/(^|&)bdt=/.test(query) && /(^|&)bdsn=drums(&|$)/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("fly-in");
+  const found = await page.locator('input[aria-label="Fly-in Time"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the beat drop controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A 20 s run at 1×, 120 BPM (the BPM setting: no song loaded), drums on every landing.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdsn=drums&face=cute`, { waitUntil: "networkidle" });
+  await bdInstrument();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(500);
+  const fps = await bdFrameRates(5000);
+  await page.screenshot({ path: path.join(outDir, "sim-beat-drop.png") });
+  const reached = await page
+    .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bdTimeMs) >= 20000, null, { timeout: 40000 })
+    .then(() => true)
+    .catch(() => false);
+  const data = await bdData();
+  const times = (data.bdLandingTimes || "").split(",").filter(Boolean).map(Number);
+  const beats = (data.bdBeatTimes || "").split(",").filter(Boolean).map(Number);
+  const onBeat = times.length >= 30 && times.every((t, i) => Math.abs(t - 500 * Math.round(t / 500)) < 1 && Math.abs(t - beats[i]) < 1 && (i === 0 || Math.abs(t - times[i - 1] - 500) < 1));
+  const kicks = (await page.evaluate(() => window.__bdOsc)).filter((f) => f === 150).length;
+  check(
+    "beat drop: a 20 s run at 120 BPM lands every beat on the beat, kicks on the landings, 60 fps floor",
+    reached && onBeat && Number(data.bdLanded) >= 39 && Number(data.bdMaxErrorMs) < 1 && kicks >= 15 && Number(data.bdSnares) >= 15 && Number(data.bdHats) >= 30 && data.face === "cute" && fps.windows.length >= 8 && fps.avg >= 0.9 * fpsFloor(60) && fps.min >= fpsFloor(30),
+    `(reached=${reached}, landed ${data.bdLanded}, ${times.length} logged, on beat=${onBeat}, max error ${data.bdMaxErrorMs} ms, ${kicks} kicks, snares ${data.bdSnares}, hats ${data.bdHats}, alive ${data.bdAlive}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${Math.round(0.9 * fpsFloor(60))}/${fpsFloor(30)}${loadNote()})`,
+  );
+}
+{
+  // A 1080×1920 recording (the default resolution) of a fast, dense run: 200 BPM, the obstructions flying in a whole beat ahead.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bpm=200&bda=1&bdd=1&dur=10&glow=1`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  let alive = 0;
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await bdFrameRates(3500);
+      alive = Number((await bdData()).bdAlive);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `beat-drop-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 beat drop recording keeps 20+ fps with the obstructions alive and downloads", size > 10000 && alive >= 1 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, ${alive} alive, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // The finder: it cannot fail – the first seed is the one, covering the target's beats; the run keeps the promise at 8×.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.bdFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await bdData();
+  }
+  check(
+    "the finder picks a beat drop seed for 30s at once and the run keeps the promise",
+    ready && Math.abs(promised - 29.6) < 0.05 && data.bdFinished === "1" && Math.abs(Number(data.bdFinishedMs) / 1000 - promised) < 0.1 && data.bdLanded === "58" && data.bdPlanned === "58",
+    `(ready=${ready}, "${readyText}", finished at ${data.bdFinishedMs} ms, landed ${data.bdLanded} / ${data.bdPlanned})`,
+  );
+}
+{
+  // ⚡ Fast export of a 10 s clip at 120 BPM (landings 0.5 … 9 s: nine kicks on beats 1 and 3): rendered offline, every kick
+  // goes through the export's own audio, the clip ends with the run and a second export of the same seed renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdsn=drums&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await bdInstrument();
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `beat-drop-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const kicks = await page.evaluate(() => window.__bdOsc.splice(0).filter((f) => f === 150).length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), kicks };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a beat drop fast export plays the kicks through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.kicks === 9 && a.seconds > 9 && a.seconds < 11 && b.status === "done" && b.kicks === 9 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the beat drop has no fast export to check (Record Video is covered above)", true);
+}
+// --- end beat-drop ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

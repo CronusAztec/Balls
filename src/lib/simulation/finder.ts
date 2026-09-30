@@ -35,6 +35,11 @@ import type { PaddleSettings } from "@/lib/physics/modes/paddle";
 import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 // --- boris-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
+import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- boris-journey ---
+import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
+// --- beat-drop ---
+import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
+import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -45,8 +50,6 @@ import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/
 
 export interface ModeSettings {
   bouncierEnabled: boolean;
-  /** The drama director (`CinematicDirector`: it draws from the seeded RNG and nudges rebounds); on when left out, as on the page. */
-  cinematicEnabled?: boolean;
   countdownTotal: number;
   countdownRandom: boolean;
   colorMatchColorCount: number;
@@ -59,6 +62,12 @@ export interface ModeSettings {
   growRate: number;
   portalCount: number;
   twoBalls: boolean;
+  // --- review fix (modes-rhythm) ---
+  /**
+   * The Cinematic switch (director on/off); on when left out, like the page's default. The director draws from the run's
+   * seeded RNG and steers rebounds, so a seed plays out differently with it off: the finder must run it as the page will.
+   */
+  cinematicEnabled?: boolean;
   /** Ball Drop: ball count, size / gravity spread, rows, release interval and rain (see modes/drop.ts). */
   drop: Partial<DropSettings>;
   /** Bouncing Shapes: shape count / kind, box aspect, gravity, countdown, growth and speed ratio (see modes/box.ts). */
@@ -111,9 +120,32 @@ export interface ModeSettings {
   runner?: Partial<RunnerSettings>;
   /** Paddle Keep-Up (see modes/paddle.ts): the auto controller below skill 1 misses deterministically, so the finder times the game over; manual or perfect play never ends. */
   paddle?: Partial<PaddleSettings>;
+  // --- review fix (modes-rhythm) ---
+  /**
+   * Paint: true while a picture is loaded (Picture Paint). Its brush, beat sync, guidance and pacing follow the page's picture
+   * and song, which a headless engine does not have, so the finder does not search it (`runNeverFinishes()`); classic Paint
+   * (no picture) always ends at `COVERAGE_DONE` and is searched like any mode.
+   */
+  paintPicture?: boolean;
   // --- boris-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
+  // --- boris-journey ---
+  /** Journey: the stage list or the auto count (see modes/journey.ts); the defaults when left out. Every journey reaches HOME (the stages never hold the ball for good), so the finder searches it. */
+  journey?: Partial<JourneySettings>;
+  // --- boris-bullseye ---
+  /** Bullseye: shots, interval, chaos, rings, the moving target and the perfect shot (see modes/bullseye.ts); the defaults when left out. Every run ends after the last landing, and the seed moves that (the last flight, the bullseyes' slow motion), so the finder searches it. */
+  bullseye?: Partial<BullseyeSettings>;
+  // --- beat-drop ---
+  /**
+   * Beat Drop: the mix, drift, scroll, bounce, anticipation, the beat it follows and the clip length (see modes/beatDrop.ts);
+   * the defaults when left out. The run can never fail – every seed lands every beat – and it ends on the last landing that
+   * fits in the clip, so the finder only picks a seed and reports how long the run covering the target's beats lasts.
+   */
+  beatDrop?: Partial<BeatDropSettings>;
+  // --- video-beats ---
+  /** On beat (physics/onBeat.ts): the ring modes' flights timed onto the beat grid – part of the run, so the finder searches with it. */
+  onBeat?: Partial<OnBeatConfig>;
 }
 
 // --- odd-string-battle ---
@@ -128,8 +160,26 @@ export const RACE_FINDER_BATCH = 3;
 /** Seeds of the Circle Illusion simulated per animation frame (a whitespace seed paints a grid for tens of seconds). */
 export const ILLUSION_FINDER_BATCH = 4;
 
-/** Modes whose run never "finishes" (there is no escape to time), whatever the settings. */
-export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
+// --- review fix (modes-rhythm) ---
+/** Seeds of Paint simulated per animation frame (a seed paints for a minute or more before it covers the circle). */
+export const PAINT_FINDER_BATCH = 2;
+
+// --- review fix (modes-rhythm) ---
+/**
+ * True when a seed of `mode` plays the same run on any canvas size, a resize before Start or mid-run included (every margin,
+ * size and speed is in field units; tests/arenaGames.test.ts checks it exactly), so the page keeps a found seed when the
+ * canvas is resized. Any other mode's run can play out differently at another size (px speeds, float rounding), so a
+ * resize drops its found seed.
+ */
+export function seedSurvivesResize(mode: ModeId): boolean {
+  return mode === "battle" || mode === "ctf";
+}
+
+/**
+ * Modes whose run never "finishes" (there is no escape to time), whatever the settings. Paint is not one: it finishes at
+ * `COVERAGE_DONE` (the finder searches classic Paint; Picture Paint is left out in `runNeverFinishes()`).
+ */
+export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
 
 /**
  * True when a run of `mode` with these settings can never finish, so there is no duration to search
@@ -137,8 +187,10 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "paint", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture">): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
+  // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
+  if (mode === "paint") return settings.paintPicture === true;
   // --- jdm-collisions --- the Collision Playground never finishes (there is no escape or end to time).
   if (mode === "collide") return true;
   if (mode === "drop") return resolveDropSettings(settings.drop).loop;
@@ -229,6 +281,10 @@ export interface FinderResult {
   escapeAt?: number;
   /** An outcome search: the run found ended (the mode's own finish) within the clip – the page holds its end screen. */
   finished?: boolean;
+  // --- video-beats ---
+  /** On beat: the distinct beats the found run's wall hits land on, and its timed hits (set when On beat applies). */
+  beatsCovered?: number;
+  beatHits?: number;
 }
 
 /**
@@ -240,7 +296,6 @@ export interface FinderResult {
 export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, settings: ModeSettings, seed: number): PhysicsEngine {
   const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount)
   engine.setBouncier(settings.bouncierEnabled);
-  engine.setCinematicEnabled(settings.cinematicEnabled ?? true);
   if (mode === "target") {
     engine.setCountdownTotal(settings.countdownTotal);
     engine.setCountdownRandomOrder(settings.countdownRandom);
@@ -286,6 +341,11 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
+  if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- boris-journey ---
+  if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- boris-bullseye ---
+  if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
+  if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
+  engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -300,6 +360,8 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   // runs on the mode's own fast path (the same 60 Hz steps as the page, without the engine loop around them)
   if (request.mode === "runner") return Math.min(maxSimMs, engine.getRunnerProgress().plannedMs);
   if (request.mode === "paddle") return engine.paddleRunLengthMs(maxSimMs);
+  // --- beat-drop --- the run's end is planned at init: the last landing in the clip + the hold
+  if (request.mode === "beatDrop") return Math.min(maxSimMs, engine.getBeatDropProgress().plannedMs);
   const step = 1000 / 60;
   let elapsed = 0;
   while (elapsed < maxSimMs) {
@@ -309,6 +371,36 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   }
   return maxSimMs;
 }
+
+// --- beat-drop ---
+/**
+ * The Beat Drop "search": the run cannot fail (every seed lands every beat), so the first seed is the one. The run for a
+ * clip of the target length covers the beats up to the target (less the end hold) and ends then – its length is the
+ * duration found, never more than the target.
+ */
+export function findBeatDropRun(request: Pick<FinderRequest, "targetDurationSec" | "physicsConfig" | "modeSettings">, seed = Date.now() | 0): FinderResult {
+  const settings = { ...request.modeSettings, beatDrop: { ...request.modeSettings.beatDrop, clipSec: request.targetDurationSec } };
+  const engine = createEngineForSettings(request.physicsConfig, "beatDrop", settings, seed);
+  return { found: true, seed, duration: engine.getBeatDropProgress().plannedMs / 1000, seedsTested: 1 };
+}
+// --- end beat-drop ---
+// --- video-beats ---
+/**
+ * With On beat on (a ring mode, a grid to follow): replays the found seed for `durationMs` and reports how many distinct
+ * beats its wall hits landed on and how many hits were timed – the "beats covered" the page shows with a found run.
+ */
+export function beatCoverage(seed: number, request: FinderRequest, durationMs: number): { beatsCovered?: number; beatHits?: number } {
+  if (!request.modeSettings.onBeat?.enabled) return {};
+  const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+  const step = 1000 / 60;
+  for (let elapsed = 0; elapsed < durationMs - 1e-6; elapsed += step) {
+    engine.update(step, 0);
+    engine.consumeSoundEvents();
+  }
+  const stats = engine.getOnBeatStats();
+  return stats.active ? { beatsCovered: stats.beatsCovered, beatHits: stats.hits } : {};
+}
+// --- end video-beats ---
 
 // --- boris-multipliers ---
 /** The count target of a request (a multipliers board with `target` > 0), or 0 for a search by duration. */
@@ -361,6 +453,11 @@ export function findSimulation(
       resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
       return;
     }
+    // --- beat-drop --- every seed lands every beat: any seed keeps the promise, the clip covers the target's beats
+    if (request.mode === "beatDrop") {
+      resolve(findBeatDropRun(request));
+      return;
+    }
     const fixed = fixedRunDurationSec(request.mode, request.modeSettings);
     if (fixed !== null && Math.abs(fixed - request.targetDurationSec) > request.toleranceSec) {
       resolve({ found: false, seed: 0, duration: fixed, seedsTested: 0, fixedDuration: true });
@@ -376,7 +473,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "paint" ? PAINT_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -404,7 +501,7 @@ export function findSimulation(
           bestSeed = seed;
         }
         if (diff <= toleranceMs) {
-          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i });
+          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
           return;
         }
         if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;

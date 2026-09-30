@@ -107,8 +107,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
   // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
   powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
-  // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library); recorded when the mode was added.
-  race: { samples: [[366652,232223],[410818,232223],[516984,1191014],[544677,780631],[458837,2078020],[360939,1556027],[612916,2583260],[551558,2261944]], broken: [], walls: [] },
+  // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library);
+  // re-recorded when the obstacle push-out gap became a fraction of the field (RACE_SEPARATION_REL; review fix modes-rhythm).
+  race: { samples: [[366652,232223],[410818,232223],[517030,1190987],[544823,780700],[382814,2031574],[351419,1570399],[557840,2621068],[506624,2436924]], broken: [], walls: [] },
   // --- jdm-arena-games --- Battle Royale and Capture the Flag: no rings; recorded when the modes were added (seed 12345, defaults: 8 squares in a box / 2 – 2).
   // Re-recorded when the battle's fixed margins became reference pixels scaled with the field (a seed plays the same on any canvas).
   battle: { samples: [[374459,349977],[329182,250770],[338535,110954],[267052,343771],[595188,183924],[337396,292032],[459252,122349],[517487,427594]], broken: [], walls: [] },
@@ -119,6 +120,13 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   paddle: { samples: [[314390,202273],[331052,238645],[387168,186813],[518968,322737]], broken: [], walls: [] },
   // --- boris-vortex --- Sound Vortex: its own funnel, no rings; recorded when the mode was added (seed 12345, defaults: 12 balls 1.5 s apart, 12 rings, 12.5 s spirals).
   vortex: { samples: [[505441,421447],[591932,381653],[429348,392412],[489357,211878],[456871,281023],[426114,373116],[412905,265698],[369240,335581]], broken: [], walls: [] },
+  // --- boris-journey --- Journey: its own column of stages; recorded when the mode was added (seed 12345, the default route – 10 s in, the ball is
+  // still in the first stage's rings, which are the engine's own walls there, five of them broken).
+  journey: { samples: [[385083,309284],[424939,272610],[363033,334004],[220976,314591]], broken: [0, 1, 2, 3, 4], walls: [39168,70502,101837,133171,164506,195840] },
+  // --- boris-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
+  bullseye: { samples: [[261123,524036],[387945,104306],[261123,524036],[457992,524036],[261123,524036],[457992,524036],[261123,524036],[457992,524036]], broken: [], walls: [] },
+  // --- beat-drop --- Beat Drop: its own scene, no rings, one ball on planned arcs; recorded when the mode was added (seed 12345, defaults: every kind, drift 0.5, endless, 120 BPM).
+  beatDrop: { samples: [[509120,544774],[262528,780382],[289034,985198],[319796,1232829]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

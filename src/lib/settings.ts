@@ -51,6 +51,16 @@ import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 // --- boris-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- boris-journey --- the Journey mode
+import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourneyFields, writeJourneyParams } from "@/lib/physics/modes/journey";
+// --- boris-bullseye --- the Bullseye mode
+import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBullseyeFields, writeBullseyeParams } from "@/lib/physics/modes/bullseye";
+// --- beat-drop --- the Beat Drop mode
+import { BEAT_DROP_RANGES, beatDropModeDefaults, defaultBeatDropFields, readBeatDropParams, resolveBeatDropFields, writeBeatDropParams, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
+import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
+// --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
+import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
+import type { BeatSourceKind } from "@/lib/simulation/beatSource";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -593,6 +603,59 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end boris-vortex ---
+  // --- boris-journey --- Journey (lib/physics/modes/journey.ts, lib/physics/journey/): a column of stages the ball clears on its way HOME
+  /** The stage list top-down, e.g. "rings,pegs-l,glass-s,multipliers,home" (sizes "-s" / "-l"; HOME always last) (URL `js`). */
+  journeyStages: string;
+  /** 0: play the list; 1–12: a seeded random journey of that many stages before HOME (URL `jsa`). */
+  journeyAutoStages: number;
+  // --- end boris-journey ---
+  // --- boris-bullseye --- Bullseye (lib/physics/modes/bullseye.ts): shots through a peg field onto a scoring target
+  /** Balls launched at the target, 1–30 (URL `bys`). */
+  byShots: number;
+  /** Seconds between two launches, 0.3–4 (URL `byi`). */
+  byInterval: number;
+  /** 0–1: how many pegs and bumpers stand in the way (URL `byc`). */
+  byChaos: number;
+  /** Scoring rings of the target, 3–10 (URL `byr`). */
+  byRings: number;
+  /** The target slides left and right (URL `bym`). */
+  byTargetMoving: boolean;
+  /** Rigging: the shot (1-based) the director steers into the bull; 0 = off (URL `byp`). */
+  byPerfect: number;
+  // --- end boris-bullseye ---
+  // --- beat-drop --- Beat Drop (lib/physics/modes/beatDrop.ts): a ball lands on obstructions that fly in on the beat
+  /** The obstructions in the mix, a comma list of plank, block, spring, wedge, spinner, drum (URL `bdk`). */
+  bdKinds: string;
+  /** 0–1: how far the ball drifts sideways between landings (URL `bdd`). */
+  bdDrift: number;
+  /** endless (the world scrolls down with the ball) | arena (it bounces around inside the view) (URL `bds`). */
+  bdScroll: BeatDropScroll;
+  /** 0.1–0.5 of the view: how high a flight of one beat rises (URL `bdh`). */
+  bdBounceHeight: number;
+  /** 0.3–1 beats: how long before its beat an obstruction starts flying in (URL `bda`). */
+  bdAnticipation: number;
+  /** drums | melody | both: what a landing plays (URL `bdsn`). */
+  bdSound: BeatDropSound;
+  /** pad (a colour per kind) | rainbow (by beat) | team (the roster's colours) (URL `bdc`). */
+  bdColorMode: BeatDropColorMode;
+  /** The ball's motion trail (URL `bdt`). */
+  bdTrail: boolean;
+  // --- end beat-drop ---
+  // --- video-beats --- Beats from a video (lib/simulation/beatSource.ts, videoBeatsSettings.ts, physics/onBeat.ts)
+  /** The grid every rhythm feature follows: bpm | song | media | manual (URL `bsrc`). */
+  beatSource: BeatSourceKind;
+  /** Hand-placed beat markers, delta-encoded ms (URL `bm`). */
+  beatMarkers: string;
+  /** Downbeat among the markers, 0–3, −1 = the loudest (URL `bdb`). */
+  beatDownbeat: number;
+  /** The ring modes land their wall hits on the grid (URL `onbeat`). */
+  onBeat: boolean;
+  /** How far On beat may retime a flight, 0.1–0.8 (URL `obr`). */
+  onBeatRange: number;
+  /** The imported video behind the arena (URL `vbg`) and its opacity (URL `vbgo`). */
+  videoBackground: boolean;
+  videoBgOpacity: number;
+  // --- end video-beats ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -704,6 +767,12 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- boris-vortex ---
+    ...defaultJourneyFields(), // --- boris-journey ---
+    ...defaultBullseyeFields(), // --- boris-bullseye ---
+    // --- beat-drop --- the feature's fields, and the mode's own ball size (radius 14) in Beat Drop only
+    ...defaultBeatDropFields(),
+    ...beatDropModeDefaults(mode),
+    ...defaultVideoBeatsFields(), // --- video-beats ---
   };
 }
 
@@ -769,6 +838,10 @@ export const RANGES = {
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- boris-vortex ---
+  ...JOURNEY_RANGES, // --- boris-journey ---
+  ...BULLSEYE_RANGES, // --- boris-bullseye ---
+  ...BEAT_DROP_RANGES, // --- beat-drop ---
+  ...VIDEO_BEATS_RANGES, // --- video-beats ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1004,6 +1077,10 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeJourneyParams(settings, base, params); // --- boris-journey ---: js, jsa
+  writeBullseyeParams(settings, base, params); // --- boris-bullseye ---: bys, byi, byc, byr, bym, byp
+  writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
+  writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   return params;
 }
 
@@ -1120,6 +1197,10 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
+  readJourneyParams(params, settings); // --- boris-journey --- (the stage list normalised, the auto count clamped)
+  readBullseyeParams(params, settings); // --- boris-bullseye --- (clamped onto the sliders; bad values fall back)
+  readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
+  readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   return settings;
 }
 
@@ -1313,6 +1394,10 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveJourneyFields(merged)); // --- boris-journey --- a normalised stage list, a clamped auto count
+  Object.assign(merged, resolveBullseyeFields(merged)); // --- boris-bullseye --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
+  Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   return merged;
 }
 
