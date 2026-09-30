@@ -43,6 +43,7 @@ export interface ProjectUploads {
   sliceSong?: File;
   musicBed?: File;
   midi?: File;
+  beatMedia?: File; // --- video-beats --- the imported video / audio (it is the music bed while loaded)
 }
 
 /** A named picture kept as a data: URL (Picture Paint, background). */
@@ -64,6 +65,8 @@ export interface ProjectMediaState {
   customMidiName: string | null;
   paintPicture: PictureInfo | null;
   backgroundImage: PictureInfo | null;
+  /** --- video-beats --- The imported video / audio file's name, or null. */
+  beatMediaName?: string | null;
 }
 
 /** How the page loads things – the same handlers the panel's upload buttons use. */
@@ -82,6 +85,8 @@ export interface ProjectMediaActions {
   onMusicRemove: () => void;
   onCustomMidiUpload: (file: File) => Promise<void>;
   onCustomSoundSelect: (id: string | null) => Promise<void>;
+  /** --- video-beats --- Imports a video / audio file for its beats (it becomes the music bed). */
+  onBeatMediaUpload?: (file: File) => Promise<void>;
 }
 
 export interface ProjectFilesOptions {
@@ -152,6 +157,7 @@ function listMedia(settings: SimulatorSettings, uploads: ProjectUploads, m: Proj
   addFile("midi", m.customSoundId === "custom-upload" ? uploadIfCurrent(uploads.midi, m.customMidiName) : null);
   addUrl("paintPicture", m.paintPicture?.name ?? null, m.paintPicture?.url ?? null);
   addUrl("backgroundImage", m.backgroundImage?.name ?? null, m.backgroundImage?.url ?? null);
+  addFile("beatMedia", uploadIfCurrent(uploads.beatMedia, m.beatMediaName ?? null)); // --- video-beats ---
   return out;
 }
 
@@ -191,7 +197,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
     () => listMedia(settings, uploads.current, media),
     // The uploads ref changes together with the names in `media`; the wall-break sound's selection lives in the settings.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings.wallBreakSound, media.ballImage, media.customHitSampleName, media.customWallBreakName, media.sliceSongName, media.musicTrackName, media.customSoundId, media.customMidiName, media.paintPicture, media.backgroundImage],
+    [settings.wallBreakSound, media.ballImage, media.customHitSampleName, media.customWallBreakName, media.sliceSongName, media.musicTrackName, media.customSoundId, media.customMidiName, media.paintPicture, media.backgroundImage, media.beatMediaName], // --- video-beats --- (beatMediaName)
   );
   const totalBytes = listed.reduce((sum, m) => sum + m.info.bytes, 0);
   const defaultName = `jumpingballslive-${settings.mode}`;
@@ -249,6 +255,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
     const loads: Promise<void>[] = [];
     if (a.sliceSong) loads.push(actions.onSliceSongUpload(toFile(a.sliceSong)));
     if (a.musicBed) loads.push(actions.onMusicUpload(toFile(a.musicBed)));
+    if (a.beatMedia && actions.onBeatMediaUpload) loads.push(actions.onBeatMediaUpload(toFile(a.beatMedia))); // --- video-beats --- (it becomes the bed)
     loads.push(a.midi ? actions.onCustomMidiUpload(toFile(a.midi)) : actions.onCustomSoundSelect(project.extras.melody));
     await Promise.all(loads);
     actions.update(projectMediaPatch(project));

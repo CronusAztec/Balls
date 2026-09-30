@@ -57,6 +57,8 @@ Ordered by how strongly the sources and the observations agree.
 11. **Series, not one-offs**: the bot rotates families (escape, rhythm, battle) day by day, keeps recurring team names and colours, and numbers the episodes.
 12. **Cadence and timing**: one to three clips a day, posted when the audience is online, replies in the first hour; Trial Reels for new hooks.
 
+**Beats from a video.** A recipe can run on a real song's beat instead of a fixed BPM: import the video or audio in the Sound section's *Beats from a video* block (or load a project file that carries it) and pick the **Media** source, or place the beats by hand (**Manual**, URL `bm`). Every rhythm feature then follows that grid, **On beat** (URL `onbeat`) lands the ring modes' wall hits on it, and the export carries the song as its music bed – so the bot's "a note per bounce" rule (6) can become "a hit on every beat" of a trending sound. The grid is part of the run, so the finder searches with it and reports how many beats a found seed covers **[inferred: that on-beat hits raise watch time is a hypothesis to test]**.
+
 ## 4. What we do not know
 
 - No source has data on payoff timing, on-screen counters or comment-bait wording; those rules are observations of the three accounts, not measurements.

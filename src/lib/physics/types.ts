@@ -2,6 +2,7 @@ import type { Obstacle } from "./obstacles";
 import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
+import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -56,6 +57,8 @@ export const MODE_IDS = [
   "journey",
   // --- boris-bullseye --- Bullseye (a scoring target at the bottom of a peg field)
   "bullseye",
+  // --- beat-drop --- Beat Drop (a ball landing on obstructions that fly in on the beat)
+  "beatDrop",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -245,6 +248,14 @@ export interface SoundEvent {
   // --- boris-bullseye ---
   /** A Bullseye landing: the page plays the thud (`ToneGenerator.playThud()`) at `frequency`, `level` loud. */
   thud?: boolean;
+  // --- beat-drop ---
+  /**
+   * A Beat Drop drum hit – the kick or the snare of a landing, or an off-beat hat ("none": the pad's accent alone) – which
+   * the page plays through `ToneGenerator.playBeatDrop()` instead of a bounce, with the accent of `bdPad` (the obstruction
+   * the ball landed on) pitched at `frequency`. An accompaniment: it never uses up a melody note or a slicer slice.
+   */
+  bdDrum?: "kick" | "snare" | "hat" | "none";
+  bdPad?: BeatDropPadKind;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

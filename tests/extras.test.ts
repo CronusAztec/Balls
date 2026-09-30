@@ -124,6 +124,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   journey: { samples: [[385083,309284],[424939,272610],[363033,334004],[220976,314591]], broken: [0, 1, 2, 3, 4], walls: [39168,70502,101837,133171,164506,195840] },
   // --- boris-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
   bullseye: { samples: [[261123,524036],[387945,104306],[261123,524036],[457992,524036],[261123,524036],[457992,524036],[261123,524036],[457992,524036]], broken: [], walls: [] },
+  // --- beat-drop --- Beat Drop: its own scene, no rings, one ball on planned arcs; recorded when the mode was added (seed 12345, defaults: every kind, drift 0.5, endless, 120 BPM).
+  beatDrop: { samples: [[509120,544774],[262528,780382],[289034,985198],[319796,1232829]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

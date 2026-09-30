@@ -9,10 +9,14 @@ import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./r
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
 import { scheduleSwooshTone } from "./swooshTone"; // --- boris-journey ---
 import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- boris-bullseye ---
+import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
+import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
 import { clockedAudioContext } from "./offlineContext"; // --- fast-render ---
+import { nextGridPointSec } from "@/lib/simulation/beatSource"; // --- video-beats ---
+import type { BeatClockConfig } from "@/lib/simulation/beatClock"; // --- video-beats ---
 
 /**
  * Web Audio tone generator. Wall hits play short tones (descending pitch per wall layer,
@@ -117,6 +121,10 @@ export class ToneGenerator {
   private gridOrigin = 0;
   /** Grid slot already holding a bounce sound; later hits in the same slot are dropped. */
   private lastSlotTime = -1;
+  // --- video-beats --- the beat lock on a video's beats or hand-placed markers: the grid (simulation seconds) and the
+  // simulation clock the hits are placed on (null = the BPM grid anchored at the run's start, as before)
+  private beatSourceClock: BeatClockConfig | null = null;
+  private beatSourceSimTime: (() => number) | null = null;
 
   async start() {
     if (this.isPlaying) return;
@@ -136,6 +144,19 @@ export class ToneGenerator {
     return { ...this.music };
   }
 
+  // --- video-beats ---
+  /**
+   * The beat lock follows `clock` (a media or manual beat grid; beatSource.ts) instead of the BPM: a sound is delayed to
+   * the next point of that grid – subdivided by the grid setting (1/4 = the beats, 1/8 halves, 1/16 quarters) – measured
+   * on the simulation clock `simTime` (seconds), so it lands where the music bed's beat is. Null restores the BPM grid.
+   */
+  setBeatSourceClock(clock: BeatClockConfig | null, simTime: (() => number) | null) {
+    this.beatSourceClock = clock;
+    this.beatSourceSimTime = clock ? simTime : null;
+    this.lastSlotTime = -1;
+  }
+  // --- end video-beats ---
+
   /** Re-anchors the beat grid at "now" (call when a run starts or restarts). */
   resetBeatGrid() {
     this.gridOrigin = this.audioContext?.currentTime ?? 0;
@@ -148,6 +169,12 @@ export class ToneGenerator {
    */
   private scheduleTime(now: number): number {
     if (!this.music.quantizeToBeat) return now;
+    // --- video-beats --- on a media / manual grid: the delay to its next point on the simulation clock
+    if (this.beatSourceClock && this.beatSourceSimTime) {
+      const sim = this.beatSourceSimTime();
+      const next = nextGridPointSec(this.beatSourceClock, sim - 0.001, this.music.quantizeGrid === "1/4" ? 1 : this.music.quantizeGrid === "1/8" ? 2 : 4);
+      if (Number.isFinite(next)) return now + Math.max(0, next - sim);
+    }
     return nextGridTime(now, this.music.bpm, this.music.quantizeGrid, this.gridOrigin);
   }
 
@@ -741,6 +768,46 @@ export class ToneGenerator {
   }
   // --- end boris-bullseye ---
 
+  // --- beat-drop ---
+  private readonly bdVoices: BeatDropVoices = { kick: 0, snare: 0, hat: 0, accent: 0 };
+
+  /**
+   * A Beat Drop drum hit (beatDropTones.ts): the event's drum – the kick (louder on the downbeat, `accent`), the snare or the
+   * off-beat hat – and the accent of the pad the ball landed on (`pad`) at `frequency`, snapped to the scale. It accompanies
+   * the tune: it never uses up a melody note or a slicer slice and takes no beat-lock slot (the landing's note, when the mode
+   * plays one, is an ordinary hit). With a music bed loaded the bed leads – only the downbeat's kick and the accents play
+   * (`beatDropVoices()`). On the beat grid when the beat lock is on; the kick and the accent duck the music bed.
+   */
+  playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent = false, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleBeatDrop(drum, pad, frequency, accent, level));
+      return;
+    }
+    this.scheduleBeatDrop(drum, pad, frequency, accent, level);
+  }
+
+  private scheduleBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency: number | undefined, accent: boolean, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const out = this.masterGain;
+      const time = this.scheduleTime(ctx.currentTime);
+      const v = beatDropVoices(drum, !!pad, this.musicBed.hasTrack(), accent, this.bdVoices);
+      const l = hitLevel(level);
+      const noise = this.noiseCache.get(ctx);
+      if (v.kick > 0) scheduleKick(ctx, out, time, v.kick * l);
+      if (v.snare > 0) scheduleSnare(ctx, out, time, noise, v.snare * l);
+      if (v.hat > 0) scheduleHat(ctx, out, time, noise, v.hat * l);
+      if (v.accent > 0 && pad) schedulePadAccent(ctx, out, pad, this.snap(frequency !== undefined && frequency > 0 ? frequency : DEFAULT_ACCENT_FREQUENCY), time, noise, v.accent * l);
+      if (v.kick > 0 || v.accent > 0) this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the beat drop hit:", err);
+    }
+  }
+  // --- end beat-drop ---
+
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
     this.wallBreakBuffer = null;
@@ -863,6 +930,7 @@ export class ToneGenerator {
     twin.isInitialized = true;
     twin.isPlaying = true;
     twin.resetBeatGrid();
+    if (this.beatSourceClock) twin.setBeatSourceClock(this.beatSourceClock, clock); // --- video-beats --- (the export's clock is the simulation's)
     if (twin.hitSoundMode === "sample" && twin.hitSampleUrl) await twin.sampler.load(twin.hitSampleUrl);
     if (twin.wallBreakSoundUrl && !twin.wallBreakBuffer) await twin.decodeWallBreakSound(twin.wallBreakSoundUrl);
     twin.musicBed.play();

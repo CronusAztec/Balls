@@ -58,6 +58,8 @@ const MODES = {
   journey: { wait: 2400, query: "js=rings-l,glass,pegs,home&face=cute&glow=1" },
   // --- boris-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
   bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
+  // --- beat-drop --- mid-run: the ball squashed on a pad, the next obstruction flying in, a ripple and a puff, the trail
+  beatDrop: { wait: 6120, query: "face=cute&glow=1&bdd=1&bda=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

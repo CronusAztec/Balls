@@ -541,6 +541,7 @@ describe("split-screen: sounds and the finder", () => {
       playPew: (f) => calls.push(`pew ${f}`), // --- boris-vortex ---
       playThud: (f, level) => calls.push(`thud ${f} ${level}`), // --- boris-bullseye ---
       playSwoosh: () => calls.push("swoosh"), // --- boris-journey ---
+      playBeatDrop: (drum, pad, f, accent, level) => calls.push(`bd ${drum} ${pad ?? "-"} ${f ?? "-"}${accent ? " accent" : ""} ${level}`), // --- beat-drop ---
     };
     playArenaSound(sink, { type: "hit", wallIndex: 2 });
     playArenaSound(sink, { type: "hit", wallIndex: 1, level: 0.5 });
@@ -559,7 +560,10 @@ describe("split-screen: sounds and the finder", () => {
     playArenaSound(sink, { type: "hit", wallIndex: 0, frequency: 98, thud: true, level: 0.5 });
     // --- boris-journey --- a Journey stage transition swooshes (its event is a melody-free "hit"), not a bounce.
     playArenaSound(sink, { type: "hit", wallIndex: 0, swoosh: true, melody: false });
-    expect(calls).toEqual([`hit 2 ${EXTRA_ARENA_LEVEL}`, `hit 1 ${0.5 * EXTRA_ARENA_LEVEL}`, "gap", "int merge", "mult 4", "bumper", "sb pluck", "race fanfare", `hit 3 ${EXTRA_ARENA_LEVEL} accompaniment`, "mult 2 accompaniment", "pew 880", `thud 98 ${0.5 * EXTRA_ARENA_LEVEL}`, "swoosh"]);
+    // --- beat-drop --- a Beat Drop landing plays its drum and pad accent (not a wall hit), a little softer like a bounce.
+    playArenaSound(sink, { type: "hit", wallIndex: 0, frequency: 330, bdDrum: "kick", bdPad: "spring", accent: true, melody: false });
+    playArenaSound(sink, { type: "hit", wallIndex: 0, bdDrum: "hat", level: 0.5, melody: false });
+    expect(calls).toEqual([`hit 2 ${EXTRA_ARENA_LEVEL}`, `hit 1 ${0.5 * EXTRA_ARENA_LEVEL}`, "gap", "int merge", "mult 4", "bumper", "sb pluck", "race fanfare", `hit 3 ${EXTRA_ARENA_LEVEL} accompaniment`, "mult 2 accompaniment", "pew 880", `thud 98 ${0.5 * EXTRA_ARENA_LEVEL}`, "swoosh", `bd kick spring 330 accent ${EXTRA_ARENA_LEVEL}`, `bd hat - - ${0.5 * EXTRA_ARENA_LEVEL}`]);
   });
 
   const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 10, maxSimTimeSec: 60, physicsConfig: { width: 300, height: 600, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#fff", ballRadius: 8, audioIntensity: 0 }, mode: "classic", modeSettings: MODE_SETTINGS };
