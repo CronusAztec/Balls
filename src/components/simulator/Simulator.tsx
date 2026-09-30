@@ -83,6 +83,11 @@ import { runnerPlanOf, runnerSettingsOf, sameRunnerPlan, type RunnerBeatInput, t
 import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
 import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
 import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
+// --- split-screen --- 2 or 4 arenas racing on one canvas and one recording
+import { useSyncExternalStore } from "react";
+import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaHooks } from "@/lib/simulation/multi";
+import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
+import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 import {
@@ -922,7 +927,10 @@ export default function Simulator() {
       if (s.mode !== "paddle" || !canvas) return;
       const rect = canvas.getBoundingClientRect();
       const f = engine.getPaddleView().field;
-      engine.setPaddleInput({ target: (e.clientX - rect.left - f.left) / Math.max(1, f.width) });
+      // --- split-screen --- during a race the first arena is drawn scaled into its viewport
+      const vp = splitRunnerRef.current?.isActive() ? splitRunnerRef.current.viewports()[0] : undefined;
+      const x = vp ? (e.clientX - rect.left - vp.x) / vp.scale : e.clientX - rect.left;
+      engine.setPaddleInput({ target: (x - f.left) / Math.max(1, f.width) });
     };
     const onPointerLeave = () => engine.setPaddleInput({ target: null });
     window.addEventListener("keydown", onDown, true);
@@ -978,6 +986,119 @@ export default function Simulator() {
   const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t("Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
   // --- end rigged ---
 
+  // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, splitScreenCanvas.tsx): 2 or 4 arenas
+  // on one canvas and one recording. The first arena is this page's engine – with the first arena's overrides (gravity, ball
+  // speed, colour, seed) on top of the settings; the runner keeps an engine for every other arena, built like this one (the
+  // fast export's set-up) from the settings plus that arena's overrides, restarts them with this one and times the race.
+  const splitRunnerRef = useRef<MultiArenaRunner | null>(null);
+  if (!splitRunnerRef.current) splitRunnerRef.current = new MultiArenaRunner();
+  const splitRunner = splitRunnerRef.current;
+  const splitEngines = useSyncExternalStore(splitRunner.subscribe, splitRunner.getEngines, splitRunner.getEngines);
+  const splitSoundAllRef = useRef(false);
+  splitSoundAllRef.current = settings.soundArena === "all";
+  const splitSettingsRef = useRef(settings);
+  splitSettingsRef.current = settings;
+  // The Picture Paint beat an arena's engine follows, like this one's (the paint effects above).
+  const splitBeatRef = useRef<Parameters<PhysicsEngine["setPaintBeat"]>[0]>({});
+  splitBeatRef.current = {
+    source: s.paintBeatSource,
+    manualBpm: s.bpm,
+    grid: activeBeats ? { bpm: activeBeats.beats.bpm, beatTimes: activeBeats.beats.beatTimes, duration: activeBeats.beats.duration } : null,
+    offset: activeBeats?.offset ?? 0,
+    loop: activeBeats?.loop ?? true,
+  };
+  const splitHooks = useMemo<ArenaHooks>(
+    () => ({
+      create: (page) => new PhysicsEngine({ ...page.config }),
+      init: (engine, arena, seed, world, page) => {
+        engine.setConfig({ ...arenaPhysicsConfig(arena), width: world.width, height: world.height });
+        engine.setSeed(seed);
+        engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
+        engine.setPaintOptions(page.getPaintOptions());
+        engine.setPaintBeat(splitBeatRef.current);
+        // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
+        initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
+      },
+      initPage: (page) => {
+        page.setConfig({ ballRadius: splitSettingsRef.current.ballRadius });
+        initEngineForMode(page, splitSettingsRef.current);
+      },
+      live: (engine, arena) => {
+        engine.setWallBreakStyle(arena.wallBreakStyle);
+        engine.setBouncier(arena.bouncierEnabled);
+        engine.setCinematicEnabled(arena.cinematicEnabled);
+        engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
+        engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+      },
+    }),
+    [initEngineForMode],
+  );
+  // The first arena's overrides on this page's engine, after the effects above set the shared values (only what differs is
+  // sent, like the config effects do: a mode that recolours its ball keeps its colour).
+  const splitOverridesOnPageRef = useRef(false);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    // A single canvas never had them: the config effects' values stand (so do keyframed ones).
+    if (settings.arenaCount < 2 && !splitOverridesOnPageRef.current) return;
+    splitOverridesOnPageRef.current = settings.arenaCount > 1;
+    const first = mergeArenaSettings(settings, settings.arenaCount > 1 ? settings.arenas[0] : undefined, 0);
+    const c = engine.config;
+    if (c.gravity !== first.gravity || c.ballSpeed !== first.ballSpeed || c.ballColor !== first.ballColor) {
+      engine.setConfig({ ...(c.gravity !== first.gravity ? { gravity: first.gravity } : {}), ...(c.ballSpeed !== first.ballSpeed ? { ballSpeed: first.ballSpeed } : {}), ...(c.ballColor !== first.ballColor ? { ballColor: first.ballColor } : {}) });
+    }
+  }, [settings, engineReady]);
+  // A new arena count, or an arena's new seed or mode, starts every arena over together (not paused or unpaused: a found
+  // race waits at its start like a found run does); the first arena's seed goes to this page's engine.
+  const splitKey = splitRestartKey(settings);
+  const splitKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || splitKeyRef.current === splitKey) return;
+    const initial = splitKeyRef.current === null;
+    splitKeyRef.current = splitKey;
+    if (initial && settings.arenaCount < 2) return;
+    // (back to one arena, the first arena's fixed seed goes with the race: the single view starts a new run as usual)
+    engine.setSeed(settings.arenaCount > 1 ? (resolvedArenas(settings)[0]?.seed ?? null) : null);
+    if (initial) return;
+    setFinished(false);
+    audioRef.current?.resetCustomNoteIndex();
+    audioRef.current?.getSlicer().reset();
+    audioRef.current?.resetBeatGrid();
+    engine.setConfig({ ballRadius: settings.ballRadius });
+    initEngineForMode(engine, settings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitKey, engineReady]);
+  // The other arenas follow every settings change (from scratch before the run starts, live during it).
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (engine) splitRunner.sync(engine, settings, splitHooks);
+  }, [settings, engineReady, splitRunner, splitHooks]);
+  const splitText = useMemo<SplitScreenLabels>(
+    () => ({
+      escaped: (label) => t("SplitScreen.escaped", { label }),
+      finished: (label) => t("SplitScreen.finished", { label }),
+      tie: (labels) => t("SplitScreen.tie", { labels }),
+      seconds: (seconds) => t("SplitScreen.seconds", { seconds }),
+    }),
+    [t],
+  );
+  const splitRender = useMemo<SplitScreenCanvasOptions | null>(() => {
+    if (splitEngines.length < 2) return null;
+    const arenas = resolvedArenas(settings);
+    return {
+      runner: splitRunner,
+      engines: splitEngines,
+      layout: settings.arenaLayout,
+      labels: arenas.map((a) => a.label),
+      colors: arenas.map((a) => a.ballColor ?? settings.ballColor),
+      soundAll: settings.soundArena === "all",
+      text: splitText,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitEngines, splitRunner, settings.arenas, settings.arenaCount, settings.arenaLayout, settings.ballColor, settings.soundArena, splitText]);
+  // --- end split-screen ---
+
   // Mirror settings into the URL so any setup can be bookmarked or shared.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1028,6 +1149,7 @@ export default function Simulator() {
       Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
       Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
+      Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1121,6 +1243,8 @@ export default function Simulator() {
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
       }
+      // --- split-screen --- the other arenas' sounds: heard with "every arena", else dropped (their queues empty every frame)
+      splitRunnerRef.current?.drainSounds(audio && splitSoundAllRef.current ? (ev) => playArenaSound(audio, ev) : null);
       if (isStarted && !isPaused && audioEnabled && audio) {
         const analyser = audio.getAnalyser();
         if (analyser) {
@@ -1136,6 +1260,7 @@ export default function Simulator() {
       }
       if (engine && isStarted && !isPaused) {
         let done = engine.isSimulationFinished();
+        if (done && !(splitRunnerRef.current?.allFinished() ?? true)) done = false; // --- split-screen --- the race is over when every arena is
         // Picture Paint: hold the finished picture crisp for a moment before the end screen covers it.
         if (done && engine.isPaintMode() && engine.getPaintState().picture) {
           const now = performance.now();
@@ -1308,7 +1433,7 @@ export default function Simulator() {
       // The run is already over and the page is still holding it (the winner banner, the escape replay, a finished
       // picture): the effect below stops the export once that hold is over instead of cutting it off here. The
       // fallback timer only matters if the hold never ends (the run paused by hand, say).
-      if (engineRef.current?.isSimulationFinished()) {
+      if (engineRef.current?.isSimulationFinished() && (splitRunnerRef.current?.allFinished() ?? true)) { // --- split-screen --- (every arena's)
         recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), END_HOLD_FALLBACK_MS);
         return;
       }
@@ -1322,6 +1447,18 @@ export default function Simulator() {
     const id = setTimeout(() => void stopRecordingAndDownload(), 500);
     return () => clearTimeout(id);
   }, [isRecording, finished, stopRecordingAndDownload]);
+  // --- split-screen --- the recorder films the canvas element it was made with: a race (or its end) brings another one, so
+  // the next recording makes a new recorder – and one running now ends with its canvas.
+  const splitCanvasOn = splitRender !== null;
+  const splitCanvasOnRef = useRef(splitCanvasOn);
+  useEffect(() => {
+    if (splitCanvasOnRef.current === splitCanvasOn) return;
+    splitCanvasOnRef.current = splitCanvasOn;
+    if (isRecording) void stopRecordingAndDownload();
+    recorderRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitCanvasOn]);
+  // --- end split-screen ---
 
   /* ------------------------------------------------------------ fast export */
   // --- fast-render --- "Fast export" renders the clip offline (lib/recording/fastRender.ts): a fresh engine set up like the page's
@@ -1346,6 +1483,11 @@ export default function Simulator() {
     // --- jdm-rhythm-runner --- a run played by hand needs its player: the export's fresh engine would run it with no input
     // (the button is off and says so; the batch render fails such a job with its own reason before it gets here).
     if (jdmRhythmPlayedByHand(s)) return;
+    // --- split-screen --- the export renders one engine: a race is recorded with Record Video (a batch job says why it failed)
+    if (s.arenaCount > 1) {
+      batchJob?.settle({ error: t("Controls.splitFastExportNote") });
+      return;
+    }
     const resolution = resolutionToSize(s.recordingResolution);
     const fps = resolveFastExportFps(s.fastExportFps);
     if (!fastRenderSupported()) {
@@ -1426,7 +1568,7 @@ export default function Simulator() {
       fastAbortRef.current = null;
       if (resume) setIsPaused(false);
     }
-  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording]);
+  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t]); // --- split-screen --- (t: a race refuses the export with the panel's note)
   const cancelFastExport = useCallback(() => fastAbortRef.current?.abort(), []);
   // --- end fast-render ---
 
@@ -1815,7 +1957,7 @@ export default function Simulator() {
     setPaused: setIsPaused,
     fastExport,
     supported: fastSupported,
-    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import",
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || settings.arenaCount > 1, // --- split-screen --- (not during a race)
   });
   // --- end batch-render ---
   // --- viral-bot --- the Viral video bot block after the Batch block: it plans clips (lib/bot/planner.ts) in this page's
@@ -1842,7 +1984,8 @@ export default function Simulator() {
   const viralBot = useViralBot({
     locale: isBotLocale(botLocale) ? botLocale : "en",
     copy: (botMessages.ViralBot ?? {}) as BotCopy,
-    getWorld: () => (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
+    // --- split-screen --- during a race the page's engine has the first arena's world: the bot's clips play in the single view's
+    getWorld: () => splitRunnerRef.current?.canvasSize() ?? (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
     applySettings: loadPresetSettings,
     selectMelody: onCustomSoundSelect,
     currentMelody: customSoundId,
@@ -1852,7 +1995,8 @@ export default function Simulator() {
     batchRun: batchRender.panel.run,
     jobProgress: batchRender.panel.jobProgress,
     supported: fastSupported,
-    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || batchRender.running,
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || settings.arenaCount > 1, // --- split-screen --- (its renders go through the batch, which is off during a race)
+    splitRace: settings.arenaCount > 1, // --- split-screen ---
   });
   const urlSeedPinned = useRef(false);
   useEffect(() => {
@@ -1897,7 +2041,8 @@ export default function Simulator() {
     const clipSec = finderOutcome === "escapes-at" ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     setSearchOutcome(finderOutcome ?? "duration");
-    const result = await findSimulation(
+    const result = await findArenaSeeds(
+      findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others')
       {
         targetDurationSec: findDuration,
         toleranceSec: findTolerance,
@@ -1944,6 +2089,7 @@ export default function Simulator() {
       },
       (p) => setSearchProgress(p),
       controller.signal,
+      splitRunnerRef.current?.finderPlan() ?? null, // --- split-screen ---
     );
     finderAbortRef.current = null;
     setIsSearching(false);
@@ -1970,6 +2116,8 @@ export default function Simulator() {
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
+      if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }
   }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam]); // --- rigged --- (the outcome)
 
@@ -2283,6 +2431,7 @@ export default function Simulator() {
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
                   fastRender={fastRenderHost} // --- fast-render ---
                   race={raceRender} // --- jdm-race ---
+                  splitScreen={splitRender} // --- split-screen ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -2578,7 +2727,7 @@ export default function Simulator() {
             onLoadPreset={onLoadPreset}
             onDeletePreset={onDeletePreset}
             themeImage={themeImage} // --- themes
-            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand)
+            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
             bot={viralBot} // --- viral-bot ---
