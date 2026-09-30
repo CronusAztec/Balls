@@ -5197,6 +5197,218 @@ const vxFrameRates = async (ms) => {
 }
 // --- end boris-vortex ---
 
+// --- boris-journey ---
+// 33. Journey: the preview image and the card under its own "Journey modes" heading; URL → the Journey block of the Mode
+// row (the stage rows with their sizes, the stage code, the run line, no Wall Count), the panel's edits → URL (move with
+// the arrows, a size, remove, add before HOME, a pasted stage code, Random Stages) and the search box; a short route at 1×
+// that clears its stages in order at 30+ fps with a swoosh at every transition (OscillatorNode.start is instrumented: the
+// swoosh's sine glide starts at 180 Hz) and finishes at HOME; the finder lands a 30 s seed of the default route and the
+// run keeps the promise at 8×; a 1080×1920 recording keeps 20+ fps and downloads; a fast export swooshes through its own
+// audio and replays the same frames.
+{
+  const res = await page.request.get(`${BASE}/modes/journey.webp`);
+  check("asset /modes/journey.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const card = (await page.locator('img[src$="/modes/journey.webp"]').count()) === 1;
+  const heading = (await page.getByRole("heading", { name: "Journey modes" }).count()) === 1;
+  check("the Journey card is on the landing page under its own heading", card && heading, `(card=${card}, heading=${heading})`);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const jyFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+/** The stage rows of the Journey block as "kind-size". */
+const jyRows = () => page.getByTestId("journey-stages").locator("li").evaluateAll((els) => els.map((e) => `${e.dataset.stage}-${e.dataset.size}`));
+const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
+{
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=rings-s,pegs-l,glass,home`, { waitUntil: "networkidle" });
+  {
+    const rows = await jyRows();
+    const code = await page.locator('input[aria-label="Stage Code"]').inputValue();
+    const run = await page.getByTestId("journey-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noWallCount = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "journey loads its route from the URL",
+      rows.join(",") === "rings-s,pegs-l,glass-m,home-m" && code === "rings-s,pegs-l,glass,home" && /3 stages, then HOME/.test(run) && finderShown && noWallCount,
+      `(${rows.join(",")}, code "${code}", "${run}", finder shown=${finderShown}, no Wall Count=${noWallCount})`,
+    );
+  }
+  await page.getByRole("button", { name: "Move down 1", exact: true }).click();
+  await page.getByRole("button", { name: "Glass 3: Large", exact: true }).click();
+  await page.getByRole("button", { name: "Remove stage 2", exact: true }).click();
+  await page.locator('select[aria-label="Stage to add"]').selectOption("bullseye");
+  await page.getByRole("button", { name: "+ Add", exact: true }).click();
+  await page.waitForTimeout(300);
+  const edited = { rows: (await jyRows()).join(","), query: jyQuery() };
+  await page.locator('input[aria-label="Stage Code"]').fill("funnel-s, bogus, home");
+  await page.locator('input[aria-label="Stage Code"]').press("Enter");
+  await page.waitForTimeout(300);
+  const pasted = { rows: (await jyRows()).join(","), query: jyQuery(), code: await page.locator('input[aria-label="Stage Code"]').inputValue() };
+  check(
+    "journey edits (arrows, size, remove, add, pasted code) mirror into the URL",
+    edited.rows === "pegs-l,glass-l,bullseye-m,home-m" && /(^|&)js=pegs-l,glass-l,bullseye,home(&|$)/.test(edited.query) && pasted.rows === "funnel-s,home-m" && pasted.code === "funnel-s,home" && /(^|&)js=funnel-s,home(&|$)/.test(pasted.query),
+    `(${JSON.stringify(edited)}, ${JSON.stringify(pasted)})`,
+  );
+  await page.locator('input[aria-label="Random Stages"]').evaluate(setRangeValue, "5");
+  await page.waitForTimeout(300);
+  {
+    const run = await page.getByTestId("journey-run").innerText();
+    const listHidden = (await page.getByTestId("journey-stages").count()) === 0;
+    check("Random Stages replaces the list with a seeded route", /random journey of 5 stages/.test(run) && listHidden && /(^|&)jsa=5(&|$)/.test(jyQuery()), `("${run}", list hidden=${listHidden}, ${jyQuery()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("random stages");
+  const found = await page.locator('input[aria-label="Random Stages"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the journey controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A short route at 1×: a small peg field, two glass panes, HOME – stages in order, a swoosh at each of the two transitions.
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=pegs-s,glass-s,home&face=cute`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__jyOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const kinds = [];
+    window.__jyKinds = kinds;
+    const poll = () => {
+      const k = document.querySelector("main canvas")?.dataset.journeyKind;
+      if (k && kinds[kinds.length - 1] !== k) kinds.push(k);
+      if (document.querySelector("main canvas")?.dataset.journeyFinished !== "1") requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(300);
+  const fps = await jyFrameRates(3500);
+  await page.screenshot({ path: path.join(outDir, "sim-journey.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 40000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const kinds = await page.evaluate(() => window.__jyKinds);
+  const swooshes = await page.evaluate(() => window.__jyOsc.filter((f) => f === 180).length);
+  check(
+    "journey: a short route clears its stages in order with a swoosh at every transition at 30+ fps and finishes at HOME",
+    done && kinds.join(",") === "pegs,glass,home" && swooshes === 2 && data.journeySwooshes === "2" && data.journeyHome === "1" && data.journeyFinished === "1" && Number(data.journeyNotes) >= 3 && data.face === "cute" && fps.windows.length >= 6 && fps.min >= fpsFloor(30),
+    `(finished=${done}, stages ${kinds.join(",")}, ${swooshes} swoosh tones, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("journey") && k !== "journeySequence")))}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+}
+{
+  // The finder: the seed moves the default route's length (the rings above all) around the default 30 s clip – a found seed keeps its promise.
+  await page.goto(`${BASE}/en/simulator/?mode=journey`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.journeyFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a 30s journey seed and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.journeyFinished === "1" && data.journeyHome === "1" && Math.abs(Number(data.journeyFinishedMs) / 1000 - promised) < 0.1 && data.journeySwooshes === "7",
+    `(ready=${ready}, "${readyText}", finished at ${data.journeyFinishedMs} ms, swooshes ${data.journeySwooshes})`,
+  );
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default route, glow on.
+  await page.goto(`${BASE}/en/simulator/?mode=journey&dur=10&glow=1`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await jyFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `journey-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 journey recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // ⚡ Fast export of a two-stage route: the swoosh goes through the export's own audio (the offline twin of the
+  // ToneGenerator), the clip ends with the run instead of at the 10 s clip length, and a second export renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=journey&js=pegs-s,home&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const log = [];
+      window.__jyFastOsc = log;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.frequency.value !== 1) log.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `journey-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const swooshes = await page.evaluate(() => window.__jyFastOsc.splice(0).filter((f) => f === 180).length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), swooshes };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a journey fast export swooshes through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.swooshes === 1 && a.seconds > 2 && a.seconds < 9.5 && b.status === "done" && b.swooshes === 1 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the journey has no fast export to check (Record Video is covered above)", true);
+}
+// --- end boris-journey ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

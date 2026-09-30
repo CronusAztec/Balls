@@ -80,6 +80,7 @@ import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
 import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
 import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
 import {
   RANGES,
   defaultSettings,
@@ -260,6 +261,7 @@ export default function Simulator() {
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
+    engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -721,6 +723,21 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
   // --- end boris-vortex ---
+  // --- boris-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setJourneySettings(journeySettingsOf(s));
+    if (s.mode === "journey" && engine.getCurrentModeName() === "journey") {
+      engine.initJourney();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.journeyStages, s.journeyAutoStages]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.journeyStages, s.journeyAutoStages]);
+  // --- end boris-journey ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1079,6 +1096,11 @@ export default function Simulator() {
           // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
+            continue;
+          }
+          // --- boris-journey --- a Journey stage transition swooshes
+          if (ev.swoosh) {
+            audio.playSwoosh();
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -1862,6 +1884,7 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          journey: journeySettingsOf(settings), // --- boris-journey ---
         },
         outcome, // --- rigged ---
       },
@@ -2041,6 +2064,23 @@ export default function Simulator() {
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+      },
+      // --- boris-journey ---
+      journey: {
+        banner: (n, total, name) => fill("Journey.canvasBanner", { n, total, name }),
+        names: {
+          rings: t("Journey.stage_rings"),
+          glass: t("Journey.stage_glass"),
+          pegs: t("Journey.stage_pegs"),
+          multipliers: t("Journey.stage_multipliers"),
+          funnel: t("Journey.stage_funnel"),
+          bullseye: t("Journey.stage_bullseye"),
+          home: t("Journey.stage_home"),
+        },
+        home: t("Journey.canvasHome"),
+        homeTitle: t("Journey.canvasHomeTitle"),
+        homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
+        score: (points) => fill("Journey.canvasScore", { points }),
       },
     };
   }, [t]);

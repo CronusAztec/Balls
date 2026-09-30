@@ -6,7 +6,8 @@
     "modesRhythm": "Tryby rytmiczne i polirytmiczne",
     "faq": "Najczęściej zadawane pytania",
     "howItWorks": "Jak to działa",
-    "modesBattle": "Tryby bitewne"
+    "modesBattle": "Tryby bitewne",
+    "modesJourney": "Tryby podróży"
   },
   "Navbar": {
     "simulator": "Symulator",
@@ -1322,7 +1323,29 @@
     "vxLoop": "Pętla odrodzeń",
     "vxLoopTip": "Połknięta kulka od razu wraca na krawędź, więc wir nigdy się nie kończy – świetne do długich pętli, ale Znajdź symulację nie ma wtedy czego mierzyć.",
     "vxRunInfo": "Nuty z pierścieni: {notes}; bieg trwa około {seconds}s (tempo ziarna: {min}–{max}s), więc Znajdź symulację trafi w długość z tego przedziału.",
-    "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu."
+    "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu.",
+    "modeJourney": "Podróż",
+    "journeyTitle": "Podróż",
+    "journeyDesc": "Kulka pokonuje etap za etapem w drodze do DOMU, a kamera zjeżdża razem z nią. Ułóż trasę poniżej – każdy etap z własnym rozmiarem – albo pozwól, by ziarno wylosowało ją za ciebie.",
+    "journeyAutoStages": "Losowe etapy",
+    "journeyAutoStagesTip": "0 odtwarza twoją listę etapów. 1–12 losuje z ziarna podróż z taką liczbą etapów (plus DOM), więc każde ziarno – i każde, które sprawdza Znajdź symulację – to nowa trasa.",
+    "journeyAutoOff": "Wył.",
+    "journeyStages": "Etapy",
+    "journeyStagesTip": "Trasa od góry do dołu. Wybierz rozmiar każdego etapu (S, M, L: mniej lub więcej pierścieni, tafli, kołków albo bramek i wyższy etap), przesuwaj go strzałkami, usuń przyciskiem ✕ albo dodaj nowy przed DOMEM. DOM jest zawsze ostatni.",
+    "journeySize": "Rozmiar etapu",
+    "journeySizeSmall": "Mały",
+    "journeySizeMedium": "Średni",
+    "journeySizeLarge": "Duży",
+    "journeyMoveUp": "W górę",
+    "journeyMoveDown": "W dół",
+    "journeyRemove": "Usuń etap",
+    "journeyHomeLast": "zawsze ostatni",
+    "journeyAddKind": "Etap do dodania",
+    "journeyAdd": "Dodaj",
+    "journeyStagesCode": "Kod trasy",
+    "journeyStagesCodeTip": "Trasa jako tekst: nazwy etapów oddzielone przecinkami, „-s” lub „-l” dla małego albo dużego etapu (np. rings,pegs-l,glass-s,multipliers,home). Wklej kod, żeby wczytać trasę – to właśnie niosą linki do udostępniania.",
+    "journeyRunInfo": "{count, plural, one {# etap} few {# etapy} many {# etapów} other {# etapu}}, potem DOM. Każda podróż kończy się w DOMU, więc Znajdź symulację może dobrać ziarno do długości klipu.",
+    "journeyRunAuto": "Losowa podróż: {count, plural, one {# etap} few {# etapy} many {# etapów} other {# etapu}}, potem DOM – trasę losuje ziarno, więc każde ziarno to nowa droga."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1399,6 +1422,10 @@
     "vortex": {
       "name": "Dźwiękowy wir",
       "description": "Pew! Kulki wpadają do wiru dźwiękowych pierścieni i spiralą opadają do dziury pośrodku – każdy mijany pierścień gra kolejną nutę, więc każda kulka to wznoszące się glissando, a kulki wpuszczane jedna po drugiej splatają się w arpeggia. Na dnie dziura połyka je z „pew” i pluskiem."
+    },
+    "journey": {
+      "name": "Podróż",
+      "description": "Boris odbija się w drodze do domu: kolumna etapów – pierścienie do ucieczki, szkło do rozbicia, kołki, bramki mnożników, lejek, tarcza – jeden po drugim, a kamera zjeżdża w dół. Każdy etap ma swój baner i świst, aż Boris przejdzie przez własne drzwi DOMU."
     }
   },
   "Features": {
@@ -1552,7 +1579,8 @@
     "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu.",
     "modeRunner": "Rytmiczny bieg w stylu project.jdm „realistyczna grawitacja w Geometry Dash”, bez pierścieni: kwadrat biegnie po podłodze ze stałą prędkością pod przewijaną kamerą. Trasa jest planowana na bitach wczytanej piosenki (jej wykryty bit – ten sam detektor co w Malowaniu obrazka) albo tempa BPM: dla każdej przeszkody – rzędu kolców, dziury, bloku, na który się wskakuje, a potem z niego zeskakuje – solver skoków bierze czas lotu skoku z prawdziwą grawitacją i stałą prędkością wybicia i ustawia wybicie tak, żeby lądowanie wypadło dokładnie na bicie. Z automatycznym skokiem kwadrat skacze w tych chwilach i nigdy się nie myli; bez niego skaczesz Spacją, a zderzenie wznawia odcinek. Każde lądowanie gra kolejną nutę i wzbija obłoczek kurzu; meta gra akord.",
     "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie.",
-    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu."
+    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu.",
+    "modeJourney": "Format dojazdów z borisbounces – „Boris bounces through his commute”, „let him out!”: kolumna etapów, które kulka pokonuje jeden po drugim, a kamera zjeżdża w dół. Pierścienie to kompaktowa ucieczka jak w trybie Klasycznym (3–9 pierścieni z obracającymi się przerwami; kulka wpada rynną do środka), Szkło to kilka tafli z Rozbijania szkła, które pękają przy każdym lądowaniu i rozpryskują się, Kołki to pole kołków ze Spadających piłek, którego rzędy grają wznoszącą się skalę, Mnożniki to dwa lub trzy rzędy bramek (x2 DMG, x1.5 SPEED, x1.25 SIZE), które wzmacniają kulkę na resztę drogi, Lejek to zwężający się lejek, Tarcza to cel do lądowania wart 10–100 punktów, zanim otworzy się zapadnia, a DOM to drzwi z konfetti i łącznym czasem. Każda zmiana etapu pokazuje baner i odtwarza świst, minimapa obok kolumny pokazuje, jak daleko zaszedł Boris, a każda nuta przechodzi przez twój instrument, skalę, synchronizację z rytmem, sample uderzeń i melodię. Ułóż trasę w bloku Podróż (rozmiary, kolejność, dodawanie i usuwanie) albo pozwól, by ziarno wylosowało ją za ciebie; każdy przebieg jest deterministyczny i zawsze dociera do DOMU, więc Znajdź symulację może dobrać ziarno do długości klipu."
   },
   "Footer": {
     "about": "O nas",
@@ -1896,5 +1924,20 @@
     "canvasPews": "[count] × PEW",
     "canvasDone": "PEW!",
     "canvasDoneSub": "połknięte kulki: [balls] · nuty: [notes]"
+  },
+  "Journey": {
+    "canvasBanner": "Etap [n]/[total]: [name]",
+    "canvasHome": "DOM",
+    "canvasHomeTitle": "W DOMU!",
+    "canvasHomeSub": "etapy: [stages] · [seconds] s",
+    "canvasHomeSubScore": "etapy: [stages] · [seconds] s · [score] pkt",
+    "canvasScore": "[points] pkt",
+    "stage_rings": "Pierścienie",
+    "stage_glass": "Szkło",
+    "stage_pegs": "Kołki",
+    "stage_multipliers": "Mnożniki",
+    "stage_funnel": "Lejek",
+    "stage_bullseye": "Tarcza",
+    "stage_home": "Dom"
   }
 }
