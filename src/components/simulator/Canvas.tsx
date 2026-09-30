@@ -59,6 +59,8 @@ import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOpt
 import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_KEYS, RunnerLayer, writePaddleDataset, writeRunnerDataset, type JdmRhythmLabels, type JdmRhythmRenderOptions } from "./jdmRhythmRenderer";
 // --- boris-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
+// --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
+import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -140,6 +142,9 @@ export interface CanvasLabels {
   // --- boris-vortex ---
   /** Sound Vortex: the HUD title, the swallowed / pew counter and the banner when every ball is gone. */
   vortex?: VortexLabels;
+  // --- beat-drop ---
+  /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
+  beatDrop?: BeatDropLabels;
 }
 
 export interface CanvasHandle {
@@ -291,6 +296,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
   powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
   vortex: DEFAULT_VORTEX_LABELS, // --- boris-vortex ---
+  beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -716,6 +722,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- boris-vortex --- the Sound Vortex's layer (cached gradients) and its per-frame options
     const vortexLayer = new VortexLayer();
     const vortexRender: VortexRenderOptions = { wallAlpha: () => "#fff", rainbow: true, wallThickness: 2, showWallGlow: true, ballRadius: 8 };
+    // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
+    const bdLayer = new BeatDropLayer();
+    const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
+    let bdTeams: CanvasTeamOptions | null | undefined;
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -978,6 +988,27 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
         ctx.save();
         rrLayer.applyCamera(ctx, rrView);
+      }
+      // --- beat-drop --- Beat Drop draws its own dark scene and follows the ball with its own critically damped camera (the view
+      // set up above is dropped; the cinematic camera's shake still applies); the frame is drawn at the engine's time plus the
+      // leftover accumulator, so the ball and the pads move sub-frame smoothly at any playback speed
+      const bdView = engine.isBeatDropMode() ? engine.getBeatDropView() : null;
+      if (bdView) {
+        ctx.restore();
+        bdLayer.beginFrame(bdView, engine.getElapsedMs(), accumulator);
+        bdLayer.drawBackdrop(ctx, bdView, size.width, size.height);
+        ctx.save();
+        bdLayer.applyCamera(ctx, bdView, cam.shakeNow());
+        if (teamsRef.current !== bdTeams) {
+          bdTeams = teamsRef.current;
+          bdRender.teamColors = bdTeams ? bdTeams.roster.map((team) => team.color) : [];
+        }
+        bdRender.wallThickness = p.wallThickness;
+        bdRender.showWallGlow = p.showWallGlow;
+        bdRender.showTrail = bdView.settings.trail && p.showTrails;
+        bdRender.trailThickness = p.trailThickness;
+        bdRender.colorTrail = p.colorTrail;
+        bdRender.ballColor = drawnBalls[0]?.color ?? "#ffffff";
       }
       // --- boris-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
@@ -1260,6 +1291,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         vortexRender.ballRadius = engine.config.ballRadius || 8;
         vortexLayer.drawWorld(ctx, vortexView, vortexRender);
       }
+      // --- beat-drop --- the obstructions (flying in, settled, squashing, glowing with the beat, leaving) and the ball's trail
+      if (bdView) bdLayer.drawWorld(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender);
       // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
       if (raceView) {
         raceRender.wallColor = wallColor;
@@ -1719,7 +1752,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Balls
-      const balls = drawnBalls; // --- camera: the replayed balls and trails during the escape replay, or the balls between steps in slow motion
+      const balls = bdView ? bdLayer.frameBalls(drawnBalls, bdView, bdRender) : drawnBalls; // --- camera: the replayed balls and trails during the escape replay, or the balls between steps in slow motion (--- beat-drop --- the ball where the plan has it at the frame's time)
       const isColorMatch = engine.isColorMatchMode();
       const matchColor = isColorMatch ? engine.getColorMatchBallColor() : null;
       const rainbowColors: string[] = [];
@@ -1831,6 +1864,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- boris-faces --- squash-and-stretch around the body, the cat's ears behind it
         const squashed = faces.pushSquash(ctx, ball);
+        const bdSquashed = bdView ? bdLayer.pushBallSquash(ctx, ball, bdView) : false; // --- beat-drop --- squash on impact, stretch in flight
         faces.drawBehind(ctx, ball, color, hasSprite || !!teamSprite, index);
         // Body: emoji, image or shaded disc
         if (teamSprite) {
@@ -1907,6 +1941,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         // --- boris-faces --- the face on the body (squashed with it), then the name label under the ball
         faces.drawFront(ctx, ball, color, hasSprite || !!teamSprite, index);
+        if (bdSquashed) ctx.restore(); // --- beat-drop ---
         if (squashed) ctx.restore();
         faces.drawLabel(ctx, ball, index);
         // --- teams --- a ring in the team colour where the body does not wear it, and the team's name above its first ball
@@ -1955,6 +1990,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
       if (rrView) rrLayer.drawParticles(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- landing dust, crash debris, finish sparks
       if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- boris-vortex --- the throat's shade, note pulses and splashes over the balls
+      if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -2069,6 +2105,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
       // --- boris-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // --- beat-drop --- Beat Drop: the title, the tempo, the landings and the bar's beats (screen space, part of the recording)
+      if (bdView) bdLayer.drawOverlay(ctx, bdView, (labelsRef.current ?? DEFAULT_LABELS).beatDrop ?? DEFAULT_BEAT_DROP_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
       if (arenaView) arenaLayer.drawOverlay(ctx, size.width, size.height, arenaView, arenaRender);
       // --- jdm-rhythm-runner --- progress, tempo, attempts and LEVEL COMPLETE! / score, lives, MISS! and GAME OVER (screen space,
@@ -2300,6 +2338,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (vortexView && vortexView.allSwallowed) {
           const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
           bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
+        }
+        // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
+        if (bdView && bdLayer.finale(bdView)) {
+          const BD = L.beatDrop ?? DEFAULT_BEAT_DROP_LABELS;
+          bigBanner(BD.done, BD.doneSub(bdView.landed, bdView.maxErrorMs.toFixed(3)), "#a3e635");
         }
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
@@ -2771,6 +2814,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- boris-vortex --- balls, entered, swallowed, in flight, notes, chords, rings, the deepest ring, loop, tempo, depth, finished (data-vortex-*)
       if (vortexView) writeVortexDataset(vortexView, setCanvasData);
       else if (canvas.dataset.vortexBalls !== undefined) for (const key of VORTEX_DATA_KEYS) delete canvas.dataset[key];
+      // --- beat-drop --- landings (measured times and their beats), error, tempo, pads alive, drums, camera, finish (data-bd-*)
+      if (bdView) writeBeatDropDataset(bdView, bdLayer, setCanvasData);
+      else if (canvas.dataset.bdLanded !== undefined) for (const key of BEAT_DROP_DATA_KEYS) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

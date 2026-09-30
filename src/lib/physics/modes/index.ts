@@ -59,3 +59,6 @@ export type { PaddleSettings, PaddleView, PaddleField, PaddleInput, PaddlePhase 
 // --- boris-vortex ---
 export { VortexMode } from "./vortex";
 export type { VortexSettings, VortexField, VortexView, SpiralState } from "./vortex";
+// --- beat-drop ---
+export { BeatDropMode } from "./beatDrop";
+export type { BeatDropSettings, BeatDropView, BeatDropField, BeatDropSound, BeatDropColorMode } from "./beatDrop";
