@@ -79,6 +79,13 @@ export const PLATFORMS: Record<BotPlatform, PlatformProfile> = {
   shorts: { id: "shorts", defaultBucket: "short", buckets: ["short", "standard"], tag: "#shorts", postingTimes: ["12:00", "17:00", "20:00"] },
 };
 
+/**
+ * The modes whose own scoreboard band covers the top of the square (arenaGames.ts HUD_BAND: "7 LEFT" and the contestant
+ * chips of the battle royale, the score and the clock of capture the flag) – right where the recorder draws the Top Text.
+ * Their series label goes in the Bottom Text instead, and the canvas starts the top captions below the band.
+ */
+export const TOP_HUD_MODES: readonly ModeId[] = ["battle", "ctf"];
+
 /** §3.8: vertical 1080 × 1920 at 60 fps. */
 export const BOT_FRAME = { width: 1080, height: 1920, fps: 60, resolution: "1080x1920" } as const;
 
@@ -191,6 +198,11 @@ export interface BotRecipe {
   settings: (ctx: RecipeContext) => Partial<SimulatorSettings> & { mode: ModeId };
   /** The variables of its hook and captions for these settings. */
   hookVars: (s: SimulatorSettings) => HookVars;
+  /**
+   * Variables whose words come from the copy for these settings: variable → path under `ViralBot` (e.g. Power Layers'
+   * `{rule}` → `plRules.fibonacci`), so the hook states the rule the clip really plays by, in the clip's language.
+   */
+  copyVars?: (s: SimulatorSettings) => Record<string, string>;
 }
 
 /* seeded helpers ---------------------------------------------------------- */
@@ -236,7 +248,10 @@ export function powerLayersPayoffSec(layers: number, sequence: PlSequence, speed
   return total === null ? null : total - FREEDOM_HOLD_SEC;
 }
 
-/** Layers, sequence and speed whose payoff comes closest to `target` (the doubling rule first – the hook of the format). */
+/**
+ * Layers, sequence and speed whose payoff comes closest to `target` (the doubling rule first – the classic hook of the
+ * format; a longer clip needs a slower sequence, and the hook's `{rule}` then names that one, see `copyVars`).
+ */
 export function powerLayersForPayoff(rng: () => number, target: number): { plLayers: number; plSequence: PlSequence; plSpeed: number } {
   const R = POWER_LAYERS_RANGES;
   const startLayers = stepBetween(rng, 200, R.plLayers.max, R.plLayers.step);
@@ -382,6 +397,8 @@ export const RECIPES: readonly BotRecipe[] = [
       plPills: false, // the hook caption states the rule where the pills would sit
     }),
     hookVars: (s) => ({ layers: s.plLayers, sequence: s.plSequence }),
+    // The rule on screen is the sequence the run plays (ViralBot.plRules), and #itdoubles only when it doubles (plTags).
+    copyVars: (s) => ({ rule: `plRules.${s.plSequence}`, ruleTag: `plTags.${s.plSequence}` }),
   },
   /* ---------------------------------------------------------------- rhythm (music-first, project.jdm) */
   {

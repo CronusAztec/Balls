@@ -1827,12 +1827,14 @@ export default function Simulator() {
     supported: fastSupported,
     disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || batchRender.running,
   });
+  // The link's seed is read in the first render: the URL mirror (settingsToSearchParams, which has no seed) replaces the
+  // address before the engine is ready, and useSearchParams follows it.
+  const [urlSeed] = useState(() => parseSeed(searchParams.get("seed")));
   const urlSeedPinned = useRef(false);
   useEffect(() => {
     if (!engineReady || urlSeedPinned.current) return;
     urlSeedPinned.current = true;
-    const seed = parseSeed(searchParams.get("seed"));
-    if (seed !== null) pinBotSeed(seed);
+    if (urlSeed !== null) pinBotSeed(urlSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engineReady]);
   // --- end viral-bot ---

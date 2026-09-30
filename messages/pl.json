@@ -1980,6 +1980,7 @@
       "hookMissing": "Brak tekstu hooka – widz bez dźwięku nie zna zasady.",
       "countdownCaption": "Odliczanie na ekranie ({kind}).",
       "countdownHud": "Tryb sam pokazuje odliczanie ({kind}).",
+      "countdownHudCovered": "Tryb pokazuje odliczanie ({kind}), ale zasłania je górny tekst.",
       "countdownUnsafe": "Napis z odliczaniem częściowo poza bezpieczną strefą.",
       "countdownMissing": "Nie widać odliczania do finału.",
       "payoffOk": "Finał po {sec} s – {pct}% długości klipu.",
@@ -2001,6 +2002,7 @@
       "endingNoQuestion": "Ucięte bez pytania na ekranie.",
       "seriesOk": "Część serii: „{label}”, stała obsada.",
       "seriesWeak": "Słaba ciągłość serii (brak etykiety lub obsady).",
+      "seriesCovered": "Etykieta serii leży na tablicy wyników trybu – nie da się odczytać ani jednej, ani drugiej.",
       "lookOk": "Neon na czerni, poświata i smugi.",
       "lookOff": "To nie jest styl neonu na czerni."
     },
@@ -2044,6 +2046,20 @@
       "ending": "Zakończenie",
       "score": "Ocena",
       "hook": "Hook"
+    },
+    "plRules": {
+      "double": "Każde uderzenie podwaja moc",
+      "fibonacci": "Moc rośnie jak ciąg Fibonacciego",
+      "primes": "Moc rośnie po liczbach pierwszych",
+      "plusOne": "Każde uderzenie dodaje +1 mocy",
+      "random": "Każde uderzenie ma losową moc"
+    },
+    "plTags": {
+      "double": "#podwaja",
+      "fibonacci": "#fibonacci",
+      "primes": "#liczbypierwsze",
+      "plusOne": "",
+      "random": ""
     },
     "recipes": {
       "ringEscape": {
@@ -2105,13 +2121,13 @@
       "powerLayers": {
         "name": "Warstwy mocy",
         "series": "Warstwy mocy",
-        "hook": "Każde uderzenie podwaja moc. Zostało {layers} warstw.",
+        "hook": "{rule}. Zostało {layers} warstw.",
         "payoff": "WOLNOŚĆ 🌈",
         "cliffQuestion": "Jeszcze jedno uderzenie? 👇",
         "postQuestion": "Ile uderzeń trzeba było na {layers} warstw?",
         "cliffPostQuestion": "Ile uderzeń do przebicia? Zgaduj 👇",
-        "keywords": "Piłka rozbija tęczowy stos warstw, a jej moc podwaja się przy każdym uderzeniu – satysfakcjonująca symulacja przebijania warstw.",
-        "hashtags": "#warstwymocy #podwaja #teczowewarstwy"
+        "keywords": "Piłka rozbija tęczowy stos warstw i z każdym odbiciem uderza mocniej – satysfakcjonująca symulacja przebijania warstw.",
+        "hashtags": "#warstwymocy {ruleTag} #teczowewarstwy"
       },
       "pendulumWave": {
         "name": "Fala wahadeł",

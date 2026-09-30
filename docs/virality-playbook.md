@@ -100,8 +100,16 @@ What the simulator taught us while building it **[observed in our own planner ru
   most 76 % of the frame wide; the bot splits the hook into one-line pills of at most ~68 % of the width (a conservative text
   estimate), and everything it places stays inside the centred square, above the bottom fifth.
 - **Posting needs a public MP4.** The Instagram Graph API publishes a Reel in two steps (a `REELS` container from a public video
-  URL, then `media_publish` once its `status_code` is `FINISHED`) and takes MP4 (H.264 + AAC); a Chromium without an H.264
-  encoder exports WebM, which has to be converted or posted from a Chrome export.
+  URL, then `media_publish` once its `status_code` is `FINISHED`) and takes MP4 (H.264 + AAC). A Chromium without H.264 + AAC
+  encoders exports WebM – Playwright's Chromium on Linux has neither, and Google Chrome on Linux has no AAC encoder – so the
+  CLI converts every WebM clip to MP4 with ffmpeg before anything is uploaded (the daily job installs it) and never posts a WebM.
+- **The race is won at the line, not on the podium.** The square race names its winner – callout, fanfare, "wins!" badge – the
+  moment the first racer crosses; the podium comes 5–10 s later. The bot times the payoff (and a cliffhanger's cut) at that
+  first crossing and cuts a resolved race at 85 % instead of waiting for the podium.
+- **Say the rule the clip plays by.** Power Layers only reaches a long clip with a slower sequence than doubling (Fibonacci,
+  +1 per hit); the hook names the sequence the clip really uses, and #itdoubles is only added when it doubles.
+- **Arena games own the top of the square.** Battle royale and capture the flag draw their scoreboard band ("7 LEFT", the
+  score and the clock) where the Top Text goes, so their series label is the Bottom Text and the captions start below the band.
 - **Posting times are placeholders.** The slots (Reels 12:00 / 18:00 / 21:00, TikTok 13:00 / 19:00 / 22:00, Shorts 12:00 /
   17:00 / 20:00 local) are the usual lunch / after-work / evening windows **[inferred]**; replace them with the hours your own
   Insights show.

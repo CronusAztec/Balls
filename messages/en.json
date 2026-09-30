@@ -2203,6 +2203,7 @@
       "hookMissing": "No hook text – a silent viewer does not know the rule.",
       "countdownCaption": "Countdown on screen ({kind}).",
       "countdownHud": "The mode shows the countdown itself ({kind}).",
+      "countdownHudCovered": "The mode shows the countdown ({kind}), but the Top Text covers it.",
       "countdownUnsafe": "Countdown caption partly outside the safe zone.",
       "countdownMissing": "No visible countdown to the payoff.",
       "payoffOk": "Payoff at {sec} s – {pct} % into the clip.",
@@ -2224,6 +2225,7 @@
       "endingNoQuestion": "Cut short without a question on screen.",
       "seriesOk": "Part of a series: “{label}”, recurring cast.",
       "seriesWeak": "Weak series continuity (label or cast missing).",
+      "seriesCovered": "The series label sits on the mode's own scoreboard – neither can be read.",
       "lookOk": "Neon on black, glow and trails.",
       "lookOff": "Not the neon-on-black look."
     },
@@ -2267,6 +2269,20 @@
       "ending": "Ending",
       "score": "Score",
       "hook": "Hook"
+    },
+    "plRules": {
+      "double": "Every hit doubles the power",
+      "fibonacci": "Power grows like Fibonacci",
+      "primes": "Power climbs through the primes",
+      "plusOne": "Every hit adds +1 power",
+      "random": "Every hit gets a random power"
+    },
+    "plTags": {
+      "double": "#itdoubles",
+      "fibonacci": "#fibonacci",
+      "primes": "#primenumbers",
+      "plusOne": "",
+      "random": ""
     },
     "recipes": {
       "ringEscape": {
@@ -2328,13 +2344,13 @@
       "powerLayers": {
         "name": "Power layers",
         "series": "Power Layers",
-        "hook": "Every hit doubles the power. {layers} layers to go.",
+        "hook": "{rule}. {layers} layers to go.",
         "payoff": "FREEDOM 🌈",
         "cliffQuestion": "One more hit? 👇",
         "postQuestion": "How many hits did it take to break {layers} layers?",
         "cliffPostQuestion": "How many hits to break through? Guess 👇",
-        "keywords": "A ball smashes a rainbow stack of layers and its power doubles on every hit – a satisfying layer-breaking simulation.",
-        "hashtags": "#powerlayers #itdoubles #rainbowlayers"
+        "keywords": "A ball smashes a rainbow stack of layers and hits harder with every bounce – a satisfying layer-breaking simulation.",
+        "hashtags": "#powerlayers {ruleTag} #rainbowlayers"
       },
       "pendulumWave": {
         "name": "Pendulum wave",
