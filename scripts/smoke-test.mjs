@@ -136,7 +136,7 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
 
 // 1. Static pages in every locale
 for (const locale of ["en", "pl", "es"]) {
-  for (const p of ["", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer"]) {
+  for (const p of ["", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */]) {
     const res = await page.goto(`${BASE}/${locale}${p}/`, { waitUntil: "networkidle" });
     const h1 = await page.locator("h1").first().innerText().catch(() => "");
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
@@ -6473,6 +6473,296 @@ const bdInstrument = () =>
   check("the String Battle's warning badge moves to the top-right corner when the teams scoreboard takes the top-left one", roster.badge === "1" && roster.right === "1" && plain.badge === "1" && plain.right === "0", `(${JSON.stringify({ roster, plain })})`);
 }
 // --- end review fix (modes-boris-odd) ---
+
+// --- daily-gallery --- the preset gallery (cards, preview images, Try it) and the daily challenge (the landing card, daily=
+// links, the Play today's seed button, the end-of-run panel that copies the challenge link, the streak)
+{
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(BASE).origin });
+  const basePath = new URL(BASE).pathname.replace(/\/+$/, "");
+  const search = () => new URLSearchParams(new URL(page.url()).search);
+  const pinnedRun = (mode, seed, daily) =>
+    page
+      .waitForFunction(
+        ([m, sd, d]) => {
+          const p = new URLSearchParams(location.search);
+          return p.get("mode") === m && document.querySelector("main canvas")?.getAttribute("data-seed") === sd && (d === null || p.get("daily") === d);
+        },
+        [mode, seed, daily],
+        { timeout: 15000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+
+  // 1. The gallery: a dozen or more cards, every preview image served under the base path, linked from the navbar, the
+  //    footer and the sitemap.
+  await page.goto(`${BASE}/en/gallery/`, { waitUntil: "networkidle" });
+  const cards = await page.$$eval("[data-gallery-card]", (els) => els.map((el) => ({ id: el.getAttribute("data-gallery-card"), mode: el.getAttribute("data-gallery-mode"), query: el.getAttribute("data-gallery-query"), img: el.querySelector("img")?.getAttribute("src") ?? "" })));
+  const served = [];
+  for (const card of cards) {
+    const res = await page.request.get(new URL(card.img, page.url()).href);
+    served.push({ id: card.id, ok: res.ok() && /image\/webp/.test(res.headers()["content-type"] ?? "") && card.img.startsWith(`${basePath}/gallery/`) });
+  }
+  const firstImg = page.locator("[data-gallery-card] img").first();
+  await firstImg.scrollIntoViewIfNeeded().catch(() => {});
+  const firstLoaded = await firstImg.evaluate((img) => (img.complete && img.naturalWidth > 0) || new Promise((r) => { img.onload = () => r(img.naturalWidth > 0); img.onerror = () => r(false); setTimeout(() => r(img.naturalWidth > 0), 5000); })).catch(() => false);
+  check("gallery: at least 12 preset cards, every preview image served (WebP, under the base path) and shown", cards.length >= 12 && served.every((x) => x.ok) && firstLoaded, `(${cards.length} cards, missing: ${served.filter((x) => !x.ok).map((x) => x.id).join(", ") || "none"})`);
+  const navLink = await page.locator("header").getByRole("link", { name: "Gallery", exact: true }).first().isVisible().catch(() => false);
+  const footerLink = await page.locator("footer").getByRole("link", { name: "Gallery", exact: true }).count();
+  const sitemapXml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
+  check("gallery: linked from the navbar and the footer, and in the sitemap in every language", navLink && footerLink > 0 && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/gallery/`)), `(nav ${navLink}, footer ${footerLink})`);
+  await page.screenshot({ path: path.join(outDir, "gallery.png") });
+
+  // 2. Try it: the simulator opens with the preset's settings and its pinned seed, and the run plays.
+  const firstCard = cards[0];
+  const preset = new URLSearchParams(firstCard?.query ?? "");
+  await page.locator(`[data-gallery-card="${firstCard?.id}"]`).getByRole("link", { name: /Try it/ }).click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  const presetPinned = await pinnedRun(firstCard?.mode, preset.get("seed"), null);
+  const presetKept = [...preset].filter(([k]) => k !== "seed").every(([k, v]) => search().get(k) === v);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const presetTime = await page.locator("span.tabular-nums").first().innerText().catch(() => "");
+  check("gallery: Try it opens the simulator with the preset applied and its seed pinned, and the run plays", presetPinned && presetKept && /\d/.test(presetTime) && presetTime !== "0.0s", `(${firstCard?.id}: pinned ${presetPinned}, settings kept ${presetKept}, elapsed ${presetTime})`);
+  await page.goto(`${BASE}/pl/gallery/`, { waitUntil: "networkidle" });
+  const plTry = await page.getByRole("link", { name: /Wypróbuj/ }).count();
+  check("gallery: the Polish gallery speaks Polish", plTry === cards.length, `(${plTry} "Wypróbuj" links)`);
+
+  // 3. The landing card: today's (UTC) challenge right below the hero.
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_daily"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => !!document.querySelector("[data-testid=daily-card]")?.getAttribute("data-daily-mode"), null, { timeout: 10000 }).catch(() => {});
+  const daily = await page.getByTestId("daily-card").evaluate((el) => ({ date: el.getAttribute("data-daily-date"), mode: el.getAttribute("data-daily-mode"), seed: el.getAttribute("data-daily-seed") })).catch(() => ({}));
+  const belowHero = await page.evaluate(() => {
+    const card = document.querySelector("[data-testid=daily-card]");
+    const hero = document.querySelector("h1");
+    const modes = document.getElementById("modes");
+    return !!card && !!hero && !!modes && !!(hero.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(card.compareDocumentPosition(modes) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  check("daily: the landing card shows today's UTC challenge (mode, seed) between the hero and the mode cards", daily.date === todayUtc && !!daily.mode && /^\d+$/.test(daily.seed ?? "") && belowHero, `(${JSON.stringify(daily)})`);
+
+  // 4. Its Play button opens daily=1: today's mode with its seed pinned, the address keeps daily=<date>.
+  await page.getByTestId("daily-play").click();
+  await page.waitForURL(/\/en\/simulator\//, { timeout: 15000 }).catch(() => {});
+  const cardPinned = await pinnedRun(daily.mode, daily.seed, daily.date);
+  const barActive = await page.getByTestId("daily-bar").getAttribute("data-daily-active").catch(() => null);
+  check("daily: the card's Play today's seed opens today's mode with its seed pinned (daily=<date> in the address)", cardPinned && barActive === daily.date, `(${page.url().slice(0, 140)}, bar ${barActive})`);
+
+  // 5. A mode change ends the challenge: the bar forgets it and the address drops daily=.
+  await page.evaluate((mode) => window.dispatchEvent(new CustomEvent("jumpingballslive:select-mode", { detail: mode })), daily.mode === "lines" ? "classic" : "lines");
+  const ended = await page.waitForFunction(() => document.querySelector("[data-testid=daily-bar]")?.getAttribute("data-daily-active") === "" && !new URLSearchParams(location.search).has("daily"), null, { timeout: 10000 }).then(() => true).catch(() => false);
+  check("daily: changing the mode ends the challenge (the bar and the address forget it)", ended, `(${page.url().slice(0, 120)})`);
+
+  // 6. The simulator's Play today's seed button loads it from any setup.
+  await page.goto(`${BASE}/en/simulator/?mode=lines&g=450&ac=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Play today's seed/ }).click();
+  const buttonPinned = await pinnedRun(daily.mode, daily.seed, daily.date);
+  check("daily: the simulator's Play today's seed button loads today's challenge over any setup (a race ends)", buttonPinned && !search().has("ac") && search().get("g") !== "450", `(${page.url().slice(0, 140)})`);
+
+  // 7. The finished run: the end-of-run panel with the run length and the streak; its button copies the challenge link;
+  //    the landing card then shows the day as played.
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const panel = await page.getByTestId("daily-result").waitFor({ timeout: 150000 }).then(() => true).catch(() => false);
+  const panelText = panel ? await page.getByTestId("daily-result").innerText() : "";
+  await page.screenshot({ path: path.join(outDir, "daily-result.png") });
+  let copied = "";
+  if (panel) {
+    await page.getByRole("button", { name: /Copy challenge link/ }).click();
+    await page.getByText(/Copied – paste it anywhere/).waitFor({ timeout: 5000 }).catch(() => {});
+    copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+  }
+  check(
+    "daily: a finished daily run shows the end-of-run panel (number, run length, streak) and copies the challenge link",
+    panel && /#\d+/.test(panelText) && /\d+\.\d s/.test(panelText) && /1 day in a row/.test(panelText) && copied === `${new URL(BASE).origin}${basePath}/en/simulator/?daily=${daily.date}`,
+    `(${panelText.replace(/\s+/g, " ").slice(0, 120)} → ${copied})`,
+  );
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const played = await page.getByTestId("daily-played").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check("daily: the landing card shows today's challenge as played, with the streak", played && (await page.getByText(/1 day in a row/).count()) > 0, "");
+
+  // 8. A shared link opens that day's challenge; a bad or future date opens the link as usual.
+  await page.goto(`${BASE}/en/simulator/?daily=2026-09-30`, { waitUntil: "networkidle" });
+  const epoch = await page.waitForFunction(() => document.querySelector("[data-testid=daily-bar]")?.getAttribute("data-daily-active") === "2026-09-30", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const epochBar = await page.getByTestId("daily-bar").innerText().catch(() => "");
+  await page.goto(`${BASE}/en/simulator/?daily=2999-01-01&mode=lines&g=450`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  const ignored = search().get("mode") === "lines" && search().get("g") === "450" && !search().has("daily") && (await page.getByTestId("daily-bar").getAttribute("data-daily-active")) === "";
+  check("daily: daily=<date> opens that day's challenge (#1 on 2026-09-30); a future or bad date opens the link as usual", epoch && /#1 /.test(epochBar) && ignored, `(${epochBar.split("\n")[0]}, ignored ${ignored})`);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_daily"));
+}
+// --- end daily-gallery ---
+
+// --- pwa --- Installable offline app: the manifest, the icons, the offline page and the worker are served and linked; the worker
+// takes over and precaches the app shell in a versioned cache; offline (a local proxy in front of the server drops every
+// connection) the simulator loads from the cache and runs, and a page never visited shows the offline page in its language; after
+// a "new deploy" (the proxy marks every page and gives sw.js a new version) the page comes from the network, the new worker replaces
+// the old cache and serves the new pages offline.
+{
+  const http = await import("node:http");
+  const basePath = new URL(BASE).pathname.replace(/\/+$/, "");
+  const swRes = await page.request.get(`${BASE}/sw.js`);
+  const swText = swRes.ok() ? await swRes.text() : "";
+  const version = swText.match(/"version": "([0-9a-f]+)"/)?.[1] ?? null;
+  check(
+    "pwa: /sw.js is served as JavaScript with its version and precache list",
+    swRes.ok() && /javascript/.test(swRes.headers()["content-type"] ?? "") && !!version && swText.includes('"offline.html"') && swText.includes('"_next/static/'),
+    `(${swRes.status()}, ${swRes.headers()["content-type"]}, version ${version})`,
+  );
+  const manRes = await page.request.get(`${BASE}/manifest.webmanifest`);
+  const manifest = manRes.ok() ? await manRes.json().catch(() => null) : null;
+  check(
+    "pwa: manifest.webmanifest starts the standalone app on /en/ under the base path",
+    !!manifest && manifest.start_url === `${basePath}/en/` && manifest.scope === `${basePath}/` && manifest.display === "standalone" && !!manifest.theme_color && !!manifest.background_color && !!manifest.name,
+    `(${manRes.status()}, ${manRes.headers()["content-type"]}, ${JSON.stringify(manifest && { name: manifest.name, start_url: manifest.start_url, scope: manifest.scope, display: manifest.display })})`,
+  );
+  const icons = [];
+  for (const icon of manifest?.icons ?? []) {
+    const res = await page.request.get(new URL(icon.src, `${BASE}/`).href);
+    icons.push({ src: icon.src, sizes: icon.sizes, purpose: icon.purpose, ok: res.ok(), type: res.headers()["content-type"] });
+  }
+  check(
+    "pwa: every manifest icon is served (192, 512 and maskable PNGs)",
+    icons.length >= 4 && icons.every((i) => i.ok && (!i.src.endsWith(".png") || i.type === "image/png")) && icons.some((i) => i.purpose === "maskable") && icons.some((i) => i.sizes === "192x192"),
+    `(${JSON.stringify(icons)})`,
+  );
+  const offRes = await page.request.get(`${BASE}/offline.html`);
+  check("pwa: offline.html is served", offRes.ok() && (await offRes.text()).includes("data-pwa-offline"), `(${offRes.status()})`);
+  for (const url of [`${BASE}/pl/`, `${BASE}/pl/this-page-does-not-exist/`]) {
+    await page.goto(url, { waitUntil: "networkidle" });
+    const head = await page.evaluate(() => ({
+      manifest: document.querySelector('link[rel="manifest"]')?.getAttribute("href") ?? null,
+      theme: document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null,
+      apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href") ?? null,
+    }));
+    check(
+      `pwa: ${url.slice(BASE.length)} links the manifest, the apple-touch-icon and a theme colour`,
+      head.manifest === `${basePath}/manifest.webmanifest` && !!head.theme && !!head.apple?.endsWith("/icons/apple-touch-icon.png"),
+      `(${JSON.stringify(head)})`,
+    );
+  }
+  const reg = await page.evaluate(async () => {
+    const ready = await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 30000))]);
+    return ready ? { scope: ready.scope, script: ready.active?.scriptURL ?? null } : null;
+  });
+  check("pwa: the service worker registers on localhost with the base path as its scope", !!reg && reg.scope === `${BASE}/` && reg.script === `${BASE}/sw.js`, `(${JSON.stringify(reg)})`);
+
+  const upstream = new URL(BASE);
+  const proxyState = { offline: false, deploy: 0 };
+  const proxy = http.createServer((req, res) => {
+    if (proxyState.offline) {
+      req.socket.destroy();
+      return;
+    }
+    const isSw = (req.url ?? "").split("?")[0] === `${basePath}/sw.js`;
+    const up = http.request(
+      { hostname: upstream.hostname, port: upstream.port, path: req.url, method: req.method, headers: { ...req.headers, host: upstream.host, "accept-encoding": "identity" } },
+      (upRes) => {
+        const type = String(upRes.headers["content-type"] ?? "");
+        if (!proxyState.deploy || !(isSw || type.includes("text/html"))) {
+          res.writeHead(upRes.statusCode ?? 502, upRes.headers);
+          upRes.pipe(res);
+          return;
+        }
+        const chunks = [];
+        upRes.on("data", (c) => chunks.push(c));
+        upRes.on("end", () => {
+          let body = Buffer.concat(chunks).toString("utf8");
+          body = isSw
+            ? body.replace(/"version": "([0-9a-f]+)"/, `"version": "$1-deploy${proxyState.deploy}"`)
+            : body.replace("<head>", `<head><meta name="smoke-deploy" content="${proxyState.deploy}">`);
+          const headers = { ...upRes.headers };
+          delete headers["content-length"];
+          res.writeHead(upRes.statusCode ?? 502, headers);
+          res.end(body);
+        });
+      },
+    );
+    up.on("error", () => res.destroy());
+    req.pipe(up);
+  });
+  await new Promise((r) => proxy.listen(0, r));
+  const PROXY = `http://localhost:${proxy.address().port}${basePath}`;
+  const offCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const off = await offCtx.newPage();
+  const offErrors = [];
+  off.on("pageerror", (e) => offErrors.push(e.message));
+  const cacheKeys = () => off.evaluate(() => caches.keys()).catch(() => []);
+  const marker = () => off.evaluate(() => document.querySelector('meta[name="smoke-deploy"]')?.getAttribute("content") ?? null).catch(() => null);
+  try {
+    await off.goto(`${PROXY}/en/`, { waitUntil: "networkidle" });
+    const controlled = await off.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 60000 }).then(() => true).catch(() => false);
+    const cached = await off.evaluate(async () => {
+      const out = {};
+      for (const key of await caches.keys()) out[key] = (await (await caches.open(key)).keys()).map((r) => new URL(r.url).pathname);
+      return out;
+    }).catch(() => ({}));
+    const current = Object.keys(cached).find((k) => k.endsWith(`:${version}`));
+    const shell = current ? cached[current] : [];
+    check(
+      "pwa: the worker takes over and precaches the app shell in a cache named after its version",
+      controlled && !!current && current.includes(`:${basePath}/:`) && [`${basePath}/en/simulator/`, `${basePath}/pl/`, `${basePath}/offline.html`, `${basePath}/icons/icon-512.png`].every((p) => shell.includes(p)) && shell.some((p) => p.includes("/_next/static/")),
+      `(controlled=${controlled}, caches=${JSON.stringify(Object.fromEntries(Object.entries(cached).map(([k, v]) => [k, v.length])))})`,
+    );
+
+    proxyState.offline = true;
+    const offSim = await off.goto(`${PROXY}/en/simulator/?mode=classic`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
+    const started = await off.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 20000 }).then(() => true).catch(() => false);
+    await off.waitForTimeout(2500);
+    const elapsed = await off.locator("span.tabular-nums").first().innerText().catch(() => "");
+    check(
+      "pwa: offline, the simulator loads from the cache and runs",
+      !!offSim && offSim.ok() && started && /\d/.test(elapsed) && elapsed !== "0.0s",
+      `(status ${offSim?.status()}, from worker ${offSim?.fromServiceWorker()}, started=${started}, elapsed ${elapsed})`,
+    );
+    await off.goto(`${PROXY}/pl/privacy/`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
+    const offlinePage = await off.evaluate(() => ({
+      offline: document.body.hasAttribute("data-pwa-offline"),
+      lang: document.documentElement.lang,
+      title: document.title,
+      h1: document.querySelector("h1")?.textContent ?? "",
+      simulator: document.getElementById("pwa-offline-simulator")?.getAttribute("href") ?? null,
+    })).catch(() => null);
+    check(
+      "pwa: offline, a page never visited shows the offline page in the URL's language",
+      !!offlinePage && offlinePage.offline && offlinePage.lang === "pl" && offlinePage.h1 === "Jesteś offline" && offlinePage.simulator === `${basePath}/pl/simulator/`,
+      `(${JSON.stringify(offlinePage)})`,
+    );
+    await off.screenshot({ path: path.join(outDir, "pwa-offline.png") });
+
+    proxyState.offline = false;
+    proxyState.deploy = 1;
+    await off.goto(`${PROXY}/en/`, { waitUntil: "networkidle" });
+    const onlineMarker = await marker();
+    await off.evaluate(async () => {
+      const r = await navigator.serviceWorker.getRegistration();
+      await r?.update();
+    }).catch(() => {});
+    let keys = [];
+    for (let i = 0; i < 60; i++) {
+      keys = await cacheKeys();
+      if (keys.some((k) => k.endsWith(`:${version}-deploy1`)) && !keys.some((k) => k.endsWith(`:${version}`))) break;
+      await off.waitForTimeout(1000);
+    }
+    const swapped = keys.some((k) => k.endsWith(`:${version}-deploy1`)) && !keys.some((k) => k.endsWith(`:${version}`));
+    proxyState.offline = true;
+    await off.goto(`${PROXY}/en/simulator/`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
+    const offlineMarker = await marker();
+    check(
+      "pwa: after a new deploy the page comes from the network, the new worker replaces the old cache and serves the new pages offline",
+      onlineMarker === "1" && swapped && offlineMarker === "1",
+      `(online marker=${onlineMarker}, caches=${JSON.stringify(keys)}, offline marker=${offlineMarker})`,
+    );
+  } finally {
+    proxyState.offline = false;
+    await offCtx.close().catch(() => {});
+    proxy.closeAllConnections?.();
+    await new Promise((r) => proxy.close(() => r()));
+  }
+  check("pwa: no page errors while offline or across the update", offErrors.length === 0, offErrors.length ? `\n   ${offErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end pwa ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

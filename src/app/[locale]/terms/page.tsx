@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import LegalPage from "@/components/site/LegalPage";
 import { Link } from "@/i18n/navigation";
 import { SITE_DOMAIN, SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "../layout";
+import { localeAlternates } from "@/i18n/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;

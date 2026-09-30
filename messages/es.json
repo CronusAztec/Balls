@@ -2473,5 +2473,46 @@
     "canvasMiss": "FALLO",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Mejor tiro #[shot]: [score] pts · dianas: [bullseyes]"
+  },
+  "Daily": {
+    "cardBadge": "Reto diario",
+    "cardTitle": "Hoy: {mode}",
+    "cardLoading": "El reto de hoy",
+    "cardText": "Un modo y una semilla al día, los mismos para todos. Dale al play, mira cómo se desarrolla la partida de hoy y envía el reto a un amigo.",
+    "cardSeed": "Semilla {seed}",
+    "cardPlayed": "Jugado hoy · {seconds} s",
+    "cardImageAlt": "{mode}: el modo del reto de hoy",
+    "play": "Jugar la semilla de hoy",
+    "nextIn": "Próximo reto en {time}",
+    "streak": "{days, plural, one {# día} other {# días}} seguidos",
+    "barActive": "Reto diario n.º {number} · {mode} · semilla {seed}",
+    "barIdle": "Reto diario: un modo, una semilla, hoy los mismos para todos",
+    "resultTitle": "Reto diario n.º {number} completado",
+    "resultTime": "{seconds} s",
+    "resultInvite": "Envía la misma semilla a tus amigos y comparad vuestras partidas.",
+    "copyResult": "Copiar enlace del reto",
+    "copied": "Copiado: pégalo donde quieras"
+  },
+  "Gallery": {
+    "navLabel": "Galería",
+    "metaTitle": "Galería de presets – {count} simulaciones de bolas listas | {siteName}",
+    "metaDescription": "{count} configuraciones de bolas rebotando cuidadas al detalle: escapes de neón, galaxias de péndulos, arte de hilos, batallas y carreras. Ábrelas en el simulador gratuito con un clic y hazlas tuyas.",
+    "badge": "Galería",
+    "title": "Galería de presets",
+    "intro": "{count} configuraciones ajustadas a mano para empezar. Cada tarjeta abre el simulador con el preset aplicado (el mismo aspecto, la misma semilla), listo para grabar o remezclar.",
+    "imageAlt": "Vista previa del preset {name}",
+    "tryIt": "Pruébalo",
+    "tryAria": "Pruébalo: {name}",
+    "outro": "¿Has cambiado algo y te encanta el resultado? Copia el enlace para compartir bajo el lienzo y tu configuración irá con él.",
+    "cta": "Empezar desde cero"
+  },
+  "Pwa": {
+    "installApp": "Instalar la aplicación",
+    "installAppTip": "Instala {siteName} en este dispositivo: se abre en su propia ventana, se inicia desde la pantalla de inicio o el dock y funciona sin conexión.",
+    "offlinePageTitle": "Sin conexión – {siteName}",
+    "offlineTitle": "Estás sin conexión",
+    "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio y el simulador funcionan sin conexión una vez que has abierto el sitio con conexión: vuelve a conectarte o abre el simulador aquí abajo.",
+    "offlineRetry": "Reintentar",
+    "offlineSimulator": "Abrir el simulador"
   }
 }

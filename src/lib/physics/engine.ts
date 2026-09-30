@@ -373,6 +373,12 @@ export class PhysicsEngine {
   getSeed() {
     return this._seed;
   }
+  // --- daily-gallery ---
+  /** The seed every run starts from while one is pinned (a found run, a shared or daily seed); null: each run draws a fresh one. */
+  getPinnedSeed(): number | null {
+    return this._customSeed;
+  }
+  // --- end daily-gallery ---
   resetRng() {
     this._rngState = this._seed;
   }
