@@ -4968,6 +4968,198 @@ const jrSeed = async () => (await canvasData()).seed;
   await page.evaluate((key) => localStorage.removeItem(key), BATCH_KEY);
 }
 // --- end batch-render ---
+// --- split-screen --- Split-screen races: 2 or 4 arenas on one canvas and one recording (lib/splitScreen.ts, lib/simulation/multi.ts)
+const splitNums = (value) => (value || "").split(",").map(Number);
+{
+  const splitElapsedSpread = (data) => {
+    const e = splitNums(data.splitElapsed);
+    return { min: Math.min(...e), max: Math.max(...e) };
+  };
+  // Four arenas from a shared link: each with its overrides (arena A heavier, B a fixed seed, C another mode, D faster),
+  // tiling the centred square the recorder exports.
+  const race = `mode=classic&ac=4&al=grid&ar=${encodeURIComponent("Red~cff3366~g600|Blue~c3399ff~s42|~mshatter|Gold~v700")}`;
+  await page.goto(`${BASE}/en/simulator/?${race}`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitDrawn === "4", null, { timeout: 15000 }).catch(() => {});
+  const before = await canvasData();
+  const box = await page.locator("main canvas").first().boundingBox();
+  const side = box ? Math.min(box.width, box.height) : 0;
+  const vps = (before.splitViewports || "").split(";").map((v) => v.split(",").map(Number));
+  const covered = vps.reduce((sum, v) => sum + v[2] * v[3], 0);
+  const inside = !!box && vps.every(([x, y, w, h]) => x >= (box.width - side) / 2 - 1 && y >= (box.height - side) / 2 - 1 && x + w <= (box.width + side) / 2 + 1 && y + h <= (box.height + side) / 2 + 1);
+  check(
+    "split screen: four arenas from a link, each with its own overrides, tile the exported square",
+    before.split === "4" && before.splitLayout === "grid" && before.splitDrawn === "4" && before.splitModes === "classic,classic,shatter,classic" && splitNums(before.splitGravity)[0] === 600 && splitNums(before.splitSeeds)[1] === 42 && splitNums(before.splitSpeed)[3] === 700 && before.splitLabels === "Red,Blue,C,Gold" && vps.length === 4 && Math.abs(covered - side * side) < 0.03 * side * side && inside,
+    `(${JSON.stringify({ modes: before.splitModes, gravity: before.splitGravity, seeds: before.splitSeeds, speed: before.splitSpeed, labels: before.splitLabels, viewports: before.splitViewports, worlds: before.splitWorlds })}, square ${Math.round(side)})`,
+  );
+  // The panel shows the race: 4 arenas, the grid, an editor per arena with its label.
+  await page.getByRole("button", { name: /Arenas & Split Screen/ }).click();
+  const pressed = await page.locator('[data-testid="split-screen-section"] [role="group"][aria-label="Arenas"] button[aria-pressed="true"]').innerText().catch(() => "");
+  const cards = await page.locator('[data-testid="split-arena-0"], [data-testid="split-arena-1"], [data-testid="split-arena-2"], [data-testid="split-arena-3"]').count();
+  const label = await page.locator('[data-testid="split-arena-0"] input[type="text"]').inputValue().catch(() => "");
+  check("split screen: the Arenas & Split Screen section edits the race (count, layout, one editor per arena)", pressed.trim() === "4" && cards >= 4 && label === "Red", `(pressed "${pressed}", ${cards} editors, first label "${label}")`);
+
+  // Start: every arena runs on the same clock, draws into its viewport and shares the particle budget.
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  const running = await canvasData();
+  const spread = splitElapsedSpread(running);
+  const lit = await page.evaluate(() => {
+    const c = document.querySelector("main canvas");
+    const g = c.getContext("2d");
+    const k = c.width / c.getBoundingClientRect().width;
+    return c.dataset.splitViewports.split(";").map((v) => {
+      const [x, y, w, h] = v.split(",").map(Number);
+      const d = g.getImageData(Math.round(x * k), Math.round(y * k), Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 16) if (d[i] + d[i + 1] + d[i + 2] > 180) n++;
+      return n;
+    });
+  });
+  await page.screenshot({ path: path.join(outDir, "sim-split-4.png") });
+  check(
+    "split screen: the arenas step together, each drawn in its viewport, within one particle budget",
+    spread.min > 500 && spread.max - spread.min <= 34 && lit.length === 4 && lit.every((n) => n > 20) && Number(running.splitParticles) <= 200,
+    `(elapsed ${running.splitElapsed}, lit ${JSON.stringify(lit)}, particles ${running.splitParticles})`,
+  );
+  // Pause stops every arena; Resume goes on. (The clocks are read once the page shows Resume – the pause is committed – and
+  // the canvas has mirrored a frame or two since: on a busy machine a render can take a few hundred ms.)
+  await page.getByRole("button", { name: /Pause/ }).click();
+  await page.getByRole("button", { name: /Resume/ }).waitFor({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const paused1 = (await canvasData()).splitElapsed;
+  await page.waitForTimeout(700);
+  const paused2 = (await canvasData()).splitElapsed;
+  await page.getByRole("button", { name: /Resume/ }).click();
+  await page.waitForTimeout(500);
+  const resumed = await canvasData();
+  check("split screen: pause and resume apply to every arena", paused1 === paused2 && splitElapsedSpread(resumed).min > Math.max(...splitNums(paused2)), `(${paused1} → ${paused2} → ${resumed.splitElapsed})`);
+  // Frame rate with four arenas (headless Chromium; fpsFloor() on a busy machine).
+  const fps = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        let frames = 0;
+        const start = performance.now();
+        const frame = (t) => {
+          frames++;
+          if (t - start < ms) requestAnimationFrame(frame);
+          else resolve(Math.round((1000 * frames) / (t - start)));
+        };
+        requestAnimationFrame(frame);
+      }),
+    3000,
+  );
+  check("split screen: four arenas keep 30+ fps", fps >= fpsFloor(30), `(${fps} fps, floor ${fpsFloor(30)}${loadNote()})`);
+  // 8×: the banner names the first arena to escape (or finish) with its time, the earliest mark of all.
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const bannered = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitBanner === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const won = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-split-banner.png") });
+  const marks = (won.splitMarks || "").split(",").map((m) => (m === "-" ? Infinity : Number(m.slice(1))));
+  const best = Math.min(...marks);
+  const winners = (won.splitWinner || "").split("&");
+  const labels = (won.splitLabels || "").split(",");
+  check(
+    "split screen: the race banner names the arena that escaped (or finished) first, and when",
+    bannered && winners.length > 0 && winners.every((w) => labels.includes(w)) && Number(won.splitWinnerMs) === best && winners.every((w) => marks[labels.indexOf(w)] === best) && (won.splitKind === "escaped" || won.splitKind === "finished"),
+    `(${JSON.stringify({ winner: won.splitWinner, at: won.splitWinnerMs, kind: won.splitKind, marks: won.splitMarks })})`,
+  );
+  // R restarts every arena together: the clocks go back, the race is cleared.
+  await page.keyboard.press("r");
+  await page.waitForTimeout(150);
+  const restarted = await canvasData();
+  const rs = splitElapsedSpread(restarted);
+  check("split screen: a restart starts every arena over together", rs.max < 2500 && rs.max - rs.min <= 34 && restarted.splitWinner === "" && restarted.splitMarks === "-,-,-,-", `(elapsed ${restarted.splitElapsed}, marks ${restarted.splitMarks})`);
+}
+{
+  // Sound: only the first arena's bounces by default, every arena's with "Every arena" – the same seeds, the same stretch of
+  // simulation time (OscillatorNode.start is instrumented).
+  const tonesAfter = async (sa) => {
+    await page.goto(`${BASE}/en/simulator/?mode=classic&ac=2&sa=${sa}&ar=${encodeURIComponent("A~s11|B~s12")}`, { waitUntil: "networkidle" });
+    await page.evaluate(() => {
+      const log = [];
+      window.__splitOsc = log;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.frequency.value !== 1) log.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "2x", exact: true }).click();
+    const reached = await page.waitForFunction(() => Math.min(...(document.querySelector("main canvas")?.dataset.splitElapsed || "0").split(",").map(Number)) >= 4000, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    await page.getByRole("button", { name: /Pause/ }).click();
+    await page.waitForTimeout(300);
+    return reached ? await page.evaluate(() => window.__splitOsc.length) : -1;
+  };
+  const first = await tonesAfter("first");
+  const all = await tonesAfter("all");
+  check("split screen: the first arena is heard by default, every arena with Every arena", first > 0 && all > first, `(${first} tones → ${all} tones)`);
+}
+{
+  // A race is recorded as one clip: two quick arenas (two rings, wide gaps) at 8×, the recording ends after the last one.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=2&gap=0.9&ac=2&al=grid&res=500x500&dur=60&ar=${encodeURIComponent("A~s21|B~s22~v600")}`, { waitUntil: "networkidle" });
+  const download = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitFinished === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const file = await download;
+  let size = 0;
+  if (file) {
+    const out = path.join(outDir, `split-${file.suggestedFilename()}`);
+    await file.saveAs(out);
+    size = fs.statSync(out).size;
+  }
+  check("split screen: a race records as one clip that runs until the last arena is done", finished && data.splitBanner === "1" && size > 10000, `(finished=${finished}, marks ${data.splitMarks}, export ${size} bytes)`);
+}
+{
+  // Find Simulation searches a seed for every arena; the seeds land in the link and the race replays them. (Four rings with
+  // wider gaps: about one seed in twenty lasts 30 ± 0.5 s, where the default seven rings are over a minute for most seeds.)
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=4&gap=0.5&ac=2&al=grid`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitDrawn === "2", null, { timeout: 15000 }).catch(() => {});
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 240000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  await page.waitForTimeout(300);
+  const ar = new URL(page.url()).searchParams.get("ar") || "";
+  const seeds = [...ar.matchAll(/~s(-?\d+)/g)].map((m) => Number(m[1]));
+  const data = await canvasData();
+  const engineSeeds = splitNums(data.splitSeeds);
+  let finishes = [];
+  if (seeds.length === 2) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitFinished === "1", null, { timeout: 90000 }).catch(() => {});
+    finishes = ((await canvasData()).splitFinish || "").split(",").map(Number);
+  }
+  const foundSec = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  check(
+    "split screen: Find Simulation finds a seed for every arena, stored in the link, and the race replays them",
+    /Found!/.test(text) && seeds.length === 2 && engineSeeds[0] === seeds[0] && engineSeeds[1] === seeds[1] && finishes.length === 2 && finishes.every((f) => f > 0) && Math.abs(Math.max(...finishes) / 1000 - foundSec) <= 0.2,
+    `(${text}, ar=${ar}, engines ${data.splitSeeds}, finishes ${finishes.join(",")})`,
+  );
+}
+{
+  // From the panel: back to one arena (the classic canvas), then two in a row – the link follows.
+  await page.goto(`${BASE}/en/simulator/?mode=portal&ac=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Arenas & Split Screen/ }).click();
+  await page.locator('[data-testid="split-screen-section"] [role="group"][aria-label="Arenas"] button', { hasText: "1" }).click();
+  await page.waitForTimeout(500);
+  const single = await canvasData();
+  const singleUrl = new URL(page.url()).searchParams.get("ac");
+  await page.locator('[data-testid="split-screen-section"] [role="group"][aria-label="Arenas"] button', { hasText: "2" }).click();
+  await page.locator('[data-testid="split-screen-section"] [role="group"][aria-label="Layout"] button', { hasText: "Row" }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.split === "2", null, { timeout: 10000 }).catch(() => {});
+  const two = await canvasData();
+  const twoUrl = new URL(page.url()).searchParams.get("ac");
+  const [a, b] = (two.splitViewports || "").split(";").map((v) => v.split(",").map(Number));
+  check(
+    "split screen: the panel switches between one arena and a row of two, and the link follows",
+    single.split === undefined && singleUrl === null && two.split === "2" && two.splitModes === "portal,portal" && twoUrl === "2" && !!a && !!b && a[1] === b[1] && b[0] > a[0],
+    `(one: split=${single.split}, ac=${singleUrl}; two: ${two.splitViewports}, ac=${twoUrl}, modes ${two.splitModes})`,
+  );
+}
+// --- end split-screen ---
 
 // --- boris-vortex ---
 // 32. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
@@ -5196,6 +5388,127 @@ const vxFrameRates = async (ms) => {
   } else check("without WebCodecs the sound vortex has no fast export to check (Record Video is covered above)", true);
 }
 // --- end boris-vortex ---
+
+// --- viral-bot --- Viral video bot (the Bot block after the Batch block of the Recording section): "Today's plan" plans three
+// clips in the page (recipe, hook, mode, seed, length, ending and a score with its nine reasons), the plan survives a reload
+// (localStorage), the page exposes the planner to the CLI (window.__jumpingBallsBot, whose text files hold the manifest and
+// the schedule), "Open in simulator" puts a clip on the page, and a one-clip short plan starts "Render all": the batch
+// renderer renders it and the ZIP holds the video as <episode>-<recipe>-<seed>, its caption file, manifest.json and
+// posting-schedule.md. Without WebCodecs the block says so.
+{
+  const BOT_KEY = "jumpingballslive_viral_bot";
+  const botStatus = () => page.locator("[data-bot]").getAttribute("data-bot").catch(() => null);
+  const botRows = () => page.locator("[data-bot-clip]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-bot-clip"), recipe: e.getAttribute("data-bot-recipe"), score: Number(e.getAttribute("data-bot-score")), ending: e.getAttribute("data-bot-ending"), seed: e.getAttribute("data-bot-seed") })));
+  const openBot = async () => {
+    await page.getByRole("button", { name: /Recording/ }).click();
+    await page.locator("[data-bot]").waitFor({ timeout: 10000 });
+    return page.locator("[data-bot]");
+  };
+  const waitClips = (n) => page.waitForFunction((count) => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "planned" && document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === String(count), n, { timeout: 180000 }).then(() => true).catch(() => false);
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  let bot = await openBot();
+  // 1. Today's plan: three clips, each scored with the nine checklist items.
+  await page.locator("#bot-count").evaluate(setRangeValue, "3");
+  const t0 = Date.now();
+  await bot.getByRole("button", { name: /Today's plan/ }).click();
+  const planned = await waitClips(3);
+  const planMs = Date.now() - t0;
+  const rows = await botRows();
+  await bot.locator("details summary").first().click().catch(() => {});
+  const reasons = await bot.locator("details").first().locator("li").count();
+  const hooks = await bot.locator("[data-bot-clip] .italic").allInnerTexts();
+  check(
+    "viral bot: Today's plan lists three clips with recipe, hook, seed, ending and a score with its reasons",
+    planned && rows.length === 3 && rows.every((r) => r.recipe && r.score > 0 && r.score <= 100 && /^(resolved|cliffhanger)$/.test(r.ending) && /^\d+$/.test(r.seed) && /^ep\d{3}-\d+-[a-z-]+-\d+$/.test(r.id)) && reasons === 9 && hooks.every((h) => h.length > 4),
+    `(${JSON.stringify(rows)}; ${reasons} reasons; ${planMs} ms)`,
+  );
+  // 2. The CLI's handle and the text files of the plan.
+  const files = await page.evaluate(() => (window.__jumpingBallsBot ? window.__jumpingBallsBot.textFiles().map((f) => ({ name: f.name, size: f.text.length })) : null));
+  const manifest = await page.evaluate(() => JSON.parse(window.__jumpingBallsBot?.textFiles().find((f) => f.name === "manifest.json")?.text ?? "null"));
+  check(
+    "viral bot: the page exposes the planner to the CLI, with caption files, manifest.json and posting-schedule.md",
+    !!files && files.length === 5 && files.some((f) => f.name === "manifest.json") && files.some((f) => f.name === "posting-schedule.md") && manifest?.clips?.length === 3 && manifest.clips.every((c, i) => c.seed === Number(rows[i]?.seed) && c.shareUrl.includes(`seed=${c.seed}`) && c.status === "planned"),
+    `(${JSON.stringify(files)})`,
+  );
+  // 3. The plan survives a reload; Open in simulator puts the clip on the page.
+  await page.reload({ waitUntil: "networkidle" });
+  bot = await openBot();
+  const kept = await waitClips(3);
+  const keptRows = await botRows();
+  const first = manifest?.clips?.[0];
+  await bot.locator("[data-bot-clip]").first().getByRole("button", { name: /Open in simulator/ }).click();
+  const opened = first ? await page.waitForFunction((mode) => new URLSearchParams(location.search).get("mode") === mode, first.mode, { timeout: 15000 }).then(() => true).catch(() => false) : false;
+  check("viral bot: the plan survives a reload and Open in simulator puts its settings on the page", kept && JSON.stringify(keptRows) === JSON.stringify(rows) && opened, `(${first?.mode}, ${page.url().slice(0, 140)}…)`);
+  // 4. A one-clip short plan and Render all.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  bot = page.locator("[data-bot]");
+  if ((await bot.count()) === 0) bot = await openBot();
+  await bot.getByRole("button", { name: "Shorts", exact: true }).click();
+  await page.locator("#bot-count").evaluate(setRangeValue, "1");
+  await bot.getByRole("button", { name: /Plan clips/ }).click();
+  const one = await waitClips(1);
+  const oneRow = (await botRows())[0];
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    const zipWait = page.waitForEvent("download", { timeout: 480000 }).catch(() => null);
+    await bot.getByRole("button", { name: /Render all/ }).click();
+    const started = await page.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "rendering" || document.querySelector("[data-batch-job='rendering']"), null, { timeout: 60000 }).then(() => true).catch(() => false);
+    check("viral bot: Render all starts a one-clip render through the batch renderer", one && started, `(${JSON.stringify(oneRow)})`);
+    const zip = await zipWait;
+    let names = [];
+    let zipManifest = null;
+    if (zip) {
+      const out = path.join(outDir, `bot-${zip.suggestedFilename()}`);
+      await zip.saveAs(out);
+      const buf = fs.readFileSync(out);
+      // STORE-only ZIP: walk the central directory.
+      const end = buf.length - 22;
+      if (end > 0 && buf.readUInt32LE(end) === 0x06054b50) {
+        let at = buf.readUInt32LE(end + 16);
+        for (let i = 0; i < buf.readUInt16LE(end + 10); i++) {
+          const size = buf.readUInt32LE(at + 24);
+          const nameLength = buf.readUInt16LE(at + 28);
+          const skip = buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+          const local = buf.readUInt32LE(at + 42);
+          const name = buf.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+          names.push({ name, size });
+          if (name === "manifest.json") {
+            const dataAt = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+            zipManifest = JSON.parse(buf.subarray(dataAt, dataAt + size).toString("utf8"));
+          }
+          at += 46 + nameLength + skip;
+        }
+      }
+    }
+    const video = names.find((n) => /\.(mp4|webm)$/.test(n.name));
+    check(
+      "viral bot: the ZIP holds the clip as <episode>-<recipe>-<seed>, its caption file, manifest.json and posting-schedule.md",
+      !!zip && /^jumpingballslive-bot-\d{4}-\d{2}-\d{2}\.zip$/.test(zip.suggestedFilename()) && !!video && video.size > 10000 && video.name.startsWith(`${oneRow?.id}.`) && names.some((n) => n.name === `${oneRow?.id}.txt`) && names.some((n) => n.name === "posting-schedule.md") && zipManifest?.clips?.[0]?.status === "done" && zipManifest.clips[0].file === video.name && (await botStatus()) === "done",
+      `(${zip?.suggestedFilename() ?? "no ZIP"}: ${JSON.stringify(names)})`,
+    );
+  } else {
+    const disabled = await bot.getByRole("button", { name: /Render all/ }).isDisabled();
+    const note = await bot.getByText(/Rendering needs WebCodecs/).first().isVisible().catch(() => false);
+    check("viral bot: without WebCodecs the Bot block plans but says rendering needs WebCodecs", one && disabled && note, `(disabled=${disabled}, note=${note})`);
+  }
+  // --- split-screen --- in a race Render all is off and says why (the fast export draws one arena); opening a clip ends the race
+  await page.goto(`${BASE}/en/simulator/?mode=classic&ac=2`, { waitUntil: "networkidle" });
+  bot = await openBot();
+  {
+    const kept = await waitClips(1);
+    const raceDisabled = await bot.getByRole("button", { name: /Render all/ }).isDisabled();
+    const raceNote = await bot.getByTestId("bot-split-race").isVisible().catch(() => false);
+    await bot.locator("[data-bot-clip]").first().getByRole("button", { name: /Open in simulator/ }).click();
+    const raceOver = await page.waitForFunction(() => !new URLSearchParams(location.search).has("ac") && !!new URLSearchParams(location.search).get("mode"), null, { timeout: 15000 }).then(() => true).catch(() => false);
+    const renderBack = !webCodecs || (await page.waitForFunction(() => [...document.querySelectorAll("[data-bot] button")].some((b) => /Render all/.test(b.textContent ?? "") && !b.disabled), null, { timeout: 15000 }).then(() => true).catch(() => false));
+    const noteGone = !(await bot.getByTestId("bot-split-race").isVisible().catch(() => false));
+    check("viral bot: a split-screen race keeps Render all off and says why; opening a clip ends the race", kept && raceDisabled && raceNote && raceOver && renderBack && noteGone, `(plan kept=${kept}, disabled=${raceDisabled}, note=${raceNote}, race over=${raceOver}, render back=${renderBack}, ${page.url().slice(0, 120)}…)`);
+  }
+  await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
+}
+// --- end viral-bot ---
 
 // --- beat-drop ---
 // 33. Beat Drop: the preview image and the card; URL → the Beat Drop block of the Mode row (the mix, drift, scrolling, bounce

@@ -46,6 +46,7 @@ import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattle
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
+import BotSection, { BOT_KEYS, type BotPanelProps } from "./sections/BotSection"; // --- viral-bot ---
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
 import type { ProjectPanelProps } from "./useProjectFiles";
@@ -56,6 +57,9 @@ import { isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 // --- jdm-rhythm-runner --- the "Beat runner" and "Paddle keep-up" blocks of the Mode row
 import { JDM_RHYTHM_KEYS, PaddleSection, RunnerSection } from "./sections/JdmRhythmSection";
 import { isJdmRhythmMode } from "@/lib/physics/modes/jdmRhythm";
+// --- split-screen --- the "Split screen" section: arena count, layout, sound and the per-arena overrides
+import ArenasSection, { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
+import { defaultSplitScreenFields } from "@/lib/splitScreen";
 import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- boris-vortex --- the Vortex block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import { HIT_SOUND_MODES, type HitSampleStatus } from "@/lib/audio/sampler";
@@ -73,7 +77,7 @@ import { ACCENT } from "@/lib/site";
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
 
-export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions" | "timeline"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions") --- timeline --- ("timeline")
+export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions" | "timeline" | "arenas"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions") --- timeline --- ("timeline") --- split-screen --- ("arenas")
 
 export interface ControlsProps {
   settings: SimulatorSettings;
@@ -133,6 +137,8 @@ export interface ControlsProps {
   project?: ProjectPanelProps;
   /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
   batch?: BatchPanelProps;
+  /** --- viral-bot --- the Viral video bot block after it: plans, scores and renders clips (left out without it). */
+  bot?: BotPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -152,6 +158,7 @@ const SECTION_KEYS: Record<ControlSection, string[]> = {
   obstacles: OBSTACLE_KEYS, // --- obstacle-editor ---
   captions: CAPTION_KEYS, // --- captions ---
   timeline: TIMELINE_SECTION_KEYS, // --- timeline ---
+  arenas: SPLIT_SCREEN_KEYS, // --- split-screen ---
 };
 SECTION_KEYS.ball.push("ballCount"); // --- teams --- the ball count slider (it replaced the "Two balls" switch)
 // --- jdm-polyrhythm --- the Metronomes & Polyrhythms block is searched with the Ball section (like the Pendulum wave block).
@@ -184,6 +191,8 @@ SECTION_KEYS.recording.push(...BATCH_KEYS);
 SECTION_KEYS.ball.push(...JDM_RHYTHM_KEYS);
 // --- boris-vortex --- the Vortex block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...VORTEX_KEYS);
+// --- viral-bot --- the Viral video bot block comes after the Batch block in the Recording section.
+SECTION_KEYS.recording.push(...BOT_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
 
@@ -281,6 +290,7 @@ export default function Controls(props: ControlsProps) {
   if (supportsObstacles(s.mode)) sections.push({ id: "obstacles", icon: "🚧", label: t("obstaclesTab") });
   sections.push({ id: "captions", icon: "💬", label: t("captionsTab") }); // --- captions --- (every mode, after the playfield sections)
   sections.push({ id: "timeline", icon: "⏱️", label: t("timelineTab") }); // --- timeline --- (every mode)
+  sections.push({ id: "arenas", icon: "🏁", label: t("splitTab") }); // --- split-screen --- (every mode)
 
   /* ------------------------------------------------------------ sections */
 
@@ -1066,6 +1076,7 @@ export default function Controls(props: ControlsProps) {
       {/* --- fast-render --- the fast export's frame rate */}
       <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
       {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
+      {props.bot && <BotSection t={t} search={search} matches={matches} bot={props.bot} /> /* --- viral-bot --- */}
     </div>
   );
 
@@ -1093,6 +1104,9 @@ export default function Controls(props: ControlsProps) {
       // --- timeline ---
       case "timeline":
         return <TimelineSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} />;
+      // --- split-screen ---
+      case "arenas":
+        return <ArenasSection t={t} search={search} matches={matches} settings={s} update={update} onReset={props.onResetSection} modeNames={modeNames} />;
     }
   };
 
@@ -1530,5 +1544,8 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
     // --- timeline --- no keyframes
     case "timeline":
       return defaultTimelineSettings();
+    // --- split-screen --- one arena, a row, the first arena's sound, no overrides
+    case "arenas":
+      return defaultSplitScreenFields();
   }
 }

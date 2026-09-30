@@ -27,3 +27,6 @@ yarn-error.log*
 
 # browser smoke-test output (screenshots, recorded clip)
 /smoke-output/
+
+# --- viral-bot --- the bot CLI's default output folder
+/bot-output/
