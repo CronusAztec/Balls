@@ -1132,8 +1132,8 @@ export default function Simulator() {
       changeMode(mode);
       document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth" });
     };
-    window.addEventListener("viralballs:select-mode", handler);
-    return () => window.removeEventListener("viralballs:select-mode", handler);
+    window.addEventListener("jumpingballslive:select-mode", handler);
+    return () => window.removeEventListener("jumpingballslive:select-mode", handler);
   }, [changeMode]);
 
   /* ------------------------------------------------------------ start / pause / loop */
@@ -1337,7 +1337,7 @@ export default function Simulator() {
     const recorder = recorderRef.current;
     if (recorder) {
       const blob = await recorder.stopRecording();
-      if (blob) recorder.downloadBlob(blob, "viralballs-export");
+      if (blob) recorder.downloadBlob(blob, "jumpingballslive-export");
     }
     setIsRecording(false);
   }, []);

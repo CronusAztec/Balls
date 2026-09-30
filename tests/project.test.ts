@@ -186,10 +186,10 @@ describe("project files", () => {
     expect(sanitizeProjectName(42)).toBe("");
     expect(Array.from(sanitizeProjectName("🔥".repeat(100)))).toHaveLength(60);
     expect(projectFileName("Boris vs glass")).toBe(`Boris vs glass${PROJECT_EXTENSION}`);
-    expect(projectFileName("///")).toBe(`viralballs-project${PROJECT_EXTENSION}`);
-    expect(projectNameFromFileName("Boris vs glass.viralballs.json")).toBe("Boris vs glass");
+    expect(projectFileName("///")).toBe(`jumpingballslive-project${PROJECT_EXTENSION}`);
+    expect(projectNameFromFileName("Boris vs glass.jumpingballslive.json")).toBe("Boris vs glass");
     expect(projectNameFromFileName("old.JSON")).toBe("old");
-    expect(looksLikeProjectFile({ name: "a.viralballs.json" })).toBe(true);
+    expect(looksLikeProjectFile({ name: "a.jumpingballslive.json" })).toBe(true);
     expect(looksLikeProjectFile({ name: "blob", type: "application/json" })).toBe(true);
     expect(looksLikeProjectFile({ name: "song.mid", type: "audio/midi" })).toBe(false);
     expect(defaultAssetName("ballImage", "image/png")).toBe("ball-image.png");

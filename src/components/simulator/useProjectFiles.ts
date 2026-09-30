@@ -2,7 +2,7 @@
 
 /**
  * --- project-files --- The page's side of the project files (lib/project.ts): it gathers the settings and the media
- * uploaded in this session into `<name>.viralballs.json` for "Export project", and loads such a file back – settings
+ * uploaded in this session into `<name>.jumpingballslive.json` for "Export project", and loads such a file back – settings
  * first (like a preset), then every medium through the page's own upload handlers, then the project's own switches
  * over whatever those handlers turned on. The panel block (sections/ProjectSection.tsx) and the drop zone around
  * the panel (ProjectDropZone.tsx) only call `onExport()` / `onImport(file)`.
@@ -194,7 +194,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
     [settings.wallBreakSound, media.ballImage, media.customHitSampleName, media.customWallBreakName, media.sliceSongName, media.musicTrackName, media.customSoundId, media.customMidiName, media.paintPicture, media.backgroundImage],
   );
   const totalBytes = listed.reduce((sum, m) => sum + m.info.bytes, 0);
-  const defaultName = `viralballs-${settings.mode}`;
+  const defaultName = `jumpingballslive-${settings.mode}`;
   const fileName = projectFileName(name || defaultName);
 
   const onExport = useCallback(async () => {
@@ -219,7 +219,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
         if (asset) assets[item.info.kind] = asset;
       }
       const melody = o.media.customSoundId && SONGS.some((song) => song.id === o.media.customSoundId) ? o.media.customSoundId : null;
-      const projectName = sanitizeProjectName(name) || `viralballs-${o.settings.mode}`;
+      const projectName = sanitizeProjectName(name) || `jumpingballslive-${o.settings.mode}`;
       const text = serializeProject(buildProject({ name: projectName, settings: o.settings, extras: { ballEmoji: o.media.ballEmoji, melody }, assets }));
       const blob = new Blob([text], { type: "application/json" });
       const file = projectFileName(projectName);

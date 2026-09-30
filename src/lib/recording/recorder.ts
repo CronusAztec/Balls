@@ -228,7 +228,7 @@ export class VideoRecorder {
   }
 
   /** Triggers a download; the extension is picked from the blob's container type. */
-  downloadBlob(blob: Blob, baseName = "viralballs-export") {
+  downloadBlob(blob: Blob, baseName = "jumpingballslive-export") {
     const ext = blob.type.includes("mp4") ? "mp4" : "webm";
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

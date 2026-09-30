@@ -15,7 +15,7 @@ import { pointsForPlace } from "@/lib/physics/raceStandings";
  * Nothing here reaches the physics: a cup never changes a race, so seeds and the finder are unaffected.
  */
 
-export const RACE_CUP_STORAGE_KEY = "viralballs:race-cup";
+export const RACE_CUP_STORAGE_KEY = "jumpingballslive:race-cup";
 /** Bumped when the stored shape changes (an old cup is then dropped). */
 export const RACE_CUP_VERSION = 1;
 
