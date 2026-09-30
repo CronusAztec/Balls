@@ -1358,6 +1358,44 @@
     "vxLoopTip": "Połknięta kulka od razu wraca na krawędź, więc wir nigdy się nie kończy – świetne do długich pętli, ale Znajdź symulację nie ma wtedy czego mierzyć.",
     "vxRunInfo": "Nuty z pierścieni: {notes}; bieg trwa około {seconds}s (tempo ziarna: {min}–{max}s), więc Znajdź symulację trafi w długość z tego przedziału.",
     "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu.",
+    "modeBeatDrop": "Spadanie w rytm",
+    "bdTitle": "Spadanie w rytm",
+    "bdDesc": "Kulka spada i odbija się od przeszkody do przeszkody – każda wlatuje zza ekranu i zatrzymuje się tuż przed swoim bitem, więc każde lądowanie wypada dokładnie w bit piosenki albo BPM.",
+    "bdKinds": "Przeszkody",
+    "bdKindsTip": "Które przeszkody wlatują: deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny. Zostaw co najmniej jedną.",
+    "bdKindPlank": "Deska",
+    "bdKindBlock": "Blok",
+    "bdKindSpring": "Sprężyna",
+    "bdKindWedge": "Klin",
+    "bdKindSpinner": "Wirnik",
+    "bdKindDrum": "Bęben",
+    "bdDrift": "Dryf",
+    "bdDriftTip": "Jak daleko kulka przesuwa się w bok między kolejnymi lądowaniami (0 = prosto w dół). Kliny i tak posyłają ją w bok.",
+    "bdScroll": "Przewijanie",
+    "bdScrollTip": "Bez końca: każde lądowanie jest trochę niżej, a kamera w nieskończoność jedzie za kulką w dół. Arena: kulka odbija się w obrębie kadru.",
+    "bdScrollEndless": "Bez końca",
+    "bdScrollArena": "Arena",
+    "bdBounceHeight": "Wysokość odbicia",
+    "bdBounceHeightTip": "Jak wysoko wznosi się lot trwający jeden bit, jako część kadru. Grawitacja dopasowuje się do tempa, więc przy każdym tempie odbicie ma tę wysokość.",
+    "bdAnticipation": "Czas wlotu",
+    "bdAnticipationTip": "Ile przed swoim bitem przeszkoda zaczyna wlatywać (0,3–1 bitu). Zawsze zatrzymuje się tuż przed bitem.",
+    "bdBeats": "{value} bitu",
+    "bdSound": "Dźwięk lądowania",
+    "bdSoundTip": "Perkusja: stopa na 1 i 3, werbel na 2 i 4, hi-hat między bitami i do tego własny akcent każdej przeszkody. Melodia: kolejna nuta melodii (albo wbudowanej melodyjki) przy każdym lądowaniu. Z muzyką w tle prowadzi piosenka, a lądowania ją akcentują.",
+    "bdSoundDrums": "Perkusja",
+    "bdSoundMelody": "Melodia",
+    "bdSoundBoth": "Oba",
+    "bdColorMode": "Kolory przeszkód",
+    "bdColorModeTip": "Kolor dla każdego rodzaju przeszkody, tęcza zmieniająca się z każdym bitem albo kolory drużyn (kulka ma kolor pierwszej).",
+    "bdColorPad": "Wg rodzaju",
+    "bdColorRainbow": "Tęcza",
+    "bdColorTeam": "Drużyny",
+    "bdTrail": "Smuga ruchu",
+    "bdTrailTip": "Zanikająca smuga za kulką wzdłuż jej łuku.",
+    "bdBeatSong": "Lądowania w bit wczytanej piosenki: {bpm} BPM.",
+    "bdBeatBpm": "Lądowania w rytm ustawienia BPM: {bpm} BPM (wczytaj muzykę w tle, żeby lądować w bit piosenki).",
+    "bdBeatAnalyzing": "Szukam bitu piosenki…",
+    "bdRunInfo": "Lądowania: {beats} przy {bpm} BPM w klipie {clip} s – bieg kończy się po {seconds} s. Nie da się chybić: każde ziarno trafia w każdy bit, więc Znajdź symulację po prostu wybiera jedno z nich.",
     "viralBot": "Bot do wiralowych filmów",
     "viralBotTip": "Planuje klipy według przepisu kont, które robią zasięgi (hook w jednym zdaniu, odliczanie, finał w ostatnich sekundach, naprzemienne zakończenia), ocenia każdy z nich, renderuje wszystkie szybkim eksportem i pobiera ZIP z filmami, opisami, manifestem i harmonogramem publikacji."
   },
@@ -1436,6 +1474,10 @@
     "vortex": {
       "name": "Dźwiękowy wir",
       "description": "Pew! Kulki wpadają do wiru dźwiękowych pierścieni i spiralą opadają do dziury pośrodku – każdy mijany pierścień gra kolejną nutę, więc każda kulka to wznoszące się glissando, a kulki wpuszczane jedna po drugiej splatają się w arpeggia. Na dnie dziura połyka je z „pew” i pluskiem."
+    },
+    "beatDrop": {
+      "name": "Spadanie w rytm",
+      "description": "Kulka spada na deski, bloki, sprężyny, kliny, obracające się belki i bębny, które wlatują zza ekranu tuż przed każdym bitem – więc każde lądowanie trafia dokładnie w bit, ze stopą, werblem albo kolejną nutą Twojej piosenki."
     }
   },
   "Features": {
@@ -1589,7 +1631,8 @@
     "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu.",
     "modeRunner": "Rytmiczny bieg w stylu project.jdm „realistyczna grawitacja w Geometry Dash”, bez pierścieni: kwadrat biegnie po podłodze ze stałą prędkością pod przewijaną kamerą. Trasa jest planowana na bitach wczytanej piosenki (jej wykryty bit – ten sam detektor co w Malowaniu obrazka) albo tempa BPM: dla każdej przeszkody – rzędu kolców, dziury, bloku, na który się wskakuje, a potem z niego zeskakuje – solver skoków bierze czas lotu skoku z prawdziwą grawitacją i stałą prędkością wybicia i ustawia wybicie tak, żeby lądowanie wypadło dokładnie na bicie. Z automatycznym skokiem kwadrat skacze w tych chwilach i nigdy się nie myli; bez niego skaczesz Spacją, a zderzenie wznawia odcinek. Każde lądowanie gra kolejną nutę i wzbija obłoczek kurzu; meta gra akord.",
     "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie.",
-    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu."
+    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu.",
+    "modeBeatDrop": "Tryb rytmiczny bez pierścieni, stworzony do edycji pod muzykę: pionowa scena na ciemnym gradiencie, w której jedna kulka spada i odbija się od przeszkody do przeszkody, a każda przeszkoda wlatuje zza ekranu – z lewej, z prawej, z góry albo z dołu, nigdy od strony, z której nadlatuje kulka – z płynnym wyhamowaniem i zatrzymuje się tuż przed swoim bitem, więc kulka ląduje na niej dokładnie w bit. Bieg jest zaplanowany z góry na podstawie bitu, za którym podąża (wykrytego bitu wczytanej piosenki albo ustawienia BPM): prędkość wybicia każdego lotu jest wyliczana tak, by lot trwał dokładnie tyle, ile odstęp między dwoma bitami – przy każdym tempie i na nieregularnej siatce – więc każde lądowanie mieści się w ułamku milisekundy od swojego bitu. Sześć rodzajów przeszkód – deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny – ugina się przy uderzeniu, świeci w rytm i odjeżdża z zanikaniem, gdy kulka już ją opuści; kulka spłaszcza się i rozciąga, zostawia smugę ruchu, a każde lądowanie wywołuje falę i obłok cząsteczek. Lądowania grają syntezowaną perkusję – stopę na 1 i 3, werbel na 2 i 4, hi-hat między bitami i własny akcent każdej przeszkody – kolejną nutę melodii albo jedno i drugie. Przewijanie bez końca jedzie za kulką w dół w nieskończoność; arena trzyma ją w kadrze. Ten tryb nigdy nie chybia bitu, więc Znajdź symulację po prostu wybiera ziarno i dopasowuje klip do bitów, które obejmuje."
   },
   "Footer": {
     "about": "O nas",
@@ -1939,6 +1982,14 @@
     "canvasPews": "[count] × PEW",
     "canvasDone": "PEW!",
     "canvasDoneSub": "połknięte kulki: [balls] · nuty: [notes]"
+  },
+  "BeatDrop": {
+    "canvasTitle": "SPADANIE W RYTM",
+    "canvasBpm": "♩ [bpm] BPM",
+    "canvasLandings": "w bit: [count] / [total]",
+    "canvasSong": "PIOSENKA",
+    "canvasDone": "W RYTM!",
+    "canvasDoneSub": "lądowania: [count] · odchyłka [ms] ms"
   },
   "ViralBot": {
     "title": "Bot do wiralowych filmów",

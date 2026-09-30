@@ -35,6 +35,8 @@ import type { PaddleSettings } from "@/lib/physics/modes/paddle";
 import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 // --- boris-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
+// --- beat-drop ---
+import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -111,6 +113,13 @@ export interface ModeSettings {
   // --- boris-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
+  // --- beat-drop ---
+  /**
+   * Beat Drop: the mix, drift, scroll, bounce, anticipation, the beat it follows and the clip length (see modes/beatDrop.ts);
+   * the defaults when left out. The run can never fail – every seed lands every beat – and it ends on the last landing that
+   * fits in the clip, so the finder only picks a seed and reports how long the run covering the target's beats lasts.
+   */
+  beatDrop?: Partial<BeatDropSettings>;
 }
 
 // --- odd-string-battle ---
@@ -282,6 +291,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
+  if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;
@@ -296,6 +306,8 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   // runs on the mode's own fast path (the same 60 Hz steps as the page, without the engine loop around them)
   if (request.mode === "runner") return Math.min(maxSimMs, engine.getRunnerProgress().plannedMs);
   if (request.mode === "paddle") return engine.paddleRunLengthMs(maxSimMs);
+  // --- beat-drop --- the run's end is planned at init: the last landing in the clip + the hold
+  if (request.mode === "beatDrop") return Math.min(maxSimMs, engine.getBeatDropProgress().plannedMs);
   const step = 1000 / 60;
   let elapsed = 0;
   while (elapsed < maxSimMs) {
@@ -305,6 +317,19 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   }
   return maxSimMs;
 }
+
+// --- beat-drop ---
+/**
+ * The Beat Drop "search": the run cannot fail (every seed lands every beat), so the first seed is the one. The run for a
+ * clip of the target length covers the beats up to the target (less the end hold) and ends then – its length is the
+ * duration found, never more than the target.
+ */
+export function findBeatDropRun(request: Pick<FinderRequest, "targetDurationSec" | "physicsConfig" | "modeSettings">, seed = Date.now() | 0): FinderResult {
+  const settings = { ...request.modeSettings, beatDrop: { ...request.modeSettings.beatDrop, clipSec: request.targetDurationSec } };
+  const engine = createEngineForSettings(request.physicsConfig, "beatDrop", settings, seed);
+  return { found: true, seed, duration: engine.getBeatDropProgress().plannedMs / 1000, seedsTested: 1 };
+}
+// --- end beat-drop ---
 
 // --- boris-multipliers ---
 /** The count target of a request (a multipliers board with `target` > 0), or 0 for a search by duration. */
@@ -349,6 +374,11 @@ export function findSimulation(
     // --- rigged --- "never escape" keeps a mode that ends with an escape from ever ending: no length to search for either
     if (rigNeverFinishes(request.mode, request.physicsConfig)) {
       resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
+      return;
+    }
+    // --- beat-drop --- every seed lands every beat: any seed keeps the promise, the clip covers the target's beats
+    if (request.mode === "beatDrop") {
+      resolve(findBeatDropRun(request));
       return;
     }
     const fixed = fixedRunDurationSec(request.mode, request.modeSettings);

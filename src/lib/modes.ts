@@ -36,6 +36,11 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ct
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "vortex");
 }
+// --- beat-drop --- Beat Drop joins the rhythm family right after the Beat Runner and Paddle Keep-Up (landings on the beat)
+{
+  const at = MODE_CARD_ORDER.indexOf("paddle");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatDrop");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -86,6 +91,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   paddle: "rhythm",
   // --- boris-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
   vortex: "rhythm",
+  // --- beat-drop --- every landing is a beat: a drum, a note, or both
+  beatDrop: "rhythm",
 };
 
 /** The modes of a category in card order. */

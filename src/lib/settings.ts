@@ -51,6 +51,9 @@ import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 // --- boris-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- beat-drop --- the Beat Drop mode
+import { BEAT_DROP_RANGES, beatDropModeDefaults, defaultBeatDropFields, readBeatDropParams, resolveBeatDropFields, writeBeatDropParams, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
+import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -593,6 +596,24 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end boris-vortex ---
+  // --- beat-drop --- Beat Drop (lib/physics/modes/beatDrop.ts): a ball lands on obstructions that fly in on the beat
+  /** The obstructions in the mix, a comma list of plank, block, spring, wedge, spinner, drum (URL `bdk`). */
+  bdKinds: string;
+  /** 0–1: how far the ball drifts sideways between landings (URL `bdd`). */
+  bdDrift: number;
+  /** endless (the world scrolls down with the ball) | arena (it bounces around inside the view) (URL `bds`). */
+  bdScroll: BeatDropScroll;
+  /** 0.1–0.5 of the view: how high a flight of one beat rises (URL `bdh`). */
+  bdBounceHeight: number;
+  /** 0.3–1 beats: how long before its beat an obstruction starts flying in (URL `bda`). */
+  bdAnticipation: number;
+  /** drums | melody | both: what a landing plays (URL `bdsn`). */
+  bdSound: BeatDropSound;
+  /** pad (a colour per kind) | rainbow (by beat) | team (the roster's colours) (URL `bdc`). */
+  bdColorMode: BeatDropColorMode;
+  /** The ball's motion trail (URL `bdt`). */
+  bdTrail: boolean;
+  // --- end beat-drop ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -704,6 +725,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- boris-vortex ---
+    // --- beat-drop --- the feature's fields, and the mode's own ball size (radius 14) in Beat Drop only
+    ...defaultBeatDropFields(),
+    ...beatDropModeDefaults(mode),
   };
 }
 
@@ -769,6 +793,7 @@ export const RANGES = {
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- boris-vortex ---
+  ...BEAT_DROP_RANGES, // --- beat-drop ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1004,6 +1029,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   return params;
 }
 
@@ -1120,6 +1146,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
+  readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   return settings;
 }
 
@@ -1313,6 +1340,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   return merged;
 }
 

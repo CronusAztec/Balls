@@ -5591,6 +5591,209 @@ const vxFrameRates = async (ms) => {
 }
 // --- end viral-bot ---
 
+// --- beat-drop ---
+// 33. Beat Drop: the preview image and the card; URL → the Beat Drop block of the Mode row (the mix, drift, scrolling, bounce
+// height, fly-in time, landing sound, colours, trail, the run summary that says it cannot fail), controls → URL and the search
+// box; a 20 s run at 120 BPM at 1× lands on the beats – the measured landings (data-bd-landing-times) sit on multiples of
+// 500 ms within 1 ms – with the kick of the drum kit on the landings (OscillatorNode.start is instrumented: its 150 Hz body)
+// at a 60 fps floor scaled by the machine's load; a 1080×1920 recording keeps 20+ fps with the obstructions alive and
+// downloads; the finder resolves at once (every seed lands every beat) and the run keeps the promise at 8×; and a fast
+// export plays the same kicks through its own audio and replays the same frames.
+{
+  const res = await page.request.get(`${BASE}/modes/beatDrop.webp`);
+  check("asset /modes/beatDrop.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Beat Drop card is on the landing page", (await page.locator('img[src$="/modes/beatDrop.webp"]').count()) === 1);
+}
+/** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
+const bdFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+const bdData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+/** The kicks started since the instrumentation (the kick's body starts at 150 Hz). */
+const bdInstrument = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__bdOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+{
+  const bdPressed = (name) => page.getByTestId("beat-drop").getByRole("button", { name, exact: false }).first().getAttribute("aria-pressed");
+  const bdToggle = (label) => page.getByTestId("beat-drop").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdk=spring,drum&bdd=0.8&bds=arena&bdh=0.33&bda=0.85&bdsn=drums&bdc=rainbow&bdt=0`, { waitUntil: "networkidle" });
+  {
+    const values = { bdd: await sliderValue("Drift"), bdh: await sliderValue("Bounce Height"), bda: await sliderValue("Fly-in Time") };
+    const pressed = {
+      spring: await bdPressed(/Spring/),
+      drum: await bdPressed(/Drum pad/),
+      plank: await bdPressed(/Plank/),
+      arena: await bdPressed(/Arena/),
+      drums: await bdPressed(/^Drums$/),
+      rainbow: await bdPressed(/Rainbow/),
+    };
+    const trail = await bdToggle("Motion Trail").getAttribute("aria-pressed");
+    const run = await page.getByTestId("beat-drop-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    // 120 BPM, a 30 s clip: landings at 0.5 … 29 s (58 of them), the run ends at 29.6 s.
+    check(
+      "beat drop loads from the URL",
+      values.bdd === "0.8" && values.bdh === "0.33" && values.bda === "0.85" && pressed.spring === "true" && pressed.drum === "true" && pressed.plank === "false" && pressed.arena === "true" && pressed.drums === "true" && pressed.rainbow === "true" && trail === "false" && /\b58 landings at 120 BPM/.test(run) && /29\.6s/.test(run) && /can't miss/.test(run) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, ${JSON.stringify(pressed)}, trail=${trail}, "${run}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await page.getByTestId("beat-drop").getByRole("button", { name: /Wedge/ }).click();
+  await page.locator('input[aria-label="Drift"]').evaluate(setRangeValue, "0.3");
+  await page.getByTestId("beat-drop").getByRole("button", { name: /Endless/ }).click();
+  await bdToggle("Motion Trail").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "beat drop mirrors into the URL",
+      /(^|&)bdk=spring%2Cwedge%2Cdrum(&|$)/.test(query) && /(^|&)bdd=0\.3(&|$)/.test(query) && !/(^|&)bds=/.test(query) && !/(^|&)bdt=/.test(query) && /(^|&)bdsn=drums(&|$)/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("fly-in");
+  const found = await page.locator('input[aria-label="Fly-in Time"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the beat drop controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A 20 s run at 1×, 120 BPM (the BPM setting: no song loaded), drums on every landing.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdsn=drums&face=cute`, { waitUntil: "networkidle" });
+  await bdInstrument();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(500);
+  const fps = await bdFrameRates(5000);
+  await page.screenshot({ path: path.join(outDir, "sim-beat-drop.png") });
+  const reached = await page
+    .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bdTimeMs) >= 20000, null, { timeout: 40000 })
+    .then(() => true)
+    .catch(() => false);
+  const data = await bdData();
+  const times = (data.bdLandingTimes || "").split(",").filter(Boolean).map(Number);
+  const beats = (data.bdBeatTimes || "").split(",").filter(Boolean).map(Number);
+  const onBeat = times.length >= 30 && times.every((t, i) => Math.abs(t - 500 * Math.round(t / 500)) < 1 && Math.abs(t - beats[i]) < 1 && (i === 0 || Math.abs(t - times[i - 1] - 500) < 1));
+  const kicks = (await page.evaluate(() => window.__bdOsc)).filter((f) => f === 150).length;
+  check(
+    "beat drop: a 20 s run at 120 BPM lands every beat on the beat, kicks on the landings, 60 fps floor",
+    reached && onBeat && Number(data.bdLanded) >= 39 && Number(data.bdMaxErrorMs) < 1 && kicks >= 15 && Number(data.bdSnares) >= 15 && Number(data.bdHats) >= 30 && data.face === "cute" && fps.windows.length >= 8 && fps.avg >= 0.9 * fpsFloor(60) && fps.min >= fpsFloor(30),
+    `(reached=${reached}, landed ${data.bdLanded}, ${times.length} logged, on beat=${onBeat}, max error ${data.bdMaxErrorMs} ms, ${kicks} kicks, snares ${data.bdSnares}, hats ${data.bdHats}, alive ${data.bdAlive}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${Math.round(0.9 * fpsFloor(60))}/${fpsFloor(30)}${loadNote()})`,
+  );
+}
+{
+  // A 1080×1920 recording (the default resolution) of a fast, dense run: 200 BPM, the obstructions flying in a whole beat ahead.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bpm=200&bda=1&bdd=1&dur=10&glow=1`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  let alive = 0;
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await bdFrameRates(3500);
+      alive = Number((await bdData()).bdAlive);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `beat-drop-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 beat drop recording keeps 20+ fps with the obstructions alive and downloads", size > 10000 && alive >= 1 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, ${alive} alive, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // The finder: it cannot fail – the first seed is the one, covering the target's beats; the run keeps the promise at 8×.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.bdFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await bdData();
+  }
+  check(
+    "the finder picks a beat drop seed for 30s at once and the run keeps the promise",
+    ready && Math.abs(promised - 29.6) < 0.05 && data.bdFinished === "1" && Math.abs(Number(data.bdFinishedMs) / 1000 - promised) < 0.1 && data.bdLanded === "58" && data.bdPlanned === "58",
+    `(ready=${ready}, "${readyText}", finished at ${data.bdFinishedMs} ms, landed ${data.bdLanded} / ${data.bdPlanned})`,
+  );
+}
+{
+  // ⚡ Fast export of a 10 s clip at 120 BPM (landings 0.5 … 9 s: nine kicks on beats 1 and 3): rendered offline, every kick
+  // goes through the export's own audio, the clip ends with the run and a second export of the same seed renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdsn=drums&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await bdInstrument();
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `beat-drop-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const kicks = await page.evaluate(() => window.__bdOsc.splice(0).filter((f) => f === 150).length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), kicks };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a beat drop fast export plays the kicks through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.kicks === 9 && a.seconds > 9 && a.seconds < 11 && b.status === "done" && b.kicks === 9 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the beat drop has no fast export to check (Record Video is covered above)", true);
+}
+// --- end beat-drop ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

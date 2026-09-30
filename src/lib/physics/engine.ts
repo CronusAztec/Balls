@@ -45,6 +45,8 @@ import { RunnerMode, type RunnerSettings, type RunnerView } from "./modes/runner
 import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } from "./modes/paddle";
 // --- boris-vortex --- the Sound Vortex (a spiral funnel of sound rings)
 import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
+// --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
+import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -261,6 +263,8 @@ export class PhysicsEngine {
   readonly paddleMode = new PaddleMode();
   // --- boris-vortex ---
   readonly vortexMode = new VortexMode();
+  // --- beat-drop ---
+  readonly beatDropMode = new BeatDropMode();
 
   readonly ctx: ModeContext;
 
@@ -541,6 +545,10 @@ export class PhysicsEngine {
   initVortex() {
     this.activateMode(this.vortexMode, "none");
   }
+  // --- beat-drop --- the mode owns its scene (no rings)
+  initBeatDrop() {
+    this.activateMode(this.beatDropMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -611,6 +619,9 @@ export class PhysicsEngine {
       // --- boris-vortex ---
       case "vortex":
         return this.initVortex();
+      // --- beat-drop ---
+      case "beatDrop":
+        return this.initBeatDrop();
     }
   }
 
@@ -1330,6 +1341,25 @@ export class PhysicsEngine {
     return this.vortexMode.getProgress();
   }
   // --- end boris-vortex ---
+  // --- beat-drop ---
+  isBeatDropMode() {
+    return this.currentMode === this.beatDropMode;
+  }
+  getBeatDropSettings(): BeatDropSettings {
+    return this.beatDropMode.getSettings();
+  }
+  /** The mix, drift, scroll, bounce height, anticipation and beat apply on the next `initBeatDrop()`; sound, colours, trail, clip, scale and root at once. */
+  setBeatDropSettings(settings: Partial<BeatDropSettings>) {
+    this.beatDropMode.setSettings(settings);
+  }
+  /** Live Beat Drop state (the plan, the camera, landings, counters) for the canvas and the HUD; the same object every call. */
+  getBeatDropView(): BeatDropView {
+    return this.beatDropMode.getView();
+  }
+  getBeatDropProgress() {
+    return this.beatDropMode.getProgress();
+  }
+  // --- end beat-drop ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

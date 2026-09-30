@@ -211,6 +211,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playPew(ev.frequency);
     return;
   }
+  // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
+  if (ev.bdDrum) {
+    audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

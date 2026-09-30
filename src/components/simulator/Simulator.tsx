@@ -89,6 +89,7 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import {
   RANGES,
   defaultSettings,
@@ -269,6 +270,7 @@ export default function Simulator() {
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
+    engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -927,6 +929,33 @@ export default function Simulator() {
   }, [handPlay, s.mode]);
   // --- end jdm-rhythm-runner ---
 
+  // --- beat-drop --- Beat Drop plans every landing on the beat it follows (the loaded song's detected grid – the one the Beat
+  // Runner follows – else the Sound section's BPM), and the landings sit on the music bed's beats: a change of what the run
+  // is planned from (`beatDropPlanKeyOf()`: the mix, drift, scroll, bounce height, anticipation and the beat) restarts the
+  // whole run with its music (`restartRun()`, like the Beat Runner), and a change of a Beat Drop setting drops a found seed.
+  // What a landing plays, the pad colours, the trail, the clip length (where the run ends) and the scale follow live.
+  const beatDropPlanRef = useRef<BeatDropPlanKey | null>(null);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.bdKinds, s.bdDrift, s.bdScroll, s.bdBounceHeight, s.bdAnticipation]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeat));
+    const plan = beatDropPlanKeyOf(engine.getBeatDropSettings());
+    const before = beatDropPlanRef.current;
+    beatDropPlanRef.current = plan;
+    if (!before || sameBeatDropPlan(before, plan)) return;
+    if (s.mode !== "beatDrop" || engine.getCurrentModeName() !== "beatDrop") return;
+    if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
+    restartRunRef.current(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.bdKinds, s.bdDrift, s.bdScroll, s.bdBounceHeight, s.bdAnticipation, s.bpm, rhythmBeat]);
+  useEffect(() => {
+    engineRef.current?.setBeatDropSettings({ sound: s.bdSound, colorMode: s.bdColorMode, trail: s.bdTrail, clipSec: s.recordingDuration, scale: s.scale, rootNote: s.rootNote });
+  }, [s.bdSound, s.bdColorMode, s.bdTrail, s.recordingDuration, s.scale, s.rootNote]);
+  // --- end beat-drop ---
+
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
@@ -1007,6 +1036,7 @@ export default function Simulator() {
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+        engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1205,6 +1235,11 @@ export default function Simulator() {
           // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
+            continue;
+          }
+          // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
+          if (ev.bdDrum) {
+            audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -2058,6 +2093,7 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
         },
         outcome, // --- rigged ---
       },
@@ -2245,6 +2281,15 @@ export default function Simulator() {
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+      },
+      // --- beat-drop ---
+      beatDrop: {
+        title: t("BeatDrop.canvasTitle"),
+        bpm: (bpm) => fill("BeatDrop.canvasBpm", { bpm }),
+        landings: (n, total) => fill("BeatDrop.canvasLandings", { count: n, total }),
+        song: t("BeatDrop.canvasSong"),
+        done: t("BeatDrop.canvasDone"),
+        doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
       },
     };
   }, [t]);

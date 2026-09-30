@@ -7,6 +7,8 @@ import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // 
 import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
 import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
+import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
+import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -681,6 +683,46 @@ export class ToneGenerator {
     }
   }
   // --- end boris-vortex ---
+
+  // --- beat-drop ---
+  private readonly bdVoices: BeatDropVoices = { kick: 0, snare: 0, hat: 0, accent: 0 };
+
+  /**
+   * A Beat Drop drum hit (beatDropTones.ts): the event's drum – the kick (louder on the downbeat, `accent`), the snare or the
+   * off-beat hat – and the accent of the pad the ball landed on (`pad`) at `frequency`, snapped to the scale. It accompanies
+   * the tune: it never uses up a melody note or a slicer slice and takes no beat-lock slot (the landing's note, when the mode
+   * plays one, is an ordinary hit). With a music bed loaded the bed leads – only the downbeat's kick and the accents play
+   * (`beatDropVoices()`). On the beat grid when the beat lock is on; the kick and the accent duck the music bed.
+   */
+  playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent = false, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleBeatDrop(drum, pad, frequency, accent, level));
+      return;
+    }
+    this.scheduleBeatDrop(drum, pad, frequency, accent, level);
+  }
+
+  private scheduleBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency: number | undefined, accent: boolean, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const out = this.masterGain;
+      const time = this.scheduleTime(ctx.currentTime);
+      const v = beatDropVoices(drum, !!pad, this.musicBed.hasTrack(), accent, this.bdVoices);
+      const l = hitLevel(level);
+      const noise = this.noiseCache.get(ctx);
+      if (v.kick > 0) scheduleKick(ctx, out, time, v.kick * l);
+      if (v.snare > 0) scheduleSnare(ctx, out, time, noise, v.snare * l);
+      if (v.hat > 0) scheduleHat(ctx, out, time, noise, v.hat * l);
+      if (v.accent > 0 && pad) schedulePadAccent(ctx, out, pad, this.snap(frequency !== undefined && frequency > 0 ? frequency : DEFAULT_ACCENT_FREQUENCY), time, noise, v.accent * l);
+      if (v.kick > 0 || v.accent > 0) this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the beat drop hit:", err);
+    }
+  }
+  // --- end beat-drop ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
