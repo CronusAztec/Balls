@@ -146,6 +146,9 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     };
   }, []);
 
+  // The Grand Prix cup scores the page's (the first arena's) race: the other arenas show their podium without the table.
+  const race = props.race;
+  const raceWithoutCup = useMemo(() => (race && race.cupEnabled ? { ...race, cupEnabled: false } : race), [race]);
   const count = split.engines.length;
   const viewports = useMemo<ArenaViewport[]>(() => (size ? arenaViewports(size.width, size.height, count, split.layout) : []), [size, count, split.layout]);
   // Before the arenas draw (their effects are passive): the engines get their worlds (a run that has not started starts over in it).
@@ -223,7 +226,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     let bannerText = "";
     let bannerSub = "";
     let bannerSince = 0; // when the banner (re)appeared: it pops in
-    let labelTimes: string[] = [];
+    let labelTexts: string[] = [];
     let labelPlaces: number[] = [];
     const setData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -246,6 +249,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         const slot = slots[i];
         if (!slot?.renderer) continue;
         if (Number.isNaN(slot.origin)) slot.origin = now;
+        if (i > 0 && runner.takeWallBreaks(i) > 0) slot.renderer.noteWallBreak(); // the faces' wide eyes (the page notes the first arena's)
         slot.renderer.renderFrame();
       }
       runner.afterFrame(now);
@@ -287,12 +291,14 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         bannerNames = sp.labels;
         const text = sp.text ?? DEFAULT_TEXT;
         const marks = runner.marksOf();
-        labelTimes = sp.labels.map((_, i) => {
+        labelPlaces = sp.labels.map((_, i) => standings.order.indexOf(i));
+        // Each arena's label, with its medal and time once it escaped or finished (built here, not every frame).
+        labelTexts = sp.labels.map((label, i) => {
           const m = marks[i];
           const ms = m ? (m.escapeMs >= 0 ? m.escapeMs : m.finishMs) : -1;
-          return ms >= 0 ? text.seconds(formatRaceSeconds(ms)) : "";
+          const place = labelPlaces[i];
+          return place >= 0 && ms >= 0 ? `${MEDALS[place] ?? place + 1} ${label} · ${text.seconds(formatRaceSeconds(ms))}` : label;
         });
-        labelPlaces = sp.labels.map((_, i) => standings.order.indexOf(i));
         let next = "";
         if (standings.winners.length > 0) {
           const names = standings.winners.map((i) => sp.labels[i] ?? String(i + 1));
@@ -309,10 +315,8 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         const fs = Math.max(10, Math.min(26, 0.07 * Math.min(vp.width, vp.height)));
         // The bottom row's labels sit at its bottom edge, away from the banner between the rows.
         const bottomRow = vp.y > oy + 1 && vp.y + vp.height >= oy + side - 1;
-        const label = sp.labels[i] ?? String(i + 1);
         const place = labelPlaces[i] ?? -1;
-        const time = labelTimes[i] ?? "";
-        const text = place >= 0 ? `${MEDALS[place] ?? place + 1} ${label} · ${time}` : label;
+        const text = labelTexts[i] ?? sp.labels[i] ?? String(i + 1);
         ctx.save();
         ctx.font = `bold ${fs}px sans-serif`;
         ctx.textBaseline = "middle";
@@ -483,6 +487,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
             obstacleEditing={false}
             onObstaclesChange={undefined}
             onCharacterChirp={i === 0 || split.soundAll ? props.onCharacterChirp : undefined}
+            race={i === 0 ? race : raceWithoutCup}
           />
         );
       })}

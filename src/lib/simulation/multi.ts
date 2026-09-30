@@ -91,23 +91,26 @@ export function configPatch<T extends object>(prev: T | undefined, next: T): Par
 
 /** Where another arena's sound events are played (the page's ToneGenerator has these). */
 export interface ArenaSoundSink {
-  playWallHit(wallIndex?: number, frequency?: number, accent?: boolean, chord?: readonly number[], level?: number): void;
+  playWallHit(wallIndex?: number, frequency?: number, accent?: boolean, chord?: readonly number[], level?: number, melody?: boolean): void;
   playGapPass(): void;
   playInteraction(kind: InteractionKind): void;
-  playMultiplier(total: number): void;
+  playMultiplier(total: number, melody?: boolean): void;
   playBumper(frequency?: number): void;
   playStringBattle(kind: "pluck" | "shatter", frequency?: number): void;
   playRaceArpeggio(kind: RaceArpeggioKind, root?: number): void;
 }
 
-/** Plays one sound event of another arena the way the page plays its own (its bounces a little softer: `EXTRA_ARENA_LEVEL`). */
+/**
+ * Plays one sound event of another arena the way the page plays its own (its bounces a little softer: `EXTRA_ARENA_LEVEL`;
+ * an event with `melody: false` accompanies the tune without using up a melody note, as on the page).
+ */
 export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.race) return sink.playRaceArpeggio(ev.race, ev.frequency);
   if (ev.bumper) return sink.playBumper(ev.frequency);
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
-  if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL);
+  if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
-  else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2);
+  else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);
   else sink.playInteraction(ev.type);
 }
 
@@ -135,6 +138,8 @@ export class MultiArenaRunner {
   private standingsVersion = -1;
   /** performance.now() when every arena had finished (−1 while one still runs). */
   private allDoneAt = -1;
+  /** Walls each arena broke since the canvas last asked (index = arena; the first arena's are the page's to note). */
+  private readonly wallBreaks: number[] = [];
   /** The keyframes and the physics config each arena engine got last (live updates send what changed only). */
   private readonly sentTimeline = new WeakMap<PhysicsEngine, string>();
   private readonly sentConfig = new WeakMap<PhysicsEngine, ReturnType<typeof arenaPhysicsConfig>>();
@@ -203,6 +208,7 @@ export class MultiArenaRunner {
     for (let i = 0; i < this.count; i++) this.marks.push(emptyArenaMark());
     this.marksVersion++;
     this.allDoneAt = -1;
+    this.wallBreaks.length = 0;
   }
 
   /**
@@ -348,7 +354,9 @@ export class MultiArenaRunner {
       }
       const done = engine.isSimulationFinished();
       if (done && mark.finishMs < 0) {
-        mark.finishMs = engine.getElapsedMs();
+        // The step the run finished on (a frame at 8× notices it several steps late): the finder's length of the run.
+        const at = engine.getFinishedAtMs();
+        mark.finishMs = at >= 0 ? at : engine.getElapsedMs();
         this.marksVersion++;
       }
       if (!done) allDone = false;
@@ -394,8 +402,19 @@ export class MultiArenaRunner {
   drainSounds(play: ((ev: SoundEvent, arena: number) => void) | null) {
     for (let i = 0; i < this.extras.length; i++) {
       const events = this.extras[i].consumeSoundEvents();
-      if (play) for (const ev of events) play(ev, i + 1);
+      for (const ev of events) {
+        // A broken wall widens the eyes of that arena's ball faces (the page does it for the first arena's).
+        if (ev.type === "gap" && !ev.race && !ev.bumper && !ev.sbSound) this.wallBreaks[i + 1] = (this.wallBreaks[i + 1] ?? 0) + 1;
+        if (play) play(ev, i + 1);
+      }
     }
+  }
+
+  /** How many walls arena `index` (not the first: the page notes its own) broke since the last call; the canvas' faces react. */
+  takeWallBreaks(index: number): number {
+    const n = this.wallBreaks[index] ?? 0;
+    if (n > 0) this.wallBreaks[index] = 0;
+    return n;
   }
 
   /** What the finder needs to search every arena (null outside a race). */

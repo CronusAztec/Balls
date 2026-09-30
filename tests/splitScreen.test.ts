@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { createEngineForSettings, type FinderRequest, type FinderResult, type ModeSettings } from "@/lib/simulation/finder";
+import { createEngineForSettings, simulateSeed, type FinderRequest, type FinderResult, type ModeSettings } from "@/lib/simulation/finder";
 import { MultiArenaRunner, arenaFinderRequest, arenaPhysicsConfig, configPatch, findArenaSeeds, playArenaSound, type ArenaHooks, type ArenaSoundSink } from "@/lib/simulation/multi";
 import {
   EXTRA_ARENA_LEVEL,
@@ -389,6 +389,27 @@ describe("split-screen: the arena runner", () => {
     expect(arena.getBrokenWalls().size).toBe(headless.getBrokenWalls().size);
   });
 
+  it("marks each arena's finish on the step it finished, the finder's run length, even when a frame notices it late (8×)", () => {
+    const base = { ...defaultSettings("classic"), wallCount: 2, gapSize: 0.9 };
+    const s: SimulatorSettings = { ...base, arenaCount: 2, arenaLayout: "grid", arenas: [{ label: "A", seed: 21 }, { label: "B", seed: 22, ballSpeed: 600 }] };
+    const page = pageEngine(s, 800, 600, 21);
+    const runner = new MultiArenaRunner();
+    runner.sync(page, s, HOOKS);
+    const plan = runner.finderPlan()!;
+    const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 1, maxSimTimeSec: 120, physicsConfig: { ...page.config }, mode: "classic", modeSettings: MODE_SETTINGS };
+    const expected = [simulateSeed(21, request, 120000), simulateSeed(22, arenaFinderRequest(request, plan, 1), 120000)];
+    expect(expected.every((ms) => ms < 120000)).toBe(true);
+    let now = 0;
+    for (let f = 0; f < 60 * 120 && !runner.allFinished(); f++) {
+      runner.beforeFrame();
+      step(runner.getEngines(), 8); // eight steps per frame, as at 8× (the finish is noticed up to seven steps late)
+      now += 1000 / 60;
+      runner.afterFrame(now);
+    }
+    expect(runner.allFinished()).toBe(true);
+    runner.marksOf().forEach((m, i) => expect(m.finishMs).toBeCloseTo(expected[i], 6));
+  });
+
   it("starts the other arenas over when the page's engine restarts, and on the same frame", () => {
     const s: SimulatorSettings = { ...defaultSettings("classic"), arenaCount: 2, arenas: [{ label: "A" }, { label: "B", seed: 77 }] };
     const page = pageEngine(s);
@@ -483,16 +504,34 @@ describe("split-screen: the arena runner", () => {
     expect(heard.length).toBeGreaterThan(0);
     expect(heard.every(([, arena]) => arena === 1)).toBe(true);
   });
+
+  it("counts the walls another arena broke for its faces, heard or not, until the canvas takes them", () => {
+    // Two wide-open rings and a fast ball: the second arena breaks a wall within a few seconds.
+    const base = { ...defaultSettings("classic"), wallCount: 2, gapSize: 1, ballSpeed: 800, gravity: 0 };
+    const s: SimulatorSettings = { ...base, arenaCount: 2, arenas: [{ label: "A", seed: 1 }, { label: "B", seed: 2 }] };
+    const page = pageEngine(s);
+    const runner = new MultiArenaRunner();
+    runner.sync(page, s, HOOKS);
+    let breaks = 0;
+    for (let f = 0; f < 60 * 20 && breaks === 0; f++) {
+      step(runner.getEngines(), 1);
+      runner.drainSounds(null);
+      breaks = runner.takeWallBreaks(1);
+    }
+    expect(breaks).toBeGreaterThan(0);
+    expect(runner.takeWallBreaks(1)).toBe(0);
+    expect(runner.takeWallBreaks(0)).toBe(0); // the page notes the first arena's own
+  });
 });
 
 describe("split-screen: sounds and the finder", () => {
   it("plays another arena's events the page's way, its bounces softer", () => {
     const calls: string[] = [];
     const sink: ArenaSoundSink = {
-      playWallHit: (w, f, a, c, level) => calls.push(`hit ${w} ${level}`),
+      playWallHit: (w, f, a, c, level, melody) => calls.push(`hit ${w} ${level}${melody === false ? " accompaniment" : ""}`),
       playGapPass: () => calls.push("gap"),
       playInteraction: (k) => calls.push(`int ${k}`),
-      playMultiplier: (n) => calls.push(`mult ${n}`),
+      playMultiplier: (n, melody) => calls.push(`mult ${n}${melody === false ? " accompaniment" : ""}`),
       playBumper: () => calls.push("bumper"),
       playStringBattle: (k) => calls.push(`sb ${k}`),
       playRaceArpeggio: (k) => calls.push(`race ${k}`),
@@ -505,7 +544,10 @@ describe("split-screen: sounds and the finder", () => {
     playArenaSound(sink, { type: "hit", wallIndex: 0, bumper: true });
     playArenaSound(sink, { type: "hit", wallIndex: 0, sbSound: "pluck" });
     playArenaSound(sink, { type: "hit", wallIndex: 0, race: "fanfare" });
-    expect(calls).toEqual([`hit 2 ${EXTRA_ARENA_LEVEL}`, `hit 1 ${0.5 * EXTRA_ARENA_LEVEL}`, "gap", "int merge", "mult 4", "bumper", "sb pluck", "race fanfare"]);
+    // An event that accompanies the tune (a paddle's wall bounce, a runner's crash) uses up no melody note, as on the page.
+    playArenaSound(sink, { type: "hit", wallIndex: 3, melody: false });
+    playArenaSound(sink, { type: "multiplier", wallIndex: 0, multiplier: 2, melody: false });
+    expect(calls).toEqual([`hit 2 ${EXTRA_ARENA_LEVEL}`, `hit 1 ${0.5 * EXTRA_ARENA_LEVEL}`, "gap", "int merge", "mult 4", "bumper", "sb pluck", "race fanfare", `hit 3 ${EXTRA_ARENA_LEVEL} accompaniment`, "mult 2 accompaniment"]);
   });
 
   const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 10, maxSimTimeSec: 60, physicsConfig: { width: 300, height: 600, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#fff", ballRadius: 8, audioIntensity: 0 }, mode: "classic", modeSettings: MODE_SETTINGS };

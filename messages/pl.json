@@ -1305,7 +1305,7 @@
     "pdInfoPerfect": "Przy 100% umiejętności sterownik nigdy nie pudłuje – gra się nie kończy (Znajdź symulację wymaga niższej umiejętności).",
     "pdInfoAuto": "Życia: {lives} – pudła sterownika wynikają z ziarna, więc Znajdź symulację może trafić w chwilę końca gry.",
     "pdInfoManual": "Przesuwaj platformę wskaźnikiem albo ← →. Znajdź symulację wymaga automatycznej platformy.",
-    "splitTab": "Podzielony ekran",
+    "splitTab": "Areny i podzielony ekran",
     "splitIntro": "Ścigaj 2 lub 4 areny naraz na jednym płótnie i w jednym nagraniu. Każda arena gra według powyższych ustawień; nadaj każdej etykietę i, jeśli chcesz, własne ziarno, grawitację, prędkość piłki, kolor piłki lub tryb.",
     "splitArenaCount": "Areny",
     "splitArenaCountTip": "Ile aren ściga się jednocześnie. 1 to klasyczny pojedynczy widok; 2 i 4 dzielą między siebie eksportowany kwadrat.",
@@ -1915,8 +1915,8 @@
     "moveHint": "← → albo wskaźnik przesuwa platformę"
   },
   "SplitScreen": {
-    "escaped": "{label} wydostaje się pierwsza!",
-    "finished": "{label} kończy pierwsza!",
+    "escaped": "Pierwsza ucieczka: {label}!",
+    "finished": "Pierwszy finisz: {label}!",
     "tie": "Remis: {labels}!",
     "seconds": "{seconds} s"
   }

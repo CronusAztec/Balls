@@ -879,7 +879,10 @@ export default function Simulator() {
       if (s.mode !== "paddle" || !canvas) return;
       const rect = canvas.getBoundingClientRect();
       const f = engine.getPaddleView().field;
-      engine.setPaddleInput({ target: (e.clientX - rect.left - f.left) / Math.max(1, f.width) });
+      // --- split-screen --- during a race the first arena is drawn scaled into its viewport
+      const vp = splitRunnerRef.current?.isActive() ? splitRunnerRef.current.viewports()[0] : undefined;
+      const x = vp ? (e.clientX - rect.left - vp.x) / vp.scale : e.clientX - rect.left;
+      engine.setPaddleInput({ target: (x - f.left) / Math.max(1, f.width) });
     };
     const onPointerLeave = () => engine.setPaddleInput({ target: null });
     window.addEventListener("keydown", onDown, true);
@@ -965,7 +968,8 @@ export default function Simulator() {
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setPaintOptions(page.getPaintOptions());
         engine.setPaintBeat(splitBeatRef.current);
-        initEngineForMode(engine, arena);
+        // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
+        initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
       },
       initPage: (page) => {
         page.setConfig({ ballRadius: splitSettingsRef.current.ballRadius });
@@ -1005,7 +1009,8 @@ export default function Simulator() {
     const initial = splitKeyRef.current === null;
     splitKeyRef.current = splitKey;
     if (initial && settings.arenaCount < 2) return;
-    if (settings.arenaCount > 1) engine.setSeed(resolvedArenas(settings)[0]?.seed ?? null);
+    // (back to one arena, the first arena's fixed seed goes with the race: the single view starts a new run as usual)
+    engine.setSeed(settings.arenaCount > 1 ? (resolvedArenas(settings)[0]?.seed ?? null) : null);
     if (initial) return;
     setFinished(false);
     audioRef.current?.resetCustomNoteIndex();
@@ -1419,6 +1424,11 @@ export default function Simulator() {
     // --- jdm-rhythm-runner --- a run played by hand needs its player: the export's fresh engine would run it with no input
     // (the button is off and says so; the batch render fails such a job with its own reason before it gets here).
     if (jdmRhythmPlayedByHand(s)) return;
+    // --- split-screen --- the export renders one engine: a race is recorded with Record Video (a batch job says why it failed)
+    if (s.arenaCount > 1) {
+      batchJob?.settle({ error: t("Controls.splitFastExportNote") });
+      return;
+    }
     const resolution = resolutionToSize(s.recordingResolution);
     const fps = resolveFastExportFps(s.fastExportFps);
     if (!fastRenderSupported()) {
@@ -1499,7 +1509,7 @@ export default function Simulator() {
       fastAbortRef.current = null;
       if (resume) setIsPaused(false);
     }
-  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording]);
+  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t]); // --- split-screen --- (t: a race refuses the export with the panel's note)
   const cancelFastExport = useCallback(() => fastAbortRef.current?.abort(), []);
   // --- end fast-render ---
 
@@ -1888,7 +1898,7 @@ export default function Simulator() {
     setPaused: setIsPaused,
     fastExport,
     supported: fastSupported,
-    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import",
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || settings.arenaCount > 1, // --- split-screen --- (not during a race)
   });
   // --- end batch-render ---
 

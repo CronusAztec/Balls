@@ -30,7 +30,7 @@ export interface ArenasSectionProps {
   modeNames: Record<ModeId, string>;
 }
 
-/** Search keys of the Split screen section (SECTION_KEYS.arenas in Controls.tsx). */
+/** Search keys of the Arenas & Split Screen section (SECTION_KEYS.arenas in Controls.tsx). */
 export const SPLIT_SCREEN_KEYS = ["splitArenaCount", "splitLayout", "splitSound", "splitArenas", "splitArenaLabel", "splitArenaMode", "splitArenaSeed", "splitArenaGravity", "splitArenaBallSpeed", "splitArenaBallColor"];
 const EDITOR_KEYS = SPLIT_SCREEN_KEYS.slice(3);
 
@@ -105,7 +105,7 @@ function OverrideSlider({
 }
 
 /**
- * The "Split screen" section (feature split-screen): how many arenas race (1, 2 or 4), their layout (row / grid), whose
+ * The "Arenas & Split Screen" section (feature split-screen): how many arenas race (1, 2 or 4), their layout (row / grid), whose
  * bounces are heard, and a small editor per arena – its label and, optionally, its own seed, gravity, ball speed, ball
  * colour and (from the second arena on) mode. The values live in SimulatorSettings (`arenaCount`, `arenaLayout`,
  * `soundArena`, `arenas`); Simulator.tsx hands them to the runner (lib/simulation/multi.ts) and the canvas.

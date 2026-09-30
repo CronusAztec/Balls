@@ -4992,11 +4992,11 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     `(${JSON.stringify({ modes: before.splitModes, gravity: before.splitGravity, seeds: before.splitSeeds, speed: before.splitSpeed, labels: before.splitLabels, viewports: before.splitViewports, worlds: before.splitWorlds })}, square ${Math.round(side)})`,
   );
   // The panel shows the race: 4 arenas, the grid, an editor per arena with its label.
-  await page.getByRole("button", { name: /Split screen/ }).click();
+  await page.getByRole("button", { name: /Arenas & Split Screen/ }).click();
   const pressed = await page.locator('[data-testid="split-screen-section"] [role="group"][aria-label="Arenas"] button[aria-pressed="true"]').innerText().catch(() => "");
   const cards = await page.locator('[data-testid="split-arena-0"], [data-testid="split-arena-1"], [data-testid="split-arena-2"], [data-testid="split-arena-3"]').count();
   const label = await page.locator('[data-testid="split-arena-0"] input[type="text"]').inputValue().catch(() => "");
-  check("split screen: the Split screen section edits the race (count, layout, one editor per arena)", pressed.trim() === "4" && cards >= 4 && label === "Red", `(pressed "${pressed}", ${cards} editors, first label "${label}")`);
+  check("split screen: the Arenas & Split Screen section edits the race (count, layout, one editor per arena)", pressed.trim() === "4" && cards >= 4 && label === "Red", `(pressed "${pressed}", ${cards} editors, first label "${label}")`);
 
   // Start: every arena runs on the same clock, draws into its viewport and shares the particle budget.
   await page.getByRole("button", { name: /Start Simulator/ }).click();
@@ -5021,9 +5021,11 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     spread.min > 500 && spread.max - spread.min <= 34 && lit.length === 4 && lit.every((n) => n > 20) && Number(running.splitParticles) <= 200,
     `(elapsed ${running.splitElapsed}, lit ${JSON.stringify(lit)}, particles ${running.splitParticles})`,
   );
-  // Pause stops every arena; Resume goes on.
+  // Pause stops every arena; Resume goes on. (The clocks are read once the page shows Resume – the pause is committed – and
+  // the canvas has mirrored a frame or two since: on a busy machine a render can take a few hundred ms.)
   await page.getByRole("button", { name: /Pause/ }).click();
-  await page.waitForTimeout(300);
+  await page.getByRole("button", { name: /Resume/ }).waitFor({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(600);
   const paused1 = (await canvasData()).splitElapsed;
   await page.waitForTimeout(700);
   const paused2 = (await canvasData()).splitElapsed;
@@ -5111,8 +5113,9 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   check("split screen: a race records as one clip that runs until the last arena is done", finished && data.splitBanner === "1" && size > 10000, `(finished=${finished}, marks ${data.splitMarks}, export ${size} bytes)`);
 }
 {
-  // Find Simulation searches a seed for every arena; the seeds land in the link and the race replays them.
-  await page.goto(`${BASE}/en/simulator/?mode=classic&ac=2&al=grid`, { waitUntil: "networkidle" });
+  // Find Simulation searches a seed for every arena; the seeds land in the link and the race replays them. (Four rings with
+  // wider gaps: about one seed in twenty lasts 30 ± 0.5 s, where the default seven rings are over a minute for most seeds.)
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=4&gap=0.5&ac=2&al=grid`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitDrawn === "2", null, { timeout: 15000 }).catch(() => {});
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 240000 }).then(() => true).catch(() => false);
@@ -5139,7 +5142,7 @@ const splitNums = (value) => (value || "").split(",").map(Number);
 {
   // From the panel: back to one arena (the classic canvas), then two in a row – the link follows.
   await page.goto(`${BASE}/en/simulator/?mode=portal&ac=2`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Split screen/ }).click();
+  await page.getByRole("button", { name: /Arenas & Split Screen/ }).click();
   await page.locator('[data-testid="split-screen-section"] [role="group"][aria-label="Arenas"] button', { hasText: "1" }).click();
   await page.waitForTimeout(500);
   const single = await canvasData();

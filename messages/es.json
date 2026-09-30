@@ -1305,7 +1305,7 @@
     "pdInfoPerfect": "Con un 100% de habilidad el controlador nunca falla: el juego no termina (Buscar simulación necesita una habilidad menor).",
     "pdInfoAuto": "{lives} vidas: los fallos del controlador salen de la semilla, así que Buscar simulación puede cronometrar el fin del juego.",
     "pdInfoManual": "Mueve la plataforma con el puntero o con ← →. Buscar simulación necesita la plataforma automática.",
-    "splitTab": "Pantalla dividida",
+    "splitTab": "Arenas y pantalla dividida",
     "splitIntro": "Haz competir 2 o 4 arenas a la vez en un solo lienzo y en una sola grabación. Cada arena usa los ajustes de arriba; ponle una etiqueta a cada una y, si quieres, su propia semilla, gravedad, velocidad de la bola, color de la bola o modo.",
     "splitArenaCount": "Arenas",
     "splitArenaCountTip": "Cuántas arenas compiten a la vez. 1 es la vista única clásica; 2 y 4 se reparten el cuadrado exportado.",
