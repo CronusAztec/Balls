@@ -52,6 +52,8 @@ export const MODE_IDS = [
   "paddle",
   // --- boris-vortex --- Sound Vortex
   "vortex",
+  // --- boris-journey --- Journey: a multi-stage commute home
+  "journey",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -235,6 +237,9 @@ export interface SoundEvent {
   // --- boris-vortex ---
   /** A ball swallowed by the Sound Vortex: the page plays the "pew" (`ToneGenerator.playPew()`), a fast downward sweep from `frequency`. */
   pew?: boolean;
+  // --- boris-journey ---
+  /** A Journey stage transition: the page plays the swoosh (`ToneGenerator.playSwoosh()`) – a filtered noise whoosh, not a note. */
+  swoosh?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
@@ -381,6 +386,13 @@ export interface ModeContext {
   /** The camera's impact event (a screen shake when that feature is on), like a wall break – without its sound. */
   noteImpact?(): void;
   // --- end odd-string-battle ---
+  // --- boris-journey ---
+  /**
+   * Moves the engine's world state by (dx, dy): every ball and its trail, the particles, the shockwaves and the recent
+   * obstacle contacts – a floating origin for a mode that scrolls through a long world (the Journey keeps its active stage
+   * centred on the canvas, where the ring walls live). The mode moves its own obstacles; the physics is unchanged.
+   */
+  shiftWorld?(dx: number, dy: number): void;
 }
 
 export interface GameMode {

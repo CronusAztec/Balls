@@ -211,6 +211,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playPew(ev.frequency);
     return;
   }
+  // --- boris-journey --- a Journey stage transition swooshes
+  if (ev.swoosh) {
+    audio.playSwoosh();
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

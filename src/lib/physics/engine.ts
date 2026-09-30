@@ -45,6 +45,8 @@ import { RunnerMode, type RunnerSettings, type RunnerView } from "./modes/runner
 import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } from "./modes/paddle";
 // --- boris-vortex --- the Sound Vortex (a spiral funnel of sound rings)
 import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
+// --- boris-journey --- the Journey (a multi-stage commute home)
+import { JourneyMode, type JourneySettings, type JourneyView } from "./modes/journey";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -261,6 +263,8 @@ export class PhysicsEngine {
   readonly paddleMode = new PaddleMode();
   // --- boris-vortex ---
   readonly vortexMode = new VortexMode();
+  // --- boris-journey ---
+  readonly journeyMode = new JourneyMode();
 
   readonly ctx: ModeContext;
 
@@ -334,6 +338,7 @@ export class PhysicsEngine {
         this.wallBreakSerial++;
       },
       // --- end odd-string-battle ---
+      shiftWorld: (dx, dy) => this.shiftWorld(dx, dy), // --- boris-journey ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -541,6 +546,10 @@ export class PhysicsEngine {
   initVortex() {
     this.activateMode(this.vortexMode, "none");
   }
+  // --- boris-journey --- the mode owns its column of stages (a rings stage sets the engine's rings itself while it is active)
+  initJourney() {
+    this.activateMode(this.journeyMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -611,6 +620,9 @@ export class PhysicsEngine {
       // --- boris-vortex ---
       case "vortex":
         return this.initVortex();
+      // --- boris-journey ---
+      case "journey":
+        return this.initJourney();
     }
   }
 
@@ -1330,6 +1342,51 @@ export class PhysicsEngine {
     return this.vortexMode.getProgress();
   }
   // --- end boris-vortex ---
+  // --- boris-journey ---
+  isJourneyMode() {
+    return this.currentMode === this.journeyMode;
+  }
+  getJourneySettings(): JourneySettings {
+    return this.journeyMode.getSettings();
+  }
+  /** The stage list and the auto count apply on the next `initJourney()`. */
+  setJourneySettings(settings: Partial<JourneySettings>) {
+    this.journeyMode.setSettings(settings);
+  }
+  /** Live Journey state (stages, active stage, camera, banner, progress, score, HOME) for the canvas and the HUD; the same object every call. */
+  getJourneyView(): JourneyView {
+    return this.journeyMode.getView();
+  }
+  getJourneyProgress() {
+    return this.journeyMode.getProgress();
+  }
+  /**
+   * Moves the world state the engine owns by (dx, dy) – balls and trails, particles, shockwaves, recent obstacle contacts –
+   * for a mode with a floating origin (`ModeContext.shiftWorld()`); obstacles belong to the mode, which moves them itself.
+   */
+  private shiftWorld(dx: number, dy: number) {
+    for (const b of this.balls) {
+      b.x += dx;
+      b.y += dy;
+      for (const p of b.trail) {
+        p.x += dx;
+        p.y += dy;
+      }
+    }
+    for (const p of this.particles) {
+      p.x += dx;
+      p.y += dy;
+    }
+    for (const w of this.shockwaves) {
+      w.x += dx;
+      w.y += dy;
+    }
+    for (const h of this.obstacleHits) {
+      h.x += dx;
+      h.y += dy;
+    }
+  }
+  // --- end boris-journey ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

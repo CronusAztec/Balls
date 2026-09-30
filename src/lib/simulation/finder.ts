@@ -35,6 +35,7 @@ import type { PaddleSettings } from "@/lib/physics/modes/paddle";
 import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 // --- boris-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
+import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- boris-journey ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -111,6 +112,9 @@ export interface ModeSettings {
   // --- boris-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
+  // --- boris-journey ---
+  /** Journey: the stage list or the auto count (see modes/journey.ts); the defaults when left out. Every journey reaches HOME (the stages never hold the ball for good), so the finder searches it. */
+  journey?: Partial<JourneySettings>;
 }
 
 // --- odd-string-battle ---
@@ -282,6 +286,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
+  if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- boris-journey ---
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

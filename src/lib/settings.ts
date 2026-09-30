@@ -51,6 +51,8 @@ import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 // --- boris-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- boris-journey --- the Journey mode
+import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourneyFields, writeJourneyParams } from "@/lib/physics/modes/journey";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -593,6 +595,12 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end boris-vortex ---
+  // --- boris-journey --- Journey (lib/physics/modes/journey.ts, lib/physics/journey/): a column of stages the ball clears on its way HOME
+  /** The stage list top-down, e.g. "rings,pegs-l,glass-s,multipliers,home" (sizes "-s" / "-l"; HOME always last) (URL `js`). */
+  journeyStages: string;
+  /** 0: play the list; 1–12: a seeded random journey of that many stages before HOME (URL `jsa`). */
+  journeyAutoStages: number;
+  // --- end boris-journey ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -704,6 +712,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- boris-vortex ---
+    ...defaultJourneyFields(), // --- boris-journey ---
   };
 }
 
@@ -769,6 +778,7 @@ export const RANGES = {
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- boris-vortex ---
+  ...JOURNEY_RANGES, // --- boris-journey ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1004,6 +1014,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeJourneyParams(settings, base, params); // --- boris-journey ---: js, jsa
   return params;
 }
 
@@ -1120,6 +1131,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
+  readJourneyParams(params, settings); // --- boris-journey --- (the stage list normalised, the auto count clamped)
   return settings;
 }
 
@@ -1313,6 +1325,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveJourneyFields(merged)); // --- boris-journey --- a normalised stage list, a clamped auto count
   return merged;
 }
 

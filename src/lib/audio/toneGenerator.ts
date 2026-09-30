@@ -7,6 +7,7 @@ import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // 
 import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
 import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
+import { scheduleSwooshTone } from "./swooshTone"; // --- boris-journey ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -681,6 +682,34 @@ export class ToneGenerator {
     }
   }
   // --- end boris-vortex ---
+
+  // --- boris-journey ---
+  /**
+   * A Journey stage transition: the swoosh (swooshTone.ts) – band-passed noise sweeping up with a quiet sine glide under
+   * it. An effect, not a note (never snapped, never a melody note, a hit sample or a song slice, never a bounce's beat-grid
+   * slot): on the beat grid when the beat lock is on, ducking the music bed.
+   */
+  playSwoosh() {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleSwoosh());
+      return;
+    }
+    this.scheduleSwoosh();
+  }
+
+  private scheduleSwoosh() {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      scheduleSwooshTone(this.audioContext, this.masterGain, time, this.noiseCache.get(this.audioContext));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the swoosh:", err);
+    }
+  }
+  // --- end boris-journey ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

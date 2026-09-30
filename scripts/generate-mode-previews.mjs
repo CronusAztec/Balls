@@ -54,6 +54,8 @@ const MODES = {
   paddle: { wait: 4200, query: "pdsk=1&pdsp=1&glow=1" },
   // --- boris-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
   vortex: { wait: 14200, query: "face=cute&glow=1" },
+  // --- boris-journey --- a large rings stage mid-escape: the chamber bulging out of the column, the mini-map and the clock beside it
+  journey: { wait: 2400, query: "js=rings-l,glass,pegs,home&face=cute&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");
