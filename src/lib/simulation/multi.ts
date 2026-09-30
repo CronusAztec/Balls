@@ -466,19 +466,25 @@ export type FinderFn = (request: FinderRequest, onProgress: (p: FinderProgress) 
 /** The first arena's result, plus the seed found for every arena (undefined: none to search) when the race is on. */
 export type ArenaFinderResult = FinderResult & { arenaSeeds?: (number | undefined)[] };
 
+/** A search's progress, with the arena being searched in a race (undefined: the first arena – the page's). */
+export type ArenaFinderProgress = FinderProgress & { arena?: number };
+
 /**
  * Find Simulation in a split-screen race: the first arena is searched as always (the page's request), then – if it was
  * found – every other arena with its own overrides and world, one after the other; each keeps the seed found (or the
  * closest one). The result is the first arena's with the longest run's duration (the clip should last the whole race).
+ * A search aborted at any point (Cancel, a mode change, a preset load) is never found – even when the first arena's
+ * search had already succeeded – so the page applies nothing of it, like the single-view finder's cancelled search.
  */
-export async function findArenaSeeds(find: FinderFn, request: FinderRequest, onProgress: (p: FinderProgress) => void, signal: AbortSignal | undefined, plan: ArenaFinderPlan | null): Promise<ArenaFinderResult> {
+export async function findArenaSeeds(find: FinderFn, request: FinderRequest, onProgress: (p: ArenaFinderProgress) => void, signal: AbortSignal | undefined, plan: ArenaFinderPlan | null): Promise<ArenaFinderResult> {
   const first = await find(request, onProgress, signal);
-  if (!plan || plan.arenas.length < 2 || !first.found || signal?.aborted) return first;
+  if (signal?.aborted) return { ...first, found: false };
+  if (!plan || plan.arenas.length < 2 || !first.found) return first;
   const seeds: (number | undefined)[] = [first.seed];
   let longest = first.duration;
   for (let i = 1; i < plan.arenas.length; i++) {
-    const result = await find(arenaFinderRequest(request, plan, i), onProgress, signal);
-    if (signal?.aborted) return first;
+    const result = await find(arenaFinderRequest(request, plan, i), (p) => onProgress({ ...p, arena: i }), signal);
+    if (signal?.aborted) return { ...first, found: false };
     const searched = !result.endless && !result.fixedDuration && result.seedsTested > 0;
     seeds.push(searched ? result.seed : undefined);
     if (searched) longest = Math.max(longest, result.duration);
