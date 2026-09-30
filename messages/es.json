@@ -1455,7 +1455,8 @@
     "byPerfectOff": "No",
     "byRunInfo": "{shots} tiros – unos {seconds}s con el cartel final. La semilla decide dónde cae cada bola (y cuánto rebota la última), así que Buscar simulación puede acertar la duración de tu clip.",
     "byPerfectInfo": "El tiro {shot} está amañado para dar en el centro.",
-    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado."
+    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado.",
+    "unlimited": "Sin límites"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -2470,5 +2471,20 @@
     "canvasMiss": "FALLO",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Mejor tiro #[shot]: [score] pts · dianas: [bullseyes]"
+  },
+  "Unlimited": {
+    "label": "Sin límites",
+    "tip": "Cada número más allá de su deslizador: escribe un millón de bolas, mil millones de velocidad o mil anillos. La simulación puede derretirse – se ralentiza y se dibuja más simple –, pero la pestaña sigue y la grabación continúa.",
+    "on": "SÍ",
+    "off": "NO",
+    "warning": "Los valores extremos pueden ralentizar la simulación a paso de tortuga: de eso se trata. Puede derretirse, nunca colgarse.",
+    "typeValue": "Escribe un valor para {label}",
+    "invalidValue": "Valor no válido: un número finito de al menos {min}.",
+    "softCeiling": "El motor ejecuta como máximo {value}; el enlace conserva tu número.",
+    "finderLimited": "Sin límites: una simulación pesada – solo se probaron {count} semillas, un trozo de cada fotograma a la vez.",
+    "canvasRealTime": "x[ratio] TIEMPO REAL",
+    "canvasArenaFull": "ARENA LLENA",
+    "canvasBalls": "[count] BOLAS",
+    "canvasAteArena": "LA BOLA SE COMIÓ LA ARENA"
   }
 }

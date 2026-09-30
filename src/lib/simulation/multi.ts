@@ -107,6 +107,8 @@ export interface ArenaSoundSink {
   playSwoosh(): void;
   /** --- beat-drop --- a Beat Drop landing's drum and pad accent (or an off-beat hat). */
   playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent?: boolean, level?: number): void;
+  /** --- unlimited --- a ball ate the arena (No limits). */
+  playArenaEaten?(): void;
 }
 
 /**
@@ -121,6 +123,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.thud) return sink.playThud(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- boris-bullseye --- (a landing's thud, not a wall hit)
   if (ev.swoosh) return sink.playSwoosh(); // --- boris-journey --- (a stage transition's whoosh, not a wall hit)
   if (ev.bdDrum) return sink.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- beat-drop --- (a drum, not a wall hit)
+  if (ev.ate) return sink.playArenaEaten?.(); // --- unlimited --- (the gulp, not a wall break)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);

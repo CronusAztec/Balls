@@ -5,6 +5,7 @@ import type { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import type { ControlSection } from "./Controls";
 import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- timeline ---
+import { UnlimitedSlider, useUnlimitedKey } from "./unlimitedSlider"; // --- unlimited ---
 import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
 
 /*
@@ -82,6 +83,15 @@ export function Slider({
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
   const shown = live ? live.value : value;
+  // --- unlimited --- with No limits on, an unlimited setting's slider goes logarithmic past its range, with a number input
+  const unlimitedKey = useUnlimitedKey(range);
+  if (unlimitedKey && !live) {
+    return (
+      <Searchable search={search} matches={matches} labelKey={labelKey}>
+        <UnlimitedSlider settingKey={unlimitedKey} label={t(labelKey)} tip={tipKey ? t(tipKey) : undefined} value={value} range={range} onChange={onChange} display={display} left={left} right={right} disabled={disabled} />
+      </Searchable>
+    );
+  }
   return (
     <Searchable search={search} matches={matches} labelKey={labelKey}>
       <div className="space-y-2">

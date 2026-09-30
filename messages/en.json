@@ -1464,7 +1464,8 @@
     "byPerfectOff": "Off",
     "byRunInfo": "{shots} shots – about {seconds}s with the final banner. The seed decides where every ball lands (and how long the last one bounces), so Find Simulation can hit your clip length.",
     "byPerfectInfo": "Shot {shot} is rigged to hit the bullseye.",
-    "byPerfectBeyond": "The perfect shot comes after the last of the {shots} shots, so no shot is rigged."
+    "byPerfectBeyond": "The perfect shot comes after the last of the {shots} shots, so no shot is rigged.",
+    "unlimited": "No limits"
   },
   "Modes": {
     "classic": {
@@ -2693,5 +2694,20 @@
     "canvasMiss": "MISS",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Best shot #[shot]: [score] pts · bullseyes: [bullseyes]"
+  },
+  "Unlimited": {
+    "label": "No limits",
+    "tip": "Every number past its slider: type a million balls, a billion speed or a thousand rings. The run may melt – it slows down and draws cheaper – but the tab keeps going and the recording keeps rolling.",
+    "on": "ON",
+    "off": "OFF",
+    "warning": "Extreme values can slow the run to a crawl – that is the point. Allowed to melt, never to crash.",
+    "typeValue": "Type a value for {label}",
+    "invalidValue": "Not a valid value: a finite number of at least {min}.",
+    "softCeiling": "The engine runs at most {value} of this; the link keeps your number.",
+    "finderLimited": "No limits: a heavy run – only {count} seeds tested, a slice of every frame at a time.",
+    "canvasRealTime": "x[ratio] REAL TIME",
+    "canvasArenaFull": "ARENA FULL",
+    "canvasBalls": "[count] BALLS",
+    "canvasAteArena": "THE BALL ATE THE ARENA"
   }
 }

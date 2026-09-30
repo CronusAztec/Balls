@@ -1,5 +1,6 @@
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { resolvePhysicsExtras } from "@/lib/physics/extras";
+import { unlimitedExtrasOf } from "@/lib/physics/limits"; // --- unlimited ---
 import type { BoxSettings, DropSettings, PendulumSettings } from "@/lib/physics/modes";
 import { resolveBoxSettings } from "@/lib/physics/modes/box";
 import { resolveDropSettings } from "@/lib/physics/modes/drop";
@@ -284,6 +285,9 @@ export interface FinderResult {
   /** On beat: the distinct beats the found run's wall hits land on, and its timed hits (set when On beat applies). */
   beatsCovered?: number;
   beatHits?: number;
+  // --- unlimited ---
+  /** A heavy No limits run: the search tested only this many seeds (the time budget; see unlimitedFinder.ts). */
+  limitedSeeds?: number;
 }
 
 /**
@@ -293,7 +297,7 @@ export interface FinderResult {
  * identically in the page with the same extras.
  */
 export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, settings: ModeSettings, seed: number): PhysicsEngine {
-  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount)
+  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), ...unlimitedExtrasOf(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount) --- unlimited --- (the extras past their ranges, as the page's engine runs them)
   engine.setBouncier(settings.bouncierEnabled);
   if (mode === "target") {
     engine.setCountdownTotal(settings.countdownTotal);

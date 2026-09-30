@@ -114,9 +114,9 @@ export function hitDamage(ball: Pick<Ball, "mult">): number {
   return ball.mult ? ball.mult.damage : 1;
 }
 
-/** Restitution factor of a ball's bounce multiplier (capped at `MAX_EFFECTIVE_BOUNCE`). */
-export function effectiveBounce(ball: Pick<Ball, "mult">): number {
-  return ball.mult ? Math.min(MAX_EFFECTIVE_BOUNCE, ball.mult.bounce) : 1;
+/** Restitution factor of a ball's bounce multiplier (capped at `MAX_EFFECTIVE_BOUNCE`; --- unlimited --- No limits passes Infinity). */
+export function effectiveBounce(ball: Pick<Ball, "mult">, cap = MAX_EFFECTIVE_BOUNCE): number {
+  return ball.mult ? Math.min(cap, ball.mult.bounce) : 1;
 }
 
 /** Modes whose rings a ball with enough damage may smash (escape formats; Lines, Paint, Grow and Target keep their arena). */
@@ -518,6 +518,8 @@ export class MultiplierRuntime {
   private readonly fit: RingFit = { burst: [], outgrown: false, dist: 0 };
   private mode: ModeId | undefined;
   private readonly plan: StepPlan = { subSteps: 0, dilation: 1 };
+  /** --- unlimited --- The most a bounce multiplier may scale a rebound (`MAX_EFFECTIVE_BOUNCE`; Infinity with No limits on). */
+  bounceCap = MAX_EFFECTIVE_BOUNCE;
   private readonly view: MultiplierView = {
     active: false,
     speed: 1,
@@ -625,7 +627,7 @@ export class MultiplierRuntime {
       const b = balls[i];
       if (b.frozen) continue;
       const v = Math.hypot(b.vx, b.vy);
-      const rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(MAX_EFFECTIVE_BOUNCE, b.mult.bounce) : reboundSpeed;
+      const rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(this.bounceCap, b.mult.bounce) : reboundSpeed; // --- unlimited --- (the cap in effect)
       const bound = SPEED_MARGIN * (v > rebound ? v : rebound) + Math.abs(gravity * (b.gravityScale ?? 1)) * stepSec;
       const r = (bound * stepSec) / maxMovePerSubStep(b.radius);
       if (r > ratio) ratio = r;

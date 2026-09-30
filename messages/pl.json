@@ -1455,7 +1455,8 @@
     "byPerfectOff": "Wył.",
     "byRunInfo": "Strzały: {shots} – około {seconds}s razem z końcowym banerem. Ziarno decyduje, gdzie wyląduje każda kulka (i jak długo będzie się odbijać ostatnia), więc Znajdź symulację może trafić w długość Twojego klipu.",
     "byPerfectInfo": "Strzał {shot} jest ustawiony na dziesiątkę.",
-    "byPerfectBeyond": "Idealny strzał wypada po ostatnim z {shots} strzałów, więc żaden strzał nie jest ustawiony."
+    "byPerfectBeyond": "Idealny strzał wypada po ostatnim z {shots} strzałów, więc żaden strzał nie jest ustawiony.",
+    "unlimited": "Bez limitów"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -2470,5 +2471,20 @@
     "canvasMiss": "PUDŁO",
     "canvasFinal": "SUMA [total]",
     "canvasFinalSub": "Najlepszy strzał #[shot]: [score] pkt · dziesiątki: [bullseyes]"
+  },
+  "Unlimited": {
+    "label": "Bez limitów",
+    "tip": "Każda liczba poza zakresem suwaka: wpisz milion kulek, miliard prędkości albo tysiąc pierścieni. Symulacja może się „roztopić” – zwalnia i rysuje się prościej – ale karta działa dalej, a nagrywanie trwa.",
+    "on": "WŁ.",
+    "off": "WYŁ.",
+    "warning": "Ekstremalne wartości mogą spowolnić symulację do żółwiego tempa – i o to chodzi. Wolno jej się roztopić, nigdy wysypać.",
+    "typeValue": "Wpisz wartość: {label}",
+    "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
+    "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",
+    "finderLimited": "Bez limitów: ciężka symulacja – sprawdzono tylko {count} seedów, po kawałku każdej klatki.",
+    "canvasRealTime": "x[ratio] CZASU RZECZYWISTEGO",
+    "canvasArenaFull": "ARENA PEŁNA",
+    "canvasBalls": "[count] KULEK",
+    "canvasAteArena": "KULKA ZJADŁA ARENĘ"
   }
 }

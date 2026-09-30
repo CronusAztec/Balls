@@ -78,6 +78,9 @@ import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { ACCENT } from "@/lib/site";
+// --- unlimited --- the No limits switch and the unlimited sliders of the whole panel
+import UnlimitedSection, { UNLIMITED_KEYS } from "./sections/UnlimitedSection";
+import { UnlimitedProvider } from "./unlimitedSlider";
 
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
@@ -208,6 +211,8 @@ SECTION_KEYS.ball.push(...JOURNEY_KEYS);
 SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
+// --- unlimited --- the No limits switch opens the Ball & Physics section
+SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -319,6 +324,8 @@ export default function Controls(props: ControlsProps) {
   const ballSection = () => (
     <div className="space-y-4">
       <ResetButton search={search} t={t} section="ball" onReset={props.onResetSection} />
+      {/* --- unlimited --- the No limits switch (every numeric setting past its slider range) */}
+      <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- boris-faces --- the "Character" group: face, name label, squash, Boris persona */}
       <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
       <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} left="🐢" right="🚀" />
@@ -1264,6 +1271,7 @@ export default function Controls(props: ControlsProps) {
   const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id])) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   return (
+    <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
     <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-zinc-800">
       <h2 className="text-lg font-bold text-white mb-2">{t("controlsTitle")}</h2>
       <button
@@ -1460,6 +1468,7 @@ export default function Controls(props: ControlsProps) {
         </label>
       </div>
     </div>
+    </UnlimitedProvider>
   );
 }
 

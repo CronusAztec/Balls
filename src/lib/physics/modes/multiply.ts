@@ -40,6 +40,8 @@ export class MultiplyMode implements GameMode {
     let spawned = false;
     // --- boris-multipliers --- with multipliers in play the escalation stops at MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS
     const bounded = ctx.getMultipliers?.()?.isActive(this.name) ?? false;
+    // --- unlimited --- with No limits on there is no such cap: past the full-physics balls the new balls join the crowd
+    const unlimited = (ctx.unlimitedRoom?.() ?? null) !== null;
     for (const ball of balls) {
       if (this.escapedBalls.has(ball.id)) continue;
       if (Math.hypot(ball.x - cx, ball.y - cy) > wall.radius + ball.radius + 10) {
@@ -49,11 +51,16 @@ export class MultiplyMode implements GameMode {
         ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
         ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
-          if ((bounded || ball.mult) && balls.length >= MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS) break; // --- boris-multipliers ---
+          if (!unlimited && (bounded || ball.mult) && balls.length >= MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS) break; // --- boris-multipliers --- (--- unlimited --- not with No limits on)
           const a = ctx.random() * Math.PI * 2;
           // --- boris-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);
           const size = ball.mult ? ball.mult.size : 1;
+          // --- unlimited --- no room left for full-physics balls: the rest of this escape's balls fan out as crowd balls
+          if (unlimited && (ctx.unlimitedRoom?.() ?? 1) <= 0) {
+            ctx.spawnCrowd?.(this.spawnCount - i, cx, cy, speed, (ctx.config.ballRadius || 8) * size, a, ball.team ?? 0);
+            break;
+          }
           ctx.addBall({
             x: cx,
             y: cy,
@@ -69,8 +76,10 @@ export class MultiplyMode implements GameMode {
         spawned = true;
       }
     }
+    // --- unlimited --- thousands of full-physics balls look their ids up in a set (the same result as the scan)
+    const alive = balls.length > 256 ? new Set(balls.map((b) => b.id)) : null;
     for (const id of this.escapedBalls) {
-      if (!balls.find((b) => b.id === id)) this.escapedBalls.delete(id);
+      if (!(alive ? alive.has(id) : balls.find((b) => b.id === id))) this.escapedBalls.delete(id);
     }
     if (spawned) ctx.getBrokenWalls().clear();
   }

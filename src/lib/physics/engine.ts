@@ -52,6 +52,11 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
+// --- unlimited --- No limits: soft ceilings, the crowd, finite numbers, the ate-the-arena finish
+import { UnlimitedRuntime, type LimitsHost, type UnlimitedView } from "./limits";
+import type { Crowd } from "./crowd";
+import { MAX_EFFECTIVE_BOUNCE } from "./multipliers";
+import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -278,6 +283,10 @@ export class PhysicsEngine {
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
   // --- end video-beats ---
+  // --- unlimited --- No limits (limits.ts): soft ceilings, the crowd, finite numbers, the ate-the-arena finish
+  private readonly limits = new UnlimitedRuntime();
+  private readonly limitsHost: LimitsHost = { breakWall: (ball, wallIndex) => this.smashWall(ball, wallIndex) };
+  // --- end unlimited ---
 
   readonly ctx: ModeContext;
 
@@ -289,6 +298,7 @@ export class PhysicsEngine {
     this.multipliers.setConfig(config); // --- boris-multipliers ---
     this.editorObstacles.configure(config); // --- obstacle-editor ---
     this.timeline.prepare({ timeline: config.timeline }, config); // --- timeline --- (the config's values become the automated settings' bases)
+    this.applyLimits(); // --- unlimited --- (the switch, the soft ceilings, the extras past their ranges)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -352,6 +362,9 @@ export class PhysicsEngine {
       },
       // --- end odd-string-battle ---
       shiftWorld: (dx, dy) => this.shiftWorld(dx, dy), // --- boris-journey ---
+      // --- unlimited --- spawns past the full-physics balls join the crowd
+      unlimitedRoom: () => (this.limits.on ? this.limits.objectRoom(this.balls.length) : null),
+      spawnCrowd: (count, x, y, speed, radius, angle, slot) => this.limits.overflow(count, x, y, speed, radius, angle, slot),
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -758,7 +771,7 @@ export class PhysicsEngine {
     this.accumulationMode.setSpikesEnabled(enabled, this.ctx);
   }
   setSpikeCount(count: number) {
-    this.accumulationMode.setSpikeCount(count, this.ctx);
+    this.accumulationMode.setSpikeCount(this.limits.ceilValue("spikeCount", count), this.ctx); // --- unlimited --- (its soft ceiling)
   }
   isMultiplyModeActive() {
     return this.currentMode === this.multiplyMode;
@@ -879,7 +892,7 @@ export class PhysicsEngine {
     return this.targetMode.getSegmentMap();
   }
   setCountdownTotal(n: number) {
-    this.targetMode.setTotal(n);
+    this.targetMode.setTotal(this.limits.ceilValue("targetCount", n)); // --- unlimited --- (its soft ceiling)
   }
   setCountdownRandomOrder(v: boolean) {
     this.targetMode.setRandomOrder(v);
@@ -1530,7 +1543,7 @@ export class PhysicsEngine {
    * big Grow ball pressed onto a spinner). `keepRingSide()` moves such a ball back to the side it was on.
    */
   private handleEditorObstacles(ball: Ball, dtSec: number) {
-    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness;
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- unlimited --- (no cap with No limits on)
     const baseSpeed = this._config.ballSpeed || 400;
     // A ball pressed onto a bar by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
     const resting = (3 * this._config.gravity * baseSpeed * dtSec * (ball.gravityScale ?? 1)) / 300;
@@ -1593,7 +1606,7 @@ export class PhysicsEngine {
     this.currentMode?.flushPendingSounds?.(this.ctx);
     const events = this.pendingSoundEvents;
     this.pendingSoundEvents = [];
-    return events;
+    return this.limits.on ? this.limits.thinSounds(events) : events; // --- unlimited --- (at most MAX_SOUNDS_PER_FRAME a frame)
   }
   // --- camera ---
   /** Wall breaks so far (every "gap" event; never reset): the cinematic camera shakes when it grows. Reading it changes nothing. */
@@ -1637,6 +1650,38 @@ export class PhysicsEngine {
     return this.interaction;
   }
 
+  // --- unlimited ---
+  /**
+   * Reads the No limits switch from the config: with it on the core values run at their soft ceilings, the physics
+   * extras and split limits go past their ranges, the multiplier cap is off and a bounce multiplier scales without a cap.
+   */
+  private applyLimits() {
+    this.limits.configure(this._config);
+    if (this.limits.on) {
+      this._config = this.limits.ceilPatch(this._config, this._config);
+      this.limits.liftPhysics(this.extras, this.interaction, this._config);
+      this.breathing = this.extras.breathingAmplitude > 0;
+      this.multipliers.setConfig({ ...this._config, mpUnlimited: true });
+      // Rings built from a count past the ceiling before the switch arrived: rebuilt at the ceiling.
+      if (this.circularWalls.length > LIVE_WALL_LIMIT) {
+        this.restoreWallRadii();
+        if (!this.currentMode?.onConfigChange(this.ctx, false, true, false)) this.initializeCircularWalls();
+        this.syncWallBaseRadii();
+        this.brokenWalls.clear();
+      }
+    }
+    this.multipliers.bounceCap = this.limits.on ? Infinity : MAX_EFFECTIVE_BOUNCE;
+  }
+  /** What the canvas shows of a No limits run: the crowd, ARENA FULL, the ate-the-arena finish. */
+  getUnlimitedView(): UnlimitedView {
+    return this.limits.getView(this.balls.length);
+  }
+  /** The crowd's typed arrays (read-only for the renderer). */
+  getCrowd(): Readonly<Crowd> {
+    return this.limits.crowd;
+  }
+  // --- end unlimited ---
+
   // ---------------------------------------------------------------- balls
 
   addBall(ball: NewBall) {
@@ -1672,6 +1717,7 @@ export class PhysicsEngine {
     this.applyTimeline(0);
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
     this.onBeat.reset(); // --- video-beats --- a new run: no flight plans, fresh hit statistics
+    this.limits.reset(); // --- unlimited --- a new run: its crowd appears at the first step
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1683,6 +1729,7 @@ export class PhysicsEngine {
   setConfig(patch: Partial<PhysicsConfig>) {
     // --- timeline --- keyframed settings keep following their keyframes; the rest of the patch applies as always
     if (!this.timelineApplying && (patch.timeline !== undefined || this.timeline.active)) return this.setConfigWithTimeline(patch);
+    patch = this.limits.ceilPatch(patch, this._config); // --- unlimited --- (the values the engine runs: soft ceilings with No limits on)
     const oldW = this._config.width;
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
@@ -1693,6 +1740,7 @@ export class PhysicsEngine {
     this.interaction = resolveBallInteraction(this._config);
     this.multipliers.setConfig(this._config); // --- boris-multipliers ---
     this.editorObstacles.configure(this._config); // --- obstacle-editor --- (rebuilt only when the list or the canvas size changed)
+    this.applyLimits(); // --- unlimited ---
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
@@ -1877,7 +1925,12 @@ export class PhysicsEngine {
       // radius (≤ 4 px) per sub-step; past 64 sub-steps the step itself shrinks (time dilation, SLOW-MO in the HUD).
       // Without multipliers `plan` is null and the step is exactly the fixed step, as before.
       const multActive = mult.isActive(modeName);
-      const plan = multActive ? mult.planStep(this.balls, this.FIXED_STEP_MS / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
+      // --- unlimited --- with No limits on every step is planned (bounded sub-steps, time dilation beyond) and a new run's crowd appears
+      const limitsOn = this.limits.on;
+      if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
+      if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
+      const plan = multActive || limitsOn ? mult.planStep(this.balls, this.FIXED_STEP_MS / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
+      if (limitsOn && plan) this.limits.boundPlan(plan, this.balls.length); // --- unlimited --- (thousands of fast balls: a bounded step)
       const stepMs = plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS;
       this._elapsedMs += stepMs;
       const orbsLive = multActive && mult.pickupsLive(modeName);
@@ -2013,13 +2066,18 @@ export class PhysicsEngine {
           if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
           if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
         }
-        this.handleBallCollisions(multActive);
+        if (this.limits.pairsAllowed(this.balls.length)) this.handleBallCollisions(multActive || limitsOn); // --- unlimited --- (every pair through the spatial hash; a clone storm passes through itself)
         this.currentMode?.onPostSubStep(this.ctx);
       }
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
       if (this.onBeat.wants()) this.stepOnBeat(stepMs, subSteps, audioIntensity, gDirX, gDirY, keepMoving); // --- video-beats ---
       if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- boris-multipliers --- orbs taken, grown balls refitted, HUD
+      // --- unlimited --- the crowd moves, non-finite balls are rescued, big balls burst their rings or eat the arena
+      if (limitsOn) {
+        const g = this.gravityAccel(audioIntensity);
+        this.limits.endStep(this.ctx, mult, this.limitsHost, stepSec, g * gDirX, g * gDirY);
+      }
       if (this.circularWalls.length > 0) this.scanEscapes(); // --- teams ---
       if (this.pendingSplits.length > 0) this.flushSplits();
       for (const ball of this.balls) {
@@ -2070,7 +2128,7 @@ export class PhysicsEngine {
    */
   private handleObstacleCollisions(ball: Ball, dtSec: number) {
     const obstacles = this.obstacles;
-    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness; // --- boris-multipliers --- bounce multiplier
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- boris-multipliers --- bounce multiplier (--- unlimited --- no cap with No limits on)
     // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
     const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
     const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
@@ -2262,7 +2320,7 @@ export class PhysicsEngine {
           const baseSpeed = this._config.ballSpeed || 400;
           // Wall bounciness (restitution) scales the rebound speed; it is 1 by default (an exact no-op).
           let speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier() * this.extras.wallBounciness;
-          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball); // --- boris-multipliers --- speed and bounce multipliers
+          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball, this.multipliers.bounceCap); // --- boris-multipliers --- speed and bounce multipliers (--- unlimited --- uncapped with No limits on)
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
