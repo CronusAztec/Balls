@@ -102,6 +102,8 @@ export interface ArenaSoundSink {
   playPew(frequency?: number): void;
   /** --- boris-bullseye --- a Bullseye landing. */
   playThud(frequency?: number, level?: number): void;
+  /** --- boris-journey --- a Journey stage transition. */
+  playSwoosh(): void;
 }
 
 /**
@@ -114,6 +116,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
   if (ev.pew) return sink.playPew(ev.frequency); // --- boris-vortex --- (not a wall hit)
   if (ev.thud) return sink.playThud(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- boris-bullseye --- (a landing's thud, not a wall hit)
+  if (ev.swoosh) return sink.playSwoosh(); // --- boris-journey --- (a stage transition's whoosh, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);
