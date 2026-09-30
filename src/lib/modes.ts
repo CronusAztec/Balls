@@ -30,6 +30,12 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ct
   const at = MODE_CARD_ORDER.indexOf("ctf");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "runner", "paddle");
 }
+// --- boris-vortex --- the Sound Vortex joins the Boris family at the end of the rhythm cards, right before Glass Smash (which
+// closes them)
+{
+  const at = MODE_CARD_ORDER.indexOf("glass");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "vortex");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -78,6 +84,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   // --- jdm-rhythm-runner --- every landing on the beat / every catch is a note
   runner: "rhythm",
   paddle: "rhythm",
+  // --- boris-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
+  vortex: "rhythm",
 };
 
 /** The modes of a category in card order. */

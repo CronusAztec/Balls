@@ -15,6 +15,7 @@ import { polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers";
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle";
+import { vortexSettingsOf } from "@/lib/physics/modes/vortex";
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { riggedConfigOf } from "@/lib/physics/rigged";
@@ -107,6 +108,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     battle: battleSettingsOf(s),
     ctf: ctfSettingsOf(s),
     ...jdmRhythmFinderSettingsOf(s, null),
+    vortex: vortexSettingsOf(s),
   };
 }
 
