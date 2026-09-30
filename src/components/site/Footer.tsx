@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { SITE_DOMAIN } from "@/lib/site";
+import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 
 export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
   const t = useTranslations("Footer");
@@ -25,6 +26,8 @@ export default function Footer({ showShortcuts = false }: { showShortcuts?: bool
             </span>
           ))}
         </nav>
+        {/* --- pwa --- only while the browser offers to install the site */}
+        <InstallAppButton />
         {showShortcuts && (
           <p className="mt-4 text-zinc-600 text-xs hidden sm:block">
             {t("shortcuts")}: <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400 text-xs border border-zinc-700">Space</kbd> {t("pauseResume")} ·{" "}

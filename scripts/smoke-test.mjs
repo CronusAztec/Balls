@@ -5591,6 +5591,176 @@ const vxFrameRates = async (ms) => {
 }
 // --- end viral-bot ---
 
+// --- pwa --- Installable offline app: the manifest, the icons, the offline page and the worker are served and linked; the worker
+// takes over and precaches the app shell in a versioned cache; offline (a local proxy in front of the server drops every
+// connection) the simulator loads from the cache and runs, and a page never visited shows the offline page in its language; after
+// a "new deploy" (the proxy marks every page and gives sw.js a new version) the page comes from the network, the new worker replaces
+// the old cache and serves the new pages offline.
+{
+  const http = await import("node:http");
+  const basePath = new URL(BASE).pathname.replace(/\/+$/, "");
+  const swRes = await page.request.get(`${BASE}/sw.js`);
+  const swText = swRes.ok() ? await swRes.text() : "";
+  const version = swText.match(/"version": "([0-9a-f]+)"/)?.[1] ?? null;
+  check(
+    "pwa: /sw.js is served as JavaScript with its version and precache list",
+    swRes.ok() && /javascript/.test(swRes.headers()["content-type"] ?? "") && !!version && swText.includes('"offline.html"') && swText.includes('"_next/static/'),
+    `(${swRes.status()}, ${swRes.headers()["content-type"]}, version ${version})`,
+  );
+  const manRes = await page.request.get(`${BASE}/manifest.webmanifest`);
+  const manifest = manRes.ok() ? await manRes.json().catch(() => null) : null;
+  check(
+    "pwa: manifest.webmanifest starts the standalone app on /en/ under the base path",
+    !!manifest && manifest.start_url === `${basePath}/en/` && manifest.scope === `${basePath}/` && manifest.display === "standalone" && !!manifest.theme_color && !!manifest.background_color && !!manifest.name,
+    `(${manRes.status()}, ${manRes.headers()["content-type"]}, ${JSON.stringify(manifest && { name: manifest.name, start_url: manifest.start_url, scope: manifest.scope, display: manifest.display })})`,
+  );
+  const icons = [];
+  for (const icon of manifest?.icons ?? []) {
+    const res = await page.request.get(new URL(icon.src, `${BASE}/`).href);
+    icons.push({ src: icon.src, sizes: icon.sizes, purpose: icon.purpose, ok: res.ok(), type: res.headers()["content-type"] });
+  }
+  check(
+    "pwa: every manifest icon is served (192, 512 and maskable PNGs)",
+    icons.length >= 4 && icons.every((i) => i.ok && (!i.src.endsWith(".png") || i.type === "image/png")) && icons.some((i) => i.purpose === "maskable") && icons.some((i) => i.sizes === "192x192"),
+    `(${JSON.stringify(icons)})`,
+  );
+  const offRes = await page.request.get(`${BASE}/offline.html`);
+  check("pwa: offline.html is served", offRes.ok() && (await offRes.text()).includes("data-pwa-offline"), `(${offRes.status()})`);
+  for (const url of [`${BASE}/pl/`, `${BASE}/pl/this-page-does-not-exist/`]) {
+    await page.goto(url, { waitUntil: "networkidle" });
+    const head = await page.evaluate(() => ({
+      manifest: document.querySelector('link[rel="manifest"]')?.getAttribute("href") ?? null,
+      theme: document.querySelector('meta[name="theme-color"]')?.getAttribute("content") ?? null,
+      apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href") ?? null,
+    }));
+    check(
+      `pwa: ${url.slice(BASE.length)} links the manifest, the apple-touch-icon and a theme colour`,
+      head.manifest === `${basePath}/manifest.webmanifest` && !!head.theme && !!head.apple?.endsWith("/icons/apple-touch-icon.png"),
+      `(${JSON.stringify(head)})`,
+    );
+  }
+  const reg = await page.evaluate(async () => {
+    const ready = await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 30000))]);
+    return ready ? { scope: ready.scope, script: ready.active?.scriptURL ?? null } : null;
+  });
+  check("pwa: the service worker registers on localhost with the base path as its scope", !!reg && reg.scope === `${BASE}/` && reg.script === `${BASE}/sw.js`, `(${JSON.stringify(reg)})`);
+
+  const upstream = new URL(BASE);
+  const proxyState = { offline: false, deploy: 0 };
+  const proxy = http.createServer((req, res) => {
+    if (proxyState.offline) {
+      req.socket.destroy();
+      return;
+    }
+    const isSw = (req.url ?? "").split("?")[0] === `${basePath}/sw.js`;
+    const up = http.request(
+      { hostname: upstream.hostname, port: upstream.port, path: req.url, method: req.method, headers: { ...req.headers, host: upstream.host, "accept-encoding": "identity" } },
+      (upRes) => {
+        const type = String(upRes.headers["content-type"] ?? "");
+        if (!proxyState.deploy || !(isSw || type.includes("text/html"))) {
+          res.writeHead(upRes.statusCode ?? 502, upRes.headers);
+          upRes.pipe(res);
+          return;
+        }
+        const chunks = [];
+        upRes.on("data", (c) => chunks.push(c));
+        upRes.on("end", () => {
+          let body = Buffer.concat(chunks).toString("utf8");
+          body = isSw
+            ? body.replace(/"version": "([0-9a-f]+)"/, `"version": "$1-deploy${proxyState.deploy}"`)
+            : body.replace("<head>", `<head><meta name="smoke-deploy" content="${proxyState.deploy}">`);
+          const headers = { ...upRes.headers };
+          delete headers["content-length"];
+          res.writeHead(upRes.statusCode ?? 502, headers);
+          res.end(body);
+        });
+      },
+    );
+    up.on("error", () => res.destroy());
+    req.pipe(up);
+  });
+  await new Promise((r) => proxy.listen(0, r));
+  const PROXY = `http://localhost:${proxy.address().port}${basePath}`;
+  const offCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const off = await offCtx.newPage();
+  const offErrors = [];
+  off.on("pageerror", (e) => offErrors.push(e.message));
+  const cacheKeys = () => off.evaluate(() => caches.keys()).catch(() => []);
+  const marker = () => off.evaluate(() => document.querySelector('meta[name="smoke-deploy"]')?.getAttribute("content") ?? null).catch(() => null);
+  try {
+    await off.goto(`${PROXY}/en/`, { waitUntil: "networkidle" });
+    const controlled = await off.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 60000 }).then(() => true).catch(() => false);
+    const cached = await off.evaluate(async () => {
+      const out = {};
+      for (const key of await caches.keys()) out[key] = (await (await caches.open(key)).keys()).map((r) => new URL(r.url).pathname);
+      return out;
+    }).catch(() => ({}));
+    const current = Object.keys(cached).find((k) => k.endsWith(`:${version}`));
+    const shell = current ? cached[current] : [];
+    check(
+      "pwa: the worker takes over and precaches the app shell in a cache named after its version",
+      controlled && !!current && current.includes(`:${basePath}/:`) && [`${basePath}/en/simulator/`, `${basePath}/pl/`, `${basePath}/offline.html`, `${basePath}/icons/icon-512.png`].every((p) => shell.includes(p)) && shell.some((p) => p.includes("/_next/static/")),
+      `(controlled=${controlled}, caches=${JSON.stringify(Object.fromEntries(Object.entries(cached).map(([k, v]) => [k, v.length])))})`,
+    );
+
+    proxyState.offline = true;
+    const offSim = await off.goto(`${PROXY}/en/simulator/?mode=classic`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
+    const started = await off.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 20000 }).then(() => true).catch(() => false);
+    await off.waitForTimeout(2500);
+    const elapsed = await off.locator("span.tabular-nums").first().innerText().catch(() => "");
+    check(
+      "pwa: offline, the simulator loads from the cache and runs",
+      !!offSim && offSim.ok() && started && /\d/.test(elapsed) && elapsed !== "0.0s",
+      `(status ${offSim?.status()}, from worker ${offSim?.fromServiceWorker()}, started=${started}, elapsed ${elapsed})`,
+    );
+    await off.goto(`${PROXY}/pl/privacy/`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
+    const offlinePage = await off.evaluate(() => ({
+      offline: document.body.hasAttribute("data-pwa-offline"),
+      lang: document.documentElement.lang,
+      title: document.title,
+      h1: document.querySelector("h1")?.textContent ?? "",
+      simulator: document.getElementById("pwa-offline-simulator")?.getAttribute("href") ?? null,
+    })).catch(() => null);
+    check(
+      "pwa: offline, a page never visited shows the offline page in the URL's language",
+      !!offlinePage && offlinePage.offline && offlinePage.lang === "pl" && offlinePage.h1 === "Jesteś offline" && offlinePage.simulator === `${basePath}/pl/simulator/`,
+      `(${JSON.stringify(offlinePage)})`,
+    );
+    await off.screenshot({ path: path.join(outDir, "pwa-offline.png") });
+
+    proxyState.offline = false;
+    proxyState.deploy = 1;
+    await off.goto(`${PROXY}/en/`, { waitUntil: "networkidle" });
+    const onlineMarker = await marker();
+    await off.evaluate(async () => {
+      const r = await navigator.serviceWorker.getRegistration();
+      await r?.update();
+    }).catch(() => {});
+    let keys = [];
+    for (let i = 0; i < 60; i++) {
+      keys = await cacheKeys();
+      if (keys.some((k) => k.endsWith(`:${version}-deploy1`)) && !keys.some((k) => k.endsWith(`:${version}`))) break;
+      await off.waitForTimeout(1000);
+    }
+    const swapped = keys.some((k) => k.endsWith(`:${version}-deploy1`)) && !keys.some((k) => k.endsWith(`:${version}`));
+    proxyState.offline = true;
+    await off.goto(`${PROXY}/en/simulator/`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
+    const offlineMarker = await marker();
+    check(
+      "pwa: after a new deploy the page comes from the network, the new worker replaces the old cache and serves the new pages offline",
+      onlineMarker === "1" && swapped && offlineMarker === "1",
+      `(online marker=${onlineMarker}, caches=${JSON.stringify(keys)}, offline marker=${offlineMarker})`,
+    );
+  } finally {
+    proxyState.offline = false;
+    await offCtx.close().catch(() => {});
+    proxy.closeAllConnections?.();
+    await new Promise((r) => proxy.close(() => r()));
+  }
+  check("pwa: no page errors while offline or across the update", offErrors.length === 0, offErrors.length ? `\n   ${offErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end pwa ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

@@ -2271,5 +2271,14 @@
         "hashtags": "#wysciglabirynt #labiryntpierscieni #ktowygra"
       }
     }
+  },
+  "Pwa": {
+    "installApp": "Zainstaluj aplikację",
+    "installAppTip": "Zainstaluj {siteName} na tym urządzeniu: otwiera się we własnym oknie, startuje z ekranu głównego lub z doku i działa offline.",
+    "offlinePageTitle": "Offline – {siteName}",
+    "offlineTitle": "Jesteś offline",
+    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna i symulator działają offline, gdy choć raz otworzysz witrynę z dostępem do sieci – połącz się ponownie albo otwórz symulator poniżej.",
+    "offlineRetry": "Spróbuj ponownie",
+    "offlineSimulator": "Otwórz symulator"
   }
 }

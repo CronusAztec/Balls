@@ -2494,5 +2494,14 @@
         "hashtags": "#mazerace #ringmaze #whowillwin"
       }
     }
+  },
+  "Pwa": {
+    "installApp": "Install app",
+    "installAppTip": "Install {siteName} on this device: it opens in its own window, starts from your home screen or dock and works offline.",
+    "offlinePageTitle": "Offline – {siteName}",
+    "offlineTitle": "You're offline",
+    "offlineBody": "This page isn't saved on this device yet. The home page and the simulator work offline once you've opened the site online – reconnect, or open the simulator below.",
+    "offlineRetry": "Try again",
+    "offlineSimulator": "Open the simulator"
   }
 }
