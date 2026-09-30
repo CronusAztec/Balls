@@ -55,6 +55,7 @@ import { withFastRender } from "./fastRenderCanvas";
 import { RACE_DATA_KEYS, RaceLayer, writeRaceDataset, type CanvasRaceOptions, type RaceRenderOptions } from "./raceRenderer";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOptions } from "./arenaRenderer";
+import { HUD_BAND } from "@/lib/physics/modes/arenaGames"; // --- viral-bot --- (the captions keep below the arena's scoreboard band)
 // --- jdm-rhythm-runner --- the Beat Runner (course, square, progress) and Paddle Keep-Up (field, platform, score)
 import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_KEYS, RunnerLayer, writePaddleDataset, writeRunnerDataset, type JdmRhythmLabels, type JdmRhythmRenderOptions } from "./jdmRhythmRenderer";
 // --- split-screen --- 2 or 4 arenas: every arena drawn by its own offline instance of this canvas, composed by the wrapper
@@ -2500,7 +2501,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionView.height = size.height;
         captionView.insetTop = live ? 52 : 0;
         captionView.insetBottom = live ? 56 : 0;
-        edgeTextBounds(edgeLines, teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, captionView);
+        // --- viral-bot --- an arena game's scoreboard band (the top HUD_BAND of the square) is the top captions' limit too
+        const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
+        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom), captionView);
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);

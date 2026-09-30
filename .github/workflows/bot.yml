@@ -4,6 +4,9 @@ name: Viral video bot
 # out/ like GitHub Pages, plans and renders the day's clips with scripts/viral-bot.mjs in headless Chromium and uploads
 # bot-output (videos, caption files, manifest.json, posting-schedule.md) as an artifact kept for 14 days.
 #
+# Playwright's Chromium on Linux has no H.264 or AAC encoder, so the clips render as WebM; the CLI converts them to MP4
+# (H.264 + AAC, what Instagram takes) with ffmpeg – installed below when the runner lacks it – before anything is uploaded.
+#
 # It posts to Instagram only when run by hand with "post" ticked AND the IG_USER_ID, IG_ACCESS_TOKEN and BOT_VIDEO_BASE_URL
 # secrets exist. Instagram downloads each video from BOT_VIDEO_BASE_URL, so the folder must be public there first: set the
 # repository variable BOT_UPLOAD_COMMAND to the command that uploads bot-output (e.g. an `aws s3 sync` or `rclone copy`,
@@ -54,6 +57,18 @@ jobs:
 
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
+
+      - name: Install ffmpeg (WebM → MP4 for Instagram)
+        shell: bash
+        run: |
+          if ! command -v ffmpeg > /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          encoders="$(ffmpeg -hide_banner -encoders 2> /dev/null)"
+          for e in libx264 aac; do
+            printf '%s\n' "$encoders" | grep -qE " $e " || { echo "::error::this ffmpeg has no $e encoder"; exit 1; }
+          done
 
       - name: Work out the Pages URL and base path
         id: site

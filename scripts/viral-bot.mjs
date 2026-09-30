@@ -11,10 +11,16 @@
  * planned) and renders through its batch renderer (window.__jumpingBallsBot). --dry-run plans in Node instead – the same
  * planner, bundled from src/lib/bot with esbuild – and writes only the text files; no browser, no site needed.
  *
+ * Instagram takes MP4 (H.264 + AAC). A Chromium without H.264 + AAC encoders – Playwright's Chromium on Linux, and Google
+ * Chrome on Linux has no AAC encoder either – renders WebM; the CLI then converts every WebM clip to MP4 with ffmpeg (on
+ * PATH, or FFMPEG_PATH) and points manifest.json and posting-schedule.md at the .mp4. Without ffmpeg the WebM stays, with
+ * a warning, and is never posted.
+ *
  * --post (never without it) needs IG_USER_ID, IG_ACCESS_TOKEN and BOT_VIDEO_BASE_URL (the public HTTPS location the
  * output folder is uploaded to, so Instagram can download the MP4s); IG_GRAPH_VERSION / IG_GRAPH_HOST are optional.
  * Without them, or when a post fails, the manual upload steps are printed instead.
  */
+import { spawnSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -40,8 +46,9 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
                      that folder to BOT_VIDEO_BASE_URL; nothing is planned or rendered
   --help             this text
 
-Environment: BASE_URL (the served site), CHROME_PATH (a Chromium to use), and for --post IG_USER_ID, IG_ACCESS_TOKEN,
-BOT_VIDEO_BASE_URL, IG_GRAPH_VERSION, IG_GRAPH_HOST.`;
+Environment: BASE_URL (the served site), CHROME_PATH (a Chromium to use), FFMPEG_PATH (the ffmpeg that converts WebM
+clips to MP4 for Instagram; default: ffmpeg on PATH), and for --post IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL,
+IG_GRAPH_VERSION, IG_GRAPH_HOST.`;
 
 class UsageError extends Error {}
 
@@ -210,9 +217,80 @@ async function renderInBrowser(opts, out) {
     const rendered = await page.evaluate(() => window.__jumpingBallsBot.render({ download: "each" }));
     await Promise.all(saving);
     writeTextFiles(out, await page.evaluate(() => window.__jumpingBallsBot.textFiles()));
+    // Instagram takes MP4 (H.264 + AAC): a browser without those encoders rendered WebM – convert it and point the text files at the MP4.
+    const fps = Object.fromEntries(plans.map((p) => [p.id, p.settings.fastExportFps || 60]));
+    const { renames } = transcodeClips(out, rendered, { fps });
+    retargetTextFiles(out, renames);
     return { plans, rendered };
   } finally {
     await browser.close();
+  }
+}
+
+/** The ffmpeg arguments that turn a WebM clip into an MP4 Instagram takes: H.264 (yuv420p) + AAC, the moov atom up front. */
+export function mp4Args(src, dst, fps = 60) {
+  return ["-y", "-loglevel", "error", "-i", src, "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", String(fps), "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", dst];
+}
+
+/**
+ * Converts every rendered WebM clip in `out` to MP4 with ffmpeg (`ffmpeg`: a command or path; `fps`: id → frame rate) and
+ * updates `rendered` in place (its `file` and `bytes`); the WebM is removed once its MP4 is written. Returns the renames
+ * (old name → new name) and whether ffmpeg was missing – then nothing is converted.
+ *
+ * @param {string} out
+ * @param {{ id: string, status: string, file: string | null, bytes?: number | null }[]} rendered
+ * @param {{ ffmpeg?: string, fps?: Record<string, number>, log?: { log: (message: string) => void, warn: (message: string) => void } }} [options]
+ * @returns {{ renames: Record<string, string>, missing: boolean }}
+ */
+export function transcodeClips(out, rendered, { ffmpeg = process.env.FFMPEG_PATH || "ffmpeg", fps = {}, log = console } = {}) {
+  const webm = rendered.filter((r) => r.status === "done" && typeof r.file === "string" && r.file.toLowerCase().endsWith(".webm"));
+  const renames = {};
+  if (webm.length === 0) return { renames, missing: false };
+  const probe = spawnSync(ffmpeg, ["-version"], { encoding: "utf8" });
+  if (probe.error || probe.status !== 0) {
+    log.warn(`  ! ${webm.length} clip${webm.length === 1 ? " is" : "s are"} WebM (this browser has no H.264 + AAC encoders) and ffmpeg was not found (${ffmpeg}): Instagram takes MP4 (H.264 + AAC) – install ffmpeg or set FFMPEG_PATH, then render again.`);
+    return { renames, missing: true };
+  }
+  for (const r of webm) {
+    const dstName = `${r.file.slice(0, -".webm".length)}.mp4`;
+    const src = path.join(out, r.file);
+    const dst = path.join(out, dstName);
+    const run = spawnSync(ffmpeg, mp4Args(src, dst, fps[r.id] ?? 60), { encoding: "utf8" });
+    const size = fs.existsSync(dst) ? fs.statSync(dst).size : 0;
+    if (run.error || run.status !== 0 || size === 0) {
+      log.warn(`  ! ${r.file}: ffmpeg could not convert it to MP4 (${(run.error?.message ?? run.stderr ?? "").trim().split("\n").pop() || `exit ${run.status}`}); it stays WebM.`);
+      if (size === 0 && fs.existsSync(dst)) fs.rmSync(dst, { force: true });
+      continue;
+    }
+    fs.rmSync(src, { force: true });
+    renames[r.file] = dstName;
+    r.file = dstName;
+    r.bytes = size;
+    log.log(`  ✓ ${dstName} (H.264 + AAC, from WebM)`);
+  }
+  return { renames, missing: false };
+}
+
+/**
+ * Points manifest.json (each clip's `file`) and posting-schedule.md in `out` at the renamed videos (old name → new name).
+ *
+ * @param {string} out
+ * @param {Record<string, string>} renames
+ */
+export function retargetTextFiles(out, renames, manifestFile = "manifest.json", scheduleFile = "posting-schedule.md") {
+  const names = Object.keys(renames);
+  if (names.length === 0) return;
+  const manifestPath = path.join(out, manifestFile);
+  if (fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    for (const clip of manifest.clips ?? []) if (clip.file && renames[clip.file]) clip.file = renames[clip.file];
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  const schedulePath = path.join(out, scheduleFile);
+  if (fs.existsSync(schedulePath)) {
+    let text = fs.readFileSync(schedulePath, "utf8");
+    for (const name of names) text = text.split(name).join(renames[name]);
+    fs.writeFileSync(schedulePath, text);
   }
 }
 
@@ -232,7 +310,7 @@ async function postToInstagram(planner, clips, copy) {
       continue;
     }
     if (!clip.file.endsWith(".mp4")) {
-      console.warn(`  – ${clip.file}: Instagram takes MP4 (H.264 + AAC); this browser rendered WebM. Convert it and post by hand.`);
+      console.warn(`  – ${clip.file}: Instagram takes MP4 (H.264 + AAC), and this clip is WebM (rendered without H.264 + AAC encoders and not converted: ffmpeg was missing or failed). Install ffmpeg (or set FFMPEG_PATH) and render again, or convert it and post by hand.`);
       ok = false;
       continue;
     }

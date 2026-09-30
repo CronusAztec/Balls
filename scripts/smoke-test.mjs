@@ -5394,7 +5394,8 @@ const vxFrameRates = async (ms) => {
 // (localStorage), the page exposes the planner to the CLI (window.__jumpingBallsBot, whose text files hold the manifest and
 // the schedule), "Open in simulator" puts a clip on the page, and a one-clip short plan starts "Render all": the batch
 // renderer renders it and the ZIP holds the video as <episode>-<recipe>-<seed>, its caption file, manifest.json and
-// posting-schedule.md. Without WebCodecs the block says so.
+// posting-schedule.md. Without WebCodecs the block says so. Every planned clip's share link opens with its planned seed, and
+// in the arena games the captions keep below the mode's scoreboard band.
 {
   const BOT_KEY = "jumpingballslive_viral_bot";
   const botStatus = () => page.locator("[data-bot]").getAttribute("data-bot").catch(() => null);
@@ -5505,6 +5506,41 @@ const vxFrameRates = async (ms) => {
     const renderBack = !webCodecs || (await page.waitForFunction(() => [...document.querySelectorAll("[data-bot] button")].some((b) => /Render all/.test(b.textContent ?? "") && !b.disabled), null, { timeout: 15000 }).then(() => true).catch(() => false));
     const noteGone = !(await bot.getByTestId("bot-split-race").isVisible().catch(() => false));
     check("viral bot: a split-screen race keeps Render all off and says why; opening a clip ends the race", kept && raceDisabled && raceNote && raceOver && renderBack && noteGone, `(plan kept=${kept}, disabled=${raceDisabled}, note=${raceNote}, race over=${raceOver}, render back=${renderBack}, ${page.url().slice(0, 120)}…)`);
+  }
+  // 5. A clip's share link (manifest.json, caption file, schedule) pins its planned seed: the page reads seed= in its first
+  // render, before the URL mirror drops it, and the canvas' run (data-seed) is the planned one – and stays it.
+  const pinned = [];
+  for (const clip of manifest?.clips ?? []) {
+    const link = new URL(clip.shareUrl);
+    await page.goto(`${BASE}/en/simulator/${link.search}`, { waitUntil: "networkidle" });
+    const seedNow = () => page.locator("main canvas").first().getAttribute("data-seed").catch(() => null);
+    const hit = await page.waitForFunction((seed) => document.querySelector("main canvas")?.getAttribute("data-seed") === seed, String(clip.seed), { timeout: 15000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1500);
+    pinned.push({ recipe: clip.recipe, planned: clip.seed, page: await seedNow(), hit, mode: new URLSearchParams(await page.evaluate(() => location.search)).get("mode") === clip.mode });
+  }
+  check(
+    "viral bot: every planned clip's share link opens with its planned seed (canvas data-seed) and mode",
+    pinned.length === 3 && pinned.every((p) => p.hit && p.page === String(p.planned) && p.mode),
+    `(${JSON.stringify(pinned)})`,
+  );
+  // 6. An arena game's scoreboard band (the top 10 % of the square: "N LEFT", the score and the clock) is the bot's series
+  // label's no-go zone – the label is the Bottom Text there – and the top captions start below it.
+  {
+    const hook = ["tx*t*0*0*p*1.2*ffffff*000000*Pick yours now"].join(",");
+    const rows = [];
+    for (const mode of ["battle", "ctf"]) {
+      await page.goto(`${BASE}/en/simulator/?mode=${mode}&res=1080x1920&bottom=${encodeURIComponent("Square Deathmatch · Day 3")}&cap=${encodeURIComponent(hook)}`, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: /Start Simulator/ }).click();
+      await page.waitForTimeout(700);
+      const d = await canvasData();
+      const rect = await page.locator("main canvas").first().evaluate((el) => { const r = el.getBoundingClientRect(); return { w: r.width, h: r.height }; });
+      const side = Math.min(rect.w, rect.h);
+      const band = (rect.h - side) / 2 + 0.1 * side;
+      const [stackTop] = (d.captionStack ?? "").split(",").map(Number);
+      const [, textBottom] = (d.edgeText ?? "").split(",").map(Number);
+      rows.push({ mode, stackTop, band: Math.round(band * 10) / 10, captions: d.captions, textBottom, ok: Number(d.captions) === 1 && Number.isFinite(stackTop) && stackTop >= band && Number.isFinite(textBottom) && textBottom > (rect.h + side) / 2 - 0.2 * side });
+    }
+    check("viral bot: in battle royale and capture the flag the top captions start below the scoreboard band, the label sits at the bottom", rows.every((r) => r.ok), `(${JSON.stringify(rows)})`);
   }
   await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
 }

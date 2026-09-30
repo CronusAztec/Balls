@@ -1,3 +1,4 @@
+import type { SimulatorSettings } from "@/lib/settings";
 import type { BotFamily, BotPlatform, BotRecipe, EndingStyle } from "./playbook";
 import { HASHTAG_COUNT, PLATFORMS } from "./playbook";
 
@@ -49,12 +50,20 @@ export function parseHashtags(text: string): string[] {
   return out;
 }
 
+/** The copy variables of a recipe for these settings (`BotRecipe.copyVars`: variable → path under `ViralBot`), filled in. */
+export function recipeCopyVars(copy: BotCopy, recipe: Pick<BotRecipe, "copyVars">, settings: SimulatorSettings): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, path] of Object.entries(recipe.copyVars?.(settings) ?? {})) out[name] = copyString(copy, path);
+  return out;
+}
+
 /**
- * 5–10 niche hashtags (§3.10): the recipe's own first, then the family's, the platform's tag and the locale's common ones –
- * never more than HASHTAG_COUNT.max, and padded from the common list to at least HASHTAG_COUNT.min.
+ * 5–10 niche hashtags (§3.10): the recipe's own first (its list filled with `vars` – a tag that fills in empty is left
+ * out), then the family's, the platform's tag and the locale's common ones – never more than HASHTAG_COUNT.max, and padded
+ * from the common list to at least HASHTAG_COUNT.min.
  */
-export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family">, platform: BotPlatform): string[] {
-  const own = parseHashtags(copyString(copy, `recipes.${recipe.copyKey}.hashtags`));
+export function clipHashtags(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey" | "family">, platform: BotPlatform, vars: Record<string, string | number> = {}): string[] {
+  const own = parseHashtags(fillTemplate(copyString(copy, `recipes.${recipe.copyKey}.hashtags`), vars));
   const family = parseHashtags(copyString(copy, `hashtags.${recipe.family}`));
   const common = parseHashtags(copyString(copy, "hashtags.common"));
   const out: string[] = [];
@@ -103,7 +112,7 @@ export function postCopy(copy: BotCopy, input: PostCopyInput): PostCopy {
   const { recipe, platform, ending, hook, episode, vars } = input;
   const question = recipeText(copy, recipe, ending === "cliffhanger" ? "cliffPostQuestion" : "postQuestion", vars);
   const keywords = recipeText(copy, recipe, "keywords", vars);
-  const hashtags = clipHashtags(copy, recipe, platform);
+  const hashtags = clipHashtags(copy, recipe, platform, vars);
   const series = seriesLabel(copy, recipe, episode);
   const caption = [hook, series, question, keywords, hashtags.join(" ")].filter((line) => line.trim()).join("\n\n");
   const noteParts = [
