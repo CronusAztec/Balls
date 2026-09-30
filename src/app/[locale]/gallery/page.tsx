@@ -9,7 +9,7 @@ import { hasLocale } from "next-intl";
 import { routing, type Locale } from "@/i18n/routing";
 import { GALLERY, galleryHref } from "@/content/gallery";
 import { SITE_NAME, absoluteUrl, assetPath, pageUrl } from "@/lib/site";
-import { localeAlternates } from "../layout";
+import { localeAlternates } from "@/i18n/alternates";
 
 /* --- daily-gallery --- The preset gallery: curated setups (src/content/gallery.ts) with their preview images and a "Try it" link that opens the simulator with the preset applied. */
 
