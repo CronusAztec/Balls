@@ -1,5 +1,6 @@
 import { BEAT_SOURCE_KINDS, MAX_MARKER_TEXT, beatClockConfigOf, bpmBeatSource, isBeatSourceKind, manualBeatSource, parseMarkers, serializeMarkers, type BeatSourceKind } from "./beatSource";
 import type { OnBeatConfig } from "@/lib/physics/onBeat";
+import type { BeatGrid } from "./beatClock";
 
 /**
  * --- video-beats --- The settings glue of "Beats from a video": the fields of the SimulatorSettings object, their slider
@@ -109,6 +110,19 @@ export function onBeatConfigOfSettings(s: VideoBeatsFields & { bpm: number; quan
   const markers = s.beatSource === "manual" ? parseMarkers(s.beatMarkers) : [];
   const grid = markers.length >= 2 ? manualBeatSource(markers, { duration: 0, offset: 0, loop: false, downbeat: s.beatDownbeat }) : bpmBeatSource(s.bpm, 1);
   return { enabled: s.onBeat, clock: beatClockConfigOf(grid, s.bpm), range: s.onBeatRange, subdivisions: s.quantizeGrid === "1/4" ? 1 : s.quantizeGrid === "1/16" ? 4 : 2 };
+}
+
+/**
+ * The grid a rhythm mode follows without a page (the Beat Runner, Beat Drop – the bot's finder requests): the hand-placed
+ * markers on the simulation clock (offset 0, no loop – what the page resolves them to without a music bed), null for every
+ * other source (the mode follows the BPM then; a song or a media grid needs the page). The shape of the page's `rhythmBeat`.
+ */
+export function markerBeatInputOf(s: Pick<VideoBeatsFields, "beatSource" | "beatMarkers" | "beatDownbeat">): { grid: BeatGrid; offset: number; loop: boolean } | null {
+  if (s.beatSource !== "manual") return null;
+  const markers = parseMarkers(s.beatMarkers);
+  if (markers.length < 2) return null;
+  const g = manualBeatSource(markers, { duration: 0, offset: 0, loop: false, downbeat: s.beatDownbeat });
+  return { grid: { bpm: g.bpm, beatTimes: g.beats, duration: g.duration }, offset: g.offset, loop: g.loop };
 }
 
 export { BEAT_SOURCE_KINDS };

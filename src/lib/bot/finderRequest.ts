@@ -27,7 +27,7 @@ import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
 import { engineTimelineOf } from "@/lib/simulation/timeline";
 import { effectiveBallCount } from "@/lib/teams";
-import { onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
+import { markerBeatInputOf, onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
 
 /*
  * --- viral-bot --- The seed finder's view of a settings object, without a page: the physics config and the mode settings the
@@ -81,6 +81,7 @@ function engineDefaults(): { shatterSegmentsPerWall: number; shatterHpPerSegment
 /** The mode settings the page's `initEngineForMode()` gives the engine (and the finder copies), for these settings. */
 export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
   const d = engineDefaults();
+  const markerBeat = markerBeatInputOf(s); // --- video-beats --- the beat the Beat Runner and Beat Drop follow: the hand-placed markers, else the BPM
   return {
     bouncierEnabled: s.bouncierEnabled,
     countdownTotal: s.targetCount,
@@ -112,11 +113,11 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     // The export's engine plays capture the flag with the clip as its time limit (not the finder panel's widened one).
     battle: battleSettingsOf(s),
     ctf: ctfSettingsOf(s),
-    ...jdmRhythmFinderSettingsOf(s, null),
+    ...jdmRhythmFinderSettingsOf(s, markerBeat), // --- video-beats --- (no song without a page)
     vortex: vortexSettingsOf(s),
     journey: journeySettingsOf(s), // --- boris-journey ---
     bullseye: bullseyeSettingsOf(s), // --- boris-bullseye ---
-    beatDrop: beatDropSettingsOf(s), // --- beat-drop --- (the BPM setting's beat: the bot plans without a loaded song)
+    beatDrop: beatDropSettingsOf(s, markerBeat), // --- beat-drop --- (the bot plans without a loaded song)
     onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)
   };
 }

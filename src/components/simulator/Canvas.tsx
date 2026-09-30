@@ -945,8 +945,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
       // --- video-beats --- the imported video, dimmed, over the background and under everything else (on the simulation clock)
+      // (--- beat-drop --- Beat Drop paints its own nearly opaque scene first: there the video goes over that backdrop, below)
       const videoLayer = videoLayerRef.current;
-      if (videoLayer?.isActive()) videoLayer.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline);
+      const videoOn = !!videoLayer?.isActive();
+      if (videoOn && !engine.isBeatDropMode()) videoLayer!.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline);
       // The run's seed (data-seed), for tools and the smoke test: a found run is the one the page restarts.
       setCanvasData("seed", String(engine.getSeed()));
       const cx = size.width / 2;
@@ -1055,6 +1057,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
         bdLayer.beginFrame(bdView, engine.getElapsedMs(), accumulator);
         bdLayer.drawBackdrop(ctx, bdView, size.width, size.height);
+        if (videoOn) videoLayer!.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline); // --- video-beats --- (over Beat Drop's backdrop)
         ctx.save();
         bdLayer.applyCamera(ctx, bdView, cam.shakeNow());
         if (teamsRef.current !== bdTeams) {
