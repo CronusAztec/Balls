@@ -48,7 +48,7 @@ import { playSoundEvent } from "@/lib/recording/fastRender";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 
 /**
- * Bullseye (feature boris-bullseye): the settings / URL / presets, the scoring geometry (rings, scores, the bull), the
+ * Bullseye (feature gerald-bullseye): the settings / URL / presets, the scoring geometry (rings, scores, the bull), the
  * layout (the field in the recorder's square, the chaos selection of the deflectors), the moving target (and the balls
  * riding it), sticking and stacking, the slow motion of a bullseye, the rigged perfect shot, the sounds (peg notes,
  * thuds, the fanfare) and the thud's synthesis and dispatch, determinism, resizes and the seed finder.
@@ -161,7 +161,7 @@ describe("settings, URL and presets", () => {
     expect(resolveBullseyeFields(preset)).toMatchObject({ byShots: 1, byTargetMoving: false, byChaos: 1 });
   });
 
-  it("the mode is registered: a rhythm card of the Boris family, right before the Sound Vortex", () => {
+  it("the mode is registered: a rhythm card of the Gerald family, right before the Sound Vortex", () => {
     expect(MODE_IDS).toContain("bullseye");
     expect(MODE_CATEGORIES.bullseye).toBe("rhythm");
     expect(MODE_CARD_ORDER).toContain("bullseye");

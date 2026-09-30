@@ -154,7 +154,7 @@ export class TeamLayer {
   }
 
   /**
-   * --- boris-multipliers --- Writes into `out` the screen rectangle the scoreboard takes this frame on a canvas of
+   * --- gerald-multipliers --- Writes into `out` the screen rectangle the scoreboard takes this frame on a canvas of
    * `width` × `height` with the live `inset` – where `drawOverlay()` will draw it – and returns true; false (and `out`
    * untouched) when no scoreboard is drawn. An overlay drawn before it, the multipliers HUD, keeps clear of it. Call
    * after `beginFrame()`; allocation-free (the layout is cached).

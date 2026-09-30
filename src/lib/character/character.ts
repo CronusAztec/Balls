@@ -1,10 +1,10 @@
 /**
- * Ball characters (the "Boris" persona of the borisbounces format): a vector face drawn on the ball – two eyes
+ * Ball characters (the "Gerald" persona of the geraldbounces format): a vector face drawn on the ball – two eyes
  * whose pupils look along the flight, a seeded blink and expressions driven by what happens to the ball – plus an
  * optional name label under it and a render-only squash-and-stretch on impact.
  *
  * Everything here is visual: the settings never reach the physics engine, so seeds, the finder and "rigged"
- * outcomes are untouched. This file holds the settings (defaults, ranges, validation), the face styles, the Boris
+ * outcomes are untouched. This file holds the settings (defaults, ranges, validation), the face styles, the Gerald
  * persona and the face geometry – pure and shared by the canvas renderer (components/simulator/faceRenderer.ts),
  * the live preview in the panel (sections/CharacterSection.tsx) and the tests. The expression state machine is
  * in ./expression.ts, the eye / blink / squash maths in ./eyes.ts and the per-ball bookkeeping in ./tracker.ts.
@@ -23,7 +23,7 @@ export interface CharacterSettings {
   ballFace: FaceStyle;
   /** Draw the face over a custom ball image or emoji too (URL `fimg`); off keeps the picture's own face. */
   faceOverImage: boolean;
-  /** Name drawn under the (first) ball, e.g. "Boris" (URL `bn`); empty = no label. */
+  /** Name drawn under the (first) ball, e.g. "Gerald" (URL `bn`); empty = no label. */
   ballName: string;
   /** Show the name label (URL `nl`). */
   nameLabel: boolean;
@@ -51,19 +51,19 @@ export const CHARACTER_RANGES = {
 /** Longest name the label shows (URL parameters and presets are trimmed to it). */
 export const MAX_NAME_LENGTH = 24;
 
-/** The persona of the demo: Boris, a round little guy with big eyes who always escapes (freedom lasts about 4 seconds). */
-export const BORIS_PERSONA = {
+/** The persona of the demo: Gerald, a round little guy with big eyes who always escapes (freedom lasts about 4 seconds). */
+export const GERALD_PERSONA = {
   ballFace: "cute",
-  ballName: "Boris",
+  ballName: "Gerald",
   nameLabel: true,
   ballSquash: 0.6,
 } as const satisfies Partial<CharacterSettings>;
-/** Boris needs a ball big enough to read his face on a phone: the persona raises the ball size to at least this. */
-export const BORIS_MIN_RADIUS = 16;
+/** Gerald needs a ball big enough to read his face on a phone: the persona raises the ball size to at least this. */
+export const GERALD_MIN_RADIUS = 16;
 
-/** The settings patch the "Meet Boris" button applies (the ball size only ever grows). */
-export function borisPersonaPatch(current: { ballRadius: number }): Partial<CharacterSettings> & { ballRadius: number } {
-  return { ...BORIS_PERSONA, ballRadius: Math.max(current.ballRadius, BORIS_MIN_RADIUS) };
+/** The settings patch the "Meet Gerald" button applies (the ball size only ever grows). */
+export function geraldPersonaPatch(current: { ballRadius: number }): Partial<CharacterSettings> & { ballRadius: number } {
+  return { ...GERALD_PERSONA, ballRadius: Math.max(current.ballRadius, GERALD_MIN_RADIUS) };
 }
 
 /** Trims a name to one line of at most `MAX_NAME_LENGTH` characters. */

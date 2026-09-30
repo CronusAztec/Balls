@@ -53,7 +53,7 @@ export default function GlassSection({ t, search, matches, settings: s, update }
       <Searchable search={search} matches={matches} labelKey="glassHoles">
         <Toggle t={t} labelKey="glassHoles" tipKey="glassHolesTip" value={s.glassHoles} onChange={(v) => update({ glassHoles: v })} />
       </Searchable>
-      {/* --- boris-multipliers --- a row of multiplier gates above every stage's glass (the cap is in the Ball section's Multipliers group) */}
+      {/* --- gerald-multipliers --- a row of multiplier gates above every stage's glass (the cap is in the Ball section's Multipliers group) */}
       <Searchable search={search} matches={matches} labelKey="glassGates">
         <Toggle t={t} labelKey="glassGates" tipKey="glassGatesTip" value={s.glassGates} onChange={(v) => update({ glassGates: v })} />
       </Searchable>

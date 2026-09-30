@@ -1,13 +1,13 @@
 import type { Ball, GameMode, ModeContext } from "../types";
 import { arenaRadius, passableGap } from "../types";
 import { ringPassRadius } from "../ballStats";
-import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
+import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
 
 /**
  * Most balls a Multiply run grows to – a soft, memory-safe ceiling on the swarm, not a setting's limit (the spawn count
  * keeps its full range). Every escape adds `spawnCount` balls, so the count grows exponentially: at the defaults (three
  * new balls an escape) a run passes 1,000 balls within about a minute, and the ball pass (n² pairs, 4+ sub-steps a step)
- * then costs 60–100 ms a step – the page freezes. With multipliers in play it comes sooner (--- boris-multipliers --- the
+ * then costs 60–100 ms a step – the page freezes. With multipliers in play it comes sooner (--- gerald-multipliers --- the
  * new balls inherit the escaped ball's speed, so every escape comes earlier; up to 64 sub-steps a step). Past it an
  * escape still counts (sound, confetti, scoreboard, the broken wall) but spawns nothing. Runs that never reach it replay
  * exactly as before.
@@ -56,7 +56,7 @@ export class MultiplyMode implements GameMode {
         for (let i = 0; i < this.spawnCount; i++) {
           if (balls.length >= MULTIPLY_MAX_BALLS) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS)
           const a = ctx.random() * Math.PI * 2;
-          // --- boris-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
+          // --- gerald-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);
           const size = ball.mult ? ball.mult.size : 1;
           ctx.addBall({

@@ -12,16 +12,16 @@ import { DEFAULT_PENDULUM_SETTINGS, PENDULUM_RANGES, isPendulumLayout, isPendulu
 import { DEFAULT_POLYRHYTHM_SETTINGS, POLYRHYTHM_RANGES, isPolyArcStyle, isPolyLayout, isPolyPitchBy, isPolyTempos, polyrhythmSettingFields, polyrhythmSettingsOf, resolvePolyrhythmSettings, sanitizeCustomRatios, type PolyArcStyle, type PolyLayout, type PolyPitchBy, type PolyTempos } from "@/lib/physics/modes/polyrhythm";
 // --- jdm-collisions ---
 import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collideSettingsOf, isCollideContainer, resolveCollideSettings, type CollideContainer } from "@/lib/physics/modes/collide";
-// --- boris-glass ---
+// --- gerald-glass ---
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
 import { SITE_DOMAIN } from "@/lib/site";
-import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- boris-faces ---
+import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- gerald-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
 import { CAMERA_RANGES, DEFAULT_CAMERA_SETTINGS, cameraSettingsOf, resolveCameraSettings } from "@/lib/simulation/camera"; // --- camera
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 import { DEFAULT_MULTIPLIER_CONFIG, MULTIPLIER_RANGES, multiplierConfigOf, resolveMultiplierConfig, sanitizePickupTypes } from "@/lib/physics/multipliers";
 import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFields, multipliersSettingsOf, resolveMultipliersSettings, sanitizeGateMix } from "@/lib/physics/modes/multipliers";
 // --- obstacle-editor ---
@@ -49,11 +49,11 @@ import { JDM_RHYTHM_RANGES, defaultJdmRhythmFields, readJdmRhythmParams, resolve
 import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 // --- split-screen --- 2 or 4 arenas racing on one canvas (lib/splitScreen.ts, lib/simulation/multi.ts)
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
-// --- boris-vortex --- the Sound Vortex mode
+// --- gerald-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
-// --- boris-journey --- the Journey mode
+// --- gerald-journey --- the Journey mode
 import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourneyFields, writeJourneyParams } from "@/lib/physics/modes/journey";
-// --- boris-bullseye --- the Bullseye mode
+// --- gerald-bullseye --- the Bullseye mode
 import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBullseyeFields, writeBullseyeParams } from "@/lib/physics/modes/bullseye";
 // --- beat-drop --- the Beat Drop mode
 import { BEAT_DROP_RANGES, beatDropModeDefaults, defaultBeatDropFields, readBeatDropParams, resolveBeatDropFields, writeBeatDropParams, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
@@ -254,7 +254,7 @@ export interface SimulatorSettings {
   cpAntiCollisionAt: number;
   /** Lollipops on a ring: bodies constrained to a circular track (URL `cpr`). */
   cpRing: boolean;
-  // --- boris-glass --- Glass Smash (lib/physics/modes/glass.ts): stages of glass panes between the ball and HOME
+  // --- gerald-glass --- Glass Smash (lib/physics/modes/glass.ts): stages of glass panes between the ball and HOME
   /** Panes in the first stage, 3–30; later stages add more (URL `glr`). */
   glassRows: number;
   /** Hits a pane of the first stage takes, 1–5; later stages get thicker (URL `glhp`). */
@@ -265,9 +265,9 @@ export interface SimulatorSettings {
   glassMoving: boolean;
   /** From the second stage on some panes have a hole the ball must miss (URL `glh`). */
   glassHoles: boolean;
-  /** --- boris-multipliers --- A row of multiplier gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) above every stage's glass (URL `glg`). */
+  /** --- gerald-multipliers --- A row of multiplier gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) above every stage's glass (URL `glg`). */
   glassGates: boolean;
-  // --- end boris-glass ---
+  // --- end gerald-glass ---
   // Picture Paint (lib/physics/picturePaint.ts): reveal an uploaded picture in Paint mode, on the beat of a song
   /** Brush dab radius as a multiple of the ball radius, 0.5–3 (URL `pbr`). */
   paintBrush: number;
@@ -322,12 +322,12 @@ export interface SimulatorSettings {
   quantizeToBeat: boolean;
   bpm: number;
   quantizeGrid: QuantizeGrid;
-  // --- boris-faces --- Ball characters (lib/character): a face, a name label and squash-and-stretch – all render-only
+  // --- gerald-faces --- Ball characters (lib/character): a face, a name label and squash-and-stretch – all render-only
   /** none | dot | cute | cool | cat | angry (URL `face`). */
   ballFace: FaceStyle;
   /** Draw the face over a custom ball image or emoji too (URL `fimg`). */
   faceOverImage: boolean;
-  /** Name shown under the ball, e.g. "Boris" (URL `bn`). */
+  /** Name shown under the ball, e.g. "Gerald" (URL `bn`). */
   ballName: string;
   /** Show the name label (URL `nl`). */
   nameLabel: boolean;
@@ -335,7 +335,7 @@ export interface SimulatorSettings {
   ballSquash: number;
   /** Cat face: a meow-like chirp on ouch / surprise / escape while no hit sample is used (URL `fsnd`). */
   faceSounds: boolean;
-  // --- end boris-faces ---
+  // --- end gerald-faces ---
   // --- teams --- Team balls with a scoreboard (lib/teams.ts, physics/ballStats.ts)
   /** Balls the multi-ball modes start with, 1–6 (URL `nb`; `two=1` still means two); `twoBalls` follows it. */
   ballCount: number;
@@ -362,7 +362,7 @@ export interface SimulatorSettings {
   /** When a ball escapes the outer wall, its last 2 s replay at half speed before the end screen (URL `replay`). */
   replayOnEscape: boolean;
   // --- end camera ---
-  // --- boris-multipliers --- stat multipliers (lib/physics/multipliers.ts) and the multipliers board (modes/multipliers.ts)
+  // --- gerald-multipliers --- stat multipliers (lib/physics/multipliers.ts) and the multipliers board (modes/multipliers.ts)
   /** No cap on any stat multiplier (URL `mpu`). */
   mpUnlimited: boolean;
   /** With unlimited off: the highest a stat may stack to, 0 = unlimited (URL `mpc`). */
@@ -387,7 +387,7 @@ export interface SimulatorSettings {
   mpMaxBalls: number;
   /** Rigging: the finder looks for a run whose final count is within 5 % of this, 0 = off (URL `mptg`). */
   mpTarget: number;
-  // --- end boris-multipliers ---
+  // --- end gerald-multipliers ---
   // --- obstacle-editor --- pegs, bumpers, blockers and spinners placed in the ring modes (lib/physics/obstacleEditor.ts)
   /** The layout, arena-relative (URL `obs`, e.g. `p:0.2,-0.3,6;b:-0.4,0.1,8`); empty by default. */
   obstacles: EditorObstacle[];
@@ -589,7 +589,7 @@ export interface SimulatorSettings {
   /** Whose bounces are heard: the first arena's or every arena's (URL `sa`). */
   soundArena: SoundArena;
   // --- end split-screen ---
-  // --- boris-vortex --- Sound Vortex (lib/physics/modes/vortex.ts): balls spiral down a funnel of sound rings into a hole
+  // --- gerald-vortex --- Sound Vortex (lib/physics/modes/vortex.ts): balls spiral down a funnel of sound rings into a hole
   /** Balls that go down the vortex, 1–30 (URL `vxn`). */
   vxBalls: number;
   /** Seconds between two balls entering, 0–3 (URL `vxs`). */
@@ -604,14 +604,14 @@ export interface SimulatorSettings {
   vxLoop: boolean;
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
-  // --- end boris-vortex ---
-  // --- boris-journey --- Journey (lib/physics/modes/journey.ts, lib/physics/journey/): a column of stages the ball clears on its way HOME
+  // --- end gerald-vortex ---
+  // --- gerald-journey --- Journey (lib/physics/modes/journey.ts, lib/physics/journey/): a column of stages the ball clears on its way HOME
   /** The stage list top-down, e.g. "rings,pegs-l,glass-s,multipliers,home" (sizes "-s" / "-l"; HOME always last) (URL `js`). */
   journeyStages: string;
   /** 0: play the list; 1–12: a seeded random journey of that many stages before HOME (URL `jsa`). */
   journeyAutoStages: number;
-  // --- end boris-journey ---
-  // --- boris-bullseye --- Bullseye (lib/physics/modes/bullseye.ts): shots through a peg field onto a scoring target
+  // --- end gerald-journey ---
+  // --- gerald-bullseye --- Bullseye (lib/physics/modes/bullseye.ts): shots through a peg field onto a scoring target
   /** Balls launched at the target, 1–30 (URL `bys`). */
   byShots: number;
   /** Seconds between two launches, 0.3–4 (URL `byi`). */
@@ -624,7 +624,7 @@ export interface SimulatorSettings {
   byTargetMoving: boolean;
   /** Rigging: the shot (1-based) the director steers into the bull; 0 = off (URL `byp`). */
   byPerfect: number;
-  // --- end boris-bullseye ---
+  // --- end gerald-bullseye ---
   // --- beat-drop --- Beat Drop (lib/physics/modes/beatDrop.ts): a ball lands on obstructions that fly in on the beat
   /** The obstructions in the mix, a comma list of plank, block, spring, wedge, spinner, drum (URL `bdk`). */
   bdKinds: string;
@@ -723,7 +723,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS), // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     ...collideSettingFields(DEFAULT_COLLIDE_SETTINGS),
-    // --- boris-glass ---
+    // --- gerald-glass ---
     ...glassSettingFields(DEFAULT_GLASS_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
     watermarkText: SITE_DOMAIN,
@@ -753,10 +753,10 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     quantizeToBeat: false,
     bpm: 120,
     quantizeGrid: "1/8",
-    ...DEFAULT_CHARACTER, // --- boris-faces ---
+    ...DEFAULT_CHARACTER, // --- gerald-faces ---
     ...defaultTeamSettings(), // --- teams ---
     ...DEFAULT_CAMERA_SETTINGS, // --- camera ---
-    // --- boris-multipliers ---
+    // --- gerald-multipliers ---
     ...DEFAULT_MULTIPLIER_CONFIG,
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
@@ -774,9 +774,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
-    ...defaultVortexFields(), // --- boris-vortex ---
-    ...defaultJourneyFields(), // --- boris-journey ---
-    ...defaultBullseyeFields(), // --- boris-bullseye ---
+    ...defaultVortexFields(), // --- gerald-vortex ---
+    ...defaultJourneyFields(), // --- gerald-journey ---
+    ...defaultBullseyeFields(), // --- gerald-bullseye ---
     // --- beat-drop --- the feature's fields, and the mode's own ball size (radius 14) in Beat Drop only
     ...defaultBeatDropFields(),
     ...beatDropModeDefaults(mode),
@@ -820,15 +820,15 @@ export const RANGES = {
   ...PENDULUM_RANGES,
   ...POLYRHYTHM_RANGES, // --- jdm-polyrhythm ---
   ...PICTURE_PAINT_RANGES,
-  ...CHARACTER_RANGES, // --- boris-faces ---
+  ...CHARACTER_RANGES, // --- gerald-faces ---
   ...THEME_RANGES, // --- themes
   // --- jdm-collisions ---
   ...COLLIDE_RANGES,
   ...TEAM_RANGES, // --- teams ---
   ...CAMERA_RANGES, // --- camera ---
-  // --- boris-glass ---
+  // --- gerald-glass ---
   ...GLASS_RANGES,
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   ...MULTIPLIER_RANGES,
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
@@ -846,9 +846,9 @@ export const RANGES = {
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
-  ...VORTEX_RANGES, // --- boris-vortex ---
-  ...JOURNEY_RANGES, // --- boris-journey ---
-  ...BULLSEYE_RANGES, // --- boris-bullseye ---
+  ...VORTEX_RANGES, // --- gerald-vortex ---
+  ...JOURNEY_RANGES, // --- gerald-journey ---
+  ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
   ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
@@ -934,7 +934,7 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   pbr: "paintBrush",
   pgh: "paintGhost",
   pbp: "paintBeatPulse",
-  // --- boris-faces ---
+  // --- gerald-faces ---
   sq: "ballSquash",
   // --- jdm-collisions --- Collision Playground
   cpn: "cpCount",
@@ -947,11 +947,11 @@ const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
   shake: "screenShake",
   slowf: "slowMoFactor",
   slowms: "slowMoMs",
-  // --- boris-glass --- Glass Smash
+  // --- gerald-glass --- Glass Smash
   glr: "glassRows",
   glhp: "glassHp",
   gls: "glassStages",
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   mpc: "mpCap",
   wst: "wallSmashThreshold",
   mpr: "pickupRate",
@@ -997,7 +997,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   pbeat: "paintBeatSync",
   pgd: "paintGuided",
   pps: "paintPaceToSong",
-  // --- boris-faces ---
+  // --- gerald-faces ---
   fimg: "faceOverImage",
   nl: "nameLabel",
   fsnd: "faceSounds",
@@ -1008,11 +1008,11 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   // --- camera --- Cinematic camera
   slow: "slowMoOnNearMiss",
   replay: "replayOnEscape",
-  // --- boris-glass --- Glass Smash
+  // --- gerald-glass --- Glass Smash
   glm: "glassMoving",
   glh: "glassHoles",
-  glg: "glassGates", // --- boris-multipliers --- the gate rows
-  // --- boris-multipliers ---
+  glg: "glassGates", // --- gerald-multipliers --- the gate rows
+  // --- gerald-multipliers ---
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
   ne: "neverEscape", // --- rigged ---
@@ -1026,7 +1026,7 @@ const STRING_URL_KEYS: Record<string, StringKey> = {
   top: "topText",
   bottom: "bottomText",
   wm: "watermarkText",
-  bn: "ballName", // --- boris-faces ---
+  bn: "ballName", // --- gerald-faces ---
 };
 
 /** Serialises only the settings that differ from the defaults for the current mode. */
@@ -1069,10 +1069,10 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.melodyInstrument !== base.melodyInstrument) params.set("minst", settings.melodyInstrument);
   if (settings.scale !== base.scale) params.set("scale", settings.scale);
   if (settings.quantizeGrid !== base.quantizeGrid) params.set("grid", settings.quantizeGrid);
-  if (settings.ballFace !== base.ballFace) params.set("face", settings.ballFace); // --- boris-faces ---
+  if (settings.ballFace !== base.ballFace) params.set("face", settings.ballFace); // --- gerald-faces ---
   writeThemeParams(settings, base, params); // --- themes: theme, bgt, bg1, bg2, bgd, ps, trc
   writeTeamParams(settings, base, params); // --- teams ---: teams, nb, tn, tsb, tsp
-  // --- boris-multipliers --- the two list-like strings (validated on the way back in)
+  // --- gerald-multipliers --- the two list-like strings (validated on the way back in)
   if (settings.pickupTypes !== base.pickupTypes) params.set("mpty", settings.pickupTypes);
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
@@ -1086,9 +1086,9 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
-  writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
-  writeJourneyParams(settings, base, params); // --- boris-journey ---: js, jsa
-  writeBullseyeParams(settings, base, params); // --- boris-bullseye ---: bys, byi, byc, byr, bym, byp
+  writeVortexParams(settings, base, params); // --- gerald-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeJourneyParams(settings, base, params); // --- gerald-journey ---: js, jsa
+  writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
@@ -1167,7 +1167,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const cpc = params.get("cpc");
   if (isCollideContainer(cpc)) settings.cpContainer = cpc;
   clampCollideSettings(settings);
-  clampGlassSettings(settings); // --- boris-glass ---
+  clampGlassSettings(settings); // --- gerald-glass ---
   const pbs = params.get("pbs");
   if (isPaintBeatSource(pbs)) settings.paintBeatSource = pbs;
   clampPicturePaint(settings);
@@ -1181,14 +1181,14 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (isQuantizeGrid(grid)) settings.quantizeGrid = grid;
   if (!inRange(settings.rootNote, RANGES.rootNote) || !Number.isInteger(settings.rootNote)) settings.rootNote = 0;
   if (!inRange(settings.bpm, RANGES.bpm)) settings.bpm = defaultSettings(mode).bpm;
-  // --- boris-faces ---
+  // --- gerald-faces ---
   const face = params.get("face");
   if (isFaceStyle(face)) settings.ballFace = face;
   clampCharacter(settings);
   readThemeParams(params, settings); // --- themes
   readTeamParams(params, settings); // --- teams --- (after `two`: a roster or `nb` sets the ball count)
   clampCameraSettings(settings); // --- camera ---
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   const mpty = params.get("mpty");
   if (mpty !== null) settings.pickupTypes = sanitizePickupTypes(mpty);
   const mpgm = params.get("mpgm");
@@ -1207,9 +1207,9 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
-  readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
-  readJourneyParams(params, settings); // --- boris-journey --- (the stage list normalised, the auto count clamped)
-  readBullseyeParams(params, settings); // --- boris-bullseye --- (clamped onto the sliders; bad values fall back)
+  readVortexParams(params, settings); // --- gerald-vortex --- (clamped onto the sliders; bad values fall back)
+  readJourneyParams(params, settings); // --- gerald-journey --- (the stage list normalised, the auto count clamped)
+  readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
@@ -1270,7 +1270,7 @@ function clampCollideSettings(settings: SimulatorSettings) {
   Object.assign(settings, collideSettingFields(resolveCollideSettings(collideSettingsOf(settings))));
 }
 
-// --- boris-glass ---
+// --- gerald-glass ---
 /** Keeps the Glass Smash settings inside their ranges as whole numbers; a non-boolean flag falls back to the default (URL parameters and presets alike). */
 function clampGlassSettings(settings: SimulatorSettings) {
   Object.assign(settings, glassSettingFields(resolveGlassSettings(glassSettingsOf(settings))));
@@ -1281,7 +1281,7 @@ function clampPicturePaint(settings: SimulatorSettings) {
   Object.assign(settings, resolvePicturePaintSettings(picturePaintOf(settings)));
 }
 
-// --- boris-faces ---
+// --- gerald-faces ---
 /** Validates the character settings: an unknown face or a non-boolean flag falls back, the name is trimmed, the squash clamped (URL parameters and presets alike). */
 function clampCharacter(settings: SimulatorSettings) {
   Object.assign(settings, resolveCharacterSettings(characterOf(settings)));
@@ -1293,7 +1293,7 @@ function clampCameraSettings(settings: SimulatorSettings) {
   Object.assign(settings, resolveCameraSettings(cameraSettingsOf(settings)));
 }
 // --- end camera ---
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 /** Keeps the multiplier settings (cap, smash threshold, pickups) and the multipliers board inside their ranges; bad values fall back to the defaults (URL parameters and presets alike). */
 function clampMultiplierSettings(settings: SimulatorSettings) {
   Object.assign(settings, resolveMultiplierConfig(multiplierConfigOf(settings)));
@@ -1385,13 +1385,13 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampPolyrhythmSettings(merged); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   clampCollideSettings(merged);
-  clampGlassSettings(merged); // --- boris-glass ---
+  clampGlassSettings(merged); // --- gerald-glass ---
   clampPicturePaint(merged);
-  clampCharacter(merged); // --- boris-faces ---
+  clampCharacter(merged); // --- gerald-faces ---
   Object.assign(merged, resolveThemeSettings(merged)); // --- themes: unknown theme ids / styles and bad colours fall back
   Object.assign(merged, resolveTeamSettings({ ...merged, ballCount: preset.ballCount })); // --- teams --- (a preset without a ball count: `twoBalls` means two)
   clampCameraSettings(merged); // --- camera ---
-  clampMultiplierSettings(merged); // --- boris-multipliers ---
+  clampMultiplierSettings(merged); // --- gerald-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
   Object.assign(merged, resolveRiggedConfig(merged)); // --- rigged --- a non-boolean flag is off, a bad team slot too
@@ -1405,9 +1405,9 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
-  Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
-  Object.assign(merged, resolveJourneyFields(merged)); // --- boris-journey --- a normalised stage list, a clamped auto count
-  Object.assign(merged, resolveBullseyeFields(merged)); // --- boris-bullseye --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveVortexFields(merged)); // --- gerald-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveJourneyFields(merged)); // --- gerald-journey --- a normalised stage list, a clamped auto count
+  Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean

@@ -22,10 +22,10 @@ import { pendulumSettingsOf } from "@/lib/physics/modes/pendulum";
 import { parseCustomRatios, polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm"; // --- jdm-polyrhythm ---
 // --- jdm-collisions ---
 import { collideSettingsOf } from "@/lib/physics/modes/collide";
-// --- boris-glass ---
+// --- gerald-glass ---
 import { glassSettingsOf } from "@/lib/physics/modes/glass";
 import { modeWallBreakSound } from "@/lib/audio/songs";
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { multipliersSettingsOf } from "@/lib/physics/modes/multipliers";
 import { illusionSettingsOf } from "@/lib/physics/modes/illusion"; // --- jdm-illusions ---
@@ -40,8 +40,8 @@ import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
 import { findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
-import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
-import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
+import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- gerald-faces ---
+import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces ---
 // --- teams ---
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
@@ -88,9 +88,9 @@ import { useSyncExternalStore } from "react";
 import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaFinderProgress, type ArenaHooks } from "@/lib/simulation/multi";
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
-import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
-import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
-import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
+import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
+import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-journey ---
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
@@ -116,14 +116,14 @@ import {
 } from "@/lib/settings";
 
 const SPEEDS = [1, 2, 4, 8];
-/** --- boris-multipliers --- who makes it home when the ball has no name. */
-const DEFAULT_BORIS_NAME = "Boris";
+/** --- gerald-multipliers --- who makes it home when the ball has no name. */
+const DEFAULT_GERALD_NAME = "Gerald";
 /** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
 const PAINT_FINISH_HOLD_MS = 1500;
 /** --- teams --- How long the winner banner and its confetti play before the end screen covers them (a recording keeps them). */
 const WINNER_HOLD_MS = 3000;
 /**
- * --- boris-multipliers --- How long a multipliers finish – "N Boris made it home" when the board empties, "OUTGREW THE
+ * --- gerald-multipliers --- How long a multipliers finish – "N Gerald made it home" when the board empties, "OUTGREW THE
  * ARENA" – and its confetti play before the end screen covers them (a recording keeps them); both end the run at once.
  */
 const MULT_FINISH_HOLD_MS = 2000;
@@ -226,7 +226,7 @@ export default function Simulator() {
   const beatAbortRef = useRef<{ music: AbortController | null; slice: AbortController | null }>({ music: null, slice: null });
   const paintFinishedAtRef = useRef<number | null>(null);
   // --- teams --- whether teams play in this run (the finish detection then holds the winner banner) and when the banner
-  // (or --- boris-multipliers --- the multipliers' finish banner) appeared
+  // (or --- gerald-multipliers --- the multipliers' finish banner) appeared
   const teamsPlayRef = useRef(false);
   const winnerShownAtRef = useRef<number | null>(null);
   // --- themes: the background picture uploaded in this session (a data: URL kept in memory, never in links or presets)
@@ -270,8 +270,8 @@ export default function Simulator() {
     engine.setPolyrhythmSettings(polyrhythmSettingsOf(s)); // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     engine.setCollideSettings(collideSettingsOf(s));
-    engine.setGlassSettings(glassSettingsOf(s)); // --- boris-glass ---
-    engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- boris-multipliers ---
+    engine.setGlassSettings(glassSettingsOf(s)); // --- gerald-glass ---
+    engine.setMultipliersSettings(multipliersSettingsOf(s)); // --- gerald-multipliers ---
     engine.setDoublePendulumSettings(doublePendulumSettingsOf(s)); // --- jdm-double-pendulum ---
     engine.setIllusionSettings(illusionSettingsOf(s)); // --- jdm-illusions ---
     engine.setStringBattleSettings(stringBattleSettingsOf(s)); // --- odd-string-battle ---
@@ -283,9 +283,9 @@ export default function Simulator() {
     // --- jdm-rhythm-runner ---
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
-    engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
-    engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
-    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
+    engine.setVortexSettings(vortexSettingsOf(s)); // --- gerald-vortex ---
+    engine.setJourneySettings(journeySettingsOf(s)); // --- gerald-journey ---
+    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- gerald-bullseye ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
@@ -510,7 +510,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.cpCount, s.cpSizeSpread, s.cpContainer, s.cpGravity, s.cpRestitution, s.cpSyncStart, s.cpAntiCollisionAt, s.cpRing]);
-  // --- boris-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes, gates) restarts it.
+  // --- gerald-glass --- Glass Smash: a change of the shaft (rows, hit points, stages, sliding panes, holes, gates) restarts it.
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -525,8 +525,8 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.glassRows, s.glassHp, s.glassStages, s.glassMoving, s.glassHoles, s.glassGates]);
-  // --- end boris-glass ---
-  // --- boris-multipliers --- pickups, cap and smash threshold travel in the physics config (like the physics extras);
+  // --- end gerald-glass ---
+  // --- gerald-multipliers --- pickups, cap and smash threshold travel in the physics config (like the physics extras);
   // a change of the multipliers board restarts it, the count target only matters to the finder.
   useEffect(() => {
     engineRef.current?.setConfig(multiplierConfigOf(s));
@@ -547,10 +547,10 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.mpUnlimited, s.mpCap, s.wallSmashThreshold, s.multiplierPickups, s.pickupRate, s.pickupTypes, s.pickupLifetime, s.mpRows, s.mpGateMix, s.mpStartBalls, s.mpMaxBalls]);
-  // The ball's name for the "N Boris made it home" banner (read by the canvas labels).
+  // The ball's name for the "N Gerald made it home" banner (read by the canvas labels).
   const ballNameRef = useRef(s.ballName);
   ballNameRef.current = s.ballName;
-  // --- end boris-multipliers ---
+  // --- end gerald-multipliers ---
   // --- jdm-double-pendulum --- Double Pendulum: a change of the rig (pendulums, rods, lengths, masses, gravity, start, damping,
   // sparring) restarts it and invalidates a found seed; the trail, the strings, their tuning (the Sound section's scale and
   // root) and the end (endless, the clip length) apply live – they change what is drawn and heard, not the swing.
@@ -730,7 +730,7 @@ export default function Simulator() {
   }, [s.recordingDuration]);
   const arenaWinAtRef = useRef<number | null>(null);
   // --- end jdm-arena-games ---
-  // --- boris-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
+  // --- gerald-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
   // restarts the run and drops a found seed; the depth cue and the Sound section's scale and root (the ring notes) follow live.
   useEffect(() => {
     const engine = engineRef.current;
@@ -749,8 +749,8 @@ export default function Simulator() {
     engineRef.current?.setVortexSettings(vortexSettingsOf(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
-  // --- end boris-vortex ---
-  // --- boris-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
+  // --- end gerald-vortex ---
+  // --- gerald-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -764,8 +764,8 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
   }, [s.journeyStages, s.journeyAutoStages]);
-  // --- end boris-journey ---
-  // --- boris-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
+  // --- end gerald-journey ---
+  // --- gerald-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
   // drops a found seed; the Sound section's scale and root (the peg notes and the thuds) follow live.
   useEffect(() => {
     const engine = engineRef.current;
@@ -784,11 +784,11 @@ export default function Simulator() {
     engineRef.current?.setBullseyeSettings(bullseyeSettingsOf(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.scale, s.rootNote]);
-  // --- end boris-bullseye ---
+  // --- end gerald-bullseye ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
-  // --- boris-glass --- Glass Smash shatters its panes with the glass clip unless a wall-break sound was chosen: the effect
+  // --- gerald-glass --- Glass Smash shatters its panes with the glass clip unless a wall-break sound was chosen: the effect
   // above applies a chosen sound, this one the mode's default – and the plain sound again once the default no longer applies.
   const modeBreakRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1084,7 +1084,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- boris-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
@@ -1137,8 +1137,8 @@ export default function Simulator() {
         engine.setBouncier(arena.bouncierEnabled);
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
-        engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
-        engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- boris-bullseye --- (the scale and root follow live; the rest waits for a restart)
+        engine.setVortexSettings(vortexSettingsOf(arena)); // --- gerald-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+        engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- gerald-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
@@ -1253,7 +1253,7 @@ export default function Simulator() {
         musicDuckRelease: settings.musicDuckRelease,
         musicLoop: settings.musicLoop,
         musicStartOffset: settings.musicStartOffset,
-        ...characterOf(settings), // --- boris-faces --- the character follows the ball into every mode
+        ...characterOf(settings), // --- gerald-faces --- the character follows the ball into every mode
       };
       Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
@@ -1339,17 +1339,17 @@ export default function Simulator() {
             audio.playStringBattle(ev.sbSound, ev.frequency);
             continue;
           }
-          // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
+          // --- gerald-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
             continue;
           }
-          // --- boris-journey --- a Journey stage transition swooshes
+          // --- gerald-journey --- a Journey stage transition swooshes
           if (ev.swoosh) {
             audio.playSwoosh();
             continue;
           }
-          // --- boris-bullseye --- a Bullseye landing thuds
+          // --- gerald-bullseye --- a Bullseye landing thuds
           if (ev.thud) {
             audio.playThud(ev.frequency, ev.level);
             continue;
@@ -1359,11 +1359,11 @@ export default function Simulator() {
             audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
             continue;
           }
-          if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
+          if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
           // --- jdm-rhythm-runner --- `melody: false` accompanies the tune (a paddle's wall bounce, a runner's crash): no melody note used up
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
           else if (ev.type === "gap") audio.playGapPass();
-          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2, ev.melody !== false); // --- boris-multipliers --- the rising arpeggio
+          else if (ev.type === "multiplier") audio.playMultiplier(ev.multiplier ?? 2, ev.melody !== false); // --- gerald-multipliers --- the rising arpeggio
           else audio.playInteraction(ev.type);
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
@@ -1413,7 +1413,7 @@ export default function Simulator() {
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
-        // --- boris-multipliers --- so is a multipliers finish ("N Boris made it home", "OUTGREW THE ARENA"); with teams as
+        // --- gerald-multipliers --- so is a multipliers finish ("N Gerald made it home", "OUTGREW THE ARENA"); with teams as
         // well both celebrations play at once, for the longer of the two holds.
         const holdMs = done ? Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0) : 0;
         if (holdMs > 0) {
@@ -2218,8 +2218,8 @@ export default function Simulator() {
           // --- jdm-collisions ---
           collide: collideSettingsOf(settings),
           ballCount: effectiveBallCount(settings), // --- teams ---
-          glass: glassSettingsOf(settings), // --- boris-glass ---
-          multipliers: multipliersSettingsOf(settings), // --- boris-multipliers ---
+          glass: glassSettingsOf(settings), // --- gerald-glass ---
+          multipliers: multipliersSettingsOf(settings), // --- gerald-multipliers ---
           doublePendulum: doublePendulumSettingsOf(settings), // --- jdm-double-pendulum ---
           illusion: illusionSettingsOf(settings), // --- jdm-illusions ---
           stringBattle: stringBattleSettingsOf(settings), // --- odd-string-battle ---
@@ -2229,9 +2229,9 @@ export default function Simulator() {
           battle: battleSettingsOf(settings),
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
-          vortex: vortexSettingsOf(settings), // --- boris-vortex ---
-          journey: journeySettingsOf(settings), // --- boris-journey ---
-          bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
+          vortex: vortexSettingsOf(settings), // --- gerald-vortex ---
+          journey: journeySettingsOf(settings), // --- gerald-journey ---
+          bullseye: bullseyeSettingsOf(settings), // --- gerald-bullseye ---
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
@@ -2258,7 +2258,7 @@ export default function Simulator() {
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
       audioRef.current?.getMusicBed().stop(); // the found run starts over, so the bed does too
-      // --- teams --- the recording also keeps the winner banner's hold after the run (--- boris-multipliers --- and the
+      // --- teams --- the recording also keeps the winner banner's hold after the run (--- gerald-multipliers --- and the
       // board's "made it home", which ends every board run)
       const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0);
       // --- rigged --- a found outcome run that goes on past its clip (never escapes; Multiply) has no end to hold for
@@ -2328,12 +2328,12 @@ export default function Simulator() {
       // --- jdm-collisions ---
       collideAnti: t("Simulator.canvasCollideAnti"),
       replay: t("Simulator.canvasReplay"), // --- camera ---
-      // --- boris-glass ---
+      // --- gerald-glass ---
       glassStage: (n) => fill("Simulator.canvasGlassStage", { n }),
       glassHome: t("Simulator.canvasGlassHome"),
       glassHomeTitle: t("Simulator.canvasGlassHomeTitle"),
       glassHomeSub: (panes, stages) => fill("Simulator.canvasGlassHomeSub", { panes, stages }),
-      // --- boris-multipliers ---
+      // --- gerald-multipliers ---
       multipliers: {
         speed: t("Simulator.canvasMpSpeed"),
         size: t("Simulator.canvasMpSize"),
@@ -2347,7 +2347,7 @@ export default function Simulator() {
       },
       outgrew: t("Simulator.canvasMpOutgrew"),
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
-      madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_BORIS_NAME }),
+      madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
       madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
@@ -2415,7 +2415,7 @@ export default function Simulator() {
         streak: (n) => fill("JdmRhythm.streak", { n }),
         moveHint: t("JdmRhythm.moveHint"),
       },
-      // --- boris-vortex ---
+      // --- gerald-vortex ---
       vortex: {
         title: t("Vortex.canvasTitle"),
         swallowed: (n, total) => fill("Vortex.canvasSwallowed", { count: n, total }),
@@ -2423,7 +2423,7 @@ export default function Simulator() {
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
       },
-      // --- boris-journey ---
+      // --- gerald-journey ---
       journey: {
         banner: (n, total, name) => fill("Journey.canvasBanner", { n, total, name }),
         names: {
@@ -2440,7 +2440,7 @@ export default function Simulator() {
         homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
         score: (points) => fill("Journey.canvasScore", { points }),
       },
-      // --- boris-bullseye ---
+      // --- gerald-bullseye ---
       bullseye: {
         title: t("Bullseye.canvasTitle"),
         shot: (n, total) => fill("Bullseye.canvasShot", { n, total }),
@@ -2470,14 +2470,14 @@ export default function Simulator() {
     };
   }, [t]);
 
-  // --- boris-faces --- what the canvas needs to draw the ball characters, and the cat chirp through the ToneGenerator
+  // --- gerald-faces --- what the canvas needs to draw the ball characters, and the cat chirp through the ToneGenerator
   const characterRender = useMemo(
     () => characterRenderOptions(s),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [s.ballFace, s.faceOverImage, s.ballName, s.nameLabel, s.ballSquash, s.faceSounds, s.hitSoundMode],
   );
   const onCharacterChirp = useCallback((kind: ChirpKind) => audioRef.current?.playCharacterChirp(kind), []);
-  // --- end boris-faces ---
+  // --- end gerald-faces ---
 
   // --- teams --- the roster, names, scoreboard and translated labels the canvas draws with (null without a roster)
   const teamRender = useMemo<CanvasTeamOptions | null>(() => {
@@ -2551,12 +2551,12 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- boris-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
   const plFinderFixedKey = settings.mode === "powerLayers" ? "Simulator.finderFixedPowerLayers" : finderFixedKey;
-  // --- boris-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
+  // --- gerald-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
   const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
   const obstacleEditing = supportsObstacles(s.mode) && s.obstacles.length > 0 && (!isStarted || isPaused) && !finished && !isRecording && !isSearching;
