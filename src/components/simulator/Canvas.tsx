@@ -45,6 +45,7 @@ import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
 import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 import type { Ball } from "@/lib/physics/types";
+import { gapWrap } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
 // --- odd-power-layers --- the Power Layers playfield, stack, particles, badges and rule pills
 import { DEFAULT_POWER_LAYERS_LABELS, PowerLayersLayer, type PowerLayersLabels, type PowerLayersRenderOptions } from "./powerLayersRenderer";
@@ -959,8 +960,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
       // --- video-beats --- the imported video, dimmed, over the background and under everything else (on the simulation clock)
+      // (--- beat-drop --- Beat Drop paints its own nearly opaque scene first: there the video goes over that backdrop, below)
       const videoLayer = videoLayerRef.current;
-      if (videoLayer?.isActive()) videoLayer.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline);
+      const videoOn = !!videoLayer?.isActive();
+      if (videoOn && !engine.isBeatDropMode()) videoLayer!.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline);
       // The run's seed (data-seed), for tools and the smoke test: a found run is the one the page restarts.
       setCanvasData("seed", String(engine.getSeed()));
       const cx = size.width / 2;
@@ -1069,6 +1072,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.restore();
         bdLayer.beginFrame(bdView, engine.getElapsedMs(), accumulator);
         bdLayer.drawBackdrop(ctx, bdView, size.width, size.height);
+        if (videoOn) videoLayer!.draw(ctx, size.width, size.height, engine.getElapsedMs() / 1000, !p.isPaused && !!p.isStarted, !!offline); // --- video-beats --- (over Beat Drop's backdrop)
         ctx.save();
         bdLayer.applyCamera(ctx, bdView, cam.shakeNow());
         if (teamsRef.current !== bdTeams) {
@@ -1149,13 +1153,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.fill();
           }
         } else {
-          let cursor = 0;
+          // The wall between the gaps (sorted, starting in [0, 2π)); a last gap across 0 (ending above 2π) moves the start past its end.
+          const c0 = gapWrap(wall.gaps);
+          let cursor = c0;
           for (const gap of wall.gaps) {
             const start = gap.startAngle + rot;
             if (start > cursor + rot) strokeArc(i, wall.radius, cursor + rot, start);
             cursor = gap.endAngle;
           }
-          if (cursor < TWO_PI) strokeArc(i, wall.radius, cursor + rot, TWO_PI + rot);
+          if (cursor < TWO_PI + c0) strokeArc(i, wall.radius, cursor + rot, TWO_PI + c0 + rot);
         }
       }
       ctx.globalAlpha = 1;
@@ -1744,13 +1750,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.globalAlpha = 1;
           } else {
             const arcs: { start: number; end: number }[] = [];
-            let cursor = 0;
+            const c0 = gapWrap(wall.gaps);
+            let cursor = c0;
             for (const gap of wall.gaps) {
               const start = gap.startAngle + rot;
               if (start > cursor + rot) arcs.push({ start: cursor + rot, end: start });
               cursor = gap.endAngle;
             }
-            if (cursor < TWO_PI) arcs.push({ start: cursor + rot, end: TWO_PI + rot });
+            if (cursor < TWO_PI + c0) arcs.push({ start: cursor + rot, end: TWO_PI + c0 + rot });
             for (const layer of GLOW_LAYERS) {
               ctx.lineWidth = (4 + 4 * strength) * layer.widthMult;
               const alpha = strength * layer.alphaMult;

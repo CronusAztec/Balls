@@ -283,14 +283,16 @@ export function readBeatDropParams(params: URLSearchParams, settings: BeatDropFi
 /* ------------------------------------------------------------------ the beat source (adapter) */
 
 /**
- * THE ONE PLACE Beat Drop reads its beat grid – the adapter the concurrent feature video-beats plugs into. Today the beat
- * is the beat clock's (lib/simulation/beatClock.ts): the loaded song's detected grid (music bed or song slicer, with the
- * bed's start offset and loop – the grid Picture Paint and the Beat Runner follow) while there is one, else the Sound
- * section's BPM. When src/lib/simulation/beatSource.ts (the media / manual grid) is on main, switch the body of this
- * function to read the active beat source from it; the rest of the mode only sees the BeatClockConfig it returns.
+ * THE ONE PLACE Beat Drop reads its beat grid. The beat is the beat clock's (lib/simulation/beatClock.ts): the grid it is
+ * handed while there is one, else the Sound section's BPM; the rest of the mode only sees the BeatClockConfig returned here.
+ * --- video-beats --- The grid is the beat source in effect (lib/simulation/beatSource.ts, the Sound section's "Beats from a
+ * video" picker): the page resolves it (components/simulator/useVideoBeats.ts) into the same `rhythmBeat` the Beat Runner
+ * follows – the loaded song's detected grid (music bed or song slicer, with the bed's start offset and loop), an imported
+ * video's or audio file's beats, or the hand-placed markers – and none for the BPM source; the headless finder requests take
+ * the markers (`markerBeatInputOf()`). So this adapter needs no change for a new source.
  */
 export function beatDropBeatConfig(settings: Pick<BeatDropSettings, "bpm" | "grid" | "offset" | "loop">): BeatClockConfig {
-  // --- beat source adapter (switch to lib/simulation/beatSource.ts here) ---
+  // --- beat source adapter ---
   const song = isUsableGrid(settings.grid);
   return {
     ...DEFAULT_BEAT_CLOCK,

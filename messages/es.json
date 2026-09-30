@@ -1398,6 +1398,8 @@
     "bdBeatSong": "Aterrizando al pulso de la canción cargada: {bpm} BPM.",
     "bdBeatBpm": "Aterrizando al BPM configurado: {bpm} BPM (carga música de fondo para aterrizar al pulso de una canción).",
     "bdBeatAnalyzing": "Buscando el pulso de la canción…",
+    "bdBeatMedia": "Aterrizando al pulso del vídeo / audio importado: {bpm} BPM.",
+    "bdBeatMarkers": "Aterrizando en tus marcas de pulso: {bpm} BPM.",
     "bdRunInfo": "{beats} aterrizajes a {bpm} BPM en el clip de {clip} s: el recorrido termina a los {seconds} s. No puede fallar: cada semilla acierta cada pulso, así que Buscar simulación simplemente elige una.",
     "vbSource": "Fuente del ritmo",
     "vbSourceTip": "El ritmo que siguen todas las funciones rítmicas – el bloqueo al ritmo, Al compás, Pintar imagen, el Beat Runner: el ajuste de BPM, los pulsos detectados de la canción cargada, un vídeo o audio importado o marcas que colocas a mano.",

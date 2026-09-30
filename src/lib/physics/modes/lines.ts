@@ -1,6 +1,13 @@
 import type { Ball, GameMode, ModeContext, Point } from "../types";
 import { arenaRadius } from "../types";
 
+/**
+ * Bounce points the Lines mode keeps (the newest; render-only, like Grow's lines). The canvas strokes a string from every
+ * point to the ball each frame, and an endless run with many fast balls gathers thousands (8,000–17,000 in ten minutes),
+ * so the oldest strings fade out of the picture past this many instead of slowing every frame down.
+ */
+export const LINES_MAX_BOUNCE_POINTS = 1000;
+
 /** Lines: every bounce point is connected to the ball, drawing string art. */
 export class LinesMode implements GameMode {
   readonly name = "lines";
@@ -42,7 +49,7 @@ export class LinesMode implements GameMode {
         ball.vx -= 2 * dot * nx;
         ball.vy -= 2 * dot * ny;
       }
-      this.bouncePoints.push({ x: cx, y: cy });
+      this.pushBouncePoint(cx, cy);
       ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0 });
     }
   }
@@ -55,7 +62,7 @@ export class LinesMode implements GameMode {
     const dist = Math.hypot(dx, dy);
     const wall = ctx.getCircularWalls()[wallIndex];
     if (wall && dist > 0) {
-      this.bouncePoints.push({ x: cx + (dx / dist) * wall.radius, y: cy + (dy / dist) * wall.radius });
+      this.pushBouncePoint(cx + (dx / dist) * wall.radius, cy + (dy / dist) * wall.radius);
     }
   }
   onGapPass() {
@@ -86,6 +93,15 @@ export class LinesMode implements GameMode {
   }
   getBouncePoints() {
     return this.bouncePoints;
+  }
+  /** Keeps the newest `LINES_MAX_BOUNCE_POINTS` (the oldest point is recycled for the new one: no allocation at the cap). */
+  private pushBouncePoint(x: number, y: number) {
+    if (this.bouncePoints.length >= LINES_MAX_BOUNCE_POINTS) {
+      const recycled = this.bouncePoints.shift()!;
+      recycled.x = x;
+      recycled.y = y;
+      this.bouncePoints.push(recycled);
+    } else this.bouncePoints.push({ x, y });
   }
   repositionPoints(sx: number, sy: number, oldCx: number, oldCy: number, newCx: number, newCy: number) {
     for (const p of this.bouncePoints) {

@@ -43,8 +43,9 @@ import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
- * finishes within `toleranceSec` of the target duration. Runs in batches on
- * requestAnimationFrame so the UI stays responsive, and can be cancelled with an AbortSignal.
+ * finishes within `toleranceSec` of the target duration. Runs in slices of about
+ * `FINDER_FRAME_BUDGET_MS` per requestAnimationFrame so the UI stays responsive, and can be
+ * cancelled with an AbortSignal (it is checked between slices, so within a frame).
  */
 
 export interface ModeSettings {
@@ -426,6 +427,12 @@ export function simulateMultipliersSeed(seed: number, request: FinderRequest, ma
 }
 // --- end boris-multipliers ---
 
+/**
+ * Real time (ms) a search spends per animation frame before it yields – the duration, count and outcome searches alike. A
+ * seed that takes longer still runs whole (one seed a frame); the batch sizes below only cap how many seeds a frame may take.
+ */
+export const FINDER_FRAME_BUDGET_MS = 30;
+
 export function findSimulation(
   request: FinderRequest,
   onProgress: (p: FinderProgress) => void,
@@ -479,10 +486,14 @@ export function findSimulation(
         resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested });
         return;
       }
+      // Seeds until the frame's time budget is spent (at most `batchSize`): a slice of ~30 ms, whatever a seed costs.
+      const start = performance.now();
       const end = Math.min(tested + batchSize, request.maxSeeds);
-      for (let i = tested; i < end; i++) {
+      let i = tested;
+      while (i < end) {
         const seed = seedAt(i);
         const durationMs = simulateSeed(seed, request, maxSimMs);
+        i++;
         const diff = Math.abs(durationMs - targetMs);
         if (diff < bestDiff) {
           bestDiff = diff;
@@ -490,11 +501,12 @@ export function findSimulation(
           bestSeed = seed;
         }
         if (diff <= toleranceMs) {
-          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i + 1, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
+          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
           return;
         }
+        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
-      tested = end;
+      tested = i;
       onProgress({
         seedsTested: tested,
         maxSeeds: request.maxSeeds,
@@ -527,14 +539,20 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
         resolve({ found: false, seed: best.seed, duration: best.durationMs / 1000, seedsTested: tested, count: Math.max(0, best.count) });
         return;
       }
-      const seed = seedAt(tested);
-      const { durationMs, count } = simulateMultipliersSeed(seed, request, maxSimMs, target + tolerance);
-      tested++;
-      const diff = Math.abs(count - target);
-      if (diff < best.diff) best = { seed, count, durationMs, diff };
-      if (diff <= tolerance) {
-        resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: tested, count });
-        return;
+      // Seeds until the frame's time budget is spent (a board of hundreds of balls usually takes the whole budget alone).
+      const start = performance.now();
+      let seed = 0;
+      while (tested < request.maxSeeds) {
+        seed = seedAt(tested);
+        const { durationMs, count } = simulateMultipliersSeed(seed, request, maxSimMs, target + tolerance);
+        tested++;
+        const diff = Math.abs(count - target);
+        if (diff < best.diff) best = { seed, count, durationMs, diff };
+        if (diff <= tolerance) {
+          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: tested, count });
+          return;
+        }
+        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
       onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seed, bestDuration: best.durationMs / 1000, bestSeed: best.seed, bestCount: best.count });
       if (tested >= request.maxSeeds) resolve({ found: false, seed: best.seed, duration: best.durationMs / 1000, seedsTested: tested, count: Math.max(0, best.count) });
@@ -545,9 +563,6 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
 }
 
 // --- rigged ---
-/** Real time (ms) the outcome search spends per animation frame before it yields (a long run still takes one seed a frame). */
-const OUTCOME_FRAME_BUDGET_MS = 30;
-
 /**
  * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
  * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
@@ -609,7 +624,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
         }
         const miss = outcomeMiss(outcome, run);
         if (!best || miss < best.miss) best = { seed, run, miss };
-        if (performance.now() - start > OUTCOME_FRAME_BUDGET_MS) break;
+        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
       onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seedAt(tested - 1), bestDuration: best ? outcomeFigure(outcome, best.run) : 0, bestSeed: best?.seed ?? 0 });
       if (tested >= request.maxSeeds) resolve(result(false, best?.seed ?? 0, best?.run ?? null));

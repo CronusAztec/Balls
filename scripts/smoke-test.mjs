@@ -6395,6 +6395,27 @@ const bdInstrument = () =>
     );
   } else check("without WebCodecs the beat drop has no fast export to check (Record Video is covered above)", true);
 }
+{
+  // --- video-beats --- the Manual beat source reaches Beat Drop: a link with hand-placed markers every 600 ms from 0.25 s
+  // (100 BPM; bsrc=manual, bm) plans the obstructions on them, not on the BPM setting's 140 – the beat line names the markers,
+  // the canvas follows their tempo, and the run at 4× lands on marker times (250 + 600·k ms) within 1 ms.
+  await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bpm=140&bsrc=manual&bm=250.600*39`, { waitUntil: "networkidle" });
+  const line = await page.getByTestId("beat-drop").getByText(/Landing on your beat markers: 100 BPM/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const reached = await page
+    .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bdLanded) >= 12, null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  const data = await bdData();
+  const times = (data.bdLandingTimes || "").split(",").filter(Boolean).map(Number);
+  const onMarkers = times.length >= 8 && times.every((t) => Math.abs(t - 250 - 600 * Math.round((t - 250) / 600)) < 1);
+  check(
+    "beat drop lands on hand-placed beat markers (the Manual beat source), not on the BPM setting",
+    line && reached && onMarkers && data.bdBpm === "100" && data.bdSong === "1" && Number(data.bdMaxErrorMs) < 1,
+    `(line=${line}, reached=${reached}, landed ${data.bdLanded}, bpm ${data.bdBpm}, grid ${data.bdSong}, max error ${data.bdMaxErrorMs} ms, times ${times.slice(0, 6).join(",")}…)`,
+  );
+}
 // --- end beat-drop ---
 
 // --- review fix (modes-boris-odd) ---

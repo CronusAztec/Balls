@@ -481,8 +481,30 @@ export function arenaRadius(config: PhysicsConfig, factor = 0.75): number {
   return (Math.min(config.width, config.height) / 2) * factor;
 }
 
+/**
+ * The gap (radians) a ring of radius `ringRadius` gets for the configured `gap` when a ball of radius `ballRadius` must be
+ * able to pass it. The wall pass only counts a gap spanning 2.5 × the ball's angular radius (`atan2(r, R)`), so a gap too
+ * narrow for the ball – a big Ball Size, a merged ball, a small inner ring – is widened to that plus 0.01 rad; a gap the
+ * ball fits through keeps exactly its configured size (and every run with it replays as before).
+ */
+export function passableGap(gap: number, ringRadius: number, ballRadius: number): number {
+  if (!(ballRadius > 0) || !(ringRadius > 0)) return gap;
+  const need = 2.5 * Math.atan2(ballRadius, ringRadius);
+  return gap >= need ? gap : need + 0.01;
+}
+
 export const TWO_PI = Math.PI * 2;
 
 export function normalizeAngle(a: number): number {
   return ((a % TWO_PI) + TWO_PI) % TWO_PI;
+}
+
+/**
+ * Where the walk around a ring's wall starts (radians, unrotated): 0 – or, when the last of its gaps (sorted, each starting
+ * in [0, 2π)) runs past 2π, the angle past 0 where that gap ends. The canvas strokes the wall from there to the first gap,
+ * between the gaps and on to that start + 2π, so a gap across 0 is left open like the others.
+ */
+export function gapWrap(gaps: readonly Gap[]): number {
+  const last = gaps.length > 0 ? gaps[gaps.length - 1] : null;
+  return last && last.endAngle > TWO_PI ? last.endAngle - TWO_PI : 0;
 }

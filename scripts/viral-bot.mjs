@@ -207,15 +207,40 @@ async function renderInBrowser(opts, out) {
     const plans = await page.evaluate((r) => window.__jumpingBallsBot.plan(r), request);
     if (!plans.length) throw new Error("The page planned no clips.");
     printPlan(plans);
-    // Every clip downloads on its own as it is done: save each under its planned name.
-    const saving = [];
+    // Every clip downloads on its own as it is done: save each under its planned name. A save that fails (the
+    // browser closed, the disk full) is noted, never thrown from the event handler.
+    const saving = new Map();
+    const unsaved = new Map();
     page.on("download", (d) => {
       const name = path.basename(d.suggestedFilename());
-      saving.push(d.saveAs(path.join(out, name)).then(() => console.log(`  ✓ ${name}`)));
+      saving.set(
+        name,
+        d
+          .saveAs(path.join(out, name))
+          .then(() => console.log(`  ✓ ${name}`))
+          .catch((e) => unsaved.set(name, e.message)),
+      );
     });
     console.log(`Rendering ${plans.length} clip${plans.length === 1 ? "" : "s"} (fast export, ${plans[0].settings.recordingResolution} at ${plans[0].settings.fastExportFps} fps)…`);
     const rendered = await page.evaluate(() => window.__jumpingBallsBot.render({ download: "each" }));
-    await Promise.all(saving);
+    // The page reports a clip as done once it handed the file to the browser; its download event can still be on
+    // its way here, so wait for every expected file's download to start before waiting for the saves to finish.
+    for (const name of expectedDownloads(rendered)) {
+      while (!saving.has(name)) {
+        await page.waitForEvent("download", { timeout: 60000 }).catch(() => {
+          throw new Error(`The browser never started downloading ${name} (the page rendered it).`);
+        });
+      }
+    }
+    await Promise.all(saving.values());
+    for (const r of rendered) {
+      const name = r.file ? path.basename(r.file) : "";
+      if (name && unsaved.has(name)) {
+        console.warn(`  ! ${name}: could not be saved (${unsaved.get(name)}); the clip is dropped.`);
+        r.status = "failed";
+        r.file = null;
+      }
+    }
     writeTextFiles(out, await page.evaluate(() => window.__jumpingBallsBot.textFiles()));
     // Instagram takes MP4 (H.264 + AAC): a browser without those encoders rendered WebM – convert it and point the text files at the MP4.
     const fps = Object.fromEntries(plans.map((p) => [p.id, p.settings.fastExportFps || 60]));
@@ -225,6 +250,18 @@ async function renderInBrowser(opts, out) {
   } finally {
     await browser.close();
   }
+}
+
+/** The file names the browser must download for the clips the page rendered (status done with a file), in order, once each. */
+export function expectedDownloads(rendered) {
+  const names = [];
+  for (const r of rendered ?? []) {
+    if (r && r.status === "done" && typeof r.file === "string" && r.file) {
+      const name = path.basename(r.file);
+      if (!names.includes(name)) names.push(name);
+    }
+  }
+  return names;
 }
 
 /** The ffmpeg arguments that turn a WebM clip into an MP4 Instagram takes: H.264 (yuv420p) + AAC, the moov atom up front. */
