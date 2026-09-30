@@ -85,6 +85,10 @@ jobs:
           NEXT_PUBLIC_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: ${{ vars.ANALYTICS_SCRIPT_URL }}
           NEXT_PUBLIC_ANALYTICS_SITE_ID: ${{ vars.ANALYTICS_SITE_ID }}
+          # --- social-publish --- the Publish block: a Google OAuth client ID for direct YouTube uploads and a relay URL
+          # the relay form suggests (both public values; each visitor can also enter their own in the block).
+          NEXT_PUBLIC_YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
+          NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL }}
 
       - name: Upload site artifact
         if: env.DEPLOY == 'true'

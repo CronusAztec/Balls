@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale, useMessages } from "next-intl"; // --- viral-bot ---
 import { useViralBot } from "./useViralBot"; // --- viral-bot ---
+import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish --- finished clips go to the Publish block
 import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
 import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
@@ -1522,6 +1523,7 @@ export default function Simulator() {
     if (recorder) {
       const blob = await recorder.stopRecording();
       if (blob) recorder.downloadBlob(blob, "jumpingballslive-export");
+      if (blob) offerPublishClip({ blob, name: "jumpingballslive-export", source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null }); // --- social-publish ---
     }
     setIsRecording(false);
   }, []);
@@ -1684,6 +1686,7 @@ export default function Simulator() {
       if (!result) setFastExport({ status: "cancelled" });
       else {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
+        if (!batchJob) offerPublishClip({ blob: result.blob, name: `jumpingballslive-export.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
       }
     } catch (err) {

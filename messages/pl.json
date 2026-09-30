@@ -1461,7 +1461,11 @@
     "bounceMathRules": "Reguły matematyki odbić",
     "bounceMathPreset": "Dodaj gotowy zestaw",
     "bounceMathShowValues": "Pokaż wartości",
-    "bounceMathShowValuesTip": "Mała plakietka na filmie ze sprężystością, prędkością, rozmiarem i grawitacją piłki, która odbiła się ostatnia, oraz liczbą uruchomień każdej reguły."
+    "bounceMathShowValuesTip": "Mała plakietka na filmie ze sprężystością, prędkością, rozmiarem i grawitacją piłki, która odbiła się ostatnia, oraz liczbą uruchomień każdej reguły.",
+    "publish": "Publikuj",
+    "publishTip": "Wyślij gotowy klip na swoje konta TikTok, Instagram i YouTube – po kilka na platformę – jednym kliknięciem: na YouTube prosto z przeglądarki, na TikToka i Instagrama przez mały relay, który hostujesz sam, albo przyciskami udostępniania bez konfiguracji.",
+    "publishAccounts": "Konta (TikTok, Instagram, YouTube)",
+    "publishQuickShare": "Szybkie udostępnianie"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1756,7 +1760,18 @@
       "line5": "."
     },
     "consent": { "title": "10. Zgoda na pliki cookie", "content": "Tam, gdzie wymaga tego prawo, zostaniesz poproszony o zgodę na nieistotne pliki cookie, zanim zostaną ustawione. Wybór możesz zmienić w każdej chwili w ustawieniach przeglądarki." },
-    "contact": { "title": "11. Kontakt", "content": "Masz pytania dotyczące tej polityki? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" }
+    "contact": { "title": "11. Kontakt", "content": "Masz pytania dotyczące tej polityki? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" },
+    "publishing": {
+      "title": "12. Publikowanie na TikToku, Instagramie i YouTube",
+      "content": "Blok Publikuj w symulatorze wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania urządzenia albo go pobiera. Wysyłka na YouTube idzie prosto z twojej przeglądarki do Google z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki (usunięcie konta w bloku go kasuje). TikTok, Instagram – i YouTube, jeśli wybierzesz – idą przez serwer relay prowadzony przez osobę, która dała ci klucz dostępu: przechowuje on połączone konta z ich tokenami i trzyma każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
+      "youtube1": "Wysyłka na YouTube korzysta z usług YouTube API: wysyłając, akceptujesz",
+      "ytTermsLink": "Warunki korzystania z YouTube",
+      "youtube2": ", a Google przetwarza dane zgodnie z",
+      "googlePrivacyLink": "Polityką prywatności Google",
+      "youtube3": ". Dostęp tej strony możesz w każdej chwili cofnąć w",
+      "revokeLink": "ustawieniach dostępu aplikacji innych firm na koncie Google",
+      "youtube4": "."
+    }
   },
   "Terms": {
     "title": "Regulamin",
@@ -2618,5 +2633,158 @@
     "hudSize": "ROZMIAR",
     "hudGravity": "GRAWITACJA",
     "hudRule": "#[n] ×[fires]"
+  },
+  "Publish": {
+    "intro": "Wyślij gotowy klip na TikToka, Instagrama i YouTube – na tyle kont, ile połączysz – jednym kliknięciem, albo udostępnij go w aplikacjach bez żadnej konfiguracji.",
+    "noClip": "Nie ma jeszcze klipu. Nagraj wideo, uruchom szybki eksport, serię albo renderowanie bota – każdy gotowy klip trafia tutaj – lub wybierz plik wideo.",
+    "sources": {
+      "recording": "Nagranie",
+      "fast": "Szybki eksport",
+      "batch": "Seria",
+      "bot": "Bot viralowy",
+      "file": "Plik"
+    },
+    "seconds": "{sec} s",
+    "megabytes": "{mb} MB",
+    "removeClip": "Usuń ten klip z listy",
+    "pickClip": "Klip do wysłania",
+    "chooseFile": "Wybierz wideo…",
+    "thumbAlt": "Pierwsze klatki klipu",
+    "wordsTitle": "Tekst dla każdej platformy",
+    "tabAll": "Wszystkie platformy",
+    "regenerate": "Zaproponuj",
+    "regenerateTip": "Napisz tytuł, opis i hashtagi od nowa na podstawie tekstów bota viralowego (twoje zmiany zostaną zastąpione)",
+    "fieldTitle": "Tytuł (YouTube)",
+    "fieldCaption": "Opis",
+    "fieldHashtags": "Hashtagi",
+    "useShared": "Użyj wspólnego tekstu",
+    "limits": "Limity platform",
+    "counters": {
+      "caption": "opis {used}/{max}",
+      "title": "tytuł {used}/{max}",
+      "description": "opis {used}/{max} bajtów",
+      "hashtags": "hashtagi {used}/{max}",
+      "tags": "tagi {used}/{max}"
+    },
+    "sharedNote": "Jeden tekst dla wszystkich platform; karta platformy zmienia tylko jej wersję. Każda platforma dostaje własny tag (#fyp, #reels, #Shorts).",
+    "platformNote": {
+      "tiktok": "TikTok: opis z hashtagami, do 2200 znaków.",
+      "instagram": "Instagram Reels: do 2200 znaków i 30 hashtagów.",
+      "youtube": "YouTube: tytuł do 100 znaków i opis do 5000 bajtów (bez < i >); #Shorts idzie na początek, a hashtagi stają się też tagami."
+    },
+    "sendTo": "Wyślij do {name}",
+    "viaRelay": "relay",
+    "viaDirect": "bezpośrednio",
+    "signInAgain": "Zaloguj ponownie",
+    "reconnect": "Połącz ponownie",
+    "removeAccount": "Usuń {name}",
+    "needsRelay": "Dodaj relay poniżej, aby połączyć tę platformę",
+    "relayNoApp": "Relay nie ma kluczy aplikacji {platform}",
+    "needsClientId": "Najpierw skonfiguruj aplikację YouTube poniżej",
+    "connectGoogle": "Połącz YouTube",
+    "connecting": "Łączenie…",
+    "connectViaRelay": "przez relay",
+    "connectPlatform": "Połącz {platform}",
+    "accountCount": "{count, plural, =0 {brak kont} one {# konto} few {# konta} many {# kont} other {# konta}}",
+    "waitingSignIn": "Dokończ logowanie ({platform}) w oknie, które się otworzyło…",
+    "cancel": "Anuluj",
+    "popupBlocked": "Okno logowania zostało zablokowane.",
+    "openSignIn": "Otwórz stronę logowania",
+    "relayError": "Relay: {error}",
+    "loadingAccounts": "Wczytywanie kont z relaya…",
+    "status": {
+      "queued": "czeka",
+      "uploading": "wysyłanie",
+      "processing": "przetwarzanie",
+      "published": "opublikowano ✓",
+      "failed": "błąd",
+      "needsAuth": "logowanie wygasło"
+    },
+    "openPost": "Otwórz",
+    "visibilityNote": {
+      "private": "Wysłano jako prywatny – widzisz go tylko ty.",
+      "unlisted": "Wysłano jako niepubliczny – zobaczą go tylko osoby z linkiem."
+    },
+    "retry": "Spróbuj ponownie",
+    "relayIntro": "Relay to mały serwer, który hostujesz sam (katalog relay/ w repozytorium): przechowuje sekrety aplikacji TikToka, Instagrama i YouTube i publikuje za ciebie. Dodaj jego adres i swój klucz dostępu; z jednego relaya może korzystać kilka osób, każda z własnym kluczem.",
+    "useRelay": "Używaj: {label}",
+    "testConnection": "Test",
+    "removeRelay": "Usuń: {label}",
+    "testOk": "Połączono jako {label} · konta: {accounts} · aplikacje: {platforms}",
+    "testFailed": "Połączenie nieudane: {error}",
+    "relayUrl": "Adres relaya",
+    "relayKey": "Klucz dostępu",
+    "relayLabel": "Nazwa (np. Zespół)",
+    "saveRelay": "Zapisz relay",
+    "relayBadUrl": "Podaj adres http(s) relaya.",
+    "relayNoKey": "Podaj swój klucz dostępu (poproś o niego właściciela relaya).",
+    "ytSetupIntro": "Wysyłka na YouTube idzie prosto z tej przeglądarki przy użyciu identyfikatora klienta Google OAuth (aplikacja internetowa), którego autoryzowane źródła JavaScript obejmują {origin}. Wklej tu identyfikator klienta – nie jest tajny.",
+    "ytClientId": "Identyfikator klienta Google OAuth",
+    "save": "Zapisz identyfikator",
+    "ytBuiltIn": "Ta strona ma wbudowany identyfikator klienta; twój go zastąpi.",
+    "ytConsole": "Dane logowania w Google Cloud",
+    "recent": "Ostatnie wysyłki",
+    "recentEmpty": "Nic jeszcze nie wysłano.",
+    "recentStatus": {
+      "published": "opublikowano",
+      "failed": "błąd",
+      "shared": "udostępniono",
+      "opened": "otwarto stronę przesyłania"
+    },
+    "clearRecent": "Wyczyść",
+    "defaultTitle": "{mode} · satysfakcjonująca fizyka piłek",
+    "defaultCaption": "Każde odbicie to nuta. Zrobione w {site}.",
+    "shareTo": "Wyślij na {platform}",
+    "shareDesktop": "Klip został pobrany, opis jest w schowku, a strona przesyłania ({platform}) się otworzyła – upuść tam plik i wklej opis.",
+    "shareDesktopNoCopy": "Klip został pobrany, a strona przesyłania ({platform}) się otworzyła – upuść tam plik i skopiuj opis z pola powyżej.",
+    "shareOutcome": {
+      "shared": "Udostępniono – wybierz {platform} w arkuszu udostępniania; opis jest w schowku, wklej go tam.",
+      "cancelled": "Udostępnianie anulowane.",
+      "failed": "Ta przeglądarka nie może udostępnić pliku – spróbuj na komputerze, gdzie klip się pobiera."
+    },
+    "quickHint": "Bez kont: na telefonie arkusz udostępniania pokazuje aplikacje TikTok, Instagram i YouTube; na komputerze klip się pobiera, opis trafia do schowka i otwiera się strona przesyłania.",
+    "pathDirect": "YouTube bezpośrednio: dodaj identyfikator klienta Google OAuth w „Konfiguracji aplikacji YouTube” i połącz swoje kanały – wysyłka idzie prosto z tej przeglądarki.",
+    "pathRelay": "TikTok, Instagram (i YouTube) przez twój relay: wdróż katalog relay/ z repozytorium, a potem dodaj jego adres i swój klucz w sekcji „Relay”.",
+    "pathShare": "Albo po prostu użyj szybkiego udostępniania powyżej – nic nie trzeba konfigurować.",
+    "visibility": "Widoczność",
+    "visibilities": {
+      "public": "Publiczny",
+      "unlisted": "Niepubliczny",
+      "private": "Prywatny"
+    },
+    "sending": "Wysyłanie…",
+    "sendSelected": "Wyślij do zaznaczonych ({count})",
+    "overLimit": "Za długie dla: {platforms} – skróć tekst (zobacz liczniki).",
+    "instagramMp4": "Instagram przyjmuje MP4 (H.264 + AAC), a ten klip to WebM – wyeksportuj go w Chrome lub Safari albo przekonwertuj.",
+    "sendNeedsClip": "Nagraj lub wybierz klip do wysłania.",
+    "progress": "Postęp wysyłania",
+    "relaySettings": "Relay",
+    "ytSetup": "Konfiguracja aplikacji YouTube",
+    "errors": {
+      "yt": {
+        "auth": "Logowanie do YouTube wygasło – zaloguj się ponownie.",
+        "scope": "Google nie przyznał uprawnienia do wysyłania na YouTube – połącz ponownie i zostaw je zaznaczone.",
+        "quota": "Limit API YouTube lub limit wysyłek tego kanału został na razie wyczerpany – spróbuj później.",
+        "noChannel": "To konto Google nie ma jeszcze kanału YouTube – najpierw utwórz go na youtube.com.",
+        "forbidden": "YouTube odrzucił wysyłkę. Dopóki Google nie zweryfikuje aplikacji, mogą z niej korzystać tylko jej użytkownicy testowi.",
+        "network": "Połączenie z YouTube nie powiodło się – sprawdź, czy jesteś online, i spróbuj ponownie.",
+        "server": "YouTube w tej chwili nie odpowiada – spróbuj ponownie.",
+        "session": "Sesja wysyłania wygasła – wyślij ponownie.",
+        "badRequest": "YouTube odrzucił dane filmu – sprawdź tytuł i opis.",
+        "popup": "Okno logowania Google zostało zablokowane – zezwól tej stronie na wyskakujące okna i spróbuj ponownie.",
+        "config": "Najpierw skonfiguruj identyfikator klienta Google OAuth (Konfiguracja aplikacji YouTube)."
+      },
+      "relay": {
+        "network": "Nie można połączyć się z relayem – sprawdź jego adres i czy ta strona jest w jego RELAY_ALLOWED_ORIGINS.",
+        "unauthorized": "Relay nie przyjął tego klucza dostępu.",
+        "forbidden": "Relay odrzucił to żądanie.",
+        "notFound": "Relay nie zna już tego konta ani zadania – odśwież konta.",
+        "tooLarge": "Klip jest większy, niż przyjmuje relay.",
+        "notConfigured": "Relay nie ma jeszcze kluczy aplikacji dla tej platformy.",
+        "server": "Relay zgłosił błąd – sprawdź jego log i spróbuj ponownie.",
+        "timeout": "Relay wciąż publikuje – sprawdź ostatnie wysyłki później.",
+        "badUrl": "Adres relaya nie jest poprawnym adresem http(s)."
+      }
+    }
   }
 }
