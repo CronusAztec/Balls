@@ -5197,6 +5197,114 @@ const vxFrameRates = async (ms) => {
 }
 // --- end boris-vortex ---
 
+// --- viral-bot --- Viral video bot (the Bot block after the Batch block of the Recording section): "Today's plan" plans three
+// clips in the page (recipe, hook, mode, seed, length, ending and a score with its nine reasons), the plan survives a reload
+// (localStorage), the page exposes the planner to the CLI (window.__jumpingBallsBot, whose text files hold the manifest and
+// the schedule), "Open in simulator" puts a clip on the page, and a one-clip short plan starts "Render all": the batch
+// renderer renders it and the ZIP holds the video as <episode>-<recipe>-<seed>, its caption file, manifest.json and
+// posting-schedule.md. Without WebCodecs the block says so.
+{
+  const BOT_KEY = "jumpingballslive_viral_bot";
+  const botStatus = () => page.locator("[data-bot]").getAttribute("data-bot").catch(() => null);
+  const botRows = () => page.locator("[data-bot-clip]").evaluateAll((els) => els.map((e) => ({ id: e.getAttribute("data-bot-clip"), recipe: e.getAttribute("data-bot-recipe"), score: Number(e.getAttribute("data-bot-score")), ending: e.getAttribute("data-bot-ending"), seed: e.getAttribute("data-bot-seed") })));
+  const openBot = async () => {
+    await page.getByRole("button", { name: /Recording/ }).click();
+    await page.locator("[data-bot]").waitFor({ timeout: 10000 });
+    return page.locator("[data-bot]");
+  };
+  const waitClips = (n) => page.waitForFunction((count) => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "planned" && document.querySelector("[data-bot]")?.getAttribute("data-bot-clips") === String(count), n, { timeout: 180000 }).then(() => true).catch(() => false);
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
+  await page.reload({ waitUntil: "networkidle" });
+  let bot = await openBot();
+  // 1. Today's plan: three clips, each scored with the nine checklist items.
+  await page.locator("#bot-count").evaluate(setRangeValue, "3");
+  const t0 = Date.now();
+  await bot.getByRole("button", { name: /Today's plan/ }).click();
+  const planned = await waitClips(3);
+  const planMs = Date.now() - t0;
+  const rows = await botRows();
+  await bot.locator("details summary").first().click().catch(() => {});
+  const reasons = await bot.locator("details").first().locator("li").count();
+  const hooks = await bot.locator("[data-bot-clip] .italic").allInnerTexts();
+  check(
+    "viral bot: Today's plan lists three clips with recipe, hook, seed, ending and a score with its reasons",
+    planned && rows.length === 3 && rows.every((r) => r.recipe && r.score > 0 && r.score <= 100 && /^(resolved|cliffhanger)$/.test(r.ending) && /^\d+$/.test(r.seed) && /^ep\d{3}-\d+-[a-z-]+-\d+$/.test(r.id)) && reasons === 9 && hooks.every((h) => h.length > 4),
+    `(${JSON.stringify(rows)}; ${reasons} reasons; ${planMs} ms)`,
+  );
+  // 2. The CLI's handle and the text files of the plan.
+  const files = await page.evaluate(() => (window.__jumpingBallsBot ? window.__jumpingBallsBot.textFiles().map((f) => ({ name: f.name, size: f.text.length })) : null));
+  const manifest = await page.evaluate(() => JSON.parse(window.__jumpingBallsBot?.textFiles().find((f) => f.name === "manifest.json")?.text ?? "null"));
+  check(
+    "viral bot: the page exposes the planner to the CLI, with caption files, manifest.json and posting-schedule.md",
+    !!files && files.length === 5 && files.some((f) => f.name === "manifest.json") && files.some((f) => f.name === "posting-schedule.md") && manifest?.clips?.length === 3 && manifest.clips.every((c, i) => c.seed === Number(rows[i]?.seed) && c.shareUrl.includes(`seed=${c.seed}`) && c.status === "planned"),
+    `(${JSON.stringify(files)})`,
+  );
+  // 3. The plan survives a reload; Open in simulator puts the clip on the page.
+  await page.reload({ waitUntil: "networkidle" });
+  bot = await openBot();
+  const kept = await waitClips(3);
+  const keptRows = await botRows();
+  const first = manifest?.clips?.[0];
+  await bot.locator("[data-bot-clip]").first().getByRole("button", { name: /Open in simulator/ }).click();
+  const opened = first ? await page.waitForFunction((mode) => new URLSearchParams(location.search).get("mode") === mode, first.mode, { timeout: 15000 }).then(() => true).catch(() => false) : false;
+  check("viral bot: the plan survives a reload and Open in simulator puts its settings on the page", kept && JSON.stringify(keptRows) === JSON.stringify(rows) && opened, `(${first?.mode}, ${page.url().slice(0, 140)}…)`);
+  // 4. A one-clip short plan and Render all.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  bot = page.locator("[data-bot]");
+  if ((await bot.count()) === 0) bot = await openBot();
+  await bot.getByRole("button", { name: "Shorts", exact: true }).click();
+  await page.locator("#bot-count").evaluate(setRangeValue, "1");
+  await bot.getByRole("button", { name: /Plan clips/ }).click();
+  const one = await waitClips(1);
+  const oneRow = (await botRows())[0];
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    const zipWait = page.waitForEvent("download", { timeout: 480000 }).catch(() => null);
+    await bot.getByRole("button", { name: /Render all/ }).click();
+    const started = await page.waitForFunction(() => document.querySelector("[data-bot]")?.getAttribute("data-bot") === "rendering" || document.querySelector("[data-batch-job='rendering']"), null, { timeout: 60000 }).then(() => true).catch(() => false);
+    check("viral bot: Render all starts a one-clip render through the batch renderer", one && started, `(${JSON.stringify(oneRow)})`);
+    const zip = await zipWait;
+    let names = [];
+    let zipManifest = null;
+    if (zip) {
+      const out = path.join(outDir, `bot-${zip.suggestedFilename()}`);
+      await zip.saveAs(out);
+      const buf = fs.readFileSync(out);
+      // STORE-only ZIP: walk the central directory.
+      const end = buf.length - 22;
+      if (end > 0 && buf.readUInt32LE(end) === 0x06054b50) {
+        let at = buf.readUInt32LE(end + 16);
+        for (let i = 0; i < buf.readUInt16LE(end + 10); i++) {
+          const size = buf.readUInt32LE(at + 24);
+          const nameLength = buf.readUInt16LE(at + 28);
+          const skip = buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+          const local = buf.readUInt32LE(at + 42);
+          const name = buf.subarray(at + 46, at + 46 + nameLength).toString("utf8");
+          names.push({ name, size });
+          if (name === "manifest.json") {
+            const dataAt = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+            zipManifest = JSON.parse(buf.subarray(dataAt, dataAt + size).toString("utf8"));
+          }
+          at += 46 + nameLength + skip;
+        }
+      }
+    }
+    const video = names.find((n) => /\.(mp4|webm)$/.test(n.name));
+    check(
+      "viral bot: the ZIP holds the clip as <episode>-<recipe>-<seed>, its caption file, manifest.json and posting-schedule.md",
+      !!zip && /^jumpingballslive-bot-\d{4}-\d{2}-\d{2}\.zip$/.test(zip.suggestedFilename()) && !!video && video.size > 10000 && video.name.startsWith(`${oneRow?.id}.`) && names.some((n) => n.name === `${oneRow?.id}.txt`) && names.some((n) => n.name === "posting-schedule.md") && zipManifest?.clips?.[0]?.status === "done" && zipManifest.clips[0].file === video.name && (await botStatus()) === "done",
+      `(${zip?.suggestedFilename() ?? "no ZIP"}: ${JSON.stringify(names)})`,
+    );
+  } else {
+    const disabled = await bot.getByRole("button", { name: /Render all/ }).isDisabled();
+    const note = await bot.getByText(/Rendering needs WebCodecs/).first().isVisible().catch(() => false);
+    check("viral bot: without WebCodecs the Bot block plans but says rendering needs WebCodecs", one && disabled && note, `(disabled=${disabled}, note=${note})`);
+  }
+  await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
+}
+// --- end viral-bot ---
+
 // --- boris-bullseye ---
 // 33. Bullseye: the preview image and the card; URL → the Bullseye block of the Mode row (shots, interval, chaos, rings,
 // moving target, perfect shot, the run summary), controls → URL and the search box; a short rigged run at 1× (OscillatorNode

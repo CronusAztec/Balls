@@ -1,0 +1,136 @@
+name: Viral video bot
+
+# The viral video bot as a scheduled job (README, "Viral video bot"): builds the site with the GitHub Pages base path, serves
+# out/ like GitHub Pages, plans and renders the day's clips with scripts/viral-bot.mjs in headless Chromium and uploads
+# bot-output (videos, caption files, manifest.json, posting-schedule.md) as an artifact kept for 14 days.
+#
+# It posts to Instagram only when run by hand with "post" ticked AND the IG_USER_ID, IG_ACCESS_TOKEN and BOT_VIDEO_BASE_URL
+# secrets exist. Instagram downloads each video from BOT_VIDEO_BASE_URL, so the folder must be public there first: set the
+# repository variable BOT_UPLOAD_COMMAND to the command that uploads bot-output (e.g. an `aws s3 sync` or `rclone copy`,
+# with its own credentials as secrets). The daily run never posts. Tokens live in secrets only – never in the repository.
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Clips to plan (1–20)"
+        required: true
+        default: "3"
+      platform:
+        description: "Platform"
+        type: choice
+        options: [reels, tiktok, shorts]
+        default: reels
+      post:
+        description: "Publish to Instagram (needs the secrets and BOT_UPLOAD_COMMAND)"
+        type: boolean
+        default: false
+  schedule:
+    # Every day at 05:47 UTC: the day's plan is ready before the first posting slot.
+    - cron: "47 5 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viral-bot
+  cancel-in-progress: false
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Work out the Pages URL and base path
+        id: site
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          if [ "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then base=""; else base="/$REPO"; fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "url=https://$owner.github.io$base" >> "$GITHUB_OUTPUT"
+
+      - name: Build static site
+        run: npm run build
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.site.outputs.url }}
+
+      - name: Serve the site, plan and render
+        shell: bash
+        env:
+          BASE_PATH: ${{ steps.site.outputs.base }}
+          COUNT: ${{ github.event.inputs.count || '3' }}
+          PLATFORM: ${{ github.event.inputs.platform || 'reels' }}
+        run: |
+          node scripts/serve-static.mjs --port 3000 --base "$BASE_PATH" > serve.log 2>&1 &
+          export BASE_URL="http://localhost:3000$BASE_PATH"
+          for i in $(seq 1 30); do curl -sf "$BASE_URL/en/" > /dev/null && break; sleep 1; done
+          node scripts/viral-bot.mjs --count "$COUNT" --platform "$PLATFORM" --out bot-output
+
+      - name: Upload the clips as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-output-${{ github.run_id }}
+          path: bot-output
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Check the posting set-up
+        id: post
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.post == 'true'
+        shell: bash
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          BOT_VIDEO_BASE_URL: ${{ secrets.BOT_VIDEO_BASE_URL }}
+          BOT_UPLOAD_COMMAND: ${{ vars.BOT_UPLOAD_COMMAND }}
+        run: |
+          missing=""
+          for name in IG_USER_ID IG_ACCESS_TOKEN BOT_VIDEO_BASE_URL BOT_UPLOAD_COMMAND; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::Not posting: set$missing (secrets: IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL; variable: BOT_UPLOAD_COMMAND). The clips are in the artifact – post them by hand (posting-schedule.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the videos to BOT_VIDEO_BASE_URL
+        if: steps.post.outputs.ready == 'true'
+        shell: bash
+        env:
+          BOT_UPLOAD_COMMAND: ${{ vars.BOT_UPLOAD_COMMAND }}
+          # Credentials of the upload command (e.g. `aws s3 sync bot-output s3://my-bucket/bot --acl public-read`); add the
+          # ones your storage needs as repository secrets.
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+        run: bash -c "$BOT_UPLOAD_COMMAND"
+
+      - name: Post to Instagram
+        if: steps.post.outputs.ready == 'true'
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          BOT_VIDEO_BASE_URL: ${{ secrets.BOT_VIDEO_BASE_URL }}
+        run: node scripts/viral-bot.mjs --post-only --out bot-output
