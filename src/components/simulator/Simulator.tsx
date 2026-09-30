@@ -39,7 +39,7 @@ import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
-import { findSimulation, runNeverFinishes, type FinderResult } from "@/lib/simulation/finder";
+import { findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- boris-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces ---
 // --- teams ---
@@ -393,6 +393,8 @@ export default function Simulator() {
   }, [s.bouncierEnabled]);
   useEffect(() => {
     engineRef.current?.setCinematicEnabled(s.cinematicEnabled);
+    // --- review fix (modes-rhythm) --- the director changes how a seed plays out: a found run's promise goes with the switch
+    setSearchResult((r) => (r?.found ? null : r));
   }, [s.cinematicEnabled]);
   useEffect(() => {
     engineRef.current?.setGrowRate(s.growRate);
@@ -856,6 +858,17 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setPaintOptions({ picture: !!paintPicture, brush: s.paintBrush, beatSync: s.paintBeatSync, beatPulse: s.paintBeatPulse, guided: s.paintGuided, paceToSong: s.paintPaceToSong, targetSec: paintTargetSec });
   }, [paintPicture, s.paintBrush, s.paintBeatSync, s.paintBeatPulse, s.paintGuided, s.paintPaceToSong, paintTargetSec]);
+  // --- review fix (modes-rhythm) --- a Paint seed is found for the classic run: loading (or removing) a picture changes the run
+  // (brush, beat sync, guidance, pacing), so it drops a found seed and its promise
+  const hasPaintPicture = !!paintPicture;
+  const prevHasPaintPictureRef = useRef(hasPaintPicture);
+  useEffect(() => {
+    if (prevHasPaintPictureRef.current === hasPaintPicture) return;
+    prevHasPaintPictureRef.current = hasPaintPicture;
+    if (s.mode !== "paint") return;
+    engineRef.current?.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [hasPaintPicture]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setPaintBeat({
       source: s.paintBeatSource,
@@ -1009,7 +1022,7 @@ export default function Simulator() {
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
-  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles]);
+  }, [s.mode, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -1034,7 +1047,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- boris-vortex --- (the loop) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- boris-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
@@ -2144,6 +2157,7 @@ export default function Simulator() {
           growRate: settings.growRate,
           portalCount: engine.getPortalCount(),
           twoBalls: settings.twoBalls,
+          cinematicEnabled: settings.cinematicEnabled, // --- review fix (modes-rhythm) --- (the director steers the run)
           drop: dropSettingsOf(settings),
           box: boxSettingsOf(settings),
           pendulum: pendulumSettingsOf(settings),
@@ -2167,6 +2181,7 @@ export default function Simulator() {
           bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
+          paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
         outcome, // --- rigged ---
       },
@@ -2207,7 +2222,7 @@ export default function Simulator() {
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam]); // --- rigged --- (the outcome)
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture)
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
@@ -2475,7 +2490,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- boris-vortex --- (the loop) */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- boris-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
@@ -2485,6 +2500,14 @@ export default function Simulator() {
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
   const obstacleEditing = supportsObstacles(s.mode) && s.obstacles.length > 0 && (!isStarted || isPaused) && !finished && !isRecording && !isSearching;
   const onObstaclesChange = useCallback((obstacles: EditorObstacle[]) => update({ obstacles }), [update]);
+  // --- review fix (modes-rhythm) --- a found seed was measured at the old canvas size (another size can play out differently,
+  // float rounding alone sees to that): a resize drops it and its promise, like the other edits that change the run – but
+  // not in the arena games, whose seeds replay exactly on any canvas (seedSurvivesResize)
+  const onCanvasSizeChange = useCallback(() => {
+    if (seedSurvivesResize(settings.mode)) return;
+    engineRef.current?.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [settings.mode]);
   // --- end obstacle-editor ---
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
@@ -2541,6 +2564,7 @@ export default function Simulator() {
                   // --- obstacle-editor ---
                   obstacleEditing={obstacleEditing}
                   onObstaclesChange={onObstaclesChange}
+                  onSizeChange={onCanvasSizeChange} // --- review fix (modes-rhythm) ---
                   captions={captionRender} // --- captions ---
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
                   fastRender={fastRenderHost} // --- fast-render ---

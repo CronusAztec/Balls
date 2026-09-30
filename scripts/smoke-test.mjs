@@ -736,6 +736,8 @@ await page.getByRole("button", { name: /Custom Sound/ }).click();
 // multiply inside the arena – and exposes the HUD state (schedule + beat); the settings reach the URL; the search box
 // finds the controls; removing the picture returns to the classic Paint trail (the MODES loop above already runs it).
 await page.goto(`${BASE}/en/simulator/?mode=paint`, { waitUntil: "networkidle" });
+// --- review fix (modes-rhythm) --- classic Paint ends at 95 % coverage, so Find Simulation is offered (hidden with a picture, below)
+const paintFinderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
 await page.evaluate(() => {
   const c = document.createElement("canvas");
   c.width = 200;
@@ -757,6 +759,11 @@ await page.evaluate(() => {
 const paintPicture = page.getByTestId("paint-picture");
 const pictureLoaded = await paintPicture.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
 check("picture paint accepts a PNG generated in the page", pictureLoaded && (await paintPicture.innerText()).includes("smoke-picture.png"));
+{
+  // --- review fix (modes-rhythm) --- a picture run follows the page's picture and song, which the finder cannot replay
+  const paintFinderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
+  check("classic Paint offers Find Simulation; a loaded picture hides it", paintFinderShown && paintFinderHidden, `(shown ${paintFinderShown}, hidden with a picture ${paintFinderHidden})`);
+}
 const bpmReadout = page.getByTestId("paint-detected-bpm");
 {
   const text = await bpmReadout.innerText();
@@ -4042,6 +4049,19 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 {
   const found = await page.getByText(/Ready to start simulation for (29\.[5-9]|30\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
   check("finder finds a 30 s race", found);
+  // --- review fix (modes-rhythm) --- another canvas size can play a race out differently (float rounding), so a resize after
+  // Find drops the found run – its "Ready to start simulation for …" promise and the Found! line go with it
+  if (found) {
+    const box0 = await page.locator("main canvas").boundingBox();
+    await page.setViewportSize({ width: 800, height: 1300 });
+    await page.waitForTimeout(600);
+    const box1 = await page.locator("main canvas").boundingBox();
+    const ready = await page.getByText(/Ready to start simulation for/).count();
+    const foundLine = await page.getByText(/Found! [\d.]+s/).count();
+    const resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
+    check("a resize after Find drops a found race", resized && ready === 0 && foundLine === 0, `(canvas ${box0 ? `${Math.round(box0.width)}×${Math.round(box0.height)}` : "?"} → ${box1 ? `${Math.round(box1.width)}×${Math.round(box1.height)}` : "?"}, ready ${ready}, found ${foundLine})`);
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
 }
 // --- end jdm-race ---
 // --- jdm-arena-games ---
@@ -4166,6 +4186,33 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
     );
     await page.setViewportSize({ width: 1400, height: 900 });
   }
+}
+{
+  // --- review fix (modes-rhythm) --- the finder runs the seed with the page's Cinematic switch (the director draws from the
+  // run's random numbers), and a battle's speeds scale with the field: a battle found with Cinematic off, the window resized
+  // before Start, keeps its seed and its "Found!" line and replays to the length it was found with
+  await page.goto(`${BASE}/en/simulator/?mode=battle&cine=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/Found! ([\d.]+)s/.exec(text) || [])[1]);
+  let replay = NaN;
+  let kept = false;
+  let resized = false;
+  if (foundSec > 0) {
+    const box0 = await page.locator("main canvas").boundingBox();
+    await page.setViewportSize({ width: 800, height: 1300 });
+    await page.waitForTimeout(600);
+    const box1 = await page.locator("main canvas").boundingBox();
+    resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
+    kept = (await page.getByText(/Found! [\d.]+s/).count()) > 0;
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click().catch(() => {});
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    replay = Number((await canvasData()).arenaFinishSec);
+    await page.setViewportSize({ width: 1400, height: 900 });
+  }
+  check("a battle found with Cinematic off replays to its length, after a resize before Start too", foundSec > 0 && resized && kept && Math.abs(replay - foundSec) <= 0.051, `(${text}, resized ${resized}, kept ${kept}, replay ${replay}s)`);
 }
 {
   // Capture the flag, first to two: captures are counted and the score decides (or the clock, if nobody gets there).

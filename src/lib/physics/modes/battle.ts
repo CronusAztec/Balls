@@ -617,7 +617,10 @@ export class BattleMode implements GameMode {
     return true;
   }
 
-  /** A canvas resize lays the field out again and maps the squares and power-ups onto it (undoing the engine's per-axis stretch). */
+  /**
+   * A canvas resize lays the field out again and maps the squares and power-ups onto it (undoing the engine's per-axis stretch).
+   * The squares' speeds scale with the field too (by its side, never per axis), so a found battle plays on unchanged.
+   */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     const v = this.view;
     const old = v.field;
@@ -634,6 +637,8 @@ export class BattleMode implements GameMode {
       ball.x = cx + ((ball.x - cx) * k) / (sx || 1);
       ball.y = cy + ((ball.y - cy) * k) / (sy || 1);
       ball.radius *= k;
+      ball.vx *= k; // --- review fix (modes-rhythm) --- (the speeds follow the field, like Race's rescale())
+      ball.vy *= k;
       ball.radiusScale = ball.radius / (ctx.config.ballRadius || 8);
     }
     for (const p of v.powerUps) {
