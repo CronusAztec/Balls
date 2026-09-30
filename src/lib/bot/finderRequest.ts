@@ -79,6 +79,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
   const d = engineDefaults();
   return {
     bouncierEnabled: s.bouncierEnabled,
+    cinematicEnabled: s.cinematicEnabled,
     countdownTotal: s.targetCount,
     countdownRandom: s.countdownRandom,
     colorMatchColorCount: s.colorMatchColorCount,

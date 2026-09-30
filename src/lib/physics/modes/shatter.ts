@@ -118,8 +118,10 @@ export class ShatterMode implements GameMode {
       }
     }
   }
+  /** A new wall count builds the rings and their segments anew; a new canvas size only resizes the rings (the broken segments stay). */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean, wallCountChanged: boolean) {
-    if (sizeChanged || wallCountChanged) this.buildSegments(ctx);
+    if (wallCountChanged) this.buildSegments(ctx);
+    else if (sizeChanged) this.resizeWalls(ctx);
     return true;
   }
   shouldSkipWallCollision() {
@@ -144,6 +146,14 @@ export class ShatterMode implements GameMode {
     }
     ctx.setCircularWalls(walls);
     ctx.setWallRotations(rotations);
+  }
+
+  /** The rings' radii for the current canvas, exactly as `rebuildWalls()` gives them; gaps, rotations and segments stay. */
+  private resizeWalls(ctx: ModeContext) {
+    const maxR = (Math.min(ctx.config.width, ctx.config.height) / 2) * 0.85;
+    const walls = ctx.getCircularWalls();
+    const count = walls.length;
+    for (let i = 0; i < count; i++) walls[i].radius = maxR * (0.2 + (0.8 / count) * (i + 1));
   }
 
   private rebuildWallGaps(ctx: ModeContext, wallIndex: number) {

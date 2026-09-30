@@ -45,6 +45,7 @@ import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
 import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 import type { Ball } from "@/lib/physics/types";
+import { gapWrap } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
 // --- odd-power-layers --- the Power Layers playfield, stack, particles, badges and rule pills
 import { DEFAULT_POWER_LAYERS_LABELS, PowerLayersLayer, type PowerLayersLabels, type PowerLayersRenderOptions } from "./powerLayersRenderer";
@@ -1050,13 +1051,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.fill();
           }
         } else {
-          let cursor = 0;
+          // The wall between the gaps (sorted, starting in [0, 2π)); a last gap across 0 (ending above 2π) moves the start past its end.
+          const c0 = gapWrap(wall.gaps);
+          let cursor = c0;
           for (const gap of wall.gaps) {
             const start = gap.startAngle + rot;
             if (start > cursor + rot) strokeArc(i, wall.radius, cursor + rot, start);
             cursor = gap.endAngle;
           }
-          if (cursor < TWO_PI) strokeArc(i, wall.radius, cursor + rot, TWO_PI + rot);
+          if (cursor < TWO_PI + c0) strokeArc(i, wall.radius, cursor + rot, TWO_PI + c0 + rot);
         }
       }
       ctx.globalAlpha = 1;
@@ -1624,13 +1627,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.globalAlpha = 1;
           } else {
             const arcs: { start: number; end: number }[] = [];
-            let cursor = 0;
+            const c0 = gapWrap(wall.gaps);
+            let cursor = c0;
             for (const gap of wall.gaps) {
               const start = gap.startAngle + rot;
               if (start > cursor + rot) arcs.push({ start: cursor + rot, end: start });
               cursor = gap.endAngle;
             }
-            if (cursor < TWO_PI) arcs.push({ start: cursor + rot, end: TWO_PI + rot });
+            if (cursor < TWO_PI + c0) arcs.push({ start: cursor + rot, end: TWO_PI + c0 + rot });
             for (const layer of GLOW_LAYERS) {
               ctx.lineWidth = (4 + 4 * strength) * layer.widthMult;
               const alpha = strength * layer.alphaMult;
