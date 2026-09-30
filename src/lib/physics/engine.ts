@@ -1570,24 +1570,22 @@ export class PhysicsEngine {
     ball.y = cy + dy * k;
   }
 
-  /** The balls the ring-side guard follows through a sub-step's pair pass and mode pushes, and their distances before (reused). */
+  /** The balls the ring-side guard follows through a sub-step's pair pass and mode pushes, and their squared distances before (reused). */
   private sideBalls: Ball[] = [];
   private sideDists = new Float64Array(0);
 
-  /** Notes every ball the rings resolve and its distance from the centre (before the pair pass); returns how many. No allocation once grown. */
+  /** Notes every ball and its squared distance from the centre (before the pair pass); returns how many. No allocation once grown. */
   private recordRingSides(cx: number, cy: number): number {
     const balls = this.balls;
     if (this.sideDists.length < balls.length) this.sideDists = new Float64Array(Math.max(2 * this.sideDists.length, balls.length, 8));
-    let n = 0;
     for (let i = 0; i < balls.length; i++) {
       const ball = balls[i];
-      if (this.currentMode?.shouldSkipWallCollision(ball)) continue;
       const dx = ball.x - cx;
       const dy = ball.y - cy;
-      this.sideBalls[n] = ball;
-      this.sideDists[n++] = Math.sqrt(dx * dx + dy * dy);
+      this.sideBalls[i] = ball;
+      this.sideDists[i] = dx * dx + dy * dy;
     }
-    return n;
+    return balls.length;
   }
 
   /**
@@ -1600,19 +1598,20 @@ export class PhysicsEngine {
     const walls = this.circularWalls;
     for (let k = 0; k < count; k++) {
       const ball = this.sideBalls[k];
-      const before = this.sideDists[k];
+      const beforeSq = this.sideDists[k];
       const dx = ball.x - cx;
       const dy = ball.y - cy;
-      const after = Math.sqrt(dx * dx + dy * dy);
-      if (after === before || after === 0) continue;
+      const afterSq = dx * dx + dy * dy;
+      if (afterSq === beforeSq || afterSq === 0) continue; // (most balls: the pass did not move them)
       let crossed = false;
       for (let w = 0; w < walls.length && !crossed; w++) {
         if (this.brokenWalls.has(w)) continue;
-        const R = walls[w].radius;
-        crossed = before < R ? R <= after : after < R;
+        const R2 = walls[w].radius * walls[w].radius;
+        crossed = beforeSq < R2 ? R2 <= afterSq : afterSq < R2;
       }
-      if (!crossed) continue;
-      const scale = before / after;
+      // (a ball the rings do not resolve – Multiply's escaped ones – goes where it was pushed)
+      if (!crossed || this.currentMode?.shouldSkipWallCollision(ball)) continue;
+      const scale = Math.sqrt(beforeSq / afterSq);
       ball.x = cx + dx * scale;
       ball.y = cy + dy * scale;
     }
@@ -2038,7 +2037,7 @@ export class PhysicsEngine {
       const editorLive = this.editorObstaclesLive();
       if (editorLive) this.editorObstacles.beginStep();
       // The ring pass judges a ball that its own move carried across a ring by where it was before the move
-      // (processWallCollisions(): each ball's distance from this centre is noted before it moves)
+      // (processWallCollisions(): each ball's squared distance from this centre is noted before it moves)
       const ringCx = this._config.width / 2;
       const ringCy = this._config.height / 2;
       for (let s = 0; s < subSteps; s++) {
@@ -2087,7 +2086,7 @@ export class PhysicsEngine {
           }
           const bx = ball.x - ringCx;
           const by = ball.y - ringCy;
-          const before = this.circularWalls.length > 0 ? Math.sqrt(bx * bx + by * by) : -1;
+          const beforeSq = this.circularWalls.length > 0 ? bx * bx + by * by : -1;
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
           this.currentMode?.onBallStep(this.ctx, ball, subSec);
@@ -2102,7 +2101,7 @@ export class PhysicsEngine {
           }
           if (hasObstacles) this.handleObstacleCollisions(ball, subSec);
           if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
-          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball, before);
+          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball, beforeSq);
         }
         // The pair pass and the mode's pushes (Accumulation's frozen balls) ignore the rings: a push that carries a ball's
         // centre across an intact ring is undone radially (restoreRingSides()), so the next wall pass resolves it from its side.
@@ -2189,8 +2188,8 @@ export class PhysicsEngine {
     if (drop > 0) this.obstacleHits.splice(0, drop);
   }
 
-  /** `before`: the ball's distance from the centre before this sub-step moved it (−1: unknown; see `processWallCollisions()`). */
-  private handleCircularWallCollisions(ball: Ball, before = -1) {
+  /** `beforeSq`: the ball's squared distance from the centre before this sub-step moved it (−1: unknown; see `processWallCollisions()`). */
+  private handleCircularWallCollisions(ball: Ball, beforeSq = -1) {
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     for (let iter = 0; iter < 5; iter++) {
@@ -2218,7 +2217,7 @@ export class PhysicsEngine {
       }
       // Only the first pass sweeps the walls over their last move: the later passes resolve what the
       // push-outs of the first one (or a mode's teleport) left overlapping, against the current radii.
-      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0, iter === 0 ? before : -1)) break;
+      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0, iter === 0 ? beforeSq : -1)) break;
     }
   }
 
@@ -2229,13 +2228,13 @@ export class PhysicsEngine {
    * so a wall that jumped over the ball still hits it and pushes it back to the side it came from,
    * and a gap that swept past the ball's centre counts as a pass. With `prev === radius` the swept
    * test is exactly the plain one, so a run without breathing walls takes the original code path.
-   * `before` (≥ 0 on the first pass of a sub-step) is the ball's distance from the centre before the sub-step moved it:
+   * `beforeSq` (≥ 0 on the first pass of a sub-step) is the ball's squared distance from the centre before the sub-step moved it:
    * a ball whose move carried its centre across a ring (`movedAcross()`: from clear of the ring, or through solid wall –
    * a fast ball can land beyond the ±(radius + 2) hit band) is judged from the side it came from, so a solid ring pushes
    * it back and rebounds it instead of letting it through (a crossing through a gap still passes). A ball that crossed no
    * ring takes exactly the old path.
    */
-  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false, before = -1): boolean {
+  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false, beforeSq = -1): boolean {
     const dx = ball.x - cx;
     const dy = ball.y - cy;
     let outermostBelow = -1;
@@ -2248,22 +2247,22 @@ export class PhysicsEngine {
     for (let w = 0; w < this.circularWalls.length; w++) {
       const wall = this.circularWalls[w];
       // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
-      if (this.brokenWalls.has(w) && !(this.rigOn && (dist < wall.radius || (before >= 0 && before < wall.radius)) && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
+      if (this.brokenWalls.has(w) && !(this.rigOn && (dist < wall.radius || (beforeSq >= 0 && beforeSq < wall.radius * wall.radius)) && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const rotation = this.wallRotations[w];
       const inner = dist - ball.radius - 2;
       const outer = dist + ball.radius + 2;
       let inside: boolean;
       /** The wall (with its gap) moved past the ball's centre since the last pass: an inside ball is now outside it. */
       let crossed = false;
-      /** The ball's own move took its centre across the ring (`before`): it is judged from the side it came from. */
+      /** The ball's own move took its centre across the ring (`beforeSq`): it is judged from the side it came from. */
       let crossedRing = false;
       if (swept) {
         const prev = w < this.wallPrevRadii.length ? this.wallPrevRadii[w] : wall.radius;
-        inside = (this.movedAcross(ball, before, dist, prev, wall, rotation, angle) ? before : dist) < prev;
+        inside = this.movedAcross(ball, beforeSq, dist, prev, wall, rotation, angle) ? beforeSq < prev * prev : dist < prev;
         if (inside ? outer < wall.radius : inner > wall.radius) continue;
         crossed = inside && dist >= wall.radius;
       } else {
-        crossedRing = this.movedAcross(ball, before, dist, wall.radius, wall, rotation, angle);
+        crossedRing = this.movedAcross(ball, beforeSq, dist, wall.radius, wall, rotation, angle);
         if (!crossedRing && !(inner <= wall.radius && outer >= wall.radius)) continue;
         inside = dist < wall.radius;
       }
@@ -2336,7 +2335,7 @@ export class PhysicsEngine {
         }
       } else {
         // A move through solid wall: the ball goes back to the side it came from (a refused pass keeps it inside).
-        if (crossedRing && !sealedGap) inside = before < wall.radius;
+        if (crossedRing && !sealedGap) inside = beforeSq < wall.radius * wall.radius;
         // --- boris-multipliers --- enough damage smashes the ring on contact: no gap needed
         if (ball.mult && !(this.rigOn && this.cinematicDirector.rig.closes(ball, w) && (inside || this.cinematicDirector.rig.heldAtStart(ball, w))) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
           this.smashWall(ball, w);
@@ -2401,14 +2400,14 @@ export class PhysicsEngine {
   }
 
   /**
-   * The ball's own move (from `before` to `dist`, −1 = unknown) took its centre across the ring at radius `R` through solid
+   * The ball's own move (from √`beforeSq` to `dist`; −1 = unknown) took its centre across the ring at radius `R` through solid
    * wall – a tunnelling move, judged from the side it came from. Not when it was already touching the ring inside the span
    * of a gap: a ball straddling the ring in a gap keeps the judgement by its centre it always had (it passes the gap's
    * edge). Allocation-free; the gaps are only looked at for such a straddling crossing.
    */
-  private movedAcross(ball: Ball, before: number, dist: number, R: number, wall: CircularWall, rotation: number, angle: number): boolean {
-    if (before < 0 || (before < R) === (dist < R)) return false;
-    if (Math.abs(before - R) > ball.radius + 2) return true;
+  private movedAcross(ball: Ball, beforeSq: number, dist: number, R: number, wall: CircularWall, rotation: number, angle: number): boolean {
+    if (beforeSq < 0 || (beforeSq < R * R) === (dist < R)) return false;
+    if (Math.abs(Math.sqrt(beforeSq) - R) > ball.radius + 2) return true;
     for (const gap of wall.gaps) {
       const start = (((gap.startAngle + rotation) % TWO_PI) + TWO_PI) % TWO_PI;
       let width = gap.endAngle - gap.startAngle;
