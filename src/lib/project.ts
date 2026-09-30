@@ -42,7 +42,7 @@ export const PROJECT_NAME_MAX = 60;
 /** Longest text setting kept from a file (the panel's text fields are far shorter). */
 const MAX_TEXT_SETTING = 500;
 
-export const PROJECT_ASSET_KINDS = ["ballImage", "hitSample", "wallBreakSound", "sliceSong", "musicBed", "midi", "paintPicture", "backgroundImage"] as const;
+export const PROJECT_ASSET_KINDS = ["ballImage", "hitSample", "wallBreakSound", "sliceSong", "musicBed", "midi", "paintPicture", "backgroundImage", "beatMedia"] as const; // --- video-beats --- (beatMedia: the imported video / audio)
 export type ProjectAssetKind = (typeof PROJECT_ASSET_KINDS)[number];
 /** The media that are pictures (restored as data: URLs, so their type must be an image type). */
 export const IMAGE_ASSET_KINDS: readonly ProjectAssetKind[] = ["ballImage", "paintPicture", "backgroundImage"];

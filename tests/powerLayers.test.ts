@@ -304,7 +304,7 @@ describe("settings, URL and presets", () => {
       const d = defaultSettings(mode);
       expect(resolvePowerLayersFields(d)).toEqual(defaultPowerLayersFields());
       // The mode's own ball size applies to Power Layers only: every other mode keeps its default.
-      expect(d.ballRadius).toBe(mode === "powerLayers" ? 10 : 8);
+      expect(d.ballRadius).toBe(mode === "powerLayers" ? 10 : mode === "beatDrop" ? 14 : 8); // --- beat-drop --- (Beat Drop has its own 14 px ball too)
     }
     const params = settingsToSearchParams(defaultSettings("powerLayers"));
     for (const key of ["pll", "plq", "pld", "plsp", "plb", "plp", "r"]) expect(params.has(key)).toBe(false);

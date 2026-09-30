@@ -45,6 +45,13 @@ import { RunnerMode, type RunnerSettings, type RunnerView } from "./modes/runner
 import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } from "./modes/paddle";
 // --- boris-vortex --- the Sound Vortex (a spiral funnel of sound rings)
 import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
+// --- boris-journey --- the Journey (a multi-stage commute home)
+import { JourneyMode, type JourneySettings, type JourneyView } from "./modes/journey";
+// --- boris-bullseye --- Bullseye (a scoring target under a peg field)
+import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/bullseye";
+// --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
+import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
+import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -261,6 +268,16 @@ export class PhysicsEngine {
   readonly paddleMode = new PaddleMode();
   // --- boris-vortex ---
   readonly vortexMode = new VortexMode();
+  // --- boris-journey ---
+  readonly journeyMode = new JourneyMode();
+  // --- boris-bullseye ---
+  readonly bullseyeMode = new BullseyeMode();
+  // --- beat-drop ---
+  readonly beatDropMode = new BeatDropMode();
+  // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
+  private readonly onBeat = new OnBeatController();
+  private onBeatWorld: OnBeatWorld | null = null;
+  // --- end video-beats ---
 
   readonly ctx: ModeContext;
 
@@ -334,6 +351,7 @@ export class PhysicsEngine {
         this.wallBreakSerial++;
       },
       // --- end odd-string-battle ---
+      shiftWorld: (dx, dy) => this.shiftWorld(dx, dy), // --- boris-journey ---
     };
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
@@ -541,6 +559,18 @@ export class PhysicsEngine {
   initVortex() {
     this.activateMode(this.vortexMode, "none");
   }
+  // --- boris-journey --- the mode owns its column of stages (a rings stage sets the engine's rings itself while it is active)
+  initJourney() {
+    this.activateMode(this.journeyMode, "none");
+  }
+  // --- boris-bullseye --- the mode builds its playfield out of obstacles (no rings)
+  initBullseye() {
+    this.activateMode(this.bullseyeMode, "none");
+  }
+  // --- beat-drop --- the mode owns its scene (no rings)
+  initBeatDrop() {
+    this.activateMode(this.beatDropMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -611,6 +641,15 @@ export class PhysicsEngine {
       // --- boris-vortex ---
       case "vortex":
         return this.initVortex();
+      // --- boris-journey ---
+      case "journey":
+        return this.initJourney();
+      // --- boris-bullseye ---
+      case "bullseye":
+        return this.initBullseye();
+      // --- beat-drop ---
+      case "beatDrop":
+        return this.initBeatDrop();
     }
   }
 
@@ -760,6 +799,61 @@ export class PhysicsEngine {
   getPaintState(): PicturePaintState {
     return this.paintMode.getPicturePaintState();
   }
+  // --- video-beats ---
+  /** On beat: the grid the ring modes land their wall hits on, the retiming range and the subdivisions allowed (onBeat.ts). */
+  setOnBeat(patch: Partial<OnBeatConfig>) {
+    this.onBeat.setConfig(patch);
+  }
+  getOnBeatConfig(): OnBeatConfig {
+    return this.onBeat.getConfig();
+  }
+  /** How the planned hits land (the same object every call). */
+  getOnBeatStats(): Readonly<OnBeatStats> {
+    return this.onBeat.getStats();
+  }
+  /** After every 60 Hz step: plans / corrects the flights (or undoes the retiming once On beat no longer applies). */
+  private stepOnBeat(stepMs: number, subSteps: number, audioIntensity: number, gDirX: number, gDirY: number, keepMoving: boolean) {
+    const base = this._config.ballSpeed || 400;
+    const w = (this.onBeatWorld ??= {
+      mode: undefined,
+      timeSec: 0,
+      stepSec: 0,
+      subSteps: 4,
+      cx: 0,
+      cy: 0,
+      walls: [],
+      broken: this.brokenWalls,
+      gravity: 0,
+      gDirX: 0,
+      gDirY: 1,
+      windX: 0,
+      windY: 0,
+      dragKeep: 1,
+      keepMoving: true,
+      cruise: (ball: Ball) => (ball.mult ? cruiseSpeed(ball, this._config.ballSpeed || 400) : this._config.ballSpeed || 400),
+      suspended: false,
+    });
+    w.mode = this.currentMode?.name;
+    w.timeSec = this._elapsedMs / 1000;
+    w.stepSec = stepMs / 1000;
+    w.subSteps = subSteps;
+    w.cx = this._config.width / 2;
+    w.cy = this._config.height / 2;
+    w.walls = this.circularWalls;
+    w.broken = this.brokenWalls;
+    w.gravity = this.gravityAccel(audioIntensity);
+    w.gDirX = gDirX;
+    w.gDirY = gDirY;
+    w.windX = this.extras.windX * base;
+    w.windY = this.extras.windY * base;
+    w.dragKeep = this.extras.airDrag > 0 ? 1 - this.extras.airDrag : 1;
+    w.keepMoving = keepMoving;
+    // Picture Paint's beat sync times the ball itself: On beat stands aside while it runs.
+    const paint = this.currentMode === this.paintMode ? this.paintMode.getOptions() : null;
+    w.suspended = !!paint && paint.picture && paint.beatSync;
+    this.onBeat.afterStep(this.balls, w);
+  }
+  // --- end video-beats ---
   isCountdownMode() {
     return this.currentMode === this.targetMode;
   }
@@ -1330,6 +1424,89 @@ export class PhysicsEngine {
     return this.vortexMode.getProgress();
   }
   // --- end boris-vortex ---
+  // --- boris-journey ---
+  isJourneyMode() {
+    return this.currentMode === this.journeyMode;
+  }
+  getJourneySettings(): JourneySettings {
+    return this.journeyMode.getSettings();
+  }
+  /** The stage list and the auto count apply on the next `initJourney()`. */
+  setJourneySettings(settings: Partial<JourneySettings>) {
+    this.journeyMode.setSettings(settings);
+  }
+  /** Live Journey state (stages, active stage, camera, banner, progress, score, HOME) for the canvas and the HUD; the same object every call. */
+  getJourneyView(): JourneyView {
+    return this.journeyMode.getView();
+  }
+  getJourneyProgress() {
+    return this.journeyMode.getProgress();
+  }
+  /**
+   * Moves the world state the engine owns by (dx, dy) – balls and trails, particles, shockwaves, recent obstacle contacts –
+   * for a mode with a floating origin (`ModeContext.shiftWorld()`); obstacles belong to the mode, which moves them itself.
+   */
+  private shiftWorld(dx: number, dy: number) {
+    for (const b of this.balls) {
+      b.x += dx;
+      b.y += dy;
+      for (const p of b.trail) {
+        p.x += dx;
+        p.y += dy;
+      }
+    }
+    for (const p of this.particles) {
+      p.x += dx;
+      p.y += dy;
+    }
+    for (const w of this.shockwaves) {
+      w.x += dx;
+      w.y += dy;
+    }
+    for (const h of this.obstacleHits) {
+      h.x += dx;
+      h.y += dy;
+    }
+  }
+  // --- end boris-journey ---
+  // --- boris-bullseye ---
+  isBullseyeMode() {
+    return this.currentMode === this.bullseyeMode;
+  }
+  getBullseyeSettings(): BullseyeSettings {
+    return this.bullseyeMode.getSettings();
+  }
+  /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next `initBullseye()`; the scale and root at once. */
+  setBullseyeSettings(settings: Partial<BullseyeSettings>) {
+    this.bullseyeMode.setSettings(settings);
+  }
+  /** Live Bullseye state (field, target, shots, scores, slow motion) for the canvas and the HUD; the same object every call. */
+  getBullseyeView(): BullseyeView {
+    return this.bullseyeMode.getView();
+  }
+  getBullseyeProgress() {
+    return this.bullseyeMode.getProgress();
+  }
+  // --- end boris-bullseye ---
+  // --- beat-drop ---
+  isBeatDropMode() {
+    return this.currentMode === this.beatDropMode;
+  }
+  getBeatDropSettings(): BeatDropSettings {
+    return this.beatDropMode.getSettings();
+  }
+  /** The mix, drift, scroll, bounce height, anticipation and beat apply on the next `initBeatDrop()`; sound, colours, trail, clip, scale and root at once. */
+  setBeatDropSettings(settings: Partial<BeatDropSettings>) {
+    this.beatDropMode.setSettings(settings);
+  }
+  /** Live Beat Drop state (the plan, the camera, landings, counters) for the canvas and the HUD; the same object every call. */
+  getBeatDropView(): BeatDropView {
+    return this.beatDropMode.getView();
+  }
+  getBeatDropProgress() {
+    return this.beatDropMode.getProgress();
+  }
+  // --- end beat-drop ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
@@ -1494,6 +1671,7 @@ export class PhysicsEngine {
     this._elapsedMs = 0;
     this.applyTimeline(0);
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
+    this.onBeat.reset(); // --- video-beats --- a new run: no flight plans, fresh hit statistics
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1840,6 +2018,7 @@ export class PhysicsEngine {
       }
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
+      if (this.onBeat.wants()) this.stepOnBeat(stepMs, subSteps, audioIntensity, gDirX, gDirY, keepMoving); // --- video-beats ---
       if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- boris-multipliers --- orbs taken, grown balls refitted, HUD
       if (this.circularWalls.length > 0) this.scanEscapes(); // --- teams ---
       if (this.pendingSplits.length > 0) this.flushSplits();
@@ -2036,6 +2215,7 @@ export class PhysicsEngine {
           }
           this.cinematicDirector.onGapPass();
           if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
+          if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, false); // --- video-beats --- the next flight is planned
           const handled = this.currentMode?.onGapPass(this.ctx, ball, w);
           if (!handled) {
             if (!this.brokenWalls.has(w)) {
@@ -2101,6 +2281,7 @@ export class PhysicsEngine {
           ball.vx *= this.extras.wallBounciness;
           ball.vy *= this.extras.wallBounciness;
         }
+        if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, !result?.suppressBounce); // --- video-beats --- a fresh rebound is at its natural speed
         collided = true;
       }
     }

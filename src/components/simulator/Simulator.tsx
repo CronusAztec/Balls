@@ -89,6 +89,12 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
+import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
+// --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
+import { useVideoBeats } from "./useVideoBeats";
+import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
 import {
   RANGES,
   defaultSettings,
@@ -269,6 +275,9 @@ export default function Simulator() {
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
+    engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
+    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
+    engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -732,6 +741,41 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
   // --- end boris-vortex ---
+  // --- boris-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setJourneySettings(journeySettingsOf(s));
+    if (s.mode === "journey" && engine.getCurrentModeName() === "journey") {
+      engine.initJourney();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.journeyStages, s.journeyAutoStages]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.journeyStages, s.journeyAutoStages]);
+  // --- end boris-journey ---
+  // --- boris-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
+  // drops a found seed; the Sound section's scale and root (the peg notes and the thuds) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBullseyeSettings(bullseyeSettingsOf(s));
+    if (s.mode === "bullseye" && engine.getCurrentModeName() === "bullseye") {
+      engine.initBullseye();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setBullseyeSettings(bullseyeSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.scale, s.rootNote]);
+  // --- end boris-bullseye ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -797,11 +841,19 @@ export default function Simulator() {
 
   // Picture Paint: the beat grid the Paint mode follows – the music bed's song (its start offset and loop align the
   // grid with the simulation clock), else the slicer's song – and the length the reveal is paced to.
-  const activeBeats = useMemo(() => {
+  const songBeats = useMemo(() => {
     if (musicTrack && musicBeats) return { beats: musicBeats, source: "music" as const, offset: s.musicStartOffset, loop: s.musicLoop };
     if (sliceSongInfo && sliceBeats) return { beats: sliceBeats, source: "slicer" as const, offset: 0, loop: s.sliceLoop };
     return null;
   }, [musicTrack, musicBeats, sliceSongInfo, sliceBeats, s.musicStartOffset, s.musicLoop, s.sliceLoop]);
+  // --- video-beats --- the beat source picker (BPM | Song | Media | Manual): every rhythm feature below follows the grid it
+  // resolves to – the song grid above for "song", an imported video's beats or the hand-placed markers, none for "bpm"
+  const videoBeats = useVideoBeats({ settings: s, update, audioRef, engineRef, musicTrack, setMusicTrack, musicBeats, setMusicBeats, musicUploadIdRef, beatAbortRef, projectUploadsRef, songBeats, isStarted, isPaused });
+  const videoBeatsRef = useRef(videoBeats);
+  videoBeatsRef.current = videoBeats;
+  const { resolveActive: resolveActiveBeats } = videoBeats;
+  const activeBeats = useMemo(() => resolveActiveBeats(songBeats), [resolveActiveBeats, songBeats]);
+  // --- end video-beats ---
   const paintTargetSec = paintTargetSeconds(musicTrack ? musicTrack.duration : sliceSongInfo && s.sliceSong ? sliceSongInfo.duration : 0, musicTrack ? s.musicStartOffset : 0, s.recordingDuration);
   useEffect(() => {
     engineRef.current?.setPaintOptions({ picture: !!paintPicture, brush: s.paintBrush, beatSync: s.paintBeatSync, beatPulse: s.paintBeatPulse, guided: s.paintGuided, paceToSong: s.paintPaceToSong, targetSec: paintTargetSec });
@@ -940,6 +992,33 @@ export default function Simulator() {
   }, [handPlay, s.mode]);
   // --- end jdm-rhythm-runner ---
 
+  // --- beat-drop --- Beat Drop plans every landing on the beat it follows (the loaded song's detected grid – the one the Beat
+  // Runner follows – else the Sound section's BPM), and the landings sit on the music bed's beats: a change of what the run
+  // is planned from (`beatDropPlanKeyOf()`: the mix, drift, scroll, bounce height, anticipation and the beat) restarts the
+  // whole run with its music (`restartRun()`, like the Beat Runner), and a change of a Beat Drop setting drops a found seed.
+  // What a landing plays, the pad colours, the trail, the clip length (where the run ends) and the scale follow live.
+  const beatDropPlanRef = useRef<BeatDropPlanKey | null>(null);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.bdKinds, s.bdDrift, s.bdScroll, s.bdBounceHeight, s.bdAnticipation]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeat));
+    const plan = beatDropPlanKeyOf(engine.getBeatDropSettings());
+    const before = beatDropPlanRef.current;
+    beatDropPlanRef.current = plan;
+    if (!before || sameBeatDropPlan(before, plan)) return;
+    if (s.mode !== "beatDrop" || engine.getCurrentModeName() !== "beatDrop") return;
+    if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
+    restartRunRef.current(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.bdKinds, s.bdDrift, s.bdScroll, s.bdBounceHeight, s.bdAnticipation, s.bpm, rhythmBeat]);
+  useEffect(() => {
+    engineRef.current?.setBeatDropSettings({ sound: s.bdSound, colorMode: s.bdColorMode, trail: s.bdTrail, clipSec: s.recordingDuration, scale: s.scale, rootNote: s.rootNote });
+  }, [s.bdSound, s.bdColorMode, s.bdTrail, s.recordingDuration, s.scale, s.rootNote]);
+  // --- end beat-drop ---
+
   // Any physics-relevant change invalidates a seed found by the finder.
   useEffect(() => {
     engineRef.current?.setSeed(null);
@@ -1007,6 +1086,7 @@ export default function Simulator() {
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setPaintOptions(page.getPaintOptions());
         engine.setPaintBeat(splitBeatRef.current);
+        engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- every arena's flights land on the same grid
         // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
         initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
       },
@@ -1020,6 +1100,8 @@ export default function Simulator() {
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+        engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- boris-bullseye --- (the scale and root follow live; the rest waits for a restart)
+        engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1140,6 +1222,7 @@ export default function Simulator() {
       Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
       Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
+      Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
       setSettings(fresh);
       if (engine) {
@@ -1218,6 +1301,21 @@ export default function Simulator() {
           // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
+            continue;
+          }
+          // --- boris-journey --- a Journey stage transition swooshes
+          if (ev.swoosh) {
+            audio.playSwoosh();
+            continue;
+          }
+          // --- boris-bullseye --- a Bullseye landing thuds
+          if (ev.thud) {
+            audio.playThud(ev.frequency, ev.level);
+            continue;
+          }
+          // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
+          if (ev.bdDrum) {
+            audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -1507,6 +1605,8 @@ export default function Simulator() {
     const raceKey = page.isRaceMode() ? runKey(RACE_RUN_PREFIX, page.getRaceView()) : undefined;
     const exportRaceKey = batchJob && raceKey ? `${RACE_RUN_PREFIX}:batch-${batchJob.key}` : raceKey; // --- batch-render --- (a batch job's race is a race of its own)
     let lastProgress = 0;
+    // --- video-beats --- the video background seeks to every exported frame (left out, with a note, when seeking is too slow)
+    const videoLayerOn = await videoBeatsRef.current.prepareExport().catch(() => false);
     try {
       const result = await renderFast({
         host: fastRenderHost,
@@ -1517,6 +1617,7 @@ export default function Simulator() {
           engine.setParticleStyle(s.particleStyle, particlePalette(s));
           engine.setPaintOptions(paintOptions);
           engine.setPaintBeat(paintBeat);
+          engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- the export's flights land on the same grid
           initEngineForMode(engine, s);
           return engine;
         },
@@ -1536,6 +1637,7 @@ export default function Simulator() {
           setFastExport({ status: "running", ...p });
         },
         signal: controller.signal,
+        beforeFrame: videoLayerOn ? videoBeatsRef.current.exportFrame : undefined, // --- video-beats ---
       });
       batchJob?.settle(result ? { result } : { cancelled: true }); // --- batch-render --- the batch names, downloads and zips its files
       if (!result) setFastExport({ status: "cancelled" });
@@ -1552,6 +1654,7 @@ export default function Simulator() {
       }
     } finally {
       fastAbortRef.current = null;
+      videoBeatsRef.current.finishExport(); // --- video-beats ---
       if (resume) setIsPaused(false);
     }
   }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t]); // --- split-screen --- (t: a race refuses the export with the panel's note)
@@ -1885,6 +1988,7 @@ export default function Simulator() {
       customMidiName,
       paintPicture,
       backgroundImage,
+      beatMediaName: videoBeats.mediaName, // --- video-beats ---
     },
     actions: {
       loadSettings: loadPresetSettings,
@@ -1901,6 +2005,7 @@ export default function Simulator() {
       onMusicRemove,
       onCustomMidiUpload,
       onCustomSoundSelect,
+      onBeatMediaUpload: videoBeats.onImport, // --- video-beats ---
     },
   });
   const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
@@ -2072,6 +2177,10 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          journey: journeySettingsOf(settings), // --- boris-journey ---
+          bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
+          beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
+          onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
         outcome, // --- rigged ---
@@ -2261,6 +2370,42 @@ export default function Simulator() {
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
       },
+      // --- boris-journey ---
+      journey: {
+        banner: (n, total, name) => fill("Journey.canvasBanner", { n, total, name }),
+        names: {
+          rings: t("Journey.stage_rings"),
+          glass: t("Journey.stage_glass"),
+          pegs: t("Journey.stage_pegs"),
+          multipliers: t("Journey.stage_multipliers"),
+          funnel: t("Journey.stage_funnel"),
+          bullseye: t("Journey.stage_bullseye"),
+          home: t("Journey.stage_home"),
+        },
+        home: t("Journey.canvasHome"),
+        homeTitle: t("Journey.canvasHomeTitle"),
+        homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
+        score: (points) => fill("Journey.canvasScore", { points }),
+      },
+      // --- boris-bullseye ---
+      bullseye: {
+        title: t("Bullseye.canvasTitle"),
+        shot: (n, total) => fill("Bullseye.canvasShot", { n, total }),
+        total: t("Bullseye.canvasTotal"),
+        bullseye: t("Bullseye.canvasBullseye"),
+        miss: t("Bullseye.canvasMiss"),
+        finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
+        finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
+      },
+      // --- beat-drop ---
+      beatDrop: {
+        title: t("BeatDrop.canvasTitle"),
+        bpm: (bpm) => fill("BeatDrop.canvasBpm", { bpm }),
+        landings: (n, total) => fill("BeatDrop.canvasLandings", { count: n, total }),
+        song: t("BeatDrop.canvasSong"),
+        done: t("BeatDrop.canvasDone"),
+        doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
+      },
     };
   }, [t]);
 
@@ -2424,6 +2569,7 @@ export default function Simulator() {
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
                   fastRender={fastRenderHost} // --- fast-render ---
                   race={raceRender} // --- jdm-race ---
+                  videoBackground={videoBeats.videoLayer} // --- video-beats ---
                   splitScreen={splitRender} // --- split-screen ---
                 />
               )}
@@ -2644,6 +2790,12 @@ export default function Simulator() {
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-emerald-400">{outcomeFoundText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) }))}</p>
                     <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
+                    {/* --- video-beats --- On beat: how many beats the found run's wall hits land on */}
+                    {searchResult.beatsCovered !== undefined && (
+                      <p className="text-[10px] text-[#93d119]/80" data-testid="finder-beats-covered">
+                        ♩ {t("VideoBeats.finderBeats", { beats: searchResult.beatsCovered, hits: searchResult.beatHits ?? 0 })}
+                      </p>
+                    )}
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕
@@ -2723,6 +2875,7 @@ export default function Simulator() {
             fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
+            videoBeats={videoBeats.panel} // --- video-beats ---
             bot={viralBot} // --- viral-bot ---
           />
         </ProjectDropZone>
