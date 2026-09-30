@@ -35,7 +35,7 @@ const SIZE_KEYS = { s: "journeySizeSmall", m: "journeySizeMedium", l: "journeySi
 const iconBtn = "w-7 h-7 rounded-md text-xs font-bold transition-colors cursor-pointer bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed";
 
 /**
- * "Journey" controls (feature boris-journey), shown in the Mode row while the Journey is the mode (and in the Ball
+ * "Journey" controls (feature gerald-journey), shown in the Mode row while the Journey is the mode (and in the Ball
  * section while the settings search is in use): the stage list top-down – each stage with its size (small, medium,
  * large), arrows to move it up or down and a button to remove it, HOME fixed at the bottom – an "add stage" picker, the
  * compact stage code (`rings,pegs-l,glass-s,home`, the URL's `js`) to paste or copy, and the Random Stages slider that

@@ -99,11 +99,11 @@ export interface ArenaSoundSink {
   playBumper(frequency?: number): void;
   playStringBattle(kind: "pluck" | "shatter", frequency?: number): void;
   playRaceArpeggio(kind: RaceArpeggioKind, root?: number): void;
-  /** --- boris-vortex --- a ball swallowed by the Sound Vortex. */
+  /** --- gerald-vortex --- a ball swallowed by the Sound Vortex. */
   playPew(frequency?: number): void;
-  /** --- boris-bullseye --- a Bullseye landing. */
+  /** --- gerald-bullseye --- a Bullseye landing. */
   playThud(frequency?: number, level?: number): void;
-  /** --- boris-journey --- a Journey stage transition. */
+  /** --- gerald-journey --- a Journey stage transition. */
   playSwoosh(): void;
   /** --- beat-drop --- a Beat Drop landing's drum and pad accent (or an off-beat hat). */
   playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent?: boolean, level?: number): void;
@@ -117,9 +117,9 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.race) return sink.playRaceArpeggio(ev.race, ev.frequency);
   if (ev.bumper) return sink.playBumper(ev.frequency);
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
-  if (ev.pew) return sink.playPew(ev.frequency); // --- boris-vortex --- (not a wall hit)
-  if (ev.thud) return sink.playThud(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- boris-bullseye --- (a landing's thud, not a wall hit)
-  if (ev.swoosh) return sink.playSwoosh(); // --- boris-journey --- (a stage transition's whoosh, not a wall hit)
+  if (ev.pew) return sink.playPew(ev.frequency); // --- gerald-vortex --- (not a wall hit)
+  if (ev.thud) return sink.playThud(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- gerald-bullseye --- (a landing's thud, not a wall hit)
+  if (ev.swoosh) return sink.playSwoosh(); // --- gerald-journey --- (a stage transition's whoosh, not a wall hit)
   if (ev.bdDrum) return sink.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- beat-drop --- (a drum, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();

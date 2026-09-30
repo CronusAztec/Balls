@@ -1,5 +1,5 @@
 /**
- * The swoosh of a Journey stage transition (feature boris-journey; lib/physics/modes/journey.ts): the camera whooshes
+ * The swoosh of a Journey stage transition (feature gerald-journey; lib/physics/modes/journey.ts): the camera whooshes
  * down to the next stage and the ear follows – seeded white noise (the String Battle's noise buffer) through a band-pass
  * whose centre sweeps up from `bandFrom` to `bandTo` Hz, rising and falling in loudness, with a quiet sine glide from
  * `glideFrom` to `glideTo` Hz underneath for body. It is an effect, not a note: never snapped to the scale, never a

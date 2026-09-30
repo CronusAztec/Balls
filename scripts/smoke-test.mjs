@@ -884,9 +884,9 @@ await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
 
-// --- boris-faces ---
+// --- gerald-faces ---
 // 9. Ball characters: no face by default; the "Character" group at the top of the Ball section shows a live preview,
-// "Meet Boris" sets the persona (face, name, squash) and everything mirrors into the URL; the running canvas draws the
+// "Meet Gerald" sets the persona (face, name, squash) and everything mirrors into the URL; the running canvas draws the
 // face and the name label (mirrored into data-face / data-face-count / data-name-label), a custom emoji hides the face
 // until "Face on Image / Emoji" is on, the search box finds the controls, the URL restores a character on the bodies
 // of Bouncing Shapes, the label toggle hides the name, the expressions keep their proportions (sampled from
@@ -904,13 +904,13 @@ await page.waitForTimeout(600);
 }
 await page.getByRole("button", { name: /Ball & Physics/ }).click();
 check("character group shows a live face preview", await page.getByTestId("face-preview").isVisible());
-await page.getByRole("button", { name: /Meet Boris/ }).click();
+await page.getByRole("button", { name: /Meet Gerald/ }).click();
 await page.waitForTimeout(400);
 {
   const query = page.url().split("?")[1] || "";
   const cute = await page.getByRole("group", { name: "Face", exact: true }).getByRole("button", { name: /Cute/ }).getAttribute("aria-pressed");
   const name = await page.locator("#ball-name-input").inputValue();
-  check("Meet Boris sets the persona and mirrors it into the URL", /(^|&)face=cute(&|$)/.test(query) && /(^|&)bn=Boris(&|$)/.test(query) && /(^|&)sq=0\.6(&|$)/.test(query) && cute === "true" && name === "Boris", `(${query})`);
+  check("Meet Gerald sets the persona and mirrors it into the URL", /(^|&)face=cute(&|$)/.test(query) && /(^|&)bn=Gerald(&|$)/.test(query) && /(^|&)sq=0\.6(&|$)/.test(query) && cute === "true" && name === "Gerald", `(${query})`);
 }
 await page.getByRole("group", { name: "Face", exact: true }).getByRole("button", { name: /Cat/ }).click();
 await page.locator('input[aria-label="Squash & Stretch"]').evaluate(setRangeValue, "0.8");
@@ -921,7 +921,7 @@ await page.waitForTimeout(1200);
   const preview = await page.getByTestId("face-preview").getAttribute("data-face");
   check(
     "the canvas draws the face and the name label",
-    /(^|&)face=cat(&|$)/.test(query) && /(^|&)sq=0\.8(&|$)/.test(query) && data.face === "cat" && Number(data.faceCount) >= 1 && data.nameLabel === "Boris" && ["neutral", "ouch", "shock", "grin", "happy"].includes(data.faceExpression) && preview === "cat",
+    /(^|&)face=cat(&|$)/.test(query) && /(^|&)sq=0\.8(&|$)/.test(query) && data.face === "cat" && Number(data.faceCount) >= 1 && data.nameLabel === "Gerald" && ["neutral", "ouch", "shock", "grin", "happy"].includes(data.faceExpression) && preview === "cat",
     `(${JSON.stringify(data)}, preview=${preview})`,
   );
 }
@@ -932,7 +932,7 @@ await page.locator('label:has-text("Face on Image / Emoji") + button').click();
 await page.waitForTimeout(400);
 {
   const after = await canvasData();
-  check("a face goes over an emoji ball only with the overlay option", faceOnEmojiBefore === "0" && after.faceCount === "1" && after.nameLabel === "Boris" && /(^|&)fimg=1(&|$)/.test(page.url().split("?")[1] || ""), `(before ${faceOnEmojiBefore}, after ${after.faceCount})`);
+  check("a face goes over an emoji ball only with the overlay option", faceOnEmojiBefore === "0" && after.faceCount === "1" && after.nameLabel === "Gerald" && /(^|&)fimg=1(&|$)/.test(page.url().split("?")[1] || ""), `(before ${faceOnEmojiBefore}, after ${after.faceCount})`);
 }
 await page.getByPlaceholder("Search settings...").fill("squash");
 check("search finds the character controls", (await page.locator('input[aria-label="Squash & Stretch"]').isVisible()) && !(await page.locator('input[aria-label="Ball Speed"]').isVisible()));
@@ -944,7 +944,7 @@ await page.waitForTimeout(1200);
   const data = await canvasData();
   check("a character from the URL shows on the Bouncing Shapes bodies", data.face === "angry" && Number(data.faceCount) === 3 && data.nameLabel === "Tester", `(${JSON.stringify(data)})`);
 }
-await page.goto(`${BASE}/en/simulator/?mode=classic&face=dot&bn=Boris&nl=0`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/en/simulator/?mode=classic&face=dot&bn=Gerald&nl=0`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.waitForTimeout(800);
 {
@@ -1004,7 +1004,7 @@ await page.waitForTimeout(8000);
   check("the cat chirps on a minority of the bounces, not on every note", chirps <= Math.max(2, 0.6 * notes), `(${chirps} chirps, ${notes} bounce notes)`);
   await page.screenshot({ path: path.join(outDir, "sim-character.png") });
 }
-// --- end boris-faces ---
+// --- end gerald-faces ---
 // --- themes
 // 10. Themes and backgrounds: the Theme block opens the Visual section; a theme card applies its look (URL, gradient
 // background read back from the canvas pixels, particle style handed to the engine); its colours stay editable (the
@@ -1388,11 +1388,11 @@ await page.waitForTimeout(2500);
 // 13. Ball characters on the bodies the newer rhythm modes draw themselves: a face and a name from the URL show on
 // every Metronomes & Polyrhythms voice and on the first MAX_CHARACTER_BALLS (80) Collision Playground orbs.
 for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&prc=0", 3], ["collide", "cpn=120", 80]]) {
-  await page.goto(`${BASE}/en/simulator/?mode=${mode}&${query}&face=cute&bn=Boris`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=${mode}&${query}&face=cute&bn=Gerald`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(1000);
   const { face, faceCount, nameLabel } = await canvasData();
-  check(`a character from the URL shows on the ${mode} bodies`, face === "cute" && Number(faceCount) === faces && nameLabel === "Boris", `(face=${face}, faces=${faceCount}, label=${nameLabel})`);
+  check(`a character from the URL shows on the ${mode} bodies`, face === "cute" && Number(faceCount) === faces && nameLabel === "Gerald", `(face=${face}, faces=${faceCount}, label=${nameLabel})`);
 }
 
 // --- teams ---
@@ -1702,7 +1702,7 @@ const findAndRecordTeams = async (query, name) => {
   await findAndRecordTeams(`teams=${encodeURIComponent(roster)}&replay=1`, "Find + Record with teams and the escape replay keeps the replay and then the winner banner in the export");
 }
 // --- end teams + camera ---
-// --- boris-glass ---
+// --- gerald-glass ---
 // 17. Glass Smash: the preview image and the glass clip, URL → the "Glass" block of the Mode row, controls → URL, the
 // search box, the finder shown (every run ends at HOME), the Sound section naming the mode's default wall-break clip,
 // a default run at 30+ fps whose pane hits are scale degrees of C major (OscillatorNode.start is instrumented) and whose
@@ -1798,7 +1798,7 @@ await page.waitForTimeout(400);
   check("glass pane hits play scale degrees and shatters play the glass clip", onScale && new Set(midis).size >= 3 && clips.length >= 1 && clips.every((d) => d > 0.6 && d < 0.8), `(${pitches.length} tones, ${new Set(midis).size} distinct degrees, ${clips.length} glass clips)`);
   await page.screenshot({ path: path.join(outDir, "sim-glass.png") });
 }
-await page.goto(`${BASE}/en/simulator/?mode=glass&glr=3&glhp=1&gls=2&face=cute&bn=Boris`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/en/simulator/?mode=glass&glr=3&glhp=1&gls=2&face=cute&bn=Gerald`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.getByRole("button", { name: "8x", exact: true }).click();
 {
@@ -1807,7 +1807,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("glass smash reaches HOME through every stage and finishes", done && data.glassHome === "1" && data.glassStage === "2" && Number(data.glassCamera) > 0 && Number(data.glassShattered) >= 3 && data.face === "cute", `(finished=${done}, home=${data.glassHome}, stage ${data.glassStage}/${data.glassStages}, camera ${data.glassCamera}, ${data.glassShattered}/${data.glassPanes} shattered, face=${data.face})`);
   await page.screenshot({ path: path.join(outDir, "sim-glass-home.png") });
 }
-// --- boris-multipliers --- Glass Smash with its multiplier gates (glg=1): the switch in the Glass block, the Ball section's
+// --- gerald-multipliers --- Glass Smash with its multiplier gates (glg=1): the switch in the Glass block, the Ball section's
 // Multipliers group (the cap), and a run in which the gate row of every stage stacks its multiplier on the ball – the HUD
 // mirrors it into data-mult-* – on its way HOME. The first row is read at normal speed, then the run goes on at 8×: a ball
 // that falls fast through the first stage meets the next row within a second of simulation – about a tenth of a second at
@@ -1838,8 +1838,8 @@ await page.waitForTimeout(300);
     `(HUD from the start=${hud.multSpeed !== undefined}, after the first row (rows ${first.glassGates}) speed x${first.multSpeed} size x${first.multSize} dmg x${first.multDamage}; at HOME=${data.glassHome} rows ${data.glassGates}, speed x${data.multSpeed} size x${data.multSize} dmg x${data.multDamage})`,
   );
 }
-// --- end boris-glass ---
-// --- boris-multipliers ---
+// --- end gerald-glass ---
+// --- gerald-multipliers ---
 // 18. Multipliers: the preview image; the "Multipliers" group of the Ball section (URL → controls); pickups in Classic
 // (three orbs per 10 s that float for 20 s) are taken and change the HUD badges – the canvas mirrors them into
 // data-mult-* –; the multipliers board shows its Mode-row block, counts arrivals HOME at 8× (data-mult-home grows) and
@@ -1883,7 +1883,7 @@ await page.getByRole("button", { name: /Start Simulator/ }).click();
   const data = await canvasData();
   check("the multipliers board counts arrivals home and finishes", arrived && done && Number(data.multHome) > 0 && data.multActive === "0", `(home ${data.multHome}, clones ${data.multClones}, gate passes ${data.multGates}, in play ${data.multActive}, done ${data.multDone})`);
   await page.screenshot({ path: path.join(outDir, "sim-multipliers-home.png") });
-  // The "N Boris made it home" banner and its confetti play before the end screen covers them (a recording keeps them).
+  // The "N Gerald made it home" banner and its confetti play before the end screen covers them (a recording keeps them).
   const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 8000 }).then(() => true).catch(() => false);
   const heldMs = Date.now() - doneAt;
   check("the board's \"made it home\" banner is held on screen before the end screen", done && !endScreenEarly && endScreen && heldMs >= 1000, `(end screen at once=${endScreenEarly}, shown ${heldMs} ms after the finish)`);
@@ -1996,7 +1996,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   await page.screenshot({ path: path.join(outDir, "sim-multiply-speed.png") });
   check("Multiply with speed orbs stays within 200 balls at a steady frame rate", crowd && peak > 64 && peak <= 200 && Number(data.multBalls) <= 200 && windows.length >= 4 && avg >= fpsFloor(15) && minWindow >= fpsFloor(10), `(peak ${peak} balls, now ${data.multBalls}, speed x${data.multSpeed}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floors ${fpsFloor(15)}/${fpsFloor(10)}${loadNote()})`);
 }
-// --- end boris-multipliers ---
+// --- end gerald-multipliers ---
 // --- captions ---
 // 19. Animated captions: a link with a countdown, a wall counter, a progress bar and a question fills the Captions
 // section; a caption added from the panel lands in the link; the search box finds the caption fields; a Classic
@@ -5253,7 +5253,7 @@ const splitNums = (value) => (value || "").split(",").map(Number);
 }
 // --- end split-screen ---
 
-// --- boris-vortex ---
+// --- gerald-vortex ---
 // 32. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
 // time, pull, depth cue, loop, the run summary), controls → URL and the search box; the Respawn Loop hides the finder and
 // says why; a short run at 1× at 30+ fps whose ring notes climb the C-major degrees ring by ring and whose swallows pew –
@@ -5479,7 +5479,7 @@ const vxFrameRates = async (ms) => {
     );
   } else check("without WebCodecs the sound vortex has no fast export to check (Record Video is covered above)", true);
 }
-// --- end boris-vortex ---
+// --- end gerald-vortex ---
 
 // --- video-beats --- Beats from a video: a generated click-track WAV (120 BPM from 0.25 s, 44.1 kHz, every 4th click accented) is
 // imported in the Sound section's "Beats from a video" block – the panel detects its tempo and beats, the file becomes the music
@@ -5768,7 +5768,7 @@ const vxFrameRates = async (ms) => {
 }
 // --- end viral-bot ---
 
-// --- boris-journey ---
+// --- gerald-journey ---
 // 33. Journey: the preview image and the card under its own "Journey modes" heading; URL → the Journey block of the Mode
 // row (the stage rows with their sizes, the stage code, the run line, no Wall Count), the panel's edits → URL (move with
 // the arrows, a size, remove, add before HOME, a pasted stage code, Random Stages) and the search box; a short route at 1×
@@ -5978,9 +5978,9 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
     );
   } else check("without WebCodecs the journey has no fast export to check (Record Video is covered above)", true);
 }
-// --- end boris-journey ---
+// --- end gerald-journey ---
 
-// --- boris-bullseye ---
+// --- gerald-bullseye ---
 // 34. Bullseye: the preview image and the card; URL → the Bullseye block of the Mode row (shots, interval, chaos, rings,
 // moving target, perfect shot, the run summary), controls → URL and the search box; a short rigged run at 1× (OscillatorNode
 // .start is instrumented): the perfect shot scores 10 with the fanfare and the slow motion, every landing thuds once (a sine
@@ -6192,7 +6192,7 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
     );
   } else check("without WebCodecs the bullseye has no fast export to check (Record Video is covered above)", true);
 }
-// --- end boris-bullseye ---
+// --- end gerald-bullseye ---
 
 // --- beat-drop ---
 // 33. Beat Drop: the preview image and the card; URL → the Beat Drop block of the Mode row (the mix, drift, scrolling, bounce

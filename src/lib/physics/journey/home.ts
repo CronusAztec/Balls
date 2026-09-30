@@ -9,7 +9,7 @@ import type { JourneyStageSize } from "./sequence";
  * "home" – the last stage: Glass Smash's HOME – the ground and a doorway on a seeded side. The ball lands, rolls to the
  * door (`WALK_SPEED`), and in the doorway the HOME chord rings, three bursts of confetti go off and, after the
  * celebration (`CELEBRATION_MS`), the run is finished. The Glass Smash renderer draws the doorway (its warm light once
- * Boris is home) from this stage's own Glass Smash view.
+ * Gerald is home) from this stage's own Glass Smash view.
  */
 
 export class HomeStage extends BaseStage {
@@ -80,7 +80,7 @@ export class HomeStage extends BaseStage {
 
   onBallStep(env: StageEnv, ball: Ball, dtSec: number) {
     if (this.home) {
-      // Boris stands in his doorway.
+      // Gerald stands in his doorway.
       ball.vx = 0;
       ball.vy = 0;
       ball.x = this.doorX;

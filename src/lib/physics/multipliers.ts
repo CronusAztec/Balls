@@ -1,7 +1,7 @@
 import type { Ball, CircularWall, ModeContext, ModeId, SoundEvent } from "./types";
 
 /**
- * Stat multipliers (the borisbounces "multipliers" formats: "the ball gets faster to unlimited, and size and damage
+ * Stat multipliers (the geraldbounces "multipliers" formats: "the ball gets faster to unlimited, and size and damage
  * etc"). Every ball may carry a `mult` record – speed, size, damage, bounce and gravity, all starting at ×1 – that
  * stacks multiplicatively and, by default, WITHOUT ANY CAP (`mpUnlimited`; `mpCap` > 0 with unlimited off caps every
  * stat at ×cap). A ball without the record is an ordinary ×1 ball, so modes and seeds that never touch a multiplier

@@ -32,11 +32,11 @@ export const SONGS: Song[] = [
 export const WALL_BREAK_SOUNDS: { id: string; name: string; url: string }[] = [
   { id: "pop", name: "Pop", url: assetPath("/wallBreak/pop.wav") },
   { id: "chime", name: "Chime", url: assetPath("/wallBreak/chime.wav") },
-  // --- boris-glass --- a short glass shatter (scripts/generate-sounds.py): the default of Glass Smash
+  // --- gerald-glass --- a short glass shatter (scripts/generate-sounds.py): the default of Glass Smash
   { id: "glass", name: "Glass", url: assetPath("/wallBreak/glass.wav") },
 ];
 
-// --- boris-glass ---
+// --- gerald-glass ---
 /** Id of the built-in wall-break clip a mode plays when no wall-break sound was chosen (Glass Smash shatters its panes with the glass clip). */
 export const MODE_WALL_BREAK_SOUNDS: Partial<Record<string, string>> = { glass: "glass" };
 
@@ -46,7 +46,7 @@ export function modeWallBreakSound(mode: string, chosen: string | null): string 
   const id = MODE_WALL_BREAK_SOUNDS[mode];
   return id ? (WALL_BREAK_SOUNDS.find((snd) => snd.id === id)?.url ?? null) : null;
 }
-// --- end boris-glass ---
+// --- end gerald-glass ---
 
 /**
  * Presets and share links may carry a wall-break sound URL saved under another base path

@@ -44,7 +44,7 @@ import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 
 /**
- * Journey (feature boris-journey): the stage list (parsing, the compact text form, the panel's edits), the seeded auto
+ * Journey (feature gerald-journey): the stage list (parsing, the compact text form, the panel's edits), the seeded auto
  * sequence, the settings / URL / presets, the stage adapters, the run through the stages in order (the floating origin,
  * the banners and swooshes, the camera, HOME), determinism and resizes, the finder and the swoosh.
  */

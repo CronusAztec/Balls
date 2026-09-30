@@ -36,9 +36,9 @@ const MODES = {
   polyrhythm: { wait: 4000, query: "prt=custom&prcu=3,4,5,6,7,8,9,10&prcs=12&prp=1&prnum=1&glow=1" }, // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   collide: { wait: 5000, query: "cpsq=1&glow=1" },
-  // --- boris-glass --- mid-stage 3: sliding panes, holes, cracks and shards in view
+  // --- gerald-glass --- mid-stage 3: sliding panes, holes, cracks and shards in view
   glass: { wait: 11500, query: "face=cute&glow=1" },
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   multipliers: { wait: 3000, query: "mpsb=3&mprw=10" },
   // --- jdm-double-pendulum --- a fixed chaotic start: a long rainbow trail over the harp
   doublePendulum: { wait: 7000, query: "dprs=0&dpa1=150&dpa2=120&dptr=8&glow=1" },
@@ -57,11 +57,11 @@ const MODES = {
   // beat markers lit) and Paddle Keep-Up mid-rally (the ball over the platform, sparks of a catch, the score and the hearts)
   runner: { wait: 5300, query: "rrn=40&rrd=1&face=cute&glow=1" },
   paddle: { wait: 4200, query: "pdsk=1&pdsp=1&glow=1" },
-  // --- boris-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
+  // --- gerald-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
   vortex: { wait: 14200, query: "face=cute&glow=1" },
-  // --- boris-journey --- a large rings stage mid-escape: the chamber bulging out of the column, the mini-map and the clock beside it
+  // --- gerald-journey --- a large rings stage mid-escape: the chamber bulging out of the column, the mini-map and the clock beside it
   journey: { wait: 2400, query: "js=rings-l,glass,pegs,home&face=cute&glow=1" },
-  // --- boris-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
+  // --- gerald-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
   bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
   // --- beat-drop --- mid-run: the ball squashed on a pad, the next obstruction flying in, a ripple and a puff, the trail
   beatDrop: { wait: 6120, query: "face=cute&glow=1&bdd=1&bda=1" },

@@ -122,7 +122,7 @@ export const SERIES_ROSTER: readonly TeamEntry[] = [
   { name: "Tang", color: "#ff9a3c", emoji: "🍊" },
 ];
 
-/** §1 borisbounces: one character with a face and a promise; ours is Pip (our own, not theirs). */
+/** §1 geraldbounces: one character with a face and a promise; ours is Pip (our own, not theirs). */
 export const MASCOT = { name: "Pip", face: "cute" as const, color: "#f9f871" };
 
 /** §3.6: a note per bounce – piano or xylophone by default. The voices are the synth's (lib/audio/instruments.ts). */
