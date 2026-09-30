@@ -25,6 +25,7 @@ import { illusionFixedDurationSec, illusionRunNeverFinishes, type IllusionSettin
 import type { StringBattleSettings } from "@/lib/physics/modes/stringBattle";
 // --- odd-power-layers ---
 import { powerLayersFixedDurationSec, type PowerLayersSettings } from "@/lib/physics/modes/powerLayers";
+import { resolveTerritorySettings, type TerritorySettings } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 // --- jdm-race ---
 import type { RaceSettings } from "@/lib/physics/modes/race";
 // --- jdm-arena-games ---
@@ -145,11 +146,17 @@ export interface ModeSettings {
   // --- video-beats ---
   /** On beat (physics/onBeat.ts): the ring modes' flights timed onto the beat grid – part of the run, so the finder searches with it. */
   onBeat?: Partial<OnBeatConfig>;
+  // --- odd-territory ---
+  /** Territory: board, teams, balls, powers and the countdown (see modes/territory.ts); the defaults when left out. Every run lasts the countdown, so the finder searches its winner. */
+  territory?: Partial<TerritorySettings>;
 }
 
 // --- odd-string-battle ---
 /** Seeds of the String Battle simulated per animation frame (a battle takes a few ms per simulated second). */
 export const STRING_BATTLE_FINDER_BATCH = 6;
+// --- odd-territory ---
+/** Seeds of Territory simulated per animation frame (a seed plays its whole countdown). */
+export const TERRITORY_FINDER_BATCH = 2;
 
 // --- jdm-race ---
 /** Seeds of the race simulated per animation frame (a seed runs a whole race of up to 16 racers). */
@@ -229,6 +236,8 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
   // --- odd-power-layers --- every sequence but chaos: the plan's hit count × the bounce period (+ the celebration), whatever the seed
   if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers);
+  // --- odd-territory --- every run lasts its countdown, whatever the seed (the seed picks the winner)
+  if (mode === "territory") return resolveTerritorySettings((settings as Pick<ModeSettings, "territory">).territory).duration;
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
@@ -343,6 +352,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- boris-journey ---
   if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- boris-bullseye ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
+  if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -466,7 +476,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "paint" ? PAINT_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -572,7 +582,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode)) break;
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
   }
-  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
+  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
   return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
 }

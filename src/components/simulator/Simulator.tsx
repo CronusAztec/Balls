@@ -92,6 +92,7 @@ import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vort
 import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
+import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -133,6 +134,8 @@ const STRING_BATTLE_FINISH_HOLD_MS = 3000;
 const RACE_RUN_PREFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 /** --- jdm-arena-games --- How long the winner banner of an arena game and its confetti play before the end screen covers them (a recording keeps them). */
 const ARENA_WIN_HOLD_MS = 1000 * ARENA_WIN_HOLD_SEC;
+/** --- odd-territory --- How long Territory's verdict – the frame's flash, the winner banner (or DRAW) and its confetti – plays before the end screen covers it (a recording keeps it). */
+const TERRITORY_FINISH_HOLD_MS = 3000;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -149,6 +152,8 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
         ? ILLUSION_REVEAL_HOLD_MS
         : engine.isStringBattleMode()
           ? STRING_BATTLE_FINISH_HOLD_MS // --- odd-string-battle --- the last shatter, the ring flash and the winner banner, as the page holds them
+          : engine.isTerritoryMode()
+            ? TERRITORY_FINISH_HOLD_MS // --- odd-territory --- the verdict's flash, banner and confetti, as the page holds them
           : isArenaGameMode(engine.getCurrentModeName())
             ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
             : 0;
@@ -278,6 +283,7 @@ export default function Simulator() {
     engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
     engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
+    engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -721,6 +727,26 @@ export default function Simulator() {
   }, [s.recordingDuration]);
   const arenaWinAtRef = useRef<number | null>(null);
   // --- end jdm-arena-games ---
+  // --- odd-territory --- Territory: a change of the fight (board, teams, balls, powers, interval, reach, countdown, pegs) restarts
+  // it and drops a found seed; the badge and the HUD only change the drawing and follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setTerritorySettings(territorySettingsOf(s));
+    if (s.mode === "territory" && engine.getCurrentModeName() === "territory") {
+      engine.initTerritory();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.tyCols, s.tyTeams, s.tyBallsPerTeam, s.tyPowers, s.tyPowerEvery, s.tyRadius, s.tyDuration, s.tyPegs]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.tyCols, s.tyTeams, s.tyBallsPerTeam, s.tyPowers, s.tyPowerEvery, s.tyRadius, s.tyDuration, s.tyPegs]);
+  useEffect(() => {
+    engineRef.current?.setTerritorySettings({ badge: s.tyBadge, hud: s.tyHud });
+  }, [s.tyBadge, s.tyHud]);
+  const territoryFinishAtRef = useRef<number | null>(null);
+  // --- end odd-territory ---
   // --- boris-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
   // restarts the run and drops a found seed; the depth cue and the Sound section's scale and root (the ring notes) follow live.
   useEffect(() => {
@@ -1369,6 +1395,12 @@ export default function Simulator() {
           if (arenaWinAtRef.current === null) arenaWinAtRef.current = now;
           if (now - arenaWinAtRef.current < ARENA_WIN_HOLD_MS) done = false;
         } else arenaWinAtRef.current = null;
+        // --- odd-territory --- the verdict (the frame's flash, the winner banner or DRAW, the confetti) plays (and records) before the end screen
+        if (done && engine.isTerritoryMode()) {
+          const now = performance.now();
+          if (territoryFinishAtRef.current === null) territoryFinishAtRef.current = now;
+          if (now - territoryFinishAtRef.current < TERRITORY_FINISH_HOLD_MS) done = false;
+        } else territoryFinishAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -2180,6 +2212,7 @@ export default function Simulator() {
           journey: journeySettingsOf(settings), // --- boris-journey ---
           bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
+          territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2215,6 +2248,8 @@ export default function Simulator() {
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
       // --- odd-string-battle --- a found battle is recorded with its finish hold (the last shatter and the winner banner)
       if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000))) });
+      // --- odd-territory --- a found battle is recorded with its verdict's hold (the winner banner or DRAW)
+      if (settings.mode === "territory" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + TERRITORY_FINISH_HOLD_MS / 1000))) });
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
@@ -2405,6 +2440,18 @@ export default function Simulator() {
         song: t("BeatDrop.canvasSong"),
         done: t("BeatDrop.canvasDone"),
         doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
+      },
+      // --- odd-territory ---
+      territory: {
+        vs: t("Territory.canvasVs"),
+        pickSide: t("Territory.canvasPickSide"),
+        badgeTop: t("Territory.canvasBadgeTop"),
+        badgeBottom: t("Territory.canvasBadgeBottom"),
+        powers: { vortex: t("Territory.canvasPowerVortex"), bomber: t("Territory.canvasPowerBomber"), painter: t("Territory.canvasPowerPainter"), ghost: t("Territory.canvasPowerGhost") },
+        wins: (name) => t("Territory.canvasWins").replace("[name]", () => name), // a name may hold "$&"
+        draw: t("Territory.canvasDraw"),
+        share: (pct) => fill("Territory.canvasShare", { pct }),
+        team: (n) => fill("Simulator.canvasTeamFallback", { n }),
       },
     };
   }, [t]);
@@ -2732,10 +2779,10 @@ export default function Simulator() {
                 <span className="text-sm font-bold text-zinc-300">🔍 {t("Controls.findSimulation")}</span>
                 <Tooltip text={t("Controls.findSimulationTip")} />
                 {/* --- rigged --- the outcome to search for */}
-                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
+                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
               </div>
               {/* --- rigged --- an outcome search's explanation and fields */}
-              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
+              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
               <div className="flex-1 flex flex-col justify-center">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">

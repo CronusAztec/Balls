@@ -87,6 +87,8 @@ export const WINNER_MODES: readonly ModeId[] = MULTI_BALL_MODES.filter((m) => RI
  * String Battle's chosen ball never loses its last life), not by the director, whose rules stay off without rings.
  */
 export const BATTLE_WINNER_MODES: readonly ModeId[] = ["stringBattle"];
+// --- odd-territory --- Territory: the team with the most tiles at the countdown wins (the mode absorbs a conversion that would put a rival ahead)
+(BATTLE_WINNER_MODES as ModeId[]).push("territory");
 
 /** Modes whose run never ends: there the other teams stay in for good, so the chosen team keeps the lead. */
 const LOCKED_FOR_GOOD: readonly ModeId[] = ["multiply"];

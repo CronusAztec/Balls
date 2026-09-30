@@ -113,7 +113,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
 export default function TeamsSection({ t, search, matches, settings: s, update, onReset }: TeamsSectionProps) {
   const names = defaultTeamNames(t);
   const on = s.teams.length > 0;
-  const plays = MULTI_BALL_MODES.includes(s.mode) || s.mode === "stringBattle"; // --- odd-string-battle --- (its balls wear the roster)
+  const plays = MULTI_BALL_MODES.includes(s.mode) || s.mode === "stringBattle" || s.mode === "territory"; // --- odd-string-battle --- (its balls wear the roster) --- odd-territory --- (its teams do)
   // Grow takes two balls at most: a bigger roster (kept for the other modes) plays with its first teams there.
   const maxTeams = maxTeamsIn(s.mode);
   const setRoster = (roster: TeamEntry[]) => update(rosterPatch(roster));

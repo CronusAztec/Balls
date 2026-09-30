@@ -1455,7 +1455,46 @@
     "byPerfectOff": "Wył.",
     "byRunInfo": "Strzały: {shots} – około {seconds}s razem z końcowym banerem. Ziarno decyduje, gdzie wyląduje każda kulka (i jak długo będzie się odbijać ostatnia), więc Znajdź symulację może trafić w długość Twojego klipu.",
     "byPerfectInfo": "Strzał {shot} jest ustawiony na dziesiątkę.",
-    "byPerfectBeyond": "Idealny strzał wypada po ostatnim z {shots} strzałów, więc żaden strzał nie jest ustawiony."
+    "byPerfectBeyond": "Idealny strzał wypada po ostatnim z {shots} strzałów, więc żaden strzał nie jest ustawiony.",
+    "modeTerritory": "Terytorium",
+    "tyDesc": "Pong wars w wydaniu oddplayground: 2 lub 4 drużyny odbijających się kulek malują mapę z kafelków. Kulka przelatuje przez kafelki swojego koloru i odbija się od każdego innego, przemalowując kafelek, w który trafi – więc każde odbicie przesuwa granicę. Gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków.",
+    "tyTeams": "Drużyny",
+    "tyTeamsTip": "2 drużyny dzielą planszę na górną i dolną połowę, 4 – na ćwiartki. Każda drużyna zaczyna z taką samą liczbą kafelków.",
+    "tyTeams2": "2 drużyny",
+    "tyTeams4": "4 drużyny",
+    "tyRosterNote": "Pierwsze drużyny ({count} z {teams}) noszą barwy składu z sekcji Drużyny i tablica wyników; pozostałe biorą neonową paletę.",
+    "tyPaletteNote": "Paleta: {names} – albo ustaw skład w sekcji Drużyny i tablica wyników.",
+    "tyTeamN": "Drużyna {n}",
+    "tyBallsPerTeam": "Kulki na drużynę",
+    "tyBallsPerTeamTip": "Ile kulek każda drużyna ma na starcie w swoim obszarze (1–8). Więcej kulek to szybciej zmieniające się granice – 4 drużyny × 8 kulek to 32 kulki na planszy.",
+    "tyPowers": "Moce",
+    "tyPowersTip": "Jedna moc na drużynę. Pasek u góry nazywa drużynę jej mocą (WIR 52% VS BOMBOWIEC 48%), a drużynę bez mocy – jej nazwą.",
+    "tyPowerOf": "Moc drużyny {team}",
+    "tyPowerNone": "Brak",
+    "tyPowerVortex": "Wir",
+    "tyPowerBomber": "Bombowiec",
+    "tyPowerPainter": "Malarz",
+    "tyPowerGhost": "Duch",
+    "tyHintNone": "Brak: klasyczne pong wars – kulka odbija się od wrogiego kafelka i przemalowuje ten, w który trafiła.",
+    "tyHintVortex": "Wir: tor kulki się zakrzywia, a przy każdym impulsie mocy kulka ciągnie za sobą wir, którego dwa spiralne ramiona przemalowują wrogie kafelki w zasięgu.",
+    "tyHintBomber": "Bombowiec: przy każdym impulsie mocy kulka wybucha – każdy kafelek w zasięgu przyjmuje jej kolor, pobliskie kulki zostają odrzucone, a ekran się trzęsie. Jedno odbicie może odwrócić losy planszy.",
+    "tyHintPainter": "Malarz: przy każdym impulsie mocy kulka pędzi prosto przez wrogie terytorium i maluje za sobą ślad szerokości jednego kafelka.",
+    "tyHintGhost": "Duch: szybka, nieważka kulka, która przenika przez wrogie kafelki bez odbijania się i przy każdym odbiciu od ściany przemalowuje blok 3×3, w którym się znajduje.",
+    "tyPowerEvery": "Moc co",
+    "tyPowerEveryTip": "Sekundy między dwoma impulsami mocy czasowej (wir, wybuch bombowca, zryw malarza). Każda kulka zaczyna odliczanie z przesunięciem wyznaczonym przez ziarno, więc kulki jednej drużyny nie odpalają naraz.",
+    "tyRadius": "Zasięg mocy",
+    "tyRadiusTip": "Jak daleko sięgają wir i wybuch bombowca – w kafelkach.",
+    "tyTiles": "{count, plural, one {# kafelek} few {# kafelki} many {# kafelków} other {# kafelka}}",
+    "tyCols": "Kolumny planszy",
+    "tyColsTip": "Kafelki w poprzek planszy (12–48); liczba wierszy wynika z kształtu planszy. Więcej kafelków to drobniejsze granice – kulki maleją razem z kafelkami.",
+    "tyDuration": "Odliczanie",
+    "tyDurationTip": "Gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków (równy wynik na czele to remis). Długość nagrania podąża za odliczaniem, z kilkoma sekundami na werdykt. Ostatnie 5 sekund robi się intensywnie: kulki przyspieszają.",
+    "tyPegs": "Siatka kropek",
+    "tyPegsTip": "Delikatna siatka kropek znana z rolek: kropka co trzy kafelki, a kropki odbijają kulki.",
+    "tyBadge": "Plakietka ostrzegawcza",
+    "tyBadgeTip": "Plakietka „MIGAJĄCE ŚWIATŁA – KOŃCÓWKA BĘDZIE INTENSYWNA” w lewym górnym rogu klipu.",
+    "tyHud": "Pasek procentów",
+    "tyHudTip": "Pas nad planszą: WYBIERZ STRONĘ, odliczanie, linia VS z udziałem każdej drużyny i pasek procentów na żywo. Przy składzie drużyn zastępuje też tablicę wyników."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1544,6 +1583,10 @@
     "beatDrop": {
       "name": "Spadanie w rytm",
       "description": "Kulka spada na deski, bloki, sprężyny, kliny, obracające się belki i bębny, które wlatują zza ekranu tuż przed każdym bitem – więc każde lądowanie trafia dokładnie w bit, ze stopą, werblem albo kolejną nutą Twojej piosenki."
+    },
+    "territory": {
+      "name": "Terytorium",
+      "description": "Symulacja fizyki w stylu pong wars: 2 lub 4 drużyny odbijających się kulek malują mapę kafelków na swój kolor, a pasek procentów na żywo pokazuje, kto wygrywa. Wir kontra bombowiec – jedno odbicie może odwrócić losy planszy."
     }
   },
   "Features": {
@@ -1700,7 +1743,8 @@
     "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu.",
     "modeJourney": "Format dojazdów z borisbounces – „Boris bounces through his commute”, „let him out!”: kolumna etapów, które kulka pokonuje jeden po drugim, a kamera zjeżdża w dół. Pierścienie to kompaktowa ucieczka jak w trybie Klasycznym (3–9 pierścieni z obracającymi się przerwami; kulka wpada rynną do środka), Szkło to kilka tafli z Rozbijania szkła, które pękają przy każdym lądowaniu i rozpryskują się, Kołki to pole kołków ze Spadających piłek, którego rzędy grają wznoszącą się skalę, Mnożniki to dwa lub trzy rzędy bramek (x2 DMG, x1.5 SPEED, x1.25 SIZE), które wzmacniają kulkę na resztę drogi, Lejek to zwężający się lejek, Tarcza to cel do lądowania wart 10–100 punktów, zanim otworzy się zapadnia, a DOM to drzwi z konfetti i łącznym czasem. Każda zmiana etapu pokazuje baner i odtwarza świst, minimapa obok kolumny pokazuje, jak daleko zaszedł Boris, a każda nuta przechodzi przez twój instrument, skalę, synchronizację z rytmem, sample uderzeń i melodię. Ułóż trasę w bloku Podróż (rozmiary, kolejność, dodawanie i usuwanie) albo pozwól, by ziarno wylosowało ją za ciebie; każdy przebieg jest deterministyczny i zawsze dociera do DOMU, więc Znajdź symulację może dobrać ziarno do długości klipu.",
     "modeBullseye": "Format „bulleye!!” z borisbounces, bez pierścieni do ucieczki: pionowe pole z tarczą do rzutek – 3–10 koncentrycznych pierścieni w barwach tarczy – leżącą na dole. Wyrzutnia na górze wystrzeliwuje 1–30 kulek jedna po drugiej przez krótkie pole kołków i odbijaczy (Chaos decyduje, ile ich stoi na drodze). Pierścień, w którym wyląduje kulka, daje punkty – 10 za środek, mniej dalej od niego, nic poza tarczą – z wyskakującym wynikiem i bieżącą sumą, a kulka zostaje tam, gdzie wylądowała, więc kolejne strzały mogą się od niej odbić. Kołki grają nuty Twojej skali jak klawiatura od lewej do prawej, lądowania stukają tym niżej, im dalej od środka, a trafienie w środek to DZIESIĄTKA! z konfetti, fanfarą i pół sekundy zwolnionego tempa. Tarcza może jeździć w lewo i w prawo, ustawiony Idealny strzał trafia w dziesiątkę, a końcowy baner pokazuje sumę i najlepszy strzał. Deterministyczne dla ziarna, więc Znajdź symulację może wyszukać przebieg o długości Twojego klipu.",
-    "modeBeatDrop": "Tryb rytmiczny bez pierścieni, stworzony do edycji pod muzykę: pionowa scena na ciemnym gradiencie, w której jedna kulka spada i odbija się od przeszkody do przeszkody, a każda przeszkoda wlatuje zza ekranu – z lewej, z prawej, z góry albo z dołu, nigdy od strony, z której nadlatuje kulka – z płynnym wyhamowaniem i zatrzymuje się tuż przed swoim bitem, więc kulka ląduje na niej dokładnie w bit. Bieg jest zaplanowany z góry na podstawie bitu, za którym podąża (wykrytego bitu wczytanej piosenki albo ustawienia BPM): prędkość wybicia każdego lotu jest wyliczana tak, by lot trwał dokładnie tyle, ile odstęp między dwoma bitami – przy każdym tempie i na nieregularnej siatce – więc każde lądowanie mieści się w ułamku milisekundy od swojego bitu. Sześć rodzajów przeszkód – deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny – ugina się przy uderzeniu, świeci w rytm i odjeżdża z zanikaniem, gdy kulka już ją opuści; kulka spłaszcza się i rozciąga, zostawia smugę ruchu, a każde lądowanie wywołuje falę i obłok cząsteczek. Lądowania grają syntezowaną perkusję – stopę na 1 i 3, werbel na 2 i 4, hi-hat między bitami i własny akcent każdej przeszkody – kolejną nutę melodii albo jedno i drugie. Przewijanie bez końca jedzie za kulką w dół w nieskończoność; arena trzyma ją w kadrze. Ten tryb nigdy nie chybia bitu, więc Znajdź symulację po prostu wybiera ziarno i dopasowuje klip do bitów, które obejmuje."
+    "modeBeatDrop": "Tryb rytmiczny bez pierścieni, stworzony do edycji pod muzykę: pionowa scena na ciemnym gradiencie, w której jedna kulka spada i odbija się od przeszkody do przeszkody, a każda przeszkoda wlatuje zza ekranu – z lewej, z prawej, z góry albo z dołu, nigdy od strony, z której nadlatuje kulka – z płynnym wyhamowaniem i zatrzymuje się tuż przed swoim bitem, więc kulka ląduje na niej dokładnie w bit. Bieg jest zaplanowany z góry na podstawie bitu, za którym podąża (wykrytego bitu wczytanej piosenki albo ustawienia BPM): prędkość wybicia każdego lotu jest wyliczana tak, by lot trwał dokładnie tyle, ile odstęp między dwoma bitami – przy każdym tempie i na nieregularnej siatce – więc każde lądowanie mieści się w ułamku milisekundy od swojego bitu. Sześć rodzajów przeszkód – deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny – ugina się przy uderzeniu, świeci w rytm i odjeżdża z zanikaniem, gdy kulka już ją opuści; kulka spłaszcza się i rozciąga, zostawia smugę ruchu, a każde lądowanie wywołuje falę i obłok cząsteczek. Lądowania grają syntezowaną perkusję – stopę na 1 i 3, werbel na 2 i 4, hi-hat między bitami i własny akcent każdej przeszkody – kolejną nutę melodii albo jedno i drugie. Przewijanie bez końca jedzie za kulką w dół w nieskończoność; arena trzyma ją w kadrze. Ten tryb nigdy nie chybia bitu, więc Znajdź symulację po prostu wybiera ziarno i dopasowuje klip do bitów, które obejmuje.",
+    "modeTerritory": "Pong wars z konta oddplayground: mapa kafelków podzielona na 2 lub 4 obszary drużyn, a kulki każdej drużyny odbijają się w obrębie jej koloru. Kulka przelatuje przez kafelki swojego koloru i odbija się od każdego innego, przemalowując kafelek, w który trafi – każde odbicie przesuwa więc granicę, a pasek procentów pod napisem WYBIERZ STRONĘ wychyla się razem z nią. Każda drużyna może mieć moc: wir zakrzywia swój tor i ciągnie za sobą wir, którego spiralne ramiona przemalowują wrogie kafelki; bombowiec co kilka sekund wybucha i przejmuje każdy kafelek w zasięgu (z falą uderzeniową, odłamkami i wstrząsem ekranu); malarz pędzi prosto przez wrogie terytorium, malując za sobą ślad; a duch przenika przez wrogie kafelki i przy każdym odbiciu od ściany przemalowuje blok 3×3. Kulki zderzają się ze sobą, opcjonalna siatka kropek je odbija, ostatnie pięć sekund wszystko przyspiesza, a gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków – ze zwolnionym tempem, gdy w finale zmienia się prowadzenie, a zwolnione tempo kamery jest włączone. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka przebiegu, który wygra wybrana drużyna, Wymuszony zwycięzca go ustawia, a skład drużyn użycza drużynom swoich barw i nazw."
   },
   "Footer": {
     "about": "O nas",
@@ -1902,7 +1946,8 @@
     "teamN": "Drużyna {n}",
     "ballN": "Piłka {n}",
     "noteNeverEscape": "Ustawione: żadna piłka nie ucieknie",
-    "noteWinner": "Ustawione: wygrywa {name}"
+    "noteWinner": "Ustawione: wygrywa {name}",
+    "hintWinnerTerritory": "Wybrana drużyna ma najwięcej kafelków, gdy skończy się odliczanie: każdy przebieg toczy się do końca, a nagranie obejmuje werdykt i jego baner."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -2470,5 +2515,18 @@
     "canvasMiss": "PUDŁO",
     "canvasFinal": "SUMA [total]",
     "canvasFinalSub": "Najlepszy strzał #[shot]: [score] pkt · dziesiątki: [bullseyes]"
+  },
+  "Territory": {
+    "canvasVs": "VS",
+    "canvasPickSide": "WYBIERZ STRONĘ",
+    "canvasBadgeTop": "MIGAJĄCE ŚWIATŁA",
+    "canvasBadgeBottom": "KOŃCÓWKA BĘDZIE INTENSYWNA",
+    "canvasPowerVortex": "WIR",
+    "canvasPowerBomber": "BOMBOWIEC",
+    "canvasPowerPainter": "MALARZ",
+    "canvasPowerGhost": "DUCH",
+    "canvasWins": "[name] WYGRYWA",
+    "canvasDraw": "REMIS",
+    "canvasShare": "[pct]% PLANSZY"
   }
 }

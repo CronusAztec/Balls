@@ -48,6 +48,11 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("paddle");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatDrop");
 }
+// --- odd-territory --- Territory joins the oddplayground battle family, right after the String Battle
+{
+  const at = MODE_CARD_ORDER.indexOf("stringBattle");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "territory");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -104,6 +109,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   bullseye: "rhythm",
   // --- beat-drop --- every landing is a beat: a drum, a note, or both
   beatDrop: "rhythm",
+  // --- odd-territory --- teams of balls fight over a tile map: the battle family
+  territory: "battle",
 };
 
 /** The modes of a category in card order. */

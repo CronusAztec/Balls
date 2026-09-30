@@ -52,6 +52,7 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
+import { TerritoryMode, type TerritorySettings, type TerritoryView } from "./modes/territory"; // --- odd-territory ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -274,6 +275,8 @@ export class PhysicsEngine {
   readonly bullseyeMode = new BullseyeMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
+  // --- odd-territory --- Territory: pong-wars teams painting a tile map
+  readonly territoryMode = new TerritoryMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -571,6 +574,10 @@ export class PhysicsEngine {
   initBeatDrop() {
     this.activateMode(this.beatDropMode, "none");
   }
+  // --- odd-territory --- the mode owns its tile map (no rings)
+  initTerritory() {
+    this.activateMode(this.territoryMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -650,6 +657,9 @@ export class PhysicsEngine {
       // --- beat-drop ---
       case "beatDrop":
         return this.initBeatDrop();
+      // --- odd-territory ---
+      case "territory":
+        return this.initTerritory();
     }
   }
 
@@ -1507,6 +1517,25 @@ export class PhysicsEngine {
     return this.beatDropMode.getProgress();
   }
   // --- end beat-drop ---
+  // --- odd-territory ---
+  isTerritoryMode() {
+    return this.currentMode === this.territoryMode;
+  }
+  getTerritorySettings(): TerritorySettings {
+    return this.territoryMode.getSettings();
+  }
+  /** The board, teams, balls, powers, interval, reach, countdown and pegs of Territory apply on the next `initTerritory()`; the badge and the HUD at once. */
+  setTerritorySettings(settings: Partial<TerritorySettings>) {
+    this.territoryMode.setSettings(settings);
+  }
+  /** Live Territory state (the tile map, counts, balls, flips, blasts, the verdict) for the canvas and the HUD; the same object every call. */
+  getTerritoryView(): TerritoryView {
+    return this.territoryMode.getView();
+  }
+  getTerritoryProgress() {
+    return this.territoryMode.getProgress();
+  }
+  // --- end odd-territory ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

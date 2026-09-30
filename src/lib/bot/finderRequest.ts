@@ -19,6 +19,7 @@ import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye";
 import { journeySettingsOf } from "@/lib/physics/modes/journey";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex";
 import { beatDropSettingsOf } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
+import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { riggedConfigOf } from "@/lib/physics/rigged";
@@ -119,6 +120,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     bullseye: bullseyeSettingsOf(s), // --- boris-bullseye ---
     beatDrop: beatDropSettingsOf(s, markerBeat), // --- beat-drop --- (the bot plans without a loaded song)
     onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)
+    territory: territorySettingsOf(s), // --- odd-territory ---
   };
 }
 

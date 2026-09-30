@@ -69,6 +69,8 @@ import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LA
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
+// --- odd-territory --- Territory: the tile map (offscreen, repainted where tiles flip), pops, blasts, whirls, bodies, the HUD band and the banner
+import { DEFAULT_TERRITORY_LABELS, TERRITORY_DATA_KEYS, TerritoryLayer, writeTerritoryDataset, type TerritoryLabels, type TerritoryRenderOptions } from "./territoryRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -159,6 +161,9 @@ export interface CanvasLabels {
   // --- beat-drop ---
   /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
   beatDrop?: BeatDropLabels;
+  // --- odd-territory ---
+  /** Territory: VS, PICK A SIDE, the warning badge, the power names, the winner banner, DRAW and the share of the board. */
+  territory?: TerritoryLabels;
 }
 
 export interface CanvasHandle {
@@ -773,6 +778,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bdLayer = new BeatDropLayer();
     const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
     let bdTeams: CanvasTeamOptions | null | undefined;
+    // --- odd-territory --- Territory's layer (the offscreen tile map, sprites, the bar's easing) and its per-frame options
+    const tyLayer = new TerritoryLayer();
+    const tyRender: TerritoryRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showTrails: true, trailThickness: 0.8, wallThickness: 2, labels: DEFAULT_TERRITORY_LABELS, nowMs: 0 };
+    const tyBodyColor = (ball: Ball) => tyLayer.colorOf(ball.team ?? 0);
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -1308,6 +1317,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         sbRender.width = size.width;
         sbRender.height = size.height;
         sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
+      }
+      // --- odd-territory --- Territory: the tile map, the pops of flipped tiles, the pegs, the frame, the blasts and the whirls.
+      const tyView = engine.isTerritoryMode() ? engine.getTerritoryView() : null;
+      if (tyView) {
+        const tr = teamsRef.current;
+        tyRender.roster = tr ? tr.roster : NO_ROSTER;
+        tyRender.showNames = !!tr && tr.showNames;
+        tyRender.showTrails = p.showTrails;
+        tyRender.trailThickness = p.trailThickness;
+        tyRender.wallThickness = p.wallThickness;
+        tyRender.labels = (labelsRef.current ?? DEFAULT_LABELS).territory ?? DEFAULT_TERRITORY_LABELS;
+        tyRender.nowMs = engine.getElapsedMs();
+        tyLayer.drawStage(ctx, tyView, drawnBalls, tyRender);
       }
 
       // --- jdm-arena-games --- Battle Royale / Capture the Flag: the box or circle (and the shrinking zone), power-ups, bases and flags.
@@ -1862,6 +1884,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
+      else if (tyView) tyLayer.drawBodies(ctx, tyView, balls, tyRender); // --- odd-territory --- trails, halos, bodies by power, charge rings, names
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
@@ -2059,6 +2082,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
+      if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
@@ -2213,6 +2237,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
       if (sbView) sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
+      // --- odd-territory --- the HUD band (badge, PICK A SIDE, countdown, the VS line, the bar) and – without a roster (the teams banner takes over) – the winner banner
+      if (tyView) tyLayer.drawOverlay(ctx, tyView, tyRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
 
       // HUD: mode counters in the centre
       {
@@ -2575,7 +2601,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionView.insetBottom = live ? 56 : 0;
         // --- viral-bot --- an arena game's scoreboard band (the top HUD_BAND of the square) is the top captions' limit too
         const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
-        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom), captionView);
+        const tyHudBottom = tyView ? tyView.field.hudTop + tyView.field.hudHeight : 0; // --- odd-territory --- (the HUD band is the top captions' limit too)
+        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, tyHudBottom), captionView);
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);
@@ -2776,6 +2803,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
+      // --- odd-territory --- Territory (data-ty-*): the board, counts and percentages, the powers' work, the verdict, the rig and what was drawn
+      if (tyView) writeTerritoryDataset(tyView, tyLayer, engine.getBalls(), setCanvasData);
+      else if (canvas.dataset.tyTeams !== undefined) for (const key of TERRITORY_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
       // score, the flags, captures / drops / returns, notes and the result, for tools and the smoke test
       if (arenaView) {

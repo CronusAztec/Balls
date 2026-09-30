@@ -5,6 +5,7 @@ import { rankTeams, teamDisplayName, teamResult, type TeamRenderOptions, type Te
 import { ACCENT } from "@/lib/site";
 import { nameLabelSize } from "./faceRenderer";
 import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
+import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 
 /**
  * Drawing of the "Team balls with scoreboard" feature (lib/teams.ts, physics/ballStats.ts), created once with
@@ -148,6 +149,10 @@ export class TeamLayer {
   private battleSource: CanvasTeamOptions | null = null;
   private battleKey = "";
   private battleOptions: CanvasTeamOptions | null = null;
+  // --- odd-territory --- the roster as Territory plays it (padded to its teams), rebuilt when an input changes
+  private territorySource: CanvasTeamOptions | null = null;
+  private territoryKey = "";
+  private territoryOptions: CanvasTeamOptions | null = null;
 
   isActive() {
     return this.active;
@@ -180,6 +185,10 @@ export class TeamLayer {
     const battle = next && next.roster.length > 0 && engine.isStringBattleMode() ? engine.getStringBattleView() : null;
     if (battle && next) next = this.battleTeams(next, battle.count, sbHudShown(battle.settings));
     // --- end odd-string-battle ---
+    // --- odd-territory --- Territory plays the roster too: one team per region – the palette's names and colours beyond the
+    // roster – and its HUD takes the scoreboard's place (its winner banner is this layer's)
+    const territory = !battle && next && next.roster.length > 0 && engine.isTerritoryMode() ? engine.getTerritoryView() : null;
+    if (territory && next) next = this.territoryTeams(next, territory.teams, territory.settings.hud);
     if (next !== this.options) {
       this.options = next;
       this.layout = null;
@@ -188,8 +197,8 @@ export class TeamLayer {
     this.labelled = 0;
     this.labelsDrawn = 0;
     const mode = engine.getCurrentModeName();
-    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle); // --- odd-string-battle --- (battle)
-    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : startBallCount(engine.config, mode)) : 0;
+    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory); // --- odd-string-battle --- (battle) --- odd-territory --- (territory)
+    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : startBallCount(engine.config, mode)) : 0;
     if (count !== this.count) {
       this.count = count;
       this.layout = null;
@@ -217,6 +226,19 @@ export class TeamLayer {
     return this.battleOptions;
   }
   // --- end odd-string-battle ---
+  // --- odd-territory ---
+  /** The roster padded to `count` teams with Territory's palette, the scoreboard off while its HUD shows (the same object while nothing changed). */
+  private territoryTeams(options: CanvasTeamOptions, count: number, hud: boolean): CanvasTeamOptions {
+    const key = `${count}|${hud ? 1 : 0}`;
+    if (this.territoryOptions && this.territorySource === options && this.territoryKey === key) return this.territoryOptions;
+    const roster = options.roster.slice(0, count).map((t) => ({ ...t }));
+    for (let i = roster.length; i < count; i++) roster.push({ name: TY_PALETTE[i % TY_PALETTE.length].name, color: TY_PALETTE[i % TY_PALETTE.length].color, emoji: "" });
+    this.territorySource = options;
+    this.territoryKey = key;
+    this.territoryOptions = { ...options, roster, showScoreboard: options.showScoreboard && !hud };
+    return this.territoryOptions;
+  }
+  // --- end odd-territory ---
 
   private rebuildTexts() {
     const o = this.options;

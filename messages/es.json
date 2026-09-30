@@ -1455,7 +1455,46 @@
     "byPerfectOff": "No",
     "byRunInfo": "{shots} tiros – unos {seconds}s con el cartel final. La semilla decide dónde cae cada bola (y cuánto rebota la última), así que Buscar simulación puede acertar la duración de tu clip.",
     "byPerfectInfo": "El tiro {shot} está amañado para dar en el centro.",
-    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado."
+    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado.",
+    "modeTerritory": "Territorio",
+    "tyDesc": "El pong wars de oddplayground: 2 o 4 equipos de bolas que rebotan pintan un mapa de casillas. Una bola atraviesa las casillas de su color y rebota en las de cualquier otro, convirtiendo la casilla que golpea, así que cada rebote mueve la frontera. Cuando se acaba la cuenta atrás, gana el equipo con más casillas.",
+    "tyTeams": "Equipos",
+    "tyTeamsTip": "2 equipos dividen el tablero en mitad superior e inferior; 4 equipos, en cuadrantes. Todos los equipos empiezan con el mismo número de casillas.",
+    "tyTeams2": "2 equipos",
+    "tyTeams4": "4 equipos",
+    "tyRosterNote": "Los primeros equipos ({count} de {teams}) llevan la plantilla de Equipos y marcador; los demás usan la paleta neón.",
+    "tyPaletteNote": "Paleta: {names}; o crea una plantilla en Equipos y marcador.",
+    "tyTeamN": "Equipo {n}",
+    "tyBallsPerTeam": "Bolas por equipo",
+    "tyBallsPerTeamTip": "Cuántas bolas tiene cada equipo al empezar dentro de su zona (1–8). Más bolas, fronteras más rápidas: 4 equipos × 8 bolas son 32 bolas en el tablero.",
+    "tyPowers": "Poderes",
+    "tyPowersTip": "Un poder por equipo. El marcador llama a cada equipo por su poder (VÓRTICE 52% VS BOMBARDERO 48%) o, si no tiene, por su nombre.",
+    "tyPowerOf": "Poder de {team}",
+    "tyPowerNone": "Ninguno",
+    "tyPowerVortex": "Vórtice",
+    "tyPowerBomber": "Bombardero",
+    "tyPowerPainter": "Pintor",
+    "tyPowerGhost": "Fantasma",
+    "tyHintNone": "Ninguno: el pong wars clásico; la bola rebota en una casilla rival y convierte la que golpea.",
+    "tyHintVortex": "Vórtice: la trayectoria de la bola se curva y, en cada pulso de poder, arrastra un remolino cuyos dos brazos en espiral convierten las casillas rivales a su alcance.",
+    "tyHintBomber": "Bombardero: en cada pulso de poder la bola explota; todas las casillas a su alcance pasan a su color, las bolas cercanas salen despedidas y la pantalla tiembla. Un rebote puede darle la vuelta al tablero.",
+    "tyHintPainter": "Pintor: en cada pulso de poder la bola atraviesa en línea recta el territorio rival y deja un rastro pintado de una casilla de ancho.",
+    "tyHintGhost": "Fantasma: una bola rápida e ingrávida que atraviesa las casillas rivales sin rebotar y convierte el bloque de 3×3 en el que está en cada rebote contra la pared.",
+    "tyPowerEvery": "Poder cada",
+    "tyPowerEveryTip": "Segundos entre dos pulsos de un poder temporizado (el remolino del vórtice, la explosión del bombardero, la carrera del pintor). Cada bola empieza su temporizador con un desfase fijado por la semilla, así que las bolas de un equipo no disparan a la vez.",
+    "tyRadius": "Alcance del poder",
+    "tyRadiusTip": "Hasta dónde llegan el remolino del vórtice y la explosión del bombardero, en casillas.",
+    "tyTiles": "{count, plural, one {# casilla} other {# casillas}}",
+    "tyCols": "Columnas del tablero",
+    "tyColsTip": "Casillas a lo ancho del tablero (12–48); las filas salen de la forma del tablero. Más casillas, fronteras más finas: las bolas se encogen con las casillas.",
+    "tyDuration": "Cuenta atrás",
+    "tyDurationTip": "Cuando se acaba la cuenta atrás gana el equipo con más casillas (una igualdad en cabeza es empate). La duración de la grabación la sigue, con unos segundos para el veredicto. Los últimos 5 segundos se ponen intensos: las bolas aceleran.",
+    "tyPegs": "Rejilla de puntos",
+    "tyPegsTip": "La tenue rejilla de puntos de los reels: un punto cada tres casillas, y los puntos desvían las bolas.",
+    "tyBadge": "Insignia de aviso",
+    "tyBadgeTip": "La insignia «LUCES INTERMITENTES – EL FINAL SE PONE INTENSO» en la esquina superior izquierda del clip.",
+    "tyHud": "Marcador de porcentajes",
+    "tyHudTip": "La franja sobre el tablero: ELIGE UN BANDO, la cuenta atrás, la línea VS con la parte de cada equipo y la barra de porcentajes en directo. Con una plantilla de equipos también sustituye al marcador."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1544,6 +1583,10 @@
     "beatDrop": {
       "name": "Caída al ritmo",
       "description": "Una pelota cae sobre tablas, bloques, muelles, cuñas, barras giratorias y tambores que entran volando desde fuera de la pantalla justo antes de cada pulso, así que cada aterrizaje cae exactamente en el pulso, con un bombo, una caja o la siguiente nota de tu canción."
+    },
+    "territory": {
+      "name": "Territorio",
+      "description": "Simulación de física al estilo pong wars: 2 o 4 equipos de bolas que rebotan pintan el mapa de casillas de su color y la barra de porcentajes en directo muestra quién va ganando. Vórtice contra bombardero: un rebote puede darle la vuelta al tablero."
     }
   },
   "Features": {
@@ -1700,7 +1743,8 @@
     "modeVortex": "El formato «sound vortex, pew» de borisbounces, sin anillos de los que escapar: un remolino visto desde arriba –un embudo de 6 a 24 anillos sonoros concéntricos sobre brazos de espiral luminosos, con un agujero en el centro–. Una bola tras otra entra por el borde con velocidad lateral y baja en espiral atraída por una fuerza que crece hacia el centro, con un poco de rozamiento; tarda el Tiempo de espiral en llegar al agujero y gira cada vez más deprisa por el camino. Cada anillo que cruza toca la nota siguiente de tu escala –con melodía, instrumento, muestra de golpe y ajuste al compás incluidos–, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. El agujero se la traga con un «pew», un barrido rápido de tono hacia abajo, y un chapoteo; con el bucle activado vuelve al borde. Las bolas se encogen con la profundidad para dar sensación 3D y cada recorrido es determinista, así que Buscar simulación puede elegir una semilla para la duración de tu clip.",
     "modeJourney": "El formato del trayecto de borisbounces –«Boris bounces through his commute», «let him out!»–: una columna de etapas que la bola supera una tras otra mientras la cámara baja. Anillos es una huida compacta como en Clásico (de 3 a 9 anillos con huecos que giran; la bola cae por un tubo hasta el centro), Cristal unos cuantos paneles de Rompecristales que se agrietan en cada aterrizaje y estallan, Clavos un campo de clavos de Caída de pelotas cuyas filas tocan una escala ascendente, Multiplicadores dos o tres filas de puertas (x2 DMG, x1.5 SPEED, x1.25 SIZE) que potencian la bola para el resto del camino, Embudo un embudo que se estrecha, Diana un blanco de aterrizaje que puntúa de 10 a 100 antes de que se abra su trampilla, y CASA la puerta con confeti y el tiempo total. Cada cambio de etapa muestra un cartel y suena un zumbido, un minimapa junto a la columna muestra cuánto ha avanzado Boris y cada nota pasa por tu instrumento, tu escala, la sincronización con el ritmo, las muestras de golpe y la melodía. Construye la ruta en el bloque Viaje (tamaños, orden, añadir y quitar) o deja que la semilla sortee una; cada recorrido es determinista y siempre llega a CASA, así que Buscar simulación puede elegir una semilla para la duración de tu clip.",
     "modeBullseye": "El formato «bulleye!!» de borisbounces, sin anillos de los que escapar: un campo vertical con una diana de dardos – de 3 a 10 anillos concéntricos con los colores de una diana – tumbada abajo. Un lanzador arriba dispara de 1 a 30 bolas una tras otra por un corto campo de clavijas y rebotadores (el Caos decide cuántos se interponen). El anillo donde cae una bola puntúa – 10 el centro, menos cuanto más lejos, nada fuera de la diana – con un marcador emergente y un total acumulado, y la bola se queda clavada donde cae, así que los tiros siguientes pueden rebotar en los anteriores. Las clavijas tocan notas de tu escala como un teclado de izquierda a derecha, los aterrizajes suenan más graves cuanto más lejos del centro, y un tiro al centro es ¡DIANA! con confeti, fanfarria y medio segundo de cámara lenta. La diana puede deslizarse a los lados, un Tiro perfecto amañado va directo al centro y el cartel final muestra el total y el mejor tiro. Con semilla y determinista, así que Buscar simulación puede encontrar una partida con la duración de tu clip.",
-    "modeBeatDrop": "Un modo rítmico sin anillos, pensado para ediciones musicales: una escena vertical sobre un degradado oscuro en la que una pelota cae y rebota de obstáculo en obstáculo, y cada obstáculo entra volando desde fuera de la pantalla –por la izquierda, la derecha, arriba o abajo, nunca por el lado del que llega la pelota– con una desaceleración suave y se detiene un instante antes de su pulso, así que la pelota aterriza sobre él exactamente en el pulso. El recorrido se planifica de antemano a partir del pulso que sigue (el pulso detectado de la canción cargada o el BPM configurado): la velocidad de salida de cada vuelo se calcula para que el vuelo dure exactamente el tiempo entre dos pulsos, a cualquier tempo y con rejillas irregulares, así que cada aterrizaje queda a una fracción de milisegundo de su pulso. Seis tipos de obstáculo –tablas, bloques, muelles (un rebote más alto con un «boing»), cuñas (desvían la pelota de lado), barras giratorias (planas justo en el pulso) y grandes tambores– se aplastan con el impacto, brillan con el pulso y se deslizan fuera desvaneciéndose cuando la pelota ya se ha ido; la pelota se aplasta y se estira y deja una estela, y cada aterrizaje lanza una onda y una nube de partículas. Los aterrizajes tocan batería sintetizada –bombo en los tiempos 1 y 3, caja en el 2 y el 4, charles a contratiempo y el acento propio de cada obstáculo–, la siguiente nota de la melodía o ambas cosas. El desplazamiento infinito sigue a la pelota hacia abajo sin fin; la arena la mantiene dentro del encuadre. Nunca falla un pulso, así que Buscar simulación simplemente elige una semilla y ajusta el clip a los pulsos que cubre."
+    "modeBeatDrop": "Un modo rítmico sin anillos, pensado para ediciones musicales: una escena vertical sobre un degradado oscuro en la que una pelota cae y rebota de obstáculo en obstáculo, y cada obstáculo entra volando desde fuera de la pantalla –por la izquierda, la derecha, arriba o abajo, nunca por el lado del que llega la pelota– con una desaceleración suave y se detiene un instante antes de su pulso, así que la pelota aterriza sobre él exactamente en el pulso. El recorrido se planifica de antemano a partir del pulso que sigue (el pulso detectado de la canción cargada o el BPM configurado): la velocidad de salida de cada vuelo se calcula para que el vuelo dure exactamente el tiempo entre dos pulsos, a cualquier tempo y con rejillas irregulares, así que cada aterrizaje queda a una fracción de milisegundo de su pulso. Seis tipos de obstáculo –tablas, bloques, muelles (un rebote más alto con un «boing»), cuñas (desvían la pelota de lado), barras giratorias (planas justo en el pulso) y grandes tambores– se aplastan con el impacto, brillan con el pulso y se deslizan fuera desvaneciéndose cuando la pelota ya se ha ido; la pelota se aplasta y se estira y deja una estela, y cada aterrizaje lanza una onda y una nube de partículas. Los aterrizajes tocan batería sintetizada –bombo en los tiempos 1 y 3, caja en el 2 y el 4, charles a contratiempo y el acento propio de cada obstáculo–, la siguiente nota de la melodía o ambas cosas. El desplazamiento infinito sigue a la pelota hacia abajo sin fin; la arena la mantiene dentro del encuadre. Nunca falla un pulso, así que Buscar simulación simplemente elige una semilla y ajusta el clip a los pulsos que cubre.",
+    "modeTerritory": "El pong wars de oddplayground: un mapa de casillas dividido en 2 o 4 zonas de equipo, con las bolas de cada equipo rebotando dentro de su color. Una bola atraviesa las casillas de su color y rebota en las de cualquier otro, convirtiendo la casilla que golpea, así que cada rebote empuja la frontera y la barra de porcentajes bajo ELIGE UN BANDO oscila con ella. Cada equipo puede tener un poder: el vórtice curva su trayectoria y arrastra un remolino cuyos brazos en espiral convierten casillas rivales; el bombardero explota cada pocos segundos y se queda con todas las casillas a su alcance (con onda expansiva, escombros y temblor de pantalla); el pintor atraviesa en línea recta el territorio rival dejando un rastro pintado; y el fantasma atraviesa las casillas rivales y convierte un bloque de 3×3 en cada rebote contra la pared. Las bolas chocan entre sí, la rejilla de puntos opcional las desvía, los últimos cinco segundos lo aceleran todo y, cuando se acaba la cuenta atrás, gana el equipo con más casillas, con cámara lenta cuando el liderato cambia en el final si la cámara lenta está activada. Cada semilla se reproduce exactamente, Buscar simulación busca una partida que gane el equipo elegido, el Ganador forzado la amaña y una plantilla de equipos presta a los equipos sus colores y nombres."
   },
   "Footer": {
     "about": "Acerca de",
@@ -1902,7 +1946,8 @@
     "teamN": "Equipo {n}",
     "ballN": "Pelota {n}",
     "noteNeverEscape": "Amañado: ninguna pelota puede escapar",
-    "noteWinner": "Amañado: gana {name}"
+    "noteWinner": "Amañado: gana {name}",
+    "hintWinnerTerritory": "El equipo elegido tiene más casillas cuando se acaba la cuenta atrás: cada partida se juega hasta el final y la grabación abarca el veredicto y su cartel."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -2470,5 +2515,18 @@
     "canvasMiss": "FALLO",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Mejor tiro #[shot]: [score] pts · dianas: [bullseyes]"
+  },
+  "Territory": {
+    "canvasVs": "VS",
+    "canvasPickSide": "ELIGE UN BANDO",
+    "canvasBadgeTop": "LUCES INTERMITENTES",
+    "canvasBadgeBottom": "EL FINAL SE PONE INTENSO",
+    "canvasPowerVortex": "VÓRTICE",
+    "canvasPowerBomber": "BOMBARDERO",
+    "canvasPowerPainter": "PINTOR",
+    "canvasPowerGhost": "FANTASMA",
+    "canvasWins": "[name] GANA",
+    "canvasDraw": "EMPATE",
+    "canvasShare": "[pct]% DEL TABLERO"
   }
 }
