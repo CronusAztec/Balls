@@ -56,6 +56,7 @@ static host – no server required.
 | **Batch render** | A **Batch** block at the end of the Recording section queues many ⚡ fast exports: **N random seeds** (1–50) or a pasted **list** – one job per line: a seed, a share link (long or short `?c=`), or a link followed by seeds (`https://…?c=… 42 77`; a link without one gets a random seed or its `seed=` parameter; bad lines are named and skipped) –, optionally in **every mode** (a chip per mode, applied like clicking its card: your look, sound and recording settings carry over) or with **one setting swept** from A to B in K steps (gravity, ball speed and size, walls, gap, rotation, air drag, wind, spin, wall bounciness, rotating gravity or the clip length; snapped to the slider). **Render batch** runs the jobs one after another – each job's settings are put on the page, the page renders it with the fast export and gets your settings back at the end, with your uploaded sounds and a run Find Simulation had found; a link's clip keeps this section's resolution and frame rate and your wall-break sound, which links don't carry – with a queue showing every clip's status, progress and time; each clip downloads as `mode-seed-duration.mp4` (plus `-setting-value` in a sweep; optional) and **Download all as ZIP** packs them at the end (a tiny STORE-only ZIP writer, `src/lib/recording/zip.ts`). **Stop after this clip** lets the current clip finish; the fast export's Cancel stops at once. The last batch definition is kept in localStorage |
 | **Split-screen races** | Race **2 or 4 arenas at once** on one canvas and in one recording (a 🏁 **Arenas & Split Screen** section of the panel, feature split-screen): **Arenas** 1 / 2 / 4 (URL `ac`; 1 is the classic single view), **Layout** row (side by side) or grid (2 × 2, or two stacked for vertical clips; `al`), **Sound** first arena only (default) or every arena, the others a little softer (`sa`), and an editor per arena – a **label** plus optional overrides of the shared settings: **seed** (the same run on every restart), **gravity**, **ball speed**, **ball colour** and, from the second arena on, the **mode** (compact URL key `ar`, e.g. `ar=Red~cff3366~g600|Blue~s42|~mshatter`). The arenas tile the centred square the recorder exports, each in a world of its viewport's shape with the single view's size (so a seed plays exactly as it would on its own), step together – pause, restart and 1×–8× apply to all – and share one particle budget. Labels with each arena's time and place, and a **race banner**: which arena escaped – or finished – first, and when (every arena timed on its own simulation clock). **Find Simulation** searches a seed for every arena and stores them; the clip ends after the last arena is done. Record Video captures the whole race (Fast export and Batch render draw one arena, so they are off during a race); a Beat Runner / Paddle Keep-Up played by hand is played in the first arena, the others play by themselves |
 | **Sound Vortex** | A Boris-family rhythm mode (`vortex`, feature boris-vortex) after the borisbounces "sound vortex, pew" clips: a spiral funnel seen from above – 6–24 concentric **sound rings** (`vxRings`) over glowing whirlpool arms, a hole in the middle. 1–30 balls (`vxBalls`) enter at the rim one after another (`vxStagger` seconds apart) with a tangential velocity and spiral inward under a central pull that grows toward the centre plus a light drag, reaching the hole after the **Spiral Time** (`vxDuration`, 3–30 s; the **Central Pull** `vxGravity` sets how many laps they whirl on the way, not how long it takes). Every ring a ball sinks past plays the next degree of the Sound section's scale (ring 0 at the rim is the lowest), so each ball is a rising glissando and the staggered balls weave arpeggios – through the ToneGenerator, so melodies, instruments, hit samples, the beat lock, the slicer and the music bed all work; rings crossed in the same step sound as one chord. The hole swallows a ball with a **pew** – a fast downward pitch sweep synthesised in the ToneGenerator (`playPew()`, in the bounce instrument's waveform, on the beat grid; a chosen wall-break clip plays instead) – and a splash; **Respawn Loop** (`vxLoop`) sends it back to the rim for an endless vortex, and the **Depth Cue** (`vxDepthScale`) shrinks the balls toward the centre and darkens the throat. Deterministic for a seed (the seed's tempo moves the run by ±8 % of the Spiral Time), so Find Simulation lands a clip length; with the loop on the panel says there is nothing to time. URL keys `vxn vxs vxr vxd vxg vxl vxds`, a Vortex block in the Mode row |
+| **Viral video bot** | A **Viral video bot** block after the Batch block of the Recording section, a headless CLI and a scheduled job that make clips the way the accounts in [docs/virality-playbook.md](docs/virality-playbook.md) go viral (project.jdm, borisbounces, oddplayground): 15 recipes in three series – **escape** (ring escape, Pip escapes, grow until it fills, clone per pass, multipliers board, power layers), **rhythm** (pendulum wave, polyrhythm, drop symphony, glass smash) and **battle** (string battle, territory, battle royale, square race, maze race) – each a seeded settings generator over the existing settings with a one-line hook shown for the first 2–3 s inside the safe zone (never in the bottom 20 % or the right 12 % of the 1080×1920 frame), a visible countdown (wall counter, lives, layers, a percentage bar or a timer), neon on black with glow and trails, piano or xylophone notes on a scale with a climbing public-domain melody, and a recurring cast (Blaze, Wave, Volt, Moss, Nova, Tang; Pip, the ball with a face). The planner searches seeds with the seed finder's engine and predicates so the payoff lands in the last 10–20 % of the clip – or, for the “who won?” ending, 0.5–1 s after it ends –, alternates resolved and cliffhanger endings, fits the length bucket to the platform (Reels, TikTok, Shorts), scores every clip 0–100 against the playbook's checklist and shows **why this clip**; **Today's plan** is the same for the same date, never repeats a recipe two days in a row and rotates the series. **Render all** feeds the plan to the batch renderer and downloads a ZIP with every video, a caption file each (caption, 5–10 hashtags, posting notes), `manifest.json` and `posting-schedule.md`, in English, Polish or Spanish; `node scripts/viral-bot.mjs` does the same headless (`--dry-run` plans in Node) and `--post` / `--post-only` publish Reels through the Instagram Graph API; `.github/workflows/bot.yml` runs it daily |
 
 ## Getting started
 
@@ -85,6 +86,7 @@ npm run lint                               # eslint
 npm test                                   # vitest unit tests (engine, physics extras, ball interactions, obstacles, Ball Drop, Bouncing Shapes, MIDI parser, settings, hit samples, song slicer, scales, instruments, music bed, beat detection, beat clock, Picture Paint)
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
 npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first); MODES=drop npm run previews renders one mode
+npm run bot -- --count 3 --platform reels   # --- viral-bot --- plan, render and caption today's clips (build and `npm start` first; --dry-run needs neither)
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
 python3 scripts/generate-sounds.py         # regenerate the wall-break and hit sound effects
 ```
@@ -479,6 +481,96 @@ Feature boris-vortex: a Boris-family mode without rings that owns its playfield 
 - **Sound** – `src/lib/audio/pewTone.ts`: `schedulePewTone()` glides a main oscillator (`pewWaveform()` of the bounce instrument) and a sine sub an octave below exponentially down `PEW_TONE.drop` times over `PEW_TONE.duration`; `ToneGenerator.playPew()` snaps the start to the scale, places it on the beat grid without taking a bounce's slot, ducks the music bed, and plays the chosen wall-break clip instead when there is one. The page's sound loop and the fast export's `playSoundEvent()` route `ev.pew` to it; the ring notes are ordinary hits (melody, instrument, hit sample, beat lock, slicer).
 - **UI** – `components/simulator/vortexRenderer.ts` (`VortexLayer`): the funnel's depth gradient, four logarithmic whirlpool arms turning with the balls (their dashes flow inward), the rings (cyan at the rim to magenta by the hole with the rainbow walls, else the wall colour; a ring flashes and glows when a ball sinks past), the rim and the hole's lime lip under the balls; the throat's shade, note pulses and splashes (a ripple and droplets in the ball's colour, analytic on the simulation clock) over them; the title and the swallowed / pew counter at the top of the square, and a "PEW!" banner from the last swallow (`allSwallowed`) through the `SWALLOW_HOLD_SEC` hold before the end screen, so a recording ends on it. The canvas mirrors `data-vortex-*` (balls, entered, swallowed, in flight, notes, chords, rings, deepest ring, loop, tempo, depth, all swallowed, finished) for the smoke test. The panel block is `sections/VortexSection.tsx` (balls, stagger, rings, spiral time, pull, depth cue, loop and a run summary – or the endless note); a change of the funnel or the flight restarts the run and drops a found seed, the depth cue and the scale follow live. Settings `vxBalls` (URL `vxn`), `vxStagger` (`vxs`), `vxRings` (`vxr`), `vxDuration` (`vxd`), `vxGravity` (`vxg`), `vxLoop` (`vxl`), `vxDepthScale` (`vxds`), validated by `resolveVortexFields()`; the canvas words live in the `Vortex` namespace of `messages/*.json`.
 - **Tests** – `tests/vortex.test.ts`: settings / URL / presets, the funnel geometry, the matched spiral and the integrator's determinism, ring-crossing detection, the notes rising with depth, the pew's place in the event stream, its synthesis and the ToneGenerator's dispatch (scale, waveform, beat grid, wall-break clip), the banner flag and the hold before the end, the loop, resizes and the finder landing a 30 s seed; `tests/extras.test.ts` holds the fingerprint of the default run. The smoke test checks the card, the URL ↔ panel round trip, a run's notes and pews and its banner hold, the finder and the frame rate at 1080×1920.
+
+### Viral video bot
+Feature viral-bot: the owner asked for "a bot that makes videos like project.jdm and the other accounts that go viral". The
+research is [docs/virality-playbook.md](docs/virality-playbook.md); the bot is that playbook as code, in three layers around
+one planner. Everything is client-side or runs on your own machine / runner – there is no server.
+
+- **Playbook** – `src/lib/bot/playbook.ts` turns the playbook's recipe (§3) into data: the families (`escape`, `rhythm`,
+  `battle`), platforms and their length buckets (short 8–15 s, standard 15–30 s – the Reels default –, long 60–90 s), the safe
+  zone (`SAFE_ZONE`: clear of the bottom 20 % and the right 12 % of the 1080×1920 frame), the payoff band (80–90 % of the clip,
+  accepted up to 97 % for runs that end a second after their payoff; a cut clip ends 0.5–1 s before it), the look (the Neon
+  theme on black, glow, trails), the voices (piano: triangle bounces + plucked melody on a major scale; xylophone: marimba on a
+  pentatonic one), the climbing public-domain melodies, the recurring cast (`SERIES_ROSTER`: Blaze, Wave, Volt, Moss, Nova,
+  Tang; `MASCOT` Pip, the ball with a face), the checklist the score reads (`CHECKLIST`, 100 points) and the **recipes**:
+
+  | Recipe | Family | Mode | Countdown | Payoff | Where it comes from (playbook) |
+  | --- | --- | --- | --- | --- | --- |
+  | `ring-escape` – “Can it escape in 24 seconds?” | escape | Classic / Portal / Accumulation | wall counter | escape | the rule-in-one-second + countdown pattern (§1, §3.2–3.3) |
+  | `pip-escape` – “Pip always escapes. Day 12.” | escape | Portal / Classic, face + name | wall counter | escape | borisbounces' character and daily struggle |
+  | `grow-fill` – “It grows every bounce…” | escape | Grow | percentage bar | fill | oddplayground's “It starts tiny and gets out of control” |
+  | `clone-per-pass` – “Every escape spawns 3 more balls.” | escape | Multiply | timer | fill | the multiply / retention loop (§1) |
+  | `multipliers-board` – “x2 x4 x8… until it breaks.” | escape | Multipliers board | percentage bar | fill | borisbounces' multipliers |
+  | `power-layers` – “Every hit doubles the power.” | escape | Power Layers | the stack itself | escape | oddplayground's doubling layer breakers |
+  | `pendulum-wave` – “20 pendulums. Wait for the chord.” | rhythm | Pendulum Wave | percentage bar | flip (back in line) | project.jdm's pendulum waves (music-first) |
+  | `polyrhythm` – “12 rhythms. When do they all meet?” | rhythm | Polyrhythm | percentage bar | flip (all meet) | project.jdm's “Rhythm Theory” formats |
+  | `drop-symphony` – “18 balls. Every peg is a note.” | rhythm | Ball Drop | timer | fill | project.jdm's sound-first drops |
+  | `glass-smash` – “Pip vs 4 floors of glass.” | rhythm | Glass Smash, face + name | timer | shatter | borisbounces' “smash all of the glass” |
+  | `string-battle` – “4 lives each. Cut a string, cost a life.” | battle | String Battle | lives (HUD) | winner | oddplayground's Web Dominion hit |
+  | `territory` – “Pick a side: which colour takes the board?” | battle | Capture the Flag | timer | flip | oddplayground's pong-wars territory battles |
+  | `battle-royale` – “10 squares, one survivor. Pick yours now.” | battle | Battle Royale | hit points (HUD) | winner | project.jdm's square deathmatch (1,099 comments) |
+  | `square-race` – “6 squares. Which one finishes first?” | battle | Square Race | standings (HUD) | winner | project.jdm's races and recurring contestants |
+  | `maze-race` – “Which one finds the exit first?” | battle | Classic with 3–4 team balls | wall counter | winner | oddplayground's maze escapes |
+
+  Territory and the maze play in the closest existing modes (Capture the Flag, a Classic ring maze); when dedicated modes
+  land, point the recipe's `modes` and `settings()` at them.
+- **Planner** – `src/lib/bot/planner.ts`, pure and deterministic (seeded generators keyed by the inputs; the only date is the
+  one passed in). `planClip(recipe, planSeed, platform, options)` builds the settings (the mode's defaults, the look, the
+  voices, 1080×1920 at 60 fps, the recipe's seeded numbers, the Top Text series label), then searches physics seeds with the
+  seed finder's engine (`createEngineForSettings()` – `finderRequest.ts` rebuilds the page's physics config and mode settings
+  from the settings and the page canvas's world size, so a planned seed replays exactly in the fast export) and its
+  predicates (`outcomes.ts`: escapes-at for a resolved escape inside the last 20 %, never-escapes + escapes-at for a cut
+  0.5–1 s before it, winner for the races; the finder's duration search for the modes that end on their own; the fixed length of
+  Power Layers; the analytic cycle of the Pendulum Wave and Polyrhythm; a measured fill for Grow and Multiply). It models the
+  clip's real end (the run's own finish, the page's banner holds, the recorder's 0.5 s), fills the captions (the hook split into
+  one-line pills that fit the safe zone, the countdown, the payoff text or the closing question), the share link (with `seed=`,
+  which the page now pins) and the post (`copy.ts`: caption, specific question, keywords, 5–10 hashtags, posting note, in the
+  locale's `ViralBot` messages). Every accepted candidate is scored by `scoreClip()` (motion in the first second, hook present
+  and safe, visible countdown, payoff timing, length bucket vs platform, sound, ending, series, look – each with a reason) and
+  the best is kept. `planDay(date, platform, count)` rotates the leading family daily and splits every family into two halves
+  that alternate by day, so no recipe runs two days in a row whatever the count; endings alternate clip by clip. The search is a
+  generator (`planClipSteps`, `planDaySteps`) so the page runs it in slices.
+- **Bot section** – `components/simulator/sections/BotSection.tsx` (search key `BOT_KEYS`, after the Batch block) and
+  `components/simulator/useViralBot.ts`: platform, count 1–20, series, length and ending; **Plan clips** (a fresh set with these
+  filters) and **Today's plan** (the day's own, the one the CLI and the job make); per clip the recipe, hook, mode, seed, length,
+  ending, score and **why this clip**, **Open in simulator** (the settings through the preset loader, the melody, the seed pinned
+  like a found simulation), **Re-roll** and **Copy caption**; **Render all** hands the plan to the batch renderer
+  (`useBatchRender`'s `runJobs()` – a small hook: jobs with their own settings, seed, name and a `prepare()` that loads the
+  melody) and downloads `jumpingballslive-bot-<date>.zip` with the videos (`<episode>-<recipe>-<seed>.mp4|webm`), a caption
+  `.txt` each, `manifest.json` and `posting-schedule.md` (`output.ts`). The last plan is kept in localStorage (`store.ts`,
+  `jumpingballslive_viral_bot`). Plans are timed for the canvas size they were made in: after a resize the block asks to plan again.
+- **CLI** – `node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]
+  [--bucket standard] [--ending resolved] [--locale pl] [--dry-run] [--post | --post-only]` (also `npm run bot -- …`). With the
+  exported site served (`BASE_URL`), it opens the simulator in headless Chromium, plans through `window.__jumpingBallsBot` in
+  the page's world, renders every clip with the fast export and saves the videos, caption files, `manifest.json` and
+  `posting-schedule.md`. `--dry-run` plans in Node instead (the same planner bundled from `src/lib/bot/node.ts` with esbuild)
+  and writes only the text files. It never posts without `--post` (render and post) or `--post-only` (post what `--out` holds,
+  after you uploaded it); both need `IG_USER_ID`, `IG_ACCESS_TOKEN` (a long-lived token with `instagram_basic` and
+  `instagram_content_publish`) and `BOT_VIDEO_BASE_URL` (the public HTTPS folder Instagram downloads the MP4s from), optionally
+  `IG_GRAPH_VERSION` / `IG_GRAPH_HOST` – see `.env.example`; keep them in `.env.local` or secrets, never in the repository.
+  Publishing (`src/lib/bot/instagram.ts`, pure request builders and a flow with an injected `fetch`) creates a `REELS` media
+  container from the video URL, polls its `status_code` until `FINISHED` and publishes it; a failure names its step, hides the
+  token and prints the manual upload steps. Instagram takes MP4 (H.264 + AAC): a Chromium without an H.264 encoder renders WebM,
+  which the CLI will not post.
+- **Scheduled job** – `.github/workflows/bot.yml`: every day at 05:47 UTC and by hand (inputs `count`, `platform`, `post`) it
+  installs, builds with the Pages base path, serves `out/`, runs the CLI and uploads `bot-output` as an artifact kept 14 days.
+  It posts only when run by hand with `post` ticked and the `IG_USER_ID`, `IG_ACCESS_TOKEN` and `BOT_VIDEO_BASE_URL` secrets
+  plus a `BOT_UPLOAD_COMMAND` repository variable (the command that uploads `bot-output` to that public folder, e.g.
+  `aws s3 sync bot-output s3://my-bucket/bot --acl public-read` with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets) exist;
+  otherwise it warns and the clips wait in the artifact with their posting schedule.
+- **Add a recipe** – append a `BotRecipe` to `RECIPES` in `playbook.ts`: `id`, `copyKey`, `family`, `modes`, `payoff`,
+  `countdown` (`caption` or the mode's `hud`), `strategy` (how the payoff is timed), optionally `teams`, `character`,
+  `musicFirst`, `endings` and `buckets` (what the mode can fill), a `settings(ctx)` generator that keeps every value on its
+  `RANGES` step (use `ctx.rng`, `ctx.bucket` and `ctx.payoffTarget`) and `hookVars()`; then add its copy under
+  `ViralBot.recipes.<copyKey>` in the three messages files (`name`, `series`, `hook`, `payoff`, `cliffQuestion`, `postQuestion`,
+  `cliffPostQuestion`, `keywords`, `hashtags`, optionally `cliffHook`). `tests/bot.test.ts` checks every recipe against `RANGES`
+  for many seeds, the copy in three languages and the safe zone; update the recipe table above and the playbook's §5.
+- **Tests and checks** – `tests/bot.test.ts` (recipes vs RANGES, determinism of planClip / planDay, the daily rotation, the
+  score item by item, the safe zone, captions and hashtags per locale, the manifest, caption files and schedule),
+  `tests/instagram.test.ts` (the request builders and the publishing flow with a mocked `fetch`), `tests/botCli.test.ts` (the
+  options and a real `--dry-run` in Node); the smoke test plans three clips in the Bot block, reloads, opens one, and renders a
+  one-clip short plan into a ZIP it reads back.
 
 ### Rebrand
 Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.

@@ -46,6 +46,7 @@ import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattle
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
+import BotSection, { BOT_KEYS, type BotPanelProps } from "./sections/BotSection"; // --- viral-bot ---
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
 import type { ProjectPanelProps } from "./useProjectFiles";
@@ -135,6 +136,8 @@ export interface ControlsProps {
   project?: ProjectPanelProps;
   /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
   batch?: BatchPanelProps;
+  /** --- viral-bot --- the Viral video bot block after it: plans, scores and renders clips (left out without it). */
+  bot?: BotPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -187,6 +190,8 @@ SECTION_KEYS.recording.push(...BATCH_KEYS);
 SECTION_KEYS.ball.push(...JDM_RHYTHM_KEYS);
 // --- boris-vortex --- the Vortex block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...VORTEX_KEYS);
+// --- viral-bot --- the Viral video bot block comes after the Batch block in the Recording section.
+SECTION_KEYS.recording.push(...BOT_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -1064,6 +1069,7 @@ export default function Controls(props: ControlsProps) {
       {/* --- fast-render --- the fast export's frame rate */}
       <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
       {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
+      {props.bot && <BotSection t={t} search={search} matches={matches} bot={props.bot} /> /* --- viral-bot --- */}
     </div>
   );
 

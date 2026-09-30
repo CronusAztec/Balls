@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke-test.mjs",
-    "previews": "node scripts/generate-mode-previews.mjs"
+    "previews": "node scripts/generate-mode-previews.mjs",
+    "bot": "node scripts/viral-bot.mjs"
   },
   "dependencies": {
     "mp4-muxer": "^5.2.2",

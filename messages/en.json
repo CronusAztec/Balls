@@ -1366,7 +1366,9 @@
     "vxLoop": "Respawn Loop",
     "vxLoopTip": "A swallowed ball comes straight back at the rim, so the vortex never ends – great for long loops, but Find Simulation has nothing to time.",
     "vxRunInfo": "{notes} ring notes; the run lasts about {seconds}s (the seed's tempo: {min}–{max}s), so Find Simulation can hit a length in that band.",
-    "vxRunEndless": "Respawn Loop is on: the balls come back forever, so the run never ends and Find Simulation is hidden. Switch the loop off to search a seed for your clip length."
+    "vxRunEndless": "Respawn Loop is on: the balls come back forever, so the run never ends and Find Simulation is hidden. Switch the loop off to search a seed for your clip length.",
+    "viralBot": "Viral video bot",
+    "viralBotTip": "Plans clips after the playbook of the accounts that go viral (a one-line hook, a countdown, the payoff in the last seconds, alternating endings), scores each one, renders them all with the fast export and downloads a ZIP with the videos, captions, a manifest and a posting schedule."
   },
   "Modes": {
     "classic": {
@@ -2160,5 +2162,320 @@
     "canvasPews": "[count] × PEW",
     "canvasDone": "PEW!",
     "canvasDoneSub": "[balls] balls swallowed · [notes] notes"
+  },
+  "ViralBot": {
+    "title": "Viral video bot",
+    "intro": "Plans clips the way the accounts that go viral make them (docs/virality-playbook.md): a one-line rule in the first seconds, a countdown on screen, the payoff in the last seconds, endings that alternate – scored, rendered and captioned.",
+    "platform": "Platform",
+    "platforms": {
+      "reels": "Reels",
+      "tiktok": "TikTok",
+      "shorts": "Shorts"
+    },
+    "count": "Clips",
+    "family": "Series",
+    "familyAll": "All series",
+    "families": {
+      "escape": "Escape",
+      "rhythm": "Rhythm",
+      "battle": "Battle"
+    },
+    "bucket": "Length",
+    "buckets": {
+      "auto": "Platform default",
+      "short": "Short 8–15 s",
+      "standard": "Standard 15–30 s",
+      "long": "Long 60–90 s"
+    },
+    "ending": "Ending",
+    "endings": {
+      "auto": "Alternate",
+      "resolved": "Resolved",
+      "cliffhanger": "Cliffhanger"
+    },
+    "planClips": "Plan clips",
+    "today": "Today's plan",
+    "planning": "Planning clip {current} of {total} · {seeds} seeds tested",
+    "cancel": "Cancel",
+    "empty": "No plan yet: plan clips with these settings, or take today's plan (the one the CLI and the scheduled job make).",
+    "planFor": "{count} clips · {date} · {platform}",
+    "open": "Open in simulator",
+    "reroll": "Re-roll",
+    "renderAll": "Render all",
+    "rendering": "Rendering clip {current} of {total}…",
+    "renderDone": "{done} of {total} clips rendered – the ZIP with videos, captions, manifest.json and posting-schedule.md is downloading.",
+    "renderFailed": "No clip could be rendered.",
+    "stop": "Stop after this clip",
+    "why": "Why this clip",
+    "score": "Score",
+    "seed": "Seed {seed}",
+    "length": "{sec} s",
+    "closest": "No seed met the timing – closest run kept.",
+    "clear": "Clear plan",
+    "copyCaption": "Copy caption",
+    "copied": "Copied!",
+    "unsupported": "Rendering needs WebCodecs (Chrome, Edge or Safari); planning works everywhere.",
+    "busy": "Busy – wait for the recording, search or export to finish.",
+    "worldChanged": "The simulator was resized since this plan was made: its seeds were timed for the old canvas – plan again for exact timing.",
+    "notes": "Endings alternate so you can compare them in Insights; post a new hook as a Trial Reel first.",
+    "countdown": {
+      "walls": "🧱 [n]/[total]",
+      "timer": "⏱ [time]",
+      "percent": "[pct]",
+      "lives": "lives",
+      "layers": "layers"
+    },
+    "payoffTypes": {
+      "escape": "escape",
+      "fill": "fill",
+      "shatter": "shatter",
+      "winner": "winner",
+      "flip": "flip",
+      "cliffhanger": "cliffhanger"
+    },
+    "reasons": {
+      "motionOk": "Moving from frame one – first impact at {sec} s.",
+      "motionLate": "First impact only at {sec} s – the first second is quiet.",
+      "motionSlow": "Nothing happens until {sec} s – viewers scroll away.",
+      "motionUnknown": "First impact not measured.",
+      "hookOk": "Hook on screen for the first seconds, clear of the platform UI: “{text}”.",
+      "hookTiming": "Hook inside the safe zone, but not shown for 2–3 s from the start.",
+      "hookUnsafe": "Hook runs into the bottom 20 % or the right 12 % of the frame.",
+      "hookMissing": "No hook text – a silent viewer does not know the rule.",
+      "countdownCaption": "Countdown on screen ({kind}).",
+      "countdownHud": "The mode shows the countdown itself ({kind}).",
+      "countdownUnsafe": "Countdown caption partly outside the safe zone.",
+      "countdownMissing": "No visible countdown to the payoff.",
+      "payoffOk": "Payoff at {sec} s – {pct} % into the clip.",
+      "payoffTight": "Payoff at {sec} s – {pct} % in, a tight loop.",
+      "payoffOff": "Payoff at {sec} s – {pct} % in, outside the last 20 %.",
+      "payoffMissing": "No payoff inside the clip.",
+      "payoffCut": "Cut {gap} s before the payoff – the “who won?” ending.",
+      "payoffCutFar": "Cut {gap} s before the payoff – a little early.",
+      "payoffCutWrong": "The cut does not fall right before the payoff.",
+      "payoffNever": "The payoff never comes inside the clip.",
+      "lengthOk": "{sec} s – inside the {min}–{max} s bucket for this platform.",
+      "lengthPlatform": "{sec} s – inside the bucket, but the bucket does not suit this platform.",
+      "lengthOut": "{sec} s – outside the {min}–{max} s bucket.",
+      "soundOk": "A note on every bounce on a scale, with a melody.",
+      "soundFlat": "Sound without a melody or a scale.",
+      "endingLoop": "Ends {tail} s after the payoff – loops cleanly back to the start.",
+      "endingLongTail": "{tail} s of tail after the payoff – the loop is lost.",
+      "endingQuestion": "Ends on a question – made for the comments.",
+      "endingNoQuestion": "Cut short without a question on screen.",
+      "seriesOk": "Part of a series: “{label}”, recurring cast.",
+      "seriesWeak": "Weak series continuity (label or cast missing).",
+      "lookOk": "Neon on black, glow and trails.",
+      "lookOff": "Not the neon-on-black look."
+    },
+    "checklist": {
+      "motion": "Motion",
+      "hook": "Hook",
+      "countdown": "Countdown",
+      "payoff": "Payoff",
+      "length": "Length",
+      "sound": "Sound",
+      "ending": "Ending",
+      "series": "Series",
+      "look": "Look"
+    },
+    "post": {
+      "seriesLabel": "{series} · Day {episode}",
+      "noteTime": "Post at {time} on {platform}, when your audience is online.",
+      "noteResolved": "Resolved ending: it loops – watch the rewatch rate and the sends.",
+      "noteCliff": "Cliffhanger ending: pin a comment with the answer after an hour and reply to the guesses.",
+      "noteAnswer": "Answer to pin later: {answer}.",
+      "noteReplies": "Reply to comments in the first hour.",
+      "noteLength": "Length: {bucket}.",
+      "noteTrial": "A new hook? Post it as a Trial Reel first."
+    },
+    "hashtags": {
+      "common": "#bouncingball #physicssimulation #satisfying #oddlysatisfying #simulation #asmr #satisfyingvideos",
+      "escape": "#escape #ballescape",
+      "rhythm": "#polyrhythm #mathart",
+      "battle": "#ballbattle #whowins"
+    },
+    "manual": {
+      "title": "Posting by hand",
+      "steps": "1. Open Instagram and tap + → Reel. 2. Pick the video. 3. Paste the caption from the .txt file (it ends with the hashtags). 4. Set the cover to a frame near the start. 5. Share at the suggested time – as a Trial Reel for a new hook – and reply to comments for the first hour."
+    },
+    "schedule": {
+      "title": "Posting schedule",
+      "intro": "Planned by the JumpingBallsLive viral video bot for {date} ({platform}). Endings alternate so resolved and cliffhanger clips can be compared.",
+      "time": "Time",
+      "file": "File",
+      "recipe": "Recipe",
+      "ending": "Ending",
+      "score": "Score",
+      "hook": "Hook"
+    },
+    "recipes": {
+      "ringEscape": {
+        "name": "Ring escape",
+        "series": "Ring Escape",
+        "hook": "Can it escape in {seconds} seconds?",
+        "payoff": "ESCAPED! 🔓",
+        "cliffQuestion": "Did it make it? 👇",
+        "postQuestion": "How many walls did you think it would get through?",
+        "cliffPostQuestion": "Escape or not? Guess before the answer drops 👇",
+        "keywords": "A bouncing ball escape: a physics simulation with rotating rings, one gap each and a piano note on every bounce.",
+        "hashtags": "#ringescape #bouncingballescape #canitescape"
+      },
+      "pipEscape": {
+        "name": "Pip escapes",
+        "series": "Pip Escapes",
+        "hook": "Pip always escapes. Day {episode}.",
+        "cliffHook": "Pip always escapes… right?",
+        "payoff": "FREE! Pip made it 🎉",
+        "cliffQuestion": "Will Pip make it? 👇",
+        "postQuestion": "Which wall was the hardest for Pip?",
+        "cliffPostQuestion": "Does Pip get out today? Yes or no 👇",
+        "keywords": "Pip the bouncing ball with a face escapes rotating rings – a new struggle every day in this satisfying physics simulation.",
+        "hashtags": "#pip #bouncingcharacter #dailystruggle"
+      },
+      "growFill": {
+        "name": "Grow until it fills",
+        "series": "Grow",
+        "hook": "It grows every bounce. Watch it fill the ring.",
+        "payoff": "FULL. 😮",
+        "cliffQuestion": "Does it fit? 👇",
+        "postQuestion": "At what size did you start holding your breath?",
+        "cliffPostQuestion": "Does it fill the whole ring or get stuck? 👇",
+        "keywords": "A growing ball in a physics simulation: every bounce makes it bigger until it fills the circle.",
+        "hashtags": "#growingball #itstartstiny #fillthecircle"
+      },
+      "clonePerPass": {
+        "name": "Clone per pass",
+        "series": "Clone Loop",
+        "hook": "Every escape spawns {count} more balls.",
+        "payoff": "It never stops. 🤯",
+        "cliffQuestion": "How many now? 👇",
+        "postQuestion": "Guess how many balls there were at the end.",
+        "cliffPostQuestion": "How many balls before the screen is full? 👇",
+        "keywords": "A multiplying ball simulation: every ball that escapes the ring comes back as clones until the screen fills up.",
+        "hashtags": "#multiplyingballs #chainreaction #exponential"
+      },
+      "multipliersBoard": {
+        "name": "Multipliers board",
+        "series": "x2 Board",
+        "hook": "x2 x4 x8… until it breaks.",
+        "payoff": "IT BROKE. 💥",
+        "cliffQuestion": "How many make it home? 👇",
+        "postQuestion": "What was the biggest multiplier you saw?",
+        "cliffPostQuestion": "Final count – higher or lower than 500? 👇",
+        "keywords": "A multiplier board simulation: balls fall through x2 and x4 gates and multiply until the board overflows.",
+        "hashtags": "#multiplier #plinko #x2"
+      },
+      "powerLayers": {
+        "name": "Power layers",
+        "series": "Power Layers",
+        "hook": "Every hit doubles the power. {layers} layers to go.",
+        "payoff": "FREEDOM 🌈",
+        "cliffQuestion": "One more hit? 👇",
+        "postQuestion": "How many hits did it take to break {layers} layers?",
+        "cliffPostQuestion": "How many hits to break through? Guess 👇",
+        "keywords": "A ball smashes a rainbow stack of layers and its power doubles on every hit – a satisfying layer-breaking simulation.",
+        "hashtags": "#powerlayers #itdoubles #rainbowlayers"
+      },
+      "pendulumWave": {
+        "name": "Pendulum wave",
+        "series": "Pendulum Sessions",
+        "hook": "{count} pendulums. Wait for the chord.",
+        "payoff": "Back in line. 🎼",
+        "cliffQuestion": "Do they line up? 👇",
+        "postQuestion": "At what second did you spot the pattern?",
+        "cliffPostQuestion": "Do they come back in line? Guess the second 👇",
+        "keywords": "A pendulum wave: {count} pendulums of different lengths drift into waves and come back in line, every swing a note.",
+        "hashtags": "#pendulumwave #harmonicmotion #physicsart"
+      },
+      "polyrhythm": {
+        "name": "Polyrhythm",
+        "series": "Polyrhythm Sessions",
+        "hook": "{count} rhythms. When do they all meet?",
+        "payoff": "All together. 🔔",
+        "cliffQuestion": "When do they meet? 👇",
+        "postQuestion": "Which ring did you follow the whole time?",
+        "cliffPostQuestion": "Guess the second they all hit together 👇",
+        "keywords": "A polyrhythm visualiser: {count} voices tick at their own tempos and meet again at the end of the cycle.",
+        "hashtags": "#polyrhythm #rhythm #musictheory"
+      },
+      "dropSymphony": {
+        "name": "Drop symphony",
+        "series": "Drop Symphony",
+        "hook": "{count} balls. Every peg is a note.",
+        "payoff": "Final chord. 🎹",
+        "cliffQuestion": "Last ball in? 👇",
+        "postQuestion": "Which ball had the best line?",
+        "cliffPostQuestion": "Which one lands last? 👇",
+        "keywords": "Balls of different sizes fall through a board of pegs and every hit plays a note – a physics symphony.",
+        "hashtags": "#balldrop #pegboard #physicsmusic"
+      },
+      "glassSmash": {
+        "name": "Glass smash",
+        "series": "Pip vs Glass",
+        "hook": "Pip vs {stages} floors of glass.",
+        "payoff": "HOME! 🏠",
+        "cliffQuestion": "Will the glass hold? 👇",
+        "postQuestion": "Which floor was the toughest?",
+        "cliffPostQuestion": "Does Pip get home? Yes or no 👇",
+        "keywords": "Pip the bouncing ball smashes floors of glass on the way home, every crack a piano note.",
+        "hashtags": "#glasssmash #glassbreaking #asmrglass"
+      },
+      "stringBattle": {
+        "name": "String battle",
+        "series": "String Wars",
+        "hook": "{lives} lives each. Cut a string, cost a life.",
+        "payoff": "{winner} wins! 🏆",
+        "cliffQuestion": "Who survives? 👇",
+        "postQuestion": "Who were you rooting for?",
+        "cliffPostQuestion": "Who wins – Blaze, Wave, Volt or Moss? 👇",
+        "keywords": "A string battle simulation: numbered balls drag glowing strings and cut each other's until one is left.",
+        "hashtags": "#stringbattle #lastonestanding #webbattle"
+      },
+      "territory": {
+        "name": "Territory",
+        "series": "Territory",
+        "hook": "Pick a side: which colour takes the board?",
+        "payoff": "Board taken! 🏁",
+        "cliffQuestion": "Which colour wins? 👇",
+        "postQuestion": "Which side did you pick before it started?",
+        "cliffPostQuestion": "{a} or {b}? Pick a side 👇",
+        "keywords": "Two colours fight for the board in a capture-the-flag physics simulation – pick a side before it starts.",
+        "hashtags": "#pickaside #capturetheflag #colorbattle"
+      },
+      "battleRoyale": {
+        "name": "Battle royale",
+        "series": "Square Deathmatch",
+        "hook": "{count} squares, one survivor. Pick yours now.",
+        "payoff": "Last one standing! 👑",
+        "cliffQuestion": "Who's left? 👇",
+        "postQuestion": "Did your square make the final two?",
+        "cliffPostQuestion": "Who takes it? Comment your pick 👇",
+        "keywords": "A bouncing square battle royale: squares with hit points collide in a shrinking arena until one survives.",
+        "hashtags": "#battleroyale #squaredeathmatch #lastsquarestanding"
+      },
+      "squareRace": {
+        "name": "Square race",
+        "series": "Square Grand Prix",
+        "hook": "{count} squares. Which one finishes first?",
+        "payoff": "Photo finish! 🏁",
+        "cliffQuestion": "Who crosses first? 👇",
+        "postQuestion": "Who was your pick at the start?",
+        "cliffPostQuestion": "Who wins the race? 👇",
+        "keywords": "A marble-style square race down a physics track with pegs, bumpers and swaps – recurring racers every episode.",
+        "hashtags": "#marblerace #squarerace #racing"
+      },
+      "mazeRace": {
+        "name": "Maze race",
+        "series": "Ring Maze",
+        "hook": "Which one finds the exit first?",
+        "payoff": "{winner} found the exit! 🚪",
+        "cliffQuestion": "Who gets out first? 👇",
+        "postQuestion": "Did your colour find the way out?",
+        "cliffPostQuestion": "Blaze, Wave, Volt or Moss – who's out first? 👇",
+        "keywords": "Coloured balls race through rotating rings with one gap each – which one finds the exit first?",
+        "hashtags": "#mazerace #ringmaze #whowillwin"
+      }
+    }
   }
 }
