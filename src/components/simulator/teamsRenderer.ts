@@ -27,6 +27,9 @@ export interface TeamLabels {
   bounces: string;
   walls: string;
   escapes: string;
+  /** --- review fix (modes-boris-odd) --- the String Battle's words for its "walls" and "escapes" columns: its kills and its win. */
+  kills: string;
+  win: string;
   /** "[name] wins!" with the name filled in. */
   wins: (name: string) => string;
   tie: string;
@@ -148,6 +151,8 @@ export class TeamLayer {
   private battleSource: CanvasTeamOptions | null = null;
   private battleKey = "";
   private battleOptions: CanvasTeamOptions | null = null;
+  /** --- review fix (modes-boris-odd) --- the roster plays a String Battle: its kills and its win head the scoreboard and fill the banner. */
+  private battle = false;
 
   isActive() {
     return this.active;
@@ -184,6 +189,12 @@ export class TeamLayer {
       this.options = next;
       this.layout = null;
       this.rebuildTexts();
+    }
+    // --- review fix (modes-boris-odd) --- the battle's own column headers and banner words: measured and written again when it changes
+    if (!!battle !== this.battle) {
+      this.battle = !!battle;
+      this.layout = null;
+      if (this.result && this.options) this.makeBannerTexts();
     }
     this.labelled = 0;
     this.labelsDrawn = 0;
@@ -406,8 +417,8 @@ export class TeamLayer {
     const nameW = Math.max(0, ...names.map((n) => measure(nameFont, n)));
     const digits = measure(numFont, "000");
     const colB = Math.max(digits, measure(headFont, L.bounces)) + 0.9 * fs;
-    const colW = Math.max(digits, measure(headFont, L.walls)) + 0.9 * fs;
-    const colE = Math.max(digits, measure(headFont, L.escapes)) + 0.9 * fs;
+    const colW = Math.max(digits, measure(headFont, this.battle ? L.kills : L.walls)) + 0.9 * fs; // --- review fix (modes-boris-odd) --- (the battle's kills and win)
+    const colE = Math.max(digits, measure(headFont, this.battle ? L.win : L.escapes)) + 0.9 * fs;
     const pad = Math.round(0.6 * fs);
     const rowH = Math.round(1.6 * fs);
     const icon = 1.2 * fs;
@@ -459,8 +470,8 @@ export class TeamLayer {
     ctx.font = lay.headFont;
     ctx.fillStyle = "#a1a1aa";
     ctx.fillText(L.bounces, xB, headY);
-    ctx.fillText(L.walls, xW, headY);
-    ctx.fillText(L.escapes, xE, headY);
+    ctx.fillText(this.battle ? L.kills : L.walls, xW, headY); // --- review fix (modes-boris-odd) --- (the battle's kills and win)
+    ctx.fillText(this.battle ? L.win : L.escapes, xE, headY);
     // Rows in ranking order, the leader highlighted in its colour once it has scored.
     for (let r = 0; r < order.length; r++) {
       const i = order[r];
@@ -520,7 +531,8 @@ export class TeamLayer {
     const emoji = this.texts.emojis[r.winner];
     this.bannerTitle = `🏆 ${emoji ? `${emoji} ` : ""}${L.wins(this.texts.names[r.winner])}`;
     const s = this.frozen[r.winner];
-    this.bannerSub = `${L.escapes} ${s.escapes} · ${L.walls} ${s.walls} · ${L.bounces} ${s.bounces}`;
+    // --- review fix (modes-boris-odd) --- a String Battle counts kills (its "walls"); nothing escaped
+    this.bannerSub = this.battle ? `${L.kills} ${s.walls} · ${L.bounces} ${s.bounces}` : `${L.escapes} ${s.escapes} · ${L.walls} ${s.walls} · ${L.bounces} ${s.bounces}`;
   }
 
   private drawBanner(ctx: CanvasRenderingContext2D, cx: number, cy: number, side: number) {

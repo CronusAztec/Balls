@@ -403,3 +403,16 @@ describe("clone colours", () => {
     expect(colors.size).toBeLessThanOrEqual(CLONE_COLORS.length + 1);
   });
 });
+
+describe("review fix (modes-boris-odd): a ball grown by size gates", () => {
+  it("outgrows the board when it wedges between the rows, instead of silently vanishing as a lost ball", { timeout: 120_000 }, () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = board({ rows: 20, gateMix: "001000", startBalls: 1, maxBalls: 200 }, seed, { width: 800, height: 600 });
+      runOut(engine, 400);
+      const label = `seed ${seed}`;
+      expect(engine.isSimulationFinished(), label).toBe(true);
+      expect(engine.getMultiplierView().outgrown, label).toBe(true);
+      expect(engine.getMultipliersView().lost, label).toBe(0);
+    }
+  });
+});

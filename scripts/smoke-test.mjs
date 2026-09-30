@@ -6397,6 +6397,60 @@ const bdInstrument = () =>
 }
 // --- end beat-drop ---
 
+// --- review fix (modes-boris-odd) ---
+// 1. The camera's slow motion stretches the real time a run takes (data-camera-slow-lag): a recording is extended by the lag it
+// adds, so it is still running when its length of wall time is up. 2. The top captions start below a mode's own top HUD
+// (data-caption-mode-hud) in Power Layers, Glass Smash, String Battle and on the multipliers board. 3. With a team roster and
+// the HUD off, the String Battle's warning badge takes the top-right corner (the scoreboard has the top-left one).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=8`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const lagNow = () => page.evaluate(() => Number(document.querySelector("main canvas")?.dataset.cameraSlowLag ?? 0));
+  const lag0 = await lagNow();
+  const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+  const t0 = Date.now();
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  await page.waitForTimeout(Math.max(0, 8150 - (Date.now() - t0)));
+  const extra = (await lagNow()) - lag0;
+  const recording = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+  const download = await downloadWait;
+  const wallMs = Date.now() - t0;
+  check(
+    "a recording is extended by the real time the slow motion added, so the clip covers its length of the run",
+    !!download && (extra > 1000 ? recording && wallMs > 8000 + 0.8 * extra : true),
+    `(slow motion added ${extra} ms by the clip length, recording then=${recording}, download after ${wallMs} ms${extra > 1000 ? "" : " – too little slow motion to tell"})`,
+  );
+}
+{
+  const cap = encodeURIComponent("cd*t*0*0*p*1.2*ffffff*000000,q*t*0*0*p*1.3*ffffff*000000*Who will win this battle?*ACID");
+  const rows = [];
+  for (const mode of ["powerLayers&plb=both", "glass", "stringBattle", "multipliers&mpsb=3"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}&cap=${cap}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(800);
+    const d = await canvasData();
+    const [stackTop] = (d.captionStack ?? "").split(",").map(Number);
+    const hud = Number(d.captionModeHud);
+    rows.push({ mode, stackTop, hud, ok: Number(d.captions) >= 1 && hud > 0 && stackTop > hud });
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-captions-below-mode-hud.png") });
+  check("the top captions start below the mode's own top HUD (Power Layers, Glass Smash, String Battle, multipliers)", rows.every((r) => r.ok), `(${JSON.stringify(rows)})`);
+}
+{
+  const corner = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=stringBattle&${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    const d = await canvasData();
+    return { badge: d.sbBadge, right: d.sbBadgeRight, scoreboard: d.scoreboard ?? "" };
+  };
+  const roster = await corner(`sbh=0&teams=${encodeURIComponent("Red*ef4444*x,Blue*3b82f6*y")}`);
+  const plain = await corner("sbh=0");
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-badge-corner.png") });
+  check("the String Battle's warning badge moves to the top-right corner when the teams scoreboard takes the top-left one", roster.badge === "1" && roster.right === "1" && plain.badge === "1" && plain.right === "0", `(${JSON.stringify({ roster, plain })})`);
+}
+// --- end review fix (modes-boris-odd) ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

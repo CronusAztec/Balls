@@ -107,6 +107,8 @@
     "canvasTeamBounces": "Odbicia",
     "canvasTeamWalls": "Ściany",
     "canvasTeamEscapes": "Ucieczki",
+    "canvasTeamKills": "Eliminacje",
+    "canvasTeamWin": "Wygrana",
     "canvasTeamWins": "Wygrywa: [name]!",
     "canvasTeamTie": "Remis!",
     "canvasTeamFallback": "Drużyna [n]",

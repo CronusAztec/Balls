@@ -906,6 +906,13 @@ export class MultipliersMode implements GameMode {
       // Waiting in a door's cup counts at a quarter of the rate (the door opens every couple of seconds; the stuck
       // limit is only a safety net that makes sure every run ends).
       this.stuck[id] += this.waitingAtDoor(board, b, t) ? dtMs / 4 : dtMs;
+      // --- review fix (modes-boris-odd) --- a ball grown by size gates wedges between the rows long before it is as wide as
+      // the board: stuck for good, it has outgrown the board (the run ends with the celebration) instead of silently vanishing
+      if (this.stuck[id] >= STUCK_GIVEUP_MS && b.mult && b.mult.size > 1 && runtime) {
+        runtime.outgrow(ctx, b, half);
+        b.x = (board.left + board.right) / 2;
+        return;
+      }
       if (this.stuck[id] >= STUCK_GIVEUP_MS) {
         this.state[id] = 2;
         this.removals++;

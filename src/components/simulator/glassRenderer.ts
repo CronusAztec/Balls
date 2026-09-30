@@ -360,15 +360,20 @@ export function drawGlassShards(ctx: CanvasRenderingContext2D, view: GlassView, 
   ctx.restore();
 }
 
-/** Screen space: the stage dots over the shaft and the "STAGE n" banner when a stage begins. */
-export function drawGlassOverlay(ctx: CanvasRenderingContext2D, view: GlassView, opts: GlassRenderOptions) {
+/**
+ * Screen space: the stage dots over the shaft and the "STAGE n" banner when a stage begins. Returns the screen y of the dots'
+ * bottom edge (0: no dots), which the top captions start below.
+ */
+export function drawGlassOverlay(ctx: CanvasRenderingContext2D, view: GlassView, opts: GlassRenderOptions): number {
   const level = view.level;
-  if (!level) return;
+  if (!level) return 0;
   const f = level.field;
   const n = level.stages.length;
+  let topBottom = 0; // --- review fix (modes-boris-odd) --- the dots' bottom, for the captions
   ctx.save();
   if (n > 1) {
     const r = Math.max(2.5, 0.007 * f.height);
+    topBottom = f.top + 4 * r;
     const gap = 3.6 * r;
     const y = f.top + 3 * r;
     const x0 = f.cx - ((n - 1) * gap) / 2;
@@ -413,4 +418,5 @@ export function drawGlassOverlay(ctx: CanvasRenderingContext2D, view: GlassView,
     ctx.fillText(text, f.cx, y);
   }
   ctx.restore();
+  return topBottom;
 }

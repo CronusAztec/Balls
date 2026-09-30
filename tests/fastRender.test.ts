@@ -6,6 +6,7 @@ import {
   END_STOP_DELAY_MS,
   EXPORT_SAMPLE_RATE,
   ExportEndTracker,
+  NO_END_HOLDS,
   SIM_FRAME_MS,
   audioChunks,
   audioFrameCount,
@@ -37,7 +38,8 @@ import { playSoundEvent } from "@/lib/recording/fastRender";
 import { clockedAudioContext } from "@/lib/audio/offlineContext";
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { HitSampler } from "@/lib/audio/sampler";
-import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { maxSlowLagMs } from "@/lib/simulation/camera";
 import type { SoundEvent } from "@/lib/physics/types";
 
 describe("fast export: frames and time", () => {
@@ -97,6 +99,42 @@ describe("fast export: the end of the clip (the page's recorder rule)", () => {
     const { tracker, frames } = play(10_000, () => ({ finished: false }));
     expect(tracker.finishedAt).toBeNull();
     expect(frames).toBe(600);
+  });
+
+  it("--- review fix (modes-boris-odd) --- extends the clip by the slow motion's lag while the run goes on, up to the cap", () => {
+    // A run slowed down to 0.5× for its first 4 s of real time (2 s of lag), finishing 1 s after the clip length's worth of run.
+    const lagAt = (t: number) => Math.min(t, 4000) / 2;
+    const tracker = new ExportEndTracker(10_000);
+    let last = 0;
+    for (let j = 0; j < 100_000; j++) {
+      const t = simFrameTimeMs(j);
+      if (j > 0 && t >= tracker.endMs) break;
+      const finished = t - lagAt(t) >= 11_000;
+      tracker.frame(t, finished, false, NO_END_HOLDS, lagAt(t));
+      last = t;
+    }
+    expect(tracker.finishedAt).toBeNull(); // 12 s (10 s + 2 s of lag) of export clock: the run is 10 s in, not over
+    expect(tracker.endMs).toBeCloseTo(12_000, 6);
+    expect(last).toBeLessThan(12_000);
+    // Finished before the extended end: it stops half a second after the finish, and the lag stops counting once it is over.
+    const done = new ExportEndTracker(10_000);
+    for (let j = 0; j < 100_000; j++) {
+      const t = simFrameTimeMs(j);
+      if (j > 0 && t >= done.endMs) break;
+      done.frame(t, t >= 11_000, false, NO_END_HOLDS, Math.min(t, 4000) / 2 + (t >= 11_000 ? 5000 : 0));
+    }
+    expect(done.finishedAt).toBeCloseTo(11_000, 0);
+    expect(done.endMs).toBeCloseTo(11_500, 0);
+    // A lag beyond the cap (the whole clip at the slowest factor, or the export's own bound) is not credited.
+    const capped = new ExportEndTracker(10_000, undefined, undefined, 3000);
+    capped.frame(0, false, false, NO_END_HOLDS, 50_000);
+    expect(capped.endMs).toBe(13_000);
+    expect(new ExportEndTracker(10_000).endMs).toBe(10_000);
+    expect(maxSlowLagMs(10_000)).toBeCloseTo(10_000 * (1 / RANGES.slowMoFactor.min - 1), 6);
+    // Frames and the offline mix are sized for the most the slow motion can stretch the clip.
+    expect(maxSimFrames(10, 2.5) * SIM_FRAME_MS).toBeGreaterThanOrEqual(25_000 + END_HOLD_FALLBACK_MS + END_STOP_DELAY_MS);
+    expect(maxSimFrames(10, 0.5)).toBe(maxSimFrames(10));
+    expect(offlineAudioSeconds(30, 2)).toBeCloseTo(60 + (END_HOLD_FALLBACK_MS + END_STOP_DELAY_MS) / 1000 + 1, 9);
   });
 
   it("stops half a second after a run that ends on its own", () => {

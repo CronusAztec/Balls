@@ -107,6 +107,8 @@
     "canvasTeamBounces": "Rebotes",
     "canvasTeamWalls": "Muros",
     "canvasTeamEscapes": "Escapes",
+    "canvasTeamKills": "Eliminaciones",
+    "canvasTeamWin": "Victoria",
     "canvasTeamWins": "¡Gana [name]!",
     "canvasTeamTie": "¡Empate!",
     "canvasTeamFallback": "Equipo [n]",

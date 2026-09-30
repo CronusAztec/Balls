@@ -66,6 +66,8 @@ export interface OfflineFrameRenderer {
   setSongProgress(progress: number | null): void;
   /** True while the canvas holds the end screen back (the escape replay, a caption's answer). */
   holdsEndScreen(): boolean;
+  /** --- review fix (modes-boris-odd) --- Real ms the camera's slow motion has added to the run so far (the clip is extended by it). */
+  slowLagMs(): number;
   /** Paints the export frame's background (theme gradient / picture, so the letterbox bars continue it). */
   paintBackground(ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop): void;
   /** True once the pictures a frame needs (ball image, background picture, Picture Paint picture) are decoded. */
@@ -145,6 +147,11 @@ export interface FastRenderOptions {
   resolution: { width: number; height: number };
   /** The clip length (s): the export ends there, or earlier when the run finishes (see `ExportEndTracker`). */
   durationSec: number;
+  /**
+   * --- review fix (modes-boris-odd) --- The most the camera's slow motion can stretch the clip (1 / its factor with slow motion
+   * on near misses, else 1): the clip is extended by the slow motion's lag, and the frames and the mix are sized for it.
+   */
+  slowMoStretch?: number;
   fps: number;
   /** The page's tone generator: its sound settings, melody, samples, song and music bed are copied into the offline mix. */
   audio: ToneGenerator | null;
@@ -384,7 +391,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
   };
 
   // The offline mix: a copy of the page's sound set-up scheduling into an OfflineAudioContext on the export clock.
-  const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec)), sampleRate: EXPORT_SAMPLE_RATE });
+  const stretch = Math.max(1, Number.isFinite(options.slowMoStretch) ? (options.slowMoStretch as number) : 1); // --- review fix (modes-boris-odd) ---
+  const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec, stretch)), sampleRate: EXPORT_SAMPLE_RATE });
   const mix = await (options.audio ?? new ToneGenerator()).createOfflineTwin(audioContext, () => clock.ms / 1000);
   if (signal?.aborted) return null;
 
@@ -429,8 +437,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop) };
     let digest = 0x811c9dc5;
 
-    const tracker = new ExportEndTracker(clipMs);
-    const lastFrame = maxSimFrames(options.durationSec);
+    const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-boris-odd) --- (the slow motion's lag)
+    const lastFrame = maxSimFrames(options.durationSec, stretch);
     let bedStopped = false;
     let exported = 0;
     let lastYield = performance.now();
@@ -446,7 +454,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
         for (const ev of engine.consumeSoundEvents()) playSoundEvent(mix, ev, () => frameRenderer.noteWallBreak());
         frameRenderer.setSongProgress(mix.getSliceProgress());
         const finished = engine.isSimulationFinished();
-        tracker.frame(t, finished, frameRenderer.holdsEndScreen(), finished && options.endHolds ? options.endHolds(engine) : NO_END_HOLDS);
+        tracker.frame(t, finished, frameRenderer.holdsEndScreen(), finished && options.endHolds ? options.endHolds(engine) : NO_END_HOLDS, frameRenderer.slowLagMs());
         // The page stops the music bed when its end screen appears; the recorder keeps rolling for another half second.
         if (tracker.finishedAt !== null && !bedStopped) {
           mix.getMusicBed().stop();

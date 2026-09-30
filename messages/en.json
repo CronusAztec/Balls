@@ -107,6 +107,8 @@
     "canvasTeamBounces": "Bounces",
     "canvasTeamWalls": "Walls",
     "canvasTeamEscapes": "Escapes",
+    "canvasTeamKills": "Kills",
+    "canvasTeamWin": "Win",
     "canvasTeamWins": "[name] wins!",
     "canvasTeamTie": "It's a tie!",
     "canvasTeamFallback": "Team [n]",

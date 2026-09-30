@@ -46,7 +46,7 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- boris-faces 
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
-import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
+import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-boris-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
@@ -1513,7 +1513,13 @@ export default function Simulator() {
       setIsRecording(false);
       return;
     }
-    recordTimerRef.current = setTimeout(() => {
+    // --- review fix (modes-boris-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
+    // a run takes, so an unfinished run's clip is extended by the lag it added while recording (re-armed until it stops growing,
+    // at most the whole clip at the slowest factor – a paused run adds none) and the finished effect below ends it as usual
+    const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
+    const maxExtraMs = maxSlowLagMs(1000 * settings.recordingDuration);
+    let credited = 0;
+    const onClipEnd = () => {
       // The run is already over and the page is still holding it (the winner banner, the escape replay, a finished
       // picture): the effect below stops the export once that hold is over instead of cutting it off here. The
       // fallback timer only matters if the hold never ends (the run paused by hand, say).
@@ -1521,8 +1527,15 @@ export default function Simulator() {
         recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), END_HOLD_FALLBACK_MS);
         return;
       }
+      const extra = Math.min(maxExtraMs - credited, (canvasRef.current?.getSlowLagMs() ?? 0) - lag0 - credited);
+      if (extra > SLOW_LAG_MIN_MS) {
+        credited += extra;
+        recordTimerRef.current = setTimeout(onClipEnd, extra);
+        return;
+      }
       void stopRecordingAndDownload();
-    }, 1000 * settings.recordingDuration);
+    };
+    recordTimerRef.current = setTimeout(onClipEnd, 1000 * settings.recordingDuration);
   }, [isRecording, isStarted, recordingSupported, settings, start, stopRecordingAndDownload]);
 
   // Stop the recording shortly after the run finishes.
@@ -1624,6 +1637,7 @@ export default function Simulator() {
         world: { width: page.config.width, height: page.config.height },
         resolution,
         durationSec: s.recordingDuration,
+        slowMoStretch: s.slowMoOnNearMiss ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-boris-odd) --- (the clip is extended by the slow motion's lag)
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
@@ -2429,6 +2443,8 @@ export default function Simulator() {
         bounces: t("Simulator.canvasTeamBounces"),
         walls: t("Simulator.canvasTeamWalls"),
         escapes: t("Simulator.canvasTeamEscapes"),
+        kills: t("Simulator.canvasTeamKills"), // --- review fix (modes-boris-odd) --- a String Battle's columns and banner
+        win: t("Simulator.canvasTeamWin"),
         wins: (name) => fill("Simulator.canvasTeamWins", "name", name),
         tie: t("Simulator.canvasTeamTie"),
         team: (n) => fill("Simulator.canvasTeamFallback", "n", n),
