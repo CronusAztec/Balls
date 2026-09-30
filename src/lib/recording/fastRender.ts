@@ -156,6 +156,8 @@ export interface FastRenderOptions {
   backgroundColor: string;
   onProgress?: (progress: FastRenderProgress) => void;
   signal?: AbortSignal;
+  /** --- video-beats --- Awaited before every exported frame with its clip time (ms): the video background seeks to it. */
+  beforeFrame?: (timeMs: number) => Promise<void>;
 }
 
 export interface FastRenderResult {
@@ -209,6 +211,21 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
   // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
   if (ev.pew) {
     audio.playPew(ev.frequency);
+    return;
+  }
+  // --- boris-journey --- a Journey stage transition swooshes
+  if (ev.swoosh) {
+    audio.playSwoosh();
+    return;
+  }
+  // --- boris-bullseye --- a Bullseye landing thuds
+  if (ev.thud) {
+    audio.playThud(ev.frequency, ev.level);
+    return;
+  }
+  // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
+  if (ev.bdDrum) {
+    audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
     return;
   }
   if (ev.type === "gap") onWallBreak();
@@ -422,6 +439,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       if (simFrame > 0 && t >= tracker.endMs) break;
       if (signal?.aborted) throw abortError();
       if (failure) throw failure;
+      if (options.beforeFrame && exportFrameIndex(simFrame, fps) >= 0) await options.beforeFrame(t); // --- video-beats ---
       clock.ms = t;
       sandbox(() => {
         frameRenderer.renderFrame();

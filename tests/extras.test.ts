@@ -119,6 +119,13 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   paddle: { samples: [[314390,202273],[331052,238645],[387168,186813],[518968,322737]], broken: [], walls: [] },
   // --- boris-vortex --- Sound Vortex: its own funnel, no rings; recorded when the mode was added (seed 12345, defaults: 12 balls 1.5 s apart, 12 rings, 12.5 s spirals).
   vortex: { samples: [[505441,421447],[591932,381653],[429348,392412],[489357,211878],[456871,281023],[426114,373116],[412905,265698],[369240,335581]], broken: [], walls: [] },
+  // --- boris-journey --- Journey: its own column of stages; recorded when the mode was added (seed 12345, the default route – 10 s in, the ball is
+  // still in the first stage's rings, which are the engine's own walls there, five of them broken).
+  journey: { samples: [[385083,309284],[424939,272610],[363033,334004],[220976,314591]], broken: [0, 1, 2, 3, 4], walls: [39168,70502,101837,133171,164506,195840] },
+  // --- boris-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
+  bullseye: { samples: [[261123,524036],[387945,104306],[261123,524036],[457992,524036],[261123,524036],[457992,524036],[261123,524036],[457992,524036]], broken: [], walls: [] },
+  // --- beat-drop --- Beat Drop: its own scene, no rings, one ball on planned arcs; recorded when the mode was added (seed 12345, defaults: every kind, drift 0.5, endless, 120 BPM).
+  beatDrop: { samples: [[509120,544774],[262528,780382],[289034,985198],[319796,1232829]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

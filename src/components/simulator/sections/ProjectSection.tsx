@@ -23,6 +23,7 @@ const MEDIUM_LABELS: Record<ProjectAssetKind, string> = {
   midi: "projectMediumMidi",
   paintPicture: "projectMediumPaintPicture",
   backgroundImage: "projectMediumBackgroundImage",
+  beatMedia: "projectMediumBeatMedia", // --- video-beats ---
 };
 
 const TONES = { ok: "text-[#93d119]", warn: "text-amber-400", error: "text-red-400" } as const;

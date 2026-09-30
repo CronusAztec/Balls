@@ -36,13 +36,25 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ct
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "vortex");
 }
+// --- boris-journey --- the Journey opens its own family (a run through several stages to HOME), after the others
+MODE_CARD_ORDER.push("journey");
+// --- boris-bullseye --- Bullseye joins the Boris family of the rhythm cards, right before the Sound Vortex (then Glass Smash)
+{
+  const at = MODE_CARD_ORDER.indexOf("vortex");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "bullseye");
+}
+// --- beat-drop --- Beat Drop joins the rhythm family right after the Beat Runner and Paddle Keep-Up (landings on the beat)
+{
+  const at = MODE_CARD_ORDER.indexOf("paddle");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatDrop");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
  * working its way out of concentric walls), "rhythm" the project.jdm-style formats built around sound
  * (Ball Drop, Bouncing Shapes, Pendulum Wave) where every hit is a note and the physics writes a polyrhythm.
  */
-export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing)
+export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle", "journey"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing) --- boris-journey --- ("journey": multi-stage runs home)
 export type ModeCategory = (typeof MODE_CATEGORY_IDS)[number];
 
 export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
@@ -86,6 +98,12 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   paddle: "rhythm",
   // --- boris-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
   vortex: "rhythm",
+  // --- boris-journey --- a multi-stage commute home: its own family
+  journey: "journey",
+  // --- boris-bullseye --- every peg a ball bounces off is a note and every landing a thud: the sound-first family
+  bullseye: "rhythm",
+  // --- beat-drop --- every landing is a beat: a drum, a note, or both
+  beatDrop: "rhythm",
 };
 
 /** The modes of a category in card order. */
