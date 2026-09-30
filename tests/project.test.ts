@@ -185,9 +185,9 @@ describe("project files", () => {
     expect(sanitizeProjectName("..hidden")).toBe("hidden");
     expect(sanitizeProjectName(42)).toBe("");
     expect(Array.from(sanitizeProjectName("🔥".repeat(100)))).toHaveLength(60);
-    expect(projectFileName("Boris vs glass")).toBe(`Boris vs glass${PROJECT_EXTENSION}`);
+    expect(projectFileName("Gerald vs glass")).toBe(`Gerald vs glass${PROJECT_EXTENSION}`);
     expect(projectFileName("///")).toBe(`jumpingballslive-project${PROJECT_EXTENSION}`);
-    expect(projectNameFromFileName("Boris vs glass.jumpingballslive.json")).toBe("Boris vs glass");
+    expect(projectNameFromFileName("Gerald vs glass.jumpingballslive.json")).toBe("Gerald vs glass");
     expect(projectNameFromFileName("old.JSON")).toBe("old");
     expect(looksLikeProjectFile({ name: "a.jumpingballslive.json" })).toBe(true);
     expect(looksLikeProjectFile({ name: "blob", type: "application/json" })).toBe(true);

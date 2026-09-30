@@ -150,15 +150,15 @@ export const GALLERY: readonly GalleryPreset[] = [
     },
   },
   {
-    id: "boris-glass",
+    id: "gerald-glass",
     mode: "glass",
-    query: "mode=glass&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&bn=Boris&face=cute&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1122274490",
+    query: "mode=glass&glow=1&rwalls=0&cc=%23ffd166&bc=%23ffffff&bc2=%23ef476f&lc=%23ffd166&bn=Gerald&face=cute&theme=sunset&bgt=gradient&bg1=%232d1b69&bg2=%23b33951&ps=petals&trc=%23ff9a3c%2C%23ff3c78&seed=1122274490",
     previewAt: 11.5,
-    name: { en: "Boris at Sunset", pl: "Boris o zachodzie słońca", es: "Boris al atardecer" },
+    name: { en: "Gerald at Sunset", pl: "Gerald o zachodzie słońca", es: "Gerald al atardecer" },
     description: {
-      en: "Boris, all smiles, smashes his way down a shaft of glass under a sunset sky – every landing a note, every last hit a crash of shards.",
-      pl: "Uśmiechnięty Boris przebija się w dół szybu pełnego szyb pod niebem o zachodzie – każde lądowanie to nuta, każde ostatnie uderzenie to deszcz odłamków.",
-      es: "Boris, todo sonrisas, se abre paso rompiendo un pozo de cristales bajo un cielo de atardecer: cada aterrizaje es una nota y cada último golpe, una lluvia de esquirlas.",
+      en: "Gerald, all smiles, smashes his way down a shaft of glass under a sunset sky – every landing a note, every last hit a crash of shards.",
+      pl: "Uśmiechnięty Gerald przebija się w dół szybu pełnego szyb pod niebem o zachodzie – każde lądowanie to nuta, każde ostatnie uderzenie to deszcz odłamków.",
+      es: "Gerald, todo sonrisas, se abre paso rompiendo un pozo de cristales bajo un cielo de atardecer: cada aterrizaje es una nota y cada último golpe, una lluvia de esquirlas.",
     },
   },
   {

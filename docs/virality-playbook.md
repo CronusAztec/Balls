@@ -11,7 +11,7 @@ signals. Claims are marked **[observed]** (seen on the accounts), **[sourced]** 
 | Account | Size (Sept 2026) | Format | What their hits look like |
 |---|---|---|---|
 | **project.jdm** | 381K followers, 716 posts, bio "I do math to take the edge off", link to full animations | polyrhythms and DVD-style bouncing shapes, pendulum waves, collision playgrounds, double pendulum harps, square races and battle royales; series with names ("Rhythm Theory", "DVD Rhythms", "Pocket Changes") and 10-minute YouTube versions | pendulum waves ("Another way to think about a pendulum wave", 84K likes; "a good ol' pendulum wave for your Friday", 95K likes) and a **"bouncing square deathmatch featuring 2 new contestants"** with 1,099 comments: recurring contestants make people root and argue **[observed]** |
-| **borisbounces** | 17.5K followers, 26 posts, bio "Boris always escapes. Freedom lasts about 4 seconds. New struggles daily" | one character ball with a face, a new obstacle every day (glass, multipliers, conveyors, vortex, bullseye, splat barriers, moving exits), ASMR piano notes | the character and the daily "struggle" turn physics clips into a serial; the promise in the bio (always escapes, freedom lasts 4 seconds) is the hook and the payoff **[observed]** |
+| **the character-ball account** | 17.5K followers, 26 posts, bio "[the character] always escapes. Freedom lasts about 4 seconds. New struggles daily" | one character ball with a face, a new obstacle every day (glass, multipliers, conveyors, vortex, bullseye, splat barriers, moving exits), ASMR piano notes | the character and the daily "struggle" turn physics clips into a serial; the promise in the bio (always escapes, freedom lasts 4 seconds) is the hook and the payoff **[observed]** |
 | **oddplayground** | 15K followers, 389 posts, bio "Tiny random simulations. Seeds, rules, chaos." | numbered balls in a ring cutting each other's "web" strings (Web Dominion / string battles), rainbow "it doubles every time" layer breakers, pong-wars territory battles with Vortex and Bomber powers, maze escapes; neon on black, a "FLASHING LIGHTS / THE END GETS INTENSE" badge, deadpan absurdist captions | two pinned hits carry the account: the string battle (347K likes, 10K comments) and "It starts tiny and gets out of control" (137K likes, 355 comments); most other reels sit at 60 to 300 likes **[observed]** |
 
 Patterns that repeat across all three **[observed]**:
@@ -20,8 +20,8 @@ Patterns that repeat across all three **[observed]**:
 - **A countdown you can feel.** Lives on the balls, layers left, a percentage bar, a timer, rings left. The viewer always knows how close the payoff is.
 - **Sound as the second hook.** Bounces play notes; the pitch rises with progress ("new sound every level"); project.jdm frames the whole thing as music theory.
 - **The ending is the comment engine.** oddplayground regularly cuts before the result; the top comments are "why'd you not show the winner", "who won, white or blue?" and answer requests. project.jdm's deathmatch with named contestants drew 1,099 comments. Unresolved or contested endings drive replies and re-watches **[inferred from the comments]**.
-- **Series and characters over one-offs.** Named series (Rhythm Theory #2), recurring contestants, a character with a bio-level promise (Boris), daily variations of one mechanic.
-- **Cadence.** oddplayground posted about one reel a day in late September 2026 (twelve reels between 22 and 28 September); borisbounces promises "new struggles daily".
+- **Series and characters over one-offs.** Named series (Rhythm Theory #2), recurring contestants, a character with a bio-level promise (the character ball), daily variations of one mechanic.
+- **Cadence.** oddplayground posted about one reel a day in late September 2026 (twelve reels between 22 and 28 September); the character-ball account promises "new struggles daily".
 - **Vertical, neon on black, one arena centred**, with the top-left reserved for a warning or sound badge and nothing important in the bottom fifth where the platform UI sits.
 - **Virality is hit-driven.** On oddplayground two reels out of 389 hold almost all the likes. The strategy that works is volume plus variation of one recognisable format, so that the occasional hit lands on a profile full of similar clips to binge **[inferred]**.
 
@@ -119,7 +119,7 @@ What the simulator taught us while building it **[observed in our own planner ru
 Next: feed each clip's average watch time, sends per reach, saves and first-hour comments back into the checklist weights, and
 compare the resolved and cliffhanger clips the bot alternates.
 
-Sources: instagram.com/project.jdm, instagram.com/borisbounces and instagram.com/oddplayground (profiles and 30 reel
+Sources: instagram.com/project.jdm, a second account (its handle is left out of this repository) and instagram.com/oddplayground (profiles and 30 reel
 pages, September 2026); ballsimulator.com, "How to Create Viral Bouncing Ball Videos" and "10 Pro Tips to Make Your
 Bouncing Ball Videos Go Viral"; creatorflow.so, "Instagram Algorithm 2026: What Changed"; clixie.ai, "Instagram
 algorithm 2026: the 4 ranking signals that matter"; reddit.com/r/learnprogramming, "how to make bouncing balls tiktok

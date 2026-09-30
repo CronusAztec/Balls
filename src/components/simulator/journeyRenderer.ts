@@ -13,7 +13,7 @@ import { drawGlassShards, drawGlassWorld, type GlassRenderOptions } from "./glas
 import { DEFAULT_MULTIPLIER_LABELS, type MultiplierLabels } from "./multiplierRenderer";
 
 /**
- * Canvas drawing of the Journey mode (feature boris-journey, lib/physics/modes/journey.ts). The layer is the physics'
+ * Canvas drawing of the Journey mode (feature gerald-journey, lib/physics/modes/journey.ts). The layer is the physics'
  * `StagePainter`: every stage in view describes itself (`stage.render(painter)`) and the layer draws it – the glass
  * panes, gate rows and the HOME doorway through the Glass Smash renderer (each of those stages keeps a Glass Smash view
  * of its own), the rings of a stage that is not live yet (a live stage's rings are the engine's, which the canvas draws

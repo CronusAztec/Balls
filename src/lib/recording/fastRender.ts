@@ -208,17 +208,17 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playStringBattle(ev.sbSound, ev.frequency);
     return;
   }
-  // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
+  // --- gerald-vortex --- a ball swallowed by the Sound Vortex pews
   if (ev.pew) {
     audio.playPew(ev.frequency);
     return;
   }
-  // --- boris-journey --- a Journey stage transition swooshes
+  // --- gerald-journey --- a Journey stage transition swooshes
   if (ev.swoosh) {
     audio.playSwoosh();
     return;
   }
-  // --- boris-bullseye --- a Bullseye landing thuds
+  // --- gerald-bullseye --- a Bullseye landing thuds
   if (ev.thud) {
     audio.playThud(ev.frequency, ev.level);
     return;

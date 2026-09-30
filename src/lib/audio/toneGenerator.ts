@@ -1,14 +1,14 @@
 import { PluckCache, playVoice, type InstrumentId } from "@/lib/audio/instruments";
 import { nextGridTime, quantizeFrequency, type QuantizeGrid, type ScaleId } from "@/lib/audio/scales";
 import { INTERACTION_TONES, scheduleInteractionTone, type InteractionKind } from "./interactionTones";
-import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // --- boris-faces ---
-import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- boris-multipliers ---
+import { CHIRPS, scheduleChirp, type ChirpKind } from "./characterVoice"; // --- gerald-faces ---
+import { arpeggioNotes, scheduleArpeggio } from "./multiplierTones"; // --- gerald-multipliers ---
 import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // --- obstacle-editor ---
 import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
 import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
-import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
-import { scheduleSwooshTone } from "./swooshTone"; // --- boris-journey ---
-import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- boris-bullseye ---
+import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- gerald-vortex ---
+import { scheduleSwooshTone } from "./swooshTone"; // --- gerald-journey ---
+import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- gerald-bullseye ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { MusicBed } from "./musicBed";
@@ -487,7 +487,7 @@ export class ToneGenerator {
     }
   }
 
-  // --- boris-faces ---
+  // --- gerald-faces ---
   /** Cat face: a meow-like chirp for an ouch, a breaking wall or an escape (see characterVoice.ts). */
   playCharacterChirp(kind: ChirpKind) {
     this.initAudioGraph();
@@ -510,9 +510,9 @@ export class ToneGenerator {
       console.error(`Error playing the ${kind} chirp:`, err);
     }
   }
-  // --- end boris-faces ---
+  // --- end gerald-faces ---
 
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /**
    * A stat multiplier stacked (a pickup orb, a gate): a rising arpeggio that climbs with the new `total`
    * (multiplierTones.ts). It goes the way a bounce goes – the next slice while the song slicer plays, the hit sample
@@ -560,7 +560,7 @@ export class ToneGenerator {
       console.error("Error playing the multiplier arpeggio:", err);
     }
   }
-  // --- end boris-multipliers ---
+  // --- end gerald-multipliers ---
 
   // --- obstacle-editor ---
   /**
@@ -679,7 +679,7 @@ export class ToneGenerator {
   }
   // --- end jdm-race ---
 
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   /**
    * A ball swallowed by the Sound Vortex: the "pew" (pewTone.ts) – a fast downward sweep from `frequency`, snapped to the
    * scale, in the waveform of the bounce instrument, on the beat grid when the beat lock is on, ducking the music bed. It
@@ -709,9 +709,9 @@ export class ToneGenerator {
       console.error("Error playing the pew:", err);
     }
   }
-  // --- end boris-vortex ---
+  // --- end gerald-vortex ---
 
-  // --- boris-journey ---
+  // --- gerald-journey ---
   /**
    * A Journey stage transition: the swoosh (swooshTone.ts) – band-passed noise sweeping up with a quiet sine glide under
    * it. An effect, not a note (never snapped, never a melody note, a hit sample or a song slice, never a bounce's beat-grid
@@ -737,8 +737,8 @@ export class ToneGenerator {
       console.error("Error playing the swoosh:", err);
     }
   }
-  // --- end boris-journey ---
-  // --- boris-bullseye ---
+  // --- end gerald-journey ---
+  // --- gerald-bullseye ---
   /**
    * A Bullseye landing: the thud (thudTone.ts) at `frequency` – the ring's pitch –, `level` loud (0–1), snapped to the
    * scale, on the beat grid when the beat lock is on (it never takes a bounce's slot), ducking the music bed; in sample
@@ -766,7 +766,7 @@ export class ToneGenerator {
       console.error("Error playing the thud:", err);
     }
   }
-  // --- end boris-bullseye ---
+  // --- end gerald-bullseye ---
 
   // --- beat-drop ---
   private readonly bdVoices: BeatDropVoices = { kick: 0, snare: 0, hat: 0, accent: 0 };

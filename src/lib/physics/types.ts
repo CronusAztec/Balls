@@ -1,5 +1,5 @@
 import type { Obstacle } from "./obstacles";
-import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- boris-multipliers ---
+import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./multipliers"; // --- gerald-multipliers ---
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
@@ -31,9 +31,9 @@ export const MODE_IDS = [
   "polyrhythm",
   // --- jdm-collisions ---
   "collide",
-  // --- boris-glass ---
+  // --- gerald-glass ---
   "glass",
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   "multipliers",
   // --- jdm-double-pendulum ---
   "doublePendulum",
@@ -51,11 +51,11 @@ export const MODE_IDS = [
   // --- jdm-rhythm-runner --- Beat Runner (a Geometry Dash-style runner on the beat) and Paddle Keep-Up (a moving platform)
   "runner",
   "paddle",
-  // --- boris-vortex --- Sound Vortex
+  // --- gerald-vortex --- Sound Vortex
   "vortex",
-  // --- boris-journey --- Journey: a multi-stage commute home
+  // --- gerald-journey --- Journey: a multi-stage commute home
   "journey",
-  // --- boris-bullseye --- Bullseye (a scoring target at the bottom of a peg field)
+  // --- gerald-bullseye --- Bullseye (a scoring target at the bottom of a peg field)
   "bullseye",
   // --- beat-drop --- Beat Drop (a ball landing on obstructions that fly in on the beat)
   "beatDrop",
@@ -96,7 +96,7 @@ export interface Ball {
   // --- teams ---
   /** Start slot of the ball (0 … 5) in the multi-ball modes – its team; balls it spawns or splits into inherit it (see ballStats.ts). */
   team?: number;
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** Stacked stat multipliers – speed, size, damage, bounce, gravity (see multipliers.ts); absent = a plain ×1 ball. */
   mult?: BallMultipliers;
 }
@@ -159,7 +159,7 @@ export interface BallInteractionConfig {
   maxBalls: number;
 }
 
-// --- boris-multipliers --- the stat-multiplier settings (cap, smash threshold, pickups) travel in the config too
+// --- gerald-multipliers --- the stat-multiplier settings (cap, smash threshold, pickups) travel in the config too
 export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig> {
   width: number;
   height: number;
@@ -218,7 +218,7 @@ export interface SoundEvent {
   // --- jdm-collisions ---
   /** Loudness of a "hit" relative to a normal one, 0–1 (Collision Playground plays soft notes scaled by the impact); 1 when absent. */
   level?: number;
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** A "multiplier" event: the stat's new total (or the ball count), which the arpeggio climbs with. */
   multiplier?: number;
   // --- obstacle-editor ---
@@ -239,13 +239,13 @@ export interface SoundEvent {
    * next note of the song. Absent: the hit is a note of the tune like every other.
    */
   melody?: false;
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   /** A ball swallowed by the Sound Vortex: the page plays the "pew" (`ToneGenerator.playPew()`), a fast downward sweep from `frequency`. */
   pew?: boolean;
-  // --- boris-journey ---
+  // --- gerald-journey ---
   /** A Journey stage transition: the page plays the swoosh (`ToneGenerator.playSwoosh()`) – a filtered noise whoosh, not a note. */
   swoosh?: boolean;
-  // --- boris-bullseye ---
+  // --- gerald-bullseye ---
   /** A Bullseye landing: the page plays the thud (`ToneGenerator.playThud()`) at `frequency`, `level` loud. */
   thud?: boolean;
   // --- beat-drop ---
@@ -374,7 +374,7 @@ export interface ModeContext {
   getObstacles(): Obstacle[];
   /** Replaces the obstacle list (the engine resolves every ball against it from the next sub-step on). */
   setObstacles(obstacles: Obstacle[]): void;
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** The run's stat multipliers (cap, pickups, outgrow): modes stack multipliers through it (see multipliers.ts). */
   getMultipliers?(): MultiplierRuntime;
   // --- rigged ---
@@ -402,7 +402,7 @@ export interface ModeContext {
   /** The camera's impact event (a screen shake when that feature is on), like a wall break – without its sound. */
   noteImpact?(): void;
   // --- end odd-string-battle ---
-  // --- boris-journey ---
+  // --- gerald-journey ---
   /**
    * Moves the engine's world state by (dx, dy): every ball and its trail, the particles, the shockwaves and the recent
    * obstacle contacts – a floating origin for a mode that scrolls through a long world (the Journey keeps its active stage
