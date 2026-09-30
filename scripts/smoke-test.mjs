@@ -6708,6 +6708,95 @@ const bdInstrument = () =>
 }
 // --- end pwa ---
 
+// --- bounce-math ---
+// Bounce math: a rule from the link fills the "Bounce math" block of the Ball & Physics section; an edit in the panel (the
+// trigger, the amount, a formula – an invalid one shows its error and stays out of the link) lands in the link (`bmr`); the
+// search box finds the block; the "Bouncier every bounce" preset plays and the readout of the ball that bounced last grows
+// (data-bm-bounce on the canvas, the panel's readout, the Show values badge drawn in the recorded square); a beat rule at
+// 120 BPM fires twice a second of simulation time (data-bm-fires / data-bm-time).
+{
+  const bmrOf = () => new URL(page.url()).searchParams.get("bmr") ?? "";
+  const bmData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bmr=speed.bounce.1.multiply.1_05`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  const rows = page.getByTestId("bm-rule");
+  await rows.first().waitFor({ timeout: 10000 }).catch(() => {});
+  const loaded = { count: await rows.count(), param: await page.getByTestId("bm-param").first().inputValue().catch(() => ""), trigger: await page.getByTestId("bm-trigger").first().inputValue().catch(() => ""), op: await page.getByTestId("bm-op").first().inputValue().catch(() => ""), amount: await page.getByTestId("bm-amount").first().inputValue().catch(() => "") };
+  check("bounce math: a rule from the link fills the Bounce math block", loaded.count === 1 && loaded.param === "speed" && loaded.trigger === "bounce" && loaded.op === "multiply" && loaded.amount === "1.05", `(${JSON.stringify(loaded)})`);
+  await page.getByTestId("bm-trigger").first().selectOption("pass");
+  const amount = page.getByTestId("bm-amount").first();
+  await amount.fill("1.2");
+  await amount.press("Enter");
+  await page.waitForTimeout(400);
+  const edited = bmrOf();
+  await page.getByTestId("bm-op").first().selectOption("formula");
+  const formula = page.getByTestId("bm-formula").first();
+  await formula.fill("v *");
+  await page.waitForTimeout(300);
+  const errorShown = await page.getByTestId("bm-formula-error").first().isVisible().catch(() => false);
+  const whileInvalid = bmrOf();
+  await formula.fill("v * 1.1 + sin(n)");
+  await page.waitForTimeout(400);
+  const withFormula = bmrOf();
+  const formulaField = withFormula.split(".")[4] ?? "";
+  let decodedFormula = "";
+  try {
+    decodedFormula = decodeURIComponent(formulaField);
+  } catch {
+    decodedFormula = "";
+  }
+  check(
+    "bounce math: an edit in the panel lands in the link (an invalid formula shows its error and stays out)",
+    edited === "speed.pass.1.multiply.1_2" && errorShown && whileInvalid.startsWith("speed.pass.1.formula.") && decodeURIComponent(whileInvalid.split(".")[4] ?? "") === "v * 1.2" && withFormula.startsWith("speed.pass.1.formula.") && decodedFormula === "v * 1.1 + sin(n)",
+    `(after edit: ${edited}; invalid shown=${errorShown}, link ${whileInvalid}; with formula: ${withFormula} → "${decodedFormula}")`,
+  );
+  await page.getByPlaceholder("Search settings...").fill("bounce math");
+  const found = await page.getByTestId("bm-section").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("bounce math: the search box finds the block", found, `(visible=${found})`);
+
+  // "Bouncier every bounce": clear the list, append the preset and play.
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click().catch(() => {});
+  const section = page.getByTestId("bm-section");
+  if (!(await section.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  await page.getByTestId("bm-clear").click();
+  await page.getByTestId("bm-preset").selectOption("bouncier");
+  await page.waitForTimeout(400);
+  const presetLink = bmrOf();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= 3, null, { timeout: 30000 }).catch(() => {});
+  const early = await bmData();
+  await page.waitForFunction((n) => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= n + 5, Number(early.bmFires ?? 0), { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(250);
+  const later = await bmData();
+  const readout = await page.getByTestId("bm-readout-bounce").innerText({ timeout: 5000 }).catch(() => "");
+  const hud = (later.bmHud ?? "").split(",").map(Number);
+  check(
+    "bounce math: 'Bouncier every bounce' plays and the readout of the ball that bounced last grows",
+    presetLink === "bounciness.bounce.1.multiply.1_05" && Number(early.bmBounce) > 1 && Number(later.bmBounce) > Number(early.bmBounce) && Number(later.bmFires) > Number(early.bmFires) && Math.abs(Number(later.bmBounce) - Math.pow(1.05, Number(later.bmFires))) < 0.02 * Number(later.bmBounce) + 0.002 && Number(readout) > 1 && hud.length === 4 && hud[2] > 0 && hud[3] > 0,
+    `(link ${presetLink}; fires ${early.bmFires} → ${later.bmFires}, bounciness ${early.bmBounce} → ${later.bmBounce}, panel ${readout}, badge ${later.bmHud})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-bounce-math.png") });
+
+  // A beat rule at 120 BPM (no song loaded: the Sound section's BPM) fires twice a second of simulation time.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bpm=120&bmr=hue.beat.1.add.10`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmTime ?? 0) >= 1.2, null, { timeout: 30000 }).catch(() => {});
+  const b0 = await bmData();
+  await page.waitForFunction((t) => Number(document.querySelector("main canvas")?.dataset.bmTime ?? 0) >= t + 4, Number(b0.bmTime ?? 0), { timeout: 30000 }).catch(() => {});
+  const b1 = await bmData();
+  const dt = Number(b1.bmTime) - Number(b0.bmTime);
+  const perSecond = (Number(b1.bmFires) - Number(b0.bmFires)) / dt;
+  // every beat at 0, 0.5, 1 … s has fired by the time the clock passes it (within one 60 Hz step)
+  const expected = Math.floor(2 * Number(b1.bmTime) + 1e-6) + 1;
+  check(
+    "bounce math: a beat rule at 120 BPM fires twice a second",
+    dt >= 3.5 && Math.abs(perSecond - 2) < 0.35 && Math.abs(Number(b1.bmFires) - expected) <= 1,
+    `(${b0.bmFires} → ${b1.bmFires} fires over ${dt.toFixed(2)} s: ${perSecond.toFixed(2)}/s; at ${b1.bmTime} s expected ≈${expected})`,
+  );
+}
+// --- end bounce-math ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

@@ -78,6 +78,8 @@ import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { ACCENT } from "@/lib/site";
+import BounceMathSection, { BOUNCE_MATH_KEYS, type BounceMathPanelProps } from "./sections/BounceMathSection"; // --- bounce-math ---
+import { defaultBounceMathFields } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
@@ -146,6 +148,8 @@ export interface ControlsProps {
   videoBeats?: VideoBeatsPanelProps;
   /** --- viral-bot --- the Viral video bot block after it: plans, scores and renders clips (left out without it). */
   bot?: BotPanelProps;
+  /** --- bounce-math --- the engine's readout for the Bounce math block (its live values; the block works without it). */
+  bounceMath?: BounceMathPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -208,6 +212,8 @@ SECTION_KEYS.ball.push(...JOURNEY_KEYS);
 SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
+// --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
+SECTION_KEYS.ball.push(...BOUNCE_MATH_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -386,6 +392,8 @@ export default function Controls(props: ControlsProps) {
           <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
         </Searchable>
       )}
+      {/* --- bounce-math --- the rule list, presets, Show values and the live readout (every mode; a parameter a mode ignores is marked) */}
+      <BounceMathSection t={t} search={search} matches={matches} settings={s} update={update} panel={props.bounceMath} />
       <Searchable search={search} matches={matches} labelKey="ballEmoji">
         <div className="space-y-3">
           <label className="text-sm font-medium text-zinc-300">{t("ballEmoji")}</label>
@@ -1488,6 +1496,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         ...characterOf(d), // --- gerald-faces ---
         ballCount: d.ballCount, // --- teams --- (a team roster keeps its balls: see the Teams section)
         ...multiplierConfigOf(d), // --- gerald-multipliers --- pickups, cap, smash threshold
+        ...defaultBounceMathFields(), // --- bounce-math --- no rules, Show values on
       };
     case "wall":
       return {

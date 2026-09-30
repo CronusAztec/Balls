@@ -99,6 +99,9 @@ import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
 import { DAILY_PARAM, dailyFromParam, dailySettings } from "@/lib/daily";
 import { useDailyChallenge } from "./useDailyChallenge";
 import { DailyBar, DailyResultPanel } from "./DailyChallengeUi";
+// --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
+import { bounceMathCarryOver, bounceMathConfigOf, sameRules, type BounceMathConfig } from "@/lib/simulation/bounceMath";
+import type { BounceMathPanelProps } from "./sections/BounceMathSection";
 import {
   RANGES,
   defaultSettings,
@@ -1025,6 +1028,32 @@ export default function Simulator() {
   }, [s.bdSound, s.bdColorMode, s.bdTrail, s.recordingDuration, s.scale, s.rootNote]);
   // --- end beat-drop ---
 
+  // --- bounce-math --- the rules travel in the physics config with the beat grid their beat / bar triggers follow (the beat source in
+  // effect – the loaded song's, an imported video's or the hand-placed markers –, else the BPM, like Beat Drop), the starting values of
+  // the canvas parameters and Show values; the seed finder, the arenas, the batch renderer and the fast export copy it. New rules – or
+  // a new beat while a rule may follow it – drop a found seed with its promise, like new keyframes.
+  const bounceMathConfig = useMemo<BounceMathConfig>(
+    () => bounceMathConfigOf(s, rhythmBeat),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.bounceMath, s.bounceMathHud, s.bpm, s.wallThickness, s.wallWobble, rhythmBeat],
+  );
+  const bounceMathSentRef = useRef<BounceMathConfig | null>(null);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig({ bounceMath: bounceMathConfig });
+    const before = bounceMathSentRef.current;
+    bounceMathSentRef.current = bounceMathConfig;
+    if (!before) return;
+    const followsBeat = bounceMathConfig.rules.some((r) => r.trigger === "beat" || r.trigger === "bar" || r.op === "formula");
+    if (!sameRules(before.rules, bounceMathConfig.rules) || (followsBeat && !sameBeatSchedule(before.beat, bounceMathConfig.beat))) {
+      engine.setSeed(null);
+      setSearchResult((r) => (r?.found ? null : r));
+    }
+  }, [bounceMathConfig]);
+  const bounceMathPanel = useMemo<BounceMathPanelProps>(() => ({ getView: () => engineRef.current?.getBounceMathView() ?? null }), []);
+  // --- end bounce-math ---
+
   // Any physics-relevant change invalidates a seed found by the finder – and its promise: the panel stops quoting a run the
   // page no longer plays (the Cinematic director and Bouncier draw from the seeded RNG and change the rebounds too).
   useEffect(() => {
@@ -1095,6 +1124,7 @@ export default function Simulator() {
         engine.setPaintOptions(page.getPaintOptions());
         engine.setPaintBeat(splitBeatRef.current);
         engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- every arena's flights land on the same grid
+        if (page.config.bounceMath) engine.setConfig({ bounceMath: page.config.bounceMath }); // --- bounce-math --- the page's rules and beat grid
         // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
         initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
       },
@@ -1110,6 +1140,8 @@ export default function Simulator() {
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- gerald-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
         engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- gerald-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
+        const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
+        if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
       },
     }),
     [initEngineForMode],
@@ -1232,6 +1264,7 @@ export default function Simulator() {
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
       Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
+      Object.assign(fresh, bounceMathCarryOver(themeLookRef.current)); // --- bounce-math --- the rules script the clip in every mode: they carry over
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -2426,6 +2459,14 @@ export default function Simulator() {
         done: t("BeatDrop.canvasDone"),
         doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
       },
+      // --- bounce-math ---
+      bounceMath: {
+        bounce: t("BounceMath.hudBounce"),
+        speed: t("BounceMath.hudSpeed"),
+        size: t("BounceMath.hudSize"),
+        gravity: t("BounceMath.hudGravity"),
+        rule: (n, fires) => fill("BounceMath.hudRule", { n, fires }),
+      },
     };
   }, [t]);
 
@@ -2901,6 +2942,7 @@ export default function Simulator() {
             batch={batchRender.panel} // --- batch-render ---
             videoBeats={videoBeats.panel} // --- video-beats ---
             bot={viralBot} // --- viral-bot ---
+            bounceMath={bounceMathPanel} // --- bounce-math ---
           />
         </ProjectDropZone>
       </div>

@@ -625,7 +625,8 @@ export class MultiplierRuntime {
       const b = balls[i];
       if (b.frozen) continue;
       const v = Math.hypot(b.vx, b.vy);
-      const rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(MAX_EFFECTIVE_BOUNCE, b.mult.bounce) : reboundSpeed;
+      let rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(MAX_EFFECTIVE_BOUNCE, b.mult.bounce) : reboundSpeed;
+      if (b.restitution !== undefined) rebound *= b.restitution; // --- bounce-math --- the ball's bounciness scales its rebounds
       const bound = SPEED_MARGIN * (v > rebound ? v : rebound) + Math.abs(gravity * (b.gravityScale ?? 1)) * stepSec;
       const r = (bound * stepSec) / maxMovePerSubStep(b.radius);
       if (r > ratio) ratio = r;
