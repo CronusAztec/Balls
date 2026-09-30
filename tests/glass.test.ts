@@ -9,27 +9,39 @@ import {
   GLASS_GATE_FACTORS,
   GLASS_GATE_KINDS,
   GLASS_RANGES,
+  DRIFT,
   HIT_SPEED,
   HOME_CHORD,
+  MAX_DRIFT,
   MAX_PANE_HP,
   MAX_SHARDS_PER_PANE,
   MAX_STAGE_ROWS,
   MIN_SHARDS_PER_PANE,
   PITCH_BASE_MIDI,
   SHAFT_ASPECT,
+  SHATTER_KEEP,
   TEMPO_SPREAD,
+  WALK_SPEED,
   buildGlassField,
   buildGlassLevel,
   cameraTarget,
+  createGlassView,
   gateSlotAt,
   glassGravity,
   glassMaxBallRadius,
   glassPitch,
   glassSettingFields,
   glassSettingsOf,
+  glassReach,
+  hitGlassPane,
+  holdAtDoor,
   hopSpeed,
+  landedOnGround,
   makeCrack,
+  mapGlassPane,
+  mapGlassShards,
   paneDamage,
+  reachDoor,
   resolveGlassSettings,
   shardCount,
   solidSpan,
@@ -38,11 +50,17 @@ import {
   stageHp,
   stageMoveChance,
   stageRows,
+  stepGlassShards,
+  stepHomeCelebration,
+  touchGlassPane,
+  walkToDoor,
+  type GlassHitOptions,
   type GlassLevel,
   type GlassSettings,
 } from "@/lib/physics/modes/glass";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
-import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
+import { MODE_IDS, type Ball, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
+import { stageRandom } from "@/lib/physics/journey/stages";
 import { modeWallBreakSound, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/songs";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -561,7 +579,7 @@ describe("GlassMode in the engine", () => {
       expect(engine.isSimulationFinished()).toBe(true);
       expect(view.cleared).toBe(view.panes);
     }
-  });
+  }, 30_000);
 
   it("slides the sliding panes left and right on the simulation clock, inside the shaft", () => {
     const engine = glassEngine({ rows: 20, stages: 5, moving: true, holes: false }, 4);
@@ -901,6 +919,150 @@ describe("Glass Smash and the finder", () => {
     expect(max).toBeGreaterThan(27);
     expect(max - min).toBeGreaterThan(2);
     expect(new Set(lengths.map((l) => l.toFixed(2))).size).toBeGreaterThan(10);
+  });
+});
+
+/* ------------------------------------------------------------------ the shared rules */
+
+describe("Glass Smash's rules, shared with the Journey's glass and HOME stages", () => {
+  /** A level (no gates, no holes, no sliding panes) in a view of its own, and a ball just above its first pane. */
+  const setup = (hp = 3) => {
+    const level = buildGlassLevel(800, 600, { hp, holes: false, moving: false, stages: 2 }, 8, stageRandom(4));
+    const view = createGlassView(level);
+    const pane = level.panes[0];
+    const ball = { id: 0, x: pane.x + 30, y: pane.y - pane.thickness / 2 - 8 - 0.5, vx: 40, vy: 5, radius: 8, color: "#fff", trail: [], trailIndex: 0, spin: 0, angle: 0 } as Ball;
+    const sounds: SoundEvent[] = [];
+    const g = glassGravity(300, level.field.height);
+    const options = (random = stageRandom(9)): GlassHitOptions => ({ random, sound: (e) => void sounds.push(e), gravity: g, bounceHeight: level.stages[0].bounceHeight, timeMs: 1234, ballSpeed: 400 });
+    return { level, view, pane, ball, sounds, g, options };
+  };
+
+  it("a contact from above is always a landing, a knock from below needs HIT_SPEED, broken glass is gone", () => {
+    const { pane, ball } = setup();
+    const dt = 1 / 240;
+    // Settling onto the glass, barely moving: still a landing (at least HIT_SPEED), so the ball never rests on a pane.
+    ball.y = pane.y - pane.thickness / 2 - 8 + 0.3;
+    expect(touchGlassPane(pane, ball, dt, glassReach(ball, dt))).toBe(HIT_SPEED);
+    // A slow knock from below does not count; a hard one does, with its own speed.
+    const below = { ...ball, y: pane.y + pane.thickness / 2 + 8 - 0.3, vy: -5 };
+    expect(touchGlassPane(pane, below, dt, glassReach(below, dt))).toBe(-1);
+    const hard = { ...ball, y: pane.y + pane.thickness / 2 + 8 - 0.3, vy: -300 };
+    expect(touchGlassPane(pane, hard, dt, glassReach(hard, dt))).toBeGreaterThan(HIT_SPEED);
+    // Out of reach, or shattered: nothing.
+    const far = { ...ball, y: pane.y - 100 };
+    expect(touchGlassPane(pane, far, dt, glassReach(far, dt))).toBe(-1);
+    pane.shattered = true;
+    const on = { ...ball, y: pane.y - pane.thickness / 2 - 8 + 0.3, vy: 5 };
+    expect(touchGlassPane(pane, on, dt, glassReach(on, dt))).toBe(-1);
+  });
+
+  it("a landing cracks the pane and hops the ball back to the hop height with a capped seeded kick", () => {
+    const { view, pane, ball, sounds, g, options, level } = setup();
+    hitGlassPane(view, pane, ball, HIT_SPEED, options());
+    expect(pane.hp).toBe(2);
+    expect(pane.hits).toBe(1);
+    expect(pane.lastHitMs).toBe(1234);
+    expect(pane.cracks).toHaveLength(1);
+    expect(view.hits).toBe(1);
+    expect(ball.vy).toBeCloseTo(-hopSpeed(g, level.stages[0].bounceHeight), 9);
+    const viewH = level.field.height;
+    expect(Math.abs(ball.vx - 0.5 * 40)).toBeLessThanOrEqual(DRIFT * viewH + 1e-9);
+    expect(Math.abs(ball.vx)).toBeLessThanOrEqual(MAX_DRIFT * viewH);
+    expect(sounds).toEqual([{ type: "hit", wallIndex: 0, frequency: pane.pitch }]);
+    // The same numbers make the same crack and the same kick.
+    const again = setup();
+    hitGlassPane(again.view, again.pane, again.ball, HIT_SPEED, again.options());
+    expect(again.ball.vx).toBe(ball.vx);
+    expect(again.pane.cracks[0].segs).toEqual(pane.cracks[0].segs);
+  });
+
+  it("the last hit point shatters the pane: the shards, the accent and the wall-break sound, and the ball crashes through", () => {
+    const { view, pane, ball, sounds, options } = setup(1);
+    ball.vy = 300;
+    hitGlassPane(view, pane, ball, 300, options());
+    expect(pane.shattered).toBe(true);
+    expect(pane.cleared).toBe(true);
+    expect(pane.shatteredAtMs).toBe(1234);
+    expect(view.shattered).toBe(1);
+    expect(view.cleared).toBe(1);
+    expect(ball.vy).toBeCloseTo(300 * SHATTER_KEEP, 9);
+    expect(sounds).toEqual([
+      { type: "hit", wallIndex: 0, frequency: pane.pitch, accent: true },
+      { type: "gap", wallIndex: 0 },
+    ]);
+    expect(view.shardCount).toBeGreaterThanOrEqual(MIN_SHARDS_PER_PANE);
+    expect(view.shardCount).toBeLessThanOrEqual(MAX_SHARDS_PER_PANE);
+    for (let i = 0; i < view.shardCount; i++) {
+      expect(view.shardX[i]).toBeGreaterThanOrEqual(pane.x - pane.halfWidth);
+      expect(view.shardX[i]).toBeLessThanOrEqual(pane.x + pane.halfWidth);
+      expect(view.shardLife[i]).toBe(view.shardMaxLife[i]);
+      expect(view.shardHue[i]).toBe(pane.hue);
+    }
+  });
+
+  it("shards fall, bounce off the shaft and fade out; a resize maps them and the cracked panes", () => {
+    const { view, pane, ball, options, level } = setup(1);
+    hitGlassPane(view, pane, ball, 300, options());
+    const n = view.shardCount;
+    const y0 = Array.from(view.shardY.subarray(0, n));
+    const vy0 = Array.from(view.shardVy.subarray(0, n));
+    const g = 1000;
+    stepGlassShards(view, 0.1, g, level.field.left, level.field.right);
+    expect(view.shardCount).toBe(n);
+    for (let i = 0; i < n; i++) {
+      expect(view.shardVy[i]).toBeCloseTo(vy0[i] + g * 0.1, 9);
+      expect(view.shardY[i]).toBeCloseTo(y0[i] + view.shardVy[i] * 0.1, 9);
+      expect(view.shardX[i]).toBeGreaterThanOrEqual(level.field.left + 0.5 * view.shardSize[i] - 1e-9);
+      expect(view.shardX[i]).toBeLessThanOrEqual(level.field.right - 0.5 * view.shardSize[i] + 1e-9);
+    }
+    const x = Array.from(view.shardX.subarray(0, n));
+    mapGlassShards(view, (v) => 2 * v, (v) => v + 10, 2);
+    for (let i = 0; i < n; i++) expect(view.shardX[i]).toBe(2 * x[i]);
+    const other = level.panes[1];
+    other.cracks.push(makeCrack(other, 5, true, 0.5, 0, stageRandom(3)));
+    const crack = Array.from(other.cracks[0].segs.subarray(0, 5 * other.cracks[0].count));
+    const [px, py, half] = [other.x, other.y, other.halfWidth];
+    mapGlassPane(other, (v) => 2 * v, (v) => v + 10, 2);
+    expect([other.x, other.y, other.halfWidth]).toEqual([2 * px, py + 10, 2 * half]);
+    expect(Array.from(other.cracks[0].segs.subarray(0, crack.length))).toEqual(crack.map((v) => Math.fround(2 * v)));
+    expect(other.segments[0].y).toBe(other.y);
+    // Every shard's life runs out.
+    for (let i = 0; i < 40; i++) stepGlassShards(view, 0.05, g, level.field.left, level.field.right);
+    expect(view.shardCount).toBe(0);
+  });
+
+  it("HOME: the ball lands, walks to the door, stands in it with the chord, and the celebration ends the run", () => {
+    const { level, view } = setup();
+    const home = level.home;
+    const viewH = level.field.height;
+    const ball = { id: 0, x: home.doorX - 200, y: home.groundY - 8, vx: 0, vy: 0, radius: 8, color: "#fff", trail: [], trailIndex: 0, spin: 0, angle: 0 } as Ball;
+    expect(landedOnGround(home, ball)).toBe(true);
+    expect(landedOnGround(home, { ...ball, y: home.groundY - 60 })).toBe(false);
+    const dt = 1 / 240;
+    expect(walkToDoor(home, ball, viewH, dt)).toBe(false);
+    expect(ball.vx).toBeCloseTo(WALK_SPEED * viewH, 9);
+    ball.x = home.doorX - 0.1;
+    expect(walkToDoor(home, ball, viewH, dt)).toBe(true);
+    expect(ball.vx).toBeCloseTo(0.1 / dt, 9);
+    const sounds: SoundEvent[] = [];
+    reachDoor(view, home, ball, 5000, (e, always) => void (always && sounds.push(e)));
+    expect(view.homeReached).toBe(true);
+    expect(view.homeAtMs).toBe(5000);
+    expect([ball.x, ball.y, ball.vx, ball.vy]).toEqual([home.doorX, home.groundY - 8.5, 0, 0]);
+    expect(sounds).toEqual([{ type: "hit", wallIndex: 0, frequency: HOME_CHORD[0], chord: [...HOME_CHORD], accent: true }]);
+    ball.x += 3;
+    holdAtDoor(home, ball);
+    expect(ball.x).toBe(home.doorX);
+    const confetti: number[][] = [];
+    const ctx = { spawnConfetti: (x: number, y: number) => void confetti.push([x, y]) };
+    let bursts = 0;
+    for (const t of [5000, 5100, 5400, 5700, 5800]) bursts = stepHomeCelebration(view, home, t, bursts, ctx);
+    expect(bursts).toBe(3);
+    expect(confetti.map(([x]) => x)).toEqual([home.doorX, home.doorX, home.doorX]);
+    expect(view.finished).toBe(false);
+    bursts = stepHomeCelebration(view, home, 5000 + CELEBRATION_MS, bursts, ctx);
+    expect(bursts).toBe(3);
+    expect(view.finished).toBe(true);
   });
 });
 

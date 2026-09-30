@@ -139,8 +139,9 @@ export const JOURNEY_CAMERA_FOLLOW = 0.38;
 export const STUCK_MS = 1200;
 export const STUCK_PX = 3;
 /**
- * After this many hops in one stage the ball squeezes through: it is set down just below the stage (a last resort for
- * settings no layout foresaw – a huge ball wedged somewhere – so every journey still reaches HOME).
+ * After this many hops in one stage the ball squeezes through: it is set down just below the stage, at a seeded spot
+ * within a tenth of the column's width of its centre line, drifting (a last resort for settings no layout foresaw – a
+ * huge ball wedged somewhere – so every journey still reaches HOME).
  */
 export const STUCK_SQUEEZE_AFTER = 4;
 /** Fastest the ball may fly, in view heights per second (× its speed multiplier): it never tunnels through thin glass. */
@@ -596,10 +597,11 @@ export class JourneyMode implements GameMode {
     this.stillMs = 0;
     this.view.nudges++;
     if (++this.stageNudges > STUCK_SQUEEZE_AFTER && stage.kind !== "home") {
-      // Still stuck: squeeze through to just below the stage (the next step enters the next one).
-      ball.x = field.cx;
+      // Still stuck: squeeze through to just below the stage (the next step enters the next one) – at a seeded spot off
+      // the centre line and drifting a little, so it does not land dead-centre on a peg straight below and balance there.
+      ball.x = field.cx + (ctx.random() - 0.5) * 0.2 * field.width;
       ball.y = stage.bounds.bottom + 1;
-      ball.vx = 0;
+      ball.vx = (ctx.random() - 0.5) * 0.1 * field.height;
       ball.vy = 0;
       for (const p of ball.trail) {
         p.x = ball.x;
