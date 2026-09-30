@@ -5197,6 +5197,220 @@ const vxFrameRates = async (ms) => {
 }
 // --- end boris-vortex ---
 
+// --- boris-bullseye ---
+// 33. Bullseye: the preview image and the card; URL → the Bullseye block of the Mode row (shots, interval, chaos, rings,
+// moving target, perfect shot, the run summary), controls → URL and the search box; a short rigged run at 1× (OscillatorNode
+// .start is instrumented): the perfect shot scores 10 with the fanfare and the slow motion, every landing thuds once (a sine
+// body – the only sine voice of the mode – and a triangle knock), the final banner holds before the end; the moving target
+// slides and freezes on pause, R restarts the run; the finder lands a 30 s seed that the run keeps at 8×; the default run keeps
+// 30+ fps; a 1080×1920 recording keeps 20+ fps and downloads; and a fast export thuds through its own audio and replays the same
+// frames.
+{
+  const res = await page.request.get(`${BASE}/modes/bullseye.webp`);
+  check("asset /modes/bullseye.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Bullseye card is on the landing page", (await page.locator('img[src$="/modes/bullseye.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("bullseye");
+  const byToggle = (label) => block.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const bySlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=6&byi=0.6&byc=0.25&byr=6&byp=2`, { waitUntil: "networkidle" });
+  {
+    const values = { bys: await bySlider("Shots").inputValue(), byi: await bySlider("Launch Interval").inputValue(), byc: await bySlider("Chaos").inputValue(), byr: await bySlider("Target Rings").inputValue(), byp: await bySlider("Perfect Shot").inputValue() };
+    const moving = await byToggle("Moving Target").getAttribute("aria-pressed");
+    const runText = await page.getByTestId("bullseye-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    check(
+      "bullseye loads from the URL",
+      values.bys === "6" && values.byi === "0.6" && values.byc === "0.25" && values.byr === "6" && values.byp === "2" && moving === "false" && /\b6 shots\b/.test(runText) && /Shot 2 is rigged/.test(runText) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, moving=${moving}, "${runText}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await bySlider("Shots").evaluate(setRangeValue, "9");
+  await bySlider("Target Rings").evaluate(setRangeValue, "8");
+  await byToggle("Moving Target").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "bullseye mirrors into the URL",
+      /(^|&)bys=9(&|$)/.test(query) && /(^|&)byr=8(&|$)/.test(query) && /(^|&)bym=1(&|$)/.test(query) && /(^|&)byp=2(&|$)/.test(query) && /(^|&)byc=0\.25(&|$)/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("launch interval");
+  const found = await page.locator('input[aria-label="Launch Interval"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the bullseye controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A short rigged run at 1×: 3 shots 0.6 s apart, the second steered into the bull.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=3&byi=0.6&byp=2&face=cute`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__byOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, type: this.type });
+      return start.apply(this, arguments);
+    };
+    // The slowest the world clock ran, polled every frame.
+    window.__byMinScale = 1;
+    const poll = () => {
+      const d = document.querySelector("main canvas")?.dataset;
+      if (d?.bullseyeTimeScale) window.__byMinScale = Math.min(window.__byMinScale, Number(d.bullseyeTimeScale));
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const banner = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.bullseyeAllLanded === "1" && d?.bullseyeFinished === "0";
+    }, null, { timeout: 25000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.screenshot({ path: path.join(outDir, "sim-bullseye.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__byOsc);
+  const minScale = await page.evaluate(() => window.__byMinScale);
+  const scores = (data.bullseyeScores || "").split(",").map(Number);
+  // A thud is a sine body followed by a triangle knock at 3 / 2.2 of its start; the sine is the mode's only sine voice.
+  let thuds = 0;
+  for (let i = 0; i + 1 < tones.length; i++) if (tones[i].type === "sine" && tones[i + 1].type === "triangle" && Math.abs(tones[i + 1].f / tones[i].f - 3 / 2.2) < 0.01) thuds++;
+  const sines = tones.filter((o) => o.type === "sine").length;
+  // The fanfare climbs to C6 (MIDI 84), above every peg note and below the stuck-ball tick.
+  const fanfare = tones.some((o) => o.type !== "sine" && Math.round(69 + 12 * Math.log2(o.f / 440)) === 84);
+  check(
+    "bullseye: the rigged shot scores 10 with a fanfare and slow motion, every landing thuds, the final banner holds, then the run ends",
+    banner && done && data.bullseyeLanded === "3" && scores.length === 3 && scores[1] === 10 && Number(data.bullseyeTotal) === scores.reduce((a, b) => a + b, 0) && Number(data.bullseyeBullseyes) >= 1 && Number(data.bullseyeSlowMos) >= 1 && minScale <= 0.35 && thuds === 3 && sines === 3 && data.bullseyeThuds === "3" && fanfare && data.bullseyeFinished === "1" && data.face === "cute",
+    `(banner=${banner}, finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("bullseye"))))}, slowest ${minScale}, ${thuds} thuds / ${sines} sines, fanfare=${fanfare}, ${tones.length} tones)`,
+  );
+}
+{
+  // The moving target slides; Space freezes it; R restarts the run.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bym=1&bys=5&byi=0.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const xs = [];
+  for (let i = 0; i < 10; i++) {
+    await page.waitForTimeout(250);
+    xs.push(Number((await canvasData()).bullseyeTargetX));
+  }
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(200);
+  const pausedA = await canvasData();
+  await page.waitForTimeout(700);
+  const pausedB = await canvasData();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("KeyR");
+  await page.waitForTimeout(150);
+  const restarted = await canvasData();
+  const spread = Math.max(...xs) - Math.min(...xs);
+  check(
+    "bullseye: the moving target slides, pauses with the run and a restart starts the shots over",
+    spread > 15 && pausedA.bullseyeTargetX === pausedB.bullseyeTargetX && pausedA.bullseyeLaunched === pausedB.bullseyeLaunched && Number(pausedA.bullseyeLaunched) >= 3 && restarted.bullseyeMoving === "1" && Number(restarted.bullseyeLaunched) <= 1 && restarted.bullseyeLanded === "0",
+    `(target x spread ${spread.toFixed(1)} px, paused ${pausedA.bullseyeTargetX} → ${pausedB.bullseyeTargetX}, launched ${pausedA.bullseyeLaunched} → after restart ${restarted.bullseyeLaunched}, landed ${restarted.bullseyeLanded})`,
+  );
+}
+{
+  // The finder: the seed moves the run length (the last flight, the bullseyes' slow motion) – a found seed keeps its promise.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.bullseyeFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a bullseye seed for 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.bullseyeFinished === "1" && Math.abs(Number(data.bullseyeFinishedMs) / 1000 - promised) < 0.1 && data.bullseyeLanded === "12",
+    `(ready=${ready}, "${readyText}", finished at ${data.bullseyeFinishedMs} ms, landed ${data.bullseyeLanded})`,
+  );
+}
+{
+  // The default run at 1× (glow and trails on), a few balls already stuck in the target.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&glow=1&face=cute`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(7000);
+  const fps = await vxFrameRates(4000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-bullseye-full.png") });
+  check("the default bullseye keeps 30+ fps with balls stuck in the target", Number(data.bullseyeLanded) >= 3 && fps.windows.length >= 6 && fps.min >= fpsFloor(30), `(landed ${data.bullseyeLanded}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default run.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await vxFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `bullseye-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 bullseye recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+{
+  // ⚡ Fast export of a short rigged run (2 shots over a clear field, the first in the bull, about 5 s): every landing thuds
+  // through the export's own audio (OscillatorNode.start is instrumented), the clip ends with the run instead of at the 10 s clip
+  // length, and a second export renders the same frames.
+  await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=2&byi=0.5&byc=0&byp=1&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const log = [];
+      window.__byFastOsc = log;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.frequency.value !== 1) log.push(this.type);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const exportOnce = async () => {
+      const downloadWait = page.waitForEvent("download", { timeout: 120000 }).catch(() => null);
+      await page.getByRole("button", { name: /Fast export/ }).click();
+      const download = await downloadWait;
+      await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60000 }).catch(() => {});
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `bullseye-fast-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const line = await page.getByText(/Exported a .* s (MP4|WEBM) in/).first().innerText().catch(() => "");
+      const thuds = await page.evaluate(() => window.__byFastOsc.splice(0).filter((t) => t === "sine").length);
+      return { status: await panel.getAttribute("data-fast-export"), digest: await panel.getAttribute("data-fast-digest"), bytes, seconds: Number(/Exported a ([\d.]+) s/.exec(line)?.[1] ?? NaN), thuds };
+    };
+    const a = await exportOnce();
+    const b = await exportOnce();
+    check(
+      "a bullseye fast export thuds through the export's audio, ends with the run and replays the same frames",
+      a.status === "done" && a.bytes > 10000 && a.thuds === 2 && a.seconds > 3 && a.seconds < 8 && b.status === "done" && b.thuds === 2 && !!a.digest && a.digest === b.digest,
+      `(${JSON.stringify(a)}, ${JSON.stringify(b)})`,
+    );
+  } else check("without WebCodecs the bullseye has no fast export to check (Record Video is covered above)", true);
+}
+// --- end boris-bullseye ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 

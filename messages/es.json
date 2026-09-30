@@ -1322,7 +1322,26 @@
     "vxLoop": "Bucle de reaparición",
     "vxLoopTip": "Una bola tragada vuelve enseguida al borde, así que el vórtice nunca termina: ideal para bucles largos, pero Buscar simulación no tiene nada que medir.",
     "vxRunInfo": "{notes} notas de anillos; el recorrido dura unos {seconds}s (el tempo de la semilla: {min}–{max}s), así que Buscar simulación puede acertar una duración en esa franja.",
-    "vxRunEndless": "El bucle de reaparición está activado: las bolas vuelven sin fin, así que el recorrido nunca termina y Buscar simulación se oculta. Desactiva el bucle para buscar una semilla para la duración de tu clip."
+    "vxRunEndless": "El bucle de reaparición está activado: las bolas vuelven sin fin, así que el recorrido nunca termina y Buscar simulación se oculta. Desactiva el bucle para buscar una semilla para la duración de tu clip.",
+    "modeBullseye": "Diana",
+    "byTitle": "Diana",
+    "byDesc": "Las bolas salen desde arriba una tras otra, rebotan por un corto campo de clavijas y rebotadores y caen sobre la diana de abajo: el anillo donde caen puntúa (10 el centro, 0 fuera de la diana) y cada bola se queda clavada donde cae, así que los tiros siguientes pueden rebotar en los anteriores. Las clavijas tocan notas de tu escala y los aterrizajes suenan con un golpe sordo; un tiro al centro es ¡DIANA! con confeti, fanfarria y cámara lenta.",
+    "byShots": "Tiros",
+    "byShotsTip": "Cuántas bolas se lanzan a la diana (1–30). El cartel final muestra el total y el mejor tiro.",
+    "byInterval": "Intervalo de lanzamiento",
+    "byIntervalTip": "Segundos entre dos lanzamientos. Con intervalos cortos hay varias bolas en el aire a la vez.",
+    "byChaos": "Caos",
+    "byChaosTip": "Cuántas clavijas y rebotadores hay entre el lanzador y la diana: 0 es un tiro limpio, 100 % el campo completo. La semilla elige cuáles.",
+    "byRings": "Anillos de la diana",
+    "byRingsTip": "Anillos que puntúan (3–10). El centro siempre vale 10 y los anillos exteriores menos; con menos anillos cada uno es más ancho.",
+    "byTargetMoving": "Diana móvil",
+    "byTargetMovingTip": "La diana se desliza a izquierda y derecha (es algo más pequeña para tener sitio) y arrastra las bolas clavadas en ella.",
+    "byPerfect": "Tiro perfecto",
+    "byPerfectTip": "Amaño: el director guía este tiro hasta el centro – rebota por las clavijas como siempre y luego se curva hacia la diana. Desactivado deja cada tiro a la física.",
+    "byPerfectOff": "No",
+    "byRunInfo": "{shots} tiros – unos {seconds}s con el cartel final. La semilla decide dónde cae cada bola (y cuánto rebota la última), así que Buscar simulación puede acertar la duración de tu clip.",
+    "byPerfectInfo": "El tiro {shot} está amañado para dar en el centro.",
+    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado."
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1399,6 +1418,10 @@
     "vortex": {
       "name": "Vórtice sonoro",
       "description": "¡Pew! Las bolas caen en un remolino de anillos sonoros y bajan en espiral hasta el agujero del centro: cada anillo que cruzan toca la nota siguiente, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. Al fondo, el agujero se las traga con un «pew» y un chapoteo."
+    },
+    "bullseye": {
+      "name": "Diana",
+      "description": "¡¡DIANA!! Las bolas salen una tras otra de un lanzador arriba, rebotan entre clavijas y rebotadores y se quedan clavadas donde caen sobre una diana tumbada abajo. Cada anillo puntúa, cada clavija toca una nota – y un tiro al centro lanza confeti, fanfarria y cámara lenta."
     }
   },
   "Features": {
@@ -1552,7 +1575,8 @@
     "modeCtf": "Sin anillos: dos equipos de uno a cuatro cuadrados juegan a capturar la bandera en una caja con una base y una bandera en cada extremo. El cuadrado que toca la bandera rival la lleva y anota al llegar a su propia base; si un rival golpea al portador, la bandera cae donde está: el rival puede volver a cogerla y su propio equipo la devuelve a casa. El director orienta un poco los rebotes hacia el objetivo de cada cuadrado, el marcador muestra las capturas y el reloj, y cada captura suena con una fanfarria. Gana el primer equipo que llega a la puntuación objetivo o, si no, la mejor puntuación cuando termina el clip.",
     "modeRunner": "El corredor rítmico de project.jdm «gravedad realista en Geometry Dash», sin anillos: un cuadrado corre por el suelo a velocidad constante bajo una cámara que se desplaza. El recorrido se planifica sobre los pulsos de la canción cargada (su pulso detectado, el mismo detector que Pintar una imagen) o del BPM: para cada obstáculo (una fila de pinchos, un foso, un bloque al que subir y del que luego bajar) el solucionador de saltos toma el tiempo de vuelo de un salto con gravedad real y velocidad de despegue fija y ajusta el despegue para que el aterrizaje caiga justo en un pulso. Con el salto automático el cuadrado salta en esos momentos y nunca falla; sin él saltas con Espacio y un choque reinicia el tramo. Cada aterrizaje toca la siguiente nota con una nube de polvo; la meta toca un acorde.",
     "modePaddle": "El formato «Ball Bounce Game with Moving Platform», sin anillos: una pelota cae con gravedad real sobre una plataforma que se desliza a izquierda y derecha; al atraparla sale despedida hacia arriba (más alto desde el centro, más bajo y de lado con efecto desde los bordes), así que recorre las paredes y el techo, y cada atrapada toca la siguiente nota. El controlador automático predice cada aterrizaje y va hacia allí; su Habilidad decide cuántas veces llega antes o después de tiempo, así que los fallos (y el fin del juego tras los permitidos) son deterministas para una semilla. También puedes mover la plataforma tú.",
-    "modeVortex": "El formato «sound vortex, pew» de borisbounces, sin anillos de los que escapar: un remolino visto desde arriba –un embudo de 6 a 24 anillos sonoros concéntricos sobre brazos de espiral luminosos, con un agujero en el centro–. Una bola tras otra entra por el borde con velocidad lateral y baja en espiral atraída por una fuerza que crece hacia el centro, con un poco de rozamiento; tarda el Tiempo de espiral en llegar al agujero y gira cada vez más deprisa por el camino. Cada anillo que cruza toca la nota siguiente de tu escala –con melodía, instrumento, muestra de golpe y ajuste al compás incluidos–, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. El agujero se la traga con un «pew», un barrido rápido de tono hacia abajo, y un chapoteo; con el bucle activado vuelve al borde. Las bolas se encogen con la profundidad para dar sensación 3D y cada recorrido es determinista, así que Buscar simulación puede elegir una semilla para la duración de tu clip."
+    "modeVortex": "El formato «sound vortex, pew» de borisbounces, sin anillos de los que escapar: un remolino visto desde arriba –un embudo de 6 a 24 anillos sonoros concéntricos sobre brazos de espiral luminosos, con un agujero en el centro–. Una bola tras otra entra por el borde con velocidad lateral y baja en espiral atraída por una fuerza que crece hacia el centro, con un poco de rozamiento; tarda el Tiempo de espiral en llegar al agujero y gira cada vez más deprisa por el camino. Cada anillo que cruza toca la nota siguiente de tu escala –con melodía, instrumento, muestra de golpe y ajuste al compás incluidos–, así que cada bola es un glissando ascendente y las bolas escalonadas tejen arpegios. El agujero se la traga con un «pew», un barrido rápido de tono hacia abajo, y un chapoteo; con el bucle activado vuelve al borde. Las bolas se encogen con la profundidad para dar sensación 3D y cada recorrido es determinista, así que Buscar simulación puede elegir una semilla para la duración de tu clip.",
+    "modeBullseye": "El formato «bulleye!!» de borisbounces, sin anillos de los que escapar: un campo vertical con una diana de dardos – de 3 a 10 anillos concéntricos con los colores de una diana – tumbada abajo. Un lanzador arriba dispara de 1 a 30 bolas una tras otra por un corto campo de clavijas y rebotadores (el Caos decide cuántos se interponen). El anillo donde cae una bola puntúa – 10 el centro, menos cuanto más lejos, nada fuera de la diana – con un marcador emergente y un total acumulado, y la bola se queda clavada donde cae, así que los tiros siguientes pueden rebotar en los anteriores. Las clavijas tocan notas de tu escala como un teclado de izquierda a derecha, los aterrizajes suenan más graves cuanto más lejos del centro, y un tiro al centro es ¡DIANA! con confeti, fanfarria y medio segundo de cámara lenta. La diana puede deslizarse a los lados, un Tiro perfecto amañado va directo al centro y el cartel final muestra el total y el mejor tiro. Con semilla y determinista, así que Buscar simulación puede encontrar una partida con la duración de tu clip."
   },
   "Footer": {
     "about": "Acerca de",
@@ -1896,5 +1920,14 @@
     "canvasPews": "[count] × PEW",
     "canvasDone": "¡PEW!",
     "canvasDoneSub": "[balls] bolas tragadas · [notes] notas"
+  },
+  "Bullseye": {
+    "canvasTitle": "DIANA",
+    "canvasShot": "TIRO [n]/[total]",
+    "canvasTotal": "TOTAL",
+    "canvasBullseye": "¡DIANA!",
+    "canvasMiss": "FALLO",
+    "canvasFinal": "TOTAL [total]",
+    "canvasFinalSub": "Mejor tiro #[shot]: [score] pts · dianas: [bullseyes]"
   }
 }

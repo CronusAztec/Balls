@@ -35,6 +35,7 @@ import type { PaddleSettings } from "@/lib/physics/modes/paddle";
 import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 // --- boris-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
+import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -111,6 +112,9 @@ export interface ModeSettings {
   // --- boris-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
+  // --- boris-bullseye ---
+  /** Bullseye: shots, interval, chaos, rings, the moving target and the perfect shot (see modes/bullseye.ts); the defaults when left out. Every run ends after the last landing, and the seed moves that (the last flight, the bullseyes' slow motion), so the finder searches it. */
+  bullseye?: Partial<BullseyeSettings>;
 }
 
 // --- odd-string-battle ---
@@ -282,6 +286,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
   // --- boris-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
+  if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- boris-bullseye ---
   engine.setSeed(seed);
   engine.initMode(mode);
   return engine;

@@ -1322,7 +1322,26 @@
     "vxLoop": "Pętla odrodzeń",
     "vxLoopTip": "Połknięta kulka od razu wraca na krawędź, więc wir nigdy się nie kończy – świetne do długich pętli, ale Znajdź symulację nie ma wtedy czego mierzyć.",
     "vxRunInfo": "Nuty z pierścieni: {notes}; bieg trwa około {seconds}s (tempo ziarna: {min}–{max}s), więc Znajdź symulację trafi w długość z tego przedziału.",
-    "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu."
+    "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu.",
+    "modeBullseye": "W dziesiątkę",
+    "byTitle": "W dziesiątkę",
+    "byDesc": "Kulki startują z góry jedna po drugiej, odbijają się w krótkim polu kołków i odbijaczy i lądują na tarczy na dole: pierścień, w który trafią, daje punkty (10 za środek, 0 poza tarczą), a każda kulka zostaje tam, gdzie wylądowała, więc kolejne strzały mogą się od niej odbić. Kołki grają nuty Twojej skali, lądowania głucho stukają; trafienie w środek to DZIESIĄTKA! z konfetti, fanfarą i zwolnionym tempem.",
+    "byShots": "Strzały",
+    "byShotsTip": "Ile kulek zostanie wystrzelonych w tarczę (1–30). Końcowy baner pokazuje sumę punktów i najlepszy strzał.",
+    "byInterval": "Odstęp strzałów",
+    "byIntervalTip": "Sekundy między dwoma strzałami. Przy krótkich odstępach w powietrzu jest kilka kulek naraz.",
+    "byChaos": "Chaos",
+    "byChaosTip": "Ile kołków i odbijaczy stoi między wyrzutnią a tarczą: 0 to czysty strzał, 100% – całe pole. Które z nich stoją, wybiera ziarno.",
+    "byRings": "Pierścienie tarczy",
+    "byRingsTip": "Punktowane pierścienie tarczy (3–10). Środek zawsze daje 10, zewnętrzne pierścienie mniej; im mniej pierścieni, tym każdy jest szerszy.",
+    "byTargetMoving": "Ruchoma tarcza",
+    "byTargetMovingTip": "Tarcza jeździ w lewo i w prawo (jest nieco mniejsza, żeby miała miejsce) i wozi ze sobą kulki, które w niej utkwiły.",
+    "byPerfect": "Idealny strzał",
+    "byPerfectTip": "Ustawka: reżyser prowadzi ten strzał w sam środek – kulka odbija się od kołków jak zwykle, a potem skręca na dziesiątkę. Wyłączone zostawia każdy strzał fizyce.",
+    "byPerfectOff": "Wył.",
+    "byRunInfo": "Strzały: {shots} – około {seconds}s razem z końcowym banerem. Ziarno decyduje, gdzie wyląduje każda kulka (i jak długo będzie się odbijać ostatnia), więc Znajdź symulację może trafić w długość Twojego klipu.",
+    "byPerfectInfo": "Strzał {shot} jest ustawiony na dziesiątkę.",
+    "byPerfectBeyond": "Idealny strzał wypada po ostatnim z {shots} strzałów, więc żaden strzał nie jest ustawiony."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -1399,6 +1418,10 @@
     "vortex": {
       "name": "Dźwiękowy wir",
       "description": "Pew! Kulki wpadają do wiru dźwiękowych pierścieni i spiralą opadają do dziury pośrodku – każdy mijany pierścień gra kolejną nutę, więc każda kulka to wznoszące się glissando, a kulki wpuszczane jedna po drugiej splatają się w arpeggia. Na dnie dziura połyka je z „pew” i pluskiem."
+    },
+    "bullseye": {
+      "name": "W dziesiątkę",
+      "description": "DZIESIĄTKA!! Kulki lecą jedna po drugiej z wyrzutni na górze, dzwonią o kołki i odbijacze i utykają tam, gdzie wylądują na tarczy leżącej na dole. Każdy pierścień daje punkty, każdy kołek gra nutę – a trafienie w środek odpala konfetti, fanfarę i zwolnione tempo."
     }
   },
   "Features": {
@@ -1552,7 +1575,8 @@
     "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu.",
     "modeRunner": "Rytmiczny bieg w stylu project.jdm „realistyczna grawitacja w Geometry Dash”, bez pierścieni: kwadrat biegnie po podłodze ze stałą prędkością pod przewijaną kamerą. Trasa jest planowana na bitach wczytanej piosenki (jej wykryty bit – ten sam detektor co w Malowaniu obrazka) albo tempa BPM: dla każdej przeszkody – rzędu kolców, dziury, bloku, na który się wskakuje, a potem z niego zeskakuje – solver skoków bierze czas lotu skoku z prawdziwą grawitacją i stałą prędkością wybicia i ustawia wybicie tak, żeby lądowanie wypadło dokładnie na bicie. Z automatycznym skokiem kwadrat skacze w tych chwilach i nigdy się nie myli; bez niego skaczesz Spacją, a zderzenie wznawia odcinek. Każde lądowanie gra kolejną nutę i wzbija obłoczek kurzu; meta gra akord.",
     "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie.",
-    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu."
+    "modeVortex": "Format „sound vortex, pew” z borisbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu.",
+    "modeBullseye": "Format „bulleye!!” z borisbounces, bez pierścieni do ucieczki: pionowe pole z tarczą do rzutek – 3–10 koncentrycznych pierścieni w barwach tarczy – leżącą na dole. Wyrzutnia na górze wystrzeliwuje 1–30 kulek jedna po drugiej przez krótkie pole kołków i odbijaczy (Chaos decyduje, ile ich stoi na drodze). Pierścień, w którym wyląduje kulka, daje punkty – 10 za środek, mniej dalej od niego, nic poza tarczą – z wyskakującym wynikiem i bieżącą sumą, a kulka zostaje tam, gdzie wylądowała, więc kolejne strzały mogą się od niej odbić. Kołki grają nuty Twojej skali jak klawiatura od lewej do prawej, lądowania stukają tym niżej, im dalej od środka, a trafienie w środek to DZIESIĄTKA! z konfetti, fanfarą i pół sekundy zwolnionego tempa. Tarcza może jeździć w lewo i w prawo, ustawiony Idealny strzał trafia w dziesiątkę, a końcowy baner pokazuje sumę i najlepszy strzał. Deterministyczne dla ziarna, więc Znajdź symulację może wyszukać przebieg o długości Twojego klipu."
   },
   "Footer": {
     "about": "O nas",
@@ -1896,5 +1920,14 @@
     "canvasPews": "[count] × PEW",
     "canvasDone": "PEW!",
     "canvasDoneSub": "połknięte kulki: [balls] · nuty: [notes]"
+  },
+  "Bullseye": {
+    "canvasTitle": "W DZIESIĄTKĘ",
+    "canvasShot": "STRZAŁ [n]/[total]",
+    "canvasTotal": "SUMA",
+    "canvasBullseye": "DZIESIĄTKA!",
+    "canvasMiss": "PUDŁO",
+    "canvasFinal": "SUMA [total]",
+    "canvasFinalSub": "Najlepszy strzał #[shot]: [score] pkt · dziesiątki: [bullseyes]"
   }
 }

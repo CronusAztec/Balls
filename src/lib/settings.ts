@@ -49,6 +49,8 @@ import { JDM_RHYTHM_RANGES, defaultJdmRhythmFields, readJdmRhythmParams, resolve
 import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 // --- boris-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- boris-bullseye --- the Bullseye mode
+import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBullseyeFields, writeBullseyeParams } from "@/lib/physics/modes/bullseye";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -581,6 +583,20 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end boris-vortex ---
+  // --- boris-bullseye --- Bullseye (lib/physics/modes/bullseye.ts): shots through a peg field onto a scoring target
+  /** Balls launched at the target, 1–30 (URL `bys`). */
+  byShots: number;
+  /** Seconds between two launches, 0.3–4 (URL `byi`). */
+  byInterval: number;
+  /** 0–1: how many pegs and bumpers stand in the way (URL `byc`). */
+  byChaos: number;
+  /** Scoring rings of the target, 3–10 (URL `byr`). */
+  byRings: number;
+  /** The target slides left and right (URL `bym`). */
+  byTargetMoving: boolean;
+  /** Rigging: the shot (1-based) the director steers into the bull; 0 = off (URL `byp`). */
+  byPerfect: number;
+  // --- end boris-bullseye ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -691,6 +707,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultVortexFields(), // --- boris-vortex ---
+    ...defaultBullseyeFields(), // --- boris-bullseye ---
   };
 }
 
@@ -755,6 +772,7 @@ export const RANGES = {
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...VORTEX_RANGES, // --- boris-vortex ---
+  ...BULLSEYE_RANGES, // --- boris-bullseye ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -989,6 +1007,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeBullseyeParams(settings, base, params); // --- boris-bullseye ---: bys, byi, byc, byr, bym, byp
   return params;
 }
 
@@ -1104,6 +1123,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
+  readBullseyeParams(params, settings); // --- boris-bullseye --- (clamped onto the sliders; bad values fall back)
   return settings;
 }
 
@@ -1296,6 +1316,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveBullseyeFields(merged)); // --- boris-bullseye --- clamped numbers on their steps, a real boolean
   return merged;
 }
 

@@ -80,6 +80,7 @@ import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
 import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
 import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 import {
   RANGES,
   defaultSettings,
@@ -260,6 +261,7 @@ export default function Simulator() {
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
+    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -721,6 +723,26 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
   // --- end boris-vortex ---
+  // --- boris-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
+  // drops a found seed; the Sound section's scale and root (the peg notes and the thuds) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBullseyeSettings(bullseyeSettingsOf(s));
+    if (s.mode === "bullseye" && engine.getCurrentModeName() === "bullseye") {
+      engine.initBullseye();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setBullseyeSettings(bullseyeSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.scale, s.rootNote]);
+  // --- end boris-bullseye ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1079,6 +1101,11 @@ export default function Simulator() {
           // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
+            continue;
+          }
+          // --- boris-bullseye --- a Bullseye landing thuds
+          if (ev.thud) {
+            audio.playThud(ev.frequency, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- boris-faces --- wide eyes when a wall breaks
@@ -1862,6 +1889,7 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
         },
         outcome, // --- rigged ---
       },
@@ -2041,6 +2069,16 @@ export default function Simulator() {
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+      },
+      // --- boris-bullseye ---
+      bullseye: {
+        title: t("Bullseye.canvasTitle"),
+        shot: (n, total) => fill("Bullseye.canvasShot", { n, total }),
+        total: t("Bullseye.canvasTotal"),
+        bullseye: t("Bullseye.canvasBullseye"),
+        miss: t("Bullseye.canvasMiss"),
+        finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
+        finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
       },
     };
   }, [t]);

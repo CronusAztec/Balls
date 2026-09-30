@@ -1331,7 +1331,26 @@
     "vxLoop": "Respawn Loop",
     "vxLoopTip": "A swallowed ball comes straight back at the rim, so the vortex never ends – great for long loops, but Find Simulation has nothing to time.",
     "vxRunInfo": "{notes} ring notes; the run lasts about {seconds}s (the seed's tempo: {min}–{max}s), so Find Simulation can hit a length in that band.",
-    "vxRunEndless": "Respawn Loop is on: the balls come back forever, so the run never ends and Find Simulation is hidden. Switch the loop off to search a seed for your clip length."
+    "vxRunEndless": "Respawn Loop is on: the balls come back forever, so the run never ends and Find Simulation is hidden. Switch the loop off to search a seed for your clip length.",
+    "modeBullseye": "Bullseye",
+    "byTitle": "Bullseye",
+    "byDesc": "Balls are launched from the top one after another, bounce through a short field of pegs and bumpers and land on the target at the bottom: the ring they land in scores (10 for the centre, 0 off the target) and every ball sticks where it lands, so later shots can bounce off earlier ones. Pegs play notes of your scale, landings thud; a centre hit is a BULLSEYE! with confetti, a fanfare and slow motion.",
+    "byShots": "Shots",
+    "byShotsTip": "How many balls are launched at the target (1–30). The final banner shows the total and the best shot.",
+    "byInterval": "Launch Interval",
+    "byIntervalTip": "Seconds between two launches. Short intervals put several balls in the air at once.",
+    "byChaos": "Chaos",
+    "byChaosTip": "How many pegs and bumpers stand between the launcher and the target: 0 is a clear shot, 100% the full field. The seed picks which ones.",
+    "byRings": "Target Rings",
+    "byRingsTip": "Scoring rings of the target (3–10). The centre always scores 10 and the outer rings less; fewer rings make each ring wider.",
+    "byTargetMoving": "Moving Target",
+    "byTargetMovingTip": "The target slides left and right (a little smaller, to have room) and carries the balls stuck in it.",
+    "byPerfect": "Perfect Shot",
+    "byPerfectTip": "Rigging: the director steers this shot into the bullseye – it bounces through the pegs as usual, then curves onto the centre. Off leaves every shot to the physics.",
+    "byPerfectOff": "Off",
+    "byRunInfo": "{shots} shots – about {seconds}s with the final banner. The seed decides where every ball lands (and how long the last one bounces), so Find Simulation can hit your clip length.",
+    "byPerfectInfo": "Shot {shot} is rigged to hit the bullseye.",
+    "byPerfectBeyond": "The perfect shot comes after the last of the {shots} shots, so no shot is rigged."
   },
   "Modes": {
     "classic": {
@@ -1441,6 +1460,10 @@
     "vortex": {
       "name": "Sound Vortex",
       "description": "Pew! Balls drop into a whirlpool of sound rings and spiral down to the hole in the middle – every ring they sink past plays the next note, so each ball is a rising glissando and the staggered balls weave arpeggios. At the bottom the hole swallows them with a pew and a splash."
+    },
+    "bullseye": {
+      "name": "Bullseye",
+      "description": "BULLSEYE!! Balls fly one after another from a launcher at the top, ping through pegs and bumpers and stick where they land on a dartboard lying at the bottom. Every ring scores, every peg plays a note – and a centre hit pops confetti, a fanfare and slow motion."
     }
   },
   "Features": {
@@ -1692,7 +1715,8 @@
     "modeCtf": "No rings: two teams of one to four squares play capture the flag in a box with a base and a flag at each end. A square that touches the enemy flag carries it and scores when it reaches its own base; a carrier hit by an enemy drops the flag where it is – the enemy can grab it again, its own team sends it home. The director nudges rebounds toward each square's goal, the scoreboard shows the captures and the clock, and every capture plays a goal fanfare. The first team to the target score wins, otherwise the better score when the clip ends.",
     "modeRunner": "The project.jdm \"realistic gravity in Geometry Dash\" rhythm runner, no rings: a square runs along a floor at a constant speed under a scrolling camera. The course is planned on the beat of the loaded song (its detected beat – the same detector as Picture Paint) or of the BPM: for every obstacle – a row of spikes, a pit, a block to jump onto and later drop off – the jump solver takes the flight time of a jump under real gravity with a fixed take-off speed and times the take-off so that the landing falls exactly on a beat. With Auto Jump the square jumps at those times and never fails; without it you jump with Space and a crash restarts the section. Every landing plays the next note with a puff of dust; the finish plays a chord.",
     "modePaddle": "The \"Ball Bounce Game with Moving Platform\" format, no rings: a ball falls under real gravity onto a platform that slides left and right; a catch launches it back up – higher from the centre, lower and sideways with spin from the edges – so it wanders off the walls and the ceiling, and every catch plays the next note. The auto controller predicts every landing and heads there; its Skill decides how often it arrives early or late, so the misses (and the game over after the allowed ones) are deterministic for a seed. Or move the platform yourself.",
-    "modeVortex": "The borisbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length."
+    "modeVortex": "The borisbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length.",
+    "modeBullseye": "The borisbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length."
   },
   "Footer": {
     "about": "About",
@@ -2119,5 +2143,14 @@
     "canvasPews": "[count] × PEW",
     "canvasDone": "PEW!",
     "canvasDoneSub": "[balls] balls swallowed · [notes] notes"
+  },
+  "Bullseye": {
+    "canvasTitle": "BULLSEYE",
+    "canvasShot": "SHOT [n]/[total]",
+    "canvasTotal": "TOTAL",
+    "canvasBullseye": "BULLSEYE!",
+    "canvasMiss": "MISS",
+    "canvasFinal": "TOTAL [total]",
+    "canvasFinalSub": "Best shot #[shot]: [score] pts · bullseyes: [bullseyes]"
   }
 }

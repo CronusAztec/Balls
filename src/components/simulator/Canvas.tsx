@@ -59,6 +59,8 @@ import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOpt
 import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_KEYS, RunnerLayer, writePaddleDataset, writeRunnerDataset, type JdmRhythmLabels, type JdmRhythmRenderOptions } from "./jdmRhythmRenderer";
 // --- boris-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
+// --- boris-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
+import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -140,6 +142,9 @@ export interface CanvasLabels {
   // --- boris-vortex ---
   /** Sound Vortex: the HUD title, the swallowed / pew counter and the banner when every ball is gone. */
   vortex?: VortexLabels;
+  // --- boris-bullseye ---
+  /** Bullseye: the HUD title, the shot counter, the total, BULLSEYE!, MISS and the final banner. */
+  bullseye?: BullseyeLabels;
 }
 
 export interface CanvasHandle {
@@ -291,6 +296,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   illusionCycles: (n) => `After ${n} cycle${n !== 1 ? "s" : ""}`,
   powerLayers: DEFAULT_POWER_LAYERS_LABELS, // --- odd-power-layers ---
   vortex: DEFAULT_VORTEX_LABELS, // --- boris-vortex ---
+  bullseye: DEFAULT_BULLSEYE_LABELS, // --- boris-bullseye ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -716,6 +722,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- boris-vortex --- the Sound Vortex's layer (cached gradients) and its per-frame options
     const vortexLayer = new VortexLayer();
     const vortexRender: VortexRenderOptions = { wallAlpha: () => "#fff", rainbow: true, wallThickness: 2, showWallGlow: true, ballRadius: 8 };
+    // --- boris-bullseye --- the Bullseye layer, its per-frame options and the data-bullseye-* writer
+    const bullseyeLayer = new BullseyeLayer();
+    const bullseyeRender: BullseyeRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
+    const bullseyeData = new BullseyeDataset();
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -992,6 +1002,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const illusionView = engine.isIllusionMode() ? engine.getIllusionView() : null;
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- boris-vortex ---
+      const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- boris-bullseye ---
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
@@ -1259,6 +1270,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         vortexRender.showWallGlow = p.showWallGlow;
         vortexRender.ballRadius = engine.config.ballRadius || 8;
         vortexLayer.drawWorld(ctx, vortexView, vortexRender);
+      }
+      // --- boris-bullseye --- Bullseye: the bumper rings, the landing line, the target and the launcher under the balls.
+      if (bullseyeView) {
+        bullseyeRender.wallAlpha = circleAlpha;
+        bullseyeRender.wallThickness = p.wallThickness;
+        bullseyeRender.showWallGlow = p.showWallGlow;
+        bullseyeLayer.drawWorld(ctx, bullseyeView, bullseyeRender);
       }
       // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
       if (raceView) {
@@ -1955,6 +1973,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
       if (rrView) rrLayer.drawParticles(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- landing dust, crash debris, finish sparks
       if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- boris-vortex --- the throat's shade, note pulses and splashes over the balls
+      if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- boris-bullseye --- score popups and the bullseye's starburst
 
       // Wall-break flashes and shockwaves
       for (const flash of engine.getWallBreakFlashes()) {
@@ -2069,6 +2088,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
       // --- boris-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // --- boris-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
+      if (bullseyeView) bullseyeLayer.drawOverlay(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
       if (arenaView) arenaLayer.drawOverlay(ctx, size.width, size.height, arenaView, arenaRender);
       // --- jdm-rhythm-runner --- progress, tempo, attempts and LEVEL COMPLETE! / score, lives, MISS! and GAME OVER (screen space,
@@ -2300,6 +2321,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (vortexView && vortexView.allSwallowed) {
           const VX = L.vortex ?? DEFAULT_VORTEX_LABELS;
           bigBanner(VX.done, VX.doneSub(vortexView.swallowed, vortexView.notes), "#a3e635");
+        }
+        // --- boris-bullseye --- Bullseye: every shot has landed – the total and the best shot (from the last landing, through the hold)
+        if (bullseyeView && bullseyeView.allLanded) {
+          const BY = L.bullseye ?? DEFAULT_BULLSEYE_LABELS;
+          bigBanner(BY.finalTitle(bullseyeView.total), BY.finalSub(bullseyeView.bestShot + 1, bullseyeView.best, bullseyeView.bullseyes), "#a3e635");
         }
         // --- boris-glass --- Glass Smash: Boris is HOME.
         if (glassView && glassView.homeReached) {
@@ -2771,6 +2797,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- boris-vortex --- balls, entered, swallowed, in flight, notes, chords, rings, the deepest ring, loop, tempo, depth, finished (data-vortex-*)
       if (vortexView) writeVortexDataset(vortexView, setCanvasData);
       else if (canvas.dataset.vortexBalls !== undefined) for (const key of VORTEX_DATA_KEYS) delete canvas.dataset[key];
+      // --- boris-bullseye --- shots, landings, total, best, bullseyes, scores, notes, thuds, slow motion, target, perfect shot, finished (data-bullseye-*)
+      if (bullseyeView) bullseyeData.write(bullseyeView, setCanvasData);
+      else if (canvas.dataset.bullseyeShots !== undefined) for (const key of BULLSEYE_DATA_KEYS) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

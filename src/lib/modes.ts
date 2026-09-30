@@ -36,6 +36,11 @@ MODE_CARD_ORDER.splice(MODE_CARD_ORDER.indexOf("illusion") + 1, 0, "battle", "ct
   const at = MODE_CARD_ORDER.indexOf("glass");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "vortex");
 }
+// --- boris-bullseye --- Bullseye joins the Boris family of the rhythm cards, right before the Sound Vortex (then Glass Smash)
+{
+  const at = MODE_CARD_ORDER.indexOf("vortex");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "bullseye");
+}
 
 /**
  * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
@@ -86,6 +91,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   paddle: "rhythm",
   // --- boris-vortex --- every ring a ball sinks past is a note and every swallow a pew: the sound-first family
   vortex: "rhythm",
+  // --- boris-bullseye --- every peg a ball bounces off is a note and every landing a thud: the sound-first family
+  bullseye: "rhythm",
 };
 
 /** The modes of a category in card order. */

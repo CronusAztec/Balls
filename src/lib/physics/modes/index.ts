@@ -59,3 +59,6 @@ export type { PaddleSettings, PaddleView, PaddleField, PaddleInput, PaddlePhase 
 // --- boris-vortex ---
 export { VortexMode } from "./vortex";
 export type { VortexSettings, VortexField, VortexView, SpiralState } from "./vortex";
+// --- boris-bullseye ---
+export { BullseyeMode } from "./bullseye";
+export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye";

@@ -52,6 +52,8 @@ export const MODE_IDS = [
   "paddle",
   // --- boris-vortex --- Sound Vortex
   "vortex",
+  // --- boris-bullseye --- Bullseye (a scoring target at the bottom of a peg field)
+  "bullseye",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -235,6 +237,9 @@ export interface SoundEvent {
   // --- boris-vortex ---
   /** A ball swallowed by the Sound Vortex: the page plays the "pew" (`ToneGenerator.playPew()`), a fast downward sweep from `frequency`. */
   pew?: boolean;
+  // --- boris-bullseye ---
+  /** A Bullseye landing: the page plays the thud (`ToneGenerator.playThud()`) at `frequency`, `level` loud. */
+  thud?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

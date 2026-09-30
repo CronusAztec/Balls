@@ -54,6 +54,8 @@ const MODES = {
   paddle: { wait: 4200, query: "pdsk=1&pdsp=1&glow=1" },
   // --- boris-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
   vortex: { wait: 14200, query: "face=cute&glow=1" },
+  // --- boris-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
+  bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

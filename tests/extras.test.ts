@@ -119,6 +119,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   paddle: { samples: [[314390,202273],[331052,238645],[387168,186813],[518968,322737]], broken: [], walls: [] },
   // --- boris-vortex --- Sound Vortex: its own funnel, no rings; recorded when the mode was added (seed 12345, defaults: 12 balls 1.5 s apart, 12 rings, 12.5 s spirals).
   vortex: { samples: [[505441,421447],[591932,381653],[429348,392412],[489357,211878],[456871,281023],[426114,373116],[412905,265698],[369240,335581]], broken: [], walls: [] },
+  // --- boris-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
+  bullseye: { samples: [[261123,524036],[387945,104306],[261123,524036],[457992,524036],[261123,524036],[457992,524036],[261123,524036],[457992,524036]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {
