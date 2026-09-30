@@ -549,6 +549,105 @@ describe("Send to selected (the controller)", () => {
   });
 });
 
+describe("connecting relay accounts and the clip on show (the controller with a fake window)", () => {
+  afterEach(() => resetPublishClips());
+
+  /** A window with a popup, message and focus events and a document whose <video> elements fail at once. */
+  function fakeWindow() {
+    const listeners: Record<string, Set<(e: unknown) => void>> = {};
+    const popup = { closed: false, location: { href: "about:blank" }, close: () => void (popup.closed = true) };
+    const opened: string[] = [];
+    let videos = 0;
+    const doc = {
+      createElement: (tag: string) => {
+        if (tag !== "video") return {};
+        videos++;
+        const video: Record<string, unknown> = { removeAttribute: () => {}, load: () => {} };
+        Object.defineProperty(video, "src", { set: () => setTimeout(() => (video.onerror as (() => void) | null)?.(), 0) });
+        return video;
+      },
+    };
+    const win = {
+      document: doc,
+      location: { origin: "https://site.example" },
+      open: (url: string) => {
+        opened.push(url);
+        popup.closed = false;
+        return popup;
+      },
+      addEventListener: (type: string, fn: (e: unknown) => void) => void (listeners[type] ??= new Set()).add(fn),
+      removeEventListener: (type: string, fn: (e: unknown) => void) => void listeners[type]?.delete(fn),
+      setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
+      clearInterval: (id: ReturnType<typeof setInterval>) => clearInterval(id),
+      setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
+      clearTimeout: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+    };
+    const fire = (type: string, e: unknown = {}) => [...(listeners[type] ?? [])].forEach((fn) => fn(e));
+    return { win: win as unknown as Window & typeof globalThis, popup, opened, fire, listeners, videos: () => videos };
+  }
+
+  it("opens a popup on the relay's one-time link, ticks the accounts it added and reloads when the page gets the focus back", async () => {
+    const mem = new Map<string, string>([[PUBLISH_STORAGE_KEY, JSON.stringify({ relayProfiles: [{ id: "p1", url: "https://relay.example", key: "jbl_team", label: "Team" }], activeRelay: "p1" })]]);
+    let accounts = [{ id: "a_1", platform: "tiktok", name: "Tok" }];
+    const { fetchImpl, calls } = mockFetch([
+      { url: "https://relay.example/api/me", reply: () => json({ key: { id: "k1", label: "Team" }, platforms: { tiktok: true, instagram: true, youtube: false } }) },
+      { url: "https://relay.example/api/accounts", reply: () => json({ accounts }) },
+      { method: "POST", url: "https://relay.example/api/connect/instagram", reply: () => json({ url: "https://relay.example/connect/instagram?state=s1" }) },
+    ]);
+    const fw = fakeWindow();
+    const c = new PublishController({ fetch: () => fetchImpl, window: () => fw.win, storage: () => ({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v) }), now: () => Date.now(), envClientId: "", envRelayUrl: "" });
+    c.start();
+    await vi.waitFor(() => expect(c.getSnapshot().relay.status).toBe("ok"));
+    c.connectRelay("instagram");
+    expect(fw.opened).toEqual(["about:blank"]);
+    expect(c.getSnapshot().connecting).toBe("instagram");
+    await vi.waitFor(() => expect(fw.popup.location.href).toBe("https://relay.example/connect/instagram?state=s1"));
+    expect(JSON.parse(String(calls.find((x) => x.url.endsWith("/api/connect/instagram"))!.body))).toEqual({ origin: "https://site.example" });
+    // A message from another origin is ignored; the relay's callback page reports two Instagram accounts (two Pages).
+    fw.fire("message", { origin: "https://evil.example", data: { source: "jumpingballslive-relay", type: "connected", accounts: [{ id: "a_x" }] } });
+    expect(c.getSnapshot().connecting).toBe("instagram");
+    accounts = [...accounts, { id: "a_ig1", platform: "instagram", name: "IG 1" }, { id: "a_ig2", platform: "instagram", name: "IG 2" }];
+    fw.fire("message", { origin: "https://relay.example", data: { source: "jumpingballslive-relay", type: "connected", platform: "instagram", accounts: [{ id: "a_ig1" }, { id: "a_ig2" }] } });
+    expect(c.getSnapshot().connecting).toBeNull();
+    expect(c.getSnapshot().stored.checked).toEqual(["relay:p1:a_ig1", "relay:p1:a_ig2"]);
+    await vi.waitFor(() => expect(c.getSnapshot().relay.accounts.map((a) => a.id)).toEqual(["a_1", "a_ig1", "a_ig2"]));
+    // A sign-in page that cut the popup off (COOP) never reports back: coming back to the page reloads the accounts.
+    accounts = [...accounts, { id: "a_tt2", platform: "tiktok", name: "Tok 2" }];
+    const before = calls.filter((x) => x.url.endsWith("/api/accounts")).length;
+    fw.fire("focus");
+    await vi.waitFor(() => expect(c.getSnapshot().relay.accounts.map((a) => a.id)).toContain("a_tt2"));
+    expect(calls.filter((x) => x.url.endsWith("/api/accounts")).length).toBe(before + 1);
+    // A failed sign-in shows the relay's message.
+    c.connectRelay("instagram");
+    await vi.waitFor(() => expect(fw.popup.location.href).toBe("https://relay.example/connect/instagram?state=s1"));
+    fw.fire("message", { origin: "https://relay.example", data: { source: "jumpingballslive-relay", type: "error", message: "No Instagram professional account is connected" } });
+    expect(c.getSnapshot().relay.error).toMatch(/No Instagram professional account/);
+    c.cancelConnect();
+    expect(fw.listeners.message?.size ?? 0).toBe(0);
+  });
+
+  it("reads the thumbnail of the clip on show only – a batch made while the block was closed decodes one", async () => {
+    const fw = fakeWindow();
+    const c = new PublishController({ fetch: () => vi.fn() as unknown as FetchLike, window: () => fw.win, storage: () => null, now: () => 0, envClientId: "", envRelayUrl: "" });
+    // The clips of a batch made while the block was closed: opening it reads the newest one's only.
+    const clips = [0, 1, 2, 3].map((i) => offerPublishClip({ blob: new Blob([`clip ${i}`], { type: "video/mp4" }), name: `ep-${i}`, source: "batch" }));
+    c.start();
+    expect(c.getSnapshot().clipId).toBe(clips[3].id);
+    await vi.waitFor(() => expect(c.getSnapshot().thumbs).toEqual({ [clips[3].id]: null }));
+    expect(fw.videos()).toBe(1);
+    c.selectClip(clips[1].id);
+    expect(fw.videos()).toBe(2);
+    c.removeClip(clips[3].id);
+    expect(Object.keys(c.getSnapshot().thumbs)).not.toContain(clips[3].id);
+  });
+
+  it("treats a job the relay closed as finished", () => {
+    expect(jobFinished({ id: "j", status: "failed", items: [] })).toBe(true);
+    expect(jobFinished({ id: "j", status: "running", items: [] })).toBe(false);
+    expect(jobFinished({ id: "j", status: "partial", items: [{ accountId: "a", platform: "tiktok", name: "T", status: "processing", progress: 0.5, link: null, error: null, code: null, note: null }] })).toBe(false);
+  });
+});
+
 describe("the bot CLI's --relay path", () => {
   it("parses --relay, --relay-key and --accounts and refuses them where they make no sense", async () => {
     const { parseArgs } = await import("../scripts/viral-bot.mjs");

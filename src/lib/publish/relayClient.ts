@@ -166,8 +166,8 @@ export function parseRelayJob(raw: unknown): RelayJob | null {
   return { id: r.id, status, items };
 }
 
-/** A job is over once every account has published or failed. */
-export const jobFinished = (job: RelayJob) => job.items.length > 0 && job.items.every((i) => i.status === "published" || i.status === "failed");
+/** A job is over once every account has published or failed (or the relay says it is over). */
+export const jobFinished = (job: RelayJob) => (job.items.length > 0 && job.items.every((i) => i.status === "published" || i.status === "failed")) || (job.status !== "running" && job.items.every((i) => i.status === "published" || i.status === "failed"));
 
 /** Uploads a form with fetch (no progress events; the CLI and the tests). */
 export function fetchSendForm(fetchImpl: FetchLike): SendForm {

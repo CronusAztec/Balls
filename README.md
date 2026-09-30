@@ -752,11 +752,32 @@ it still offers the third and explains the other two in a line each.
   is `lib/publish/relayClient.ts`: in the block's **Relay** settings you save **relay profiles** (URL + key + label; **Test**
   shows the key's label, its accounts and the relay's apps) and switch between them; **Connect TikTok / Instagram / via
   relay** opens a popup on a one-time sign-in link (`POST /api/connect/:platform` → `GET /connect/:platform` → the platform →
-  `/oauth/:platform/callback`, which stores the account and `postMessage`s the page before closing); **Send to selected**
+  `/oauth/:platform/callback`, which stores the account and `postMessage`s the page before closing; the new accounts come
+  ticked, and the list also reloads when the page gets the focus back); **Send to selected**
   uploads the clip once (`POST /api/publish`, multipart with the per-platform words; XMLHttpRequest for the upload progress)
   and polls `GET /api/jobs/:id` for every account's status, progress, link or error. The relay never returns a token. Deploy it
   on Render, Fly.io, Railway or any Docker host – the steps, the TikTok developer, Meta app and Google Cloud settings, the
-  scopes and the redirect URIs (`<relay>/oauth/<platform>/callback`) are in [relay/README.md](relay/README.md).
+  scopes and the redirect URIs (`<relay>/oauth/<platform>/callback`) are in [relay/README.md](relay/README.md). In short:
+  - **Deploy**: on [Render](https://render.com) a *Web Service* from this repository with Root Directory `relay`, Start
+    Command `node server.mjs` and the variables of `relay/.env.example` – `RELAY_PUBLIC_URL` (its `https://…onrender.com`
+    address), `RELAY_ALLOWED_ORIGINS=https://cronusaztec.github.io`, `RELAY_ADMIN_KEY`, the app keys, and `RELAY_DATA_DIR` on a
+    persistent disk (Fly.io / Railway / any Docker host: `relay/Dockerfile`, a volume at `/data`; locally `node relay/server.mjs`).
+  - **Keys for several people**: `curl -X POST <relay>/api/keys -H "Authorization: Bearer $RELAY_ADMIN_KEY" -d '{"label":"Alice"}'`
+    prints a key once (`GET /api/keys` lists them, `DELETE /api/keys/:id` revokes one and forgets its accounts); each person
+    adds the relay URL + their key under **Relay** in the block and connects their own accounts.
+  - **TikTok**: [developers.tiktok.com](https://developers.tiktok.com) → Manage apps → Connect an app; add **Login Kit** and
+    the **Content Posting API** (Direct Post on); scopes `user.info.basic` + `video.publish`; redirect URI
+    `<relay>/oauth/tiktok/callback`; client key / secret → `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET`. Until TikTok audits
+    the app only its sandbox target users can connect and posts are private ("Only me").
+  - **Instagram**: [developers.facebook.com](https://developers.facebook.com) → Create App → **Business**; add **Facebook
+    Login for Business** with the redirect URI `<relay>/oauth/instagram/callback` and the permissions `instagram_basic`,
+    `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`, `business_management` (or, with
+    `IG_LOGIN=instagram`, the Instagram product's business login with `instagram_business_basic` +
+    `instagram_business_content_publish`); link each Instagram professional account to a Facebook Page; app ID / secret →
+    `IG_APP_ID` / `IG_APP_SECRET`. In development mode only people with a role on the app can connect; App Review
+    (Advanced Access for the publish permission) opens it to everyone.
+  - **YouTube through the relay** (optional; refresh tokens keep channels signed in): a Google OAuth *Web application* client
+    with the redirect URI `<relay>/oauth/youtube/callback` → `YT_CLIENT_ID` / `YT_CLIENT_SECRET`.
 - **Path C – quick share** (`lib/publish/share.ts`): **Send to TikTok / Instagram / YouTube** – on a phone or tablet the Web
   Share API gets the video file itself (`navigator.canShare({ files })`; the system sheet lists the installed TikTok, Instagram
   and YouTube apps; the caption goes to the clipboard first, since most apps drop shared text); on a computer the clip
@@ -779,7 +800,10 @@ it still offers the third and explains the other two in a line each.
   draft in three languages, the relay client against a mocked fetch – info, accounts, connect link, publish form, job polling,
   errors –, the quick share with a fake `navigator.share` / `canShare` and a fake document, the YouTube token, channel and
   resumable upload – session, chunked PUTs, resume after a 308 and after a dropped connection or a 503 –, the stored state,
-  the clip inbox, a whole Send to selected through the controller, the CLI's `--relay` options and posting);
+  the clip inbox, a whole Send to selected through the controller, a relay sign-in popup with a fake window – the accounts it
+  added ticked, a reload when the page gets the focus back (a sign-in page whose Cross-Origin-Opener-Policy cuts the popup
+  off never reports back), a failed sign-in's message kept – the thumbnail read only for the clip on show, the CLI's
+  `--relay` options and posting);
   `relay/relay.test.mjs` (run by `npx vitest run relay`: the key / account store, the one-time OAuth states, the multipart
   parser, TikTok's chunking, the words per platform, the Instagram request builders against `instagram.ts`, the callback page,
   CORS and keys over HTTP, the TikTok / Instagram / YouTube sign-ins, a publish to all three – TikTok's unaudited fallback,

@@ -152,6 +152,7 @@ export class PublishController {
   private readonly pendingAuth = new Map<string, { clip: PublishClip; post: ComposedPost; visibility: Visibility }>();
   private relayRefresh = 0;
   private connectCleanup: (() => void) | null = null;
+  private focusCleanup: (() => void) | null = null;
 
   constructor(private readonly deps: ControllerDeps) {
     const initial: PublishSnapshot = {
@@ -218,8 +219,17 @@ export class PublishController {
     const known = new Set(this.snap.clips.map((c) => c.id));
     // A new clip becomes the one to send.
     const clipId = newest && !known.has(newest) ? newest : clips.some((c) => c.id === this.snap.clipId) ? this.snap.clipId : newest;
-    this.set({ clips, clipId });
-    for (const c of clips) if (!(c.id in this.snap.thumbs)) void this.loadThumb(c);
+    // Thumbnails of clips no longer listed are dropped; only the clip on show gets one (a batch of 50 clips decodes one).
+    const listed = new Set(clips.map((c) => c.id));
+    const thumbs = Object.fromEntries(Object.entries(this.snap.thumbs).filter(([id]) => listed.has(id)));
+    this.set({ clips, clipId, thumbs });
+    this.ensureThumb();
+  }
+
+  /** Reads the thumbnail and length of the clip on show, once. */
+  private ensureThumb(): void {
+    const clip = this.snap.clips.find((c) => c.id === this.snap.clipId);
+    if (clip && !(clip.id in this.snap.thumbs)) void this.loadThumb(clip);
   }
 
   private async loadThumb(clip: PublishClip): Promise<void> {
@@ -227,6 +237,7 @@ export class PublishController {
     const win = this.deps.window();
     if (!win) return;
     const info = await readVideoInfo(clip.blob, win.document);
+    if (!this.snap.clips.some((c) => c.id === clip.id)) return; // removed meanwhile
     this.set({ thumbs: { ...this.snap.thumbs, [clip.id]: info.thumb } });
     if (info.durationSec) setClipDuration(clip.id, info.durationSec);
   }
@@ -234,7 +245,9 @@ export class PublishController {
   /* ------------------------------------------------------------ clip and words */
 
   selectClip(id: string): void {
-    if (this.snap.clips.some((c) => c.id === id)) this.set({ clipId: id });
+    if (!this.snap.clips.some((c) => c.id === id)) return;
+    this.set({ clipId: id });
+    this.ensureThumb();
   }
 
   /** A video file picked from the disk joins the clips. */
@@ -504,11 +517,17 @@ export class PublishController {
       done = true;
       cleanup();
       this.set({ connecting: null, connectLink: error ? this.snap.connectLink : null, relay: { ...this.snap.relay, error, errorCode: code } });
-      void this.refreshRelay();
+      // A failed sign-in added nothing (and a reload would wipe its message).
+      if (!error) void this.refreshRelay();
     };
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== relayOrigin || !e.data || typeof e.data !== "object" || (e.data as { source?: unknown }).source !== "jumpingballslive-relay") return;
-      const data = e.data as { type?: string; message?: string };
+      const data = e.data as { type?: string; message?: string; accounts?: unknown };
+      // The accounts a sign-in just added are ticked, like a newly connected YouTube channel.
+      if (data.type === "connected" && Array.isArray(data.accounts)) {
+        const added = data.accounts.map((a) => (a && typeof a === "object" && typeof (a as { id?: unknown }).id === "string" ? relayKey(profile.id, (a as { id: string }).id) : null)).filter((k): k is string => !!k && !this.snap.stored.checked.includes(k));
+        if (added.length) this.setStored({ checked: [...this.snap.stored.checked, ...added] });
+      }
       finish(data.type === "error" ? data.message || "The sign-in failed." : null);
     };
     const poll = win.setInterval(() => {
@@ -523,6 +542,23 @@ export class PublishController {
     };
     this.connectCleanup = cleanup;
     win.addEventListener("message", onMessage);
+    // A sign-in page with a Cross-Origin-Opener-Policy cuts the popup off from this page: the callback's postMessage then
+    // never arrives and the popup reads as closed at once. So the accounts also reload whenever this page gets the focus
+    // back in the next ten minutes (the user finished, or gave up on, the sign-in in the other window).
+    this.focusCleanup?.();
+    let lastFocus = 0;
+    const onFocus = () => {
+      if (this.deps.now() - lastFocus < 1500) return;
+      lastFocus = this.deps.now();
+      void this.refreshRelay();
+    };
+    const focusTimer = win.setTimeout(() => this.focusCleanup?.(), 10 * 60 * 1000);
+    this.focusCleanup = () => {
+      win.removeEventListener("focus", onFocus);
+      win.clearTimeout(focusTimer);
+      this.focusCleanup = null;
+    };
+    win.addEventListener("focus", onFocus);
     this.client(profile)
       .connectLink(platform, win.location.origin)
       .then((url) => {
@@ -556,7 +592,11 @@ export class PublishController {
       await this.client(profile).removeAccount(id);
       this.setStored({ checked: this.snap.stored.checked.filter((k) => k !== relayKey(profile.id, id)) });
     } catch (err) {
-      this.set({ relay: { ...this.snap.relay, error: message(err), errorCode: errorCode(err) } });
+      // Gone already: the reload shows it. Anything else keeps its message (a reload would wipe it).
+      if (!(err instanceof RelayError && err.code === "notFound")) {
+        this.set({ relay: { ...this.snap.relay, error: message(err), errorCode: errorCode(err) } });
+        return;
+      }
     }
     await this.refreshRelay();
   }
