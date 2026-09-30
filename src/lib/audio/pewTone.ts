@@ -2,7 +2,7 @@ import type { InstrumentId } from "./instruments";
 
 /**
  * The "pew" of the Sound Vortex (lib/physics/modes/vortex.ts): a ball swallowed by the hole plays a fast downward pitch
- * sweep – the retro laser "pew" of the borisbounces clips. A main oscillator glides exponentially from the start pitch
+ * sweep – the retro laser "pew" of the geraldbounces clips. A main oscillator glides exponentially from the start pitch
  * down `drop` times lower (three octaves at the default 8) over `duration`, with a sub-oscillator an octave below it and
  * a click of an attack, then dies away. The ToneGenerator schedules it (`playPew()`) at the time it hands over – on the
  * beat grid when the beat lock is on – snaps the start pitch to the current scale through `snap` and picks the waveform

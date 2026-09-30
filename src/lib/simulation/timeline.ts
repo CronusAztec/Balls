@@ -1,4 +1,5 @@
 import type { CircularWall, ModeId, PhysicsConfig } from "@/lib/physics/types";
+import { passableGap } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
 
 /**
@@ -459,14 +460,15 @@ export function engineTimelineOf(settings: { keyframes: readonly Keyframe[]; rot
 
 /**
  * Resizes the rings' gaps in place to `gap` radians, each gap keeping its start angle – exactly the gap a fresh build with
- * that size gives a ring – while the rotation, the broken rings and the run go on (a gap-size change through
- * `setConfig()` rebuilds the rings instead). Only in the modes whose rings are built from the gap size; the others keep
- * their own gaps (Portal's portals, Shatter's broken segments).
+ * that size gives a ring (widened where a ball of `ballRadius` could never pass it: `passableGap()`) – while the rotation,
+ * the broken rings and the run go on (the engine's `setConfig()` resizes the classic rings' gaps the same way). Only in the
+ * modes whose rings are built from the gap size; the others keep their own gaps (Portal's portals, Shatter's segments).
  */
-export function resizeGaps(walls: readonly CircularWall[], gap: number, mode: ModeId | undefined): void {
+export function resizeGaps(walls: readonly CircularWall[], gap: number, mode: ModeId | undefined, ballRadius = 0): void {
   if (!mode || !GAP_SIZED_MODES.includes(mode)) return;
   for (const wall of walls) {
-    if (wall.gaps.length === 1) wall.gaps[0].endAngle = wall.gaps[0].startAngle + gap;
+    // (never narrower than a ball of `ballRadius` can pass, as the rings are built: see passableGap())
+    if (wall.gaps.length === 1) wall.gaps[0].endAngle = wall.gaps[0].startAngle + passableGap(gap, wall.radius, ballRadius);
   }
 }
 

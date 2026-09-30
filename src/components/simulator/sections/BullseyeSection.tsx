@@ -16,7 +16,7 @@ export interface BullseyeSectionProps {
 export const BULLSEYE_KEYS = ["byShots", "byInterval", "byChaos", "byRings", "byTargetMoving", "byPerfect"];
 
 /**
- * "Bullseye" controls (feature boris-bullseye), shown in the Mode row while Bullseye is the mode (and in the Ball section
+ * "Bullseye" controls (feature gerald-bullseye), shown in the Mode row while Bullseye is the mode (and in the Ball section
  * while the settings search is in use): the shots and how far apart they leave, the chaos of the peg field, the target's
  * rings, the moving target, the rigged perfect shot and a line that sums the run up for Find Simulation. The values live
  * in SimulatorSettings; Simulator.tsx forwards them to the engine (see lib/physics/modes/bullseye.ts) and restarts the run

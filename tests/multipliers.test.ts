@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HASHED_PAIRS_FROM, PhysicsEngine } from "@/lib/physics/engine";
-import { MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS } from "@/lib/physics/modes/multiply";
+import { MULTIPLY_MAX_BALLS, MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS } from "@/lib/physics/modes/multiply";
 import {
   DEFAULT_MULTIPLIER_CONFIG,
   MAX_EFFECTIVE_BOUNCE,
@@ -543,24 +543,49 @@ describe("Multiply with multipliers in play", () => {
     for (const run of [a, b]) expect(run.medianMs, `peak ${run.peak}, mean ${run.avgMs.toFixed(2)} ms`).toBeLessThan(1000 / 60);
   }, 120_000);
 
-  it("caps only the multiplier runs: an ordinary Multiply run spawns as many as it always did", () => {
-    const escapes = (withMultipliers: boolean) => {
+  it("caps every Multiply run at the swarm's ceiling, with or without multipliers; below it every escape spawns as usual", () => {
+    expect(MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS).toBe(MULTIPLY_MAX_BALLS);
+    const escapes = (withMultipliers: boolean, outside: number) => {
       const engine = engineFor("multiply", 5);
       if (withMultipliers) engine.applyBallMultiplier(engine.getBalls()[0], "damage", 2);
-      // 210 balls outside the ring: each escapes in the next step and would spawn three more.
-      for (let i = 0; i < 210; i++) engine.addBall({ x: 2400 + 3 * i, y: 300, vx: 0, vy: 0, radius: 8, color: "#fff" });
+      // Balls outside the ring: each escapes in the next step and would spawn three more.
+      for (let i = 0; i < outside; i++) engine.addBall({ x: 2400 + 3 * i, y: 300, vx: 0, vy: 0, radius: 8, color: "#fff" });
+      const sounds = () => engine.consumeSoundEvents().filter((e) => e.type === "gap").length;
       engine.update(1000 / 60, 0);
-      return engine.getBalls().length;
+      return { balls: engine.getBalls().length, gaps: sounds() };
     };
-    expect(escapes(false)).toBe(211 + 3 * 210);
-    expect(escapes(true)).toBe(211);
-    // Below the cap the multiplier run spawns as usual.
-    const engine = engineFor("multiply", 5);
-    engine.applyBallMultiplier(engine.getBalls()[0], "damage", 2);
-    for (let i = 0; i < 10; i++) engine.addBall({ x: 2400 + 3 * i, y: 300, vx: 0, vy: 0, radius: 8, color: "#fff" });
-    engine.update(1000 / 60, 0);
-    expect(engine.getBalls().length).toBe(11 + 3 * 10);
+    // Past the ceiling an escape still counts (its "gap" sound) but spawns nothing – an ordinary run too.
+    for (const withMultipliers of [false, true]) {
+      const past = escapes(withMultipliers, 210);
+      expect(past.balls, `multipliers ${withMultipliers}`).toBe(211);
+      expect(past.gaps).toBe(210);
+      // Below the ceiling it spawns as usual.
+      expect(escapes(withMultipliers, 10).balls).toBe(11 + 3 * 10);
+    }
   });
+
+  it("keeps an ordinary Multiply run's swarm at the ceiling instead of letting it explode (seed 2 passed 1,000 balls at 60 s)", () => {
+    // The finding's run: 800×600 at the page's defaults, the director on, three new balls an escape. It reaches the ceiling
+    // at about 50 s (it used to go on to 226 balls at 50 s, 310 at 55 s and 1,079 – 100 ms a step – at 60 s).
+    const run = (seconds: number, snapshotAt: number) => {
+      const engine = new PhysicsEngine({ ...config, width: 800, height: 600, gapSize: 0.3 });
+      engine.setMultiplySpawnCount(3);
+      engine.setSeed(2);
+      engine.initMode("multiply");
+      let peak = 0;
+      let snapshot: number[][] = [];
+      for (let f = 1; f <= seconds * 60; f++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        peak = Math.max(peak, engine.getBalls().length);
+        if (f === snapshotAt * 60) snapshot = engine.getBalls().map((b) => [b.id, Math.round(b.x * 1000), Math.round(b.y * 1000)]);
+      }
+      return { peak, snapshot };
+    };
+    const a = run(58, 40);
+    expect(a.peak).toBe(MULTIPLY_MAX_BALLS);
+    expect(run(40, 40).snapshot).toEqual(a.snapshot); // deterministic for the seed
+  }, 120_000);
 
   it("resolves the ball pairs of a big multiplier run through the spatial hash exactly like the pair loop", () => {
     // 50 isolated pairs, each overlapping and closing in: the order of the pass cannot matter, so the hashed pass (100

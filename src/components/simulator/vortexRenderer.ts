@@ -1,7 +1,7 @@
 import { MAX_SPLASHES, SLOT_FLYING, depthRadiusScale, vortexDepth, type VortexView } from "@/lib/physics/modes/vortex";
 
 /**
- * Canvas drawing of the Sound Vortex (feature boris-vortex, lib/physics/modes/vortex.ts). The canvas calls, per frame:
+ * Canvas drawing of the Sound Vortex (feature gerald-vortex, lib/physics/modes/vortex.ts). The canvas calls, per frame:
  * `drawWorld()` under the balls – the funnel's depth gradient, the whirlpool arms (logarithmic spirals turning with the
  * balls, their dashes flowing inward), the sound rings (cool at the rim, hot by the hole with the rainbow walls on, else
  * the wall colour; a ring lights up and glows when a ball sinks past it), the rim and the hole; the balls themselves are

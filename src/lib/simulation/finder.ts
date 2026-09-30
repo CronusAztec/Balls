@@ -9,9 +9,9 @@ import { polyrhythmCycleSeconds, resolvePolyrhythmSettings, type PolyrhythmSetti
 import type { ModeId, PhysicsConfig } from "@/lib/physics/types";
 // --- jdm-collisions ---
 import type { CollideSettings } from "@/lib/physics/modes/collide";
-// --- boris-glass ---
+// --- gerald-glass ---
 import type { GlassSettings } from "@/lib/physics/modes/glass";
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } from "@/lib/physics/modes/multipliers";
 // --- rigged ---
 import { startBallCount } from "@/lib/physics/ballStats";
@@ -34,18 +34,19 @@ import type { BattleSettings, CtfSettings } from "@/lib/physics/modes/arenaGames
 import type { RunnerSettings } from "@/lib/physics/modes/runner";
 import type { PaddleSettings } from "@/lib/physics/modes/paddle";
 import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
-// --- boris-vortex ---
+// --- gerald-vortex ---
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
-import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- boris-journey ---
-import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
+import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- gerald-journey ---
+import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
- * finishes within `toleranceSec` of the target duration. Runs in batches on
- * requestAnimationFrame so the UI stays responsive, and can be cancelled with an AbortSignal.
+ * finishes within `toleranceSec` of the target duration. Runs in slices of about
+ * `FINDER_FRAME_BUDGET_MS` per requestAnimationFrame so the UI stays responsive, and can be
+ * cancelled with an AbortSignal (it is checked between slices, so within a frame).
  */
 
 export interface ModeSettings {
@@ -83,10 +84,10 @@ export interface ModeSettings {
   // --- teams ---
   /** Balls the multi-ball modes start with (1–6, a team roster's size); overrides `twoBalls` when set. */
   ballCount?: number;
-  // --- boris-glass ---
+  // --- gerald-glass ---
   /** Glass Smash: rows, hit points, stages, sliding panes and holes (see modes/glass.ts); the defaults when left out. Every run ends at HOME, so the finder searches it. */
   glass?: Partial<GlassSettings>;
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** Multipliers board: rows, gate mix, start balls, ball cap and the count target (see modes/multipliers.ts); the defaults when left out. */
   multipliers?: Partial<MultipliersSettings>;
   // --- jdm-double-pendulum ---
@@ -127,13 +128,13 @@ export interface ModeSettings {
    * (no picture) always ends at `COVERAGE_DONE` and is searched like any mode.
    */
   paintPicture?: boolean;
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   /** Sound Vortex: balls, stagger, rings, duration, pull and loop (see modes/vortex.ts); the defaults when left out. Without the loop every run ends when the last ball is swallowed, and the seed's tempo moves that continuously, so the finder searches it. */
   vortex?: Partial<VortexSettings>;
-  // --- boris-journey ---
+  // --- gerald-journey ---
   /** Journey: the stage list or the auto count (see modes/journey.ts); the defaults when left out. Every journey reaches HOME (the stages never hold the ball for good), so the finder searches it. */
   journey?: Partial<JourneySettings>;
-  // --- boris-bullseye ---
+  // --- gerald-bullseye ---
   /** Bullseye: shots, interval, chaos, rings, the moving target and the perfect shot (see modes/bullseye.ts); the defaults when left out. Every run ends after the last landing, and the seed moves that (the last flight, the bullseyes' slow motion), so the finder searches it. */
   bullseye?: Partial<BullseyeSettings>;
   // --- beat-drop ---
@@ -210,7 +211,7 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "illusion") return illusionRunNeverFinishes(settings.illusion);
   // --- jdm-rhythm-runner --- the runner played by hand (the finder cannot play), the paddle played by hand or perfectly
   if (mode === "runner" || mode === "paddle") return jdmRhythmNeverFinishes(mode, settings);
-  // --- boris-vortex --- with the loop on every swallowed ball comes back: the vortex never ends
+  // --- gerald-vortex --- with the loop on every swallowed ball comes back: the vortex never ends
   if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
   return false;
 }
@@ -262,7 +263,7 @@ export interface FinderProgress {
   currentSeed: number;
   bestDuration: number;
   bestSeed: number;
-  // --- boris-multipliers --- a count search (multipliers board with a target): the closest final count so far
+  // --- gerald-multipliers --- a count search (multipliers board with a target): the closest final count so far
   bestCount?: number;
 }
 
@@ -275,7 +276,7 @@ export interface FinderResult {
   endless?: boolean;
   /** The run always lasts `duration` with these settings, whatever the seed (see `fixedRunDurationSec()`), and that misses the target: nothing was simulated. */
   fixedDuration?: boolean;
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** A count search (multipliers board with a target): the final count of the seed found – or of the closest one. */
   count?: number;
   // --- rigged ---
@@ -327,9 +328,9 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "polyrhythm") engine.setPolyrhythmSettings(settings.polyrhythm ?? {}); // --- jdm-polyrhythm ---
   // --- jdm-collisions ---
   if (mode === "collide") engine.setCollideSettings(settings.collide ?? {});
-  // --- boris-glass ---
+  // --- gerald-glass ---
   if (mode === "glass") engine.setGlassSettings(settings.glass ?? {});
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   if (mode === "multipliers") engine.setMultipliersSettings(settings.multipliers ?? {});
   // --- jdm-double-pendulum ---
   if (mode === "doublePendulum") engine.setDoublePendulumSettings(settings.doublePendulum ?? {});
@@ -347,10 +348,10 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   // --- jdm-rhythm-runner ---
   if (mode === "runner") engine.setRunnerSettings(settings.runner ?? {});
   if (mode === "paddle") engine.setPaddleSettings(settings.paddle ?? {});
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
-  if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- boris-journey ---
-  if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- boris-bullseye ---
+  if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- gerald-journey ---
+  if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- gerald-bullseye ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
@@ -411,7 +412,7 @@ export function beatCoverage(seed: number, request: FinderRequest, durationMs: n
 }
 // --- end video-beats ---
 
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 /** The count target of a request (a multipliers board with `target` > 0), or 0 for a search by duration. */
 export function countTarget(request: Pick<FinderRequest, "mode" | "modeSettings">): number {
   return request.mode === "multipliers" ? resolveMultipliersSettings(request.modeSettings.multipliers).target : 0;
@@ -434,7 +435,13 @@ export function simulateMultipliersSeed(seed: number, request: FinderRequest, ma
   }
   return { durationMs: maxSimMs, count: engine.getMultipliersProgress().home };
 }
-// --- end boris-multipliers ---
+// --- end gerald-multipliers ---
+
+/**
+ * Real time (ms) a search spends per animation frame before it yields – the duration, count and outcome searches alike. A
+ * seed that takes longer still runs whole (one seed a frame); the batch sizes below only cap how many seeds a frame may take.
+ */
+export const FINDER_FRAME_BUDGET_MS = 30;
 
 export function findSimulation(
   request: FinderRequest,
@@ -469,7 +476,7 @@ export function findSimulation(
     const targetMs = request.targetDurationSec * 1000;
     const toleranceMs = request.toleranceSec * 1000;
     const maxSimMs = request.maxSimTimeSec * 1000;
-    // --- boris-multipliers --- a board of hundreds of balls costs a lot per seed: one seed per frame, and a target
+    // --- gerald-multipliers --- a board of hundreds of balls costs a lot per seed: one seed per frame, and a target
     // count turns the search into "final count within 5 % of the target" (any run length)
     const targetCount = countTarget(request);
     if (targetCount > 0) {
@@ -489,10 +496,14 @@ export function findSimulation(
         resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested });
         return;
       }
+      // Seeds until the frame's time budget is spent (at most `batchSize`): a slice of ~30 ms, whatever a seed costs.
+      const start = performance.now();
       const end = Math.min(tested + batchSize, request.maxSeeds);
-      for (let i = tested; i < end; i++) {
+      let i = tested;
+      while (i < end) {
         const seed = seedAt(i);
         const durationMs = simulateSeed(seed, request, maxSimMs);
+        i++;
         const diff = Math.abs(durationMs - targetMs);
         if (diff < bestDiff) {
           bestDiff = diff;
@@ -500,11 +511,12 @@ export function findSimulation(
           bestSeed = seed;
         }
         if (diff <= toleranceMs) {
-          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i + 1, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
+          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
           return;
         }
+        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
-      tested = end;
+      tested = i;
       onProgress({
         seedsTested: tested,
         maxSeeds: request.maxSeeds,
@@ -522,7 +534,7 @@ export function findSimulation(
   });
 }
 
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 /** The count search of the multipliers board: seeds until one sends a number of balls home within 5 % of the target. */
 function findByCount(request: FinderRequest, target: number, onProgress: (p: FinderProgress) => void, signal?: AbortSignal): Promise<FinderResult> {
   return new Promise((resolve) => {
@@ -537,14 +549,20 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
         resolve({ found: false, seed: best.seed, duration: best.durationMs / 1000, seedsTested: tested, count: Math.max(0, best.count) });
         return;
       }
-      const seed = seedAt(tested);
-      const { durationMs, count } = simulateMultipliersSeed(seed, request, maxSimMs, target + tolerance);
-      tested++;
-      const diff = Math.abs(count - target);
-      if (diff < best.diff) best = { seed, count, durationMs, diff };
-      if (diff <= tolerance) {
-        resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: tested, count });
-        return;
+      // Seeds until the frame's time budget is spent (a board of hundreds of balls usually takes the whole budget alone).
+      const start = performance.now();
+      let seed = 0;
+      while (tested < request.maxSeeds) {
+        seed = seedAt(tested);
+        const { durationMs, count } = simulateMultipliersSeed(seed, request, maxSimMs, target + tolerance);
+        tested++;
+        const diff = Math.abs(count - target);
+        if (diff < best.diff) best = { seed, count, durationMs, diff };
+        if (diff <= tolerance) {
+          resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: tested, count });
+          return;
+        }
+        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
       onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seed, bestDuration: best.durationMs / 1000, bestSeed: best.seed, bestCount: best.count });
       if (tested >= request.maxSeeds) resolve({ found: false, seed: best.seed, duration: best.durationMs / 1000, seedsTested: tested, count: Math.max(0, best.count) });
@@ -555,9 +573,6 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
 }
 
 // --- rigged ---
-/** Real time (ms) the outcome search spends per animation frame before it yields (a long run still takes one seed a frame). */
-const OUTCOME_FRAME_BUDGET_MS = 30;
-
 /**
  * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
  * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
@@ -619,7 +634,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
         }
         const miss = outcomeMiss(outcome, run);
         if (!best || miss < best.miss) best = { seed, run, miss };
-        if (performance.now() - start > OUTCOME_FRAME_BUDGET_MS) break;
+        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
       onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seedAt(tested - 1), bestDuration: best ? outcomeFigure(outcome, best.run) : 0, bestSeed: best?.seed ?? 0 });
       if (tested >= request.maxSeeds) resolve(result(false, best?.seed ?? 0, best?.run ?? null));

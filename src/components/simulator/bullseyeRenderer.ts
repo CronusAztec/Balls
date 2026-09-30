@@ -1,7 +1,7 @@
 import { KIND_BUMPER, MAX_BULLSEYE_RINGS, SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye";
 
 /**
- * Canvas drawing of Bullseye (feature boris-bullseye, lib/physics/modes/bullseye.ts). The canvas calls, per frame:
+ * Canvas drawing of Bullseye (feature gerald-bullseye, lib/physics/modes/bullseye.ts). The canvas calls, per frame:
  * `drawWorld()` under the balls, after the generic obstacle pass has drawn the side walls, pegs and bumpers – the
  * bumpers' lime rings, the landing line, the target (a dartboard lying on the floor: concentric ellipses in dartboard
  * colours, a ring lighting up when a ball lands in it) and the launcher at the top, turning toward the next shot and

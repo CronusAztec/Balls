@@ -90,11 +90,11 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   polyrhythm: { samples: [[420160,265082],[447525,272562],[434918,279840],[447525,327438],[440320,300000],[400000,354877],[434918,320160],[352475,327438]], broken: [], walls: [] },
   // --- jdm-collisions --- Collision Playground: no rings; recorded when the mode was added (seed 12345, default playground: 300 orbs in a circle, gravity 0.3, restitution 1).
   collide: { samples: [[487111,370370],[324053,350598],[415811,486674],[350075,374418],[451355,560543],[439759,425664],[412621,562530],[541650,361374]], broken: [], walls: [] },
-  // --- boris-glass --- Glass Smash: no rings, one ball smashing down the shaft (seed 12345, default: 4 stages from 6 panes of 2 hits); recorded when
+  // --- gerald-glass --- Glass Smash: no rings, one ball smashing down the shaft (seed 12345, default: 4 stages from 6 panes of 2 hits); recorded when
   // the mode was added and re-recorded when a slow touch from above became a landing (the ball grazes the edge of a hole at 6.7 s, which
   // used to only damp it and now cracks the pane and hops it – so a ball can never come to rest on unbroken glass).
   glass: { samples: [[485763,293145],[518834,716109],[329481,898042],[245066,1181480]], broken: [], walls: [] },
-  // --- boris-multipliers --- Multipliers board: no rings; recorded when the mode was added (seed 12345, default board: 8 rows, one ball).
+  // --- gerald-multipliers --- Multipliers board: no rings; recorded when the mode was added (seed 12345, default board: 8 rows, one ball).
   multipliers: { samples: [[211640,191252],[266980,620146],[529953,990656],[362092,1570907],[620725,1348624],[611940,1608709],[447416,1810903],[350566,1720155]], broken: [], walls: [] },
   // --- jdm-double-pendulum --- Double Pendulum: chains in error-controlled Dormand–Prince sub-steps, no rings (seed 12345, default: one double pendulum from a seeded start,
   // 15 strings); re-recorded when the sub-steps became error-controlled – within 0.04 px of the fixed RK4 sub-steps it was recorded with when the mode was added.
@@ -118,12 +118,12 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // on a 120 BPM beat with auto jump / the auto platform at skill 0.7).
   runner: { samples: [[943750,351750],[1787500,314250],[2631250,363948],[3475000,314250]], broken: [], walls: [] },
   paddle: { samples: [[314390,202273],[331052,238645],[387168,186813],[518968,322737]], broken: [], walls: [] },
-  // --- boris-vortex --- Sound Vortex: its own funnel, no rings; recorded when the mode was added (seed 12345, defaults: 12 balls 1.5 s apart, 12 rings, 12.5 s spirals).
+  // --- gerald-vortex --- Sound Vortex: its own funnel, no rings; recorded when the mode was added (seed 12345, defaults: 12 balls 1.5 s apart, 12 rings, 12.5 s spirals).
   vortex: { samples: [[505441,421447],[591932,381653],[429348,392412],[489357,211878],[456871,281023],[426114,373116],[412905,265698],[369240,335581]], broken: [], walls: [] },
-  // --- boris-journey --- Journey: its own column of stages; recorded when the mode was added (seed 12345, the default route – 10 s in, the ball is
+  // --- gerald-journey --- Journey: its own column of stages; recorded when the mode was added (seed 12345, the default route – 10 s in, the ball is
   // still in the first stage's rings, which are the engine's own walls there, five of them broken).
   journey: { samples: [[385083,309284],[424939,272610],[363033,334004],[220976,314591]], broken: [0, 1, 2, 3, 4], walls: [39168,70502,101837,133171,164506,195840] },
-  // --- boris-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
+  // --- gerald-bullseye --- Bullseye: its own peg field and target, no rings; recorded when the mode was added (seed 12345, defaults: 12 shots 2.2 s apart, chaos 0.5, 10 rings).
   bullseye: { samples: [[261123,524036],[387945,104306],[261123,524036],[457992,524036],[261123,524036],[457992,524036],[261123,524036],[457992,524036]], broken: [], walls: [] },
   // --- beat-drop --- Beat Drop: its own scene, no rings, one ball on planned arcs; recorded when the mode was added (seed 12345, defaults: every kind, drift 0.5, endless, 120 BPM).
   beatDrop: { samples: [[509120,544774],[262528,780382],[289034,985198],[319796,1232829]], broken: [], walls: [] },

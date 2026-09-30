@@ -116,8 +116,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     ctf: ctfSettingsOf(s),
     ...jdmRhythmFinderSettingsOf(s, markerBeat), // --- video-beats --- (no song without a page)
     vortex: vortexSettingsOf(s),
-    journey: journeySettingsOf(s), // --- boris-journey ---
-    bullseye: bullseyeSettingsOf(s), // --- boris-bullseye ---
+    journey: journeySettingsOf(s), // --- gerald-journey ---
+    bullseye: bullseyeSettingsOf(s), // --- gerald-bullseye ---
     beatDrop: beatDropSettingsOf(s, markerBeat), // --- beat-drop --- (the bot plans without a loaded song)
     onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)
     territory: territorySettingsOf(s), // --- odd-territory ---

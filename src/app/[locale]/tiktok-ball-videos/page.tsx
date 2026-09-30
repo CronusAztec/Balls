@@ -5,7 +5,7 @@ import Footer from "@/components/site/Footer";
 import SectionHeading from "@/components/site/SectionHeading";
 import { Link } from "@/i18n/navigation";
 import { SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "../layout";
+import { localeAlternates } from "@/i18n/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
