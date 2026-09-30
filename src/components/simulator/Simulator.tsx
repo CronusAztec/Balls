@@ -1002,6 +1002,7 @@ export default function Simulator() {
         engine.setBouncier(arena.bouncierEnabled);
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
+        engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
       },
     }),
     [initEngineForMode],

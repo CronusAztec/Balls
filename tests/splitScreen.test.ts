@@ -535,6 +535,7 @@ describe("split-screen: sounds and the finder", () => {
       playBumper: () => calls.push("bumper"),
       playStringBattle: (k) => calls.push(`sb ${k}`),
       playRaceArpeggio: (k) => calls.push(`race ${k}`),
+      playPew: (f) => calls.push(`pew ${f}`), // --- boris-vortex ---
     };
     playArenaSound(sink, { type: "hit", wallIndex: 2 });
     playArenaSound(sink, { type: "hit", wallIndex: 1, level: 0.5 });
@@ -547,7 +548,9 @@ describe("split-screen: sounds and the finder", () => {
     // An event that accompanies the tune (a paddle's wall bounce, a runner's crash) uses up no melody note, as on the page.
     playArenaSound(sink, { type: "hit", wallIndex: 3, melody: false });
     playArenaSound(sink, { type: "multiplier", wallIndex: 0, multiplier: 2, melody: false });
-    expect(calls).toEqual([`hit 2 ${EXTRA_ARENA_LEVEL}`, `hit 1 ${0.5 * EXTRA_ARENA_LEVEL}`, "gap", "int merge", "mult 4", "bumper", "sb pluck", "race fanfare", `hit 3 ${EXTRA_ARENA_LEVEL} accompaniment`, "mult 2 accompaniment"]);
+    // A ball swallowed by the Sound Vortex pews (its event is a "hit" on the innermost ring, not a bounce).
+    playArenaSound(sink, { type: "hit", wallIndex: 12, frequency: 880, pew: true });
+    expect(calls).toEqual([`hit 2 ${EXTRA_ARENA_LEVEL}`, `hit 1 ${0.5 * EXTRA_ARENA_LEVEL}`, "gap", "int merge", "mult 4", "bumper", "sb pluck", "race fanfare", `hit 3 ${EXTRA_ARENA_LEVEL} accompaniment`, "mult 2 accompaniment", "pew 880"]);
   });
 
   const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 10, maxSimTimeSec: 60, physicsConfig: { width: 300, height: 600, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#fff", ballRadius: 8, audioIntensity: 0 }, mode: "classic", modeSettings: MODE_SETTINGS };

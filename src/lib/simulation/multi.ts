@@ -98,6 +98,8 @@ export interface ArenaSoundSink {
   playBumper(frequency?: number): void;
   playStringBattle(kind: "pluck" | "shatter", frequency?: number): void;
   playRaceArpeggio(kind: RaceArpeggioKind, root?: number): void;
+  /** --- boris-vortex --- a ball swallowed by the Sound Vortex. */
+  playPew(frequency?: number): void;
 }
 
 /**
@@ -108,6 +110,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.race) return sink.playRaceArpeggio(ev.race, ev.frequency);
   if (ev.bumper) return sink.playBumper(ev.frequency);
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
+  if (ev.pew) return sink.playPew(ev.frequency); // --- boris-vortex --- (not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);
