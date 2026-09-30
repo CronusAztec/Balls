@@ -3,6 +3,7 @@ import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./mul
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
+import type { BounceMathConfig } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -99,6 +100,14 @@ export interface Ball {
   // --- boris-multipliers ---
   /** Stacked stat multipliers – speed, size, damage, bounce, gravity (see multipliers.ts); absent = a plain ×1 ball. */
   mult?: BallMultipliers;
+  // --- bounce-math --- per-ball values of the bounce-math rules (lib/physics/bounceMathRuntime.ts); absent = untouched
+  /** Restitution of the ball's rebounds – bounce math's "bounciness" (a factor on the engine's ring rebounds and obstacle hits); 1 when absent. */
+  restitution?: number;
+  /** Degrees bounce math has turned the ball's colour ("hue"); 0 when absent. */
+  hueShift?: number;
+  /** Semitones bounce math adds to the ball's bounce notes ("pitch"); 0 when absent. */
+  pitchShift?: number;
+  // --- end bounce-math ---
 }
 
 export type NewBall = Omit<Ball, "id" | "trail" | "trailIndex" | "spin" | "angle">;
@@ -197,6 +206,13 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
    */
   timeline?: readonly Keyframe[];
   // --- end timeline ---
+  // --- bounce-math ---
+  /**
+   * Bounce math (lib/simulation/bounceMath.ts): the rules, the beat grid their beat / bar triggers follow and the canvas
+   * parameters' starting values. The seed finder, the arenas and the fast export copy it with the rest of the config.
+   */
+  bounceMath?: BounceMathConfig;
+  // --- end bounce-math ---
 }
 
 export interface SoundEvent {
@@ -409,6 +425,10 @@ export interface ModeContext {
    * centred on the canvas, where the ring walls live). The mode moves its own obstacles; the physics is unchanged.
    */
   shiftWorld?(dx: number, dy: number): void;
+  // --- bounce-math ---
+  /** A mode that resolves its own walls reports a bounce of `ball` (bounce math's "bounce" trigger); changes nothing else. */
+  noteBounce?(ball: Ball): void;
+  // --- end bounce-math ---
 }
 
 export interface GameMode {

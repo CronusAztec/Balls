@@ -69,6 +69,7 @@ import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDa
 import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
+import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -160,6 +161,9 @@ export interface CanvasLabels {
   // --- beat-drop ---
   /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
   beatDrop?: BeatDropLabels;
+  // --- bounce-math ---
+  /** Bounce math: the words of the "Show values" badge (bounciness, speed, size, gravity, a rule's fire count). */
+  bounceMath?: BounceMathHudLabels;
 }
 
 export interface CanvasHandle {
@@ -772,6 +776,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bullseyeData = new BullseyeDataset();
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
+    const bmLayer = new BounceMathLayer(); // --- bounce-math ---
     const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
     let bdTeams: CanvasTeamOptions | null | undefined;
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
@@ -894,7 +899,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       lastFrameRef.current = now;
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
-      const p = propsRef.current;
+      const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
       cam.settings = cameraRef.current; // --- camera ---
 
       if (!p.isPaused && p.isStarted) {
@@ -1085,7 +1090,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- boris-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- boris-bullseye ---
-      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
+      const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
+      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
       const conicGradient = (alpha?: number) => {
@@ -2585,6 +2591,24 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionLayer.draw(ctx, engine, captionOptions, captionView);
       } else captionLayer.clear();
 
+      // --- bounce-math --- "Show values": the ball that bounced last and every rule's fire count, inside the recorded square (so
+      // clips have it) – in its bottom-left corner above the page's buttons, the bottom text and the song bar, or in the top-right
+      // corner below the page's buttons, the scoreboard, SLOW-MO and the top text while bottom captions are on screen
+      {
+        const bmView = engine.getBounceMathView();
+        if (bmView.active && bmView.showValues) {
+          const side = Math.min(size.width, size.height);
+          const live = !recordingRef.current && (size.width - side) / 2 < 170;
+          let bottom = cy + side / 2 - (live ? 56 : 0);
+          if (p.bottomText) bottom = Math.min(bottom, edgeLines.bottomY - 0.75 * edgeLines.fontSize);
+          if (songProgressRef.current !== null) bottom = Math.min(bottom, size.height - 14);
+          const slowMo = multView.active && multView.dilation < 1 ? 0.025 * side + 1.6 * Math.max(11, 0.034 * side) + 6 : 0;
+          const top = Math.max(cy - side / 2 + (live ? 52 : 0) + slowMo, teamLayer.isActive() ? teamLayer.scoreboardBottom + 6 : 0, p.topText ? edgeLines.topY + 0.75 * edgeLines.fontSize : 0);
+          const bmLabels = (labelsRef.current ?? DEFAULT_LABELS).bounceMath ?? DEFAULT_BOUNCE_MATH_LABELS;
+          bmLayer.drawHud(ctx, bmView, bmLabels, { x0: cx - side / 2, y0: cy - side / 2, side, bottom, top, toTop: captionLayer.usesBottom }, engine.getElapsedMs());
+        } else bmLayer.drawn = false;
+      }
+
       // Song slicer: thin progress bar along the bottom edge (part of the recording too)
       const songProgress = songProgressRef.current;
       if (songProgress !== null) {
@@ -2936,6 +2960,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("onbeatBeats", String(onBeat.beatsCovered));
         setCanvasData("onbeatWarp", onBeat.warp.toFixed(2));
       } else if (canvas.dataset.onbeatHits !== undefined) for (const key of ["onbeatHits", "onbeatOnBeat", "onbeatFree", "onbeatMaxErr", "onbeatMeanErr", "onbeatBeats", "onbeatWarp"]) delete canvas.dataset[key];
+
+      // --- bounce-math --- the readout: rules, fire counts, the last ball's bounciness / speed / size, gravity, the badge (data-bm-*)
+      const bmData = engine.getBounceMathView();
+      if (bmData.active) writeBounceMathDataset(bmData, bmLayer, setCanvasData, engine.getElapsedMs());
+      else if (canvas.dataset.bmRules !== undefined) for (const key of BOUNCE_MATH_DATA_KEYS) delete canvas.dataset[key];
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

@@ -946,6 +946,7 @@ export class GlassMode implements GameMode {
     const v = this.view;
     const level = v.level!;
     const fromAbove = ball.y < pane.y;
+    ctx.noteBounce?.(ball); // --- bounce-math --- a pane hit is a bounce
     pane.hp = Math.max(0, pane.hp - hitDamage(ball)); // --- boris-multipliers --- a damage multiplier takes more off
     pane.hits++;
     pane.lastHitMs = v.timeMs;

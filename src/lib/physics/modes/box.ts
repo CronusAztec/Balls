@@ -690,6 +690,7 @@ export class BoxMode implements GameMode {
   /** One wall hit: the sound event, the countdown, the flash / colour / growth bookkeeping and the finish. */
   private hit(ctx: ModeContext, ball: Ball, st: BoxShapeState, wall: number, accent: boolean) {
     const v = this.view;
+    ctx.noteBounce?.(ball); // --- bounce-math --- a wall of the box is a bounce
     const s = this.settings;
     if (this.soundsThisStep < MAX_BOX_SOUNDS_PER_STEP) {
       this.soundsThisStep++;
