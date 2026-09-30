@@ -5493,6 +5493,19 @@ const vxFrameRates = async (ms) => {
     const note = await bot.getByText(/Rendering needs WebCodecs/).first().isVisible().catch(() => false);
     check("viral bot: without WebCodecs the Bot block plans but says rendering needs WebCodecs", one && disabled && note, `(disabled=${disabled}, note=${note})`);
   }
+  // --- split-screen --- in a race Render all is off and says why (the fast export draws one arena); opening a clip ends the race
+  await page.goto(`${BASE}/en/simulator/?mode=classic&ac=2`, { waitUntil: "networkidle" });
+  bot = await openBot();
+  {
+    const kept = await waitClips(1);
+    const raceDisabled = await bot.getByRole("button", { name: /Render all/ }).isDisabled();
+    const raceNote = await bot.getByTestId("bot-split-race").isVisible().catch(() => false);
+    await bot.locator("[data-bot-clip]").first().getByRole("button", { name: /Open in simulator/ }).click();
+    const raceOver = await page.waitForFunction(() => !new URLSearchParams(location.search).has("ac") && !!new URLSearchParams(location.search).get("mode"), null, { timeout: 15000 }).then(() => true).catch(() => false);
+    const renderBack = !webCodecs || (await page.waitForFunction(() => [...document.querySelectorAll("[data-bot] button")].some((b) => /Render all/.test(b.textContent ?? "") && !b.disabled), null, { timeout: 15000 }).then(() => true).catch(() => false));
+    const noteGone = !(await bot.getByTestId("bot-split-race").isVisible().catch(() => false));
+    check("viral bot: a split-screen race keeps Render all off and says why; opening a clip ends the race", kept && raceDisabled && raceNote && raceOver && renderBack && noteGone, `(plan kept=${kept}, disabled=${raceDisabled}, note=${raceNote}, race over=${raceOver}, render back=${renderBack}, ${page.url().slice(0, 120)}…)`);
+  }
   await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
 }
 // --- end viral-bot ---

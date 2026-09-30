@@ -1993,6 +1993,7 @@
     "copied": "¡Copiado!",
     "unsupported": "Renderizar requiere WebCodecs (Chrome, Edge o Safari); planificar funciona en cualquier navegador.",
     "busy": "Ocupado – espera a que termine la grabación, la búsqueda o la exportación.",
+    "splitRace": "El plan se renderiza con la exportación rápida, que dibuja una sola arena: vuelve a poner Arenas en 1 (o abre uno de los clips) para renderizarlo.",
     "worldChanged": "El simulador cambió de tamaño desde que se hizo el plan: las semillas se eligieron para el lienzo anterior – vuelve a planificar para que los tiempos cuadren.",
     "notes": "Los finales se alternan para compararlos en las estadísticas; publica un gancho nuevo primero como reel de prueba.",
     "countdown": {

@@ -172,6 +172,10 @@ export class MultiArenaRunner {
   viewports(): readonly ArenaViewport[] {
     return this.views;
   }
+  /** The whole canvas (CSS px) while a race is on – the world the page's engine has in the single view – else null. */
+  canvasSize(): { width: number; height: number } | null {
+    return this.isActive() && this.canvasW > 0 && this.canvasH > 0 ? { width: this.canvasW, height: this.canvasH } : null;
+  }
   /** The overrides of the arenas in play (labels filled in). */
   arenas(): readonly ArenaOverride[] {
     return this.overrides;

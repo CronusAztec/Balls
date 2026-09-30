@@ -2216,6 +2216,7 @@
     "copied": "Copied!",
     "unsupported": "Rendering needs WebCodecs (Chrome, Edge or Safari); planning works everywhere.",
     "busy": "Busy – wait for the recording, search or export to finish.",
+    "splitRace": "The plan renders with the fast export, which draws a single arena – set Arenas back to 1 (or open one of the clips) to render it.",
     "worldChanged": "The simulator was resized since this plan was made: its seeds were timed for the old canvas – plan again for exact timing.",
     "notes": "Endings alternate so you can compare them in Insights; post a new hook as a Trial Reel first.",
     "countdown": {

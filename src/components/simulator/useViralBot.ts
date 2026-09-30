@@ -39,6 +39,8 @@ export interface BotPanelProps {
   worldChanged: boolean;
   supported: boolean | null;
   disabled: boolean;
+  /** --- split-screen --- The page is a split-screen race: rendering is off (the fast export draws one arena). */
+  splitRace: boolean;
   onPlan: () => void;
   onToday: () => void;
   onCancel: () => void;
@@ -69,6 +71,8 @@ export interface UseViralBotOptions {
   jobProgress: number | null;
   supported: boolean | null;
   disabled: boolean;
+  /** --- split-screen --- The page is a split-screen race (2 or 4 arenas). */
+  splitRace?: boolean;
 }
 
 /** Real time the planner runs before it lets the page breathe (ms). */
@@ -312,6 +316,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     worldChanged,
     supported: o.supported,
     disabled: o.disabled,
+    splitRace: !!o.splitRace, // --- split-screen ---
     onPlan,
     onToday,
     onCancel,

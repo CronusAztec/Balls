@@ -355,6 +355,8 @@ describe("split-screen: the arena runner", () => {
       [300, 300],
     ]);
     for (const e of engines) expect([e.config.width, e.config.height]).toEqual([600, 600]);
+    // The whole canvas stays known (the viral bot plans its single-view clips in it during a race).
+    expect(runner.canvasSize()).toEqual({ width: 800, height: 600 });
     expect(engines.map((e) => e.config.gravity)).toEqual([300, 900, 300, 300]);
     expect(engines.map((e) => e.config.ballSpeed)).toEqual([400, 400, 400, 700]);
     expect(engines.map((e) => e.getCurrentModeName())).toEqual(["classic", "classic", "grow", "classic"]);
@@ -366,6 +368,7 @@ describe("split-screen: the arena runner", () => {
     runner.sync(page, { ...s, arenaCount: 1 }, HOOKS);
     expect(runner.getEngines()).toEqual([page]);
     expect(runner.isActive()).toBe(false);
+    expect(runner.canvasSize()).toBeNull();
     for (let i = 0; i < 20; i++) page.spawnConfetti(300, 300);
     expect(page.getParticles().length).toBeGreaterThan(PARTICLE_BUDGET / 4);
   });

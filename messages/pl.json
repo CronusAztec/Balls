@@ -1993,6 +1993,7 @@
     "copied": "Skopiowano!",
     "unsupported": "Renderowanie wymaga WebCodecs (Chrome, Edge lub Safari); planowanie działa wszędzie.",
     "busy": "Zajęte – poczekaj, aż skończy się nagrywanie, wyszukiwanie lub eksport.",
+    "splitRace": "Plan renderuje się szybkim eksportem, który rysuje tylko jedną arenę – ustaw Areny z powrotem na 1 (albo otwórz jeden z klipów), aby go wyrenderować.",
     "worldChanged": "Od utworzenia planu zmienił się rozmiar symulatora: ziarna dobrano do starego płótna – zaplanuj ponownie, aby czas się zgadzał.",
     "notes": "Zakończenia są naprzemienne, żeby dało się je porównać w statystykach; nowy hook opublikuj najpierw jako próbną rolkę.",
     "countdown": {

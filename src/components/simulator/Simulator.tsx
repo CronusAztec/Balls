@@ -1957,7 +1957,8 @@ export default function Simulator() {
   const viralBot = useViralBot({
     locale: isBotLocale(botLocale) ? botLocale : "en",
     copy: (botMessages.ViralBot ?? {}) as BotCopy,
-    getWorld: () => (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
+    // --- split-screen --- during a race the page's engine has the first arena's world: the bot's clips play in the single view's
+    getWorld: () => splitRunnerRef.current?.canvasSize() ?? (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
     applySettings: loadPresetSettings,
     selectMelody: onCustomSoundSelect,
     currentMelody: customSoundId,
@@ -1967,7 +1968,8 @@ export default function Simulator() {
     batchRun: batchRender.panel.run,
     jobProgress: batchRender.panel.jobProgress,
     supported: fastSupported,
-    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || batchRender.running,
+    disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || settings.arenaCount > 1, // --- split-screen --- (its renders go through the batch, which is off during a race)
+    splitRace: settings.arenaCount > 1, // --- split-screen ---
   });
   const urlSeedPinned = useRef(false);
   useEffect(() => {
