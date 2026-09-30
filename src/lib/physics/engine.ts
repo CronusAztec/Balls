@@ -1469,6 +1469,7 @@ export class PhysicsEngine {
     this.balls = this.balls.filter((b) => b.id !== id);
   }
   clear() {
+    this.finishedAtMs = -1; // --- split-screen ---
     this.balls = [];
     this.nextId = 0;
     this.brokenWalls.clear();
@@ -1852,6 +1853,7 @@ export class PhysicsEngine {
       }
       if (mult.isOutgrown()) break; // --- boris-multipliers --- the run just ended
     }
+    if (this.finishedAtMs < 0 && this.isSimulationFinished()) this.finishedAtMs = this._elapsedMs; // --- split-screen --- (the race's finish time)
     this.updateParticles(frameMs / 1000);
   }
 
@@ -2454,8 +2456,23 @@ export class PhysicsEngine {
 
   private pushParticle(p: Particle) {
     if (this.particles.length >= this.MAX_PARTICLES) return;
+    if (this.particles.length >= this.particleCap) return; // --- split-screen ---
     this.particles.push(p);
   }
+
+  // --- split-screen --- the arenas of a split-screen race share the particle budget (lib/simulation/multi.ts); visual only
+  private particleCap = Infinity;
+  /** Simulation time (ms) at the end of the step the run finished on (−1 while it runs): what the finder counts as its length. */
+  private finishedAtMs = -1;
+  /** When the run finished on its own clock, exact to the step however late a frame notices it (−1 while it runs). */
+  getFinishedAtMs(): number {
+    return this.finishedAtMs;
+  }
+  /** Caps the live particles at `max` (null: only the engine's own cap). Split-screen arenas share one budget. Visual only. */
+  setParticleBudget(max: number | null) {
+    this.particleCap = max === null || !Number.isFinite(max) ? Infinity : Math.max(1, Math.floor(max));
+  }
+  // --- end split-screen ---
 
   spawnConfetti(x: number, y: number) {
     // --- themes: sparks, petals, pixels and bubbles, or confetti in a theme's colours; the classic burst below stays the default

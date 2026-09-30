@@ -47,6 +47,8 @@ import { ARENA_GAME_RANGES, defaultArenaGameFields, readArenaGameParams, resolve
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
 import { JDM_RHYTHM_RANGES, defaultJdmRhythmFields, readJdmRhythmParams, resolveJdmRhythmFields, writeJdmRhythmParams } from "@/lib/physics/modes/jdmRhythmFields";
 import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
+// --- split-screen --- 2 or 4 arenas racing on one canvas (lib/splitScreen.ts, lib/simulation/multi.ts)
+import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 // --- boris-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
 
@@ -565,6 +567,16 @@ export interface SimulatorSettings {
   /** Paddle: 0–0.1, every catch runs faster (URL `pdu`). */
   pdSpeedUp: number;
   // --- end jdm-rhythm-runner ---
+  // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, components/simulator/splitScreenCanvas.tsx)
+  /** Arenas on the canvas: 1 (the single view), 2 or 4 (URL `ac`). */
+  arenaCount: ArenaCount;
+  /** row: side by side; grid: 2 × 2, or two stacked (URL `al`). */
+  arenaLayout: ArenaLayout;
+  /** Per-arena overrides – label, seed, gravity, ball speed, ball colour, mode (URL `ar`, compact). */
+  arenas: ArenaOverride[];
+  /** Whose bounces are heard: the first arena's or every arena's (URL `sa`). */
+  soundArena: SoundArena;
+  // --- end split-screen ---
   // --- boris-vortex --- Sound Vortex (lib/physics/modes/vortex.ts): balls spiral down a funnel of sound rings into a hole
   /** Balls that go down the vortex, 1–30 (URL `vxn`). */
   vxBalls: number;
@@ -690,6 +702,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultRaceFields(), // --- jdm-race ---
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
+    ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- boris-vortex ---
   };
 }
@@ -754,6 +767,7 @@ export const RANGES = {
   ...RACE_RANGES, // --- jdm-race ---
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
+  ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- boris-vortex ---
 } as const;
 
@@ -988,6 +1002,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
+  writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
   return params;
 }
@@ -1103,6 +1118,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readRaceParams(params, settings); // --- jdm-race --- (clamped, known options, a clean cup title)
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
+  readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
   return settings;
 }
@@ -1295,6 +1311,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveRaceFields(merged)); // --- jdm-race --- clamped numbers, known options, real booleans, a clean cup title
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
+  Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
   return merged;
 }

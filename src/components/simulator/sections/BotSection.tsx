@@ -241,7 +241,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             {bot.render.status === "done" && <p className="text-[11px] text-[#93d119] leading-snug">{b("renderDone", { done: bot.render.done, total: bot.render.total })}</p>}
             {bot.render.status === "failed" && <p className="text-[11px] text-red-400 leading-snug">{b("renderFailed")}</p>}
             {bot.supported === false && <p className="text-[11px] text-amber-300 leading-snug">{b("unsupported")}</p>}
-            {bot.disabled && !busy && <p className="text-[11px] text-zinc-500 leading-snug">{b("busy")}</p>}
+            {bot.disabled && !busy && <p className="text-[11px] text-zinc-500 leading-snug" data-testid={bot.splitRace ? "bot-split-race" : undefined}>{b(bot.splitRace ? "splitRace" : "busy")}</p>}{/* --- split-screen --- */}
           </div>
         )}
       </div>

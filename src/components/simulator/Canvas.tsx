@@ -58,6 +58,8 @@ import { ArenaLayer, DEFAULT_ARENA_LABELS, type ArenaLabels, type ArenaRenderOpt
 import { HUD_BAND } from "@/lib/physics/modes/arenaGames"; // --- viral-bot --- (the captions keep below the arena's scoreboard band)
 // --- jdm-rhythm-runner --- the Beat Runner (course, square, progress) and Paddle Keep-Up (field, platform, score)
 import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_KEYS, RunnerLayer, writePaddleDataset, writeRunnerDataset, type JdmRhythmLabels, type JdmRhythmRenderOptions } from "./jdmRhythmRenderer";
+// --- split-screen --- 2 or 4 arenas: every arena drawn by its own offline instance of this canvas, composed by the wrapper
+import { withSplitScreen, type SplitScreenCanvasOptions } from "./splitScreenCanvas";
 // --- boris-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
 
@@ -235,6 +237,8 @@ export interface CanvasProps {
   // --- end fast-render ---
   /** --- jdm-race --- The race's names, colours and emoji (Teams roster), overlays and cup (null outside the race). */
   race?: CanvasRaceOptions | null;
+  /** --- split-screen --- A split-screen race: its engines, layout and labels (null / one engine = this canvas alone); see splitScreenCanvas.tsx. */
+  splitScreen?: SplitScreenCanvasOptions | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -879,7 +883,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       // Background
       ctx.fillStyle = p.backgroundColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, Math.max(canvas.width, sizeRef.current.width), Math.max(canvas.height, sizeRef.current.height)); // --- split-screen --- (the whole world, also when it is drawn below 1 device px per px: a split-screen arena)
       const size = sizeRef.current;
       // --- themes: a gradient or picture background over the solid fill (the reactive flashes below still land on top)
       const themeLook = themeLookRef.current;
@@ -2871,4 +2875,4 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   );
 });
 
-export default withFastRender(Canvas); // --- fast-render --- (a hidden second instance renders the fast export)
+export default withSplitScreen(withFastRender(Canvas)); // --- fast-render --- (a hidden second instance renders the fast export) --- split-screen --- (and one per arena of a race)
