@@ -1,6 +1,6 @@
 import { BANNER_MS, CRACK_GROW_MS, paneDamage, type GlassPane, type GlassView } from "@/lib/physics/modes/glass";
 import { ACCENT } from "@/lib/site";
-// --- boris-multipliers --- the gate rows speak the board's language (colours, labels)
+// --- gerald-multipliers --- the gate rows speak the board's language (colours, labels)
 import { MULTIPLIER_COLORS } from "@/lib/physics/multipliers";
 import { DEFAULT_MULTIPLIER_LABELS, gateLabel, type MultiplierLabels } from "./multiplierRenderer";
 
@@ -23,7 +23,7 @@ export interface GlassRenderOptions {
   stageLabel: (n: number) => string;
   /** The sign over the door (translated). */
   homeLabel: string;
-  /** --- boris-multipliers --- The stat words of the gate labels (x2 DMG, x1.5 SPEED, x1.25 SIZE), translated. */
+  /** --- gerald-multipliers --- The stat words of the gate labels (x2 DMG, x1.5 SPEED, x1.25 SIZE), translated. */
   multLabels?: MultiplierLabels;
 }
 
@@ -207,7 +207,7 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
     const x0 = home.doorX - w / 2;
     const y0 = home.groundY - h;
     const since = view.homeReached ? now - view.homeAtMs : -1;
-    // The door: dark until Boris is home, then warm light pouring out.
+    // The door: dark until Gerald is home, then warm light pouring out.
     ctx.beginPath();
     ctx.moveTo(x0, home.groundY);
     ctx.lineTo(x0, y0 + w / 2);
@@ -265,7 +265,7 @@ export function drawGlassWorld(ctx: CanvasRenderingContext2D, view: GlassView, o
 }
 
 /**
- * --- boris-multipliers --- The gate rows in view: per slot a tinted band under the gate line and its label (shrunk to
+ * --- gerald-multipliers --- The gate rows in view: per slot a tinted band under the gate line and its label (shrunk to
  * fit its slot, an outline for contrast). The slot the ball went through flashes and stays lit; the others dim.
  */
 function drawGlassGates(ctx: CanvasRenderingContext2D, view: GlassView, opts: GlassRenderOptions, viewTop: number, viewBottom: number) {

@@ -12,7 +12,7 @@ import type { BullseyeStage } from "./bullseye";
 import type { HomeStage } from "./home";
 
 /**
- * The Stage interface of the Journey mode (feature boris-journey) and what every stage shares. A journey is a vertical
+ * The Stage interface of the Journey mode (feature gerald-journey) and what every stage shares. A journey is a vertical
  * column of stages stacked top-down; each stage is an adapter around code the other modes already run – the engine's
  * own ring walls (Classic), the panes, cracks and shards of Glass Smash, the peg board of Ball Drop, the gate rows and
  * the multiplier runtime of the multipliers, the obstacle layer (funnels, platforms, the ground) and the HOME doorway of
@@ -120,7 +120,7 @@ export interface JourneyStage {
   gravityOverride?(env: StageEnv, ball: Ball): number;
   /** The largest ball radius that still gets through this stage. */
   maxBallRadius(): number;
-  /** HOME: Boris is home and the celebration is over. */
+  /** HOME: Gerald is home and the celebration is over. */
   isFinished(): boolean;
   /** Moves the stage by `dy` (the floating origin). */
   shift(dy: number): void;

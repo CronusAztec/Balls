@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { drawCatEars, drawFace, type FaceView } from "../faceRenderer";
-import { BORIS_PERSONA, FACE_STYLES, MAX_NAME_LENGTH, borisPersonaPatch, type FaceStyle } from "@/lib/character/character";
+import { GERALD_PERSONA, FACE_STYLES, MAX_NAME_LENGTH, geraldPersonaPatch, type FaceStyle } from "@/lib/character/character";
 import type { Expression } from "@/lib/character/expression";
 import { BlinkClock, lookTarget, squashAmount, squashScales, type Vec } from "@/lib/character/eyes";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
@@ -21,7 +21,7 @@ export interface CharacterSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx). */
-export const CHARACTER_KEYS = ["ballFace", "ballName", "nameLabel", "ballSquash", "faceOverImage", "faceSounds", "borisPersona"];
+export const CHARACTER_KEYS = ["ballFace", "ballName", "nameLabel", "ballSquash", "faceOverImage", "faceSounds", "geraldPersona"];
 
 const FACE_OPTIONS: Record<FaceStyle, { icon: string; labelKey: string }> = {
   none: { icon: "⚪", labelKey: "faceNone" },
@@ -164,7 +164,7 @@ function FacePreview({ settings, ballImage, ballEmoji, label }: { settings: Simu
 
 /**
  * "Character" group at the top of the Ball & Physics section: the face (with a live preview), the name label,
- * squash-and-stretch, the face over a custom picture, the cat's chirps and the "Meet Boris" persona button. The
+ * squash-and-stretch, the face over a custom picture, the cat's chirps and the "Meet Gerald" persona button. The
  * values live in SimulatorSettings (see lib/character/character.ts) and only the canvas reads them – nothing here
  * touches the physics, so seeds and found simulations stay valid.
  */
@@ -207,16 +207,16 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
           </div>
         </div>
       </Searchable>
-      <Searchable search={search} matches={matches} labelKey="borisPersona">
+      <Searchable search={search} matches={matches} labelKey="geraldPersona">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("borisPersonaDesc")}</p>
+          <p className="text-xs text-zinc-500 leading-relaxed">{t("geraldPersonaDesc")}</p>
           <button
             type="button"
-            onClick={() => update(borisPersonaPatch(s))}
-            aria-pressed={s.ballFace === BORIS_PERSONA.ballFace && s.ballName === BORIS_PERSONA.ballName}
+            onClick={() => update(geraldPersonaPatch(s))}
+            aria-pressed={s.ballFace === GERALD_PERSONA.ballFace && s.ballName === GERALD_PERSONA.ballName}
             className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-[#93d119]/40 hover:bg-zinc-700"
           >
-            🐾 {t("borisPersona")}
+            🐾 {t("geraldPersona")}
           </button>
         </div>
       </Searchable>

@@ -57,7 +57,7 @@ def chime(duration: float = 0.9) -> list[float]:
     return out
 
 
-# --- boris-glass ---
+# --- gerald-glass ---
 def glass(duration: float = 0.7) -> list[float]:
     """A pane of glass shattering: a bright noise crash and a low thump under a shower of inharmonic tinkles.
 
@@ -92,7 +92,7 @@ def glass(duration: float = 0.7) -> list[float]:
         out.append(s)
     peak = max(abs(x) for x in out) or 1.0
     return [x * 0.9 / peak for x in out]
-# --- end boris-glass ---
+# --- end gerald-glass ---
 
 
 # ---------------------------------------------------------------- hit samples
@@ -156,7 +156,7 @@ def main() -> None:
     write_wav(wall_break / "pop.wav", pop())
     write_wav(wall_break / "chime.wav", chime())
     print("wrote wallBreak/pop.wav and wallBreak/chime.wav")
-    write_wav(wall_break / "glass.wav", glass())  # --- boris-glass ---
+    write_wav(wall_break / "glass.wav", glass())  # --- gerald-glass ---
     print("wrote wallBreak/glass.wav")
 
     hit = root / "hitSounds"

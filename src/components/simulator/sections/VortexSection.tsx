@@ -16,7 +16,7 @@ export interface VortexSectionProps {
 export const VORTEX_KEYS = ["vxBalls", "vxStagger", "vxRings", "vxDuration", "vxGravity", "vxLoop", "vxDepthScale"];
 
 /**
- * "Vortex" controls (feature boris-vortex), shown in the Mode row while the Sound Vortex is the mode (and in the Ball
+ * "Vortex" controls (feature gerald-vortex), shown in the Mode row while the Sound Vortex is the mode (and in the Ball
  * section while the settings search is in use): the balls and how far apart they enter, the sound rings, the seconds a
  * ball takes to the hole, the central pull (how fast they whirl), the loop and the depth cue, and a line that sums the
  * run up – its length for Find Simulation, or, with the loop on, why there is nothing to search for. The values live in

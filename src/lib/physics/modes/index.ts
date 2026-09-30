@@ -26,10 +26,10 @@ export type { PolyrhythmSettings, PolyLayout, PolyArcStyle, PolyTempos, PolyPitc
 // --- jdm-collisions ---
 export { CollideMode } from "./collide";
 export type { CollideSettings, CollideContainer, CollideField, CollideView } from "./collide";
-// --- boris-glass ---
+// --- gerald-glass ---
 export { GlassMode } from "./glass";
 export type { GlassSettings, GlassLevel, GlassPane, GlassStage, GlassCrack, GlassHome, GlassField, GlassView } from "./glass";
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 export { MultipliersMode } from "./multipliers";
 export type { MultipliersSettings, MultipliersView, MultiplierBoard, GateKind, Gate, Blocker, BoardLayout } from "./multipliers";
 // --- jdm-double-pendulum ---
@@ -56,13 +56,13 @@ export { RunnerMode } from "./runner";
 export type { RunnerSettings, RunnerView, RunnerCourse, RunnerEvent, RunnerMix, RunnerBeatSource, RunnerField } from "./runner";
 export { PaddleMode } from "./paddle";
 export type { PaddleSettings, PaddleView, PaddleField, PaddleInput, PaddlePhase } from "./paddle";
-// --- boris-vortex ---
+// --- gerald-vortex ---
 export { VortexMode } from "./vortex";
 export type { VortexSettings, VortexField, VortexView, SpiralState } from "./vortex";
-// --- boris-journey ---
+// --- gerald-journey ---
 export { JourneyMode } from "./journey";
 export type { JourneySettings, JourneyView, JourneyFields } from "./journey";
-// --- boris-bullseye ---
+// --- gerald-bullseye ---
 export { BullseyeMode } from "./bullseye";
 export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye";
 // --- beat-drop ---

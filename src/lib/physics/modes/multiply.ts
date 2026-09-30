@@ -1,21 +1,28 @@
 import type { Ball, GameMode, ModeContext } from "../types";
-import { arenaRadius } from "../types";
-import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
+import { arenaRadius, passableGap } from "../types";
+import { ringPassRadius } from "../ballStats";
+import { copyMultipliers, cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
 
 /**
- * --- boris-multipliers --- Most balls a Multiply run grows to while multipliers are in play (pickups on, or any ball
- * carrying one): the new balls inherit the escaped ball's multipliers – its speed too –, faster balls escape sooner and
- * every escape adds more of them, so without a bound the count, and with it the ball pass and up to 64 sub-steps a step,
- * explodes within seconds. Past it an escape still counts (sound, confetti, scoreboard) but spawns nothing. A run
- * without multipliers is untouched: it levels off well below this on its own.
+ * Most balls a Multiply run grows to – a soft, memory-safe ceiling on the swarm, not a setting's limit (the spawn count
+ * keeps its full range). Every escape adds `spawnCount` balls, so the count grows exponentially: at the defaults (three
+ * new balls an escape) a run passes 1,000 balls within about a minute, and the ball pass (n² pairs, 4+ sub-steps a step)
+ * then costs 60–100 ms a step – the page freezes. With multipliers in play it comes sooner (--- gerald-multipliers --- the
+ * new balls inherit the escaped ball's speed, so every escape comes earlier; up to 64 sub-steps a step). Past it an
+ * escape still counts (sound, confetti, scoreboard, the broken wall) but spawns nothing. Runs that never reach it replay
+ * exactly as before.
  */
-export const MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS = 200;
+export const MULTIPLY_MAX_BALLS = 200;
+/** @deprecated The ceiling applies to every Multiply run now; see `MULTIPLY_MAX_BALLS`. */
+export const MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS = MULTIPLY_MAX_BALLS;
 
 /** Multiply: every ball that escapes the single ring spawns several new balls. */
 export class MultiplyMode implements GameMode {
   readonly name = "multiply";
   private spawnCount = 3;
   private escapedBalls = new Set<number>();
+  /** The ids of the balls in play, refilled every step to prune `escapedBalls` in O(n) (reused: no allocation per step). */
+  private readonly liveIds = new Set<number>();
 
   init(ctx: ModeContext) {
     this.escapedBalls.clear();
@@ -38,9 +45,7 @@ export class MultiplyMode implements GameMode {
     const cy = ctx.config.height / 2;
     const balls = ctx.getBalls();
     let spawned = false;
-    // --- boris-multipliers --- with multipliers in play the escalation stops at MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS
-    const bounded = ctx.getMultipliers?.()?.isActive(this.name) ?? false;
-    // --- unlimited --- with No limits on there is no such cap: past the full-physics balls the new balls join the crowd
+    // --- unlimited --- with No limits on the swarm has no MULTIPLY_MAX_BALLS: past the full-physics balls the new balls join the crowd
     const unlimited = (ctx.unlimitedRoom?.() ?? null) !== null;
     for (const ball of balls) {
       if (this.escapedBalls.has(ball.id)) continue;
@@ -51,9 +56,9 @@ export class MultiplyMode implements GameMode {
         ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
         ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
-          if (!unlimited && (bounded || ball.mult) && balls.length >= MULTIPLY_MAX_BALLS_WITH_MULTIPLIERS) break; // --- boris-multipliers --- (--- unlimited --- not with No limits on)
+          if (!unlimited && balls.length >= MULTIPLY_MAX_BALLS) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS) (--- unlimited --- lifted with No limits on)
           const a = ctx.random() * Math.PI * 2;
-          // --- boris-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
+          // --- gerald-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);
           const size = ball.mult ? ball.mult.size : 1;
           // --- unlimited --- no room left for full-physics balls: the rest of this escape's balls fan out as crowd balls
@@ -76,18 +81,18 @@ export class MultiplyMode implements GameMode {
         spawned = true;
       }
     }
-    // --- unlimited --- thousands of full-physics balls look their ids up in a set (the same result as the scan)
-    const alive = balls.length > 256 ? new Set(balls.map((b) => b.id)) : null;
-    for (const id of this.escapedBalls) {
-      if (!(alive ? alive.has(id) : balls.find((b) => b.id === id))) this.escapedBalls.delete(id);
-    }
+    const live = this.liveIds;
+    live.clear();
+    for (const b of balls) live.add(b.id);
+    for (const id of this.escapedBalls) if (!live.has(id)) this.escapedBalls.delete(id);
     if (spawned) ctx.getBrokenWalls().clear();
   }
   onConfigChange(ctx: ModeContext, sizeChanged: boolean, _wallCountChanged: boolean, gapChanged: boolean) {
     if (sizeChanged || gapChanged) {
-      const gap = ctx.config.gapSize || 0.3;
+      const radius = arenaRadius(ctx.config);
+      const gap = passableGap(ctx.config.gapSize || 0.3, radius, ringPassRadius(ctx.config, this.name)); // (wide enough for the ball)
       const start = 0.25 * Math.PI;
-      ctx.setCircularWalls([{ radius: arenaRadius(ctx.config), gaps: [{ startAngle: start, endAngle: start + gap }] }]);
+      ctx.setCircularWalls([{ radius, gaps: [{ startAngle: start, endAngle: start + gap }] }]);
       ctx.setWallRotations([0]);
     }
     return true;

@@ -3,7 +3,7 @@ import { circleObstacle, resolveBallCircle, segmentBetween, type CircleObstacle,
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
 
 /**
- * Bullseye ("bullseye" mode, feature boris-bullseye – the borisbounces "bulleye!!" clips). No rings to escape: a portrait
+ * Bullseye ("bullseye" mode, feature gerald-bullseye – the geraldbounces "bulleye!!" clips). No rings to escape: a portrait
  * playfield with a concentric scoring target – 3–10 rings in dartboard colours, seen in perspective like a board lying
  * on the floor – at the bottom. Balls are launched from the top one after another (`shots`, `interval` seconds apart)
  * through a short field of pegs and bumpers (`chaos` 0–1 decides how many of the candidate deflectors are in play) and
@@ -540,7 +540,7 @@ export const PERFECT_SPOTS = [0, 0.4, -0.4, 0.75, -0.75];
 
 /* ------------------------------------------------------------------ view */
 
-/** Colour of shot `k`: the first wears the Ball Colour (Boris), the others a palette. */
+/** Colour of shot `k`: the first wears the Ball Colour (Gerald), the others a palette. */
 export const BULLSEYE_BALL_COLORS = ["#ffffff", "#ffb238", "#2de2e6", "#ff5d73", "#b388ff", "#5dffb0", "#f7f052", "#4d9dff", "#ff7ad9", "#c6ff5d"];
 
 export function bullseyeBallColor(shot: number, ballColor: string): string {

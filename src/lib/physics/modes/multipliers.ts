@@ -5,7 +5,7 @@ import { SpatialHash, createPairBuffer, type PairBuffer } from "../spatialHash";
 import type { Ball, GameMode, ModeContext } from "../types";
 
 /**
- * Multipliers ("multipliers" mode, the borisbounces "Boris uses the multipliers to get home" format): a tall vertical
+ * Multipliers ("multipliers" mode, the geraldbounces "Gerald uses the multipliers to get home" format): a tall vertical
  * board the camera scrolls down with the lowest ball. Balls fall through rows of gates, each row split into 2–4 slots
  * labelled with what they do to every ball passing through:
  *  - count gates x2 / x3 / x5 clone the ball (clones inherit its velocity with a small seeded spread and its
@@ -16,7 +16,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
  *  - release gates hold the balls on a door that opens every 1.2–2.2 s, so a batch goes through in a burst;
  * plus splitter pegs over the dividers, bumpers that kick, funnels off the side walls and blockers – tilted bars with
  * hit points that the balls' damage wears down (a damage gate makes that faster). At the bottom a HOME zone counts the
- * arrivals; the run ends when every ball is home or lost ("N Boris made it home"), or when a ball grew wider than the
+ * arrivals; the run ends when every ball is home or lost ("N Gerald made it home"), or when a ball grew wider than the
  * board (OUTGREW THE ARENA).
  *
  * The balls are ordinary engine balls (gravity, drag, wind, pause, playback speed, recording all work). The board is

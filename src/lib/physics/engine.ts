@@ -21,9 +21,9 @@ import type { BoxSettings, BoxView, DropSettings, PendulumSettings, PendulumView
 import { PolyrhythmMode, type PolyrhythmSettings, type PolyrhythmView } from "./modes";
 // --- jdm-collisions ---
 import { CollideMode, type CollideSettings, type CollideView } from "./modes/collide";
-// --- boris-glass ---
+// --- gerald-glass ---
 import { GlassMode, type GlassSettings, type GlassView } from "./modes/glass";
-// --- boris-multipliers ---
+// --- gerald-multipliers ---
 import { MultipliersMode, type MultipliersSettings, type MultipliersView } from "./modes/multipliers";
 // --- jdm-double-pendulum ---
 import { DoublePendulumMode, type DoublePendulumSettings, type DoublePendulumView } from "./modes/doublePendulum";
@@ -43,11 +43,11 @@ import type { ArenaView, BattleSettings, CtfSettings } from "./modes/arenaGames"
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
 import { RunnerMode, type RunnerSettings, type RunnerView } from "./modes/runner";
 import { PaddleMode, type PaddleInput, type PaddleSettings, type PaddleView } from "./modes/paddle";
-// --- boris-vortex --- the Sound Vortex (a spiral funnel of sound rings)
+// --- gerald-vortex --- the Sound Vortex (a spiral funnel of sound rings)
 import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex";
-// --- boris-journey --- the Journey (a multi-stage commute home)
+// --- gerald-journey --- the Journey (a multi-stage commute home)
 import { JourneyMode, type JourneySettings, type JourneyView } from "./modes/journey";
-// --- boris-bullseye --- Bullseye (a scoring target under a peg field)
+// --- gerald-bullseye --- Bullseye (a scoring target under a peg field)
 import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/bullseye";
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
@@ -58,7 +58,7 @@ import type { Crowd } from "./crowd";
 import { MAX_EFFECTIVE_BOUNCE } from "./multipliers";
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
-import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
+import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -84,7 +84,7 @@ import type {
   WallBreakStyle,
   WallHit,
 } from "./types";
-import { TWO_PI } from "./types";
+import { TWO_PI, passableGap } from "./types";
 
 /**
  * Approach speed (px/s) from which an obstacle contact counts as a hit (sound + glow); resting contacts stay
@@ -93,7 +93,7 @@ import { TWO_PI } from "./types";
  */
 export const OBSTACLE_HIT_SPEED = 40;
 /**
- * --- boris-multipliers --- With multipliers in play and more balls than this, the ball-to-ball pass finds its pairs
+ * --- gerald-multipliers --- With multipliers in play and more balls than this, the ball-to-ball pass finds its pairs
  * through a spatial hash – O(n) a sub-step instead of n²/2, which up to 64 sub-steps a step would multiply (Multiply's
  * children inherit the speed multiplier and crowd the ring) –; every other run keeps the plain pair loop and its exact
  * trajectories.
@@ -227,9 +227,9 @@ export class PhysicsEngine {
   readonly polyrhythmMode = new PolyrhythmMode();
   // --- jdm-collisions ---
   readonly collideMode = new CollideMode();
-  // --- boris-glass ---
+  // --- gerald-glass ---
   readonly glassMode = new GlassMode();
-  // --- boris-multipliers --- the board mode, and the run's stat multipliers (pickups, cap, smash, adaptive sub-steps, outgrow)
+  // --- gerald-multipliers --- the board mode, and the run's stat multipliers (pickups, cap, smash, adaptive sub-steps, outgrow)
   readonly multipliersMode = new MultipliersMode();
   // --- jdm-double-pendulum --- the Double Pendulum Harp and sparring pendulums (RK4 chains, strings, elastic bob hits)
   readonly doublePendulumMode = new DoublePendulumMode();
@@ -244,7 +244,7 @@ export class PhysicsEngine {
     },
   });
 
-  // --- boris-multipliers --- the hashed ball pass: the grid, the candidate pairs and the balls' positions (reused, grown on demand)
+  // --- gerald-multipliers --- the hashed ball pass: the grid, the candidate pairs and the balls' positions (reused, grown on demand)
   private readonly pairHash = new SpatialHash();
   private readonly pairBuffer = createPairBuffer(512);
   private pairXs = new Float64Array(0);
@@ -271,11 +271,11 @@ export class PhysicsEngine {
   // --- jdm-rhythm-runner --- the Beat Runner (obstacles on the beat) and Paddle Keep-Up (a ball on a moving platform)
   readonly runnerMode = new RunnerMode();
   readonly paddleMode = new PaddleMode();
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   readonly vortexMode = new VortexMode();
-  // --- boris-journey ---
+  // --- gerald-journey ---
   readonly journeyMode = new JourneyMode();
-  // --- boris-bullseye ---
+  // --- gerald-bullseye ---
   readonly bullseyeMode = new BullseyeMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
@@ -295,7 +295,7 @@ export class PhysicsEngine {
     this.extras = resolvePhysicsExtras(config);
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(config);
-    this.multipliers.setConfig(config); // --- boris-multipliers ---
+    this.multipliers.setConfig(config); // --- gerald-multipliers ---
     this.editorObstacles.configure(config); // --- obstacle-editor ---
     this.timeline.prepare({ timeline: config.timeline }, config); // --- timeline --- (the config's values become the automated settings' bases)
     this.applyLimits(); // --- unlimited --- (the switch, the soft ceilings, the extras past their ranges)
@@ -348,7 +348,7 @@ export class PhysicsEngine {
       getPhysicsExtras: () => this.extras,
       getObstacles: () => this.obstacles,
       setObstacles: (obstacles) => this.setObstacles(obstacles),
-      getMultipliers: () => this.multipliers, // --- boris-multipliers ---
+      getMultipliers: () => this.multipliers, // --- gerald-multipliers ---
       isWallSealed: (ball, wallIndex) => this.rigOn && this.rigSeals(ball, wallIndex), // --- rigged ---
       recordWallContact: (wallIndex, angle, strength, timeMs) => this.wallContacts.record(wallIndex, angle, strength, timeMs ?? this._elapsedMs), // --- jdm-illusions ---
       // --- odd-string-battle --- a battle mode's score (bounces, the win) and its camera moments (slow motion, shake)
@@ -361,7 +361,7 @@ export class PhysicsEngine {
         this.wallBreakSerial++;
       },
       // --- end odd-string-battle ---
-      shiftWorld: (dx, dy) => this.shiftWorld(dx, dy), // --- boris-journey ---
+      shiftWorld: (dx, dy) => this.shiftWorld(dx, dy), // --- gerald-journey ---
       // --- unlimited --- spawns past the full-physics balls join the crowd
       unlimitedRoom: () => (this.limits.on ? this.limits.objectRoom(this.balls.length) : null),
       spawnCrowd: (count, x, y, speed, radius, angle, slot) => this.limits.overflow(count, x, y, speed, radius, angle, slot),
@@ -386,6 +386,12 @@ export class PhysicsEngine {
   getSeed() {
     return this._seed;
   }
+  // --- daily-gallery ---
+  /** The seed every run starts from while one is pinned (a found run, a shared or daily seed); null: each run draws a fresh one. */
+  getPinnedSeed(): number | null {
+    return this._customSeed;
+  }
+  // --- end daily-gallery ---
   resetRng() {
     this._rngState = this._seed;
   }
@@ -418,7 +424,7 @@ export class PhysicsEngine {
       this.wallRotations = [];
     } else if (layout === "single-gap") {
       const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
-      const gap = this._config.gapSize || 0.3;
+      const gap = passableGap(this._config.gapSize || 0.3, r, this.ringPassRadius());
       const start = 0.25 * Math.PI;
       this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
       this.wallRotations = [0];
@@ -476,7 +482,7 @@ export class PhysicsEngine {
     this.currentMode = this.accumulationMode;
     this.cinematicDirector.reset();
     const r = (Math.min(this._config.width, this._config.height) / 2) * 0.75;
-    const gap = this._config.gapSize || 0.3;
+    const gap = passableGap(this._config.gapSize || 0.3, r, this.ringPassRadius());
     const start = 0.25 * Math.PI;
     this.circularWalls = [{ radius: r, gaps: [{ startAngle: start, endAngle: start + gap }] }];
     this.wallRotations = [0];
@@ -526,11 +532,11 @@ export class PhysicsEngine {
   initCollide() {
     this.activateMode(this.collideMode, "none");
   }
-  // --- boris-glass ---
+  // --- gerald-glass ---
   initGlass() {
     this.activateMode(this.glassMode, "none");
   }
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   initMultipliers() {
     this.activateMode(this.multipliersMode, "none");
   }
@@ -568,15 +574,15 @@ export class PhysicsEngine {
   initPaddle() {
     this.activateMode(this.paddleMode, "none");
   }
-  // --- boris-vortex --- the mode owns its funnel (no rings)
+  // --- gerald-vortex --- the mode owns its funnel (no rings)
   initVortex() {
     this.activateMode(this.vortexMode, "none");
   }
-  // --- boris-journey --- the mode owns its column of stages (a rings stage sets the engine's rings itself while it is active)
+  // --- gerald-journey --- the mode owns its column of stages (a rings stage sets the engine's rings itself while it is active)
   initJourney() {
     this.activateMode(this.journeyMode, "none");
   }
-  // --- boris-bullseye --- the mode builds its playfield out of obstacles (no rings)
+  // --- gerald-bullseye --- the mode builds its playfield out of obstacles (no rings)
   initBullseye() {
     this.activateMode(this.bullseyeMode, "none");
   }
@@ -620,10 +626,10 @@ export class PhysicsEngine {
       // --- jdm-collisions ---
       case "collide":
         return this.initCollide();
-      // --- boris-glass ---
+      // --- gerald-glass ---
       case "glass":
         return this.initGlass();
-      // --- boris-multipliers ---
+      // --- gerald-multipliers ---
       case "multipliers":
         return this.initMultipliers();
       // --- jdm-double-pendulum ---
@@ -651,13 +657,13 @@ export class PhysicsEngine {
         return this.initRunner();
       case "paddle":
         return this.initPaddle();
-      // --- boris-vortex ---
+      // --- gerald-vortex ---
       case "vortex":
         return this.initVortex();
-      // --- boris-journey ---
+      // --- gerald-journey ---
       case "journey":
         return this.initJourney();
-      // --- boris-bullseye ---
+      // --- gerald-bullseye ---
       case "bullseye":
         return this.initBullseye();
       // --- beat-drop ---
@@ -1101,7 +1107,7 @@ export class PhysicsEngine {
     return this.collideMode.getProgress();
   }
   // --- end jdm-collisions ---
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   isMultipliersMode() {
     return this.currentMode === this.multipliersMode;
   }
@@ -1133,13 +1139,13 @@ export class PhysicsEngine {
   }
   /**
    * The run ended with a multipliers celebration the canvas draws – a ball outgrew the arena ("OUTGREW THE ARENA"), or
-   * the board emptied ("N Boris made it home") – which the page holds on screen (and in a recording) before its end
+   * the board emptied ("N Gerald made it home") – which the page holds on screen (and in a recording) before its end
    * screen covers it. Both finish the run in the step they happen, so this is true from that step on.
    */
   endsWithMultiplierFinish(): boolean {
     return this.multipliers.isOutgrown() || (this.currentMode === this.multipliersMode && this.multipliersMode.getView().done);
   }
-  // --- end boris-multipliers ---
+  // --- end gerald-multipliers ---
   // --- teams ---
   /** Bounces, walls broken and escapes of one ball (undefined until it scored anything; see ballStats.ts). */
   getBallStats(id: number): Readonly<BallStats> | undefined {
@@ -1165,7 +1171,9 @@ export class PhysicsEngine {
    * `count` balls from the centre.
    */
   setBallCount(count: number) {
+    const oldPass = this.ringPassRadius();
     this._config = { ...this._config, ballCount: count };
+    if (this.ringPassRadius() !== oldPass) this.refitGaps(); // (merge: more balls can fuse into a bigger one)
     const mode = this.currentMode;
     if (!mode || !MULTI_BALL_MODES.includes(mode.name)) return;
     const n = startBallCount(this._config, mode.name);
@@ -1214,7 +1222,7 @@ export class PhysicsEngine {
     }
   }
   // --- end teams ---
-  // --- boris-glass ---
+  // --- gerald-glass ---
   isGlassMode() {
     return this.currentMode === this.glassMode;
   }
@@ -1232,7 +1240,7 @@ export class PhysicsEngine {
   getGlassProgress() {
     return this.glassMode.getProgress();
   }
-  // --- end boris-glass ---
+  // --- end gerald-glass ---
   // --- jdm-double-pendulum ---
   isDoublePendulumMode() {
     return this.currentMode === this.doublePendulumMode;
@@ -1418,7 +1426,7 @@ export class PhysicsEngine {
     return null;
   }
   // --- end jdm-arena-games ---
-  // --- boris-vortex ---
+  // --- gerald-vortex ---
   isVortexMode() {
     return this.currentMode === this.vortexMode;
   }
@@ -1436,8 +1444,8 @@ export class PhysicsEngine {
   getVortexProgress() {
     return this.vortexMode.getProgress();
   }
-  // --- end boris-vortex ---
-  // --- boris-journey ---
+  // --- end gerald-vortex ---
+  // --- gerald-journey ---
   isJourneyMode() {
     return this.currentMode === this.journeyMode;
   }
@@ -1481,8 +1489,8 @@ export class PhysicsEngine {
       h.y += dy;
     }
   }
-  // --- end boris-journey ---
-  // --- boris-bullseye ---
+  // --- end gerald-journey ---
+  // --- gerald-bullseye ---
   isBullseyeMode() {
     return this.currentMode === this.bullseyeMode;
   }
@@ -1500,7 +1508,7 @@ export class PhysicsEngine {
   getBullseyeProgress() {
     return this.bullseyeMode.getProgress();
   }
-  // --- end boris-bullseye ---
+  // --- end gerald-bullseye ---
   // --- beat-drop ---
   isBeatDropMode() {
     return this.currentMode === this.beatDropMode;
@@ -1580,12 +1588,59 @@ export class PhysicsEngine {
     ball.x = cx + dx * k;
     ball.y = cy + dy * k;
   }
+
+  /** The balls the ring-side guard follows through a sub-step's pair pass and mode pushes, and their squared distances before (reused). */
+  private sideBalls: Ball[] = [];
+  private sideDists = new Float64Array(0);
+
+  /** Notes every ball and its squared distance from the centre (before the pair pass); returns how many. No allocation once grown. */
+  private recordRingSides(cx: number, cy: number): number {
+    const balls = this.balls;
+    if (this.sideDists.length < balls.length) this.sideDists = new Float64Array(Math.max(2 * this.sideDists.length, balls.length, 8));
+    for (let i = 0; i < balls.length; i++) {
+      const ball = balls[i];
+      const dx = ball.x - cx;
+      const dy = ball.y - cy;
+      this.sideBalls[i] = ball;
+      this.sideDists[i] = dx * dx + dy * dy;
+    }
+    return balls.length;
+  }
+
+  /**
+   * Every noted ball that a push carried across an intact ring goes back radially to the distance it had before the push
+   * (keeping its new direction from the centre), so it stays on its side: the next wall pass resolves it from there – a
+   * rebound, or a pass when it is in a gap. A push that crossed no ring changes nothing. A ball merged away is no longer in
+   * play: moving it is harmless. No allocation.
+   */
+  private restoreRingSides(count: number, cx: number, cy: number) {
+    const walls = this.circularWalls;
+    for (let k = 0; k < count; k++) {
+      const ball = this.sideBalls[k];
+      const beforeSq = this.sideDists[k];
+      const dx = ball.x - cx;
+      const dy = ball.y - cy;
+      const afterSq = dx * dx + dy * dy;
+      if (afterSq === beforeSq || afterSq === 0) continue; // (most balls: the pass did not move them)
+      let crossed = false;
+      for (let w = 0; w < walls.length && !crossed; w++) {
+        if (this.brokenWalls.has(w)) continue;
+        const R2 = walls[w].radius * walls[w].radius;
+        crossed = beforeSq < R2 ? R2 <= afterSq : afterSq < R2;
+      }
+      // (a ball the rings do not resolve – Multiply's escaped ones – goes where it was pushed)
+      if (!crossed || this.currentMode?.shouldSkipWallCollision(ball)) continue;
+      const scale = Math.sqrt(beforeSq / afterSq);
+      ball.x = cx + dx * scale;
+      ball.y = cy + dy * scale;
+    }
+  }
   // --- end obstacle-editor ---
   getElapsedMs() {
     return this._elapsedMs;
   }
   isSimulationFinished() {
-    if (this.multipliers.isOutgrown()) return true; // --- boris-multipliers --- a ball outgrew the arena
+    if (this.multipliers.isOutgrown()) return true; // --- gerald-multipliers --- a ball outgrew the arena
     return this.currentMode?.isFinished(this.ctx) ?? false;
   }
   getPersonalityState() {
@@ -1628,13 +1683,18 @@ export class PhysicsEngine {
   getFirstEscapeMs(): number {
     return this.cinematicDirector.rig.getFirstEscapeMs();
   }
-  /** `ball` is inside wall `w` and the rig keeps that wall closed to it. */
+  /**
+   * `ball` is inside wall `w` – or was at the start of the step (`heldAtStart()`: a fast ball may be past it within one
+   * sub-step) – and the rig keeps that wall closed to it.
+   */
   private rigSeals(ball: Ball, w: number): boolean {
     const wall = this.circularWalls[w];
     if (!wall) return false;
+    const rig = this.cinematicDirector.rig;
+    if (!rig.closes(ball, w)) return false;
     const dx = ball.x - this._config.width / 2;
     const dy = ball.y - this._config.height / 2;
-    return dx * dx + dy * dy < wall.radius * wall.radius && this.cinematicDirector.rig.closes(ball, w);
+    return dx * dx + dy * dy < wall.radius * wall.radius || rig.heldAtStart(ball, w);
   }
   // --- end rigged ---
   /** The physics extras in effect (defaults filled in, values clamped to their ranges). */
@@ -1706,7 +1766,7 @@ export class PhysicsEngine {
     this.breathScale = 1;
     this.gravityAngleRad = Math.PI / 2;
     this.setObstacles([]);
-    this.multipliers.reset(); // --- boris-multipliers ---
+    this.multipliers.reset(); // --- gerald-multipliers ---
     this.ballStats.reset(); // --- teams ---
     this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
     // --- timeline --- every run starts from the keyframes' values at 0 s (before its rings and balls are built). The clock
@@ -1730,6 +1790,7 @@ export class PhysicsEngine {
     // --- timeline --- keyframed settings keep following their keyframes; the rest of the patch applies as always
     if (!this.timelineApplying && (patch.timeline !== undefined || this.timeline.active)) return this.setConfigWithTimeline(patch);
     patch = this.limits.ceilPatch(patch, this._config); // --- unlimited --- (the values the engine runs: soft ceilings with No limits on)
+    const oldPass = this.ringPassRadius();
     const oldW = this._config.width;
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
@@ -1738,7 +1799,7 @@ export class PhysicsEngine {
     this.extras = resolvePhysicsExtras(this._config);
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(this._config);
-    this.multipliers.setConfig(this._config); // --- boris-multipliers ---
+    this.multipliers.setConfig(this._config); // --- gerald-multipliers ---
     this.editorObstacles.configure(this._config); // --- obstacle-editor --- (rebuilt only when the list or the canvas size changed)
     this.applyLimits(); // --- unlimited ---
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
@@ -1749,8 +1810,13 @@ export class PhysicsEngine {
     const sizeChanged =
       (patch.width !== undefined && patch.width !== oldW) || (patch.height !== undefined && patch.height !== oldH);
     if (sizeChanged && oldW > 0 && oldH > 0) {
-      const sx = this._config.width / oldW;
-      const sy = this._config.height / oldH;
+      // The rings scale with the canvas's smaller side: in the ring modes every ball (and Accumulation's frozen balls, Lines'
+      // points) scales by that same factor about the centre, so it keeps its side of every ring; the other modes follow the
+      // canvas's own axes (those that map their own world – Journey, even in a rings stage – undo that per-axis stretch).
+      const k = Math.min(this._config.width, this._config.height) / Math.min(oldW, oldH);
+      const rings = this.circularWalls.length > 0 && supportsObstacles(this.currentMode?.name); // (the ring modes' list)
+      const sx = rings ? k : this._config.width / oldW;
+      const sy = rings ? k : this._config.height / oldH;
       const oldCx = oldW / 2;
       const oldCy = oldH / 2;
       const cx = this._config.width / 2;
@@ -1768,10 +1834,22 @@ export class PhysicsEngine {
     if (sizeChanged || wallCountChanged || gapChanged) {
       // Modes rebuild or rescale the walls from their base radii, never from a breathing pulse.
       this.restoreWallRadii();
+      const walls = this.circularWalls;
       const handled = this.currentMode?.onConfigChange(this.ctx, sizeChanged, wallCountChanged, gapChanged);
-      if (!handled) this.initializeCircularWalls();
+      if (!handled) {
+        // The classic rings: a new wall count builds them anew; a new canvas size (a window resize) or gap size changes
+        // them in place – the radii a fresh build would give, the gaps resized – so the run goes on with its broken rings.
+        if (wallCountChanged) this.initializeCircularWalls();
+        else {
+          if (sizeChanged) this.resizeCircularWalls();
+          this.refitGaps();
+        }
+      }
       this.syncWallBaseRadii();
-      this.brokenWalls.clear();
+      // Broken rings stay broken, unless a new wall count built the rings anew.
+      if (wallCountChanged && this.circularWalls !== walls) this.brokenWalls.clear();
+    } else if (this.ringPassRadius() !== oldPass) {
+      this.refitGaps(); // a bigger (or merged) ball: a gap it can no longer pass is widened, in place
     }
     // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off – but
     // not while update() applies a step's keyframes: the step's first sub-step moves the walls then, and sweeps the move.
@@ -1815,7 +1893,18 @@ export class PhysicsEngine {
   /** A keyframed gap size: the config takes it and the rings' gaps resize in place – no rebuild, so broken rings stay broken (see `resizeGaps()`). */
   private setTimelineGap(gap: number) {
     this._config = { ...this._config, gapSize: gap };
-    resizeGaps(this.circularWalls, gap, this.currentMode?.name);
+    resizeGaps(this.circularWalls, gap, this.currentMode?.name, this.ringPassRadius());
+  }
+
+  /** The gap-sized rings' gaps at the configured gap size, widened where the biggest ball could not pass (`resizeGaps()`); in place. */
+  private refitGaps() {
+    resizeGaps(this.circularWalls, this._config.gapSize || 0.3, this.currentMode?.name, this.ringPassRadius());
+  }
+
+  /** The biggest ball the rings must let through (the Ball Size, or all starting balls merged): see `ringPassRadius()`. */
+  private ringPassRadius(): number {
+    const r = this._config.ballRadius || 8;
+    return this.interaction.ballInteraction === "merge" ? r * Math.sqrt(startBallCount(this._config, this.currentMode?.name ?? "classic")) : r;
   }
 
   /** Whether the keyframes drive `key` (its config value is then the keyframed one; the page's own waits as its base). */
@@ -1897,7 +1986,7 @@ export class PhysicsEngine {
    */
   update(frameMs: number, audioIntensity = 0) {
     const dt = Math.min(frameMs, 128);
-    // --- boris-multipliers --- a ball outgrew the arena: the run is over, only the confetti keeps flying
+    // --- gerald-multipliers --- a ball outgrew the arena: the run is over, only the confetti keeps flying
     const mult = this.multipliers;
     if (mult.isOutgrown()) {
       this.updateParticles(frameMs / 1000);
@@ -1905,7 +1994,7 @@ export class PhysicsEngine {
     }
     const modeName = this.currentMode?.name;
     mult.setMode(modeName);
-    // --- end boris-multipliers ---
+    // --- end gerald-multipliers ---
     this.timeAccumulator += dt;
     let extras = this.extras; // --- timeline --- (re-read below after keyframes move an extra)
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
@@ -1921,7 +2010,7 @@ export class PhysicsEngine {
         }
         extras = this.extras;
       }
-      // --- boris-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
+      // --- gerald-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
       // radius (≤ 4 px) per sub-step; past 64 sub-steps the step itself shrinks (time dilation, SLOW-MO in the HUD).
       // Without multipliers `plan` is null and the step is exactly the fixed step, as before.
       const multActive = mult.isActive(modeName);
@@ -1934,7 +2023,7 @@ export class PhysicsEngine {
       const stepMs = plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS;
       this._elapsedMs += stepMs;
       const orbsLive = multActive && mult.pickupsLive(modeName);
-      // --- end boris-multipliers ---
+      // --- end gerald-multipliers ---
       while (this.wallRotations.length < this.circularWalls.length) this.wallRotations.push(0);
       const stepSec = stepMs / 1000;
       for (let i = 0; i < this.circularWalls.length; i++) {
@@ -1961,7 +2050,7 @@ export class PhysicsEngine {
       }
       this.cinematicDirector.update(stepMs);
       this.currentMode?.onPreUpdate(this.ctx, stepMs);
-      if (orbsLive) mult.stepPickups(this.ctx, stepMs); // --- boris-multipliers --- spawn, drift and fade the pickup orbs
+      if (orbsLive) mult.stepPickups(this.ctx, stepMs); // --- gerald-multipliers --- spawn, drift and fade the pickup orbs
 
       // Physics extras: air drag acts once per 60 Hz step; the gravity direction, wind and spin
       // terms are constant within the step and applied per sub-step below. Each is skipped at
@@ -1997,7 +2086,7 @@ export class PhysicsEngine {
 
       let subSteps =
         this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
-      if (plan && plan.subSteps > subSteps) subSteps = plan.subSteps; // --- boris-multipliers ---
+      if (plan && plan.subSteps > subSteps) subSteps = plan.subSteps; // --- gerald-multipliers ---
       const subMs = stepMs / subSteps;
       const subSec = subMs / 1000;
       const spinDecay = spinning ? spinDecayFactor(subSec) : 1;
@@ -2006,6 +2095,10 @@ export class PhysicsEngine {
       // --- obstacle-editor --- the creator's obstacles (ring modes only)
       const editorLive = this.editorObstaclesLive();
       if (editorLive) this.editorObstacles.beginStep();
+      // The ring pass judges a ball that its own move carried across a ring by where it was before the move
+      // (processWallCollisions(): each ball's squared distance from this centre is noted before it moves)
+      const ringCx = this._config.width / 2;
+      const ringCy = this._config.height / 2;
       for (let s = 0; s < subSteps; s++) {
         // Breathing walls move once per sub-step (a quarter of the per-step jump or less) and the collision
         // pass below sweeps each wall over that move, so even the fastest, widest pulse cannot step over a
@@ -2043,17 +2136,20 @@ export class PhysicsEngine {
           }
           if (keepMoving) {
             const speed = Math.hypot(ball.vx, ball.vy);
-            const cruise = ball.mult ? cruiseSpeed(ball, baseSpeed) : baseSpeed; // --- boris-multipliers --- the speed multiplier raises the cruising speed
+            const cruise = ball.mult ? cruiseSpeed(ball, baseSpeed) : baseSpeed; // --- gerald-multipliers --- the speed multiplier raises the cruising speed
             if (speed > 0 && speed < cruise) {
               const boost = 1 + 0.5 * subSec;
               ball.vx *= boost;
               ball.vy *= boost;
             }
           }
+          const bx = ball.x - ringCx;
+          const by = ball.y - ringCy;
+          const beforeSq = this.circularWalls.length > 0 ? bx * bx + by * by : -1;
           ball.x += ball.vx * subSec;
           ball.y += ball.vy * subSec;
           this.currentMode?.onBallStep(this.ctx, ball, subSec);
-          // --- boris-multipliers --- a touched orb applies at the end of the step (--- rigged --- a forced winner's rivals do not clone themselves)
+          // --- gerald-multipliers --- a touched orb applies at the end of the step (--- rigged --- a forced winner's rivals do not clone themselves)
           if (orbsLive && mult.hasOrbs()) mult.touch(ball, this.rigOn && this.cinematicDirector.rig.blocksClone(ball));
           if (s === 0 && ball.lifetime !== undefined) {
             ball.lifetime -= stepMs;
@@ -2064,15 +2160,19 @@ export class PhysicsEngine {
           }
           if (hasObstacles) this.handleObstacleCollisions(ball, subSec);
           if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
-          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball);
+          if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball, beforeSq);
         }
+        // The pair pass and the mode's pushes (Accumulation's frozen balls) ignore the rings: a push that carries a ball's
+        // centre across an intact ring is undone radially (restoreRingSides()), so the next wall pass resolves it from its side.
+        const sides = this.circularWalls.length > 0 && (this.balls.length > 1 || this.currentMode === this.accumulationMode) ? this.recordRingSides(ringCx, ringCy) : 0;
         if (this.limits.pairsAllowed(this.balls.length)) this.handleBallCollisions(multActive || limitsOn); // --- unlimited --- (every pair through the spatial hash; a clone storm passes through itself)
         this.currentMode?.onPostSubStep(this.ctx);
+        if (sides > 0) this.restoreRingSides(sides, ringCx, ringCy);
       }
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
       if (this.onBeat.wants()) this.stepOnBeat(stepMs, subSteps, audioIntensity, gDirX, gDirY, keepMoving); // --- video-beats ---
-      if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- boris-multipliers --- orbs taken, grown balls refitted, HUD
+      if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- gerald-multipliers --- orbs taken, grown balls refitted, HUD
       // --- unlimited --- the crowd moves, non-finite balls are rescued, big balls burst their rings or eat the arena
       if (limitsOn) {
         const g = this.gravityAccel(audioIntensity);
@@ -2088,13 +2188,13 @@ export class PhysicsEngine {
           ball.trailIndex = (ball.trailIndex + 1) % 20;
         }
       }
-      if (mult.isOutgrown()) break; // --- boris-multipliers --- the run just ended
+      if (mult.isOutgrown()) break; // --- gerald-multipliers --- the run just ended
     }
     if (this.finishedAtMs < 0 && this.isSimulationFinished()) this.finishedAtMs = this._elapsedMs; // --- split-screen --- (the race's finish time)
     this.updateParticles(frameMs / 1000);
   }
 
-  // --- boris-multipliers ---
+  // --- gerald-multipliers ---
   /** Gravity (px/s²) on a ball of normal weight this step, for the sub-step plan. */
   private gravityAccel(audioIntensity: number) {
     return this._config.gravity * ((this._config.ballSpeed || 400) / 300) * (1 + 0.5 * audioIntensity);
@@ -2118,7 +2218,7 @@ export class PhysicsEngine {
     this.cinematicDirector.onGapPass();
     if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
   }
-  // --- end boris-multipliers ---
+  // --- end gerald-multipliers ---
 
   /**
    * Resolves the ball against every obstacle (obstacles.ts): the push-out and rebound always happen; a
@@ -2128,7 +2228,7 @@ export class PhysicsEngine {
    */
   private handleObstacleCollisions(ball: Ball, dtSec: number) {
     const obstacles = this.obstacles;
-    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- boris-multipliers --- bounce multiplier (--- unlimited --- no cap with No limits on)
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- gerald-multipliers --- bounce multiplier (--- unlimited --- no cap with No limits on)
     // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
     const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
     const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
@@ -2152,7 +2252,8 @@ export class PhysicsEngine {
     if (drop > 0) this.obstacleHits.splice(0, drop);
   }
 
-  private handleCircularWallCollisions(ball: Ball) {
+  /** `beforeSq`: the ball's squared distance from the centre before this sub-step moved it (−1: unknown; see `processWallCollisions()`). */
+  private handleCircularWallCollisions(ball: Ball, beforeSq = -1) {
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     for (let iter = 0; iter < 5; iter++) {
@@ -2180,7 +2281,7 @@ export class PhysicsEngine {
       }
       // Only the first pass sweeps the walls over their last move: the later passes resolve what the
       // push-outs of the first one (or a mode's teleport) left overlapping, against the current radii.
-      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0)) break;
+      if (!this.processWallCollisions(ball, cx, cy, dist, angle, this.sweepWalls && iter === 0, iter === 0 ? beforeSq : -1)) break;
     }
   }
 
@@ -2191,8 +2292,13 @@ export class PhysicsEngine {
    * so a wall that jumped over the ball still hits it and pushes it back to the side it came from,
    * and a gap that swept past the ball's centre counts as a pass. With `prev === radius` the swept
    * test is exactly the plain one, so a run without breathing walls takes the original code path.
+   * `beforeSq` (≥ 0 on the first pass of a sub-step) is the ball's squared distance from the centre before the sub-step moved it:
+   * a ball whose move carried its centre across a ring (`movedAcross()`: from clear of the ring, or through solid wall –
+   * a fast ball can land beyond the ±(radius + 2) hit band) is judged from the side it came from, so a solid ring pushes
+   * it back and rebounds it instead of letting it through (a crossing through a gap still passes). A ball that crossed no
+   * ring takes exactly the old path.
    */
-  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false): boolean {
+  private processWallCollisions(ball: Ball, cx: number, cy: number, dist: number, angle: number, swept = false, beforeSq = -1): boolean {
     const dx = ball.x - cx;
     const dy = ball.y - cy;
     let outermostBelow = -1;
@@ -2203,22 +2309,25 @@ export class PhysicsEngine {
     const isShatter = this.currentMode?.name === "shatter";
     let collided = false;
     for (let w = 0; w < this.circularWalls.length; w++) {
-      // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
-      if (this.brokenWalls.has(w) && !(this.rigOn && dist < this.circularWalls[w].radius && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const wall = this.circularWalls[w];
+      // --- rigged --- a wall broken open before the forced winner passed it still holds the other balls in
+      if (this.brokenWalls.has(w) && !(this.rigOn && (dist < wall.radius || (beforeSq >= 0 && beforeSq < wall.radius * wall.radius)) && this.cinematicDirector.rig.holdsBroken(ball, w))) continue;
       const rotation = this.wallRotations[w];
       const inner = dist - ball.radius - 2;
       const outer = dist + ball.radius + 2;
       let inside: boolean;
       /** The wall (with its gap) moved past the ball's centre since the last pass: an inside ball is now outside it. */
       let crossed = false;
+      /** The ball's own move took its centre across the ring (`beforeSq`): it is judged from the side it came from. */
+      let crossedRing = false;
       if (swept) {
         const prev = w < this.wallPrevRadii.length ? this.wallPrevRadii[w] : wall.radius;
-        inside = dist < prev;
+        inside = this.movedAcross(ball, beforeSq, dist, prev, wall, rotation, angle) ? beforeSq < prev * prev : dist < prev;
         if (inside ? outer < wall.radius : inner > wall.radius) continue;
         crossed = inside && dist >= wall.radius;
       } else {
-        if (!(inner <= wall.radius && outer >= wall.radius)) continue;
+        crossedRing = this.movedAcross(ball, beforeSq, dist, wall.radius, wall, rotation, angle);
+        if (!crossedRing && !(inner <= wall.radius && outer >= wall.radius)) continue;
         inside = dist < wall.radius;
       }
 
@@ -2253,11 +2362,13 @@ export class PhysicsEngine {
       const ny = dy / dist;
       // --- rigged --- a wall closed to this ball (never escape's barrier, a forced winner's locked walls): its gaps do not
       // let the ball out – it rebounds as off the wall (the safety net under the director's steering)
+      // (a ball inside it at the start of the step is held even when a fast sub-step already carried its centre past it)
       let sealedGap = false;
-      if (inGap && this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) {
+      if (inGap && this.rigOn && this.cinematicDirector.rig.closes(ball, w) && (inside || this.cinematicDirector.rig.heldAtStart(ball, w))) {
         inGap = false;
         sealedGap = true;
-        if (ball.vx * nx + ball.vy * ny > 0 || crossed) this.cinematicDirector.rig.noteSeal();
+        if (ball.vx * nx + ball.vy * ny > 0 || crossed || !inside) this.cinematicDirector.rig.noteSeal();
+        inside = true; // the push-out below puts it back inside the wall
       }
       if (inGap) {
         const movingOut = ball.vx * nx + ball.vy * ny > 0;
@@ -2275,7 +2386,8 @@ export class PhysicsEngine {
           if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
           if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, false); // --- video-beats --- the next flight is planned
           const handled = this.currentMode?.onGapPass(this.ctx, ball, w);
-          if (!handled) {
+          // --- rigged --- (a wall the rig keeps closed to this ball never breaks under it, whichever side it came from)
+          if (!handled && !(this.rigOn && this.cinematicDirector.rig.closes(ball, w))) {
             if (!this.brokenWalls.has(w)) {
               this.spawnWallBreakByStyle(w, ball.x, ball.y);
               this.pendingSoundEvents.push({ type: "gap", wallIndex: w });
@@ -2286,8 +2398,10 @@ export class PhysicsEngine {
           }
         }
       } else {
-        // --- boris-multipliers --- enough damage smashes the ring on contact: no gap needed
-        if (ball.mult && !(this.rigOn && inside && this.cinematicDirector.rig.closes(ball, w)) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
+        // A move through solid wall: the ball goes back to the side it came from (a refused pass keeps it inside).
+        if (crossedRing && !sealedGap) inside = beforeSq < wall.radius * wall.radius;
+        // --- gerald-multipliers --- enough damage smashes the ring on contact: no gap needed
+        if (ball.mult && !(this.rigOn && this.cinematicDirector.rig.closes(ball, w) && (inside || this.cinematicDirector.rig.heldAtStart(ball, w))) && smashesWalls(ball, this.multipliers.getConfig().wallSmashThreshold, this.currentMode?.name)) { // --- rigged --- (a closed wall is not smashed)
           this.smashWall(ball, w);
           this.multipliers.noteSmash();
           continue;
@@ -2320,7 +2434,7 @@ export class PhysicsEngine {
           const baseSpeed = this._config.ballSpeed || 400;
           // Wall bounciness (restitution) scales the rebound speed; it is 1 by default (an exact no-op).
           let speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier() * this.extras.wallBounciness;
-          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball, this.multipliers.bounceCap); // --- boris-multipliers --- speed and bounce multipliers (--- unlimited --- uncapped with No limits on)
+          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball, this.multipliers.bounceCap); // --- gerald-multipliers --- speed and bounce multipliers (--- unlimited --- uncapped with No limits on)
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
@@ -2341,19 +2455,52 @@ export class PhysicsEngine {
         }
         if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, !result?.suppressBounce); // --- video-beats --- a fresh rebound is at its natural speed
         collided = true;
+        // The rings after this one were tested against where the move left the ball, not where it is now: the next pass
+        // resolves them from its new place.
+        if (crossedRing) return true;
       }
     }
     return collided;
   }
 
+  /**
+   * The ball's own move (from √`beforeSq` to `dist`; −1 = unknown) took its centre across the ring at radius `R` through solid
+   * wall – a tunnelling move, judged from the side it came from. Not when it was already touching the ring inside the span
+   * of a gap: a ball straddling the ring in a gap keeps the judgement by its centre it always had (it passes the gap's
+   * edge). Allocation-free; the gaps are only looked at for such a straddling crossing.
+   */
+  private movedAcross(ball: Ball, beforeSq: number, dist: number, R: number, wall: CircularWall, rotation: number, angle: number): boolean {
+    if (beforeSq < 0 || (beforeSq < R * R) === (dist < R)) return false;
+    if (Math.abs(Math.sqrt(beforeSq) - R) > ball.radius + 2) return true;
+    for (const gap of wall.gaps) {
+      const start = (((gap.startAngle + rotation) % TWO_PI) + TWO_PI) % TWO_PI;
+      let width = gap.endAngle - gap.startAngle;
+      if (width >= TWO_PI) return false;
+      width = ((width % TWO_PI) + TWO_PI) % TWO_PI;
+      let rel = angle - start;
+      if (rel < 0) rel += TWO_PI;
+      if (rel <= width) return false;
+    }
+    return true;
+  }
+
+  /** The classic rings' radii for the current canvas, exactly as `initializeCircularWalls()` builds them; gaps, rotations and broken rings stay. */
+  private resizeCircularWalls() {
+    const maxR = (Math.min(this._config.width, this._config.height) / 2) * 0.85;
+    const count = this.circularWalls.length;
+    for (let i = 0; i < count; i++) this.circularWalls[i].radius = maxR * (0.4 + (0.6 / count) * (i + 1));
+  }
+
   private initializeCircularWalls() {
     const maxR = (Math.min(this._config.width, this._config.height) / 2) * 0.85;
     const count = this._config.wallCount || 7;
+    const passRadius = this.ringPassRadius();
     this.circularWalls = [];
     this.wallRotations = [];
     for (let i = 0; i < count; i++) {
       const radius = maxR * (0.4 + (0.6 / count) * (i + 1));
-      const gap = this._config.gapSize || 0.3;
+      // (widened only where the ball could never pass it – see passableGap(); every gap a ball fits through stays as set)
+      const gap = passableGap(this._config.gapSize || 0.3, radius, passRadius);
       const start = (TWO_PI * i) / count;
       this.circularWalls.push({ radius, gaps: [{ startAngle: start, endAngle: start + gap }] });
       this.wallRotations.push(0);
@@ -2393,7 +2540,7 @@ export class PhysicsEngine {
     const interaction = this.interaction.ballInteraction;
     if (interaction === "pass" || this.currentMode?.ballsPassThrough) return;
     const merge = interaction === "merge";
-    // --- boris-multipliers --- a crowd in a multiplier run (Multiply's fast children): the pairs come from a grid
+    // --- gerald-multipliers --- a crowd in a multiplier run (Multiply's fast children): the pairs come from a grid
     if (multipliersActive && !merge && this.balls.length > HASHED_PAIRS_FROM) {
       this.handleBallCollisionsHashed();
       return;
@@ -2407,7 +2554,7 @@ export class PhysicsEngine {
   }
 
   /**
-   * --- boris-multipliers --- The rebound pass through a spatial hash: the balls are binned into cells three of the
+   * --- gerald-multipliers --- The rebound pass through a spatial hash: the balls are binned into cells three of the
    * biggest radii wide, the pairs that touch – or nearly: a one-radius margin, as the pass itself pushes balls about –
    * come out in grid order (deterministic: it only depends on the positions) and each gets the pair loop's elastic
    * rebound. The grid covers the canvas and a few cells around it; balls flung further out (Multiply's escaped ones) are
@@ -2525,7 +2672,7 @@ export class PhysicsEngine {
       ball.radiusScale = first.radius / (this._config.ballRadius || 8);
       this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime, gravityScale: ball.gravityScale, radiusScale: second.radius / (this._config.ballRadius || 8) });
       const half = this.balls[this.balls.length - 1];
-      if (ball.mult) half.mult = copyMultipliers(ball.mult); // --- boris-multipliers --- the halves keep the multipliers
+      if (ball.mult) half.mult = copyMultipliers(ball.mult); // --- gerald-multipliers --- the halves keep the multipliers
       half.spin = ball.spin;
       half.angle = ball.angle;
       // --- teams --- the half plays for its parent's team, and the half of an escaped ball does not escape again

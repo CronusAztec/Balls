@@ -1,6 +1,7 @@
 import type { GameMode, ModeContext } from "../types";
-import { arenaRadius, TWO_PI } from "../types";
-import { cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
+import { arenaRadius, passableGap, TWO_PI } from "../types";
+import { ringPassRadius } from "../ballStats";
+import { cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
 
 export interface FrozenBall {
   x: number;
@@ -115,7 +116,7 @@ export class AccumulationMode implements GameMode {
             ball.vy -= 2 * dot * ny;
           }
           const mult = ctx.getBounceSpeedMultiplier();
-          const target = cruiseSpeed(ball, ctx.config.ballSpeed || 400) * mult; // --- boris-multipliers --- the speed multiplier
+          const target = cruiseSpeed(ball, ctx.config.ballSpeed || 400) * mult; // --- gerald-multipliers --- the speed multiplier
           const speed = Math.hypot(ball.vx, ball.vy);
           if (speed > 0) {
             ball.vx = (ball.vx / speed) * target;
@@ -152,9 +153,10 @@ export class AccumulationMode implements GameMode {
 
   onConfigChange(ctx: ModeContext, sizeChanged: boolean, _wallCountChanged: boolean, gapChanged: boolean) {
     if (sizeChanged || gapChanged) {
-      const gap = ctx.config.gapSize || 0.3;
+      const radius = arenaRadius(ctx.config);
+      const gap = passableGap(ctx.config.gapSize || 0.3, radius, ringPassRadius(ctx.config, this.name)); // (wide enough for the ball)
       const start = 0.25 * Math.PI;
-      ctx.setCircularWalls([{ radius: arenaRadius(ctx.config), gaps: [{ startAngle: start, endAngle: start + gap }] }]);
+      ctx.setCircularWalls([{ radius, gaps: [{ startAngle: start, endAngle: start + gap }] }]);
       ctx.setWallRotations([0]);
     }
     return true;

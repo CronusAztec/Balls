@@ -40,7 +40,7 @@ import { playSoundEvent } from "@/lib/recording/fastRender";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 
 /**
- * Sound Vortex (feature boris-vortex): the settings / URL / presets, the funnel geometry, the spiral integration (the
+ * Sound Vortex (feature gerald-vortex): the settings / URL / presets, the funnel geometry, the spiral integration (the
  * matched spiral r = r₀·e^(−k·t), determinism), ring-crossing detection, the notes rising with depth, the pew (its
  * scheduling in the event stream, its synthesis and the ToneGenerator's dispatch), the end of the run, the loop and the
  * seed finder.
@@ -148,7 +148,7 @@ describe("settings, URL and presets", () => {
     expect(resolveVortexFields(preset)).toMatchObject({ vxBalls: 1, vxLoop: false, vxGravity: 3 });
   });
 
-  it("the mode is registered: a rhythm card with the Boris family, before Glass Smash", () => {
+  it("the mode is registered: a rhythm card with the Gerald family, before Glass Smash", () => {
     expect(MODE_IDS).toContain("vortex");
     expect(MODE_CATEGORIES.vortex).toBe("rhythm");
     expect(MODE_CARD_ORDER).toContain("vortex");

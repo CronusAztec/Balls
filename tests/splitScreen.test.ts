@@ -538,9 +538,9 @@ describe("split-screen: sounds and the finder", () => {
       playBumper: () => calls.push("bumper"),
       playStringBattle: (k) => calls.push(`sb ${k}`),
       playRaceArpeggio: (k) => calls.push(`race ${k}`),
-      playPew: (f) => calls.push(`pew ${f}`), // --- boris-vortex ---
-      playThud: (f, level) => calls.push(`thud ${f} ${level}`), // --- boris-bullseye ---
-      playSwoosh: () => calls.push("swoosh"), // --- boris-journey ---
+      playPew: (f) => calls.push(`pew ${f}`), // --- gerald-vortex ---
+      playThud: (f, level) => calls.push(`thud ${f} ${level}`), // --- gerald-bullseye ---
+      playSwoosh: () => calls.push("swoosh"), // --- gerald-journey ---
       playBeatDrop: (drum, pad, f, accent, level) => calls.push(`bd ${drum} ${pad ?? "-"} ${f ?? "-"}${accent ? " accent" : ""} ${level}`), // --- beat-drop ---
     };
     playArenaSound(sink, { type: "hit", wallIndex: 2 });
@@ -556,9 +556,9 @@ describe("split-screen: sounds and the finder", () => {
     playArenaSound(sink, { type: "multiplier", wallIndex: 0, multiplier: 2, melody: false });
     // A ball swallowed by the Sound Vortex pews (its event is a "hit" on the innermost ring, not a bounce).
     playArenaSound(sink, { type: "hit", wallIndex: 12, frequency: 880, pew: true });
-    // --- boris-bullseye --- a Bullseye landing thuds (a little softer, like every other arena's sound), not a bounce.
+    // --- gerald-bullseye --- a Bullseye landing thuds (a little softer, like every other arena's sound), not a bounce.
     playArenaSound(sink, { type: "hit", wallIndex: 0, frequency: 98, thud: true, level: 0.5 });
-    // --- boris-journey --- a Journey stage transition swooshes (its event is a melody-free "hit"), not a bounce.
+    // --- gerald-journey --- a Journey stage transition swooshes (its event is a melody-free "hit"), not a bounce.
     playArenaSound(sink, { type: "hit", wallIndex: 0, swoosh: true, melody: false });
     // --- beat-drop --- a Beat Drop landing plays its drum and pad accent (not a wall hit), a little softer like a bounce.
     playArenaSound(sink, { type: "hit", wallIndex: 0, frequency: 330, bdDrum: "kick", bdPad: "spring", accent: true, melody: false });

@@ -1,5 +1,5 @@
 /**
- * Journey mode (feature boris-journey): the stage list – which stages the ball clears on its way home, in which order
+ * Journey mode (feature gerald-journey): the stage list – which stages the ball clears on its way home, in which order
  * and how big each one is – as data, and its compact text form for the URL (`js`), presets and the panel.
  *
  * A stage is a kind and a size: "rings" (a compact concentric-rings escape like Classic), "glass" (panes from Glass

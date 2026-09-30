@@ -1,5 +1,6 @@
 import type { Ball, GameMode, ModeContext, Point, WallHitResult } from "../types";
-import { cruiseSpeed } from "../multipliers"; // --- boris-multipliers ---
+import { arenaRadius } from "../types";
+import { cruiseSpeed } from "../multipliers"; // --- gerald-multipliers ---
 
 /** Grow: a single sealed ring; the ball grows with every bounce until it fills the space. */
 export class GrowMode implements GameMode {
@@ -53,13 +54,18 @@ export class GrowMode implements GameMode {
    * The largest radius a ball may have in ring `wallIndex`: the smallest radius the ring reaches, less 2 px. With
    * breathing walls the live radius pulses around its base by ±amplitude, so the cap is the trough of the pulse, not
    * the current (possibly peaking) size – otherwise the ring would shrink under a ball that outgrew it.
+   * The balls in play share the ring: with n > 1 each may reach 1/n of it (less the ring's 3 px push margin and 1 px of
+   * slack), so two balls side by side still fit inside – grown to the single-ball cap they would stick out half beyond
+   * the sealed ring and, under strong gravity, shove each other through it. One ball keeps exactly the old cap.
    */
   private maxBallRadius(ctx: ModeContext, wallIndex: number): number {
     const wall = ctx.getCircularWalls()[wallIndex];
     if (!wall) return Infinity;
     const baseRadii = ctx.getWallBaseRadii();
     const base = wallIndex < baseRadii.length ? baseRadii[wallIndex] : wall.radius;
-    return Math.min(wall.radius, base * (1 - ctx.getPhysicsExtras().breathingAmplitude)) - 2;
+    const limit = Math.min(wall.radius, base * (1 - ctx.getPhysicsExtras().breathingAmplitude));
+    const n = ctx.getBalls().length;
+    return n > 1 ? (limit - 3) / n - 1 : limit - 2;
   }
   /**
    * A grown ball keeps its size relative to the Ball Size (`radiusScale`), so a Ball Size keyframe or slider scales it;
@@ -137,7 +143,7 @@ export class GrowMode implements GameMode {
             ball.vx += 4 * tx * sign * orbit;
             ball.vy += 4 * nx * sign * orbit;
           }
-          const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400); // --- boris-multipliers --- the speed multiplier
+          const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400); // --- gerald-multipliers --- the speed multiplier
           const current = Math.hypot(ball.vx, ball.vy);
           if (current > 0) {
             ball.vx = (ball.vx / current) * speed;
@@ -155,10 +161,20 @@ export class GrowMode implements GameMode {
     return true;
   }
   onPostUpdate() {}
-  onConfigChange(ctx: ModeContext) {
-    const r = (Math.min(ctx.config.width, ctx.config.height) / 2) * 0.85;
-    ctx.setCircularWalls([{ radius: r, gaps: [] }]);
-    ctx.setWallRotations([0]);
+  /**
+   * A new canvas size resizes the sealed ring to the radius a fresh start gives it (`arenaRadius()`, as the engine's "solid"
+   * layout builds it – the engine has put a breathing ring back at its base radius first). The gap size and the wall count
+   * do not apply to Grow's gapless ring: nothing changes.
+   */
+  onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
+    if (!sizeChanged) return true;
+    const r = arenaRadius(ctx.config);
+    const walls = ctx.getCircularWalls();
+    if (walls.length > 0) walls[0].radius = r;
+    else {
+      ctx.setCircularWalls([{ radius: r, gaps: [] }]);
+      ctx.setWallRotations([0]);
+    }
     this.centerDotRadius = Math.max(5, 0.02 * r);
     return true;
   }
