@@ -15,6 +15,8 @@ import { polyrhythmSettingsOf } from "@/lib/physics/modes/polyrhythm";
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers";
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle";
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye";
+import { journeySettingsOf } from "@/lib/physics/modes/journey";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex";
 import { beatDropSettingsOf } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
@@ -112,6 +114,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     ctf: ctfSettingsOf(s),
     ...jdmRhythmFinderSettingsOf(s, markerBeat), // --- video-beats --- (no song without a page)
     vortex: vortexSettingsOf(s),
+    journey: journeySettingsOf(s), // --- boris-journey ---
+    bullseye: bullseyeSettingsOf(s), // --- boris-bullseye ---
     beatDrop: beatDropSettingsOf(s, markerBeat), // --- beat-drop --- (the bot plans without a loaded song)
     onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)
   };

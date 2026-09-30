@@ -7,6 +7,8 @@ import { DEFAULT_BUMPER_FREQUENCY, scheduleBumperTone } from "./bumperTone"; // 
 import { NoiseCache, scheduleShatterBurst, scheduleStringPluck } from "./stringBattleTones"; // --- odd-string-battle ---
 import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./raceTones"; // --- jdm-race ---
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- boris-vortex ---
+import { scheduleSwooshTone } from "./swooshTone"; // --- boris-journey ---
+import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- boris-bullseye ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { MusicBed } from "./musicBed";
@@ -708,6 +710,63 @@ export class ToneGenerator {
     }
   }
   // --- end boris-vortex ---
+
+  // --- boris-journey ---
+  /**
+   * A Journey stage transition: the swoosh (swooshTone.ts) – band-passed noise sweeping up with a quiet sine glide under
+   * it. An effect, not a note (never snapped, never a melody note, a hit sample or a song slice, never a bounce's beat-grid
+   * slot): on the beat grid when the beat lock is on, ducking the music bed.
+   */
+  playSwoosh() {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleSwoosh());
+      return;
+    }
+    this.scheduleSwoosh();
+  }
+
+  private scheduleSwoosh() {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      scheduleSwooshTone(this.audioContext, this.masterGain, time, this.noiseCache.get(this.audioContext));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the swoosh:", err);
+    }
+  }
+  // --- end boris-journey ---
+  // --- boris-bullseye ---
+  /**
+   * A Bullseye landing: the thud (thudTone.ts) at `frequency` – the ring's pitch –, `level` loud (0–1), snapped to the
+   * scale, on the beat grid when the beat lock is on (it never takes a bounce's slot), ducking the music bed; in sample
+   * mode the hit sample plays instead, two octaves above the thud's pitch.
+   */
+  playThud(frequency = DEFAULT_THUD_FREQUENCY, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleThud(frequency, level));
+      return;
+    }
+    this.scheduleThud(frequency, level);
+  }
+
+  private scheduleThud(frequency: number, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      // The sample plays two octaves above the thud (a bass pitch would stretch the clip six times over).
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, 4 * this.snap(frequency)), time, thudLevel(level));
+      else scheduleThudTone(this.audioContext, this.masterGain, frequency, time, (f) => this.snap(f), level);
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the thud:", err);
+    }
+  }
+  // --- end boris-bullseye ---
 
   // --- beat-drop ---
   private readonly bdVoices: BeatDropVoices = { kick: 0, snare: 0, hat: 0, accent: 0 };

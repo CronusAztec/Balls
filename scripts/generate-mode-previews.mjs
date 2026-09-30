@@ -54,6 +54,10 @@ const MODES = {
   paddle: { wait: 4200, query: "pdsk=1&pdsp=1&glow=1" },
   // --- boris-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
   vortex: { wait: 14200, query: "face=cute&glow=1" },
+  // --- boris-journey --- a large rings stage mid-escape: the chamber bulging out of the column, the mini-map and the clock beside it
+  journey: { wait: 2400, query: "js=rings-l,glass,pegs,home&face=cute&glow=1" },
+  // --- boris-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
+  bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
   // --- beat-drop --- mid-run: the ball squashed on a pad, the next obstruction flying in, a ripple and a puff, the trail
   beatDrop: { wait: 6120, query: "face=cute&glow=1&bdd=1&bda=1" },
 };

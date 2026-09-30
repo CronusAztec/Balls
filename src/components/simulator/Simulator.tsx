@@ -89,6 +89,8 @@ import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, t
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- boris-journey ---
+import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- boris-bullseye ---
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
@@ -273,6 +275,8 @@ export default function Simulator() {
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeatRef.current));
     engine.setPaddleSettings(paddleSettingsOf(s));
     engine.setVortexSettings(vortexSettingsOf(s)); // --- boris-vortex ---
+    engine.setJourneySettings(journeySettingsOf(s)); // --- boris-journey ---
+    engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- boris-bullseye ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
@@ -735,6 +739,41 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
   // --- end boris-vortex ---
+  // --- boris-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setJourneySettings(journeySettingsOf(s));
+    if (s.mode === "journey" && engine.getCurrentModeName() === "journey") {
+      engine.initJourney();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.journeyStages, s.journeyAutoStages]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.journeyStages, s.journeyAutoStages]);
+  // --- end boris-journey ---
+  // --- boris-bullseye --- Bullseye: a change of the shots, the field, the target or the perfect shot restarts the run and
+  // drops a found seed; the Sound section's scale and root (the peg notes and the thuds) follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBullseyeSettings(bullseyeSettingsOf(s));
+    if (s.mode === "bullseye" && engine.getCurrentModeName() === "bullseye") {
+      engine.initBullseye();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.byShots, s.byInterval, s.byChaos, s.byRings, s.byTargetMoving, s.byPerfect]);
+  useEffect(() => {
+    engineRef.current?.setBullseyeSettings(bullseyeSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.scale, s.rootNote]);
+  // --- end boris-bullseye ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1048,6 +1087,7 @@ export default function Simulator() {
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- boris-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
+        engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- boris-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
       },
     }),
@@ -1248,6 +1288,16 @@ export default function Simulator() {
           // --- boris-vortex --- a ball swallowed by the Sound Vortex pews
           if (ev.pew) {
             audio.playPew(ev.frequency);
+            continue;
+          }
+          // --- boris-journey --- a Journey stage transition swooshes
+          if (ev.swoosh) {
+            audio.playSwoosh();
+            continue;
+          }
+          // --- boris-bullseye --- a Bullseye landing thuds
+          if (ev.thud) {
+            audio.playThud(ev.frequency, ev.level);
             continue;
           }
           // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
@@ -2113,6 +2163,8 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          journey: journeySettingsOf(settings), // --- boris-journey ---
+          bullseye: bullseyeSettingsOf(settings), // --- boris-bullseye ---
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
         },
@@ -2302,6 +2354,33 @@ export default function Simulator() {
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+      },
+      // --- boris-journey ---
+      journey: {
+        banner: (n, total, name) => fill("Journey.canvasBanner", { n, total, name }),
+        names: {
+          rings: t("Journey.stage_rings"),
+          glass: t("Journey.stage_glass"),
+          pegs: t("Journey.stage_pegs"),
+          multipliers: t("Journey.stage_multipliers"),
+          funnel: t("Journey.stage_funnel"),
+          bullseye: t("Journey.stage_bullseye"),
+          home: t("Journey.stage_home"),
+        },
+        home: t("Journey.canvasHome"),
+        homeTitle: t("Journey.canvasHomeTitle"),
+        homeSub: (stages, seconds, score) => (score > 0 ? fill("Journey.canvasHomeSubScore", { stages, seconds, score }) : fill("Journey.canvasHomeSub", { stages, seconds })),
+        score: (points) => fill("Journey.canvasScore", { points }),
+      },
+      // --- boris-bullseye ---
+      bullseye: {
+        title: t("Bullseye.canvasTitle"),
+        shot: (n, total) => fill("Bullseye.canvasShot", { n, total }),
+        total: t("Bullseye.canvasTotal"),
+        bullseye: t("Bullseye.canvasBullseye"),
+        miss: t("Bullseye.canvasMiss"),
+        finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
+        finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
       },
       // --- beat-drop ---
       beatDrop: {

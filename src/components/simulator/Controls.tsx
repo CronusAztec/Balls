@@ -61,6 +61,8 @@ import { isJdmRhythmMode } from "@/lib/physics/modes/jdmRhythm";
 import ArenasSection, { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { defaultSplitScreenFields } from "@/lib/splitScreen";
 import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- boris-vortex --- the Vortex block of the Mode row
+import JourneySection, { JOURNEY_KEYS } from "./sections/JourneySection"; // --- boris-journey --- the Journey block of the Mode row
+import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // --- boris-bullseye --- the Bullseye block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
@@ -200,6 +202,10 @@ SECTION_KEYS.ball.push(...VORTEX_KEYS);
 SECTION_KEYS.sound.push(...VIDEO_BEATS_KEYS);
 // --- viral-bot --- the Viral video bot block comes after the Batch block in the Recording section.
 SECTION_KEYS.recording.push(...BOT_KEYS);
+// --- boris-journey --- the Journey block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...JOURNEY_KEYS);
+// --- boris-bullseye --- the Bullseye block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
 
@@ -281,6 +287,10 @@ export default function Controls(props: ControlsProps) {
     paddle: t("modePaddle"),
     // --- boris-vortex ---
     vortex: t("modeVortex"),
+    // --- boris-journey ---
+    journey: t("modeJourney"),
+    // --- boris-bullseye ---
+    bullseye: t("modeBullseye"),
     // --- beat-drop ---
     beatDrop: t("modeBeatDrop"),
   };
@@ -364,6 +374,10 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "paddle" && !!search && <PaddleSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- boris-vortex --- */}
       {s.mode === "vortex" && !!search && <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- boris-journey --- */}
+      {s.mode === "journey" && !!search && <JourneySection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- boris-bullseye --- */}
+      {s.mode === "bullseye" && !!search && <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- beat-drop --- */}
       {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
@@ -445,10 +459,10 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- beat-drop --- (beatDrop)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- beat-drop --- (beatDrop)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- boris-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- boris-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- boris-vortex --- (vortex) --- boris-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex" || s.mode === "beatDrop"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- boris-vortex --- (the sound rings) --- beat-drop --- (the obstructions' outlines)
+    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex" || s.mode === "bullseye" || s.mode === "beatDrop"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- boris-vortex --- (the sound rings) --- boris-bullseye --- (the walls, the landing line, the target's rim) --- beat-drop --- (the obstructions' outlines)
     return (
       <div className="space-y-4">
         <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
@@ -1231,6 +1245,12 @@ export default function Controls(props: ControlsProps) {
       // --- boris-vortex ---
       case "vortex":
         return <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- boris-journey ---
+      case "journey":
+        return <JourneySection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- boris-bullseye ---
+      case "bullseye":
+        return <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- beat-drop ---
       case "beatDrop":
         return <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} /* --- video-beats --- */ />;

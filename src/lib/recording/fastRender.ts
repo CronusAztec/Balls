@@ -213,6 +213,16 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playPew(ev.frequency);
     return;
   }
+  // --- boris-journey --- a Journey stage transition swooshes
+  if (ev.swoosh) {
+    audio.playSwoosh();
+    return;
+  }
+  // --- boris-bullseye --- a Bullseye landing thuds
+  if (ev.thud) {
+    audio.playThud(ev.frequency, ev.level);
+    return;
+  }
   // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
   if (ev.bdDrum) {
     audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);

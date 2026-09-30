@@ -6,7 +6,8 @@
     "modesRhythm": "Rhythm & polyrhythm modes",
     "faq": "Frequently Asked Questions",
     "howItWorks": "How It Works",
-    "modesBattle": "Battle modes"
+    "modesBattle": "Battle modes",
+    "modesJourney": "Journey modes"
   },
   "Navbar": {
     "simulator": "Simulator",
@@ -1422,7 +1423,48 @@
     "vbOnBeatRangeTip": "How much faster or slower On beat may make a flight. Wider lands more hits on the beat, narrower keeps the motion more natural.",
     "projectMediumBeatMedia": "Beat video / audio",
     "viralBot": "Viral video bot",
-    "viralBotTip": "Plans clips after the playbook of the accounts that go viral (a one-line hook, a countdown, the payoff in the last seconds, alternating endings), scores each one, renders them all with the fast export and downloads a ZIP with the videos, captions, a manifest and a posting schedule."
+    "viralBotTip": "Plans clips after the playbook of the accounts that go viral (a one-line hook, a countdown, the payoff in the last seconds, alternating endings), scores each one, renders them all with the fast export and downloads a ZIP with the videos, captions, a manifest and a posting schedule.",
+    "modeJourney": "Journey",
+    "journeyTitle": "Journey",
+    "journeyDesc": "The ball clears one stage after another on its way HOME while the camera scrolls down with it. Build the route below – every stage with its own size – or let the seed draw a random one.",
+    "journeyAutoStages": "Random Stages",
+    "journeyAutoStagesTip": "0 plays your stage list. 1–12 draws a random journey of that many stages (plus HOME) from the seed, so every seed – and every seed Find Simulation tries – is a new route.",
+    "journeyAutoOff": "Off",
+    "journeyStages": "Stages",
+    "journeyStagesTip": "The route from top to bottom. Pick each stage's size (S, M, L: fewer or more rings, panes, pegs or gates and a taller stage), move it with the arrows, remove it with ✕ or add one before HOME. HOME is always last.",
+    "journeySize": "Stage size",
+    "journeySizeSmall": "Small",
+    "journeySizeMedium": "Medium",
+    "journeySizeLarge": "Large",
+    "journeyMoveUp": "Move up",
+    "journeyMoveDown": "Move down",
+    "journeyRemove": "Remove stage",
+    "journeyHomeLast": "always last",
+    "journeyAddKind": "Stage to add",
+    "journeyAdd": "Add",
+    "journeyStagesCode": "Stage Code",
+    "journeyStagesCodeTip": "The route as text: stage names separated by commas, \"-s\" or \"-l\" for a small or large stage (e.g. rings,pegs-l,glass-s,multipliers,home). Paste one to load a route – it is what share links carry.",
+    "journeyRunInfo": "{count, plural, one {# stage} other {# stages}}, then HOME. Every journey ends at HOME, so Find Simulation can pick a seed for your clip length.",
+    "journeyRunAuto": "A random journey of {count, plural, one {# stage} other {# stages}}, then HOME – the seed draws the route, so every seed plays a new one.",
+    "modeBullseye": "Bullseye",
+    "byTitle": "Bullseye",
+    "byDesc": "Balls are launched from the top one after another, bounce through a short field of pegs and bumpers and land on the target at the bottom: the ring they land in scores (10 for the centre, 0 off the target) and every ball sticks where it lands, so later shots can bounce off earlier ones. Pegs play notes of your scale, landings thud; a centre hit is a BULLSEYE! with confetti, a fanfare and slow motion.",
+    "byShots": "Shots",
+    "byShotsTip": "How many balls are launched at the target (1–30). The final banner shows the total and the best shot.",
+    "byInterval": "Launch Interval",
+    "byIntervalTip": "Seconds between two launches. Short intervals put several balls in the air at once.",
+    "byChaos": "Chaos",
+    "byChaosTip": "How many pegs and bumpers stand between the launcher and the target: 0 is a clear shot, 100% the full field. The seed picks which ones.",
+    "byRings": "Target Rings",
+    "byRingsTip": "Scoring rings of the target (3–10). The centre always scores 10 and the outer rings less; fewer rings make each ring wider.",
+    "byTargetMoving": "Moving Target",
+    "byTargetMovingTip": "The target slides left and right (a little smaller, to have room) and carries the balls stuck in it.",
+    "byPerfect": "Perfect Shot",
+    "byPerfectTip": "Rigging: the director steers this shot into the bullseye – it bounces through the pegs as usual, then curves onto the centre. Off leaves every shot to the physics.",
+    "byPerfectOff": "Off",
+    "byRunInfo": "{shots} shots – about {seconds}s with the final banner. The seed decides where every ball lands (and how long the last one bounces), so Find Simulation can hit your clip length.",
+    "byPerfectInfo": "Shot {shot} is rigged to hit the bullseye.",
+    "byPerfectBeyond": "The perfect shot comes after the last of the {shots} shots, so no shot is rigged."
   },
   "Modes": {
     "classic": {
@@ -1532,6 +1574,14 @@
     "vortex": {
       "name": "Sound Vortex",
       "description": "Pew! Balls drop into a whirlpool of sound rings and spiral down to the hole in the middle – every ring they sink past plays the next note, so each ball is a rising glissando and the staggered balls weave arpeggios. At the bottom the hole swallows them with a pew and a splash."
+    },
+    "journey": {
+      "name": "Journey",
+      "description": "Boris bounces through his commute: a column of stages – rings to escape, glass to smash, pegs, multiplier gates, a funnel, a bullseye – one after another while the camera scrolls down, each with its banner and a swoosh, until he walks through his own front door at HOME."
+    },
+    "bullseye": {
+      "name": "Bullseye",
+      "description": "BULLSEYE!! Balls fly one after another from a launcher at the top, ping through pegs and bumpers and stick where they land on a dartboard lying at the bottom. Every ring scores, every peg plays a note – and a centre hit pops confetti, a fanfare and slow motion."
     },
     "beatDrop": {
       "name": "Beat Drop",
@@ -1788,6 +1838,8 @@
     "modeRunner": "The project.jdm \"realistic gravity in Geometry Dash\" rhythm runner, no rings: a square runs along a floor at a constant speed under a scrolling camera. The course is planned on the beat of the loaded song (its detected beat – the same detector as Picture Paint) or of the BPM: for every obstacle – a row of spikes, a pit, a block to jump onto and later drop off – the jump solver takes the flight time of a jump under real gravity with a fixed take-off speed and times the take-off so that the landing falls exactly on a beat. With Auto Jump the square jumps at those times and never fails; without it you jump with Space and a crash restarts the section. Every landing plays the next note with a puff of dust; the finish plays a chord.",
     "modePaddle": "The \"Ball Bounce Game with Moving Platform\" format, no rings: a ball falls under real gravity onto a platform that slides left and right; a catch launches it back up – higher from the centre, lower and sideways with spin from the edges – so it wanders off the walls and the ceiling, and every catch plays the next note. The auto controller predicts every landing and heads there; its Skill decides how often it arrives early or late, so the misses (and the game over after the allowed ones) are deterministic for a seed. Or move the platform yourself.",
     "modeVortex": "The borisbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length.",
+    "modeJourney": "The borisbounces commute format – \"Boris bounces through his commute\", \"let him out!\": a column of stages the ball clears one after another while the camera scrolls down. Rings is a compact Classic escape (3–9 rings with rotating gaps; the ball drops down a chute into the core), Glass a few Glass Smash panes that crack on every landing and shatter, Pegs a Ball Drop peg field whose rows play a rising scale, Multipliers two or three rows of gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) that power the ball up for the rest of the trip, Funnel a converging funnel, Bullseye a landing target that scores 10–100 before its trapdoor opens, and HOME the doorway with confetti and the total time. Every stage change shows a banner and plays a swoosh, a mini-map beside the column shows how far Boris has come, and every note goes through your instrument, scale, beat lock, hit samples and melody. Build the route in the Journey block (sizes, order, add and remove) or let the seed draw a random one; every run is deterministic and always reaches HOME, so Find Simulation can pick a seed for your clip length.",
+    "modeBullseye": "The borisbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length.",
     "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers."
   },
   "Footer": {
@@ -2617,5 +2669,29 @@
         "hashtags": "#mazerace #ringmaze #whowillwin"
       }
     }
+  },
+  "Journey": {
+    "canvasBanner": "Stage [n]/[total]: [name]",
+    "canvasHome": "HOME",
+    "canvasHomeTitle": "HOME!",
+    "canvasHomeSub": "[stages] stages in [seconds]s",
+    "canvasHomeSubScore": "[stages] stages in [seconds]s · [score] pts",
+    "canvasScore": "[points] pts",
+    "stage_rings": "Rings",
+    "stage_glass": "Glass",
+    "stage_pegs": "Pegs",
+    "stage_multipliers": "Multipliers",
+    "stage_funnel": "Funnel",
+    "stage_bullseye": "Bullseye",
+    "stage_home": "Home"
+  },
+  "Bullseye": {
+    "canvasTitle": "BULLSEYE",
+    "canvasShot": "SHOT [n]/[total]",
+    "canvasTotal": "TOTAL",
+    "canvasBullseye": "BULLSEYE!",
+    "canvasMiss": "MISS",
+    "canvasFinal": "TOTAL [total]",
+    "canvasFinalSub": "Best shot #[shot]: [score] pts · bullseyes: [bullseyes]"
   }
 }
