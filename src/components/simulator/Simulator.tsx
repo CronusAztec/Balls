@@ -80,6 +80,9 @@ import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
 import { jdmRhythmFinderSettingsOf, jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields";
 import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- boris-vortex ---
+// --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
+import { useVideoBeats } from "./useVideoBeats";
+import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
 import {
   RANGES,
   defaultSettings,
@@ -786,11 +789,19 @@ export default function Simulator() {
 
   // Picture Paint: the beat grid the Paint mode follows – the music bed's song (its start offset and loop align the
   // grid with the simulation clock), else the slicer's song – and the length the reveal is paced to.
-  const activeBeats = useMemo(() => {
+  const songBeats = useMemo(() => {
     if (musicTrack && musicBeats) return { beats: musicBeats, source: "music" as const, offset: s.musicStartOffset, loop: s.musicLoop };
     if (sliceSongInfo && sliceBeats) return { beats: sliceBeats, source: "slicer" as const, offset: 0, loop: s.sliceLoop };
     return null;
   }, [musicTrack, musicBeats, sliceSongInfo, sliceBeats, s.musicStartOffset, s.musicLoop, s.sliceLoop]);
+  // --- video-beats --- the beat source picker (BPM | Song | Media | Manual): every rhythm feature below follows the grid it
+  // resolves to – the song grid above for "song", an imported video's beats or the hand-placed markers, none for "bpm"
+  const videoBeats = useVideoBeats({ settings: s, update, audioRef, engineRef, musicTrack, setMusicTrack, musicBeats, setMusicBeats, musicUploadIdRef, beatAbortRef, projectUploadsRef, songBeats, isStarted, isPaused });
+  const videoBeatsRef = useRef(videoBeats);
+  videoBeatsRef.current = videoBeats;
+  const { resolveActive: resolveActiveBeats } = videoBeats;
+  const activeBeats = useMemo(() => resolveActiveBeats(songBeats), [resolveActiveBeats, songBeats]);
+  // --- end video-beats ---
   const paintTargetSec = paintTargetSeconds(musicTrack ? musicTrack.duration : sliceSongInfo && s.sliceSong ? sliceSongInfo.duration : 0, musicTrack ? s.musicStartOffset : 0, s.recordingDuration);
   useEffect(() => {
     engineRef.current?.setPaintOptions({ picture: !!paintPicture, brush: s.paintBrush, beatSync: s.paintBeatSync, beatPulse: s.paintBeatPulse, guided: s.paintGuided, paceToSong: s.paintPaceToSong, targetSec: paintTargetSec });
@@ -1002,6 +1013,7 @@ export default function Simulator() {
       Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
       Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
+      Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1348,6 +1360,8 @@ export default function Simulator() {
     const raceKey = page.isRaceMode() ? runKey(RACE_RUN_PREFIX, page.getRaceView()) : undefined;
     const exportRaceKey = batchJob && raceKey ? `${RACE_RUN_PREFIX}:batch-${batchJob.key}` : raceKey; // --- batch-render --- (a batch job's race is a race of its own)
     let lastProgress = 0;
+    // --- video-beats --- the video background seeks to every exported frame (left out, with a note, when seeking is too slow)
+    const videoLayerOn = await videoBeatsRef.current.prepareExport().catch(() => false);
     try {
       const result = await renderFast({
         host: fastRenderHost,
@@ -1358,6 +1372,7 @@ export default function Simulator() {
           engine.setParticleStyle(s.particleStyle, particlePalette(s));
           engine.setPaintOptions(paintOptions);
           engine.setPaintBeat(paintBeat);
+          engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- the export's flights land on the same grid
           initEngineForMode(engine, s);
           return engine;
         },
@@ -1377,6 +1392,7 @@ export default function Simulator() {
           setFastExport({ status: "running", ...p });
         },
         signal: controller.signal,
+        beforeFrame: videoLayerOn ? videoBeatsRef.current.exportFrame : undefined, // --- video-beats ---
       });
       batchJob?.settle(result ? { result } : { cancelled: true }); // --- batch-render --- the batch names, downloads and zips its files
       if (!result) setFastExport({ status: "cancelled" });
@@ -1393,6 +1409,7 @@ export default function Simulator() {
       }
     } finally {
       fastAbortRef.current = null;
+      videoBeatsRef.current.finishExport(); // --- video-beats ---
       if (resume) setIsPaused(false);
     }
   }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording]);
@@ -1726,6 +1743,7 @@ export default function Simulator() {
       customMidiName,
       paintPicture,
       backgroundImage,
+      beatMediaName: videoBeats.mediaName, // --- video-beats ---
     },
     actions: {
       loadSettings: loadPresetSettings,
@@ -1742,6 +1760,7 @@ export default function Simulator() {
       onMusicRemove,
       onCustomMidiUpload,
       onCustomSoundSelect,
+      onBeatMediaUpload: videoBeats.onImport, // --- video-beats ---
     },
   });
   const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
@@ -1862,6 +1881,7 @@ export default function Simulator() {
           ctf: ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance),
           ...jdmRhythmFinderSettingsOf(settings, rhythmBeatRef.current), // --- jdm-rhythm-runner --- (runner, paddle)
           vortex: vortexSettingsOf(settings), // --- boris-vortex ---
+          onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
         },
         outcome, // --- rigged ---
       },
@@ -2196,6 +2216,7 @@ export default function Simulator() {
                   wallWobble={s.wallWobble} // --- jdm-illusions ---
                   fastRender={fastRenderHost} // --- fast-render ---
                   race={raceRender} // --- jdm-race ---
+                  videoBackground={videoBeats.videoLayer} // --- video-beats ---
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
@@ -2415,6 +2436,12 @@ export default function Simulator() {
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-emerald-400">{outcomeFoundText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) }))}</p>
                     <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
+                    {/* --- video-beats --- On beat: how many beats the found run's wall hits land on */}
+                    {searchResult.beatsCovered !== undefined && (
+                      <p className="text-[10px] text-[#93d119]/80" data-testid="finder-beats-covered">
+                        ♩ {t("VideoBeats.finderBeats", { beats: searchResult.beatsCovered, hits: searchResult.beatHits ?? 0 })}
+                      </p>
+                    )}
                   </div>
                   <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
                     ✕
@@ -2494,6 +2521,7 @@ export default function Simulator() {
             fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
+            videoBeats={videoBeats.panel} // --- video-beats ---
           />
         </ProjectDropZone>
       </div>

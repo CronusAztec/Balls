@@ -49,6 +49,9 @@ import { JDM_RHYTHM_RANGES, defaultJdmRhythmFields, readJdmRhythmParams, resolve
 import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 // --- boris-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
+import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
+import type { BeatSourceKind } from "@/lib/simulation/beatSource";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -581,6 +584,21 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end boris-vortex ---
+  // --- video-beats --- Beats from a video (lib/simulation/beatSource.ts, videoBeatsSettings.ts, physics/onBeat.ts)
+  /** The grid every rhythm feature follows: bpm | song | media | manual (URL `bsrc`). */
+  beatSource: BeatSourceKind;
+  /** Hand-placed beat markers, delta-encoded ms (URL `bm`). */
+  beatMarkers: string;
+  /** Downbeat among the markers, 0–3, −1 = the loudest (URL `bdb`). */
+  beatDownbeat: number;
+  /** The ring modes land their wall hits on the grid (URL `onbeat`). */
+  onBeat: boolean;
+  /** How far On beat may retime a flight, 0.1–0.8 (URL `obr`). */
+  onBeatRange: number;
+  /** The imported video behind the arena (URL `vbg`) and its opacity (URL `vbgo`). */
+  videoBackground: boolean;
+  videoBgOpacity: number;
+  // --- end video-beats ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -691,6 +709,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultArenaGameFields(), // --- jdm-arena-games ---
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultVortexFields(), // --- boris-vortex ---
+    ...defaultVideoBeatsFields(), // --- video-beats ---
   };
 }
 
@@ -755,6 +774,7 @@ export const RANGES = {
   ...ARENA_GAME_RANGES, // --- jdm-arena-games ---
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...VORTEX_RANGES, // --- boris-vortex ---
+  ...VIDEO_BEATS_RANGES, // --- video-beats ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -989,6 +1009,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeVortexParams(settings, base, params); // --- boris-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   return params;
 }
 
@@ -1104,6 +1125,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readArenaGameParams(params, settings); // --- jdm-arena-games --- (clamped to the ranges; unknown arenas and bad values fall back)
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readVortexParams(params, settings); // --- boris-vortex --- (clamped onto the sliders; bad values fall back)
+  readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   return settings;
 }
 
@@ -1296,6 +1318,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveArenaGameFields(merged)); // --- jdm-arena-games --- clamped numbers, known arenas, real booleans
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveVortexFields(merged)); // --- boris-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   return merged;
 }
 

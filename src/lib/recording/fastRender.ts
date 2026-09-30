@@ -156,6 +156,8 @@ export interface FastRenderOptions {
   backgroundColor: string;
   onProgress?: (progress: FastRenderProgress) => void;
   signal?: AbortSignal;
+  /** --- video-beats --- Awaited before every exported frame with its clip time (ms): the video background seeks to it. */
+  beforeFrame?: (timeMs: number) => Promise<void>;
 }
 
 export interface FastRenderResult {
@@ -422,6 +424,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       if (simFrame > 0 && t >= tracker.endMs) break;
       if (signal?.aborted) throw abortError();
       if (failure) throw failure;
+      if (options.beforeFrame && exportFrameIndex(simFrame, fps) >= 0) await options.beforeFrame(t); // --- video-beats ---
       clock.ms = t;
       sandbox(() => {
         frameRenderer.renderFrame();
