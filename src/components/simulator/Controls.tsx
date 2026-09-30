@@ -365,7 +365,7 @@ export default function Controls(props: ControlsProps) {
       {/* --- boris-vortex --- */}
       {s.mode === "vortex" && !!search && <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- beat-drop --- */}
-      {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} />}
+      {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="bouncier">
@@ -1233,7 +1233,7 @@ export default function Controls(props: ControlsProps) {
         return <VortexSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- beat-drop ---
       case "beatDrop":
-        return <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} />;
+        return <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} /* --- video-beats --- */ />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

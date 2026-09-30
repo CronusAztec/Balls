@@ -1404,6 +1404,8 @@
     "bdBeatSong": "Landing on the loaded song's beat: {bpm} BPM.",
     "bdBeatBpm": "Landing on the BPM setting: {bpm} BPM (load background music to land on a song's beat).",
     "bdBeatAnalyzing": "Finding the song's beat…",
+    "bdBeatMedia": "Landing on the beat of the imported video / audio: {bpm} BPM.",
+    "bdBeatMarkers": "Landing on your beat markers: {bpm} BPM.",
     "bdRunInfo": "{beats} landings at {bpm} BPM in the {clip}s clip – the run ends at {seconds}s. It can't miss: every seed lands every beat, so Find Simulation just picks one.",
     "vbSource": "Beat source",
     "vbSourceTip": "Which beat every rhythm feature follows – the beat lock, On beat, Picture Paint, the Beat Runner: the BPM setting, the loaded song's detected beats, an imported video or audio file, or markers you placed by hand.",

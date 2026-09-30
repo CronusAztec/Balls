@@ -82,6 +82,9 @@ import { playSoundEvent } from "@/lib/recording/fastRender";
 import { BeatDropLayer } from "@/components/simulator/beatDropRenderer";
 import type { BeatGrid } from "@/lib/simulation/beatClock";
 import { fakeGraph } from "./fakeAudio";
+import { serializeMarkers } from "@/lib/simulation/beatSource"; // --- video-beats ---
+import { markerBeatInputOf } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
+import { modeSettingsOfSettings } from "@/lib/bot/finderRequest"; // --- video-beats ---
 
 /**
  * Beat Drop (feature beat-drop): the shared easing curves, the planner (every landing on its beat within 1 ms at any tempo
@@ -844,5 +847,63 @@ describe("Find Simulation", () => {
       }
       expect(Math.abs(t / 1000 - result.duration)).toBeLessThan(STEP / 1000 + 1e-6);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ --- video-beats --- the beat source */
+
+describe("the beat source (video-beats): hand-placed markers", () => {
+  // A tapped grid around 100 BPM from 0.25 s: the gaps wander by a few milliseconds.
+  const markersMs: number[] = [];
+  for (let i = 0, t = 250; i < 40; i++, t += [590, 612, 598, 605][i % 4]) markersMs.push(t);
+  const settingsWith = (patch: Partial<ReturnType<typeof defaultSettings>>) => ({ ...defaultSettings("beatDrop"), bpm: 140, beatMarkers: serializeMarkers(markersMs), ...patch });
+
+  it("lands every landing on a marker, resolved the way the page resolves the Manual source without a music bed", () => {
+    const settings = settingsWith({ beatSource: "manual" });
+    const beat = markerBeatInputOf(settings);
+    expect(beat).not.toBeNull();
+    expect(beat!.offset).toBe(0);
+    expect(beat!.loop).toBe(false);
+    expect(beat!.grid.beatTimes).toEqual(markersMs.map((ms) => ms / 1000));
+    const bd = beatDropSettingsOf(settings, beat);
+    expect(beatDropBeatConfig(bd).source).toBe("song");
+    const engine = createEngineForSettings(config, "beatDrop", { ...baseModeSettings, beatDrop: bd }, 5);
+    const view = engine.getBeatDropView();
+    expect(view.song).toBe(true);
+    // The tempo is the markers' (their median gap), not the BPM setting's 140.
+    expect(beat!.grid.bpm).toBeGreaterThan(98);
+    expect(beat!.grid.bpm).toBeLessThan(102);
+    expect(view.bpm).toBeCloseTo(beat!.grid.bpm, 9);
+    // The plan lands on the markers (the ones after the lead-in), in order.
+    const kept = keptBeats(markersMs.map((ms) => ms / 1000));
+    for (let k = 0; k < kept.length; k++) expect(view.plan.t[k]).toBeCloseTo(kept[k], 9);
+    // And the run measures every landing on its marker.
+    for (let i = 0; i < 60 * 15; i++) {
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+    }
+    expect(view.landed).toBe(kept.filter((t) => t <= 15 - 0.1).length);
+    expect(view.maxErrorMs).toBeLessThan(1e-3);
+    const n = Math.min(view.logCount, view.landingMs.length);
+    expect(n).toBeGreaterThan(0);
+    for (let i = 0; i < n; i++) {
+      const slot = (view.logCount - n + i) % view.landingMs.length;
+      expect(markersMs.some((ms) => Math.abs(ms - view.beatMs[slot]) < 1e-6)).toBe(true);
+      expect(Math.abs(view.landingMs[slot] - view.beatMs[slot])).toBeLessThan(1);
+    }
+  });
+
+  it("the bot's finder request follows the markers only for the Manual source (else the BPM), for Beat Drop and the Beat Runner", () => {
+    const manual = modeSettingsOfSettings(settingsWith({ beatSource: "manual" }));
+    expect(manual.beatDrop?.grid?.beatTimes).toEqual(markersMs.map((ms) => ms / 1000));
+    expect(manual.runner?.grid?.beatTimes).toEqual(markersMs.map((ms) => ms / 1000));
+    for (const beatSource of ["song", "media", "bpm"] as const) {
+      const other = modeSettingsOfSettings(settingsWith({ beatSource }));
+      expect(other.beatDrop?.grid ?? null).toBeNull();
+      expect(other.beatDrop?.bpm).toBe(140);
+      expect(other.runner?.grid ?? null).toBeNull();
+    }
+    // Fewer than two markers is no grid: the BPM again.
+    expect(markerBeatInputOf(settingsWith({ beatSource: "manual", beatMarkers: "250" }))).toBeNull();
   });
 });

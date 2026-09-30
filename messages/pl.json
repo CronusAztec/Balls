@@ -1395,6 +1395,8 @@
     "bdBeatSong": "Lądowania w bit wczytanej piosenki: {bpm} BPM.",
     "bdBeatBpm": "Lądowania w rytm ustawienia BPM: {bpm} BPM (wczytaj muzykę w tle, żeby lądować w bit piosenki).",
     "bdBeatAnalyzing": "Szukam bitu piosenki…",
+    "bdBeatMedia": "Lądowania w bit zaimportowanego wideo / audio: {bpm} BPM.",
+    "bdBeatMarkers": "Lądowania na Twoich znacznikach bitów: {bpm} BPM.",
     "bdRunInfo": "Lądowania: {beats} przy {bpm} BPM w klipie {clip} s – bieg kończy się po {seconds} s. Nie da się chybić: każde ziarno trafia w każdy bit, więc Znajdź symulację po prostu wybiera jedno z nich.",
     "vbSource": "Źródło rytmu",
     "vbSourceTip": "Za jakim rytmem podążają wszystkie funkcje rytmiczne – blokada rytmu, Na bit, Malowanie obrazka, Beat Runner: ustawienie BPM, wykryte bity wczytanej piosenki, zaimportowany plik wideo lub audio albo znaczniki postawione ręcznie.",
