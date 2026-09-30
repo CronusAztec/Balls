@@ -60,6 +60,8 @@ const MODES = {
   bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
   // --- beat-drop --- mid-run: the ball squashed on a pad, the next obstruction flying in, a ripple and a puff, the trail
   beatDrop: { wait: 6120, query: "face=cute&glow=1&bdd=1&bda=1" },
+  // --- odd-maze --- mid-race: four balls in the maze, blood-red corridors behind them, the distance HUD and the warning badge
+  maze: { wait: 6500, query: "mzn=4&seed=6&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 const outDir = path.join(process.cwd(), "public", "modes");

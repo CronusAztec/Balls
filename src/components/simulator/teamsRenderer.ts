@@ -5,6 +5,7 @@ import { rankTeams, teamDisplayName, teamResult, type TeamRenderOptions, type Te
 import { ACCENT } from "@/lib/site";
 import { nameLabelSize } from "./faceRenderer";
 import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
+import { MZ_PALETTE, mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 
 /**
  * Drawing of the "Team balls with scoreboard" feature (lib/teams.ts, physics/ballStats.ts), created once with
@@ -148,6 +149,10 @@ export class TeamLayer {
   private battleSource: CanvasTeamOptions | null = null;
   private battleKey = "";
   private battleOptions: CanvasTeamOptions | null = null;
+  // --- odd-maze --- the roster as the Maze plays it (padded to its first six balls), rebuilt when an input changes
+  private mazeSource: CanvasTeamOptions | null = null;
+  private mazeKey = "";
+  private mazeOptions: CanvasTeamOptions | null = null;
 
   isActive() {
     return this.active;
@@ -180,6 +185,11 @@ export class TeamLayer {
     const battle = next && next.roster.length > 0 && engine.isStringBattleMode() ? engine.getStringBattleView() : null;
     if (battle && next) next = this.battleTeams(next, battle.count, sbHudShown(battle.settings));
     // --- end odd-string-battle ---
+    // --- odd-maze --- the Maze plays the roster too: one team per ball (its first six), the maze palette beyond the roster; its
+    // distance HUD takes the scoreboard's place (its winner banner at the end of the run is this layer's)
+    const maze = next && next.roster.length > 0 && engine.isMazeMode() ? engine.getMazeView() : null;
+    if (maze && next) next = this.mazeTeams(next, maze.teamCount, maze.settings.hud);
+    // --- end odd-maze ---
     if (next !== this.options) {
       this.options = next;
       this.layout = null;
@@ -188,8 +198,8 @@ export class TeamLayer {
     this.labelled = 0;
     this.labelsDrawn = 0;
     const mode = engine.getCurrentModeName();
-    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle); // --- odd-string-battle --- (battle)
-    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : startBallCount(engine.config, mode)) : 0;
+    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!maze); // --- odd-string-battle --- (battle) --- odd-maze --- (maze)
+    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : maze ? maze.teamCount : startBallCount(engine.config, mode)) : 0;
     if (count !== this.count) {
       this.count = count;
       this.layout = null;
@@ -217,6 +227,19 @@ export class TeamLayer {
     return this.battleOptions;
   }
   // --- end odd-string-battle ---
+  // --- odd-maze ---
+  /** The roster padded to `count` teams with the Maze's palette, the scoreboard off while its HUD shows (the same object while nothing changed). */
+  private mazeTeams(options: CanvasTeamOptions, count: number, hud: boolean): CanvasTeamOptions {
+    const key = `${count}|${hud ? 1 : 0}`;
+    if (this.mazeOptions && this.mazeSource === options && this.mazeKey === key) return this.mazeOptions;
+    const roster = options.roster.slice(0, count).map((t) => ({ ...t }));
+    for (let i = roster.length; i < count; i++) roster.push({ name: mazeBallName(i), color: MZ_PALETTE[i % MZ_PALETTE.length].color, emoji: "" });
+    this.mazeSource = options;
+    this.mazeKey = key;
+    this.mazeOptions = { ...options, roster, showScoreboard: options.showScoreboard && !hud };
+    return this.mazeOptions;
+  }
+  // --- end odd-maze ---
 
   private rebuildTexts() {
     const o = this.options;

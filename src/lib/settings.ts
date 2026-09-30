@@ -61,6 +61,8 @@ import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 // --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
 import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
 import type { BeatSourceKind } from "@/lib/simulation/beatSource";
+// --- odd-maze --- the Maze escape mode (oddplayground)
+import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writeMazeParams, type MazeBrain, type MazeHand } from "@/lib/physics/modes/maze";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -656,6 +658,36 @@ export interface SimulatorSettings {
   videoBackground: boolean;
   videoBgOpacity: number;
   // --- end video-beats ---
+  // --- odd-maze --- Maze escape (lib/physics/modes/maze.ts, lib/physics/mazeGrid.ts): balls race through a seeded maze
+  /** Columns of the maze, 6–40; the rows follow the portrait field (URL `mzc`). */
+  mzCols: number;
+  /** Balls in the maze, 1–8 (URL `mzn`). */
+  mzBalls: number;
+  /** bounce | wallFollow | explorer (URL `mzb`). */
+  mzBrain: MazeBrain;
+  /** The wall follower's hand: left | right | alternate (URL `mzh`). */
+  mzHand: MazeHand;
+  /** 0–1: the downward pull (URL `mzg`). */
+  mzGravity: number;
+  /** 0.25–3: how fast the balls travel (URL `mzs`). */
+  mzSpeed: number;
+  /** 0–1: opacity of the painted trail (URL `mzt`). */
+  mzTrail: number;
+  /** The trail's colour, blood red by default (URL `mztc`). */
+  mzTrailColor: string;
+  /** Every ball paints in its own colour (URL `mzto`). */
+  mzTrailOwn: boolean;
+  /** 0–1: fog over the cells no ball has visited yet (URL `mzf`). */
+  mzFog: number;
+  /** The glowing walls' colour (URL `mzwc`). */
+  mzWallColor: string;
+  /** Seconds the run lasts at most (URL `mzd`). */
+  mzDuration: number;
+  /** The "FLASHING LIGHTS" warning badge (URL `mzbg`). */
+  mzBadge: boolean;
+  /** The distance-to-exit HUD (URL `mzhud`). */
+  mzHud: boolean;
+  // --- end odd-maze ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -773,6 +805,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBeatDropFields(),
     ...beatDropModeDefaults(mode),
     ...defaultVideoBeatsFields(), // --- video-beats ---
+    ...defaultMazeFields(), // --- odd-maze ---
   };
 }
 
@@ -842,6 +875,7 @@ export const RANGES = {
   ...BULLSEYE_RANGES, // --- boris-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
+  ...MAZE_RANGES, // --- odd-maze ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1081,6 +1115,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBullseyeParams(settings, base, params); // --- boris-bullseye ---: bys, byi, byc, byr, bym, byp
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
+  writeMazeParams(settings, base, params); // --- odd-maze ---: mzc, mzn, mzb, mzh, mzg, mzs, mzt, mztc, mzto, mzf, mzwc, mzd, mzbg, mzhud
   return params;
 }
 
@@ -1201,6 +1236,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBullseyeParams(params, settings); // --- boris-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
+  readMazeParams(params, settings); // --- odd-maze --- (clamped onto the sliders; unknown options and bad colours fall back)
   return settings;
 }
 
@@ -1398,6 +1434,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBullseyeFields(merged)); // --- boris-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
+  Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- clamped numbers on their steps, known options, real colours and booleans
   return merged;
 }
 

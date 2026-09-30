@@ -68,3 +68,6 @@ export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye"
 // --- beat-drop ---
 export { BeatDropMode } from "./beatDrop";
 export type { BeatDropSettings, BeatDropView, BeatDropField, BeatDropSound, BeatDropColorMode } from "./beatDrop";
+// --- odd-maze ---
+export { MazeMode } from "./maze";
+export type { MazeSettings, MazeView, MazeRunner, MazeHit, MazeBrain, MazeHand } from "./maze";

@@ -52,6 +52,7 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
+import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --- odd-maze ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- boris-multipliers --- the ball pass of big multiplier runs
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
@@ -274,6 +275,8 @@ export class PhysicsEngine {
   readonly bullseyeMode = new BullseyeMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
+  // --- odd-maze --- Maze escape (a seeded maze the balls race through, leaving a trail)
+  readonly mazeMode = new MazeMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -571,6 +574,10 @@ export class PhysicsEngine {
   initBeatDrop() {
     this.activateMode(this.beatDropMode, "none");
   }
+  // --- odd-maze --- the mode owns its maze (no rings)
+  initMaze() {
+    this.activateMode(this.mazeMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -650,6 +657,9 @@ export class PhysicsEngine {
       // --- beat-drop ---
       case "beatDrop":
         return this.initBeatDrop();
+      // --- odd-maze ---
+      case "maze":
+        return this.initMaze();
     }
   }
 
@@ -1507,6 +1517,25 @@ export class PhysicsEngine {
     return this.beatDropMode.getProgress();
   }
   // --- end beat-drop ---
+  // --- odd-maze ---
+  isMazeMode() {
+    return this.currentMode === this.mazeMode;
+  }
+  getMazeSettings(): MazeSettings {
+    return this.mazeMode.getSettings();
+  }
+  /** Columns, balls, brain, hand and clip limit of the Maze apply on the next `initMaze()`; the pull, the speed and the drawing at once. */
+  setMazeSettings(settings: Partial<MazeSettings>) {
+    this.mazeMode.setSettings(settings);
+  }
+  /** Live Maze state (grid, field, runners, paint, hits, verdict) for the canvas and the HUD; the same object every call. */
+  getMazeView(): MazeView {
+    return this.mazeMode.getView();
+  }
+  getMazeProgress() {
+    return this.mazeMode.getProgress();
+  }
+  // --- end odd-maze ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

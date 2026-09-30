@@ -337,6 +337,8 @@ export class SlowMotion {
 export const SLOW_VIEW_MODES: readonly ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow"];
 // --- odd-string-battle --- the String Battle slows down on its final cut (the near-miss hook): its balls glide between steps too
 (SLOW_VIEW_MODES as ModeId[]).push("stringBattle");
+// --- odd-maze --- the Maze slows down when the first ball reaches the exit (the near-miss hook): its balls glide between steps too
+(SLOW_VIEW_MODES as ModeId[]).push("maze");
 
 export function slowViewEligible(mode: ModeId | null | undefined): boolean {
   return !!mode && SLOW_VIEW_MODES.includes(mode);

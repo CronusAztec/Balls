@@ -6418,6 +6418,207 @@ const bdInstrument = () =>
 }
 // --- end beat-drop ---
 
+// --- odd-maze ---
+// Maze Escape: the preview image and the card under the battle heading; URL → the Maze block of the Mode row (brain, hand,
+// balls, size, speed, pull, trail, fog, clip limit, badge), controls → URL, the search box and the finder's outcomes; a
+// default race (three explorers) at 1× then 4× – the frame rate, the notes on the pentatonic ladder climbing toward the exit
+// (OscillatorNode.start instrumented), the painted trail, nobody through a wall, the badge, the HUD, the verdict banner and
+// then the end screen; fog and own-colour paint; a roster whose rigged Gold wins under the teams banner; Find Simulation's
+// winner outcome played back; and a 1080×1920 recording of the default race.
+const mzFrameRates = async (ms) => {
+  const deltas = await page.evaluate(
+    (span) =>
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const end = last + span;
+        const frame = (t) => {
+          out.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(frame);
+          else resolve(out);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+};
+{
+  const res = await page.request.get(`${BASE}/modes/maze.webp`);
+  check("asset /modes/maze.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inBattle = await page.evaluate(() => {
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => h.textContent?.trim() === "Battle modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/maze.webp"]') && !!group.querySelector('img[src$="/modes/stringBattle.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/maze.webp"]').count();
+  check("the Maze Escape card is on the landing page under the battle heading", card === 1 && inBattle, `(cards=${card}, in the battle group=${inBattle})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=maze&mzc=20&mzn=5&mzb=wallFollow&mzh=right&mzg=0.6&mzs=1.5&mzt=0.5&mzf=0.4&mzd=90&mzbg=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("maze-section");
+  const pick = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name: new RegExp(name) });
+  const toggle = (label) => section.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  {
+    const values = { mzc: await sliderValue("Maze Size"), mzn: await sliderValue("Maze Balls"), mzs: await sliderValue("Maze Speed"), mzg: await sliderValue("Pull"), mzt: await sliderValue("Trail"), mzf: await sliderValue("Fog"), mzd: await sliderValue("Maze Clip Limit") };
+    const wall = await pick("Brain", "Wall follower").getAttribute("aria-pressed");
+    const right = await pick("Hand on the Wall", "Right").getAttribute("aria-pressed");
+    const badge = await toggle("Maze Warning Badge").getAttribute("aria-pressed");
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    const runInfo = await page.getByTestId("maze-run").innerText().catch(() => "");
+    check(
+      "maze loads from URL",
+      values.mzc === "20" && values.mzn === "5" && values.mzs === "1.5" && values.mzg === "0.6" && values.mzt === "0.5" && values.mzf === "0.4" && values.mzd === "90" && wall === "true" && right === "true" && badge === "false" && noRingControls && options.join(",") === "duration,winner" && /20 × 29/.test(runInfo),
+      `(${JSON.stringify(values)}, wall follower=${wall}, right hand=${right}, badge=${badge}, finder outcomes=${options.join(",")}, "${runInfo}")`,
+    );
+  }
+  await pick("Brain", "Explorer").click();
+  await page.locator('input[aria-label="Maze Balls"]').evaluate(setRangeValue, "3");
+  await toggle("Maze Warning Badge").click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const handHidden = (await section.getByRole("group", { name: "Hand on the Wall", exact: true }).count()) === 0;
+    check(
+      "maze mirrors into the URL",
+      query.get("mode") === "maze" && query.get("mzc") === "20" && !query.has("mzb") && !query.has("mzn") && !query.has("mzbg") && query.get("mzh") === "right" && query.get("mzd") === "90" && handHidden,
+      `(${query.toString()}, hand hidden=${handHidden})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("fog");
+  const found = await page.locator('input[aria-label="Fog"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the maze controls", found && hidden, `(fog=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // The default race: three explorers in a 12 × 17 maze.
+  await page.goto(`${BASE}/en/simulator/?mode=maze`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    window.__mzOsc = osc;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const fps = await mzFrameRates(5000);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-maze.png") });
+  check(
+    "simulator mode=maze drops the balls into the maze, paints their trail and runs at 30+ fps",
+    early.mzBalls === "3" && early.mzCols === "12" && early.mzRows === "17" && Number(early.mzVisited) > 5 && Number(early.mzStamped) > 5 && Number(early.mzNotes) >= 3 && early.mzBadge === "1" && early.mzHud === "1" && early.mzLeaks === "0" && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
+    `(${JSON.stringify({ visited: early.mzVisited, paint: early.mzPaint, notes: early.mzNotes, dist: early.mzDist, leaks: early.mzLeaks })}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+  );
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const banner = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.mzBanner === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  const atVerdict = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-maze-winner.png") });
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.mzFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10_000 }).then(() => true).catch(() => false);
+  const winner = Number(data.mzWinner);
+  const places = (data.mzPlaces || "").split(",").map(Number);
+  check(
+    "a default maze race is won by the first ball out, its banner shown before the end screen",
+    banner && ended && endScreen && winner >= 0 && (data.mzVerdict === "time" || places[winner] === 1) && !!data.mzWinnerName && atVerdict.mzFinished === "0" && data.mzLeaks === "0" && Number(data.mzPaint) > 20,
+    `(${JSON.stringify({ verdict: data.mzVerdict, winner: data.mzWinner, name: data.mzWinnerName, at: data.mzVerdictMs, places: data.mzPlaces, exited: data.mzExited, dist: data.mzDist, paint: data.mzPaint, leaks: data.mzLeaks })}, banner=${banner}, finished=${ended}, end screen=${endScreen})`,
+  );
+  const pitches = await page.evaluate(() => window.__mzOsc);
+  const notes = pitches.filter((f) => f < 2000).map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
+  check(
+    "maze wall hits play the pentatonic ladder, higher near the exit",
+    notes.length >= 10 && notes.every((m) => [0, 2, 4, 7, 9].includes(((m % 12) + 12) % 12) && m >= 60 && m <= 96) && new Set(notes).size >= 4 && Math.max(...notes) >= 81,
+    `(${notes.length} notes, MIDI ${[...new Set(notes)].sort((a, b) => a - b).join("/")})`,
+  );
+}
+{
+  // Fog over the unvisited cells, every ball painting its own colour.
+  await page.goto(`${BASE}/en/simulator/?mode=maze&mzf=0.9&mzto=1&mzn=6`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  await page.waitForTimeout(3000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-maze-fog.png") });
+  check("the maze fog hides the unvisited cells while six balls paint in their own colours", data.mzFog === "1" && data.mzBalls === "6" && Number(data.mzPaint) > 10 && data.mzLeaks === "0", `(${JSON.stringify({ fog: data.mzFog, balls: data.mzBalls, paint: data.mzPaint, leaks: data.mzLeaks })})`);
+}
+{
+  // A roster: Red, Blue and Gold (the fourth ball takes the palette); Gold is the Forced Winner, and the teams banner crowns it.
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧,Gold*facc15*⭐";
+  await page.goto(`${BASE}/en/simulator/?mode=maze&mzn=4&teams=${encodeURIComponent(roster)}&fw=2`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-maze-teams.png") });
+  check(
+    "a rigged maze race is won by the chosen roster ball under the teams banner",
+    won && data.teamWinner === "Gold" && data.mzWinner === "2" && data.mzWinnerName === "Gold" && data.mzRig === "2" && data.teams === "4" && /Gold wins/.test(note),
+    `(winner=${data.teamWinner}, maze winner=${data.mzWinner} ${data.mzWinnerName}, rig=${data.mzRig}, teams=${data.teams}, stats=${data.teamStats}, note="${note}")`,
+  );
+}
+{
+  // Find Simulation: a race AQUA (the second ball) wins, played back at 8×.
+  await page.goto(`${BASE}/en/simulator/?mode=maze`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("1");
+  const button = page.getByRole("button", { name: /Find a Run AQUA Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  let data = {};
+  if (/Found! AQUA wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.mzFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    data = await canvasData();
+  }
+  check("Find Simulation finds a maze race the chosen ball wins, and it plays back", labelled && /Found! AQUA wins/.test(text) && data.mzFinished === "1" && data.mzWinner === "1" && data.mzWinnerName === "AQUA", `("${text}", played: ${JSON.stringify({ finished: data.mzFinished, winner: data.mzWinner, name: data.mzWinnerName })})`);
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default race.
+  await page.goto(`${BASE}/en/simulator/?mode=maze&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await mzFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `maze-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  check("a 1080×1920 maze recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+}
+// --- end odd-maze ---
+
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 
