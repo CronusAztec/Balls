@@ -28,6 +28,7 @@ import {
 import { zipBlobs } from "@/lib/recording/zip";
 import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
 import type { FastExportState } from "./sections/FastExportSection";
+import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish ---
 
 /*
  * --- batch-render --- The page's side of the batch render (lib/recording/batch.ts): runs the fast export job after job.
@@ -340,6 +341,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
           const extension = result.format.extension;
           const base = uniqueFileBase(customJob ? customJob.name : batchFileBase({ mode, seed: job.seed, durationSec: result.durationSec, variant: job.variant }), extension, used); // --- viral-bot --- (its own name)
           files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob, durationSec: result.durationSec });
+          offerPublishClip({ blob: result.blob, name: `${base}.${extension}`, source: customJob ? "bot" : "batch", durationSec: result.durationSec, mode, seed: job.seed, botClipId: customJob ? customJob.name : null }); // --- social-publish --- (a bot clip's copy comes from its plan)
           if (customJob ? customJob.download : definitionRef.current.downloadEach) downloadExport(result.blob, extension, base);
           patchJob(job.id, { status: "done", wallMs, durationSec: result.durationSec, bytes: result.blob.size, fileName: `${base}.${extension}` });
         }

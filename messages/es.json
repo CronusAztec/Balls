@@ -1455,7 +1455,11 @@
     "byPerfectOff": "No",
     "byRunInfo": "{shots} tiros – unos {seconds}s con el cartel final. La semilla decide dónde cae cada bola (y cuánto rebota la última), así que Buscar simulación puede acertar la duración de tu clip.",
     "byPerfectInfo": "El tiro {shot} está amañado para dar en el centro.",
-    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado."
+    "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado.",
+    "publish": "Publicar",
+    "publishTip": "Envía el clip terminado a tus cuentas de TikTok, Instagram y YouTube – varias por plataforma – con un clic: a YouTube directamente desde el navegador, a TikTok e Instagram a través de un pequeño relay que alojas tú, o con los botones de compartir sin configuración.",
+    "publishAccounts": "Cuentas (TikTok, Instagram, YouTube)",
+    "publishQuickShare": "Envío rápido"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -1750,7 +1754,18 @@
       "line5": "."
     },
     "consent": { "title": "10. Consentimiento de cookies", "content": "Cuando la ley lo exija, se te pedirá consentimiento para las cookies no esenciales antes de instalarlas. Puedes cambiar tu elección en cualquier momento desde los ajustes del navegador." },
-    "contact": { "title": "11. Contacto", "content": "¿Preguntas sobre esta política? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" }
+    "contact": { "title": "11. Contacto", "content": "¿Preguntas sobre esta política? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" },
+    "publishing": {
+      "title": "12. Publicar en TikTok, Instagram y YouTube",
+      "content": "El bloque Publicar del simulador solo envía un clip cuando pulsas un botón de enviar o compartir. El envío rápido pasa el archivo al menú de compartir de tu dispositivo o lo descarga. Las subidas a YouTube van directamente de tu navegador a Google con un token de acceso guardado en el almacenamiento local del navegador (al quitar la cuenta en el bloque se borra). TikTok, Instagram – y YouTube, si lo eliges – pasan por un servidor relay gestionado por quien te dio su clave de acceso: guarda las cuentas que conectas con sus tokens y conserva cada clip subido en un enlace imposible de adivinar durante 24 horas para que la plataforma pueda descargarlo.",
+      "youtube1": "Las subidas a YouTube usan los Servicios de la API de YouTube: al subir aceptas las",
+      "ytTermsLink": "Condiciones de servicio de YouTube",
+      "youtube2": ", y Google trata los datos según la",
+      "googlePrivacyLink": "Política de privacidad de Google",
+      "youtube3": ". Puedes retirar el acceso de este sitio en cualquier momento en los",
+      "revokeLink": "ajustes de acceso de terceros de tu cuenta de Google",
+      "youtube4": "."
+    }
   },
   "Terms": {
     "title": "Términos del servicio",
@@ -2511,5 +2526,158 @@
     "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio y el simulador funcionan sin conexión una vez que has abierto el sitio con conexión: vuelve a conectarte o abre el simulador aquí abajo.",
     "offlineRetry": "Reintentar",
     "offlineSimulator": "Abrir el simulador"
+  },
+  "Publish": {
+    "intro": "Envía el clip terminado a TikTok, Instagram y YouTube – a tantas cuentas como conectes – con un clic, o compártelo con las apps sin configurar nada.",
+    "noClip": "Todavía no hay clip. Graba un vídeo, haz una exportación rápida, un lote o el render del bot – cada clip terminado aparece aquí – o elige un archivo de vídeo.",
+    "sources": {
+      "recording": "Grabación",
+      "fast": "Exportación rápida",
+      "batch": "Lote",
+      "bot": "Bot viral",
+      "file": "Archivo"
+    },
+    "seconds": "{sec} s",
+    "megabytes": "{mb} MB",
+    "removeClip": "Quitar este clip de la lista",
+    "pickClip": "Clip que enviar",
+    "chooseFile": "Elegir un vídeo…",
+    "thumbAlt": "Primeros fotogramas del clip",
+    "wordsTitle": "Textos por plataforma",
+    "tabAll": "Todas las plataformas",
+    "regenerate": "Sugerir",
+    "regenerateTip": "Vuelve a escribir el título, la descripción y los hashtags con los textos del bot viral (tus cambios se sustituyen)",
+    "fieldTitle": "Título (YouTube)",
+    "fieldCaption": "Descripción",
+    "fieldHashtags": "Hashtags",
+    "useShared": "Usar el texto común",
+    "limits": "Límites de cada plataforma",
+    "counters": {
+      "caption": "descripción {used}/{max}",
+      "title": "título {used}/{max}",
+      "description": "descripción {used}/{max} bytes",
+      "hashtags": "{used}/{max} hashtags",
+      "tags": "etiquetas {used}/{max}"
+    },
+    "sharedNote": "Un solo texto para todas las plataformas; la pestaña de una plataforma solo cambia su versión. Cada plataforma recibe su propia etiqueta (#fyp, #reels, #Shorts).",
+    "platformNote": {
+      "tiktok": "TikTok: la descripción con sus hashtags, hasta 2200 caracteres.",
+      "instagram": "Reels de Instagram: hasta 2200 caracteres y 30 hashtags.",
+      "youtube": "YouTube: un título de hasta 100 caracteres y una descripción de hasta 5000 bytes (sin < ni >); #Shorts va primero y los hashtags también se convierten en etiquetas."
+    },
+    "sendTo": "Enviar a {name}",
+    "viaRelay": "relay",
+    "viaDirect": "directo",
+    "signInAgain": "Volver a iniciar sesión",
+    "reconnect": "Reconectar",
+    "removeAccount": "Quitar {name}",
+    "needsRelay": "Añade un relay abajo para conectar esta plataforma",
+    "relayNoApp": "El relay no tiene las claves de la app de {platform}",
+    "needsClientId": "Primero configura la app de YouTube abajo",
+    "connectGoogle": "Conectar YouTube",
+    "connecting": "Conectando…",
+    "connectViaRelay": "por el relay",
+    "connectPlatform": "Conectar {platform}",
+    "accountCount": "{count, plural, =0 {sin cuentas} one {# cuenta} other {# cuentas}}",
+    "waitingSignIn": "Termina de iniciar sesión en {platform} en la ventana que se ha abierto…",
+    "cancel": "Cancelar",
+    "popupBlocked": "Se ha bloqueado la ventana de inicio de sesión.",
+    "openSignIn": "Abrir la página de inicio de sesión",
+    "relayError": "Relay: {error}",
+    "loadingAccounts": "Cargando las cuentas del relay…",
+    "status": {
+      "queued": "en espera",
+      "uploading": "subiendo",
+      "processing": "procesando",
+      "published": "publicado ✓",
+      "failed": "error",
+      "needsAuth": "sesión caducada"
+    },
+    "openPost": "Abrir",
+    "visibilityNote": {
+      "private": "Subido como privado: solo tú puedes verlo.",
+      "unlisted": "Subido como oculto: solo quien tenga el enlace puede verlo."
+    },
+    "retry": "Reintentar",
+    "relayIntro": "Un relay es un pequeño servidor que alojas tú (relay/ en el repositorio): guarda los secretos de las apps de TikTok, Instagram y YouTube y publica por ti. Añade su URL y tu clave de acceso; varias personas pueden compartir un relay, cada una con su propia clave.",
+    "useRelay": "Usar {label}",
+    "testConnection": "Probar",
+    "removeRelay": "Quitar {label}",
+    "testOk": "Conectado como {label} · {accounts} cuentas · apps: {platforms}",
+    "testFailed": "La conexión ha fallado: {error}",
+    "relayUrl": "URL del relay",
+    "relayKey": "Clave de acceso",
+    "relayLabel": "Nombre (p. ej. Equipo)",
+    "saveRelay": "Guardar relay",
+    "relayBadUrl": "Escribe la dirección http(s) del relay.",
+    "relayNoKey": "Escribe tu clave de acceso (pídesela a quien gestiona el relay).",
+    "ytSetupIntro": "Las subidas a YouTube salen directamente de este navegador con un ID de cliente de Google OAuth (aplicación web) cuyos orígenes de JavaScript autorizados incluyan {origin}. Pega aquí el ID de cliente: no es secreto.",
+    "ytClientId": "ID de cliente de Google OAuth",
+    "save": "Guardar ID",
+    "ytBuiltIn": "Este sitio trae un ID de cliente; el tuyo lo sustituye.",
+    "ytConsole": "Credenciales de Google Cloud",
+    "recent": "Envíos recientes",
+    "recentEmpty": "Aún no se ha enviado nada.",
+    "recentStatus": {
+      "published": "publicado",
+      "failed": "error",
+      "shared": "compartido",
+      "opened": "página de subida abierta"
+    },
+    "clearRecent": "Borrar",
+    "defaultTitle": "{mode} · física de bolas muy satisfactoria",
+    "defaultCaption": "Cada rebote es una nota. Hecho con {site}.",
+    "shareTo": "Enviar a {platform}",
+    "shareDesktop": "El clip se ha descargado, la descripción está en el portapapeles y se ha abierto la página de subida de {platform}: suelta ahí el archivo y pega el texto.",
+    "shareDesktopNoCopy": "El clip se ha descargado y se ha abierto la página de subida de {platform}: suelta ahí el archivo y copia la descripción de arriba.",
+    "shareOutcome": {
+      "shared": "Compartido: elige {platform} en el menú de compartir; la descripción está en el portapapeles, pégala allí.",
+      "cancelled": "Se ha cancelado el envío.",
+      "failed": "Este navegador no puede compartir el archivo: prueba en un ordenador, donde se descarga."
+    },
+    "quickHint": "Sin cuentas: en el móvil, el menú de compartir ofrece las apps de TikTok, Instagram y YouTube; en el ordenador, el clip se descarga, la descripción se copia y se abre la página de subida.",
+    "pathDirect": "YouTube, directo: añade un ID de cliente de Google OAuth en «Configuración de la app de YouTube» y conecta tus canales; las subidas salen directamente de este navegador.",
+    "pathRelay": "TikTok, Instagram (y YouTube) a través de tu relay: despliega relay/ del repositorio y añade su URL y tu clave en «Relay».",
+    "pathShare": "O usa sin más el envío rápido de arriba: no hay nada que configurar.",
+    "visibility": "Visibilidad",
+    "visibilities": {
+      "public": "Público",
+      "unlisted": "Oculto",
+      "private": "Privado"
+    },
+    "sending": "Enviando…",
+    "sendSelected": "Enviar a los seleccionados ({count})",
+    "overLimit": "Demasiado largo para {platforms}: acorta el texto (mira los contadores).",
+    "instagramMp4": "Instagram acepta MP4 (H.264 + AAC) y este clip es WebM: expórtalo en Chrome o Safari, o conviértelo.",
+    "sendNeedsClip": "Graba o elige un clip para enviar.",
+    "progress": "Progreso del envío",
+    "relaySettings": "Relay",
+    "ytSetup": "Configuración de la app de YouTube",
+    "errors": {
+      "yt": {
+        "auth": "La sesión de YouTube ha caducado: vuelve a iniciar sesión.",
+        "scope": "Google no concedió el permiso para subir a YouTube: conecta de nuevo y déjalo marcado.",
+        "quota": "Se ha agotado por ahora la cuota de la API de YouTube o el límite de subidas de este canal: inténtalo más tarde.",
+        "noChannel": "Esta cuenta de Google aún no tiene canal de YouTube: créalo primero en youtube.com.",
+        "forbidden": "YouTube ha rechazado la subida. Hasta que Google verifique la app, solo pueden usarla sus usuarios de prueba.",
+        "network": "Ha fallado la conexión con YouTube: comprueba que tienes conexión e inténtalo de nuevo.",
+        "server": "YouTube no responde ahora mismo: inténtalo de nuevo.",
+        "session": "La sesión de subida ha caducado: vuelve a enviar.",
+        "badRequest": "YouTube ha rechazado los datos del vídeo: revisa el título y la descripción.",
+        "popup": "Se ha bloqueado la ventana de inicio de sesión de Google: permite las ventanas emergentes de este sitio e inténtalo de nuevo.",
+        "config": "Primero configura un ID de cliente de Google OAuth (Configuración de la app de YouTube)."
+      },
+      "relay": {
+        "network": "No se puede contactar con el relay: revisa su URL y que este sitio esté en su RELAY_ALLOWED_ORIGINS.",
+        "unauthorized": "El relay no ha aceptado esta clave de acceso.",
+        "forbidden": "El relay ha rechazado esta petición.",
+        "notFound": "El relay ya no conoce esta cuenta o tarea: vuelve a cargar las cuentas.",
+        "tooLarge": "El clip es más grande de lo que acepta el relay.",
+        "notConfigured": "El relay aún no tiene las claves de la app de esta plataforma.",
+        "server": "El relay ha fallado: revisa su registro e inténtalo de nuevo.",
+        "timeout": "El relay sigue publicando: revisa los envíos recientes más tarde.",
+        "badUrl": "La URL del relay no es una dirección http(s) válida."
+      }
+    }
   }
 }

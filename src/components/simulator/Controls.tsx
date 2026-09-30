@@ -47,6 +47,7 @@ import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSec
 import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
 import BotSection, { BOT_KEYS, type BotPanelProps } from "./sections/BotSection"; // --- viral-bot ---
+import PublishSection, { PUBLISH_KEYS } from "./sections/PublishSection"; // --- social-publish ---
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
 import type { ProjectPanelProps } from "./useProjectFiles";
@@ -208,6 +209,8 @@ SECTION_KEYS.ball.push(...JOURNEY_KEYS);
 SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
+// --- social-publish --- the Publish block (TikTok, Instagram, YouTube) closes the Recording section, after the Viral video bot block.
+SECTION_KEYS.recording.push(...PUBLISH_KEYS);
 
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
@@ -1100,6 +1103,7 @@ export default function Controls(props: ControlsProps) {
       <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
       {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
       {props.bot && <BotSection t={t} search={search} matches={matches} bot={props.bot} /> /* --- viral-bot --- */}
+      <PublishSection t={t} search={search} matches={matches} bot={props.bot} /> {/* --- social-publish --- */}
     </div>
   );
 

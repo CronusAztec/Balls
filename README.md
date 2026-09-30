@@ -63,6 +63,7 @@ static host – no server required.
 | **Beat Drop** | A rhythm mode without rings (id `beatDrop`, feature beat-drop) after the "ball lands on the beat" edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and for **every beat** of the beat it follows (the beat source in effect – the loaded song's detected beat, the music bed's or the slicer's, an imported video's or audio file's beats or your hand-placed beat markers (Sound section → Beats from a video), the grid Picture Paint and the Beat Runner follow – else the Sound section's BPM) an obstruction flies in from off-screen – left, right, top or bottom, seeded, never from the side the ball comes from – with an ease-out (a back ease for the bouncy kinds) over the **Fly-in Time** (0.3–1 beats, `bda`) and settles a hair before the beat, so the ball lands on it exactly on the beat: a pure planner solves every flight's take-off speed from the interval and the height difference (dy = v·T + g·T²/2), so every landing is on its beat to a fraction of a millisecond at any tempo (50–220 BPM tested) and on irregular grids. Six **Obstructions** (`bdk`): planks, blocks, spring pads (a higher, snappier bounce in the same time, with a boing), wedges (they redirect the drift), spinning bars (flat exactly at the beat) and big drum pads – each squashes on impact, glows with the beat, holds while the ball is over it and slides away with an ease-in and a fade before the ball could come back down through it. **Drift** (`bdd`) walks the ball sideways inside the safe area, **Scrolling** (`bds`) is *endless* (every landing a little lower, a critically damped camera follows it down) or *arena* (it bounces inside the view), **Bounce Height** (`bdh`) sets the apex (the gravity follows the tempo). The ball squashes and stretches (scaled by its speed, restored by a spring), leaves a **Motion Trail** (`bdt`), every landing throws a ripple ring and a particle puff in the pad's colour, downbeats thump the camera (and shake it through the Camera group's screen shake). **Landing Sound** (`bdsn`): synthesised **drums** (kick on beats 1 and 3, snare on 2 and 4, hats on the off-beats, plus the pad's own accent), the next note of the **melody** per landing (the loaded melody, the song slicer or a built-in tune), or **both**; with a music bed the bed leads and the landings accent it. **Obstruction Colours** (`bdc`): per kind, rainbow by beat or the team roster's colours (the ball wears the first team's). Everything is drawn from the plan at the frame's exact time (the engine's clock plus the canvas' leftover accumulator), so the motion is sub-frame smooth at any playback speed, in recordings and in the ⚡ fast export (which plays the same sounds). The run covers the beats of the clip and can never fail – Find Simulation just picks a seed and says how many beats the clip covers; deterministic per seed, resize-proof |
 | **Daily challenge & preset gallery** | One mode and one seed a day, the same for every visitor (feature daily-gallery, `src/lib/daily.ts`): the UTC date alone derives the seed (a 32-bit hash) and the mode (the days are dealt in blocks from a pool of 15 modes whose runs end by themselves – every mode once per block, never twice in a row – each with a curated look). A **Today's challenge** card below the hero (the mode's picture, number, date, seed, a countdown to the next one, your streak and today's result) opens `/simulator?daily=1`; the simulator's 📅 **Play today's seed** button (under the canvas) loads it over any setup; `daily=YYYY-MM-DD` opens a given day's challenge (from #1 on 2026-09-30 up to tomorrow). While the challenge is on – its mode, its seed still pinned: a physics change or a new mode ends it – the bar under the canvas names it and the address keeps `daily=<date>`; when its run finishes, a small end-of-run panel shows the run length and the streak (days in a row, kept in localStorage) and copies the challenge link to share. A **Gallery** page (`/gallery`, navbar, footer, sitemap) shows 19 curated presets from `src/content/gallery.ts` – each a canonical share query plus a pinned seed, named and described in every language – as cards with preview images (`public/gallery/<id>.webp`, rendered by `npm run previews`) and a **Try it** link that opens the simulator with the preset applied |
 | **Installable offline app (PWA)** | The site installs as an app (Chrome, Edge, Android: the browser's install button or an **Install app** button in the footer while the browser offers it; iOS/iPadOS Safari: Share → Add to Home Screen) and opens in its own window on the landing page (feature pwa). A service worker keeps it working **offline**: the first visit precaches the app shell – the landing and simulator pages in every language, all build files, the mode and gallery previews, melodies, wall-break and hit sounds and the icons (about 7.5 MB) – so the simulator, recording included, runs without a connection; other pages work offline once opened, and a page never opened shows a small offline page in its language. Pages always come from the network when there is one (the cache only answers offline), and every deploy is a new worker version whose caches replace the old ones, so a new release is never hidden behind cached HTML. Production builds only, over HTTPS or on localhost |
+| **Publish to TikTok, Instagram & YouTube** | A **Publish** block at the end of the Recording section (feature social-publish) sends the last recording, fast export, batch or viral-bot clip – or a picked video file – to **several accounts per platform in one click**: its words per platform (title, caption, hashtags from the viral bot's copy, editable per platform with live counters for each platform's limits: TikTok 2,200, Instagram 2,200 and 30 hashtags, YouTube a 100-character title, 5,000-byte description and 500 characters of tags, #Shorts first), the accounts grouped by platform with avatar and handle, tick boxes and **Send to selected** with per-account progress and result links, and a recent-sends log (the last 50). Three paths, all static-site friendly: **YouTube straight from the browser** (Google Identity Services + the resumable upload API; a client ID from `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` or the App setup panel; any number of channels), **a self-hostable relay** (`relay/server.mjs`, one Node 22 file) that holds the TikTok, Meta and Google app secrets, runs the OAuth sign-ins, keeps refresh tokens and posts – TikTok Content Posting API, Instagram Reels through the Graph API, YouTube – with **access keys** so a team or several creators share one relay, each seeing only their own accounts; and a **no-setup quick share** (the phone's share sheet with the file, or download + caption on the clipboard + the upload page on a computer). The bot CLI posts through the relay too (`--relay`) |
 
 ## Getting started
 
@@ -79,6 +80,7 @@ Copy `.env.example` to `.env.local` to configure the build. Everything is option
 - `NEXT_PUBLIC_SITE_URL` – public URL used for canonical links, hreflang, sitemap and Open Graph, including the base path. Defaults to `http://localhost:3000` plus the base path.
 - Feedback channel, first one set wins: `NEXT_PUBLIC_FEEDBACK_ENDPOINT` (an endpoint that accepts a cross-origin JSON POST, e.g. Formspree, Basin or your own worker with CORS enabled), `NEXT_PUBLIC_FEEDBACK_EMAIL` (opens the visitor's email app) or `NEXT_PUBLIC_GITHUB_REPO` (opens a prefilled GitHub issue; needs a public repository with Issues on, and visitors need a GitHub account).
 - `NEXT_PUBLIC_ANALYTICS_SCRIPT_URL` / `NEXT_PUBLIC_ANALYTICS_SITE_ID` – load a privacy-friendly analytics script (Plausible, Umami, Rybbit…).
+- `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` / `NEXT_PUBLIC_PUBLISH_RELAY_URL` – --- social-publish --- the Publish block's Google OAuth client ID for direct YouTube uploads and the relay URL it suggests (both public; see "Publish").
 
 `next build` reads `.env.local`; so do `npm start`, `npm run smoke` and `npm run previews` (for `NEXT_PUBLIC_BASE_PATH`),
 so a base-path build previews correctly at `http://localhost:3000/<base path>/`. You can also pass it explicitly:
@@ -97,6 +99,7 @@ npm run bot -- --count 3 --platform reels   # --- viral-bot --- plan, render and
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
 python3 scripts/generate-sounds.py         # regenerate the wall-break and hit sound effects
 node scripts/generate-icons.mjs            # --- pwa --- rasterise public/icon.svg into the app icons in public/icons (Playwright's Chromium)
+node relay/server.mjs                      # --- social-publish --- the self-hosted publish relay for TikTok, Instagram and YouTube (relay/README.md)
 ```
 
 ## Deploying to GitHub Pages
@@ -688,6 +691,104 @@ Feature pwa: a web app manifest, icons and a hand-written service worker (no lib
 - **Install button** – `src/components/site/InstallAppButton.tsx` in the footer keeps Chrome's `beforeinstallprompt` (`installPrompt.ts`) and shows **Install app** while the browser offers the install. Strings: the `Pwa` namespace of `messages/*.json`.
 - `localeAlternates()` lives in `src/i18n/alternates.ts`: a layout may only export Next's own fields, and the build type-checks the layout whenever webpack keeps it in a page's chunk.
 - **Tests** – `tests/pwa.test.ts` (the manifest, the registration rules, the precache list, the version hash, the offline page, `buildPwa()` on a fake export, and the worker itself in a fake worker scope: precaching, the caches of other versions and scopes, network first / cache first, the offline fallbacks, a failed install and a new deploy replacing the old cache); the smoke test checks the served files and head tags, the registration and the precache, then, through a local proxy that can drop every connection, runs the simulator offline, opens the offline page in Polish and simulates a new deploy (every page marked, a new `sw.js` version): the page comes from the network, the new worker replaces the old cache and serves the new pages offline.
+
+### Publish (TikTok, Instagram, YouTube)
+Feature social-publish: the owner asked to "add connections to tiktok and instagram and youtube so the user can upload and
+send those videos quickly, be able to connect multiple users to those accounts and send them quickly". The site is a static
+export, so there is no server of ours: the **Publish** block (`components/simulator/sections/PublishSection.tsx`, search keys
+`PUBLISH_KEYS`, after the Viral video bot block of the Recording section) offers three delivery paths, and with nothing set up
+it still offers the third and explains the other two in a line each.
+
+- **The clip** – every finished video is handed to a small in-memory inbox (`lib/publish/clips.ts`, `offerPublishClip()`):
+  Record Video and the fast export in `Simulator.tsx`, each clip of a batch or of the bot's render in `useBatchRender.ts`
+  (a bot clip keeps its plan id, so its copy comes from the plan); **Choose a video…** adds a file. The newest 8 are kept; the
+  block shows the name, length, size and a thumbnail (`lib/publish/thumbnail.ts`, a frame drawn from a detached `<video>`;
+  MediaRecorder WebM files get their length by one seek past the end).
+- **The words** – `lib/publish/copy.ts` writes the first draft from the viral bot's copy generator: a bot clip's hook, series
+  line, question, keywords and hashtags; any other clip the copy of the bot recipe that plays in its mode (keywords, question,
+  its hashtags) under a title built from the mode's name (`Publish.defaultTitle` / `defaultCaption`). `lib/publish/caption.ts`
+  keeps one shared draft plus per-platform overrides (the tabs; a field set back to the shared text stops being an override)
+  and composes each platform's post: TikTok and Instagram a caption ending in the hashtags, YouTube a title (the caption's
+  first line when empty), a description and tags (the hashtags without "#", within 500 characters); every platform gets its
+  own tag (#fyp, #reels, #Shorts – first on YouTube) and loses the others'. Counters per limit (TikTok 2,200 UTF-16 units;
+  Instagram 2,200 characters and 30 hashtags; YouTube a 100-character title and a 5,000-byte description without `<` `>`,
+  at most 60 hashtags); a platform over a limit blocks the send and says which.
+- **Path A – YouTube straight from the browser** (`lib/publish/youtube.ts`): Google Identity Services
+  (`https://accounts.google.com/gsi/client`, loaded when the block mounts with a client ID, so the click can open its popup
+  at once) asks for an access token with `youtube.upload` (and `youtube.readonly`, for the channel's name and avatar from
+  `youtube.channels?mine=true`); **Connect YouTube** opens Google's account picker, so any number of Google accounts /
+  channels can be added. The upload is the resumable protocol: a POST to `upload/youtube/v3/videos?uploadType=resumable`
+  with the video resource (title, description with hashtags, tags, `privacyStatus` public / unlisted / private,
+  `selfDeclaredMadeForKids: false`, category Entertainment) opens a session, PUTs send 8 MiB chunks (a multiple of 256 KiB),
+  a `308` with `Range` says where to go on, a dropped connection or a 5xx asks the session (`Content-Range: bytes */N`) and
+  resumes after a back-off (5 retries); the result is the Short's link. Tokens (about an hour) live in localStorage per
+  account; browser apps get no refresh token, so an expired one shows **Sign in again** (a popup, then that upload goes on).
+  - **Set it up**: [Google Cloud console](https://console.cloud.google.com) → a project → *APIs & Services → Library* →
+    enable **YouTube Data API v3**; *OAuth consent screen* → External, add the scopes `…/auth/youtube.upload` and
+    `…/auth/youtube.readonly`, add yourself (and anyone who will connect) as **Test users**; *Credentials → Create
+    credentials → OAuth client ID → Web application* → **Authorized JavaScript origins**: the site's origin without a path
+    (`https://cronusaztec.github.io` for this repository, `http://localhost:3000` for local runs) – no redirect URI is needed.
+    Put the client ID (it is public) in the block's **YouTube app setup** or build with `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` (on
+    GitHub Pages: the repository variable `YOUTUBE_CLIENT_ID`, passed by `deploy.yml`). Until Google verifies the app it works
+    for its test users, and videos uploaded by an unaudited API project are locked to private (request the YouTube API
+    Services audit to upload publicly); an upload costs about 1,600 of the default 10,000 daily quota units.
+- **Path B – the relay** (`relay/`, see [relay/README.md](relay/README.md)): TikTok's Login Kit and Content Posting API need
+  a client secret at the token exchange (and an audited app to post publicly), and Instagram publishes Reels only from a
+  public video URL – so a small self-hosted server does those parts. `relay/server.mjs` is one Node 22 ESM file without
+  dependencies (not part of the site: excluded from `tsconfig.json` and ESLint; `relay/Dockerfile`, `relay/package.json`,
+  `relay/.env.example`); it holds the app secrets in its environment, runs the OAuth sign-ins (TikTok Login Kit v2 with
+  `user.info.basic` + `video.publish`; Instagram through Facebook Login for Business with `instagram_basic` +
+  `instagram_content_publish` on the Instagram professional account linked to a Page – one sign-in adds every Page's account –
+  or, with `IG_LOGIN=instagram`, the Instagram API with Instagram Login and `instagram_business_basic` +
+  `instagram_business_content_publish`; Google for YouTube with offline access), keeps the accounts and refresh tokens in a
+  JSON file (`RELAY_DATA_DIR`), and publishes: TikTok direct post (creator info, `video/init` with `FILE_UPLOAD` in chunks – or
+  `PULL_FROM_URL` from the relay's `/media/` URL with `TIKTOK_SOURCE=pull` –, status polling; an unaudited app's public post is
+  refused by TikTok, so it posts privately and says so), Instagram (the flow of `src/lib/bot/instagram.ts`: a `REELS` container
+  from the clip's public relay URL, `status_code` polling, `media_publish`, the permalink – the relay's request builders are
+  tested against that module's), YouTube (the resumable upload); retries on network errors, 429 and 5xx, refreshed tokens, and
+  errors that say what to do ("this Meta app is not yet approved…", "connect the account again", quota, format). **Multi-user**:
+  `RELAY_ADMIN_KEY` creates **access keys** (`POST /api/keys` with a label, or `node relay/server.mjs create-key <label>`);
+  every key sees and posts only to the accounts it connected, so a team or several creators share one relay. The page's side
+  is `lib/publish/relayClient.ts`: in the block's **Relay** settings you save **relay profiles** (URL + key + label; **Test**
+  shows the key's label, its accounts and the relay's apps) and switch between them; **Connect TikTok / Instagram / via
+  relay** opens a popup on a one-time sign-in link (`POST /api/connect/:platform` → `GET /connect/:platform` → the platform →
+  `/oauth/:platform/callback`, which stores the account and `postMessage`s the page before closing); **Send to selected**
+  uploads the clip once (`POST /api/publish`, multipart with the per-platform words; XMLHttpRequest for the upload progress)
+  and polls `GET /api/jobs/:id` for every account's status, progress, link or error. The relay never returns a token. Deploy it
+  on Render, Fly.io, Railway or any Docker host – the steps, the TikTok developer, Meta app and Google Cloud settings, the
+  scopes and the redirect URIs (`<relay>/oauth/<platform>/callback`) are in [relay/README.md](relay/README.md).
+- **Path C – quick share** (`lib/publish/share.ts`): **Send to TikTok / Instagram / YouTube** – on a phone or tablet the Web
+  Share API gets the video file itself (`navigator.canShare({ files })`; the system sheet lists the installed TikTok, Instagram
+  and YouTube apps; the caption goes to the clipboard first, since most apps drop shared text); on a computer the clip
+  downloads, the caption and hashtags go to the clipboard and the platform's upload page opens in a new tab
+  (`https://www.tiktok.com/upload`, `https://www.instagram.com/`, `https://www.youtube.com/upload`), with a one-line hint.
+- **Send to selected** – `lib/publish/controller.ts` holds the block's state outside React (read with
+  `useSyncExternalStore`), so a send keeps going and its progress stays when the Recording section closes: every ticked
+  account at once – each direct YouTube channel uploads on its own, the relay accounts of the relay in use go in one job –
+  with per-account progress, result links, **Try again** and **Sign in again**; each finished account lands in the **recent
+  sends** (localStorage, the last 50, with links). What the browser remembers (`lib/publish/store.ts`, one localStorage key:
+  the client ID, the YouTube accounts and their tokens, the relay profiles and keys, the visibility, the ticks, the log) is
+  validated on load and never put in the URL, presets or project files; a client secret never reaches the page.
+- **The bot CLI** – `node scripts/viral-bot.mjs --relay https://my-relay.example --relay-key $KEY --accounts a_1,a_2`
+  (or `--accounts all`) posts every rendered clip through the relay (the hook as the title, the caption without its hashtag
+  line, the hashtags for the relay to compose per platform) and prints each account's result; with `--post-only` it sends
+  what `--out` holds. The relay client is bundled into the CLI's planner (`src/lib/bot/node.ts`).
+- **Strings** – the `Publish` namespace of `messages/*.json` (plus `Controls.publish*` for the block's label and search, and
+  `Privacy.publishing` for the privacy page's section on what is sent where and the YouTube API Services terms).
+- **Tests and checks** – `tests/publish.test.ts` (hashtag formatting and the limits of every platform, overrides, the first
+  draft in three languages, the relay client against a mocked fetch – info, accounts, connect link, publish form, job polling,
+  errors –, the quick share with a fake `navigator.share` / `canShare` and a fake document, the YouTube token, channel and
+  resumable upload – session, chunked PUTs, resume after a 308 and after a dropped connection or a 503 –, the stored state,
+  the clip inbox, a whole Send to selected through the controller, the CLI's `--relay` options and posting);
+  `relay/relay.test.mjs` (run by `npx vitest run relay`: the key / account store, the one-time OAuth states, the multipart
+  parser, TikTok's chunking, the words per platform, the Instagram request builders against `instagram.ts`, the callback page,
+  CORS and keys over HTTP, the TikTok / Instagram / YouTube sign-ins, a publish to all three – TikTok's unaudited fallback,
+  one Instagram account failing, a YouTube resume – with the clip served at its public URL, an expired refresh token, WebM for
+  Instagram and the upload limit). The smoke test renders the block with nothing configured (the three paths explained),
+  shares a clip to a stubbed `navigator.share` on a phone, downloads it and opens the upload page on a computer, lists a
+  relay profile's accounts from a stubbed relay, connects a YouTube channel through a stubbed token client and uploads to a
+  stubbed endpoint with a 308 resume and progress, sends to relay and YouTube accounts in one click, and offers a fast
+  export's clip to the block.
 
 ## Browser support
 

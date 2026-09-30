@@ -62,6 +62,24 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
       <p>
         {t("contact.content")} <Link href="/feedback">{t("contact.feedbackLink")}</Link>.
       </p>
+      {/* --- social-publish --- what the Publish block sends where (and the YouTube API Services disclosures) */}
+      <h2>{t("publishing.title")}</h2>
+      <p>{t("publishing.content")}</p>
+      <p>
+        {t("publishing.youtube1")}{" "}
+        <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">
+          {t("publishing.ytTermsLink")}
+        </a>
+        {t("publishing.youtube2")}{" "}
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+          {t("publishing.googlePrivacyLink")}
+        </a>
+        {t("publishing.youtube3")}{" "}
+        <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener noreferrer">
+          {t("publishing.revokeLink")}
+        </a>
+        {t("publishing.youtube4")}
+      </p>
     </LegalPage>
   );
 }

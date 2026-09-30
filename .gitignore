@@ -30,3 +30,7 @@ yarn-error.log*
 
 # --- viral-bot --- the bot CLI's default output folder
 /bot-output/
+
+# --- social-publish --- the relay's data (keys, accounts, tokens, uploaded clips) when run from the repository
+/relay-data/
+/relay/relay-data/
