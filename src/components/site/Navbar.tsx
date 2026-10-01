@@ -58,8 +58,10 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
       <div className={cx("flex h-full items-center gap-6", studio ? "px-3 sm:px-4" : "site-container")}>
         <div className="flex min-w-0 items-center gap-1">
           {studio && (
-            <Link href="/" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={nav("goHome")} title={nav("goHome")}>
+            <Link href="/" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" title={nav("goHome")}>
               <IconArrowLeft size={18} />
+              {/* the old header's Back link, by name: the arrow is the label for the eye */}
+              <span className="sr-only">{nav("back")}</span>
             </Link>
           )}
           <Link href="/" className="min-w-0 truncate rounded-sm font-display text-[17px] font-bold tracking-[-0.02em] text-ink" aria-label={studio ? undefined : nav("goHome")}>

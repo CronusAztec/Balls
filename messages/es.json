@@ -12,7 +12,8 @@
     "simulator": "Simulador",
     "goHome": "Ir al inicio",
     "openMenu": "Abrir menú",
-    "closeMenu": "Cerrar menú"
+    "closeMenu": "Cerrar menú",
+    "back": "Volver"
   },
   "SimulatorPage": {
     "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",
