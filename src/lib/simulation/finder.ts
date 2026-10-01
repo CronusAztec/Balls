@@ -52,6 +52,8 @@ import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 
 export interface ModeSettings {
   bouncierEnabled: boolean;
+  /** --- uncap-all --- The numeric Bounciness (the uncapped Bouncier; absent = what `bouncierEnabled` meant: 1.03 or off). */
+  bounciness?: number;
   countdownTotal: number;
   countdownRandom: boolean;
   colorMatchColorCount: number;
@@ -223,12 +225,12 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
  * finder does not search a fixed length that misses the target: it resolves at once with `fixedDuration`
  * set and the page says what to change instead.
  */
-export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">, unlimited = false): number | null {
-  // --- unlimited --- `unlimited`: the run's No limits switch – its engine resolves the settings past their sliders, so this does too
+export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">): number | null {
+  // (--- uncap-all --- the resolvers below are the engine's: every value past its slider, memory-safety ceilings aside)
   // --- jdm-polyrhythm --- (cycles × the cycle length, the seed only picks the direction)
   if (mode === "polyrhythm") {
-    const p = resolvePolyrhythmSettings(settings.polyrhythm, unlimited);
-    return p.cycles > 0 ? p.cycles * polyrhythmCycleSeconds(p, unlimited) : null;
+    const p = resolvePolyrhythmSettings(settings.polyrhythm);
+    return p.cycles > 0 ? p.cycles * polyrhythmCycleSeconds(p) : null;
   }
   // --- jdm-double-pendulum --- (it finishes at the clip length, whatever the seed)
   if (mode === "doublePendulum") {
@@ -236,13 +238,13 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
     return dp.endless ? null : dp.clipSeconds;
   }
   // --- jdm-illusions --- lines and rings: cycles × the cycle length, whatever the seed
-  if (mode === "illusion") return illusionFixedDurationSec(settings.illusion, unlimited);
+  if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
   // --- odd-power-layers --- every sequence but chaos: the plan's hit count × the bounce period (+ the celebration), whatever the seed
-  if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers, unlimited);
+  if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers);
   // --- odd-territory --- every run lasts its countdown, whatever the seed (the seed picks the winner)
-  if (mode === "territory") return resolveTerritorySettings((settings as Pick<ModeSettings, "territory">).territory, unlimited).duration;
+  if (mode === "territory") return resolveTerritorySettings((settings as Pick<ModeSettings, "territory">).territory).duration;
   if (mode !== "pendulum") return null;
-  const p = resolvePendulumSettings(settings.pendulum, unlimited);
+  const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
 }
 
@@ -299,6 +301,9 @@ export interface FinderResult {
   // --- unlimited ---
   /** A heavy No limits run: the search tested only this many seeds (the time budget; see unlimitedFinder.ts). */
   limitedSeeds?: number;
+  // --- uncap-all ---
+  /** Not one tested seed ended within the search's horizon: with these values the run never ends (the page says so). */
+  neverEnded?: boolean;
 }
 
 /**
@@ -310,6 +315,7 @@ export interface FinderResult {
 export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, settings: ModeSettings, seed: number): PhysicsEngine {
   const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), ...unlimitedExtrasOf(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount) --- unlimited --- (the extras past their ranges, as the page's engine runs them)
   engine.setBouncier(settings.bouncierEnabled);
+  if (settings.bounciness !== undefined) engine.setBounciness(settings.bounciness); // --- uncap-all ---
   if (mode === "target") {
     engine.setCountdownTotal(settings.countdownTotal);
     engine.setCountdownRandomOrder(settings.countdownRandom);
@@ -473,7 +479,7 @@ export function findSimulation(
       resolve(findBeatDropRun(request));
       return;
     }
-    const fixed = fixedRunDurationSec(request.mode, request.modeSettings, request.physicsConfig.unlimited === true); // --- unlimited ---
+    const fixed = fixedRunDurationSec(request.mode, request.modeSettings);
     if (fixed !== null && Math.abs(fixed - request.targetDurationSec) > request.toleranceSec) {
       resolve({ found: false, seed: 0, duration: fixed, seedsTested: 0, fixedDuration: true });
       return;
@@ -493,6 +499,7 @@ export function findSimulation(
     let bestDuration = Infinity;
     let bestSeed = 0;
     let bestDiff = Infinity;
+    let unfinished = 0; // --- uncap-all --- seeds that ran to the horizon without ending
     const base = Date.now() | 0;
     const seedAt = (i: number) => (base + 0x9e3779b1 * i) | 0;
 
@@ -509,6 +516,7 @@ export function findSimulation(
         const seed = seedAt(i);
         const durationMs = simulateSeed(seed, request, maxSimMs);
         i++;
+        if (durationMs >= maxSimMs) unfinished++; // --- uncap-all ---
         const diff = Math.abs(durationMs - targetMs);
         if (diff < bestDiff) {
           bestDiff = diff;
@@ -530,7 +538,7 @@ export function findSimulation(
         bestSeed,
       });
       if (tested >= request.maxSeeds) {
-        resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested });
+        resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested, ...(tested > 0 && unfinished === tested ? { neverEnded: true } : {}) }); // --- uncap-all --- (a run that never ends says so)
       } else {
         requestAnimationFrame(runBatch);
       }

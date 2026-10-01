@@ -1,7 +1,7 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Pendulum Wave ("pendulum" mode, the project.jdm pendulum-wave / phasing formats): no rings. A set of
@@ -129,29 +129,28 @@ export interface PendulumSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range (counts become whole numbers, a polygon of 1–2 sides is the circle; unknown layouts / options and bad numbers fall back to the defaults). */
-export function resolvePendulumSettings(config: Partial<PendulumSettings> | null | undefined, unlimited = false): PendulumSettings {
+export function resolvePendulumSettings(config: Partial<PendulumSettings> | null | undefined): PendulumSettings {
   const out = { ...DEFAULT_PENDULUM_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(PENDULUM_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.pwCount, out.count));
-  if (config.baseOscillations !== undefined) out.baseOscillations = Math.round(clampNumber(config.baseOscillations, R.pwBaseOscillations, out.baseOscillations));
-  if (config.cycleSeconds !== undefined) out.cycleSeconds = Math.round(clampNumber(config.cycleSeconds, R.pwCycleSeconds, out.cycleSeconds));
-  if (config.amplitude !== undefined) out.amplitude = clampNumber(config.amplitude, R.pwAmplitude, out.amplitude);
+  if (config.count !== undefined) out.count = memoryCeiling("pwCount", Math.round(clampNumber(config.count, PENDULUM_RANGES.pwCount, out.count)));
+  if (config.baseOscillations !== undefined) out.baseOscillations = Math.round(clampNumber(config.baseOscillations, PENDULUM_RANGES.pwBaseOscillations, out.baseOscillations));
+  if (config.cycleSeconds !== undefined) out.cycleSeconds = Math.round(clampNumber(config.cycleSeconds, PENDULUM_RANGES.pwCycleSeconds, out.cycleSeconds));
+  if (config.amplitude !== undefined) out.amplitude = clampNumber(config.amplitude, PENDULUM_RANGES.pwAmplitude, out.amplitude);
   if (isPendulumLayout(config.layout)) out.layout = config.layout;
   if (config.polygon !== undefined) {
-    const p = Math.round(clampNumber(config.polygon, R.pwPolygon, out.polygon));
+    const p = memoryCeiling("pwPolygon", Math.round(clampNumber(config.polygon, PENDULUM_RANGES.pwPolygon, out.polygon)));
     out.polygon = p < 3 ? 0 : p;
   }
   if (typeof config.phasing === "boolean") out.phasing = config.phasing;
-  if (config.trails !== undefined) out.trails = clampNumber(config.trails, R.pwTrails, out.trails);
+  if (config.trails !== undefined) out.trails = clampNumber(config.trails, PENDULUM_RANGES.pwTrails, out.trails);
   if (isPendulumSoundOn(config.soundOn)) out.soundOn = config.soundOn;
   if (isPendulumPitchDirection(config.pitchDirection)) out.pitchDirection = config.pitchDirection;
   if (typeof config.waveChord === "boolean") out.waveChord = config.waveChord;
-  if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, R.pwCycles, out.cycles));
+  if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, PENDULUM_RANGES.pwCycles, out.cycles));
   return out;
 }
 
@@ -279,10 +278,16 @@ export function eventPhases(layout: PendulumLayout, soundOn: PendulumSoundOn): n
  */
 export function crossingTimes(f: number, from: number, to: number, phases: readonly number[], out: number[]): number[] {
   if (!(f > 0) || !(to > from)) return out;
+  // --- uncap-all --- past 2⁵³ oscillations the events are no longer countable (k + 1 === k): none is listed
+  if (!(to * f < Number.MAX_SAFE_INTEGER)) return out;
   for (const phase of phases) {
     // Start one k early and let the strict comparisons decide: with the same `to` / `from` value on both sides
     // of a step boundary every event lands in exactly one step, however the rounding of from · f falls.
     let k = Math.ceil(from * f - phase) - 1;
+    // --- uncap-all --- a frequency so high that one step holds more than `EVENTS_PER_WINDOW` swings of a bob: only the
+    // last of them are listed (they all sound in the same step's chord – the motion itself is analytic and exact)
+    const kEnd = Math.ceil(to * f - phase);
+    if (kEnd - k > EVENTS_PER_WINDOW) k = kEnd - EVENTS_PER_WINDOW;
     let t = (k + phase) / f;
     while (t < to) {
       if (t >= from) out.push(t);
@@ -292,6 +297,9 @@ export function crossingTimes(f: number, from: number, to: number, phases: reado
   }
   return out;
 }
+
+/** --- uncap-all --- The most swings of one bob a step lists for the sound (see `crossingTimes()`). */
+export const EVENTS_PER_WINDOW = 64;
 
 export interface PendulumNote {
   /** Simulation time of the event (seconds). */
@@ -660,10 +668,9 @@ export class PendulumMode implements GameMode {
   /**
    * Applied on the next init (the Simulator re-inits the mode when a Pendulum Wave setting changes), except the
    * trails: they only change how the canvas draws the run, so they follow at once without restarting it.
-   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  setSettings(patch: Partial<PendulumSettings>, unlimited = false) {
-    this.settings = resolvePendulumSettings({ ...this.settings, ...patch }, unlimited);
+  setSettings(patch: Partial<PendulumSettings>) {
+    this.settings = resolvePendulumSettings({ ...this.settings, ...patch });
     this.view.settings.trails = this.settings.trails;
   }
   /** Live state for the canvas and the HUD; the same object every call. */

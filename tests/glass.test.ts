@@ -146,7 +146,7 @@ function levelPrint(level: GlassLevel) {
 describe("Glass Smash settings", () => {
   it("resolve to the defaults and clamp every value to a whole number in its range", () => {
     expect(resolveGlassSettings(undefined)).toEqual(DEFAULT_GLASS_SETTINGS);
-    expect(resolveGlassSettings({ rows: 99, hp: 0, stages: 4.6, moving: "yes" as unknown as boolean, holes: false, gates: 1 as unknown as boolean })).toEqual({ rows: 30, hp: 1, stages: 5, moving: DEFAULT_GLASS_SETTINGS.moving, holes: false, gates: false });
+    expect(resolveGlassSettings({ rows: 99, hp: 0, stages: 4.6, moving: "yes" as unknown as boolean, holes: false, gates: 1 as unknown as boolean })).toEqual({ rows: 99, hp: 1, stages: 5, moving: DEFAULT_GLASS_SETTINGS.moving, holes: false, gates: false }); // --- uncap-all --- (no maximum)
     expect(DEFAULT_GLASS_SETTINGS.gates).toBe(false);
     expect(resolveGlassSettings({ gates: true }).gates).toBe(true);
     expect(resolveGlassSettings({ rows: Number.NaN })).toEqual(DEFAULT_GLASS_SETTINGS);
@@ -173,9 +173,9 @@ describe("Glass Smash settings", () => {
     const plain = settingsToSearchParams(d);
     for (const key of ["glr", "glhp", "gls", "glm", "glh", "glg"]) expect(plain.has(key)).toBe(false);
     // Out-of-range values from a link or a preset are clamped.
-    expect(glassSettingsOf(settingsFromSearchParams(new URLSearchParams("mode=glass&glr=500&glhp=-3&gls=2.4")))).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 30, hp: 1, stages: 2 });
+    expect(glassSettingsOf(settingsFromSearchParams(new URLSearchParams("mode=glass&glr=500&glhp=-3&gls=2.4")))).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 500, hp: 1, stages: 2 }); // --- uncap-all --- (glr=500 kept)
     const preset = presetToSettings({ mode: "glass", glassRows: 1, glassHp: 9, glassStages: 0, glassHoles: "no", glassGates: "yes" } as unknown as Partial<SimulatorSettings>);
-    expect(glassSettingsOf(preset)).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 3, hp: 5, stages: 1 });
+    expect(glassSettingsOf(preset)).toEqual({ ...DEFAULT_GLASS_SETTINGS, rows: 3, hp: 9, stages: 1 }); // --- uncap-all --- (glassHp 9 kept)
     expect(glassSettingsOf(presetToSettings({ mode: "glass", glassGates: true }))).toEqual({ ...DEFAULT_GLASS_SETTINGS, gates: true });
     // The Ball section's Multipliers group (the cap) shows in Glass Smash while the gates are on.
     expect(showsMultipliersSection("glass", false)).toBe(false);

@@ -146,10 +146,10 @@ describe("arena games: registration", () => {
 describe("arena games: settings", () => {
   it("resolve: clamps numbers onto their steps and falls back on junk", () => {
     expect(resolveBattleSettings(null)).toEqual(DEFAULT_BATTLE_SETTINGS);
-    expect(resolveBattleSettings({ count: 99, hp: 1, damage: 1.37, nudge: 0.33 })).toMatchObject({ count: 20, hp: 3, damage: 1.25, nudge: 0.35 });
+    expect(resolveBattleSettings({ count: 99, hp: 1, damage: 1.37, nudge: 0.33 })).toMatchObject({ count: 99, hp: 3, damage: 1.25, nudge: 0.35 }); // --- uncap-all --- (no maximum)
     const junk = { count: "x", arena: "hexagon", shrink: "yes", powerUps: 1 } as unknown as Parameters<typeof resolveBattleSettings>[0];
     expect(resolveBattleSettings(junk)).toEqual(DEFAULT_BATTLE_SETTINGS);
-    expect(resolveCtfSettings({ perTeam: 9, scoreToWin: 0, clipSeconds: 500 })).toMatchObject({ perTeam: 4, scoreToWin: 1, clipSeconds: 120 });
+    expect(resolveCtfSettings({ perTeam: 9, scoreToWin: 0, clipSeconds: 500 })).toMatchObject({ perTeam: 9, scoreToWin: 1, clipSeconds: 500 }); // --- uncap-all --- (no maximum)
     expect(resolveCtfSettings(undefined)).toEqual(DEFAULT_CTF_SETTINGS);
     for (const key of Object.keys(ARENA_GAME_RANGES) as (keyof typeof ARENA_GAME_RANGES)[]) expect(RANGES[key]).toEqual(ARENA_GAME_RANGES[key]);
   });
@@ -174,9 +174,9 @@ describe("arena games: settings", () => {
     const back = settingsFromSearchParams(params);
     expect(resolveArenaGameFields(back)).toEqual(resolveArenaGameFields(s));
     const bad = settingsFromSearchParams(new URLSearchParams("mode=ctf&ctfn=0&ctfw=99&bta=square&arn=-3&btd=abc"));
-    expect(bad).toMatchObject({ ctfPerTeam: 1, ctfScoreToWin: 10, btArena: "box", arenaNudge: 0, btDamage: 1 });
+    expect(bad).toMatchObject({ ctfPerTeam: 1, ctfScoreToWin: 99, btArena: "box", arenaNudge: 0, btDamage: 1 }); // --- uncap-all --- (99 is kept)
     const preset = presetToSettings({ mode: "battle", btCount: 1000, btArena: "moon" as never, btShrink: "no" as never });
-    expect(preset).toMatchObject({ btCount: 20, btArena: "box", btShrink: true });
+    expect(preset).toMatchObject({ btCount: 1000, btArena: "box", btShrink: true }); // --- uncap-all --- (the preset keeps its count; the mode builds at most its memory-safety ceiling)
     expect(resolveArenaGameFields({})).toEqual(defaultArenaGameFields());
   });
 
@@ -186,7 +186,7 @@ describe("arena games: settings", () => {
     expect(ctfSettingsOf({ ...defaultArenaGameFields(), recordingDuration: 45 }).clipSeconds).toBe(45);
     expect(ctfFinderSettings(DEFAULT_CTF_SETTINGS, 30, 0.5).clipSeconds).toBe(35);
     expect(ctfFinderSettings({ ...DEFAULT_CTF_SETTINGS, clipSeconds: 90 }, 30, 0.5).clipSeconds).toBe(90);
-    expect(ctfFinderSettings(DEFAULT_CTF_SETTINGS, 120, 0.5).clipSeconds).toBe(120);
+    expect(ctfFinderSettings(DEFAULT_CTF_SETTINGS, 120, 0.5).clipSeconds).toBe(125); // --- uncap-all --- (past the longest slider recording too)
     // A battle (or a game won on the score) gets its length plus the winner banner's hold…
     expect(arenaFoundClipSec("battle", 27.3, 30)).toBe(Math.ceil(27.3 + ARENA_WIN_HOLD_SEC));
     expect(arenaFoundClipSec("ctf", 20.02, 35)).toBe(24);

@@ -24,7 +24,7 @@ const POWER_OPTIONS: Record<TyPower, { icon: string; labelKey: string; hintKey: 
   ghost: { icon: "👻", labelKey: "tyPowerGhost", hintKey: "tyHintGhost" },
 };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /**
  * "Territory" controls (feature odd-territory), shown in the Mode row while the mode is active (and in the Ball section
@@ -47,10 +47,10 @@ export default function TerritorySection({ t, search, matches, settings: s, upda
   const used = new Set(powers.slice(0, teams));
   return (
     <div className="space-y-3 pt-2" data-testid="territory-section">
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("tyDesc")}</p>}
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("tyDesc")}</p>}
       <Searchable search={search} matches={matches} labelKey="tyTeams">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("tyTeams")}
             <Tooltip text={t("tyTeamsTip")} />
           </label>
@@ -62,23 +62,23 @@ export default function TerritorySection({ t, search, matches, settings: s, upda
             ))}
           </div>
           {!search && (
-            <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="territory-teams-note">
+            <p className="text-xs text-ink-3 leading-relaxed" data-testid="territory-teams-note">
               {s.teams.length > 0 ? t("tyRosterNote", { count: Math.min(s.teams.length, teams), teams }) : t("tyPaletteNote", { names: TY_PALETTE.slice(0, teams).map((p) => p.name).join(" · ") })}
             </p>
           )}
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="tyBallsPerTeam" tipKey="tyBallsPerTeamTip" value={s.tyBallsPerTeam} range={RANGES.tyBallsPerTeam} onChange={(v) => update({ tyBallsPerTeam: v })} display={String(s.tyBallsPerTeam)} left="⚪" right="⚪⚪⚪" />
+      <Slider t={t} search={search} matches={matches} labelKey="tyBallsPerTeam" tipKey="tyBallsPerTeamTip" value={s.tyBallsPerTeam} range={RANGES.tyBallsPerTeam} onChange={(v) => update({ tyBallsPerTeam: v })} display={String(s.tyBallsPerTeam)} />
       <Searchable search={search} matches={matches} labelKey="tyPowers">
         <div className="space-y-2" data-testid="territory-powers">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("tyPowers")}
             <Tooltip text={t("tyPowersTip")} />
           </label>
           {Array.from({ length: teams }, (_, team) => (
             <div key={team} className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full shrink-0" style={{ background: teamColor(team), boxShadow: `0 0 8px ${teamColor(team)}` }} aria-hidden="true" />
-              <span className="w-20 shrink-0 truncate text-xs font-bold text-zinc-300">{teamName(team)}</span>
+              <span className="w-20 shrink-0 truncate text-xs font-bold text-ink-2">{teamName(team)}</span>
               <select value={powers[team]} onChange={(e) => setPower(team, e.target.value as TyPower)} aria-label={t("tyPowerOf", { team: teamName(team) })} className={`${selectClass} text-sm py-1.5`}>
                 {TY_POWERS.map((id) => (
                   <option key={id} value={id}>
@@ -89,7 +89,7 @@ export default function TerritorySection({ t, search, matches, settings: s, upda
             </div>
           ))}
           {!search && (
-            <ul className="text-[11px] text-zinc-500 leading-relaxed space-y-0.5" data-testid="territory-power-hints">
+            <ul className="text-xs text-ink-3 leading-relaxed space-y-0.5" data-testid="territory-power-hints">
               {TY_POWERS.filter((id) => used.has(id)).map((id) => (
                 <li key={id}>
                   <span aria-hidden="true">{POWER_OPTIONS[id].icon}</span> {t(POWER_OPTIONS[id].hintKey)}
@@ -99,9 +99,9 @@ export default function TerritorySection({ t, search, matches, settings: s, upda
           )}
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="tyPowerEvery" tipKey="tyPowerEveryTip" value={s.tyPowerEvery} range={RANGES.tyPowerEvery} onChange={(v) => update({ tyPowerEvery: v })} display={`${s.tyPowerEvery.toFixed(1)}s`} left="⚡" right="🐢" />
-      <Slider t={t} search={search} matches={matches} labelKey="tyRadius" tipKey="tyRadiusTip" value={s.tyRadius} range={RANGES.tyRadius} onChange={(v) => update({ tyRadius: v })} display={t("tyTiles", { count: s.tyRadius })} left="·" right="💥" />
-      <Slider t={t} search={search} matches={matches} labelKey="tyCols" tipKey="tyColsTip" value={s.tyCols} range={RANGES.tyCols} onChange={(v) => update({ tyCols: v })} display={`${s.tyCols} × ${territoryRows(s.tyCols)}`} left="▦" right="▩" />
+      <Slider t={t} search={search} matches={matches} labelKey="tyPowerEvery" tipKey="tyPowerEveryTip" value={s.tyPowerEvery} range={RANGES.tyPowerEvery} onChange={(v) => update({ tyPowerEvery: v })} display={`${s.tyPowerEvery.toFixed(1)}s`} />
+      <Slider t={t} search={search} matches={matches} labelKey="tyRadius" tipKey="tyRadiusTip" value={s.tyRadius} range={RANGES.tyRadius} onChange={(v) => update({ tyRadius: v })} display={t("tyTiles", { count: s.tyRadius })} />
+      <Slider t={t} search={search} matches={matches} labelKey="tyCols" tipKey="tyColsTip" value={s.tyCols} range={RANGES.tyCols} onChange={(v) => update({ tyCols: v })} display={`${s.tyCols} × ${territoryRows(s.tyCols)}`} />
       <Slider
         t={t}
         search={search}
@@ -113,8 +113,6 @@ export default function TerritorySection({ t, search, matches, settings: s, upda
         // The clip follows the countdown, so a recording covers the verdict and its banner.
         onChange={(v) => update({ tyDuration: v, recordingDuration: territoryClipSec(v) })}
         display={`${s.tyDuration}s`}
-        left="⏱️"
-        right="⌛"
       />
       <Searchable search={search} matches={matches} labelKey="tyPegs">
         <Toggle t={t} labelKey="tyPegs" tipKey="tyPegsTip" value={s.tyPegs} onChange={(v) => update({ tyPegs: v })} />

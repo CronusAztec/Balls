@@ -311,7 +311,7 @@ describe("settings, URL and presets", () => {
   });
 
   it("resolve clamps numbers and drops unknown options", () => {
-    expect(resolvePowerLayersSettings({ layers: 5000, drift: -1, speed: 9 })).toMatchObject({ layers: 800, drift: 0, speed: 2 });
+    expect(resolvePowerLayersSettings({ layers: 5000, drift: -1, speed: 9 })).toMatchObject({ layers: 5000, drift: 0, speed: 9 }); // --- uncap-all --- (no maximum)
     expect(resolvePowerLayersSettings({ layers: 3, speed: 0.51, drift: 0.333 })).toMatchObject({ layers: 20, speed: 0.5, drift: 0.35 });
     const junk = { sequence: "tetration", badge: "loud", pills: "yes", layers: "abc", scale: "klingon" } as unknown as Parameters<typeof resolvePowerLayersSettings>[0];
     expect(resolvePowerLayersSettings(junk)).toEqual(DEFAULT_POWER_LAYERS_SETTINGS);
@@ -331,9 +331,9 @@ describe("settings, URL and presets", () => {
     const back = settingsFromSearchParams(params);
     expect(resolvePowerLayersFields(back)).toEqual({ plLayers: 800, plSequence: "fibonacci", plDrift: 0.5, plSpeed: 1.5, plBadge: "both", plPills: false });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=powerLayers&pll=99999&plq=nope&plsp=0&plb=x&plp=7"));
-    expect(resolvePowerLayersFields(bad)).toEqual({ ...defaultPowerLayersFields(), plLayers: 800, plSpeed: 0.5 });
+    expect(resolvePowerLayersFields(bad)).toEqual({ ...defaultPowerLayersFields(), plLayers: 5000, plSpeed: 0.5 }); // --- uncap-all --- (pll=99999 builds at most the memory-safety ceiling)
     const preset = presetToSettings({ mode: "powerLayers", plLayers: 1, plSequence: "primes", plDrift: 2 } as unknown as Parameters<typeof presetToSettings>[0]);
-    expect(resolvePowerLayersFields(preset)).toMatchObject({ plLayers: 20, plSequence: "primes", plDrift: 1 });
+    expect(resolvePowerLayersFields(preset)).toMatchObject({ plLayers: 20, plSequence: "primes", plDrift: 2 });
   });
 
   it("the mode is registered: an escape card right before the multipliers board, which closes the family", () => {

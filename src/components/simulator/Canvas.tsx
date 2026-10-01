@@ -78,6 +78,8 @@ import { DEFAULT_TERRITORY_LABELS, TERRITORY_DATA_KEYS, TerritoryLayer, writeTer
 import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
 import { FrameBudget } from "@/lib/simulation/frameBudget";
 import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
+// --- uncap-all --- the speed readout (the fastest ball, short numbers) and NUMBERS OVERFLOWED
+import { DEFAULT_UNCAP_LABELS, drawUncapHud, fastestSpeed, writeUncapDataset, type UncapInfo, type UncapLabels } from "./uncapRenderer";
 import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (recording-export) --- rings past the slider drawn at about one per pixel
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -180,6 +182,9 @@ export interface CanvasLabels {
   // --- unlimited ---
   /** No limits: the ball count, "x0.4 real time" and ARENA FULL badges. */
   unlimited?: UnlimitedLabels;
+  // --- uncap-all ---
+  /** Uncapped everything: the speed readout and NUMBERS OVERFLOWED. */
+  uncap?: UncapLabels;
 }
 
 export interface CanvasHandle {
@@ -352,6 +357,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
+  uncap: DEFAULT_UNCAP_LABELS, // --- uncap-all ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -826,6 +832,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const tyJolt = { x: 0, y: 0 }; // a bomber blast's jolt of the board this frame
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
+    const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
     const unlimitedLayer = new UnlimitedLayer();
     const crowdPalette: string[] = [];
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
@@ -2293,6 +2300,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const liveInset = !recordingRef.current ? 52 : 0; // live: above the playback-speed buttons (never in a recording, which crops them away)
         unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset);
       }
+      // --- uncap-all --- the fastest ball's speed (and NUMBERS OVERFLOWED) while a Bounciness grows the rebounds or a value is past its slider
+      uncapInfo.speed = fastestSpeed(engine.getBalls());
+      uncapInfo.bounce = engine.getBounceSpeedMultiplier();
+      uncapInfo.rescued = unlimitedView.rescued;
+      uncapInfo.show = unlimitedView.on || engine.isBouncierEnabled();
+      if (uncapInfo.show) {
+        const sq = Math.min(size.width, size.height);
+        drawUncapHud(ctx, uncapInfo, (labelsRef.current ?? DEFAULT_LABELS).uncap ?? DEFAULT_UNCAP_LABELS, cx - sq / 2, cy - sq / 2, sq, !recordingRef.current ? 52 : 0);
+      }
 
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
       // (--- review fix (modes-gerald-odd) --- the badge takes the top-right corner when the teams scoreboard sits in the top-left one;
@@ -3005,6 +3021,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
       writeUnlimitedDataset(unlimitedView, frameBudget, lodOf(unlimitedView), setCanvasData, canvas.dataset); // --- unlimited --- (data-unlimited-*)
+      writeUncapDataset(uncapInfo, setCanvasData); // --- uncap-all --- (data-uncap-*)
       // --- odd-power-layers --- Power Layers: hits, layers gone, power, level, the last hit's layers, freedom and the particles drawn (data-pl-*)
       if (plView) {
         setCanvasData("plSequence", plView.sequence);

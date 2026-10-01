@@ -124,7 +124,7 @@ describe("project files", () => {
     const d = defaultSettings("shatter");
     expect(s.mode).toBe("shatter");
     expect(s.gravity).toBe(d.gravity);
-    expect(s.ballSpeed).toBe(800);
+    expect(s.ballSpeed).toBe(99999); // --- uncap-all --- (no maximum)
     expect(s.wallCount).toBe(1);
     expect(s.topText).toBe("");
     expect(s.bottomText).toHaveLength(60); // --- review fix (recording-export) --- (a link's length: a share link made after the import keeps it whole)

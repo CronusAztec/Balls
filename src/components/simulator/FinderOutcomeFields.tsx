@@ -9,6 +9,7 @@ import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- 
 import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
+import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
 
 /*
  * --- rigged --- The "Outcome" part of the Find Simulation panel (Simulator.tsx): what the found run must do – last the
@@ -79,7 +80,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, ba
   if (outcomes.length === 0 || (outcomes.length === 1 && outcomes[0] === "duration")) return null;
   return (
     <span className="ml-auto flex items-center gap-1 min-w-0" data-testid="finder-outcome">
-      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 hidden sm:flex items-center shrink-0" htmlFor="find-outcome">
+      <label className="text-xs font-bold uppercase tracking-wider text-ink-3 hidden sm:flex items-center shrink-0" htmlFor="find-outcome">
         {r("outcome")}
         <Tooltip text={r("outcomeTip")} />
       </label>
@@ -90,7 +91,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, ba
         title={r(hintKey(outcome, battle, territory))}
         disabled={disabled}
         onChange={(e) => onOutcome(e.target.value as FinderOutcomeKind)}
-        className="min-w-0 max-w-[11rem] px-2 py-1 bg-zinc-800 text-white text-xs rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none cursor-pointer disabled:opacity-50"
+        className="min-w-0 max-w-[11rem] px-2 py-1 bg-surface-2 text-ink text-xs rounded-lg border border-line-strong focus:border-accent-dim cursor-pointer disabled:opacity-50"
       >
         {outcomes.map((kind) => (
           <option key={kind} value={kind}>
@@ -126,14 +127,14 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
   const range = RANGES.findEscapeAt;
   return (
     <div className="space-y-3" data-testid="finder-outcome-fields">
-      <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory))}</p>
+      <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory))}</p>
       {outcome === "escapes-at" && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500" htmlFor="find-escape-at">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-escape-at">
               {r("escapeAt")}
             </label>
-            <span className="text-xs font-mono text-cyan-400">
+            <span className="text-xs font-mono text-accent">
               {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
             </span>
           </div>
@@ -147,14 +148,15 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
             disabled={disabled}
             onChange={(e) => onEscapeAt(Number(e.target.value))}
             aria-label={r("escapeAt")}
-            className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
             style={sliderStyle(escapeAt, range.min, range.max)}
           />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
         </div>
       )}
       {outcome === "winner" && (
         <div className="space-y-1.5">
-          <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500" htmlFor="find-winner">
+          <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
             {r("winnerTeam")}
           </label>
           <select id="find-winner" value={Math.min(winner, teamNames.length - 1)} disabled={disabled} onChange={(e) => onWinner(Number(e.target.value))} className={`${selectClass} text-sm disabled:opacity-50`}>

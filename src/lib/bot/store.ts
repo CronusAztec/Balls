@@ -1,5 +1,6 @@
 import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotFamily, type BotPlatform, type EndingChoice, type LengthBucket } from "./playbook";
 import { BOT_PLAN_VERSION, type ClipPlan } from "./planner";
+import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 
 /*
  * --- viral-bot --- The Bot section's options and its last plan, kept in this browser's localStorage (a convenience: every
@@ -44,7 +45,7 @@ export function parseBotOptions(raw: unknown): BotOptions {
   const count = Math.round(Number(r.count));
   return {
     platform: isBotPlatform(r.platform) ? r.platform : d.platform,
-    count: Number.isFinite(count) ? Math.max(BOT_COUNT_RANGE.min, Math.min(BOT_COUNT_RANGE.max, count)) : d.count,
+    count: Number.isFinite(count) ? (count < BOT_COUNT_RANGE.min ? BOT_COUNT_RANGE.min : count > CLIP_CEILING ? CLIP_CEILING : count) : d.count, // --- uncap-all --- (the slider's 20 is a comfort bound; the clips' memory-safety ceiling)
     family: r.family === "all" || isBotFamily(r.family) ? r.family : d.family,
     bucket: r.bucket === "auto" || isLengthBucket(r.bucket) ? r.bucket : d.bucket,
     ending: isEndingChoice(r.ending) ? r.ending : d.ending,

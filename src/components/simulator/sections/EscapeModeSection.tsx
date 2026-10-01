@@ -37,7 +37,7 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
     <Searchable search={search} matches={matches} labelKey="lineColor">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-zinc-300">{t("lineColor")}</span>
+          <span className="text-sm font-medium text-ink-2">{t("lineColor")}</span>
           <button type="button" onClick={() => update({ rainbowLines: !s.rainbowLines })} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowLines ? rainbowBtn : offBtn}`}>
             {t("rainbowSettings")}
           </button>
@@ -52,7 +52,7 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
         <div className="space-y-3 pt-2">
           <Slider t={t} search={search} matches={matches} labelKey="accumulationEscape" tipKey="accumulationEscapeTip" value={s.accumulationTime} range={RANGES.accumulationTime} onChange={(v) => update({ accumulationTime: v })} display={`${s.accumulationTime}s`} />
           <Searchable search={search} matches={matches} labelKey="spikes">
-            <Toggle t={t} labelKey="spikes" tipKey="spikesTip" value={s.spikesEnabled} onChange={(v) => update({ spikesEnabled: v })} onClass="bg-red-600 text-white" />
+            <Toggle t={t} labelKey="spikes" tipKey="spikesTip" value={s.spikesEnabled} onChange={(v) => update({ spikesEnabled: v })} onClass="bg-danger text-ink" />
           </Searchable>
           {(s.spikesEnabled || !!search) && (
             <Slider t={t} search={search} matches={matches} labelKey="spikeCount" tipKey="spikeCountTip" value={s.spikeCount} range={RANGES.spikeCount} onChange={(v) => update({ spikeCount: v })} />
@@ -70,7 +70,7 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
         <div className="space-y-3 pt-2">
           {lineColor}
           <Searchable search={search} matches={matches} labelKey="centerDot">
-            <div className={search ? "" : "pt-2 border-t border-zinc-800/60"}>
+            <div className={search ? "" : "pt-2 border-t border-line/60"}>
               <Toggle t={t} labelKey="centerDot" tipKey="centerDotTip" value={s.linesCenterDot} onChange={(v) => update({ linesCenterDot: v })} />
             </div>
           </Searchable>
@@ -81,7 +81,7 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
         <div className="space-y-3 pt-2">
           <Slider t={t} search={search} matches={matches} labelKey="targetCount" tipKey="targetCountTip" value={s.targetCount} range={RANGES.targetCount} onChange={(v) => update({ targetCount: v })} />
           <Searchable search={search} matches={matches} labelKey="randomOrder">
-            <Toggle t={t} labelKey="randomOrder" tipKey="randomOrderTip" value={s.countdownRandom} onChange={(v) => update({ countdownRandom: v })} onClass="bg-yellow-600 text-white" />
+            <Toggle t={t} labelKey="randomOrder" tipKey="randomOrderTip" value={s.countdownRandom} onChange={(v) => update({ countdownRandom: v })} onClass="bg-warn text-ink" />
           </Searchable>
         </div>
       );

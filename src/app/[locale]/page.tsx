@@ -5,11 +5,7 @@ import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import Hero from "@/components/site/Hero";
 import ModesOverview from "@/components/site/ModesOverview";
-import AboutTool from "@/components/site/AboutTool";
 import HowItWorks from "@/components/site/HowItWorks";
-import Instructions from "@/components/site/Instructions";
-import FeedbackCta from "@/components/site/FeedbackCta";
-import Features from "@/components/site/Features";
 import FAQ from "@/components/site/FAQ";
 import { FAQ_KEYS } from "@/lib/faq";
 import JsonLd from "@/components/site/JsonLd";
@@ -47,28 +43,22 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     featureList: [layout("featuresModes", { count: MODE_CARD_ORDER.length }), ...(layout.raw("features") as string[])],
   };
 
+  // --- site-redesign --- hero (with the live preview), today's challenge, the modes wall, how it works, the FAQ
   return (
     <NextIntlClientProvider messages={clientMessages}>
-      <div className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30 font-sans">
+      <div className="min-h-screen bg-bg text-ink">
         <JsonLd data={{ "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url: `${SITE_URL}/` }} />
         <JsonLd data={appJsonLd} />
         <JsonLd data={faqJsonLd} />
         <Navbar />
-        <Hero />
-        {/* --- daily-gallery --- today's challenge, below the hero */}
-        <DailyChallengeCard />
-        <ModesOverview />
-        <AboutTool />
-        <HowItWorks />
-        <Instructions />
-        <div className="mt-5">
-          <FeedbackCta />
-        </div>
-        <Features />
-        <div className="mt-5">
-          <FeedbackCta />
-        </div>
-        <FAQ />
+        <main id="content">
+          <Hero />
+          {/* --- daily-gallery --- today's challenge, below the hero */}
+          <DailyChallengeCard />
+          <ModesOverview />
+          <HowItWorks />
+          <FAQ />
+        </main>
         <Footer />
       </div>
     </NextIntlClientProvider>

@@ -16,11 +16,11 @@ export interface BallInteractionSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx). */
 export const BALL_INTERACTION_KEYS = ["ballInteraction", "splitMinRadius", "maxBalls"];
 
-const OPTIONS: Record<BallInteraction, { icon: string; labelKey: string; descKey: string }> = {
-  bounce: { icon: "🏓", labelKey: "interactionBounce", descKey: "interactionBounceDesc" },
-  merge: { icon: "🫧", labelKey: "interactionMerge", descKey: "interactionMergeDesc" },
-  split: { icon: "✂️", labelKey: "interactionSplit", descKey: "interactionSplitDesc" },
-  pass: { icon: "👻", labelKey: "interactionPass", descKey: "interactionPassDesc" },
+const OPTIONS: Record<BallInteraction, { labelKey: string; descKey: string }> = {
+  bounce: { labelKey: "interactionBounce", descKey: "interactionBounceDesc" },
+  merge: { labelKey: "interactionMerge", descKey: "interactionMergeDesc" },
+  split: { labelKey: "interactionSplit", descKey: "interactionSplitDesc" },
+  pass: { labelKey: "interactionPass", descKey: "interactionPassDesc" },
 };
 
 /**
@@ -35,7 +35,7 @@ export default function BallInteractionSection({ t, search, matches, settings: s
     <>
       <Searchable search={search} matches={matches} labelKey="ballInteraction">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("ballInteraction")}
             <Tooltip text={t("ballInteractionTip")} />
           </label>
@@ -47,19 +47,19 @@ export default function BallInteractionSection({ t, search, matches, settings: s
                 key={mode}
                 onClick={() => update({ ballInteraction: mode })}
                 aria-pressed={s.ballInteraction === mode}
-                className={`flex-auto whitespace-nowrap px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.ballInteraction === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                className={`flex-auto whitespace-nowrap px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.ballInteraction === mode ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
               >
-                <span aria-hidden="true">{OPTIONS[mode].icon}</span> {t(OPTIONS[mode].labelKey)}
+                {t(OPTIONS[mode].labelKey)}
               </button>
             ))}
           </div>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t(OPTIONS[s.ballInteraction].descKey)}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t(OPTIONS[s.ballInteraction].descKey)}</p>
         </div>
       </Searchable>
       {showSplitLimits && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="splitMinRadius" tipKey="splitMinRadiusTip" value={s.splitMinRadius} range={RANGES.splitMinRadius} onChange={(v) => update({ splitMinRadius: v })} display={`${s.splitMinRadius}px`} left="🔬" right="🎱" />
-          <Slider t={t} search={search} matches={matches} labelKey="maxBalls" tipKey="maxBallsTip" value={s.maxBalls} range={RANGES.maxBalls} onChange={(v) => update({ maxBalls: v })} display={String(s.maxBalls)} left="2" right="64" />
+          <Slider t={t} search={search} matches={matches} labelKey="splitMinRadius" tipKey="splitMinRadiusTip" value={s.splitMinRadius} range={RANGES.splitMinRadius} onChange={(v) => update({ splitMinRadius: v })} display={`${s.splitMinRadius}px`} />
+          <Slider t={t} search={search} matches={matches} labelKey="maxBalls" tipKey="maxBallsTip" value={s.maxBalls} range={RANGES.maxBalls} onChange={(v) => update({ maxBalls: v })} display={String(s.maxBalls)} />
         </>
       )}
     </>

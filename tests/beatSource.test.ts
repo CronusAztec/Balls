@@ -279,8 +279,8 @@ describe("video-beats settings", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mode=classic&bsrc=tiktok&bm=1,2,3&bdb=9&obr=5&vbgo=-1&onbeat=yes"));
     expect(s.beatSource).toBe("song");
     expect(s.beatMarkers).toBe("");
-    expect(s.beatDownbeat).toBe(3);
-    expect(s.onBeatRange).toBe(0.8);
+    expect(s.beatDownbeat).toBe(9); // --- uncap-all --- (kept; the grid takes it modulo the bar)
+    expect(s.onBeatRange).toBe(5);
     expect(s.videoBgOpacity).toBe(0.05);
     expect(s.onBeat).toBe(false);
     const preset = presetToSettings({ mode: "classic", beatSource: "media", beatMarkers: "250.500*3", onBeat: true });

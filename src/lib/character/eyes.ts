@@ -171,12 +171,12 @@ export function squashAmount(ageMs: number, strength: number, amount: number): n
   if (!(amount > 0) || !(strength > 0) || !(ageMs >= 0) || ageMs >= SQUASH_MS) return 0;
   const t = ageMs / SQUASH_MS;
   const s = Math.min(1, strength / 1.5);
-  return MAX_SQUASH * Math.min(1, amount) * s * Math.exp(-3.2 * t) * Math.cos(2.6 * Math.PI * t) * (1 - t);
+  return MAX_SQUASH * amount * s * Math.exp(-3.2 * t) * Math.cos(2.6 * Math.PI * t) * (1 - t); // --- uncap-all --- past 1 squashes deeper
 }
 
 /** Scale factors for a deformation `d`: along the impact normal and across it (area-preserving: along × across = 1). */
 export function squashScales(d: number, out: Vec): Vec {
-  out.x = 1 - d;
+  out.x = Math.max(0.05, 1 - d); // --- uncap-all --- a squash past 1 (Squash beyond its slider) flattens, never flips
   out.y = 1 / Math.max(0.2, 1 - d);
   return out;
 }

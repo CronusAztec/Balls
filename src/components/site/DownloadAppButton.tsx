@@ -1,20 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { isDesktopApp } from "@/lib/desktop/bridge";
+import { buttonClass } from "@/components/ui/Button";
+import { IconDownload } from "@/components/ui/icons";
 
-/* --- desktop-exe --- "Download for Windows" on the landing page (links the download page; hidden inside the app itself). */
-export default function DownloadAppButton() {
-  const t = useTranslations("DesktopLink"); // (a small namespace: every page hands it to the client)
+/* --- desktop-exe --- "Download for Windows" on the landing page (links the download page; hidden inside the app itself).
+   --- site-redesign --- the hero's secondary button; `fallback` shows instead inside the app. The hero (a server component)
+   passes the labels, so the landing page's client messages leave the Desktop namespace out (i18n/clientMessages.ts). */
+export default function DownloadAppButton({ label, note, fallback = null }: { label: string; note: string; fallback?: React.ReactNode }) {
   const [inApp, setInApp] = useState(false);
   useEffect(() => setInApp(isDesktopApp()), []);
-  if (inApp) return null;
+  if (inApp) return <>{fallback}</>;
   return (
-    <Link href="/download" className="inline-flex flex-col items-center px-8 py-2.5 rounded-xl font-bold text-slate-200 border border-zinc-700 hover:border-[#93d119] hover:text-[#b0f02a] transition-all" data-testid="hero-download">
-      <span>⊞ {t("heroButton")}</span>
-      <span className="text-[10px] font-medium text-slate-500">{t("heroNote")}</span>
+    <Link href="/download" className={buttonClass({ variant: "secondary", size: "md" })} title={note} data-testid="hero-download">
+      <IconDownload size={18} />
+      {label}
     </Link>
   );
 }

@@ -301,9 +301,10 @@ export function resolveProjectSettings(raw: unknown, assets: ProjectAssets = {})
     } else if (typeof fallback === "number") {
       if (typeof value === "number" && Number.isFinite(value)) {
         const range = ranges[key];
-        // --- unlimited --- a file with the switch on keeps its big values (presetToSettings() validates them); the rest is clamped
-        const lifted = source.unlimited === true && range !== undefined && keepsUnlimitedValue(key, value, range);
-        clean[key] = range && !lifted ? Math.max(range.min, Math.min(range.max, value)) : value;
+        // --- unlimited --- a file keeps its big values (presetToSettings() validates them); the rest is clamped
+        // --- uncap-all --- whatever its switch: every valid value is kept exactly, an invalid one is lifted onto the minimum
+        const lifted = range !== undefined && keepsUnlimitedValue(key, value, range);
+        clean[key] = range && !lifted ? range.min : value; // (--- uncap-all --- never a maximum: only a value below the minimum is lifted onto it)
       }
     } else if (typeof fallback === "string") {
       if (typeof value === "string") clean[key] = value.slice(0, MAX_TEXT_SETTING);

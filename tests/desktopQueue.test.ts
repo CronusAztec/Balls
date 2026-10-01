@@ -207,7 +207,7 @@ describe("render journal", () => {
     expect(job.status).toBe("queued"); // "done" without an output
     expect(job).toMatchObject({ seed: 1, resolution: "1080x1920", fps: 60, codec: "h264", preset: "native" });
     expect(job.settings.mode).toBe("portal");
-    expect(job.settings.ballSpeed).toBe(800); // clamped by the project loader
+    expect(job.settings.ballSpeed).toBe(99999); // --- uncap-all --- the project loader keeps any finite number (no slider maximum)
   });
 });
 

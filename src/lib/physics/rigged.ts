@@ -324,7 +324,7 @@ export class RigDirector {
     this.gDirY = gDirY;
     this.windX = extras.windX * this.baseSpeed;
     this.windY = extras.windY * this.baseSpeed;
-    this.dragKeep = extras.airDrag > 0 ? Math.pow(1 - extras.airDrag, 60 * FLIGHT_DT) : 1;
+    this.dragKeep = extras.airDrag > 0 ? Math.pow(Math.max(0, 1 - extras.airDrag), 60 * FLIGHT_DT) : 1; // --- uncap-all --- drag ≥ 1 stops the flight
     this.keepMoving = keepMoving;
     this.flightsLeft = MAX_FLIGHTS_PER_STEP;
     return true;

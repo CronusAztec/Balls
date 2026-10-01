@@ -65,7 +65,9 @@ import { TERRITORY_RANGES, defaultTerritoryFields, readTerritoryParams, resolveT
 // --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
 import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, resolveBounceMathFields, writeBounceMathParams, type BounceRule } from "@/lib/simulation/bounceMath";
 // --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
-import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
+import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, isIntegerRange, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
+// --- uncap-all --- Uncapped everything: the numeric Bounciness (the uncapped Bouncier) and the memory-safety ceilings
+import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastMin, bouncinessOf, pastMemoryCeiling } from "@/lib/uncap";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -663,19 +665,19 @@ export interface SimulatorSettings {
   videoBgOpacity: number;
   // --- end video-beats ---
   // --- odd-territory --- Territory (lib/physics/modes/territory.ts): pong-wars teams painting a tile map
-  /** Tile columns, 12–48; the rows follow the field's aspect (URL `tyc`). */
+  /** Tile columns, 12–48 on the slider (any number from 12 typed; a run builds at most 1,000); the rows follow the field's aspect (URL `tyc`). */
   tyCols: number;
-  /** Teams: 2 (top / bottom) or 4 (quadrants) (URL `tyt`). */
+  /** Teams: 2 (top / bottom) or 4 (quadrants; any count from 3 plays them) (URL `tyt`). */
   tyTeams: number;
-  /** Balls per team, 1–8 (URL `tyb`). */
+  /** Balls per team, 1–8 on the slider (any number from 1 typed; a run builds at most 500) (URL `tyb`). */
   tyBallsPerTeam: number;
   /** The four team slots' powers, comma-separated: none | vortex | bomber | painter | ghost (URL `typ`). */
   tyPowers: string;
-  /** Seconds between two triggers of a timed power, 1–10 (URL `tye`). */
+  /** Seconds between two triggers of a timed power, 1–10 on the slider, any number from 1 typed (URL `tye`). */
   tyPowerEvery: number;
-  /** Reach of the whirl and the blast in tiles, 1–8 (URL `tyr`). */
+  /** Reach of the whirl and the blast in tiles, 1–8 on the slider, any number from 1 typed (URL `tyr`). */
   tyRadius: number;
-  /** The countdown in seconds, 10–120 (URL `tyd`). */
+  /** The countdown in seconds, 10–120 on the slider, any number from 10 typed (URL `tyd`). */
   tyDuration: number;
   /** The dotted grid whose dots deflect the balls (URL `typg`). */
   tyPegs: boolean;
@@ -694,6 +696,10 @@ export interface SimulatorSettings {
   // runs that melt but never crash; off by default (URL `inf`)
   unlimited: boolean;
   // --- end unlimited ---
+  // --- uncap-all --- the uncapped Bouncier: every bounce adds (Bounciness − 1) × the Ball Speed to the rebound, with no
+  // ceiling (1 = off, 1.03 = the old switch; URL `bnc`, the old boolean `bounce` still works); `bouncierEnabled` follows it
+  bounciness: number;
+  // --- end uncap-all ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -816,6 +822,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...territoryModeDefaults(mode),
     ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
     unlimited: false, // --- unlimited ---
+    bounciness: BOUNCINESS_OFF, // --- uncap-all ---
   };
 }
 
@@ -886,6 +893,7 @@ export const RANGES = {
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
   ...TERRITORY_RANGES, // --- odd-territory ---
+  bounciness: BOUNCINESS_RANGE, // --- uncap-all --- (the comfort range; the number field takes any value from 1 up)
   ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
 } as const;
 
@@ -998,6 +1006,7 @@ export const NUMERIC_URL_KEYS: Readonly<Record<string, NumericKey>> = {
   mptg: "mpTarget",
   fw: "forcedWinner", // --- rigged ---
   xfps: "fastExportFps", // --- fast-render ---
+  bnc: "bounciness", // --- uncap-all ---
 };
 
 /** Boolean keys: `1` enables, `0` disables. */
@@ -1143,37 +1152,31 @@ function formatNumber(n: number) {
 /** The most characters of the Top / Bottom Text and the watermark a link keeps (and so a preset or a project file too). */
 const MAX_URL_TEXT = 60;
 /**
- * Numbers whose slider range is a range of meaning, kept inside it at both ends: the gap is a fraction of the ring,
- * Color Match has seven colours, the text has to fit the frame, the slicer's lengths are audio grains. Every other
- * number only has a floor: a value past its slider's maximum is kept as it is – extreme values are a feature, and the
- * page degrades gracefully under them – while one below its minimum (a negative ball size, no rings at all) is invalid.
- */
-const RANGE_BOUNDED_FIELDS: ReadonlySet<string> = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
-/**
  * The core numbers of `NUMERIC_URL_KEYS`: no feature's own resolver checks them again (the music bed, the physics extras,
- * the modes' and features' numbers keep their own rules), so `clampToRange()` is their check.
+ * the modes' and features' numbers keep their own rules), so `coreNumber()` is their check.
  */
 const CORE_NUMERIC_FIELDS: readonly NumericKey[] = ["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"];
 const CORE_NUMERIC_FIELD_SET: ReadonlySet<string> = new Set(CORE_NUMERIC_FIELDS);
 
 /**
  * A number for `field` from a link or a stored preset: not a finite number → `fallback`; below the field's slider
- * minimum → that minimum; above its maximum → kept (clamped only for `RANGE_BOUNDED_FIELDS`); whole numbers for a
- * whole-number slider step (counts). A field without a range is taken as it is.
+ * minimum → that minimum (a negative ball size or no rings at all is invalid – the features' own readers lift theirs the
+ * same way); never a maximum (--- uncap-all --- the slider's range is a comfort range: a big value is kept as it is, and
+ * the page degrades gracefully under it); a whole number for a count (a step of 1 from a whole minimum, as the uncapped
+ * values' own parsing rounds them), any other value exactly as typed. A field without a range is taken as it is.
  */
-export function clampToRange(field: string, value: number, fallback: number): number {
+export function coreNumber(field: string, value: number, fallback: number): number {
   const range = (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
   if (!Number.isFinite(value)) return fallback;
   if (!range) return value;
-  let v = Math.max(range.min, value);
-  if (RANGE_BOUNDED_FIELDS.has(field)) v = Math.min(range.max, v);
-  return Number.isInteger(range.step) ? Math.round(v) : v;
+  const v = atLeastMin(value, range);
+  return isIntegerRange(range) ? Math.round(v) : v;
 }
 // --- end review fix (recording-export) ---
 
 /**
  * Reads settings from a URL; unknown or invalid values fall back to the defaults, and a number below its slider's minimum
- * is lifted onto it (`clampToRange()`: a link with `r=-5` or `wc=0` cannot crash the page; big values stay big).
+ * is lifted onto it (`coreNumber()`: a link with `r=-5` or `wc=0` cannot crash the page; big values stay big).
  */
 export function settingsFromSearchParams(params: URLSearchParams): SimulatorSettings {
   const modeParam = params.get("mode");
@@ -1182,8 +1185,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
     const raw = params.get(key);
     if (raw === null) continue;
-    // --- review fix (recording-export) --- a core number through clampToRange(); the others as before (their features check them)
-    if (CORE_NUMERIC_FIELD_SET.has(field)) (settings as unknown as Record<string, number>)[field] = clampToRange(field, raw.trim() === "" ? NaN : Number(raw), settings[field]);
+    // --- review fix (recording-export) --- a core number through coreNumber(); the others as before (their features check them)
+    if (CORE_NUMERIC_FIELD_SET.has(field)) (settings as unknown as Record<string, number>)[field] = coreNumber(field, raw.trim() === "" ? NaN : Number(raw), settings[field]);
     else {
       const value = Number(raw);
       if (Number.isFinite(value)) (settings as unknown as Record<string, number>)[field] = value;
@@ -1205,7 +1208,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   const res = params.get("res");
   if (res && (RESOLUTIONS as readonly string[]).includes(res)) settings.recordingResolution = res;
   const dur = Number(params.get("dur"));
-  if (Number.isFinite(dur) && dur >= RANGES.recordingDuration.min && dur <= RANGES.recordingDuration.max) settings.recordingDuration = dur;
+  if (Number.isFinite(dur) && dur >= RANGES.recordingDuration.min) settings.recordingDuration = dur; // --- uncap-all --- (no maximum)
   const hsm = params.get("hsm");
   if (isHitSoundMode(hsm)) settings.hitSoundMode = hsm;
   const hs = params.get("hs");
@@ -1290,19 +1293,19 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
-  readTerritoryParams(params, settings); // --- odd-territory --- (clamped onto the sliders; unknown powers fall back)
+  readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
-  liftSwitchForBigValues(settings); // --- unlimited --- (a big core value without `inf=1` turns the switch on: its guards run it)
+  resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
   return settings;
 }
 
 function clampRange(value: number, range: { min: number; max: number }, fallback: number) {
-  return Number.isFinite(value) ? Math.max(range.min, Math.min(range.max, value)) : fallback;
+  return Number.isFinite(value) ? atLeastMin(value, range) : fallback; // --- uncap-all --- (the minimum only: never a maximum)
 }
 
 function inRange(value: number, range: { min: number; max: number }) {
-  return value >= range.min && value <= range.max;
+  return value >= range.min; // --- uncap-all --- (valid from the minimum up: the slider's end is no limit)
 }
 
 /** Keeps the music-bed numbers inside their slider ranges (URL parameters and presets alike). */
@@ -1396,12 +1399,20 @@ export function unlimitedSettingKeys(): string[] {
   return unlimitedKeyList;
 }
 
+/** --- uncap-all --- True while the URL keys are being discovered: the probe's serialisation must not write the uncapped values (it would discover again). */
+let discoveringUrlKeys = false;
+
 function unlimitedUrlKeys(): Map<string, string> {
   if (unlimitedUrlKeyMap) return unlimitedUrlKeyMap;
   const explicit: Record<string, string> = { ballCount: "nb" };
   for (const [param, field] of Object.entries(NUMERIC_URL_KEYS)) explicit[field] = param;
   const base = { ...defaultSettings("classic"), unlimited: false } as unknown as UnlimitedRecord;
-  unlimitedUrlKeyMap = discoverUrlKeys(unlimitedSettingKeys(), explicit, base, (probe) => settingsToSearchParams(probe as unknown as SimulatorSettings));
+  discoveringUrlKeys = true;
+  try {
+    unlimitedUrlKeyMap = discoverUrlKeys(unlimitedSettingKeys(), explicit, base, (probe) => settingsToSearchParams(probe as unknown as SimulatorSettings));
+  } finally {
+    discoveringUrlKeys = false;
+  }
   return unlimitedUrlKeyMap;
 }
 
@@ -1411,40 +1422,72 @@ export function unlimitedUrlKeyOf(key: string): string | undefined {
 }
 
 function writeUnlimitedValues(settings: SimulatorSettings, params: URLSearchParams) {
-  if (!settings.unlimited) return;
+  // --- uncap-all --- whatever the switch (not while the URL keys are being discovered: that serialisation is the probe's)
+  if (discoveringUrlKeys) return;
   writeUnlimitedParams(settings as unknown as UnlimitedRecord, params, unlimitedSettingKeys(), UNLIMITED_RANGES, unlimitedUrlKeys());
 }
 
 function readUnlimitedValues(params: URLSearchParams, settings: SimulatorSettings) {
-  if (!settings.unlimited) return;
+  // --- uncap-all --- whatever the switch
   readUnlimitedParams(params, settings as unknown as UnlimitedRecord, defaultSettings(settings.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES, unlimitedUrlKeys());
-  if (settings.teams.length === 0) settings.twoBalls = settings.ballCount >= 2;
+  if (settings.teams.length === 0 && settings.ballCount > RANGES.ballCount.max) settings.twoBalls = true;
 }
 
 function restoreUnlimitedPreset(preset: Partial<SimulatorSettings>, merged: SimulatorSettings) {
   restoreUnlimitedValues(preset as unknown as UnlimitedRecord, merged as unknown as UnlimitedRecord, defaultSettings(merged.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES);
-  if (merged.unlimited && merged.teams.length === 0) merged.twoBalls = merged.ballCount >= 2;
-}
-
-/**
- * Settings that still hold a value past its range with the switch off – the core numbers of a link or preset keep big
- * values whatever the switch says (`clampToRange()`: `wc=100000` stays 100,000) – get the switch on: No limits' guards
- * (the engine's soft ceilings, the crowd, the bounded steps, the frame budget, the badges) only run with it, and without
- * them a hundred thousand rings or a billion px/s would hang the tab. Big values stay big; nothing else changes.
- */
-function liftSwitchForBigValues(settings: SimulatorSettings) {
-  if (settings.unlimited) return;
-  const record = settings as unknown as UnlimitedRecord;
-  for (const key of unlimitedSettingKeys()) {
-    const value = record[key];
-    const range = UNLIMITED_RANGES[key];
-    if (typeof value === "number" && range && beyondRange(key, value, range)) {
-      settings.unlimited = true;
-      return;
-    }
-  }
+  if (merged.teams.length === 0 && merged.ballCount > RANGES.ballCount.max) merged.twoBalls = true; // --- uncap-all --- (whatever the switch)
 }
 // --- end unlimited ---
+
+// --- uncap-all ---
+/**
+ * The Bounciness and the old Bouncier switch agree: without a Bounciness of its own (an old link or preset) the switch
+ * says it – on = 1.03, the step the old Bouncier added per bounce, off = 1 –; an invalid one falls back to off; the
+ * switch then follows the number (on above 1), so every reader of `bouncierEnabled` keeps working.
+ */
+function resolveBounciness(settings: SimulatorSettings, hasOwn: boolean) {
+  const own = settings.bounciness;
+  const valid = typeof own === "number" && Number.isFinite(own) && own >= BOUNCINESS_RANGE.min;
+  settings.bounciness = hasOwn && valid ? own : bouncinessOf({ bouncierEnabled: settings.bouncierEnabled });
+  if (hasOwn && !valid) settings.bounciness = BOUNCINESS_OFF;
+  settings.bouncierEnabled = settings.bounciness > BOUNCINESS_OFF;
+}
+
+/** The settings patch of the Bounciness field (the switch follows it). */
+export function bouncinessPatch(value: number): Pick<SimulatorSettings, "bounciness" | "bouncierEnabled"> {
+  return { bounciness: value, bouncierEnabled: value > BOUNCINESS_OFF };
+}
+
+/** The Bounciness the old switch meant, for callers that still flip it (1.03 on, 1 off). */
+export const BOUNCIER_SWITCH_VALUE = BOUNCIER_ON;
+
+/**
+ * True when any uncapped setting sits past its slider's comfort range (the engine then runs its extreme-values
+ * machinery: planned sub-steps, the crowd, time-slicing – `PhysicsConfig.unlimited`), or a Bounciness can grow the
+ * rebounds past the old Bouncier's ×3.
+ */
+export function uncappedEngaged(settings: SimulatorSettings): boolean {
+  const record = settings as unknown as UnlimitedRecord;
+  for (const key of unlimitedSettingKeys()) {
+    const range = UNLIMITED_RANGES[key];
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value) && beyondRange(key, value, range)) return true;
+  }
+  return false;
+}
+
+/** The core numeric URL keys (key → setting), for tools and the uncapped round-trip test. */
+export function numericUrlKeyFields(): Readonly<Record<string, string>> {
+  return NUMERIC_URL_KEYS;
+}
+
+/** True when a setting that sizes an allocation is past its memory-safety ceiling (the run builds less: ARENA FULL). */
+export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
+  const record = settings as unknown as UnlimitedRecord;
+  for (const key of unlimitedSettingKeys()) if (pastMemoryCeiling(key, record[key])) return true;
+  return false;
+}
+// --- end uncap-all ---
 
 /* ------------------------------------------------------------------ presets */
 
@@ -1524,11 +1567,11 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
   const defaults = defaultSettings(mode);
   const merged = { ...defaults, ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
-  // --- review fix (recording-export) --- the core numbers like a link's (`clampToRange()`), the enumerations the URL reader
+  // --- review fix (recording-export) --- the core numbers like a link's (`coreNumber()`), the enumerations the URL reader
   // checks too, the texts at a link's length (a share link made after loading keeps them whole) and no pre-rename watermark
   for (const field of CORE_NUMERIC_FIELDS) {
     const value = merged[field] as unknown;
-    (merged as unknown as Record<string, number>)[field] = clampToRange(field, typeof value === "number" ? value : NaN, defaults[field]);
+    (merged as unknown as Record<string, number>)[field] = coreNumber(field, typeof value === "number" ? value : NaN, defaults[field]);
   }
   merged.recordingResolution = (RESOLUTIONS as readonly string[]).includes(preset.recordingResolution as string) ? (preset.recordingResolution as string) : defaults.recordingResolution;
   merged.wallBreakStyle = (WALL_BREAK_STYLES as readonly string[]).includes(preset.wallBreakStyle as string) ? (preset.wallBreakStyle as WallBreakStyle) : defaults.wallBreakStyle;
@@ -1588,10 +1631,10 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
-  Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- clamped numbers, 2 or 4 teams, known powers, real booleans
+  Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
-  liftSwitchForBigValues(merged); // --- unlimited --- (a big core value with the switch off turns it on: its guards run it)
+  resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)
   return merged;
 }
 

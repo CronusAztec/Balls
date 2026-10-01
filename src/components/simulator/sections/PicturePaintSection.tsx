@@ -5,6 +5,9 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import { PAINT_BEAT_SOURCES } from "@/lib/physics/picturePaint";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import { IconClose, IconUpload } from "@/components/ui/icons"; // --- site-redesign ---
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 /** The picture uploaded in this session (a data: URL kept in memory, like the custom ball image). */
 export interface PaintPictureInfo {
@@ -64,23 +67,23 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
     <>
       <Searchable search={search} matches={matches} labelKey="picturePaint">
         <div className="space-y-3">
-          <label className="text-sm font-medium text-zinc-300">
-            🖼️ {t("picturePaint")}
+          <label className="text-sm font-medium text-ink-2">
+            {t("picturePaint")}
             <Tooltip text={t("picturePaintTip")} />
           </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("picturePaintDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("picturePaintDesc")}</p>
           {picture ? (
-            <div className="flex items-center gap-3 px-3 py-2 bg-zinc-800/60 rounded-lg border border-zinc-700/60" data-testid="paint-picture">
+            <div className="flex items-center gap-3 px-3 py-2 bg-surface-2/60 rounded-lg border border-line-strong/60" data-testid="paint-picture">
               <div
                 className="flex-shrink-0 rounded-full"
                 style={{ width: 40, height: 40, backgroundImage: `url(${picture.url})`, backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 0 8px rgba(147, 209, 25, 0.35)" }}
                 aria-hidden="true"
               />
-              <p className="flex-1 min-w-0 text-sm text-zinc-200 truncate" title={picture.name}>
+              <p className="flex-1 min-w-0 text-sm text-ink truncate" title={picture.name}>
                 {picture.name}
               </p>
-              <button type="button" onClick={onRemove} aria-label={t("paintPictureRemove")} title={t("paintPictureRemove")} className="text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer px-1">
-                ✕
+              <button type="button" onClick={onRemove} aria-label={t("paintPictureRemove")} title={t("paintPictureRemove")} className="text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer px-1">
+                <IconClose size={14} />
               </button>
             </div>
           ) : (
@@ -97,10 +100,10 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
                 if (file) onUpload(file);
               }}
               className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                drag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                drag ? `bg-accent/10 border-accent text-accent scale-[1.02]` : "bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3"
               }`}
             >
-              <span className="text-lg">{drag ? "📥" : "🖼️"}</span>
+              <IconUpload size={20} className={drag ? "text-accent" : "text-ink-3"} />
               <span className="font-semibold">{drag ? t("dropPictureHere") : t("choosePictureFile")}</span>
               <input
                 id="paint-picture-input"
@@ -119,19 +122,19 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
           )}
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="paintGhost" tipKey="paintGhostTip" value={s.paintGhost} range={RANGES.paintGhost} onChange={(v) => update({ paintGhost: v })} display={pct(s.paintGhost)} left="🌑" right="👻" />
-      <Slider t={t} search={search} matches={matches} labelKey="paintBrush" tipKey="paintBrushTip" value={s.paintBrush} range={RANGES.paintBrush} onChange={(v) => update({ paintBrush: v })} display={`${s.paintBrush.toFixed(1)}×`} left="🖊️" right="🖌️" />
+      <Slider t={t} search={search} matches={matches} labelKey="paintGhost" tipKey="paintGhostTip" value={s.paintGhost} range={RANGES.paintGhost} onChange={(v) => update({ paintGhost: v })} display={pct(s.paintGhost)} />
+      <Slider t={t} search={search} matches={matches} labelKey="paintBrush" tipKey="paintBrushTip" value={s.paintBrush} range={RANGES.paintBrush} onChange={(v) => update({ paintBrush: v })} display={`${s.paintBrush.toFixed(1)}×`} />
       <Searchable search={search} matches={matches} labelKey="paintBeatSync">
         <div className="space-y-2">
           <Toggle t={t} labelKey="paintBeatSync" tipKey="paintBeatSyncTip" value={s.paintBeatSync} onChange={(v) => update({ paintBeatSync: v })} caseStyle="title" />
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("paintBeatSyncDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("paintBeatSyncDesc")}</p>
         </div>
       </Searchable>
       {showBeatControls && (
         <>
           <Searchable search={search} matches={matches} labelKey="paintBeatSource">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">{t("paintBeatSource")}</label>
+              <label className="text-sm font-medium text-ink-2">{t("paintBeatSource")}</label>
               <div className="flex gap-1" role="group" aria-label={t("paintBeatSource")}>
                 {PAINT_BEAT_SOURCES.map((source) => (
                   <button
@@ -139,49 +142,52 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
                     key={source}
                     onClick={() => update({ paintBeatSource: source })}
                     aria-pressed={s.paintBeatSource === source}
-                    className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.paintBeatSource === source ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.paintBeatSource === source ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                   >
-                    {source === "song" ? `🎵 ${t("paintBeatSourceSong")}` : `🎚️ ${t("paintBeatSourceBpm")}`}
+                    {source === "song" ? `${t("paintBeatSourceSong")}` : `${t("paintBeatSourceBpm")}`}
                   </button>
                 ))}
               </div>
-              <p className={`text-[11px] leading-relaxed ${beat.bpm !== null && beat.bpm > 0 && !beat.analyzing ? "text-[#93d119]" : "text-zinc-500"}`} data-testid="paint-detected-bpm" role="status">
+              <p className={`text-xs leading-relaxed ${beat.bpm !== null && beat.bpm > 0 && !beat.analyzing ? "text-accent" : "text-ink-3"}`} data-testid="paint-detected-bpm" role="status">
                 {beatStatus}
               </p>
               {(s.paintBeatSource === "bpm" || !!search) && (
                 <>
-                  <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-1">
+                  <label className="text-sm font-medium text-ink-2 flex items-center justify-between mt-1">
                     <span>{t("paintManualBpm")}</span>
-                    <span className="text-zinc-500">{s.bpm}</span>
+                    <span className="text-ink-3">{s.bpm}</span>
                   </label>
-                  <input
-                    type="range"
-                    min={RANGES.bpm.min}
-                    max={RANGES.bpm.max}
-                    step={RANGES.bpm.step}
-                    value={s.bpm}
-                    onChange={(e) => update({ bpm: Number(e.target.value) })}
-                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                    style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
-                    aria-label={t("paintManualBpm")}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={RANGES.bpm.min}
+                      max={RANGES.bpm.max}
+                      step={RANGES.bpm.step}
+                      value={s.bpm}
+                      onChange={(e) => update({ bpm: Number(e.target.value) })}
+                      className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
+                      style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
+                      aria-label={t("paintManualBpm")}
+                    />
+                    <NumberField value={s.bpm} onCommit={(v) => update({ bpm: v })} label={t("paintManualBpm")} range={RANGES.bpm} rules={rulesForRange(RANGES.bpm)} settingKey="bpm" /* --- uncap-all --- */ />
+                  </div>
                 </>
               )}
             </div>
           </Searchable>
-          <Slider t={t} search={search} matches={matches} labelKey="paintBeatPulse" tipKey="paintBeatPulseTip" value={s.paintBeatPulse} range={RANGES.paintBeatPulse} onChange={(v) => update({ paintBeatPulse: v })} display={pct(s.paintBeatPulse)} left="〰️" right="💥" />
+          <Slider t={t} search={search} matches={matches} labelKey="paintBeatPulse" tipKey="paintBeatPulseTip" value={s.paintBeatPulse} range={RANGES.paintBeatPulse} onChange={(v) => update({ paintBeatPulse: v })} display={pct(s.paintBeatPulse)} />
         </>
       )}
       <Searchable search={search} matches={matches} labelKey="paintGuided">
         <div className="space-y-1">
           <Toggle t={t} labelKey="paintGuided" tipKey="paintGuidedTip" value={s.paintGuided} onChange={(v) => update({ paintGuided: v })} caseStyle="title" />
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("paintGuidedDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("paintGuidedDesc")}</p>
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="paintPace">
         <div className="space-y-1">
           <Toggle t={t} labelKey="paintPace" tipKey="paintPaceTip" value={s.paintPaceToSong} onChange={(v) => update({ paintPaceToSong: v })} caseStyle="title" />
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("paintPaceDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("paintPaceDesc")}</p>
         </div>
       </Searchable>
     </>

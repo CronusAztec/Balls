@@ -10,6 +10,7 @@
  * missing – and at most `MAX_JOURNEY_STAGES` stages come before it. Everything here is pure; the auto sequence draws
  * from the generator it is given (the engine's seeded one), so a seed always makes the same journey.
  */
+import { JOURNEY_STAGE_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 
 export const JOURNEY_STAGE_KINDS = ["rings", "glass", "pegs", "multipliers", "funnel", "bullseye", "home"] as const;
 export type JourneyStageKind = (typeof JOURNEY_STAGE_KINDS)[number];
@@ -29,6 +30,10 @@ export interface JourneyStageSpec {
 export const MAX_JOURNEY_STAGES = 12;
 /** Longest text form the settings accept (12 stages of the longest name with a size, plus HOME). */
 export const MAX_JOURNEY_TEXT = 200;
+// --- uncap-all --- MAX_JOURNEY_STAGES is the panel's comfort length now: a list (typed, linked or drawn by the auto
+// count) holds up to JOURNEY_STAGE_CEILING stages before HOME (a memory-safety ceiling), its text up to that many tokens.
+/** Longest text form read (JOURNEY_STAGE_CEILING stages of the longest name with a size, plus HOME). */
+export const JOURNEY_TEXT_CEILING = 16 * (JOURNEY_STAGE_CEILING + 1);
 
 /**
  * The default journey – every kind of stage once, the rings twice (a small escape near the end, "the last stage is so
@@ -63,7 +68,7 @@ export function parseJourneyToken(token: string): JourneyStageSpec | null {
  * empty or unusable text gives just HOME.
  */
 export function parseJourneyStages(text: unknown): JourneyStageSpec[] {
-  const raw = typeof text === "string" ? text.slice(0, 4 * MAX_JOURNEY_TEXT) : "";
+  const raw = typeof text === "string" ? text.slice(0, Math.max(4 * MAX_JOURNEY_TEXT, JOURNEY_TEXT_CEILING)) : ""; // --- uncap-all ---
   const tokens = raw.split(/[,;\s|]+/);
   const out: JourneyStageSpec[] = [];
   let home: JourneyStageSpec | null = null;
@@ -75,7 +80,7 @@ export function parseJourneyStages(text: unknown): JourneyStageSpec[] {
       continue;
     }
     home = null; // a HOME that is not the last listed stage does not count
-    if (out.length < MAX_JOURNEY_STAGES) out.push(spec);
+    if (out.length < JOURNEY_STAGE_CEILING) out.push(spec); // --- uncap-all --- (was MAX_JOURNEY_STAGES)
   }
   out.push(home ?? { kind: "home", size: "m" });
   return out;
@@ -104,7 +109,7 @@ const SIZE_WEIGHTS: readonly [JourneyStageSize, number][] = [
  * `random`, always, so the same generator state makes the same journey.
  */
 export function generateJourneyStages(count: number, random: () => number): JourneyStageSpec[] {
-  const n = Math.max(1, Math.min(MAX_JOURNEY_STAGES, Math.round(Number.isFinite(count) ? count : 1)));
+  const n = Math.max(1, Math.min(JOURNEY_STAGE_CEILING, Math.round(Number.isFinite(count) ? count : 1))); // --- uncap-all --- (was MAX_JOURNEY_STAGES)
   const out: JourneyStageSpec[] = [];
   let previous: JourneyStageKind | null = null;
   const kinds = JOURNEY_TRAVEL_KINDS;
@@ -156,7 +161,7 @@ export function removeJourneyStage(text: string, index: number): string {
 /** Adds a stage of `kind` right before HOME (nothing when the list is full). */
 export function addJourneyStage(text: string, kind: JourneyStageKind, size: JourneyStageSize = "m"): string {
   const stages = parseJourneyStages(text);
-  if (kind !== "home" && stages.length - 1 < MAX_JOURNEY_STAGES) stages.splice(stages.length - 1, 0, { kind, size });
+  if (kind !== "home" && stages.length - 1 < JOURNEY_STAGE_CEILING) stages.splice(stages.length - 1, 0, { kind, size }); // --- uncap-all --- (was MAX_JOURNEY_STAGES)
   return formatJourneyStages(stages);
 }
 

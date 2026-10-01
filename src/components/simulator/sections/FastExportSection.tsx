@@ -2,8 +2,11 @@
 
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
+import { buttonClass } from "@/components/ui/Button"; // --- site-redesign ---
+import { IconBolt } from "@/components/ui/icons"; // --- site-redesign ---
 import { Searchable, offBtn, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
-import { FAST_EXPORT_FPS, realtimeFactor, resolveFastExportFps, type FastExportPhase } from "@/lib/recording/fastRenderPlan";
+import { FAST_EXPORT_FPS, FAST_EXPORT_RANGES, realtimeFactor, resolveFastExportFps, type FastExportPhase } from "@/lib/recording/fastRenderPlan";
+import NumberField from "../NumberField"; // --- uncap-all ---
 import type { SimulatorSettings } from "@/lib/settings";
 
 /*
@@ -41,30 +44,26 @@ export interface FastExportPanelProps {
 
 const one = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
 
-/** The "Fast export" button (or, while it runs, the progress bar with Cancel) and the line saying how it went. */
-export function FastExportButton({ state, supported, disabled, handPlay = false, onStart, onCancel }: FastExportPanelProps) {
+/** How the fast export went, or why its button is off – the line under the studio's transport bar (null: nothing to say). */
+function fastExportMessage(t: ReturnType<typeof useTranslations>, { state, supported, handPlay = false }: Pick<FastExportPanelProps, "state" | "supported" | "handPlay">): { message: string; tone: string } | null {
+  const running = state.status === "running";
+  if (handPlay && !running) return { message: t("handPlayNote"), tone: "text-warn" }; // why the button is off – it outranks how the last export went
+  if (state.status === "done")
+    return { message: t("done", { seconds: one(state.durationSec), format: state.extension.toUpperCase(), wall: one(state.wallMs / 1000), speed: one(realtimeFactor(state.durationSec, state.wallMs)) }), tone: "text-accent" };
+  if (state.status === "fallback") return { message: t(state.reason === "webcodecs" ? "fallbackWebCodecs" : "fallbackCodecs"), tone: "text-warn" };
+  if (state.status === "cancelled") return { message: t("cancelled"), tone: "text-ink-2" };
+  if (state.status === "error") return { message: t("error", { message: state.message }), tone: "text-danger" };
+  if (supported === false) return { message: t("unsupportedNote"), tone: "text-warn" };
+  return null;
+}
+
+/**
+ * The "Fast export" button of the studio's transport bar – while it runs, a compact progress readout with Cancel in its
+ * place. --- site-redesign --- the line saying how it went is FastExportStatus, under the transport bar.
+ */
+export function FastExportButton({ state, disabled, handPlay = false, onStart, onCancel, labelClassName }: FastExportPanelProps & { labelClassName?: string }) {
   const t = useTranslations("FastExport");
   const running = state.status === "running";
-  let message: string | null = null;
-  let tone = "text-zinc-400";
-  if (handPlay && !running) {
-    // Why the button is off – it outranks how the last export went.
-    message = t("handPlayNote");
-    tone = "text-amber-300";
-  } else if (state.status === "done") {
-    message = t("done", { seconds: one(state.durationSec), format: state.extension.toUpperCase(), wall: one(state.wallMs / 1000), speed: one(realtimeFactor(state.durationSec, state.wallMs)) });
-    tone = "text-[#93d119]";
-  } else if (state.status === "fallback") {
-    message = t(state.reason === "webcodecs" ? "fallbackWebCodecs" : "fallbackCodecs");
-    tone = "text-amber-300";
-  } else if (state.status === "cancelled") message = t("cancelled");
-  else if (state.status === "error") {
-    message = t("error", { message: state.message });
-    tone = "text-red-400";
-  } else if (supported === false) {
-    message = t("unsupportedNote");
-    tone = "text-amber-300";
-  }
   const pct = running ? Math.round(100 * state.progress) : 0;
   const label = !running
     ? ""
@@ -78,47 +77,43 @@ export function FastExportButton({ state, supported, disabled, handPlay = false,
   const speed = running ? realtimeFactor(state.clipSec, state.elapsedMs) : 0;
   return (
     <div
-      className="-mt-2 mb-4 space-y-2"
+      className="flex items-center"
       data-fast-export={state.status}
       data-fast-digest={state.status === "done" ? state.digest : undefined}
       data-fast-bytes={state.status === "done" ? state.bytes : undefined}
       data-fast-hand-play={handPlay ? "1" : undefined}
     >
       {running ? (
-        <div className="rounded-xl border border-zinc-700 bg-zinc-800/60 p-3 space-y-2">
-          <div className="flex items-center justify-between text-xs text-zinc-300">
-            <span>⚡ {label}</span>
-            <span className="tabular-nums">{pct}%</span>
+        <div className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface-2 pl-2.5 pr-1" title={speed > 0 ? t("speed", { speed: one(speed) }) : undefined}>
+          <IconBolt size={16} className="shrink-0 text-accent" />
+          <span className="num max-w-[11rem] truncate text-xs text-ink-2">{label}</span>
+          <div className="h-1 w-16 shrink-0 overflow-hidden rounded-full bg-surface-3" role="progressbar" aria-label={t("progressLabel")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+            <div className="h-full rounded-full bg-accent transition-[width] duration-150" style={{ width: `${pct}%` }} />
           </div>
-          <div className="h-2 w-full rounded-full bg-zinc-900 overflow-hidden" role="progressbar" aria-label={t("progressLabel")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-            <div className="h-full rounded-full bg-[#93d119] transition-[width] duration-150" style={{ width: `${pct}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-zinc-500">
-            <span className="tabular-nums">{speed > 0 ? t("speed", { speed: one(speed) }) : " "}</span>
-            <button type="button" onClick={onCancel} className="px-2.5 py-1 rounded-md bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-xs font-medium cursor-pointer">
-              {t("cancel")}
-            </button>
-          </div>
+          <span className="num w-9 text-right text-xs text-ink">{pct}%</span>
+          <button type="button" onClick={onCancel} className="h-6 rounded-[5px] px-2 text-xs font-medium text-ink-2 hover:bg-surface-3 hover:text-ink cursor-pointer">
+            {t("cancel")}
+          </button>
         </div>
       ) : (
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onStart}
-            disabled={disabled || handPlay}
-            className="flex-1 px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#93d119]/60 text-[#93d119] bg-zinc-900/40 hover:bg-[#93d119]/10 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <span aria-hidden="true">⚡</span> {t("button")}
-          </button>
-          <Tooltip text={t("buttonTip")} />
-        </div>
-      )}
-      {message && (
-        <p className={`text-xs leading-snug ${tone}`} role="status">
-          {message}
-        </p>
+        <button type="button" onClick={onStart} disabled={disabled || handPlay} title={t("buttonTip")} className={buttonClass({ variant: "secondary", size: "sm" })}>
+          <IconBolt size={16} />
+          <span className={labelClassName}>{t("button")}</span>
+        </button>
       )}
     </div>
+  );
+}
+
+/** --- site-redesign --- The fast export's outcome line (done, fallback, cancelled, error) or why it is off, under the transport bar. */
+export function FastExportStatus(props: Pick<FastExportPanelProps, "state" | "supported" | "handPlay">) {
+  const t = useTranslations("FastExport");
+  const line = fastExportMessage(t, props);
+  if (!line) return null;
+  return (
+    <p className={`text-xs leading-snug ${line.tone}`} role="status">
+      {line.message}
+    </p>
   );
 }
 
@@ -128,23 +123,27 @@ export function FastExportFpsControl({ t, search, matches, settings: s, update, 
   return (
     <Searchable search={search} matches={matches} labelKey="fastExportFps">
       <div className="space-y-2">
-        <span className="text-sm font-medium text-zinc-300 flex items-center">
+        <span className="text-sm font-medium text-ink-2 flex items-center">
           {t("fastExportFps")}
           <Tooltip text={t("fastExportFpsTip")} />
         </span>
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label={t("fastExportFps")}>
-          {FAST_EXPORT_FPS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={disabled}
-              onClick={() => update({ fastExportFps: value })}
-              aria-pressed={fps === value}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fps === value ? onBtn : offBtn}`}
-            >
-              {t(value === 30 ? "fastExportFps30" : "fastExportFps60")}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="grid flex-1 grid-cols-2 gap-2" role="group" aria-label={t("fastExportFps")}>
+            {FAST_EXPORT_FPS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                disabled={disabled}
+                onClick={() => update({ fastExportFps: value })}
+                aria-pressed={fps === value}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fps === value ? onBtn : offBtn}`}
+              >
+                {t(value === 30 ? "fastExportFps30" : "fastExportFps60")}
+              </button>
+            ))}
+          </div>
+          {/* --- uncap-all --- any other frame rate (from 30 up, 240, 1000…): typed */}
+          <NumberField value={fps} onCommit={(v) => update({ fastExportFps: v })} label={t("fastExportFps")} range={FAST_EXPORT_RANGES.fastExportFps} rules={{ min: FAST_EXPORT_RANGES.fastExportFps.min }} disabled={disabled} settingKey="fastExportFps" />
         </div>
       </div>
     </Searchable>

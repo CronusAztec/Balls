@@ -123,7 +123,7 @@ export function useTimelineTime(): number {
 /** The small AUTO badge next to an automated setting's value. */
 export function TimelineAutoBadge({ t }: { t: Translate }) {
   return (
-    <span data-testid="timeline-auto-badge" title={t("timelineAutoTip")} className="ml-1.5 inline-block align-middle px-1 py-px rounded bg-[#93d119]/15 border border-[#93d119]/40 text-[#93d119] text-[9px] leading-none font-black uppercase tracking-wider">
+    <span data-testid="timeline-auto-badge" title={t("timelineAutoTip")} className="ml-1.5 inline-block align-middle px-1 py-px rounded bg-accent/15 border border-accent/40 text-accent text-xs leading-none font-black uppercase tracking-wider">
       {t("timelineAuto")}
     </span>
   );
@@ -134,7 +134,7 @@ export function TimelineSliderValue({ t, live, fallback }: { t: Translate; live:
   if (!live) return <>{fallback}</>;
   return (
     <span data-timeline-live={live.key}>
-      <span className="text-[#93d119] tabular-nums">{formatTimelineValue(live.key, live.value)}</span>
+      <span className="text-accent tabular-nums">{formatTimelineValue(live.key, live.value)}</span>
       <TimelineAutoBadge t={t} />
     </span>
   );

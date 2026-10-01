@@ -35,24 +35,24 @@ export default function RiggedSection({ t, search, matches, settings: s, update 
     <>
       {!search && (
         <div className="space-y-1">
-          <label className="text-sm font-medium text-zinc-300">
-            🎭 {t("riggedGroup")}
+          <label className="text-sm font-medium text-ink-2">
+            {t("riggedGroup")}
             <Tooltip text={t("riggedGroupTip")} />
           </label>
-          <p className="text-xs text-amber-500/90 leading-relaxed" data-testid="rigged-warning">
-            ⚠️ {t("riggedWarning")}
+          <p className="text-xs text-warn/90 leading-relaxed" data-testid="rigged-warning">
+            {t("riggedWarning")}
           </p>
         </div>
       )}
       <Searchable search={search} matches={matches} labelKey="neverEscape">
         <div className="space-y-1">
           <Toggle t={t} labelKey="neverEscape" tipKey="neverEscapeTip" value={s.neverEscape} onChange={(v) => update({ neverEscape: v })} caseStyle="title" />
-          {s.neverEscape && !neverEscapeApplies(s.mode) && <p className="text-xs text-amber-500/90">{t("neverEscapeModes")}</p>}
+          {s.neverEscape && !neverEscapeApplies(s.mode) && <p className="text-xs text-warn/90">{t("neverEscapeModes")}</p>}
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="forcedWinner">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="forced-winner-select">
+          <label className="text-sm font-medium text-ink-2" htmlFor="forced-winner-select">
             {t("forcedWinner")}
             <Tooltip text={t("forcedWinnerTip")} />
           </label>
@@ -70,9 +70,9 @@ export default function RiggedSection({ t, search, matches, settings: s, update 
               </option>
             ))}
           </select>
-          {(!winnerPlays || (winner >= 0 && !forcedWinnerApplies(s.mode, count, winner))) && <p className="text-xs text-zinc-500 leading-relaxed">{t("forcedWinnerModes")}</p>}
+          {(!winnerPlays || (winner >= 0 && !forcedWinnerApplies(s.mode, count, winner))) && <p className="text-xs text-ink-3 leading-relaxed">{t("forcedWinnerModes")}</p>}
           {winnerPlays && winner >= 0 && forcedWinnerBlockedByNeverEscape(s.mode, s.neverEscape) && (
-            <p className="text-xs text-amber-500/90 leading-relaxed" data-testid="forced-winner-never-escape">
+            <p className="text-xs text-warn/90 leading-relaxed" data-testid="forced-winner-never-escape">
               {t("forcedWinnerNeverEscape")}
             </p>
           )}
@@ -84,7 +84,7 @@ export default function RiggedSection({ t, search, matches, settings: s, update 
   return search ? (
     body
   ) : (
-    <div className="space-y-4 pt-3 border-t border-zinc-800" data-testid="rigged-section">
+    <div className="space-y-4 pt-3 border-t border-line" data-testid="rigged-section">
       {body}
     </div>
   );

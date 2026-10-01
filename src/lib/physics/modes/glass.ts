@@ -1,7 +1,7 @@
 import { resolveBallSegment, segmentBetween, segmentObstacle, type Obstacle, type SegmentObstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
 import { applyMultiplier, hitDamage } from "../multipliers"; // --- gerald-multipliers ---
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Glass Smash ("glass" mode, the geraldbounces "Gerald is determined to smash all of the glass" format): no rings. A
@@ -81,17 +81,26 @@ export interface GlassSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range as a whole number (non-boolean flags and bad numbers fall back to the defaults). */
-export function resolveGlassSettings(config: Partial<GlassSettings> | null | undefined, unlimited = false): GlassSettings {
+export function resolveGlassSettings(config: Partial<GlassSettings> | null | undefined): GlassSettings {
   const out = { ...DEFAULT_GLASS_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(GLASS_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, R.glassRows, out.rows));
-  if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, R.glassHp, out.hp));
-  if (config.stages !== undefined) out.stages = Math.round(clampNumber(config.stages, R.glassStages, out.stages));
+  if (config.rows !== undefined) out.rows = memoryCeiling("glassRows", Math.round(clampNumber(config.rows, GLASS_RANGES.glassRows, out.rows)));
+  if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, GLASS_RANGES.glassHp, out.hp));
+  if (config.stages !== undefined) out.stages = memoryCeiling("glassStages", Math.round(clampNumber(config.stages, GLASS_RANGES.glassStages, out.stages)));
+  // (--- uncap-all --- the panes of every stage together: at most ENTITY_CEILING are built – memory-safety, ARENA FULL past it;
+  // counted stage by stage, as `stageRows()` grows them)
+  let panes = 0;
+  for (let stage = 0; stage < out.stages; stage++) {
+    panes += stageRows(out.rows, stage);
+    if (panes > ENTITY_CEILING) {
+      out.stages = Math.max(1, stage);
+      break;
+    }
+  }
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (typeof config.holes === "boolean") out.holes = config.holes;
   if (typeof config.gates === "boolean") out.gates = config.gates;
@@ -117,7 +126,7 @@ export const MAX_PANE_HP = 7;
 
 /**
  * Panes in stage `stage` (0-based): the setting, plus a third of it per stage after the first, up to MAX_STAGE_ROWS –
- * --- unlimited --- or up to the setting itself when No limits takes it past MAX_STAGE_ROWS (every stage that many panes).
+ * --- unlimited --- or up to the setting itself when it is past MAX_STAGE_ROWS (every stage that many panes).
  */
 export function stageRows(rows: number, stage: number): number {
   const n = Math.round(rows);
@@ -453,8 +462,8 @@ export const GROUND_RESTITUTION = 0.45;
  * where its hole sits or how it slides) – always three, so one pane's kind never shifts the next pane's numbers –
  * and last, with `settings.gates`, the order of every gate row's slots.
  */
-export function buildGlassLevel(width: number, height: number, settingsIn: Partial<GlassSettings>, ballRadius: number, random: () => number, unlimited = false): GlassLevel {
-  const settings = resolveGlassSettings(settingsIn, unlimited); // --- unlimited --- (as the mode resolved them)
+export function buildGlassLevel(width: number, height: number, settingsIn: Partial<GlassSettings>, ballRadius: number, random: () => number): GlassLevel {
+  const settings = resolveGlassSettings(settingsIn);
   const field = buildGlassField(width, height);
   const viewH = field.height;
   const r = Math.max(2, ballRadius);
@@ -1053,8 +1062,6 @@ export class GlassMode implements GameMode {
   /** One ball; nothing to collide with. */
   readonly ballsPassThrough = true;
   private settings: GlassSettings = { ...DEFAULT_GLASS_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: GlassView = createGlassView();
   private ground: SegmentObstacle | null = null;
   private ballId = -1;
@@ -1089,10 +1096,9 @@ export class GlassMode implements GameMode {
   getSettings(): GlassSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Glass Smash setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<GlassSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
-    this.settings = resolveGlassSettings({ ...this.settings, ...patch }, unlimited);
+  /** Applied on the next init (the Simulator re-inits the mode when a Glass Smash setting changes). */
+  setSettings(patch: Partial<GlassSettings>) {
+    this.settings = resolveGlassSettings({ ...this.settings, ...patch });
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): GlassView {
@@ -1115,7 +1121,7 @@ export class GlassMode implements GameMode {
       const u = ctx.random();
       tape.push(u);
       return u;
-    }, this.unlimited);
+    });
     this.tape = tape;
     this.started = false;
     this.layoutW = cfg.width;
@@ -1350,7 +1356,7 @@ export class GlassMode implements GameMode {
     const v = this.view;
     const cfg = ctx.config;
     let i = 0;
-    const level = buildGlassLevel(cfg.width, cfg.height, v.settings, cfg.ballRadius || 8, () => (i < this.tape.length ? this.tape[i++] : 0.5), this.unlimited);
+    const level = buildGlassLevel(cfg.width, cfg.height, v.settings, cfg.ballRadius || 8, () => (i < this.tape.length ? this.tape[i++] : 0.5));
     v.level = level;
     v.panes = level.panes.length;
     v.cameraY = 0;

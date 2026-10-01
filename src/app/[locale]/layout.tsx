@@ -14,6 +14,7 @@ import { assetPath } from "@/lib/site";
 // --- end pwa ---
 import { SHARED_CLIENT_NAMESPACES, pickMessages } from "@/i18n/clientMessages"; // --- review fix (performance) ---
 import "../globals.css";
+import { fontVariables } from "../fonts"; // --- site-redesign --- self-hosted type (no font CDN)
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -48,13 +49,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   setRequestLocale(locale);
   const messages = await getMessages();
   return (
-    <html lang={locale} className="dark" style={{ colorScheme: "dark" }}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font -- App Router root layout: the stylesheet is shared by every page */}
-        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      </head>
+    <html lang={locale} className={`dark ${fontVariables}`} style={{ colorScheme: "dark" }}>
       <body className="antialiased">
         {/* --- review fix (performance) --- only what the shared client components read (pages add their own: i18n/clientMessages.ts) */}
         <NextIntlClientProvider messages={pickMessages(messages, SHARED_CLIENT_NAMESPACES)}>{children}</NextIntlClientProvider>

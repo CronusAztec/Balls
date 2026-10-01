@@ -1,6 +1,6 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import { circleObstacle, resolveBallCircle } from "../obstacles";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited --- (No limits: the settings past their sliders)
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // uncap-all: no maximum, the memory-safety ceilings only
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 
@@ -59,19 +59,19 @@ export function isTyPower(value: unknown): value is TyPower {
 export const TY_MAX_TEAMS = 4;
 
 export interface TerritorySettings {
-  /** Tile columns, 12–48 (the rows follow from the field's aspect: `territoryRows()`). */
+  /** Tile columns, 12–48 on the slider, any number from 12 typed (the rows follow from the field's aspect: `territoryRows()`). */
   cols: number;
   /** 2 (top / bottom) or 4 (quadrants). */
   teams: 2 | 4;
-  /** Balls per team, 1–8. */
+  /** Balls per team, 1–8 on the slider, any number from 1 typed. */
   ballsPerTeam: number;
   /** The power of every team slot (always `TY_MAX_TEAMS` entries; the slots beyond `teams` are ignored). */
   powers: TyPower[];
-  /** Seconds between two triggers of a timed power (vortex, bomber, painter), 1–10. */
+  /** Seconds between two triggers of a timed power (vortex, bomber, painter), 1–10 on the slider, any number from 1 typed. */
   powerEvery: number;
-  /** Reach of the vortex's whirl and the bomber's blast, in tiles, 1–8. */
+  /** Reach of the vortex's whirl and the bomber's blast, in tiles, 1–8 on the slider, any number from 1 typed. */
   radius: number;
-  /** The countdown, seconds, 10–120: the team with the most tiles when it runs out wins. */
+  /** The countdown, seconds, 10–120 on the slider, any number from 10 typed: the team with the most tiles when it runs out wins. */
   duration: number;
   /** The faint dotted grid of the reels: dots every `TY_PEG_STEP` tiles that deflect the balls. */
   pegs: boolean;
@@ -96,7 +96,11 @@ export const DEFAULT_TERRITORY_SETTINGS: TerritorySettings = {
   hud: true,
 };
 
-/** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
+/**
+ * Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`: comfort ranges
+ * (uncap-all, lib/uncap.ts) – a value past a slider is kept as typed; the board's columns, the teams and the balls a run
+ * builds stop at their memory-safety ceilings (`MEMORY_CEILINGS`).
+ */
 export const TERRITORY_RANGES = {
   tyCols: { min: 12, max: 48, step: 1 },
   tyTeams: { min: 2, max: 4, step: 2 },
@@ -123,7 +127,7 @@ export interface TerritorySettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* uncap-all: never a maximum */ : fallback;
 }
 
 /** The four slots' powers from a comma list (or an array); unknown entries and missing slots take the defaults. */
@@ -140,20 +144,21 @@ export function serializeTyPowers(powers: readonly TyPower[]): string {
 }
 
 /**
- * Fills in the defaults and clamps every value (counts and the duration whole, the interval on its 0.5 s steps); unknown
- * powers and non-boolean flags fall back to the defaults. With `unlimited` (No limits on) the numbers go past their sliders,
- * up to their soft ceilings (`rangesFor()`, lib/unlimited.ts); the teams stay 2 or 4.
+ * Fills in the defaults and validates every value (counts and the duration whole, the interval on its 0.5 s steps; a
+ * value below its slider is lifted onto it, a value past it kept – uncap-all, no maximum); the columns and the balls per
+ * team stop at their memory-safety ceilings (`MEMORY_CEILINGS`, lib/uncap.ts: the most a run builds), the teams are 2 or
+ * 4 (any count from 3 up plays the four quadrants). Unknown powers and non-boolean flags fall back to the defaults.
  */
-export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings, "teams" | "powers">> & { teams?: unknown; powers?: unknown } | null | undefined, unlimited = false): TerritorySettings {
+export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings, "teams" | "powers">> & { teams?: unknown; powers?: unknown } | null | undefined): TerritorySettings {
   const out: TerritorySettings = { ...DEFAULT_TERRITORY_SETTINGS, powers: [...DEFAULT_TY_POWERS] };
   if (!config) return out;
-  const R = rangesFor(TERRITORY_RANGES, unlimited);
-  if (config.cols !== undefined) out.cols = Math.round(clampNumber(config.cols, R.tyCols, out.cols));
+  const R = TERRITORY_RANGES;
+  if (config.cols !== undefined) out.cols = memoryCeiling("tyCols", Math.round(clampNumber(config.cols, R.tyCols, out.cols)));
   if (config.teams !== undefined) {
     const n = Number(config.teams);
-    if (Number.isFinite(n)) out.teams = n >= 3 ? 4 : 2;
+    if (Number.isFinite(n)) out.teams = memoryCeiling("tyTeams", n) >= 3 ? 4 : 2;
   }
-  if (config.ballsPerTeam !== undefined) out.ballsPerTeam = Math.round(clampNumber(config.ballsPerTeam, R.tyBallsPerTeam, out.ballsPerTeam));
+  if (config.ballsPerTeam !== undefined) out.ballsPerTeam = memoryCeiling("tyBallsPerTeam", Math.round(clampNumber(config.ballsPerTeam, R.tyBallsPerTeam, out.ballsPerTeam)));
   if (config.powers !== undefined) out.powers = parseTyPowers(config.powers);
   if (config.powerEvery !== undefined) out.powerEvery = Math.round(2 * clampNumber(config.powerEvery, R.tyPowerEvery, out.powerEvery)) / 2;
   if (config.radius !== undefined) out.radius = Math.round(clampNumber(config.radius, R.tyRadius, out.radius));
@@ -164,8 +169,8 @@ export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings,
   return out;
 }
 
-/** Picks the Territory settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setTerritorySettings()` – past the sliders when it has No limits on. */
-export function territorySettingsOf(source: TerritorySettingFields & { unlimited?: boolean }): TerritorySettings {
+/** Picks the Territory settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setTerritorySettings()`. */
+export function territorySettingsOf(source: TerritorySettingFields): TerritorySettings {
   return resolveTerritorySettings({
     cols: source.tyCols,
     teams: source.tyTeams,
@@ -177,7 +182,7 @@ export function territorySettingsOf(source: TerritorySettingFields & { unlimited
     pegs: source.tyPegs,
     badge: source.tyBadge,
     hud: source.tyHud,
-  }, source.unlimited === true);
+  });
 }
 
 /** Writes resolved settings back into the SimulatorSettings field names. */
@@ -206,9 +211,9 @@ export function defaultTerritoryFields(): TerritorySettingFields {
 /** Seconds the default clip runs past the countdown: the verdict, the winner banner and its hold. */
 export const TY_CLIP_TAIL_SEC = 4;
 
-/** The clip length (s) that covers a countdown of `durationSec` and its verdict (clamped to the recording range 10–120). */
+/** The clip length (s) that covers a countdown of `durationSec` and its verdict (at least the recording's 10 s; uncap-all: no maximum). */
 export function territoryClipSec(durationSec: number): number {
-  return Math.max(10, Math.min(120, Math.round(durationSec) + TY_CLIP_TAIL_SEC));
+  return Math.max(10, Math.round(durationSec) + TY_CLIP_TAIL_SEC);
 }
 
 /** The mode's own defaults of shared settings: in Territory the clip covers the default countdown and its verdict. */
@@ -216,7 +221,7 @@ export function territoryModeDefaults(mode: string): { recordingDuration?: numbe
   return mode === "territory" ? { recordingDuration: territoryClipSec(DEFAULT_TERRITORY_SETTINGS.duration) } : {};
 }
 
-/** Validates the feature's fields (URL parameters and presets alike): clamped numbers, known powers, real booleans. */
+/** Validates the feature's fields (URL parameters and presets alike): valid numbers (no maximum), known powers, real booleans. */
 export function resolveTerritoryFields(source: Partial<TerritorySettingFields>): TerritorySettingFields {
   return territorySettingFields(territorySettingsOf({ ...defaultTerritoryFields(), ...stripUndefined(source) }));
 }
@@ -504,14 +509,44 @@ export function awayFromAxes(angle: number): number {
 
 /**
  * Point `k` of `samples` along arm `arm` of a whirl (`TY_WHIRL_ARMS` arms from `angle0`, turning in direction `dir`,
- * out to `radiusPx`), relative to the whirl's centre. Written into `out`.
+ * out to `radiusPx`), relative to the whirl's centre. Written into `out`. With `span` below 1 the samples cover only the
+ * first `span` of the arm (`whirlReach()`: the part on the board), out to `radiusPx`, turning as that part of it does.
  */
-export function whirlPoint(k: number, samples: number, arm: number, angle0: number, dir: number, radiusPx: number, out: { x: number; y: number }) {
+export function whirlPoint(k: number, samples: number, arm: number, angle0: number, dir: number, radiusPx: number, out: { x: number; y: number }, span = 1) {
   const p = samples > 0 ? Math.max(0, Math.min(1, k / samples)) : 1;
-  const theta = angle0 + (TWO_PI * arm) / TY_WHIRL_ARMS + dir * p * TY_WHIRL_TURNS * TWO_PI;
+  const theta = angle0 + (TWO_PI * arm) / TY_WHIRL_ARMS + dir * p * span * TY_WHIRL_TURNS * TWO_PI;
   out.x = Math.cos(theta) * p * radiusPx;
   out.y = Math.sin(theta) * p * radiusPx;
   return out;
+}
+
+/** The part of a whirl's arms on the board (`whirlReach()`). */
+export interface WhirlReach {
+  /** How far (tiles) the arms are walked: the reach, or the board's diagonal when the reach goes past it. */
+  reach: number;
+  /** The share of a whole arm that is (1 when the reach fits the board). */
+  span: number;
+  /** Samples per arm over it (`TY_WHIRL_SAMPLES_PER_TILE` a tile). */
+  samples: number;
+}
+
+/**
+ * The part of a whirl's arms that lies on the board: an arm reaches `radius` tiles – any reach, the setting has no
+ * maximum – but past the board's diagonal its points land off the board, so the mode walks (and the canvas draws) only
+ * the arm's first `span`, out to the diagonal: the same tiles and the same picture, in work bounded by the board.
+ */
+export function whirlReach(radius: number, cols: number, rows: number, out: WhirlReach): WhirlReach {
+  const diagonal = Math.hypot(cols, rows);
+  const past = radius > diagonal;
+  out.reach = past ? diagonal : radius;
+  out.span = past ? diagonal / radius : 1;
+  out.samples = Math.max(8, Math.round(TY_WHIRL_SAMPLES_PER_TILE * out.reach));
+  return out;
+}
+
+/** How many of a whirl's `samples` the sweep has reached at `p` (0–1) of `TY_WHIRL_MS`, when they cover the first `span` of each arm. */
+export function whirlSwept(p: number, samples: number, span: number): number {
+  return Math.round((p >= span ? 1 : p / span) * samples);
 }
 
 /** The last peg column / row index (pegs sit at multiples of `TY_PEG_STEP`, 1 … last; the frame lines carry none). */
@@ -673,6 +708,7 @@ export class TerritoryMode implements GameMode {
   private lastLeader = -1;
   private readonly peg = circleObstacle(0, 0, 1, { restitution: 1, friction: 0 });
   private readonly scratch = { x: 0, y: 0 };
+  private readonly whirl: WhirlReach = { reach: 0, span: 1, samples: 8 };
   /**
    * The conversions of the balls' moves wait for the end of the sub-step (`flush()`): every ball of a sub-step judges the
    * board as it stood when the sub-step began, so the order the engine moves the balls in favours no team.
@@ -690,10 +726,11 @@ export class TerritoryMode implements GameMode {
 
   /**
    * The board, the teams, the balls, the powers, the interval, the reach, the countdown and the pegs apply on the next init;
-   * the badge and the HUD at once. With `unlimited` (No limits on) the numbers run past their sliders, up to their soft ceilings.
+   * the badge and the HUD at once. Every number runs as typed past its slider (the board and the balls up to their
+   * memory-safety ceilings).
    */
-  setSettings(patch: Partial<TerritorySettings>, unlimited = false) {
-    this.settings = resolveTerritorySettings({ ...this.settings, ...patch }, unlimited);
+  setSettings(patch: Partial<TerritorySettings>) {
+    this.settings = resolveTerritorySettings({ ...this.settings, ...patch });
     this.view.settings.badge = this.settings.badge;
     this.view.settings.hud = this.settings.hud;
   }
@@ -1097,14 +1134,15 @@ export class TerritoryMode implements GameMode {
   private stepWhirl(ctx: ModeContext, ball: Ball, tb: TyBall, now: number) {
     const v = this.view;
     const f = v.field;
-    const samples = Math.max(8, Math.round(TY_WHIRL_SAMPLES_PER_TILE * v.settings.radius));
+    // (the arms' part on the board: a reach past it sweeps the board at once, in work bounded by the board)
+    const w = whirlReach(v.settings.radius, v.cols, v.rows, this.whirl);
     const p = Math.min(1, (now - tb.whirlMs) / TY_WHIRL_MS);
-    const upTo = v.finished ? tb.whirlDone : Math.round(p * samples);
-    const R = v.settings.radius * f.tile;
+    const upTo = v.finished ? tb.whirlDone : whirlSwept(p, w.samples, w.span);
+    const R = w.reach * f.tile;
     const q = this.scratch;
     for (let k = tb.whirlDone + 1; k <= upTo; k++) {
       for (let arm = 0; arm < TY_WHIRL_ARMS; arm++) {
-        whirlPoint(k, samples, arm, tb.whirlAngle, tb.curve, R, q);
+        whirlPoint(k, w.samples, arm, tb.whirlAngle, tb.curve, R, q, w.span);
         const col = Math.floor((ball.x + q.x - f.gx) / f.tile);
         const row = Math.floor((ball.y + q.y - f.gy) / f.tile);
         if (col < 0 || row < 0 || col >= v.cols || row >= v.rows) continue;

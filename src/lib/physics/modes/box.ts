@@ -1,6 +1,6 @@
 import type { Ball, GameMode, ModeContext } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 import { pitchedFrequency } from "../bounceMathRuntime"; // --- bounce-math ---
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Bouncing Shapes ("box" mode, the project.jdm DVD / countdown formats): no rings. A rectangular box
@@ -91,20 +91,19 @@ export interface BoxSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range (counts become whole numbers; unknown shapes / ratios and bad numbers fall back to the defaults). */
-export function resolveBoxSettings(config: Partial<BoxSettings> | null | undefined, unlimited = false): BoxSettings {
+export function resolveBoxSettings(config: Partial<BoxSettings> | null | undefined): BoxSettings {
   const out = { ...DEFAULT_BOX_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(BOX_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.shapeCount !== undefined) out.shapeCount = Math.round(clampNumber(config.shapeCount, R.boxShapeCount, out.shapeCount));
+  if (config.shapeCount !== undefined) out.shapeCount = memoryCeiling("boxShapeCount", Math.round(clampNumber(config.shapeCount, BOX_RANGES.boxShapeCount, out.shapeCount)));
   if (isBoxShape(config.shape)) out.shape = config.shape;
-  if (config.aspect !== undefined) out.aspect = clampNumber(config.aspect, R.boxAspect, out.aspect);
-  if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, R.boxGravity, out.gravity);
-  if (config.countdown !== undefined) out.countdown = Math.round(clampNumber(config.countdown, R.boxCountdown, out.countdown));
-  if (config.growPerHit !== undefined) out.growPerHit = clampNumber(config.growPerHit, R.boxGrowPerHit, out.growPerHit);
+  if (config.aspect !== undefined) out.aspect = clampNumber(config.aspect, BOX_RANGES.boxAspect, out.aspect);
+  if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, BOX_RANGES.boxGravity, out.gravity);
+  if (config.countdown !== undefined) out.countdown = Math.round(clampNumber(config.countdown, BOX_RANGES.boxCountdown, out.countdown));
+  if (config.growPerHit !== undefined) out.growPerHit = clampNumber(config.growPerHit, BOX_RANGES.boxGrowPerHit, out.growPerHit);
   if (isBoxSpeedRatio(config.speedRatio)) out.speedRatio = config.speedRatio;
   return out;
 }
@@ -428,9 +427,9 @@ export class BoxMode implements GameMode {
   getSettings(): BoxSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Bouncing Shapes setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<BoxSettings>, unlimited = false) {
-    this.settings = resolveBoxSettings({ ...this.settings, ...patch }, unlimited);
+  /** Applied on the next init (the Simulator re-inits the mode when a Bouncing Shapes setting changes). */
+  setSettings(patch: Partial<BoxSettings>) {
+    this.settings = resolveBoxSettings({ ...this.settings, ...patch });
   }
   getField() {
     return this.field;

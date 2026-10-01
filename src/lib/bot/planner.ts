@@ -504,9 +504,9 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
 export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: SimulatorSettings, facts: RunFacts | null): number | null {
   switch (recipe.strategy) {
     case "cycle":
-      return settings.mode === "polyrhythm" ? polyrhythmCycleSeconds(polyrhythmSettingsOf(settings), settings.unlimited) : settings.pwCycleSeconds; // --- unlimited --- (as the engine resolves them)
+      return settings.mode === "polyrhythm" ? polyrhythmCycleSeconds(polyrhythmSettingsOf(settings)) : settings.pwCycleSeconds;
     case "fixed":
-      return powerLayersPayoffSec(settings.plLayers, settings.plSequence, settings.plSpeed, settings.unlimited);
+      return powerLayersPayoffSec(settings.plLayers, settings.plSequence, settings.plSpeed);
     default:
       break;
   }

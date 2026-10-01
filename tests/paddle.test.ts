@@ -444,8 +444,8 @@ describe("Paddle Keep-Up settings", () => {
     expect(Object.fromEntries(["pda", "pdsk", "pdm", "pdw", "pdsp", "pdu"].map((k) => [k, params.get(k)]))).toEqual({ pda: "0", pdsk: "0.85", pdm: "5", pdw: "0.2", pdsp: "0.25", pdu: "0.035" });
     expect(resolvePaddleFields(settingsFromSearchParams(params))).toEqual(resolvePaddleFields(s));
     const junk = settingsFromSearchParams(new URLSearchParams("mode=paddle&pda=maybe&pdsk=7&pdm=-3&pdw=x&pdsp=0.61&pdu=1"));
-    expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 1, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 0.1 });
-    expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.5 });
+    expect(resolvePaddleFields(junk)).toEqual({ ...defaultPaddleFields(), pdSkill: 7, pdMisses: 0, pdSpin: 0.6, pdSpeedUp: 1 }); // --- uncap-all --- (no maximum)
+    expect(resolvePaddleFields(presetToSettings({ mode: "paddle", pdWidth: 0.9, pdAuto: 1 as never }))).toEqual({ ...defaultPaddleFields(), pdWidth: 0.9 });
     expect(paddleSettingsOf({ ...defaultSettings("paddle"), scale: "minor", rootNote: 4 })).toMatchObject({ scale: "minor", rootNote: 4, skill: 0.7 });
   });
 });

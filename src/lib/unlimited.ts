@@ -17,7 +17,15 @@
  *
  * Everything here is pure (no settings.ts import, which would be a cycle): settings.ts passes its `RANGES`, URL keys
  * and serialiser in.
+ *
+ * --- uncap-all --- The switch no longer gates anything but the slider tracks ("Wide sliders", lib/uncap.ts): every
+ * numeric setting is uncapped whether it is on or off – parsing keeps any valid value, links, presets, project files and
+ * share codes carry it exactly, and the only ceilings left are the memory-safety ones (`ENGINE_CEILINGS` =
+ * `MEMORY_CEILINGS`). `BOUNDED_KEYS` and `SEMANTIC_MAX` are empty: a volume, a fraction or a drag past its slider is the
+ * owner's call too.
  */
+
+import { CROWD_BALL_CEILING, INDEX_KEYS, MEMORY_CEILINGS, RING_CEILING, SIGNED_KEYS, formatCompact, formatExact } from "./uncap"; // --- uncap-all ---
 
 /** The URL key of the switch (`inf=1`). */
 export const UNLIMITED_URL_KEY = "inf";
@@ -29,12 +37,12 @@ export const UNLIMITED_SLIDER_CEILING = 1e9;
 export const LINEAR_SPAN = 500;
 export const SLIDER_SPAN = 1000;
 
-/** The most crowd balls (typed arrays, lib/physics/crowd.ts) a run may hold: ~23 MB of memory, well inside a tab's budget. */
-export const CROWD_LIMIT = 1_000_000;
+/** The most crowd balls (typed arrays, lib/physics/crowd.ts) a run may hold: ~23 MB of memory, well inside a tab's budget (a memory-safety ceiling). */
+export const CROWD_LIMIT = CROWD_BALL_CEILING; // --- uncap-all ---
 /** The most full-physics balls (objects with every mode rule) a run keeps; spawns beyond them join the crowd. */
 export const OBJECT_BALL_LIMIT = 2_000;
-/** The most rings the engine builds (a thousand rings are already a solid disc on a phone screen). */
-export const LIVE_WALL_LIMIT = 1_000;
+/** The most rings the engine builds: its memory-safety ceiling (--- uncap-all --- was 1,000; 100,000 rings are ~20 MB). */
+export const LIVE_WALL_LIMIT = RING_CEILING;
 
 export interface NumericRange {
   min: number;
@@ -47,208 +55,20 @@ export interface NumericRange {
  * hearing-safety matter), indices and enumerations stored as numbers, angles, the recording's own numbers (length,
  * frame rate), which size the export's memory, and the size of the overlay text, which has to fit the frame.
  */
-export const BOUNDED_KEYS: ReadonlySet<string> = new Set([
-  "gapSize",
-  "recordingDuration",
-  "findDuration",
-  "hitSampleVolume",
-  "sliceMs",
-  "sliceFadeMs",
-  "musicVolume",
-  "musicDucking",
-  "musicDuckRelease",
-  "musicStartOffset",
-  "rootNote",
-  "bpm",
-  "colorMatchColorCount",
-  "dropSizeVariation",
-  "dropGravityVariation",
-  "boxAspect",
-  "pwAmplitude",
-  "pwPolygon",
-  "pwTrails",
-  "paintGhost",
-  "paintBeatPulse",
-  "ballSquash",
-  "backgroundDim",
-  "cpSizeSpread",
-  "cameraZoom",
-  "screenShake",
-  "slowMoFactor",
-  "slowMoMs",
-  "forcedWinner",
-  "dpSegments",
-  "dpLength1",
-  "dpLength2",
-  "dpLength3",
-  "dpAngle1",
-  "dpAngle2",
-  "dpAngle3",
-  "dpDamping",
-  "dpOctaves",
-  "ilDepth",
-  "wallWobble",
-  "sbWobble",
-  "plDrift",
-  "fastExportFps",
-  "rcWinner",
-  "arenaNudge",
-  "runnerDensity",
-  "pdSkill",
-  "pdWidth",
-  "pdSpin",
-  "arenaCount",
-  "vxDepthScale",
-  "byChaos",
-  "bdDrift",
-  "bdBounceHeight",
-  "bdAnticipation",
-  "beatDownbeat",
-  "onBeatRange",
-  "videoBgOpacity",
-  "textSize",
-  "tyTeams", // --- odd-territory --- (2 or 4 team regions)
-]);
+export const BOUNDED_KEYS: ReadonlySet<string> = INDEX_KEYS; // --- uncap-all --- only list indices (a slot past the list is invalid): every other numeric setting is uncapped
 
 /** Settings whose meaning ends somewhere even without limits: a drag of 1 stops the ball dead, walls breathing by ±95 % nearly vanish. */
-export const SEMANTIC_MAX: Readonly<Record<string, number>> = { airDrag: 1, breathingAmplitude: 0.95 };
+export const SEMANTIC_MAX: Readonly<Record<string, number>> = {}; // --- uncap-all --- none: a drag past 1 or walls breathing past 100 % are allowed to glitch
 
-/** Settings that are signed: with the switch on they go past both ends of their range. */
-const SYMMETRIC_KEYS: ReadonlySet<string> = new Set(["windX", "windY"]);
+/** Settings that are signed: they go past both ends of their range (--- uncap-all --- lib/uncap.ts). */
+const SYMMETRIC_KEYS: ReadonlySet<string> = SIGNED_KEYS;
 
 /**
- * The settings the engine runs unbounded (up to a float-safety or memory ceiling given here). Every other unlimited
- * setting is kept in the link, the presets and the panel as typed, and its mode runs it at its own slider maximum.
+ * --- uncap-all --- The ceilings the engine applies: the memory-safety ceilings of lib/uncap.ts only (a count that
+ * allocates – rings, crowd balls, a mode's entities). Speeds, sizes, gravity, rotation, thickness and every other value
+ * run exactly as typed.
  */
-export const ENGINE_CEILINGS: Readonly<Record<string, number>> = {
-  ballSpeed: 1e12,
-  ballRadius: 1e9,
-  gravity: 1e12,
-  rotationSpeed: 1e9,
-  wallCount: LIVE_WALL_LIMIT,
-  wallThickness: 400,
-  trailThickness: 40,
-  accumulationTime: 1e9,
-  spikeCount: 360,
-  multiplySpawnCount: CROWD_LIMIT,
-  targetCount: 100,
-  growRate: 1e9,
-  windX: 1e9,
-  windY: 1e9,
-  spinStrength: 1e6,
-  wallBounciness: 1e9,
-  breathingSpeed: 1e6,
-  rotatingGravity: 1e9,
-  airDrag: 1,
-  breathingAmplitude: 0.95,
-  splitMinRadius: 1e9,
-  maxBalls: OBJECT_BALL_LIMIT,
-  ballCount: CROWD_LIMIT,
-  // The modes' own settings (each mode's resolver lifts them to these with the switch on: `rangesFor()`). Counts of
-  // things a step or a frame visits are bounded by what a step and a frame can afford; times, rates, hit points and
-  // factors by float safety.
-  // Ball Drop
-  dropBallCount: OBJECT_BALL_LIMIT,
-  dropRows: 120,
-  dropSpawnInterval: 1e6,
-  // Bouncing Shapes
-  boxShapeCount: OBJECT_BALL_LIMIT,
-  boxGravity: 1e6,
-  boxCountdown: 1e9,
-  boxGrowPerHit: 1e9,
-  // Pendulum Wave
-  pwCount: OBJECT_BALL_LIMIT,
-  pwBaseOscillations: 1e6,
-  pwCycleSeconds: 1e9,
-  pwCycles: 1e9,
-  // Metronomes & Polyrhythms
-  prCount: OBJECT_BALL_LIMIT,
-  prCycleSeconds: 1e9,
-  prBaseBpm: 1e5,
-  prBpmStep: 1e4,
-  prAccentEvery: 1e9,
-  prCycles: 1e9,
-  // Collision Playground
-  cpCount: 5_000,
-  cpGravity: 1e6,
-  cpRestitution: 1e3,
-  cpAntiCollisionAt: 1e9,
-  // Glass Smash
-  glassRows: 500,
-  glassHp: 1e9,
-  glassStages: 50,
-  // Picture Paint
-  paintBrush: 1e6,
-  // Multipliers
-  mpCap: 1e9,
-  wallSmashThreshold: 1e9,
-  pickupRate: 60,
-  pickupLifetime: 1e6,
-  mpRows: 1_000,
-  mpStartBalls: OBJECT_BALL_LIMIT,
-  mpMaxBalls: OBJECT_BALL_LIMIT, // (the board's balls are full-physics balls: its slider already ends at the full-physics limit)
-  mpTarget: 1e9,
-  bumperBoost: 1e3,
-  // Double Pendulum
-  dpCount: 64,
-  dpMass1: 1e6,
-  dpMass2: 1e6,
-  dpMass3: 1e6,
-  dpGravity: 100, // (the integrator keeps every swing accurate: past ~100× the swings need more sub-steps than a frame affords)
-  dpTrailSeconds: 600,
-  dpStrings: 1_000,
-  // Circle Illusion
-  ilBalls: OBJECT_BALL_LIMIT,
-  ilRings: LIVE_WALL_LIMIT,
-  ilPainters: 100,
-  ilSpeed: 1e3,
-  ilCycles: 1e9,
-  // String Battle
-  sbBalls: 64,
-  sbLives: 1e9,
-  sbMaxStrings: 2_000,
-  sbDuration: 1e9,
-  sbFinaleSpeed: 1e3,
-  // Power Layers
-  plLayers: 100_000,
-  plSpeed: 1e3,
-  // Square Racing (the per-racer state is sized for 16 racers: they stay at the slider's 16)
-  rcRacers: 16,
-  rcTrackLength: 100,
-  rcLaps: 20,
-  // Battle Royale and Capture the Flag
-  btCount: 200,
-  btHp: 1e9,
-  btDamage: 1e9,
-  ctfPerTeam: 50,
-  ctfScoreToWin: 1e9,
-  // Beat Runner and Paddle Keep-Up
-  runnerObstacles: 10_000,
-  runnerSpeed: 1e3,
-  runnerJump: 1e3,
-  pdMisses: 1e9,
-  pdSpeedUp: 10,
-  // Sound Vortex
-  vxBalls: OBJECT_BALL_LIMIT,
-  vxStagger: 1e6,
-  vxRings: LIVE_WALL_LIMIT,
-  vxDuration: 1e6,
-  vxGravity: 1e3,
-  // Journey
-  journeyAutoStages: 1_000,
-  // Bullseye
-  byShots: OBJECT_BALL_LIMIT,
-  byInterval: 1e6,
-  byRings: 100,
-  byPerfect: OBJECT_BALL_LIMIT,
-  // --- odd-territory --- Territory (the board's tiles are a typed array the canvas diffs every frame; a blast and a whirl
-  // visit the tiles within their reach)
-  tyCols: 200,
-  tyBallsPerTeam: 100,
-  tyPowerEvery: 1e6,
-  tyRadius: 200,
-  tyDuration: 1e6,
-};
+export const ENGINE_CEILINGS: Readonly<Record<string, number>> = MEMORY_CEILINGS;
 
 export function isBoundedKey(key: string): boolean {
   return BOUNDED_KEYS.has(key);
@@ -265,8 +85,9 @@ export function unlimitedBounds(key: string, range: NumericRange): { min: number
   return { min: SYMMETRIC_KEYS.has(key) ? -Infinity : range.min, max };
 }
 
-function isIntegerRange(range: NumericRange): boolean {
-  return Number.isInteger(range.step) && range.step >= 1 && Number.isInteger(range.min);
+/** Whole numbers only: a setting stepping by one (counts, indices, notes, seconds) – --- uncap-all --- a speed stepping by ten keeps its decimals. */
+export function isIntegerRange(range: NumericRange): boolean {
+  return range.step === 1 && Number.isInteger(range.min);
 }
 
 /**
@@ -295,69 +116,34 @@ export function beyondRange(key: string, value: number, range: NumericRange): bo
   return value > range.max || (SYMMETRIC_KEYS.has(key) && value < range.min);
 }
 
-/** The most the engine runs of `key`: its engine ceiling, or its slider maximum for a setting only its mode reads. */
+/**
+ * The most the engine builds of `key`: its memory-safety ceiling (--- uncap-all --- every other setting runs as typed:
+ * Infinity).
+ */
 export function softCeiling(key: string, range: NumericRange): number {
-  return ENGINE_CEILINGS[key] ?? range.max;
+  void range;
+  return ENGINE_CEILINGS[key] ?? Infinity;
 }
-
-/** What the canvas draws of a visual setting (`wallThickness`, `trailThickness`): its engine ceiling with the switch on. */
-export function visualValue(unlimited: boolean, key: string, value: number): number {
-  const ceiling = ENGINE_CEILINGS[key];
-  return unlimited && ceiling !== undefined && !(value <= ceiling) ? ceiling : value;
-}
-
-const liftedCache = new WeakMap<object, Readonly<Record<string, NumericRange>>>();
 
 /**
- * A mode's slider ranges as its resolver uses them with the switch on: every unlimited key (see `isUnlimitedKey()`) has
- * its maximum lifted to its soft ceiling (`softCeiling()`), bounded keys keep theirs. The same object for the same
- * ranges (cached), so a resolver can call it on every `setSettings()`.
+ * --- uncap-all --- The widest line the canvas strokes (px): a line wider than this covers any canvas a browser can hold
+ * (Chrome's largest is 16,384 px, a diagonal of ~23,000), so drawing it at this width looks exactly the same – and keeps
+ * `lineWidth` a finite number (the canvas ignores ±Infinity and would keep the previous width).
  */
-export function liftedRanges<T extends Readonly<Record<string, NumericRange>>>(ranges: T): { readonly [K in keyof T]: NumericRange } {
-  const cached = liftedCache.get(ranges);
-  if (cached) return cached as { readonly [K in keyof T]: NumericRange };
-  const out: Record<string, NumericRange> = {};
-  for (const [key, range] of Object.entries(ranges)) out[key] = isUnlimitedKey(key, range) ? { min: range.min, max: Math.max(range.max, softCeiling(key, range)), step: range.step } : range;
-  liftedCache.set(ranges, out);
-  return out as { readonly [K in keyof T]: NumericRange };
-}
+export const DRAW_EXTENT_PX = 1e5;
 
-/** The ranges a mode's resolver clamps to: its slider ranges, or – with the switch on – those lifted to their soft ceilings. */
-export function rangesFor<T extends Readonly<Record<string, NumericRange>>>(ranges: T, unlimited: boolean | undefined): { readonly [K in keyof T]: NumericRange } {
-  return unlimited === true ? liftedRanges(ranges) : ranges;
-}
-
-/** A value brought back into `range` (the switch was turned off). */
-export function clampToRange(value: number, range: NumericRange): number {
-  if (!Number.isFinite(value)) return range.min;
-  return Math.max(range.min, Math.min(range.max, value));
+/** What the canvas strokes of a width (`wallThickness`, `trailThickness`): the value itself, drawn no wider than `DRAW_EXTENT_PX` (the same picture). */
+export function visualValue(value: number): number {
+  if (!Number.isFinite(value)) return value > 0 ? DRAW_EXTENT_PX : 0;
+  return value > DRAW_EXTENT_PX ? DRAW_EXTENT_PX : value;
 }
 
 /* ------------------------------------------------------------------ numbers and the slider */
 
-const SUFFIXES: readonly [number, string][] = [
-  [1e15, "Q"],
-  [1e12, "T"],
-  [1e9, "B"],
-  [1e6, "M"],
-  [1e3, "K"],
-];
 
-/** A short label for a big number: 1e9 → "1B", 2_500_000 → "2.5M", 12_345 → "12.3K"; small numbers as they are. */
+/** A short label for a big number: 1e9 → "1B", 2_500_000 → "2.5M", 12_345 → "12.3K"; small numbers as they are (--- uncap-all --- lib/uncap.ts). */
 export function formatHuge(n: number): string {
-  if (!Number.isFinite(n)) return n > 0 ? "∞" : n < 0 ? "-∞" : "NaN";
-  const sign = n < 0 ? "-" : "";
-  const a = Math.abs(n);
-  if (a >= 1e18) return `${sign}${a.toExponential(1).replace("e+", "e")}`;
-  for (const [unit, suffix] of SUFFIXES) {
-    if (a >= unit) {
-      const v = a / unit;
-      const digits = v >= 100 ? 0 : v >= 10 ? 1 : 2;
-      return `${sign}${Number(v.toFixed(digits))}${suffix}`;
-    }
-  }
-  if (a >= 100 || Number.isInteger(a)) return `${sign}${Math.round(a)}`;
-  return `${sign}${Number(a.toPrecision(3))}`;
+  return formatCompact(n);
 }
 
 /** Rounds a slider value in the logarithmic part to two significant digits (a readable 3.4M, not 3,417,262). */
@@ -455,11 +241,9 @@ export function discoverUrlKeys(
   return map;
 }
 
-/** A number in a link: plain digits up to 1e21, exponent notation beyond (both read back exactly by `Number()`). */
+/** A number in a link, exactly (--- uncap-all --- the shortest text `Number()` reads back as the same value: 1e21, 0.1, 1234.5678). */
 export function formatUnlimitedNumber(n: number): string {
-  if (Number.isInteger(n)) return String(n);
-  const fixed = n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
-  return Number(fixed) === 0 && n !== 0 ? String(n) : fixed;
+  return formatExact(n);
 }
 
 /**
@@ -467,13 +251,19 @@ export function formatUnlimitedNumber(n: number): string {
  * (replacing a value a feature writer clamped), else in `infx`. Values inside the normal range were written already.
  */
 export function writeUnlimitedParams(settings: Numbers, params: URLSearchParams, keys: readonly string[], ranges: Ranges, urlKeys: ReadonlyMap<string, string>) {
-  if (settings.unlimited !== true) return;
+  // --- uncap-all --- whatever the switch: every value past its slider travels exactly
   const extra: string[] = [];
   for (const key of keys) {
     const range = ranges[key];
     const value = settings[key];
-    if (!range || typeof value !== "number" || !Number.isFinite(value) || !beyondRange(key, value, range)) continue;
+    if (!range || typeof value !== "number" || !Number.isFinite(value)) continue;
     const param = urlKeys.get(key);
+    if (!beyondRange(key, value, range)) {
+      // --- uncap-all --- a value the setting's own writer rounded (three decimals) goes back in exactly
+      const written = param ? params.get(param) : null;
+      if (param && written !== null && Number(written) !== value) params.set(param, formatUnlimitedNumber(value));
+      continue;
+    }
     if (param) params.set(param, formatUnlimitedNumber(value));
     else extra.push(`${key}:${formatUnlimitedNumber(value)}`);
   }
@@ -486,7 +276,7 @@ export function writeUnlimitedParams(settings: Numbers, params: URLSearchParams,
  * the minimum) falls back to the default. `infx` carries the settings without a URL key of their own.
  */
 export function readUnlimitedParams(params: URLSearchParams, settings: Numbers, defaults: Numbers, keys: readonly string[], ranges: Ranges, urlKeys: ReadonlyMap<string, string>) {
-  if (settings.unlimited !== true) return;
+  // --- uncap-all --- whatever the switch (`inf` is only the Wide sliders now): a valid value in the link is taken exactly
   const given = new Map<string, string>();
   for (const key of keys) {
     const param = urlKeys.get(key);
@@ -508,8 +298,11 @@ export function readUnlimitedParams(params: URLSearchParams, settings: Numbers, 
     const raw = given.get(key);
     if (raw !== undefined) {
       const value = parseUnlimitedValue(key, raw, range);
-      if (value === null) settings[key] = defaults[key];
-      else if (beyondRange(key, value, range)) settings[key] = value;
+      // (--- uncap-all --- a finite number below the minimum was lifted onto it by the setting's own reader, as always;
+      // anything else invalid falls back to the default)
+      if (value === null) {
+        if (!Number.isFinite(Number(raw)) || String(raw).trim() === "") settings[key] = defaults[key];
+      } else if (beyondRange(key, value, range)) settings[key] = value; // (inside the range the feature readers keep their own normalisation)
     }
     rejectInvalid(key, settings, defaults, range);
   }
@@ -529,27 +322,17 @@ function rejectInvalid(key: string, settings: Numbers, defaults: Numbers, range:
  */
 export function restoreUnlimitedValues(source: Numbers, merged: Numbers, defaults: Numbers, keys: readonly string[], ranges: Ranges) {
   merged.unlimited = source.unlimited === true;
-  if (!merged.unlimited) return;
+  // --- uncap-all --- whatever the switch: stored values are kept exactly, invalid ones fall back to the default
   for (const key of keys) {
     const range = ranges[key];
     if (!range) continue;
     if (Object.prototype.hasOwnProperty.call(source, key)) {
       const value = parseUnlimitedValue(key, source[key], range);
-      if (value === null) merged[key] = defaults[key];
-      else if (beyondRange(key, value, range)) merged[key] = value;
+      // (--- uncap-all --- as in readUnlimitedParams(): a finite number below the minimum was lifted onto it by the resolver)
+      if (value === null) {
+        if (typeof source[key] !== "number" || !Number.isFinite(source[key] as number)) merged[key] = defaults[key];
+      } else if (beyondRange(key, value, range)) merged[key] = value; // (inside the range the resolvers keep their own normalisation)
     }
     rejectInvalid(key, merged, defaults, range);
   }
-}
-
-/** The settings patch that brings every out-of-range unlimited value back into its range (the switch is turned off). */
-export function clampUnlimitedPatch(settings: Numbers, keys: readonly string[], ranges: Ranges): Numbers {
-  const patch: Numbers = {};
-  for (const key of keys) {
-    const range = ranges[key];
-    const value = settings[key];
-    if (!range || typeof value !== "number") continue;
-    if (value > range.max || value < range.min || !Number.isFinite(value)) patch[key] = clampToRange(value, range);
-  }
-  return patch;
 }

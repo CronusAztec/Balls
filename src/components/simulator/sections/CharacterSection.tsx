@@ -23,13 +23,13 @@ export interface CharacterSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx). */
 export const CHARACTER_KEYS = ["ballFace", "ballName", "nameLabel", "ballSquash", "faceOverImage", "faceSounds", "geraldPersona"];
 
-const FACE_OPTIONS: Record<FaceStyle, { icon: string; labelKey: string }> = {
-  none: { icon: "⚪", labelKey: "faceNone" },
-  dot: { icon: "😶", labelKey: "faceDot" },
-  cute: { icon: "🥺", labelKey: "faceCute" },
-  cool: { icon: "😎", labelKey: "faceCool" },
-  cat: { icon: "🐱", labelKey: "faceCat" },
-  angry: { icon: "😠", labelKey: "faceAngry" },
+const FACE_OPTIONS: Record<FaceStyle, { labelKey: string }> = {
+  none: { labelKey: "faceNone" },
+  dot: { labelKey: "faceDot" },
+  cute: { labelKey: "faceCute" },
+  cool: { labelKey: "faceCool" },
+  cat: { labelKey: "faceCat" },
+  angry: { labelKey: "faceAngry" },
 };
 
 /** The preview acts out every expression in a loop: [expression, ms]. */
@@ -154,10 +154,10 @@ function FacePreview({ settings, ballImage, ballEmoji, label }: { settings: Simu
         data-testid="face-preview"
         data-face={settings.ballFace}
         aria-hidden="true"
-        className="rounded-xl bg-zinc-950 border border-zinc-700/70"
+        className="rounded-xl bg-bg border border-line-strong/70"
         style={{ width: PREVIEW_SIZE, height: PREVIEW_SIZE }}
       />
-      {label && <span className="text-[11px] font-semibold text-zinc-300 max-w-[76px] truncate">{label}</span>}
+      {label && <span className="text-xs font-semibold text-ink-2 max-w-[76px] truncate">{label}</span>}
     </div>
   );
 }
@@ -177,8 +177,8 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
     <>
       {!search && (
         <div className="flex items-center justify-between gap-2">
-          <label className="text-sm font-medium text-zinc-300">
-            🙂 {t("character")}
+          <label className="text-sm font-medium text-ink-2">
+            {t("character")}
             <Tooltip text={t("characterTip")} />
           </label>
         </div>
@@ -187,7 +187,7 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
         <div className="flex items-start gap-3">
           <FacePreview settings={s} ballImage={ballImage} ballEmoji={ballEmoji} label={s.nameLabel ? s.ballName : ""} />
           <div className="flex-1 space-y-2 min-w-0">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-ink-2">
               {t("ballFace")}
               <Tooltip text={t("ballFaceTip")} />
             </label>
@@ -198,9 +198,9 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
                   key={style}
                   onClick={() => update({ ballFace: style })}
                   aria-pressed={s.ballFace === style}
-                  className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer truncate ${s.ballFace === style ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                  className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer truncate ${s.ballFace === style ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                 >
-                  <span aria-hidden="true">{FACE_OPTIONS[style].icon}</span> {t(FACE_OPTIONS[style].labelKey)}
+                  {t(FACE_OPTIONS[style].labelKey)}
                 </button>
               ))}
             </div>
@@ -209,20 +209,20 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="geraldPersona">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("geraldPersonaDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("geraldPersonaDesc")}</p>
           <button
             type="button"
             onClick={() => update(geraldPersonaPatch(s))}
             aria-pressed={s.ballFace === GERALD_PERSONA.ballFace && s.ballName === GERALD_PERSONA.ballName}
-            className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-[#93d119]/40 hover:bg-zinc-700"
+            className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface-2 text-accent border border-accent/40 hover:bg-surface-3"
           >
-            🐾 {t("geraldPersona")}
+            {t("geraldPersona")}
           </button>
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="ballName">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300 flex items-center" htmlFor="ball-name-input">
+          <label className="text-sm font-medium text-ink-2 flex items-center" htmlFor="ball-name-input">
             {t("ballName")}
             <Tooltip text={t("ballNameTip")} />
           </label>
@@ -233,7 +233,7 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
             onChange={(e) => update({ ballName: e.target.value.slice(0, MAX_NAME_LENGTH) })}
             placeholder={t("ballNamePlaceholder")}
             maxLength={MAX_NAME_LENGTH}
-            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+            className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
           />
         </div>
       </Searchable>
@@ -242,7 +242,7 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
           <Toggle t={t} labelKey="nameLabel" tipKey="nameLabelTip" value={s.nameLabel} onChange={(v) => update({ nameLabel: v })} caseStyle="title" />
         </Searchable>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="ballSquash" tipKey="ballSquashTip" value={s.ballSquash} range={RANGES.ballSquash} onChange={(v) => update({ ballSquash: v })} display={`${Math.round(100 * s.ballSquash)}%`} left="🪨" right="🍮" />
+      <Slider t={t} search={search} matches={matches} labelKey="ballSquash" tipKey="ballSquashTip" value={s.ballSquash} range={RANGES.ballSquash} onChange={(v) => update({ ballSquash: v })} display={`${Math.round(100 * s.ballSquash)}%`} />
       {showOverImage && (
         <Searchable search={search} matches={matches} labelKey="faceOverImage">
           <Toggle t={t} labelKey="faceOverImage" tipKey="faceOverImageTip" value={s.faceOverImage} onChange={(v) => update({ faceOverImage: v })} caseStyle="title" />
@@ -252,12 +252,12 @@ export default function CharacterSection({ t, search, matches, settings: s, upda
         <Searchable search={search} matches={matches} labelKey="faceSounds">
           <div className="space-y-1">
             <Toggle t={t} labelKey="faceSounds" tipKey="faceSoundsTip" value={s.faceSounds} onChange={(v) => update({ faceSounds: v })} caseStyle="title" />
-            {s.faceSounds && s.hitSoundMode === "sample" && <p className="text-xs text-amber-500/90">{t("faceSoundsSampleNote")}</p>}
+            {s.faceSounds && s.hitSoundMode === "sample" && <p className="text-xs text-warn/90">{t("faceSoundsSampleNote")}</p>}
           </div>
         </Searchable>
       )}
     </>
   );
   // While searching, the matching controls stand on their own like every other control of the section.
-  return search ? body : <div className="space-y-4 pb-3 border-b border-zinc-800">{body}</div>;
+  return search ? body : <div className="space-y-4 pb-3 border-b border-line">{body}</div>;
 }

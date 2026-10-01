@@ -36,9 +36,11 @@ describe("Desktop messages", () => {
     expect(used.size).toBeGreaterThan(100);
     expect([...used].filter((k) => !all.has(k))).toEqual([]);
     // The landing button and the navbar / footer link read the small DesktopLink namespace (every page hands it to the client).
+    // --- site-redesign --- the landing button's labels come from the hero (a server component) as props.
     const link = new Set(Object.keys((en as unknown as { DesktopLink: Record<string, string> }).DesktopLink));
-    const linkUsed = [...fs.readFileSync(path.join(root, "components/site/DownloadAppButton.tsx"), "utf8").matchAll(/\bt\("([A-Za-z0-9_.]+)"/g)].map((m) => m[1]);
-    for (const f of ["Navbar.tsx", "Footer.tsx"]) for (const m of fs.readFileSync(path.join(root, "components/site", f), "utf8").matchAll(/\bdesktop\("([A-Za-z0-9_.]+)"/g)) linkUsed.push(m[1]);
+    const linkUsed: string[] = [];
+    for (const f of ["Hero.tsx", "Navbar.tsx", "Footer.tsx"]) for (const m of fs.readFileSync(path.join(root, "components/site", f), "utf8").matchAll(/\bdesktop\("([A-Za-z0-9_.]+)"/g)) linkUsed.push(m[1]);
+    expect(new Set(linkUsed)).toEqual(link);
     expect(linkUsed.length).toBeGreaterThanOrEqual(3);
     expect(linkUsed.filter((k) => !link.has(k))).toEqual([]);
     for (const m of [pl, es] as unknown as { DesktopLink: Record<string, string> }[]) expect(Object.keys(m.DesktopLink).sort()).toEqual([...link].sort());

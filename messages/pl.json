@@ -1,6 +1,5 @@
 {
   "Headings": {
-    "features": "Funkcje i personalizacja",
     "modes": "Tryby gry",
     "modesEscape": "Tryby ucieczki",
     "modesRhythm": "Tryby rytmiczne i polirytmiczne",
@@ -11,22 +10,10 @@
   },
   "Navbar": {
     "simulator": "Symulator",
-    "modes": "Tryby",
-    "features": "Funkcje",
-    "faq": "FAQ",
     "goHome": "Strona główna",
     "openMenu": "Otwórz menu",
     "closeMenu": "Zamknij menu",
-    "back": "← Wróć",
-    "backToSimulator": "← Wróć do symulatora"
-  },
-  "Hero": {
-    "title1": "Satysfakcjonująca fizyka piłki",
-    "title2": "na TikToka i Reels",
-    "subtitle": "Twórz hipnotyzujące symulacje odbijającej się piłki w przeglądarce: dostrój fizykę, nałóż tęczowe efekty, wybierz jeden z {count} trybów i wyeksportuj pionowe MP4 gotowe do publikacji. Za darmo, bez konta, bez instalacji.",
-    "startCreating": "Zacznij tworzyć",
-    "exploreModes": "Odkryj tryby",
-    "mobileNotice": "Najlepiej korzystać z przeglądarki na komputerze lub laptopie. Sterowanie jest zoptymalizowane pod większe ekrany."
+    "back": "Wróć"
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
@@ -53,13 +40,13 @@
   "Simulator": {
     "stopRecording": "REC",
     "restart": "Uruchom ponownie",
-    "resume": "▶ Wznów",
-    "pause": "⏸ Pauza",
-    "restartSimulation": "🔄 Uruchom symulację ponownie",
+    "resume": "Wznów",
+    "pause": "Pauza",
+    "restartSimulation": "Uruchom symulację ponownie",
     "ready": "Gotowy do uruchomienia symulacji",
     "readyToStartSimulationFor": "Gotowy do uruchomienia symulacji trwającej {duration}s",
-    "doNotChangeSettingsWarning": "⚠️ Nie zmieniaj ustawień podczas odtwarzania, aby zachować dokładność symulacji.",
-    "startSimulator": "▶ Uruchom symulator",
+    "doNotChangeSettingsWarning": "Nie zmieniaj ustawień podczas odtwarzania, aby zachować dokładność symulacji.",
+    "startSimulator": "Uruchom symulator",
     "stopRecordingTooltip": "Zatrzymaj nagrywanie i wyeksportuj wideo",
     "restartTooltip": "Uruchom ponownie (R)",
     "canvasEscaped": "UCIEKŁA!",
@@ -194,12 +181,12 @@
     "canvasRacePoints": "pkt"
   },
   "HowItWorks": {
-    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z {count} trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
+    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z {count} trybów: pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże." },
     "step2": { "title": "Dostosuj wszystko", "description": "Zmieniaj fizykę, kolory, efekty, nakładki tekstowe i wygląd piłki, aż klip będzie wyglądał tak, jak chcesz." },
     "step3": { "title": "Eksportuj i udostępniaj", "description": "Nagraj symulację jako MP4 w dowolnej rozdzielczości, w tym w pionowym formacie TikTok, i opublikuj, gdzie chcesz." }
   },
   "Controls": {
-    "modeDisplay": "Zmień tryb ↓",
+    "modeDisplay": "Zmień tryb",
     "accumulationEscape": "Czas na ucieczkę",
     "accumulationEscapeTip": "Liczba sekund, jakie piłka ma na ucieczkę, zanim zamarznie w miejscu.",
     "spikes": "Kolce",
@@ -209,7 +196,7 @@
     "spawnCount": "Liczba nowych piłek",
     "spawnCountTip": "Ile nowych piłek pojawia się za każdym razem, gdy jedna ucieknie przez ścianę.",
     "lineColor": "Kolor linii",
-    "rainbowSettings": "🌈 Tęcza",
+    "rainbowSettings": "Tęcza",
     "targetCount": "Liczba celów",
     "targetCountTip": "Ile ponumerowanych segmentów umieścić na ścianie.",
     "randomOrder": "Losowa kolejność",
@@ -226,8 +213,8 @@
     "twoBalls": "Dwie piłki",
     "twoBallsTip": "Dodaj drugą piłkę poruszającą się w przeciwnym kierunku, aby podwoić akcję.",
     "ballColor2": "Kolor drugiej piłki",
-    "bouncier": "Coraz bardziej sprężysta",
-    "bouncierTip": "Piłka przyspiesza z każdym odbiciem od ściany, nabierając rozpędu aż do ucieczki.",
+    "bouncier": "Sprężystość",
+    "bouncierTip": "Każde odbicie od ściany dodaje do odbicia (Sprężystość − 1) × prędkość piłki, bez żadnego sufitu: 1 = wyłączone, 1,03 = klasyczne „coraz bardziej sprężysta”, 3 = +200 % na odbicie, 1e6 = milion razy. Piłka przyspiesza, aż ucieknie – albo wysadzi stronę.",
     "ballInteraction": "Interakcja piłek",
     "ballInteractionTip": "Co piłki robią ze sobą nawzajem: odbijają się (domyślnie), łączą się w jedną większą piłkę przy zetknięciu, dzielą się na dwie przy każdym przebiciu ściany albo przenikają przez siebie. Deterministyczne: uwzględniają to udostępniane linki, presety i wyszukiwanie symulacji.",
     "interactionBounce": "Odbicie",
@@ -295,11 +282,11 @@
     "trailThicknessTip": "Jak gruby jest ślad piłki. Wyższe wartości dają wyraźniejszą smugę.",
     "wallBreakEffect": "Efekt przebicia ściany",
     "wallBreakEffectTip": "Efekt wizualny odtwarzany, gdy piłka przebija się przez ścianę.",
-    "effectConfetti": "🎊 Konfetti",
-    "effectShatter": "💎 Rozbicie",
-    "effectShockwave": "💫 Fala uderzeniowa",
-    "effectAll": "✨ Wszystkie",
-    "effectNone": "🚫 Brak",
+    "effectConfetti": "Konfetti",
+    "effectShatter": "Rozbicie",
+    "effectShockwave": "Fala uderzeniowa",
+    "effectAll": "Wszystkie",
+    "effectNone": "Brak",
     "wallBreakSound": "Dźwięk przebicia ściany",
     "wallBreakSoundDesc": "Odtwórz własny klip audio zamiast domyślnych tonów, gdy piłka przebija ścianę.",
     "wallBreakSoundDefault": "Domyślne tony",
@@ -572,7 +559,7 @@
     "modeTitle": "Tryb",
     "recording": "Nagrywanie",
     "uploadPlaceholder": "Prześlij obrazek",
-    "finderTitle": "Wyszukiwarka symulacji 🔍",
+    "finderTitle": "Wyszukiwarka symulacji",
     "finderDesc": "Znajdź seed symulacji trwającej dokładnie tyle, ile wybierzesz, z uwzględnieniem wszystkich Twoich ustawień.",
     "targetDuration": "Docelowy czas trwania",
     "searching": "Symulowanie kombinacji...",
@@ -1128,7 +1115,7 @@
     "plRunChaos": "Chaos: liczbę uderzeń wyznacza ziarno ({period}s na odbicie), więc Wyszukiwarka symulacji może szukać długości.",
     "plFixedRunLength": "Zawsze {duration}s przy tych ustawieniach – zmień warstwy, ciąg albo szybkość odbić",
     "fastExportFps": "Klatki szybkiego eksportu",
-    "fastExportFpsTip": "Liczba klatek na sekundę w ⚡ szybkim eksporcie: 60 daje najpłynniejszy obraz, 30 – mniejszy plik i krótsze renderowanie. Fizyka zawsze liczy 60 kroków na sekundę, więc przebieg i dźwięki są w obu przypadkach takie same.",
+    "fastExportFpsTip": "Liczba klatek na sekundę w szybkim eksporcie: 60 daje najpłynniejszy obraz, 30 – mniejszy plik i krótsze renderowanie. Fizyka zawsze liczy 60 kroków na sekundę, więc przebieg i dźwięki są w obu przypadkach takie same.",
     "fastExportFps30": "30 kl./s",
     "fastExportFps60": "60 kl./s",
     "projectFiles": "Plik projektu",
@@ -1479,7 +1466,7 @@
     "publishTip": "Wyślij gotowy klip na swoje konta TikTok, Instagram i YouTube – po kilka na platformę – jednym kliknięciem: na YouTube prosto z przeglądarki, na TikToka i Instagrama przez mały relay, który hostujesz sam, albo przyciskami udostępniania bez konfiguracji.",
     "publishAccounts": "Konta (TikTok, Instagram, YouTube)",
     "publishQuickShare": "Szybkie udostępnianie",
-    "unlimited": "Bez limitów",
+    "unlimited": "Szerokie suwaki",
     "modeTerritory": "Terytorium",
     "tyDesc": "Pong wars w wydaniu oddplayground: 2 lub 4 drużyny odbijających się kulek malują mapę z kafelków. Kulka przelatuje przez kafelki swojego koloru i odbija się od każdego innego, przemalowując kafelek, w który trafi – więc każde odbicie przesuwa granicę. Gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków.",
     "tyTeams": "Drużyny",
@@ -1614,21 +1601,6 @@
       "description": "Symulacja fizyki w stylu pong wars: 2 lub 4 drużyny odbijających się kulek malują mapę kafelków na swój kolor, a pasek procentów na żywo pokazuje, kto wygrywa. Wir kontra bombowiec – jedno odbicie może odwrócić losy planszy."
     }
   },
-  "Features": {
-    "wallBreak": { "name": "Efekty przebicia ściany", "description": "Konfetti, rozbite szkło, fala uderzeniowa, wszystkie trzy naraz albo brak. Za każdym razem, gdy piłka przebija ścianę, odtwarzany jest wybrany efekt." },
-    "rainbowWalls": { "name": "Tęczowe ściany", "description": "Ściany przechodzą przez całe spektrum w dwóch stylach: płynny gradient na wszystkich pierścieniach lub reaktywny puls błyskający kolorem przy każdym uderzeniu." },
-    "glow": { "name": "Poświata piłki i ścian", "description": "Włączaj niezależnie miękką poświatę wokół piłki i błysk na ścianach, aby uzyskać dokładnie tyle blasku, ile chcesz." },
-    "colorTrail": { "name": "Kolorowy ślad", "description": "Piłka zostawia za sobą żywą smugę o zmiennym odcieniu, dzięki czemu szybki ruch wygląda na zamierzony, a nie chaotyczny." },
-    "reactiveBg": { "name": "Reaktywne tło", "description": "Tło pulsuje i zmienia kolor przy każdym odbiciu, przez co każde uderzenie jest bardziej odczuwalne." },
-    "bouncier": { "name": "Rosnąca sprężystość", "description": "Piłka przyspiesza z każdym uderzeniem w ścianę, aż w końcu się wydostaje, a potem przyspieszenie resetuje się dla kolejnego pierścienia." },
-    "customBall": { "name": "Własny obrazek piłki", "description": "Zastąp piłkę własnym obrazkiem lub emoji: logo, twarzą, produktem. Obrazek skaluje się i porusza razem z piłką." },
-    "textOverlays": { "name": "Nakładki tekstowe", "description": "Dodaj górny i dolny podpis o regulowanym rozmiarze na haczyki, branding lub wezwania do działania, wtopione w eksport." },
-    "spikes": { "name": "Kolce", "description": "Dodaj skierowane do wewnątrz kolce na zewnętrznej ścianie, które zamrażają piłkę przy kontakcie, podnosząc stawkę w trybie Akumulacja." },
-    "videoExport": { "name": "Eksport wideo", "description": "Nagraj symulację jako MP4 w formacie kwadratowym, HD, Full HD lub pionowym TikTok (1080×1920), o długości od 10 do 120 sekund." },
-    "savePresets": { "name": "Zapisywanie i wczytywanie presetów", "description": "Zapisz całą konfigurację, tryb, kolory, fizykę i efekty, w przeglądarce i wczytaj ją jednym kliknięciem." },
-    "watermark": { "name": "Własny znak wodny", "description": "Umieść delikatnie swoją nazwę na środku pierścienia, aby kopie filmów nadal Cię oznaczały." },
-    "customSound": { "name": "Własny dźwięk", "description": "Wybierz melodię z wbudowanej biblioteki lub zaimportuj własny plik MIDI – każde uderzenie w ścianę zagra kolejną nutę. Możesz też odtwarzać przy każdym odbiciu klip audio – wbudowany lub własny – albo wgrać całą piosenkę i pozwolić, by każde odbicie odtwarzało jej kolejny kawałek. Wybierz jeden z siedmiu instrumentów, dopasuj odbicia do skali muzycznej i zgraj dźwięki z siatką BPM." }
-  },
   "FAQ": {
     "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Tak. Symulator, wszystkie tryby, każda opcja personalizacji i eksport wideo są darmowe, a konta nie trzeba zakładać." },
     "q2": { "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?", "answer": "Możesz nagrywać klipy 500×500 (kwadrat), 1280×720 (HD), 1920×1080 (Full HD) i 1080×1920 (pionowo, TikTok) o długości od 10 do 120 sekund. Przeglądarki obsługujące nagrywanie MP4 eksportują MP4, pozostałe WebM." },
@@ -1641,67 +1613,6 @@
     "q9": { "question": "Jak działa funkcja własnego dźwięku?", "answer": "W sekcji Własny dźwięk wybierz piosenkę z wbudowanej biblioteki lub zaimportuj plik MIDI. Melodia jest wyciągana z pliku, a każde uderzenie w ścianę odtwarza kolejną nutę, zamieniając symulację w występ muzyczny. Wolisz efekt dźwiękowy? Przełącz Dźwięk odbicia na Próbkę audio i wybierz wbudowany klik, strunę lub stopę albo wgraj własny klip – zagra z inną wysokością na każdej ścianie i trafi do nagrania." },
     "q10": { "question": "Co sprawia, że {siteName} jest tak satysfakcjonujący?", "answer": "Pętla jest prosta: piłka odbija się wewnątrz pierścieni z małymi szczelinami, a za każdym razem, gdy się prześlizgnie, dzieje się coś nagradzającego: konfetti, rozbicie, fala uderzeniowa. Ponieważ kontrolujesz fizykę, kolory i efekty, napięcie i finał wyglądają dokładnie tak, jak chcesz." },
     "q11": { "question": "Czy {siteName} może działać jak satysfakcjonujący clicker?", "answer": "To nie jest gra typu clicker, ale zaspokaja tę samą potrzebę. Patrzysz, przewidujesz szczelinę i dostajesz nagrodę w postaci efektów i dźwięku przy każdej ucieczce. Symulacja gra sama, więc to satysfakcja bez klikania." }
-  },
-  "AboutTool": {
-    "badge": "O narzędziu",
-    "title": "Czym właściwie jest {siteName}",
-    "p1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień, naciśnij nagrywanie i pobierz klip. Nie ma konta, instalacji ani edytora wideo; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
-    "p2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje: ściana się rozpada, piłka się mnoży, kolor zalewa ekran, cel zostaje trafiony. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej. Ta mała pętla napięcia i ulgi napędza wyświetlenia, a tutaj kontrolujesz każdy jej element, zamiast publikować cudzy klip.",
-    "h3_1": "Wiele trybów, jedno płótno",
-    "p3": "Każdy tryb opowiada inną historię. Klasyczny to ten, który większość ludzi sobie wyobraża: piłka przebijająca się przez pierścienie. Mnożenie zamienia jedną piłkę w rój. Akumulacja zamraża piłki w miejscu, aż ostatnia musi przejść przez labirynt poprzedniczek. Malowanie, Cel, Rośnij, Rozbicie, Dopasowanie kolorów, Linie, Portal, Spadające piłki i pozostałe zmieniają zasady na swój sposób. Przełączanie zajmuje jedno kliknięcie, a płótno aktualizuje się natychmiast.",
-    "h3_2": "Stworzony do majstrowania",
-    "p4": "Wygląd należy do Ciebie. Dodaj pierścienie dla dłuższego budowania napięcia lub usuń je dla szybkiego finału. Włącz tęczowe ściany, przełączaj efekt przebicia między konfetti, rozbiciem i falą uderzeniową albo połącz wszystkie trzy. Dodaj kolce dla zagrożenia, poświatę dla szlifu i kolorowy ślad, aby szybki ruch wyglądał celowo. Umieść własny obrazek na piłce, napisz haczyk w stylu „czy ucieknie?” u góry i wgraj melodię, aby odbicia trafiały w rytm. Małe zmiany mają znaczenie: jeden dodatkowy pierścień może zdecydować o tym, czy klip zostanie przewinięty, czy obejrzany dwa razy.",
-    "h3_3": "Nagraj, wyeksportuj, opublikuj",
-    "p5": "Gdy symulacja wygląda dobrze, nagraj ją w przeglądarce i wyeksportuj film w rozmiarze pionowych feedów. Bez aplikacji do nagrywania ekranu, bez niechcianego znaku wodnego, bez ponownego kodowania. Znalazłeś kombinację, która Ci się podoba? Zapisz ją jako preset i używaj w całej serii; wiele kont publikuje ten sam tryb codziennie z drobnymi zmianami.",
-    "h3_4": "Dlaczego warto budować samemu",
-    "p6": "Ponowne publikowanie klipu, którego użyło już sto innych kont, nie daje algorytmowi ani Twoim widzom nic nowego. Gdy sam tworzysz symulację, decydujesz o haczyku, kolorach, tempie i momencie finału. Możesz dopasować trendujący dźwięk, dodać swoją nazwę i codziennie publikować świeżą wersję bez powtarzania się, a oryginalne treści nigdy nie wpadają w filtry ponownie wykorzystanych materiałów, które po cichu ograniczają zasięg.",
-    "h3_5": "Bez krzywej uczenia się",
-    "p7": "Domyślne ustawienia od razu dają klip wart publikacji. Potem zmieniaj jedną rzecz na raz i patrz, co się dzieje: dodaj pierścień, zmień efekt przebicia, podkręć poświatę. Płótno reaguje natychmiast, więc uczysz się, co robi każde ustawienie, używając go, a po kilku sesjach wyczuwasz, które kombinacje działają.",
-    "h3_6": "Dla kogo to jest",
-    "p8": "Większość użytkowników to twórcy szukający zasięgu bez budżetu: bez kamery, studia czy doświadczenia w projektowaniu, tylko z haczykiem i kilkoma minutami na dostrojenie. Nauczyciele pokazują nim ruch i zderzenia w sposób, który uczniowie naprawdę oglądają. Wiele osób otwiera go po prostu dla zabawy, bo piłka rozbijająca pierścienie jest sama w sobie fajna. Sterowanie jest takie samo dla wszystkich.",
-    "h3_7": "Darmowy i domyślnie prywatny",
-    "p9_before": "{siteName} jest darmowy. Presety i ustawienia żyją w Twojej przeglądarce, filmy renderują się na Twoim urządzeniu i nie ma żadnej ściany rejestracji. Jeśli coś wydaje się nie tak lub brakuje Ci jakiejś opcji,",
-    "p9_after": "trafia prosto do osoby, która rozwija to narzędzie.",
-    "feedbackPage": "strona opinii",
-    "cta": "Otwórz symulator"
-  },
-  "Instructions": {
-    "howToUse": "Jak używać",
-    "title": "Każda kontrolka wyjaśniona",
-    "description": "To układ symulatora: podgląd na żywo po lewej i panel sterowania po prawej. Numery na makiecie odpowiadają krokom obok.",
-    "restart": "Uruchom ponownie",
-    "pause": "Pauza",
-    "startSimulator": "Uruchom symulator",
-    "controls": "Sterowanie",
-    "searchSettings": "Szukaj ustawień…",
-    "recordVideo": "Nagraj wideo",
-    "mockupCaption": "Uproszczony widok ekranu symulatora.",
-    "whatEachControlDoes": "Co robi każda kontrolka",
-    "tryItYourself": "Wypróbuj sam",
-    "labels": { "mode": "Tryb", "ballPhysics": "Fizyka piłki", "wallSettings": "Ustawienia ścian", "visualEffects": "Efekty wizualne", "customSound": "Własny dźwięk", "recording": "Nagrywanie", "savedPresets": "Zapisane presety" },
-    "step1": { "title": "Wybierz tryb", "body": "Otwórz wiersz Tryb w panelu sterowania i wybierz tryb. Tryb ustala zasady, więc zdecyduj o nim najpierw." },
-    "step2": { "title": "Otwórz sekcję i dostosuj", "body": "Piłka, Ściany, Efekty i Dźwięk rozwijają się po kliknięciu. Zmień liczbę ścian, efekt przebicia, kolory lub ślad. Śpieszysz się? Wpisz nazwę ustawienia w pole wyszukiwania u góry." },
-    "step3": { "title": "Naciśnij Start", "body": "Kliknij Uruchom symulator na płótnie. Domyślne ustawienia już dobrze wyglądają, więc zacznij od razu i dostosuj, gdy zobaczysz ruch." },
-    "step4": { "title": "Dopracuj symulację", "body": "Podczas odtwarzania użyj Uruchom ponownie, aby wylosować od nowa, Pauzy, aby zatrzymać klatkę, i przycisków prędkości (1x do 8x), aby przewinąć. Spacja pauzuje, R restartuje. Resetuj, aż moment będzie idealny." },
-    "step5": { "title": "Ustaw długość i rozmiar", "body": "Otwórz sekcję Nagrywanie, aby wybrać długość klipu i rozdzielczość. 1080×1920 to pionowy rozmiar na TikToka, Reels i Shorts." },
-    "step6": { "title": "Nagraj, a plik się pobierze", "body": "Naciśnij Nagraj wideo. Symulacja jest przechwytywana z dźwiękiem, a plik zapisuje się na Twoim urządzeniu. Podoba Ci się konfiguracja? Zapisz ją jako preset i użyj w całej serii." },
-    "settings": {
-      "mode": { "name": "Tryb", "what": "Podstawowa gra. Ustala cel i zasady." },
-      "ballPhysics": { "name": "Fizyka piłki", "what": "Prędkość, rozmiar, grawitacja, kolor i odbicie." },
-      "wallsGap": { "name": "Ściany / szczelina", "what": "Ile pierścieni i jak szeroki jest otwór." },
-      "wallBreakEffect": { "name": "Efekt przebicia ściany", "what": "Konfetti, rozbicie, fala uderzeniowa, wszystkie lub brak." },
-      "visualEffects": { "name": "Efekty wizualne", "what": "Tęczowe ściany, poświata i kolorowy ślad." },
-      "reactiveBackground": { "name": "Reaktywne tło", "what": "Pulsuje tłem w rytm uderzeń." },
-      "spikes": { "name": "Kolce", "what": "Dodaje przeszkody w pierścieniu dla napięcia." },
-      "customBall": { "name": "Własna piłka", "what": "Umieszcza własny obrazek lub emoji na piłce." },
-      "textOverlay": { "name": "Nakładka tekstowa", "what": "Dodaje górny i dolny podpis nad płótnem." },
-      "customSound": { "name": "Własny dźwięk", "what": "Użyj wbudowanej melodii, zaimportuj własny MIDI, odtwarzaj klip audio przy każdym odbiciu albo pokrój wgraną piosenkę; wybierz instrument, skalę i rytm BPM." },
-      "watermark": { "name": "Znak wodny", "what": "Dodaje Twoją nazwę, aby kopie nadal Cię oznaczały." },
-      "speed": { "name": "Prędkość (1x do 8x)", "what": "Przyspiesza długą symulację podczas podglądu." },
-      "findSimulation": { "name": "Znajdź symulację", "what": "Szuka symulacji o docelowej długości." },
-      "recording": { "name": "Nagrywanie", "what": "Ustawia długość klipu i rozdzielczość eksportu." },
-      "savePreset": { "name": "Zapisz preset", "what": "Przechowuje całą konfigurację do wczytania jednym kliknięciem." }
-    }
   },
   "Editorial": {
     "physicsBadge": "Za kulisami symulacji",
@@ -1908,8 +1819,7 @@
     "successEmail": "Twój program pocztowy powinien się teraz otworzyć z wypełnioną wiadomością. Jeśli nic się nie stało, przeglądarka może blokować linki mailto.",
     "successGithub": "W nowej karcie otworzył się formularz zgłoszenia na GitHubie z Twoją wiadomością. Wyślij go tam, aby zakończyć.",
     "notConfigured": "Ta strona nie ma jeszcze skonfigurowanego kanału opinii. Jeśli ją prowadzisz, ustaw NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL lub NEXT_PUBLIC_GITHUB_REPO przed budowaniem.",
-    "openManually": "Jeśli nic się nie otworzyło, użyj tego linku.",
-    "cta": "Czegoś brakuje? Chcesz zgłosić błąd? Daj nam znać!"
+    "openManually": "Jeśli nic się nie otworzyło, użyj tego linku."
   },
   "TikTokBallVideos": {
     "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – darmowe narzędzie – {siteName}",
@@ -1948,7 +1858,14 @@
     "p6": "{siteName} to mały, niezależny projekt, a nie firma z funduszem i mapą drogową pełną dosprzedaży, i to kształtuje to, co powstaje. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Gdy piszesz przez <feedback>stronę opinii</feedback>, wiadomość trafia do osoby, która faktycznie pracuje nad narzędziem, a wiele z tego, co jest dziś w symulatorze, istnieje, bo ktoś o to poprosił.",
     "h2_4": "Dokąd zmierzamy",
     "p7": "Plan jest taki, aby rdzeń pozostał darmowy i aby dodawać tryby, efekty i ułatwienia, dzięki którym dobry klip powstaje szybciej. Jeśli coś dzięki niemu stworzysz, o to właśnie chodzi. Idź i spraw, żeby piłka rozbiła kilka ścian.",
-    "cta": "Otwórz symulator"
+    "cta": "Otwórz symulator",
+    "toolTitle": "Czym właściwie jest {siteName}",
+    "toolP1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień, naciśnij nagrywanie i pobierz klip. Nie ma konta, instalacji ani edytora wideo; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
+    "toolP2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje: ściana się rozpada, piłka się mnoży, kolor zalewa ekran, cel zostaje trafiony. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej. Ta mała pętla napięcia i ulgi napędza wyświetlenia, a tutaj kontrolujesz każdy jej element, zamiast publikować cudzy klip.",
+    "tweakTitle": "Stworzony do majstrowania",
+    "tweakP": "Wygląd należy do Ciebie. Dodaj pierścienie dla dłuższego budowania napięcia lub usuń je dla szybkiego finału. Włącz tęczowe ściany, przełączaj efekt przebicia między konfetti, rozbiciem i falą uderzeniową albo połącz wszystkie trzy. Dodaj kolce dla zagrożenia, poświatę dla szlifu i kolorowy ślad, aby szybki ruch wyglądał celowo. Umieść własny obrazek na piłce, napisz haczyk w stylu „czy ucieknie?” u góry i wgraj melodię, aby odbicia trafiały w rytm. Małe zmiany mają znaczenie: jeden dodatkowy pierścień może zdecydować o tym, czy klip zostanie przewinięty, czy obejrzany dwa razy.",
+    "exportTitle": "Nagraj, wyeksportuj, opublikuj",
+    "exportP": "Gdy symulacja wygląda dobrze, nagraj ją w przeglądarce i wyeksportuj film w rozmiarze pionowych feedów. Bez aplikacji do nagrywania ekranu, bez niechcianego znaku wodnego, bez ponownego kodowania. Znalazłeś kombinację, która Ci się podoba? Zapisz ją jako preset i używaj w całej serii; wiele kont publikuje ten sam tryb codziennie z drobnymi zmianami."
   },
   "Rigged": {
     "outcome": "Wynik",
@@ -2859,11 +2776,11 @@
     }
   },
   "Unlimited": {
-    "label": "Bez limitów",
-    "tip": "Każda liczba poza zakresem suwaka: wpisz milion kulek, miliard prędkości albo tysiąc pierścieni. Symulacja może się „roztopić” – zwalnia i rysuje się prościej – ale karta działa dalej, a nagrywanie trwa.",
+    "label": "Szerokie suwaki",
+    "tip": "Nic nie jest ograniczone, niezależnie od tego przełącznika: każdy suwak ma obok pole na dowolną liczbę. Po włączeniu suwaki dodatkowo sięgają poza zwykły zakres, w skali logarytmicznej aż do 1 mld.",
     "on": "WŁ.",
     "off": "WYŁ.",
-    "warning": "Ekstremalne wartości mogą spowolnić symulację do żółwiego tempa – i o to chodzi. Wolno jej się roztopić, nigdy wysypać.",
+    "warning": "Ekstremalne wartości mogą spowolnić symulację do żółwiego tempa albo roztopić obraz – i o to chodzi. Wolno jej się roztopić, nigdy wysypać.",
     "typeValue": "Wpisz wartość: {label}",
     "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
     "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",
@@ -2872,6 +2789,18 @@
     "canvasArenaFull": "ARENA PEŁNA",
     "canvasBalls": "[count] KULEK",
     "canvasAteArena": "KULKA ZJADŁA ARENĘ"
+  },
+  "Uncap": {
+    "fieldLabel": "{label} – wpisz dowolną liczbę",
+    "errEmpty": "Wpisz liczbę.",
+    "errNotNumber": "„{text}” to nie liczba – zostaje poprzednia wartość.",
+    "errNotFinite": "Nieskończoność się nie uruchomi – wpisz skończoną liczbę (1e308 działa).",
+    "errBelowMin": "Co najmniej {min} – zostaje poprzednia wartość.",
+    "beyondTip": "Poza suwakiem: {value} (suwak obejmuje {min}–{max}; wartość działa tak, jak ją wpisano)",
+    "memoryCeiling": "Limit bezpieczeństwa pamięci: symulacja tworzy najwyżej {value} takich elementów (ARENA PEŁNA); link zachowuje twoją liczbę.",
+    "canvasSpeed": "⚡ [speed] PX/S",
+    "canvasOverflow": "LICZBY SIĘ PRZEPEŁNIŁY ×[count]",
+    "finderEndless": "Przy tych wartościach symulacja nigdy się nie kończy, więc nie ma czego szukać – po prostu trwa (nagraj ją)."
   },
   "DesktopLink": {
     "navLabel": "Aplikacja Windows",
@@ -3150,6 +3079,81 @@
     "canvasWins": "[name] WYGRYWA",
     "canvasDraw": "REMIS",
     "canvasShare": "[pct]% PLANSZY",
-    "canvasTiles": "Kafelki"
+    "canvasTiles": "Kafelki",
+    "finderFixed": "Bitwa o terytorium trwa zawsze dokładnie {duration}s – tyle, ile odliczanie – niezależnie od ziarna: ziarno decyduje, kto wygra. Zmień Odliczanie w bloku Terytorium, aby trafić w cel, albo szukaj zwycięzcy.",
+    "fixedRunLength": "Zawsze {duration}s – tyle, ile odliczanie; zmień Odliczanie albo szukaj zwycięzcy"
+  },
+  "SiteRedesign": {
+    "nav": {
+      "studio": "Studio",
+      "about": "O projekcie",
+      "openStudio": "Otwórz studio",
+      "skip": "Przejdź do treści",
+      "primary": "Główna nawigacja",
+      "menu": "Menu"
+    },
+    "lang": {
+      "label": "Język"
+    },
+    "footer": {
+      "product": "Produkt",
+      "modes": "Tryby",
+      "legal": "Informacje prawne"
+    },
+    "families": {
+      "escape": "Ucieczka",
+      "rhythm": "Rytm",
+      "battle": "Bitwa",
+      "journey": "Podróż"
+    },
+    "hero": {
+      "eyebrow": "Studio fizyki piłek",
+      "title": "Hipnotyzująca fizyka piłek, gotowa na TikToka.",
+      "sub": "Dostrój fizykę, wybierz jeden z {count} trybów i wyeksportuj pionowy klip gotowy do publikacji – za darmo, w przeglądarce, bez konta.",
+      "seeModes": "Zobacz tryby",
+      "live": "Na żywo",
+      "preview": "Podgląd",
+      "previewLabel": "Podgląd na żywo: {mode}",
+      "previewOpen": "Otwórz tryb {mode} w studiu",
+      "statModes": "Tryby",
+      "statExport": "Eksport",
+      "statPrice": "Cena",
+      "statPriceValue": "Za darmo"
+    },
+    "modesWall": {
+      "intro": "{count} formatów – pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże. Wybierz jeden, a otworzy się w studiu gotowy do startu.",
+      "all": "Wszystkie",
+      "filterLabel": "Filtruj tryby według rodziny",
+      "current": "Bieżący"
+    },
+    "studio": {
+      "search": "Szukaj ustawień",
+      "modePicker": "Wybierz tryb",
+      "mode": "Tryb",
+      "changeMode": "Zmień tryb",
+      "seed": "Ziarno",
+      "seedPinned": "Przypięte ziarno: każda symulacja je powtarza",
+      "time": "Czas",
+      "format": "Format",
+      "transport": "Odtwarzanie i eksport",
+      "speed": "Prędkość odtwarzania",
+      "rail": "Grupy ustawień",
+      "panelEmpty": "Wybierz grupę, aby ją edytować. Wszystko, co zmienisz, zostaje w linku.",
+      "closeSettings": "Zamknij ustawienia",
+      "paletteTitle": "Szukaj ustawień i grup",
+      "palettePlaceholder": "Przejdź do ustawienia lub grupy…",
+      "paletteSections": "Grupy",
+      "paletteControls": "Ustawienia",
+      "paletteEmpty": "Nic nie pasuje do „{query}”.",
+      "paletteMove": "wybór",
+      "paletteOpen": "otwórz",
+      "paletteClose": "zamknij"
+    },
+    "dialog": {
+      "close": "Zamknij"
+    },
+    "prose": {
+      "onThisPage": "Na tej stronie"
+    }
   }
 }

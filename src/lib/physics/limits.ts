@@ -5,7 +5,7 @@
  * keeps the run alive at any value:
  *
  *  - **Soft ceilings** (`ceilPatch()`): the config values the engine runs are capped at float-safety or memory ceilings
- *    (`ENGINE_CEILINGS` in lib/unlimited.ts – e.g. at most `LIVE_WALL_LIMIT` rings, speeds below 1e12 px/s); the page keeps
+ *    (`ENGINE_CEILINGS` in lib/unlimited.ts – e.g. at most `LIVE_WALL_LIMIT` rings; --- uncap-all --- memory only); the page keeps
  *    the typed value. The physics extras and the split limits are lifted past their ranges (`liftPhysics()`), and the
  *    multiplier cap is off – stacks multiply without a ceiling (the float-safety one of multipliers.ts aside).
  *  - **The crowd** (crowd.ts): a Ball Count past the team balls and every spawn past the full-physics balls (`OBJECT_BALL_LIMIT`,
@@ -16,7 +16,7 @@
  *    motion) – and hashes every ball pair. How much of that the page runs per frame is the frame budget's call
  *    (lib/simulation/frameBudget.ts: whole steps only, so a seed plays the same at any budget).
  *  - **Finite numbers**: a ball whose position, velocity or radius is no longer a finite number is put back at the centre
- *    at the Ball Speed; speeds are capped at `MAX_SAFE_SPEED`.
+ *    at the Ball Speed (--- uncap-all --- no speed ceiling below the float range).
  *  - **The ball ate the arena**: a ball bigger than a ring bursts it, and a ball bigger than the whole arena ends the run
  *    with its own banner and sound (the multipliers' outgrow finish, which stops the physics and holds the banner).
  *  - **Sound**: at most `MAX_SOUNDS_PER_FRAME` events reach the synth per frame (breaks and stacks first), and the crowd's
@@ -24,13 +24,22 @@
  *
  * Nothing here draws from the engine's RNG, and every decision depends on the simulation state only, so runs stay
  * deterministic for a seed. With the switch off nothing here runs and the engine takes its old code paths.
+ *
+ * --- uncap-all --- No switch any more: the runtime engages by itself whenever a run needs it – a core value past its
+ * slider's comfort range (`coreBeyondComfort()`), the page's `PhysicsConfig.unlimited` (any setting past its slider, see
+ * `uncappedEngaged()` in settings.ts) or, mid-run, a Bounciness that grew the rebounds past the old Bouncier's ×3
+ * (`engage()`) – and the soft ceilings are gone: speeds, sizes, gravity and rotation run as typed, the rescue only puts
+ * back a ball whose numbers overflowed the float range. The only ceilings left are the memory-safety ones (the rings,
+ * the crowd, the full-physics balls a step can carry – the rest join the crowd). At default values nothing engages and
+ * the engine takes its old code paths.
  */
 import { Crowd } from "./crowd";
 import { FIT_MARGIN, MAX_SUBSTEPS, type MultiplierRuntime, type RingFit, type StepPlan } from "./multipliers";
 import { PHYSICS_EXTRA_KEYS, PHYSICS_EXTRA_RANGES } from "./extras";
 import { BALL_INTERACTION_RANGES } from "./interactions";
 import { TWO_PI, type Ball, type BallInteractionConfig, type CircularWall, type ModeContext, type PhysicsConfig, type PhysicsExtras, type SoundEvent } from "./types";
-import { CROWD_LIMIT, ENGINE_CEILINGS, OBJECT_BALL_LIMIT, parseUnlimitedValue } from "@/lib/unlimited";
+import { CROWD_LIMIT, OBJECT_BALL_LIMIT, parseUnlimitedValue } from "@/lib/unlimited";
+import { memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /** The No limits fields of the physics config. */
 export interface UnlimitedConfig {
@@ -38,12 +47,45 @@ export interface UnlimitedConfig {
   unlimited: boolean;
   /** Crowd balls a multi-ball mode starts with on top of its team balls (the Ball Count past them). */
   crowdCount: number;
+  /** --- uncap-all --- A setting is past its memory-safety ceiling: the run builds less than it asks for (ARENA FULL). */
+  memoryFull?: boolean;
 }
 
 export const DEFAULT_UNLIMITED_CONFIG: UnlimitedConfig = { unlimited: false, crowdCount: 0 };
 
-/** The fastest a ball may move (px/s): far beyond anything visible, well inside float range. */
-export const MAX_SAFE_SPEED = 1e12;
+/**
+ * --- uncap-all --- No speed ceiling any more: the fastest a ball may move is the float range itself (a speed past it
+ * overflows to ±Infinity and the ball is rescued at the centre). Kept for the callers and tests that name it.
+ */
+export const MAX_SAFE_SPEED = Number.MAX_VALUE;
+
+/**
+ * --- uncap-all --- The comfort ranges' ends of the core config values (the Ball & Physics sliders, `RANGES` in settings.ts –
+ * a test keeps them equal): past one of them the runtime engages by itself, also in an engine built without the page.
+ */
+export const CORE_COMFORT: Readonly<Record<"ballSpeed" | "ballRadius" | "gravity" | "rotationSpeed" | "wallCount", number>> = {
+  ballSpeed: 800,
+  ballRadius: 30,
+  gravity: 2000,
+  rotationSpeed: 5,
+  wallCount: 20,
+};
+
+/** True when a config value sits past its slider's comfort range (core values, physics extras, split limits) or brings a crowd. */
+export function coreBeyondComfort(config: Partial<PhysicsConfig>): boolean {
+  for (const key of Object.keys(CORE_COMFORT) as (keyof typeof CORE_COMFORT)[]) {
+    const v = config[key];
+    if (typeof v === "number" && v > CORE_COMFORT[key]) return true;
+  }
+  for (const key of PHYSICS_EXTRA_KEYS) {
+    const v = config[key];
+    const r = PHYSICS_EXTRA_RANGES[key];
+    if (typeof v === "number" && (v > r.max || v < r.min)) return true;
+  }
+  if (typeof config.splitMinRadius === "number" && config.splitMinRadius > BALL_INTERACTION_RANGES.splitMinRadius.max) return true;
+  if (typeof config.maxBalls === "number" && config.maxBalls > BALL_INTERACTION_RANGES.maxBalls.max) return true;
+  return (Number(config.crowdCount) || 0) > 0;
+}
 /** Sound events handed to the synth per frame at most while No limits is on. */
 export const MAX_SOUNDS_PER_FRAME = 24;
 /** Balls up to this radius are left to the engine's ring collisions; bigger ones are fitted into the rings (bursting them). */
@@ -80,6 +122,15 @@ export const LOD_POINTS_FROM = 20_000;
  */
 export const CROWD_POUR_PER_STEP = 50_000;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+/**
+ * --- uncap-all --- The size of a crowd ball: the crowd is the degraded, typed-array representation of balls past the
+ * full-physics ones (lib/physics/crowd.ts) and moves its balls through ring lanes as small bodies, so a crowd ball is
+ * drawn and bounced at most `FIT_FROM_RADIUS` px wide (a full-physics ball of any size is unaffected).
+ */
+function crowdRadius(radius: number): number {
+  return radius > FIT_FROM_RADIUS ? FIT_FROM_RADIUS : radius < 1 || !(radius === radius) ? 1 : radius;
+}
 
 /**
  * `fitBallToRings()` of multipliers.ts for any number of rings: the same corridor walk – the ball's corridor between the
@@ -130,9 +181,19 @@ export function fitIntoSortedRings(dist: number, radius: number, walls: readonly
 
 /** The No limits config of the page's settings: `teamBalls` is the ball count the mode plays with (effectiveBallCount()). */
 export function unlimitedConfigOf(settings: { unlimited: boolean; ballCount: number }, teamBalls: number, multiBallMode: boolean): UnlimitedConfig {
-  if (!settings.unlimited) return { ...DEFAULT_UNLIMITED_CONFIG };
-  const extra = multiBallMode && Number.isFinite(settings.ballCount) ? Math.floor(settings.ballCount) - teamBalls : 0;
-  return { unlimited: true, crowdCount: Math.max(0, Math.min(CROWD_LIMIT, extra)) };
+  return uncapConfigOf(settings.unlimited, settings.ballCount, teamBalls, multiBallMode);
+}
+
+/**
+ * --- uncap-all --- The config the page sends: `engaged` (any setting past its slider – `uncappedEngaged()`) and the crowd –
+ * the Ball Count past the team balls in a multi-ball mode, whatever the switch (up to the crowd's memory-safety ceiling).
+ */
+export function uncapConfigOf(engaged: boolean, ballCount: number, teamBalls: number, multiBallMode: boolean, memoryFull = false): UnlimitedConfig {
+  const extra = multiBallMode && Number.isFinite(ballCount) ? Math.floor(ballCount) - teamBalls : 0;
+  const crowdCount = extra > 0 ? memoryCeiling("ballCount", extra) : 0;
+  // A million balls fill the crowd's typed arrays: the arena is full (ARENA FULL) from there on.
+  const full = memoryFull || (multiBallMode && ballCount >= CROWD_LIMIT);
+  return { unlimited: engaged || crowdCount > 0, crowdCount, memoryFull: full };
 }
 
 /**
@@ -219,10 +280,28 @@ export class UnlimitedRuntime {
   /** The radius of the ball that outgrew the arena (the banner shows it). */
   private ateRadius = 0;
 
+  /**
+   * Engaged mid-run by the engine (`engage()`): a Bounciness grew the rebounds past the old Bouncier's ×3. Together with
+   * `on` (the config) it makes `live` – what every step reads.
+   */
+  private dynamic = false;
+  /** --- uncap-all --- The runtime is engaged this step: by the config (`on`) or by the run itself (`engage()`). */
+  get live(): boolean {
+    return this.on || this.dynamic;
+  }
+  /** --- uncap-all --- The engine's per-step check: `grown` = the run needs the machinery now (the rebounds outgrew ×3). */
+  engage(grown: boolean): boolean {
+    this.dynamic = grown;
+    return this.on || grown;
+  }
+
   /** Reads the switch and the crowd size from the config (every `setConfig()` and the constructor). */
   configure(config: Partial<PhysicsConfig>) {
-    this.on = config.unlimited === true;
-    const target = this.on ? Math.max(0, Math.min(CROWD_LIMIT, Math.floor(Number(config.crowdCount) || 0))) : 0;
+    // --- uncap-all --- engaged by the page (any setting past its slider) or by a core value past its comfort range
+    this.on = config.unlimited === true || coreBeyondComfort(config);
+    this.memoryFull = config.memoryFull === true;
+    const crowd = Math.floor(Number(config.crowdCount) || 0);
+    const target = this.on && crowd > 0 ? (crowd > CROWD_LIMIT ? CROWD_LIMIT : crowd) : 0; // (the crowd's memory-safety ceiling)
     if (target !== this.crowdTarget) {
       this.crowdTarget = target;
       // A live change of the Ball Count: the crowd is rebuilt at the next step (a new count invalidates a found seed anyway).
@@ -233,22 +312,21 @@ export class UnlimitedRuntime {
   }
 
   /**
-   * The config patch as the engine runs it: with the switch on (in the patch, or already), the core values are capped at
-   * their engine ceilings (the page keeps the typed values). Without it the patch is returned as it is.
+   * The config patch as the engine runs it (--- uncap-all --- whatever the switch): an invalid core value (NaN, ±Infinity)
+   * is dropped and the Wall Count builds at most `LIVE_WALL_LIMIT` rings – its memory-safety ceiling (the page keeps the
+   * typed value). Every other value runs as it is.
    */
   ceilPatch<T extends Partial<PhysicsConfig>>(patch: T, current: Partial<PhysicsConfig>): T {
-    const on = patch.unlimited ?? current.unlimited;
-    if (on !== true) return patch;
+    void current;
     let out: T | null = null;
     for (const key of CONFIG_KEYS) {
       const value = patch[key];
       if (typeof value !== "number") continue;
-      const ceiling = ENGINE_CEILINGS[key];
-      const next = !Number.isFinite(value) ? undefined : Math.min(ceiling, value);
+      const next = !Number.isFinite(value) ? undefined : key === "wallCount" ? Math.max(1, Math.round(memoryCeiling("wallCount", value))) : value;
       if (next === value) continue;
       out ??= { ...patch };
       if (next === undefined) delete (out as Partial<PhysicsConfig>)[key];
-      else (out as Record<string, unknown>)[key] = key === "wallCount" ? Math.max(1, Math.round(next)) : next;
+      else (out as Record<string, unknown>)[key] = next;
     }
     return out ?? patch;
   }
@@ -259,7 +337,7 @@ export class UnlimitedRuntime {
    * per sub-step than the plan allowed.
    */
   boundPlan(plan: StepPlan, balls: number, rings = 0) {
-    if (!this.on || balls <= 0) return;
+    if (!this.live || balls <= 0) return;
     const maxSub = Math.max(4, Math.min(MAX_SUBSTEPS, Math.floor(STEP_WORK_CAP / balls), Math.floor(STEP_RING_WORK / (balls * Math.max(1, rings)))));
     if (plan.subSteps <= maxSub) return;
     plan.dilation *= maxSub / plan.subSteps;
@@ -268,33 +346,29 @@ export class UnlimitedRuntime {
 
   /** Whether ball-to-ball collisions run this sub-step (always without the switch; up to `PAIR_COLLISIONS_UP_TO` balls with it). */
   pairsAllowed(balls: number): boolean {
-    return !this.on || balls <= PAIR_COLLISIONS_UP_TO;
+    return !this.live || balls <= PAIR_COLLISIONS_UP_TO;
   }
 
-  /** A count a setter hands the engine (spikes, Target numbers…), at its soft ceiling with the switch on (as it is without). */
+  /** A count a setter hands the engine (spikes, Target numbers…), at most its memory-safety ceiling (--- uncap-all --- whatever the switch). */
   ceilValue(key: string, value: number): number {
-    if (!this.on) return value;
-    const ceiling = ENGINE_CEILINGS[key];
-    if (ceiling === undefined) return value;
-    return Number.isFinite(value) ? Math.min(ceiling, value) : ceiling;
+    return Number.isFinite(value) ? memoryCeiling(key, value) : memoryCeiling(key, Number.MAX_VALUE);
   }
 
   /** Lifts the physics extras and the split limits past their ranges (the resolvers clamped them to the sliders). */
   liftPhysics(extras: PhysicsExtras, interaction: BallInteractionConfig, config: Partial<PhysicsConfig>) {
     if (!this.on) return;
+    // --- uncap-all --- the resolvers keep every value as typed now; a raw value the engine was handed is taken exactly
     for (const key of PHYSICS_EXTRA_KEYS) {
       const raw = config[key];
       if (raw === undefined) continue;
-      const range = PHYSICS_EXTRA_RANGES[key];
-      const value = parseUnlimitedValue(key, raw, range);
-      if (value === null) continue;
-      const ceiling = ENGINE_CEILINGS[key] ?? Number.MAX_VALUE;
-      extras[key] = Math.max(-ceiling, Math.min(ceiling, value));
+      const value = parseUnlimitedValue(key, raw, PHYSICS_EXTRA_RANGES[key]);
+      if (value !== null) extras[key] = value;
     }
     const split = config.splitMinRadius !== undefined ? parseUnlimitedValue("splitMinRadius", config.splitMinRadius, BALL_INTERACTION_RANGES.splitMinRadius) : null;
-    if (split !== null) interaction.splitMinRadius = Math.min(ENGINE_CEILINGS.splitMinRadius, split);
+    if (split !== null) interaction.splitMinRadius = split;
+    // The split limit counts full-physics balls: past `OBJECT_BALL_LIMIT` they would join the crowd, which never splits.
     const max = config.maxBalls !== undefined ? parseUnlimitedValue("maxBalls", config.maxBalls, BALL_INTERACTION_RANGES.maxBalls) : null;
-    if (max !== null) interaction.maxBalls = Math.min(OBJECT_BALL_LIMIT, max);
+    if (max !== null) interaction.maxBalls = max > OBJECT_BALL_LIMIT ? OBJECT_BALL_LIMIT : max;
     this.interaction = interaction;
     this.splitLimit = interaction.maxBalls;
     interaction.maxBalls = Math.min(this.splitLimit, this.objectLimit);
@@ -321,18 +395,21 @@ export class UnlimitedRuntime {
    * the crowd (multipliers.ts, `cloneBall()`).
    */
   cloneLimit(maxBalls: number): number {
-    return this.on ? this.objectLimit : maxBalls;
+    return this.live ? this.objectLimit : maxBalls;
   }
 
   /** A mode refused a clone at its ball limit with the switch on (the multipliers board's count gates): ARENA FULL. */
   noteFull() {
-    if (this.on) this.objectsFull = true;
+    if (this.live) this.objectsFull = true;
   }
+
+  /** --- uncap-all --- A setting past its memory-safety ceiling built less than it asks for (the page says so): ARENA FULL. */
+  memoryFull = false;
 
   /** Spawns past the full-physics balls: a burst into the crowd (false, and ARENA FULL, when it is at its limit). */
   overflow(n: number, x: number, y: number, speed: number, radius: number, angle: number, color: number): boolean {
     const want = Math.max(0, Math.floor(n));
-    return this.crowd.spawnBurst(want, x, y, Math.min(MAX_SAFE_SPEED, speed), Math.max(1, Math.min(FIT_FROM_RADIUS, radius)), angle, color, 1) === want;
+    return this.crowd.spawnBurst(want, x, y, speed, crowdRadius(radius), angle, color, 1) === want; // --- uncap-all --- (no speed ceiling)
   }
 
   /**
@@ -342,7 +419,7 @@ export class UnlimitedRuntime {
    * rings before the rings can fling them (a ball bigger than the arena eats it right away). Pure: no random numbers.
    */
   beginStep(ctx: ModeContext, mult: MultiplierRuntime, host: LimitsHost, palette: number) {
-    if (!this.on) return;
+    if (!this.live) return;
     const config = ctx.config;
     this.burstsThisStep = 0;
     this.objectLimit = objectLimitFor(ctx.getCircularWalls().length);
@@ -354,14 +431,15 @@ export class UnlimitedRuntime {
       if (this.crowdTarget > 0) this.crowd.reserve(this.crowdTarget);
     }
     if (this.crowdPoured < this.crowdTarget) {
-      const speed = Math.min(MAX_SAFE_SPEED, config.ballSpeed || 400);
-      const radius = Math.max(1, Math.min(FIT_FROM_RADIUS, (config.ballRadius || 8) * 0.75));
+      const speed = config.ballSpeed || 400; // --- uncap-all --- (no speed ceiling)
+      const radius = crowdRadius((config.ballRadius || 8) * 0.75);
       const k = Math.min(CROWD_POUR_PER_STEP, this.crowdTarget - this.crowdPoured);
       const slots = Math.max(1, palette);
       this.crowd.spawnBurst(k, config.width / 2, config.height / 2, speed, radius, 0.5 + GOLDEN_ANGLE * this.crowdPoured, this.crowdPoured % slots, slots);
       this.crowdPoured += k;
     }
-    if (!mult.isOutgrown()) this.fitBigBalls(ctx, mult, host, ctx.getCircularWalls(), ctx.getBrokenWalls(), config.width / 2, config.height / 2);
+    // (--- uncap-all --- engaged by the run alone – a Bounciness past ×3 – a big Grow ball keeps its mode's own rules)
+    if (this.on && !mult.isOutgrown()) this.fitBigBalls(ctx, mult, host, ctx.getCircularWalls(), ctx.getBrokenWalls(), config.width / 2, config.height / 2);
     this.noteAte(ctx, mult);
   }
 
@@ -377,11 +455,11 @@ export class UnlimitedRuntime {
    * speeds capped, balls too big for their rings burst them and a ball bigger than the arena ends the run.
    */
   endStep(ctx: ModeContext, mult: MultiplierRuntime, host: LimitsHost, stepSec: number, gx: number, gy: number) {
-    if (!this.on) return;
+    if (!this.live) return;
     const config = ctx.config;
     const cx = config.width / 2;
     const cy = config.height / 2;
-    const speed = Math.min(MAX_SAFE_SPEED, config.ballSpeed || 400);
+    const speed = Number.isFinite(config.ballSpeed) && config.ballSpeed > 0 ? config.ballSpeed : 400; // --- uncap-all --- (no speed ceiling)
     const walls = ctx.getCircularWalls();
     const broken = ctx.getBrokenWalls();
     const rotations = ctx.getWallRotations();
@@ -390,13 +468,18 @@ export class UnlimitedRuntime {
       if (loud) ctx.addPendingSoundEvent({ type: "hit", wallIndex: Math.max(0, this.crowd.lastHitWall), level: Crowd.hitLevel(this.crowd.hitsThisStep), melody: false });
     }
     const balls = ctx.getBalls();
+    let rescuedNow = 0;
     for (let i = 0; i < balls.length; i++) {
       const b = balls[i];
-      if (!Number.isFinite(b.radius) || b.radius <= 0) b.radius = Math.min(ENGINE_CEILINGS.ballRadius, config.ballRadius || 8);
+      if (!Number.isFinite(b.radius) || b.radius <= 0) b.radius = Number.isFinite(config.ballRadius) && config.ballRadius > 0 ? config.ballRadius : 8; // --- uncap-all --- (a radius that overflowed; no size ceiling)
       if (!(Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy))) {
         const a = TWO_PI * ((Math.abs(b.id) * 0.618033988749895) % 1);
-        b.x = cx;
-        b.y = cy;
+        // --- uncap-all --- the first one back at the centre, the others of the same step on a golden-angle spiral around
+        // it (a thousand balls put back on one point would be a pile every pair check has to look at)
+        const k = rescuedNow++;
+        const spread = k === 0 || !(b.radius < 1e6) ? 0 : 2.2 * b.radius * Math.sqrt(k);
+        b.x = cx + spread * Math.cos(k * GOLDEN_ANGLE);
+        b.y = cy + spread * Math.sin(k * GOLDEN_ANGLE);
         b.vx = Math.cos(a) * speed;
         b.vy = Math.sin(a) * speed;
         b.trail.length = 0;
@@ -404,14 +487,9 @@ export class UnlimitedRuntime {
         this.rescued++;
         continue;
       }
-      const v2 = b.vx * b.vx + b.vy * b.vy;
-      if (v2 > MAX_SAFE_SPEED * MAX_SAFE_SPEED) {
-        const k = MAX_SAFE_SPEED / Math.sqrt(v2);
-        b.vx *= k;
-        b.vy *= k;
-      }
+      // --- uncap-all --- no speed ceiling: a ball may go as fast as a float can say (past it the rescue above takes it)
     }
-    if (!mult.isOutgrown()) this.fitBigBalls(ctx, mult, host, walls, broken, cx, cy);
+    if (this.on && !mult.isOutgrown()) this.fitBigBalls(ctx, mult, host, walls, broken, cx, cy); // (--- uncap-all --- as in beginStep())
     this.noteAte(ctx, mult);
   }
 
@@ -459,11 +537,11 @@ export class UnlimitedRuntime {
   /**
    * At most `MAX_SOUNDS_PER_FRAME` events per frame (in place): the ate-the-arena gulp always (it is queued after the
    * step's bursts, so a ball eating a thousand rings would otherwise lose it behind their "gap" sounds), then the other
-   * non-bounce events (breaks, stacks, merges) up to half the frame, then bounces spread evenly over the rest. Without
-   * the switch the queue is untouched.
+   * non-bounce events (breaks, stacks, merges) up to half the frame, then bounces spread evenly over the rest. While the
+   * runtime is not engaged the queue is untouched.
    */
   thinSounds(events: SoundEvent[]): SoundEvent[] {
-    if (!this.on || events.length <= MAX_SOUNDS_PER_FRAME) return events;
+    if (!this.live || events.length <= MAX_SOUNDS_PER_FRAME) return events;
     const keep: SoundEvent[] = [];
     for (const ev of events) if (ev.ate) keep.push(ev);
     for (const ev of events) if (ev.type !== "hit" && !ev.ate && keep.length < MAX_SOUNDS_PER_FRAME / 2) keep.push(ev);
@@ -476,10 +554,10 @@ export class UnlimitedRuntime {
 
   getView(objects: number): UnlimitedView {
     const v = this.view;
-    v.on = this.on;
+    v.on = this.live; // --- uncap-all --- (engaged by the config or by the run)
     v.crowd = this.crowd.count;
     v.objects = objects;
-    v.full = this.crowd.full || this.objectsFull;
+    v.full = this.crowd.full || this.objectsFull || this.memoryFull; // --- uncap-all --- (or a setting past its memory-safety ceiling)
     v.bounces = this.crowd.bounces;
     v.ate = this.ate;
     v.ateRadius = this.ateRadius;

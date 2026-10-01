@@ -1,6 +1,6 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import type { ModeId } from "../types";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Arena games (feature jdm-arena-games; the project.jdm "Bouncing Square BATTLE Royale" and "capture the flag 2-2"
@@ -95,7 +95,7 @@ export interface ArenaGameFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Rounds onto a slider's step (so 0.37 becomes 0.35 on a 0.05 grid). */
@@ -104,11 +104,11 @@ function onStep(value: number, step: number) {
 }
 
 /** Fills in the defaults and clamps every battle value (counts whole, the damage and the nudge on their steps); unknown options fall back. */
-export function resolveBattleSettings(config: Partial<BattleSettings> | null | undefined, unlimited = false): BattleSettings {
+export function resolveBattleSettings(config: Partial<BattleSettings> | null | undefined): BattleSettings {
   const out = { ...DEFAULT_BATTLE_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(ARENA_GAME_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.btCount, out.count));
+  const R = ARENA_GAME_RANGES;
+  if (config.count !== undefined) out.count = memoryCeiling("btCount", Math.round(clampNumber(config.count, R.btCount, out.count)));
   if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, R.btHp, out.hp));
   if (config.damage !== undefined) out.damage = onStep(clampNumber(config.damage, R.btDamage, out.damage), R.btDamage.step);
   if (isBattleArena(config.arena)) out.arena = config.arena;
@@ -119,11 +119,11 @@ export function resolveBattleSettings(config: Partial<BattleSettings> | null | u
 }
 
 /** Fills in the defaults and clamps every capture-the-flag value; the clip length to the recording duration's range. */
-export function resolveCtfSettings(config: Partial<CtfSettings> | null | undefined, unlimited = false): CtfSettings {
+export function resolveCtfSettings(config: Partial<CtfSettings> | null | undefined): CtfSettings {
   const out = { ...DEFAULT_CTF_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(ARENA_GAME_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.perTeam !== undefined) out.perTeam = Math.round(clampNumber(config.perTeam, R.ctfPerTeam, out.perTeam));
+  const R = ARENA_GAME_RANGES;
+  if (config.perTeam !== undefined) out.perTeam = memoryCeiling("ctfPerTeam", Math.round(clampNumber(config.perTeam, R.ctfPerTeam, out.perTeam)));
   if (config.scoreToWin !== undefined) out.scoreToWin = Math.round(clampNumber(config.scoreToWin, R.ctfScoreToWin, out.scoreToWin));
   if (config.nudge !== undefined) out.nudge = Math.round(100 * onStep(clampNumber(config.nudge, R.arenaNudge, out.nudge), R.arenaNudge.step)) / 100;
   if (config.clipSeconds !== undefined) out.clipSeconds = clampNumber(config.clipSeconds, CTF_CLIP_RANGE, out.clipSeconds);
@@ -207,7 +207,7 @@ export function ctfTimeLimitSec(clipSeconds: number): number {
  */
 export function ctfFinderSettings(settings: CtfSettings, targetSec: number, toleranceSec: number): CtfSettings {
   const wanted = Math.ceil(targetSec + Math.max(0, toleranceSec) + CTF_FINALE_SEC + 1);
-  return { ...settings, clipSeconds: Math.min(CTF_CLIP_RANGE.max, Math.max(settings.clipSeconds, wanted)) };
+  return { ...settings, clipSeconds: Math.max(settings.clipSeconds, wanted) }; // --- uncap-all --- (a target past the longest slider recording is searched too)
 }
 
 /**
@@ -217,7 +217,7 @@ export function ctfFinderSettings(settings: CtfSettings, targetSec: number, tole
  */
 export function arenaFoundClipSec(mode: ModeId, durationSec: number, clipSeconds: number): number {
   if (mode === "ctf" && durationSec >= ctfTimeLimitSec(clipSeconds) - 1e-3) return clipSeconds;
-  return Math.max(CTF_CLIP_RANGE.min, Math.min(CTF_CLIP_RANGE.max, Math.ceil(durationSec + ARENA_WIN_HOLD_SEC - 1e-9)));
+  return Math.max(CTF_CLIP_RANGE.min, Math.ceil(durationSec + ARENA_WIN_HOLD_SEC - 1e-9)); // --- uncap-all --- (never a maximum)
 }
 
 /* ------------------------------------------------------------------ the playfield */

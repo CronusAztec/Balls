@@ -3,7 +3,7 @@ import { applyMultiplier, copyMultipliers, effectiveBounce, effectiveCap, hitDam
 import { circleObstacle, resolveBallObstacle, segmentBetween, segmentObstacle, type Obstacle } from "../obstacles";
 import { SpatialHash, createPairBuffer, type PairBuffer } from "../spatialHash";
 import type { Ball, GameMode, ModeContext } from "../types";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Multipliers ("multipliers" mode, the geraldbounces "Gerald uses the multipliers to get home" format): a tall vertical
@@ -75,7 +75,7 @@ export interface MultipliersSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Six weight digits (missing ones 0, extra characters dropped); a mix without any weight falls back to the default. */
@@ -94,15 +94,14 @@ export function parseGateMix(value: string): Record<GateKind, number> {
 }
 
 /** Fills in the defaults and clamps every value (counts become whole numbers; a bad mix falls back to the default). */
-export function resolveMultipliersSettings(config: Partial<MultipliersSettings> | null | undefined, unlimited = false): MultipliersSettings {
+export function resolveMultipliersSettings(config: Partial<MultipliersSettings> | null | undefined): MultipliersSettings {
   const out = { ...DEFAULT_MULTIPLIERS_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(MULTIPLIERS_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, R.mpRows, out.rows));
+  if (config.rows !== undefined) out.rows = memoryCeiling("mpRows", Math.round(clampNumber(config.rows, MULTIPLIERS_RANGES.mpRows, out.rows)));
   if (config.gateMix !== undefined) out.gateMix = sanitizeGateMix(config.gateMix);
-  if (config.startBalls !== undefined) out.startBalls = Math.round(clampNumber(config.startBalls, R.mpStartBalls, out.startBalls));
-  if (config.maxBalls !== undefined) out.maxBalls = Math.round(clampNumber(config.maxBalls, R.mpMaxBalls, out.maxBalls));
-  if (config.target !== undefined) out.target = Math.round(clampNumber(config.target, R.mpTarget, out.target));
+  if (config.startBalls !== undefined) out.startBalls = memoryCeiling("mpStartBalls", Math.round(clampNumber(config.startBalls, MULTIPLIERS_RANGES.mpStartBalls, out.startBalls)));
+  if (config.maxBalls !== undefined) out.maxBalls = memoryCeiling("mpMaxBalls", Math.round(clampNumber(config.maxBalls, MULTIPLIERS_RANGES.mpMaxBalls, out.maxBalls)));
+  if (config.target !== undefined) out.target = Math.round(clampNumber(config.target, MULTIPLIERS_RANGES.mpTarget, out.target));
   return out;
 }
 
@@ -550,9 +549,9 @@ export class MultipliersMode implements GameMode {
   getSettings(): MultipliersSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator restarts the board when a board setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<MultipliersSettings>, unlimited = false) {
-    this.settings = resolveMultipliersSettings({ ...this.settings, ...patch }, unlimited);
+  /** Applied on the next init (the Simulator restarts the board when a board setting changes). */
+  setSettings(patch: Partial<MultipliersSettings>) {
+    this.settings = resolveMultipliersSettings({ ...this.settings, ...patch });
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): MultipliersView {
@@ -848,7 +847,7 @@ export class MultipliersMode implements GameMode {
     this.steps++;
     if (!board) return;
     const runtime = ctx.getMultipliers?.();
-    const cap = runtime ? runtime.getCap() : effectiveCap(resolveMultiplierConfig(ctx.config)); // --- unlimited --- (the run's cap: off with No limits on)
+    const cap = runtime ? runtime.getCap() : effectiveCap(resolveMultiplierConfig(ctx.config)); // --- unlimited --- (the run's cap)
     const maxBalls = v.settings.maxBalls;
     const balls = ctx.getBalls();
     // 1. Gate passes, in the order they happened.

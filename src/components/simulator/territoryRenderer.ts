@@ -9,16 +9,19 @@ import {
   TY_SHOCK_MS,
   TY_WHIRL_MS,
   TY_WHIRL_ARMS,
-  TY_WHIRL_SAMPLES_PER_TILE,
   pegLast,
   tilePercentages,
   whirlPoint,
+  whirlReach,
+  whirlSwept,
   type TerritoryView,
   type TyPower,
+  type WhirlReach,
 } from "@/lib/physics/modes/territory";
 import type { TeamEntry } from "@/lib/teams";
 import { inCaptionColumn } from "@/lib/captions";
 import { SHAKE_DECAY_MS, shakeAmplitude, shakeOffset } from "@/lib/simulation/camera";
+import { visualValue } from "@/lib/unlimited"; // uncap-all: a blast's reach drawn no wider than any canvas
 
 /**
  * Canvas drawing of Territory (feature odd-territory; lib/physics/modes/territory.ts), one `TerritoryLayer` per draw
@@ -166,6 +169,7 @@ export class TerritoryLayer {
   private readonly shown = new Float64Array(4);
   private shownGeneration = -1;
   private readonly point = { x: 0, y: 0 };
+  private readonly whirl: WhirlReach = { reach: 0, span: 1, samples: 8 };
   // Confetti (screen space).
   private readonly cx = new Float32Array(CONFETTI_MAX);
   private readonly cy = new Float32Array(CONFETTI_MAX);
@@ -387,7 +391,7 @@ export class TerritoryLayer {
       const t = age / TY_SHOCK_MS;
       const x = f.gx + s.u * f.tile;
       const y = f.gy + s.v * f.tile;
-      const R = s.radius * f.tile;
+      const R = visualValue(s.radius * f.tile); // (a reach past any canvas draws the same picture at DRAW_EXTENT_PX)
       if (age < 140) {
         const k = 1 - age / 140;
         ctx.globalAlpha = 0.75 * k;
@@ -424,8 +428,9 @@ export class TerritoryLayer {
   private drawWhirls(ctx: CanvasRenderingContext2D, view: TerritoryView, balls: readonly Ball[], now: number) {
     const f = view.field;
     const q = this.point;
-    const samples = Math.max(8, Math.round(TY_WHIRL_SAMPLES_PER_TILE * view.settings.radius));
-    const R = view.settings.radius * f.tile;
+    // (the arms' part on the board: `whirlReach()` – any reach draws at most the board's diagonal)
+    const w = whirlReach(view.settings.radius, view.cols, view.rows, this.whirl);
+    const R = w.reach * f.tile;
     for (const tb of view.balls) {
       if (!(tb.whirlMs > -Infinity)) continue;
       const age = now - tb.whirlMs;
@@ -434,7 +439,7 @@ export class TerritoryLayer {
       const B = this.ballById(balls, tb.id);
       const x = B ? B.x : f.gx + tb.u * f.tile;
       const y = B ? B.y : f.gy + tb.v * f.tile;
-      const upTo = Math.max(1, Math.round(p * samples));
+      const upTo = Math.max(1, whirlSwept(p, w.samples, w.span));
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       // Both arms in one path: a wide soft glow, then the bright line (no shadow blur – cheap at 32 balls).
@@ -442,7 +447,7 @@ export class TerritoryLayer {
       for (let arm = 0; arm < TY_WHIRL_ARMS; arm++) {
         ctx.moveTo(x, y);
         for (let k = 1; k <= upTo; k++) {
-          whirlPoint(k, samples, arm, tb.whirlAngle, tb.curve, R, q);
+          whirlPoint(k, w.samples, arm, tb.whirlAngle, tb.curve, R, q, w.span);
           ctx.lineTo(x + q.x, y + q.y);
         }
       }

@@ -42,16 +42,16 @@ export default function MultipliersModeSection({ t, search, matches, settings: s
     <div className="space-y-3 pt-2" data-testid="multipliers-board">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("mpBoardTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("mpBoardDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("mpBoardTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("mpBoardDesc")}</p>
         </div>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="mpRows" tipKey="mpRowsTip" value={s.mpRows} range={RANGES.mpRows} onChange={(v) => update({ mpRows: v })} left="▁" right="▇" />
-      <Slider t={t} search={search} matches={matches} labelKey="mpStartBalls" tipKey="mpStartBallsTip" value={s.mpStartBalls} range={RANGES.mpStartBalls} onChange={(v) => update({ mpStartBalls: v })} left="•" right="⁘" />
-      <Slider t={t} search={search} matches={matches} labelKey="mpMaxBalls" tipKey="mpMaxBallsTip" value={s.mpMaxBalls} range={RANGES.mpMaxBalls} onChange={(v) => update({ mpMaxBalls: v })} left="🐢" right="🌊" />
+      <Slider t={t} search={search} matches={matches} labelKey="mpRows" tipKey="mpRowsTip" value={s.mpRows} range={RANGES.mpRows} onChange={(v) => update({ mpRows: v })} />
+      <Slider t={t} search={search} matches={matches} labelKey="mpStartBalls" tipKey="mpStartBallsTip" value={s.mpStartBalls} range={RANGES.mpStartBalls} onChange={(v) => update({ mpStartBalls: v })} />
+      <Slider t={t} search={search} matches={matches} labelKey="mpMaxBalls" tipKey="mpMaxBallsTip" value={s.mpMaxBalls} range={RANGES.mpMaxBalls} onChange={(v) => update({ mpMaxBalls: v })} />
       <Searchable search={search} matches={matches} labelKey="mpGateMix">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("mpGateMix")}
             <Tooltip text={t("mpGateMixTip")} />
           </label>
@@ -59,7 +59,7 @@ export default function MultipliersModeSection({ t, search, matches, settings: s
             {GATE_KINDS.map((kind, i) => {
               const weight = Number(mix[i]);
               return (
-                <label key={kind} className="flex items-center gap-2 text-[11px] font-bold" style={{ color: GATE_OPTIONS[kind].color }}>
+                <label key={kind} className="flex items-center gap-2 text-xs font-bold" style={{ color: GATE_OPTIONS[kind].color }}>
                   <span className="w-20 shrink-0 truncate">{t(GATE_OPTIONS[kind].labelKey)}</span>
                   <input
                     type="range"
@@ -69,10 +69,10 @@ export default function MultipliersModeSection({ t, search, matches, settings: s
                     value={weight}
                     onChange={(e) => setWeight(i, Number(e.target.value))}
                     aria-label={t(GATE_OPTIONS[kind].labelKey)}
-                    className="flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                    className="flex-1 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer"
                     style={sliderStyle(weight, 0, 9)}
                   />
-                  <span className="w-3 shrink-0 text-right text-zinc-400 font-mono">{weight}</span>
+                  <span className="w-3 shrink-0 text-right text-ink-2 font-mono">{weight}</span>
                 </label>
               );
             })}
@@ -89,8 +89,6 @@ export default function MultipliersModeSection({ t, search, matches, settings: s
         range={RANGES.mpTarget}
         onChange={(v) => update({ mpTarget: v })}
         display={s.mpTarget === 0 ? t("mpTargetOff") : t("mpTargetValue", { count: s.mpTarget })}
-        left="🎲"
-        right="🎯"
       />
     </div>
   );

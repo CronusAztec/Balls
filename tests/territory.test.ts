@@ -10,6 +10,7 @@ import {
   TY_FINALE_SPEED,
   TY_GHOST_SPEED,
   TY_LADDER,
+  TY_MAX_TEAMS,
   TY_MIN_AXIS,
   TY_PALETTE,
   TY_PEG_RADIUS,
@@ -17,6 +18,7 @@ import {
   TY_SPEED,
   TY_VORTEX_CURVE,
   TY_WHIRL_MS,
+  TY_WHIRL_SAMPLES_PER_TILE,
   awayFromAxes,
   fillRegions,
   flipFrequency,
@@ -37,6 +39,8 @@ import {
   tileLeader,
   tilePercentages,
   whirlPoint,
+  whirlReach,
+  whirlSwept,
   type TerritorySettings,
   type TyBall,
   type TyPower,
@@ -45,7 +49,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
@@ -55,7 +59,7 @@ import { bounceTriggerApplies } from "@/lib/physics/bounceMathRuntime";
 import { bounceMathBeatConfig, type BounceRule } from "@/lib/simulation/bounceMath";
 import { assistantSettings, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
-import { BOUNDED_KEYS, ENGINE_CEILINGS } from "@/lib/unlimited";
+import { MEMORY_CEILINGS } from "@/lib/uncap";
 
 /**
  * Territory (lib/physics/modes/territory.ts, feature odd-territory): the settings (resolve, URL, presets), the board
@@ -160,16 +164,19 @@ async function withFrames<T>(body: () => Promise<T>): Promise<T> {
 /* ------------------------------------------------------------------ settings */
 
 describe("territory settings", () => {
-  it("resolve: defaults, clamping, 2 or 4 teams and known powers", () => {
+  it("resolve: defaults, the minimums, no maximum (the memory-safety ceilings for what a run builds), 2 or 4 teams and known powers", () => {
     expect(resolveTerritorySettings(undefined)).toEqual(DEFAULT_TERRITORY_SETTINGS);
     const r = resolveTerritorySettings({ cols: 200, teams: 3, ballsPerTeam: 0, powers: "ghost,nope,bomber", powerEvery: 2.3, radius: 99, duration: 7, pegs: "yes" as never, badge: false, hud: 1 as never });
-    expect(r.cols).toBe(TERRITORY_RANGES.tyCols.max);
+    expect(r.cols).toBe(200);
     expect(r.teams).toBe(4);
     expect(r.ballsPerTeam).toBe(1);
     expect(r.powers).toEqual(["ghost", DEFAULT_TY_POWERS[1], "bomber", DEFAULT_TY_POWERS[3]]);
     expect(r.powerEvery).toBe(2.5);
-    expect(r.radius).toBe(8);
+    expect(r.radius).toBe(99);
     expect(r.duration).toBe(10);
+    expect(resolveTerritorySettings({ cols: 1e9, teams: 1e9, ballsPerTeam: 1e9, powerEvery: 1e9, radius: 1e9, duration: 1e9 })).toMatchObject({ cols: MEMORY_CEILINGS.tyCols, teams: 4, ballsPerTeam: MEMORY_CEILINGS.tyBallsPerTeam, powerEvery: 1e9, radius: 1e9, duration: 1e9 });
+    expect(MEMORY_CEILINGS.tyTeams).toBe(TY_MAX_TEAMS);
+    expect(resolveTerritorySettings({ cols: Infinity, radius: Number.NaN, duration: -5 })).toMatchObject({ cols: DEFAULT_TERRITORY_SETTINGS.cols, radius: DEFAULT_TERRITORY_SETTINGS.radius, duration: 10 });
     expect(r.pegs).toBe(false);
     expect(r.badge).toBe(false);
     expect(r.hud).toBe(true);
@@ -189,11 +196,11 @@ describe("territory settings", () => {
     expect(territorySettingsOf(defaultSettings("classic"))).toEqual(DEFAULT_TERRITORY_SETTINGS);
     const query = settingsToSearchParams(d);
     for (const key of ["tyc", "tyt", "tyb", "typ", "tye", "tyr", "tyd", "typg", "tybg", "tyh", "dur"]) expect(query.has(key), key).toBe(false);
-    expect(territoryClipSec(120)).toBe(120);
+    expect([territoryClipSec(1), territoryClipSec(120), territoryClipSec(600)]).toEqual([10, 124, 604]); // (no maximum: the clip follows any countdown)
     expect(RANGES.tyCols).toEqual(TERRITORY_RANGES.tyCols);
   });
 
-  it("round-trip through the URL and presets, clamped on the way in", () => {
+  it("round-trip through the URL and presets, invalid values refused on the way in, big ones kept", () => {
     const s = { ...defaultSettings("territory"), tyCols: 40, tyTeams: 4, tyBallsPerTeam: 5, tyPowers: "ghost,painter,none,bomber", tyPowerEvery: 4.5, tyRadius: 5, tyDuration: 60, tyPegs: true, tyBadge: false, tyHud: false };
     const query = settingsToSearchParams(s);
     expect(query.get("tyc")).toBe("40");
@@ -201,7 +208,10 @@ describe("territory settings", () => {
     const back = settingsFromSearchParams(query);
     expect(territorySettingsOf(back)).toEqual(territorySettingsOf(s));
     const wild = settingsFromSearchParams(new URLSearchParams("mode=territory&tyc=5&tyt=9&tyb=40&typ=x,y&tye=abc&tyr=-3&tyd=999&typg=2&tyh=0"));
-    expect(territorySettingsOf(wild)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, cols: 12, teams: 4, ballsPerTeam: 8, radius: 1, duration: 120, hud: false });
+    expect(territorySettingsOf(wild)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, cols: 12, teams: 4, ballsPerTeam: 40, radius: 1, duration: 999, hud: false });
+    // (the link keeps a team count past the four quadrants as typed; the run plays four)
+    expect([wild.tyTeams, wild.tyBallsPerTeam, wild.tyDuration]).toEqual([9, 40, 999]);
+    expect(territorySettingsOf(settingsFromSearchParams(settingsToSearchParams(wild)))).toEqual(territorySettingsOf(wild));
     const preset = presetToSettings({ mode: "territory", tyCols: "abc" as never, tyTeams: 4, tyPowers: "bomber", tyPegs: "yes" as never } as never);
     expect(territorySettingsOf(preset)).toEqual({ ...DEFAULT_TERRITORY_SETTINGS, teams: 4, powers: ["bomber", "bomber", "painter", "ghost"] });
   });
@@ -980,28 +990,66 @@ describe("Territory with the other features", () => {
     expect(Array.from(plain.getTerritoryView().counts)).toEqual(Array.from(engine.getTerritoryView().counts));
   });
 
-  it("runs past its sliders with No limits on, up to its soft ceilings – the teams stay 2 or 4 – and on them with it off", () => {
+  it("runs past its sliders as typed whatever the Wide sliders switch – the board and the balls up to their memory-safety ceilings, the teams 2 or 4", () => {
     const typed = { tyCols: 64, tyBallsPerTeam: 12, tyPowerEvery: 20, tyRadius: 12, tyDuration: 300, tyTeams: 9 };
-    const on = presetToSettings({ ...defaultSettings("territory"), unlimited: true, ...typed });
     const lifted = { cols: 64, ballsPerTeam: 12, powerEvery: 20, radius: 12, duration: 300, teams: 4 };
-    expect(territorySettingsOf(on)).toMatchObject(lifted);
-    const engine = createEngineForSettings(physicsConfigOfSettings(on), "territory", modeSettingsOfSettings(on), 3);
-    expect(engine.getTerritorySettings()).toMatchObject(lifted);
-    expect(engine.getTerritoryView().cols).toBe(64);
-    expect(engine.getBalls()).toHaveLength(4 * 12);
-    for (let i = 0; i < 120; i++) engine.update(STEP, 0);
-    expect(accounted(engine).ok).toBe(true);
-    expect(fixedRunDurationSec("territory", modeSettingsOfSettings(on), true)).toBe(300);
-    // Far past: the soft ceilings (the page keeps the typed values).
-    const far = presetToSettings({ ...defaultSettings("territory"), unlimited: true, tyCols: 1e9, tyBallsPerTeam: 1e9, tyRadius: 1e9, tyDuration: 1e9 });
-    expect(far.tyCols).toBe(1e9);
-    expect(territorySettingsOf(far)).toMatchObject({ cols: ENGINE_CEILINGS.tyCols, ballsPerTeam: ENGINE_CEILINGS.tyBallsPerTeam, radius: ENGINE_CEILINGS.tyRadius, duration: ENGINE_CEILINGS.tyDuration });
-    expect(BOUNDED_KEYS.has("tyTeams")).toBe(true);
-    // Off: the sliders' ends.
-    const off = presetToSettings({ ...defaultSettings("territory"), unlimited: false, ...typed });
-    expect(off.unlimited).toBe(false);
-    expect(territorySettingsOf(off)).toMatchObject({ cols: 48, ballsPerTeam: 8, powerEvery: 10, radius: 8, duration: 120, teams: 4 });
-    expect(fixedRunDurationSec("territory", modeSettingsOfSettings(off), false)).toBe(120);
+    for (const unlimited of [false, true]) {
+      const s = presetToSettings({ ...defaultSettings("territory"), unlimited, ...typed });
+      expect([unlimited, s.unlimited]).toEqual([unlimited, unlimited]);
+      expect(s).toMatchObject(typed); // (the page keeps the typed values)
+      expect(territorySettingsOf(s)).toMatchObject(lifted);
+      const engine = createEngineForSettings(physicsConfigOfSettings(s), "territory", modeSettingsOfSettings(s), 3);
+      expect(engine.getTerritorySettings()).toMatchObject(lifted);
+      expect(engine.getTerritoryView().cols).toBe(64);
+      expect(engine.getBalls()).toHaveLength(4 * 12);
+      for (let i = 0; i < 120; i++) engine.update(STEP, 0);
+      expect(accounted(engine).ok).toBe(true);
+      expect(fixedRunDurationSec("territory", modeSettingsOfSettings(s))).toBe(300);
+    }
+    // Far past: the memory-safety ceilings run (the page and the link keep the typed values, the panel says ARENA FULL).
+    const far = presetToSettings({ ...defaultSettings("territory"), tyCols: 1e9, tyBallsPerTeam: 1e9, tyTeams: 1e9, tyRadius: 1e9, tyDuration: 1e9, tyPowerEvery: 1e9 });
+    expect([far.tyCols, far.tyBallsPerTeam, far.tyTeams, far.tyRadius]).toEqual([1e9, 1e9, 1e9, 1e9]);
+    expect(pastAnyMemoryCeiling(far)).toBe(true);
+    expect(territorySettingsOf(far)).toMatchObject({ cols: MEMORY_CEILINGS.tyCols, ballsPerTeam: MEMORY_CEILINGS.tyBallsPerTeam, teams: 4, radius: 1e9, duration: 1e9, powerEvery: 1e9 });
+    expect(settingsFromSearchParams(settingsToSearchParams(far))).toMatchObject({ tyCols: 1e9, tyBallsPerTeam: 1e9, tyRadius: 1e9, tyDuration: 1e9 });
+    expect(pastAnyMemoryCeiling(defaultSettings("territory"))).toBe(false);
+  });
+
+  it("takes a reach past the board in work bounded by the board: the whirl walks only its arms' part on it, the blast takes every tile", () => {
+    // The part of the arms on the board: within it the whirl is the one it always was, past it the same points, fewer walked.
+    const w = whirlReach(3, 24, 20, { reach: 0, span: 0, samples: 0 });
+    expect(w).toEqual({ reach: 3, span: 1, samples: 3 * TY_WHIRL_SAMPLES_PER_TILE });
+    for (const p of [0, 0.25, 0.5, 1]) expect(whirlSwept(p, w.samples, 1)).toBe(Math.round(p * w.samples));
+    const diagonal = Math.hypot(24, 20);
+    const far = whirlReach(100, 24, 20, { reach: 0, span: 0, samples: 0 });
+    expect(far.reach).toBeCloseTo(diagonal, 9);
+    expect(far.span).toBeCloseTo(diagonal / 100, 9);
+    expect(far.samples).toBe(Math.round(TY_WHIRL_SAMPLES_PER_TILE * diagonal));
+    const a = { x: 0, y: 0 };
+    const b = { x: 0, y: 0 };
+    for (const k of [1, far.samples / 4, far.samples / 2, far.samples]) {
+      whirlPoint(k, far.samples, 1, 0.3, -1, far.reach * 10, a, far.span);
+      const whole = 100 * TY_WHIRL_SAMPLES_PER_TILE;
+      whirlPoint((k / far.samples) * far.span * whole, whole, 1, 0.3, -1, 100 * 10, b);
+      expect([a.x, a.y].map((n) => Math.round(n * 1e6))).toEqual([b.x, b.y].map((n) => Math.round(n * 1e6)));
+    }
+    expect(whirlSwept(far.span / 2, far.samples, far.span)).toBe(Math.round(far.samples / 2));
+    expect(whirlSwept(far.span, far.samples, far.span)).toBe(far.samples);
+    // Any finite reach: a finite number of samples, no more than the board's diagonal holds.
+    for (const radius of [1e9, 1e300, Number.MAX_VALUE]) {
+      const r = whirlReach(radius, 24, 20, { reach: 0, span: 0, samples: 0 });
+      expect([radius, Number.isFinite(r.span) && r.span > 0, r.samples]).toEqual([radius, true, far.samples]);
+    }
+    // In the engine: vortices and bombers reaching far past the board paint it fast, every tile accounted for.
+    for (const radius of [1e9, Number.MAX_VALUE]) {
+      const engine = territory({ radius, powerEvery: 1, powers: ["vortex", "bomber", "vortex", "bomber"] }, 5);
+      const started = Date.now();
+      for (let i = 0; i < 4 * 60; i++) engine.update(STEP, 0);
+      expect(Date.now() - started).toBeLessThan(5000);
+      const v = engine.getTerritoryView();
+      expect([radius, v.blasts > 0, v.whirls > 0, accounted(engine).ok]).toEqual([radius, true, true, true]);
+      for (const ball of engine.getBalls()) expect([ball.x, ball.y, ball.vx, ball.vy].every(Number.isFinite)).toBe(true);
+    }
   });
 
   it("lets the AI assistant tune its settings", () => {

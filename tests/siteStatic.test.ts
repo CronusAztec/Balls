@@ -87,7 +87,7 @@ describe("mode count", () => {
     const enKeys = keysWith(en);
     expect(keysWith(pl)).toEqual(enKeys);
     expect(keysWith(es)).toEqual(enKeys);
-    expect(enKeys).toEqual(expect.arrayContaining(["Layout.metaDescription", "Layout.featuresModes", "SimulatorPage.metaDescription", "TikTokBallVideos.metaDescription", "Hero.subtitle", "HowItWorks.step1.description"]));
+    expect(enKeys).toEqual(expect.arrayContaining(["Layout.metaDescription", "Layout.featuresModes", "SimulatorPage.metaDescription", "TikTokBallVideos.metaDescription", "SiteRedesign.hero.sub" /* --- site-redesign --- the hero's copy */, "HowItWorks.step1.description"]));
   });
 
   it("formats the count in every locale, and the JSON-LD feature list starts with it", () => {

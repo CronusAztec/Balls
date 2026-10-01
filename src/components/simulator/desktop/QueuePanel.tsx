@@ -85,21 +85,21 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
           {source === "seeds" && (
             <>
               <textarea className={`${inputClass} w-full h-20 font-mono`} value={list} onChange={(e) => setList(e.target.value)} placeholder={t("queueListPlaceholder")} aria-label={t("queueListLabel")} data-testid="queue-list" />
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-xs text-ink-3">
                 {parsed.entries.length ? t("queueListCount", { count: parsed.entries.length }) : t("queueListEmpty")}
-                {parsed.invalidLines.length > 0 && <span className="text-amber-400"> · {t("queueListInvalid", { lines: parsed.invalidLines.join(", ") })}</span>}
+                {parsed.invalidLines.length > 0 && <span className="text-warn"> · {t("queueListInvalid", { lines: parsed.invalidLines.join(", ") })}</span>}
               </p>
             </>
           )}
           {source === "random" && (
-            <label className="flex items-center gap-2 text-xs text-zinc-300">
+            <label className="flex items-center gap-2 text-xs text-ink-2">
               {t("queueRandomCount")}
               <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))))} className={`${inputClass} w-20`} />
             </label>
           )}
-          {source === "bot" && <p className="text-[11px] text-zinc-500">{t("queueBotHint")}</p>}
+          {source === "bot" && <p className="text-xs text-ink-3">{t("queueBotHint")}</p>}
           <div className="space-y-2">
-            <p className="text-[11px] uppercase tracking-wide text-zinc-500">{t("queueResolutions")}</p>
+            <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueResolutions")}</p>
             <div className="flex gap-2 flex-wrap">
               {QUEUE_RESOLUTIONS.map((r) => (
                 <Chip key={r} on={resolutions.includes(r)} onClick={() => toggle(resolutions, r, setResolutions)}>
@@ -107,7 +107,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                 </Chip>
               ))}
             </div>
-            <p className="text-[11px] uppercase tracking-wide text-zinc-500">{t("queueFps")}</p>
+            <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueFps")}</p>
             <div className="flex gap-2 flex-wrap">
               {QUEUE_FPS.map((f) => (
                 <Chip key={f} on={fps.includes(f)} onClick={() => toggle(fps, f, setFps)}>
@@ -115,7 +115,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                 </Chip>
               ))}
             </div>
-            <p className="text-[11px] uppercase tracking-wide text-zinc-500">{t("queueCodecs")}</p>
+            <p className="text-xs uppercase tracking-wide text-ink-3">{t("queueCodecs")}</p>
             <div className="flex gap-2 flex-wrap">
               {VIDEO_CODECS.map((c) => (
                 <Chip key={c} on={codecs.includes(c)} onClick={() => toggle(codecs, c, setCodecs)}>
@@ -123,7 +123,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                 </Chip>
               ))}
             </div>
-            <p className="text-[11px] uppercase tracking-wide text-zinc-500">{t("queuePresets")}</p>
+            <p className="text-xs uppercase tracking-wide text-ink-3">{t("queuePresets")}</p>
             <div className="flex gap-2 flex-wrap">
               {OUTPUT_PRESETS.map((p) => (
                 <Chip key={p} on={presets.includes(p)} onClick={() => toggle(presets, p, setPresets)} testId={`queue-preset-${p}`}>
@@ -135,10 +135,10 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
           <button type="button" className={`${primaryBtn} w-full`} disabled={adding} onClick={() => void add()} data-testid="queue-add">
             {adding ? "…" : t("queueAdd")}
           </button>
-          {message && <p className="text-xs text-zinc-300" data-testid="queue-message">{message}</p>}
+          {message && <p className="text-xs text-ink-2" data-testid="queue-message">{message}</p>}
         </Card>
         <Card title={t("queueFolderTitle")}>
-          <p className="text-xs text-zinc-400 break-all" data-testid="queue-folder">{folder || t("queueFolderDefault", { siteName: SITE_NAME }) /* --- review fix (docs-consistency) --- */}</p>
+          <p className="text-xs text-ink-2 break-all" data-testid="queue-folder">{folder || t("queueFolderDefault", { siteName: SITE_NAME }) /* --- review fix (docs-consistency) --- */}</p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -185,8 +185,8 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
           }
         >
           {queue.resumable !== null && (
-            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-cyan-950/40 border border-cyan-800/50 text-xs" data-testid="queue-resume">
-              <span className="flex-1 text-cyan-200">{t("queueResume", { count: queue.resumable })}</span>
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/10 border border-accent-dim/50 text-xs" data-testid="queue-resume">
+              <span className="flex-1 text-accent-strong">{t("queueResume", { count: queue.resumable })}</span>
               <button type="button" className={primaryBtn} onClick={queue.start}>
                 {t("queueResumeButton")}
               </button>
@@ -197,25 +197,25 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
           )}
           {summary.total > 0 && <Bar value={summary.progress} />}
           {queue.state.jobs.length === 0 ? (
-            <p className="text-xs text-zinc-500 py-6 text-center">{t("queueEmpty")}</p>
+            <p className="text-xs text-ink-3 py-6 text-center">{t("queueEmpty")}</p>
           ) : (
-            <ul className="divide-y divide-zinc-800 max-h-[28rem] overflow-y-auto pr-1">
+            <ul className="divide-y divide-line max-h-[28rem] overflow-y-auto pr-1">
               {queue.state.jobs.map((job) => (
                 <li key={job.id} className="py-2 space-y-1" data-queue-job={job.name} data-queue-status={job.status}>
                   <div className="flex items-center gap-2 text-xs">
-                    <span className="font-medium text-zinc-200 truncate flex-1" title={job.name}>
+                    <span className="font-medium text-ink truncate flex-1" title={job.name}>
                       {job.name}
                     </span>
-                    <span className="text-zinc-500 whitespace-nowrap">
+                    <span className="text-ink-3 whitespace-nowrap">
                       {job.preset === "native" ? `${job.resolution} · ${job.fps}` : t(`preset.${job.preset}`)} · {job.codec.toUpperCase()}
                     </span>
-                    <span className={`whitespace-nowrap ${job.status === "failed" ? "text-red-400" : job.status === "done" ? "text-[#93d119]" : "text-zinc-400"}`}>{statusText(job)}</span>
+                    <span className={`whitespace-nowrap ${job.status === "failed" ? "text-danger" : job.status === "done" ? "text-accent" : "text-ink-2"}`}>{statusText(job)}</span>
                   </div>
                   {(job.status === "rendering" || job.status === "encoding") && <Bar value={job.progress} tone={job.status === "encoding" ? "cyan" : "lime"} />}
-                  {job.error && <p className="text-[11px] text-red-400 break-words">{job.error}</p>}
-                  {job.resumed && job.status === "queued" && <p className="text-[11px] text-cyan-300">{t("queueResumedJob")}</p>}
+                  {job.error && <p className="text-xs text-danger break-words">{job.error}</p>}
+                  {job.resumed && job.status === "queued" && <p className="text-xs text-accent-strong">{t("queueResumedJob")}</p>}
                   {job.output && (
-                    <p className="text-[11px] text-zinc-500 truncate" title={job.output.path}>
+                    <p className="text-xs text-ink-3 truncate" title={job.output.path}>
                       {formatBytes(job.output.bytes)} · {formatSeconds(job.output.durationSec)}
                       {job.output.encoder ? ` · ${job.output.encoder}` : ""} · {job.output.path}
                     </p>
@@ -251,7 +251,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
               ))}
             </ul>
           )}
-          {page.busy && queue.state.running && <p className="text-[11px] text-amber-400">{t("queueWaitingForPage")}</p>}
+          {page.busy && queue.state.running && <p className="text-xs text-warn">{t("queueWaitingForPage")}</p>}
         </Card>
       </div>
     </div>
