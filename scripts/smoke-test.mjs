@@ -8771,6 +8771,8 @@ const bdInstrument = () =>
 // (OscillatorNode.start instrumented), the badge and the HUD, percentages adding up to 100, the offscreen board repainted
 // only where tiles flipped – and ends at its countdown with a verdict held before the end screen; a roster whose rigged
 // Blue wins under the teams banner; and Find Simulation's winner outcome (also for a countdown past the search's horizon).
+// --- uncap-all --- And the Ball Size past its slider: applied as typed (it stopped at 0.9 tiles), several tiles a hit inside
+// the field at 30+ fps, and a ball wider than the board that eats the arena.
 {
   const res = await page.request.get(`${BASE}/modes/territory.webp`);
   check("asset /modes/territory.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -8833,6 +8835,40 @@ const bdInstrument = () =>
     fpsOk(fr, 8, 30),
     `(${JSON.stringify({ balls: data.tyBalls, conversions: data.tyConversions, repaints: data.tyRepaints, counts: data.tyCounts })}, ${fpsNote(fr)}, floor 30${loadNote()})`,
     fpsRetry(4000, 6, 30),
+  );
+}
+{
+  // --- uncap-all --- Ball Size 100, more than three times the slider's end, one ball a team: balls of 5.25 tiles (the old
+  // code stopped them at 0.9), each hit taking a dent the shape of the ball's front – several tiles –, every ball's whole disc
+  // on the board, at 30+ fps (a 60 s countdown: still running for the retry).
+  await page.goto(`${BASE}/en/simulator/?mode=territory&r=100&tyb=1&tyd=60`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const fr = await pageFrameRates(5000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory-big-balls.png") });
+  const perHit = Number(data.tyConversions) / Math.max(1, Number(data.tyTileBounces));
+  await timingCheck(
+    "simulator mode=territory runs Ball Size 100 as typed (5.25-tile balls), flipping several tiles a hit inside the field at 30+ fps",
+    data.tyBallTiles === "5.25" && data.tyBalls === "2" && Number(data.tyTileBounces) >= 10 && perHit >= 2 && data.tyInField === "1" && data.unlimited === "1" && data.unlimitedAte !== "1" && data.tyFinished === "0",
+    fpsOk(fr, 8, 30),
+    `(${JSON.stringify({ ballTiles: data.tyBallTiles, conversions: data.tyConversions, tileBounces: data.tyTileBounces, inField: data.tyInField, extreme: data.unlimited, ate: data.unlimitedAte })}, ${perHit.toFixed(2)} tiles a hit, ${fpsNote(fr)}, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
+  );
+}
+{
+  // --- uncap-all --- Ball Size 200: balls of 10.5 tiles on a board 20 tiles tall – wider than it: the run's first step eats
+  // the arena (the engine's outgrow finish, as a ball bigger than Classic's rings: THE BALL ATE THE ARENA and the gulp, no verdict).
+  await page.goto(`${BASE}/en/simulator/?mode=territory&r=200`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const ate = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedAte === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory-ate-arena.png") });
+  check(
+    "a Territory ball wider than the board eats the arena: THE BALL ATE THE ARENA ends the run, no verdict",
+    ate && data.multOutgrew === "1" && data.tyFinished === "0" && data.tyWinner === "-1" && data.tyConversions === "0" && data.tyInField === "1",
+    `(ate=${ate}, outgrew=${data.multOutgrew}, verdict=${data.tyFinished}/${data.tyWinner}, conversions=${data.tyConversions}, in field=${data.tyInField}, ball ${data.tyBallTiles} tiles)`,
   );
 }
 {

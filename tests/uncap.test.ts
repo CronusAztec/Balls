@@ -51,6 +51,7 @@ import { battleSquareHalf, battleSquaresFit } from "@/lib/physics/modes/battle";
 import { ctfSquareHalf, ctfSquaresFit } from "@/lib/physics/modes/ctf";
 import { buildArenaField } from "@/lib/physics/modes/arenaGames";
 import { COLOR_MATCH_COLORS, colorMatchColor } from "@/lib/physics/modes/colorMatch";
+import { TY_BALL_SCALE, TY_NEAR_BUDGET, TY_TILE_VISITS, territoryBallFits, territoryBallRadius, territoryField } from "@/lib/physics/modes/territory";
 import { shakeAmplitude, slowMoTimeScale } from "@/lib/simulation/camera";
 import { OnBeatController } from "@/lib/physics/onBeat";
 import { gridStepSeconds } from "@/lib/audio/scales";
@@ -440,6 +441,7 @@ describe("uncap-all review fixes: every mode runs Gravity, Ball Speed and Ball S
     expect(runnerGravityFactor(9e7)).toBe(3e5);
     expect(paddleGravityFactor(9e7)).toBe(3e5);
     expect(paddleBallRadius(800)).toBeCloseTo(100 * paddleBallRadius(8), 9);
+    expect(territoryBallRadius(800, 10)).toBeCloseTo(100 * territoryBallRadius(8, 10), 9); // --- review fix (uncap-all) --- (Territory's old 0.9-tile cap is gone)
     // The squares grow with the Ball Size past the old 2.5× / 2× – as far as their field holds them.
     const field = buildArenaField(800, 800, "box");
     expect(battleSquareHalf(field, 20, 28)).toBeGreaterThan(battleSquareHalf(field, 20, 20));
@@ -484,6 +486,11 @@ describe("uncap-all review fixes: every mode runs Gravity, Ball Speed and Ball S
       return v.layerR[v.layerCount - 1] / v.layerR[0];
     };
     expect(nested(40)).toBeGreaterThan(nested(16) * 2);
+    // --- review fix (uncap-all) --- Territory: a ball wider than the board ate the arena (it used to stop at 0.9 tiles and played on)
+    for (const [ballRadius, eaten] of [[1000, true], [200, true], [100, false]] as const) {
+      const run = runMode("territory", { ballRadius }, 5);
+      expect([ballRadius, run.engine.getMultiplierRuntime().isOutgrown(), run.engine.isSimulationFinished(), run.engine.getUnlimitedView().ate]).toEqual([ballRadius, eaten, eaten, eaten]);
+    }
   });
 
   it("caps no user-driven speed per step: Collision Playground orbs and the Journey's fall keep gaining speed", () => {
@@ -821,6 +828,22 @@ describe("uncap-all: the guard", () => {
     }
     expect(unclassified).toEqual([]);
     for (const key of Object.keys(SIZES_NOTHING)) expect([key, ranges[key] !== undefined]).toEqual([key, true]);
+  });
+
+  it("keeps no ceiling on Territory's ball size: its tile tests' only ceilings bound the work of a sub-step (memory-safety)", () => {
+    // --- review fix (uncap-all) --- the ball's radius stopped at 0.9 tiles whatever the Ball Size (TY_MAX_RADIUS); now a
+    // typed size is the size, on any board, until the ball is wider than the board (the ate-the-arena finish). What a big
+    // ball's tile test may visit in a sub-step (all of them together) and the other balls whose ground it respects are
+    // ceilings of work, not of a user's number.
+    for (const ballRadius of [30, 31, 300, 3000]) {
+      const s = { ...defaultSettings("territory"), ballRadius, tyCols: 1000 };
+      const engine = createEngineForSettings(physicsConfigOfSettings(s), "territory", modeSettingsOfSettings(s), 3);
+      const f = engine.getTerritoryView().field;
+      expect([ballRadius, engine.getBalls()[0].radius / f.tile]).toEqual([ballRadius, territoryBallRadius(ballRadius, f.tile) / f.tile]);
+      expect(engine.getBalls()[0].radius / f.tile).toBeCloseTo(TY_BALL_SCALE * (ballRadius / 8), 9);
+      expect(territoryBallFits(engine.getBalls()[0].radius, territoryField(800, 600, 1000))).toBe(true);
+    }
+    expect([TY_TILE_VISITS, TY_NEAR_BUDGET]).toEqual([1 << 20, 8]);
   });
 
   it("builds at most the nested circles' ceiling for a billion-deep Circle Illusion link and says ARENA FULL", () => {
