@@ -9,6 +9,7 @@ import { FAQ_KEYS } from "@/lib/faq";
 import JsonLd from "@/components/site/JsonLd";
 import DailyChallengeCard from "@/components/site/DailyChallengeCard"; // --- daily-gallery ---
 import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -31,12 +32,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     "@type": "WebApplication",
     name: SITE_NAME,
     url: pageUrl(locale),
-    description: layout("metaDescription"),
+    description: layout("metaDescription", { count: MODE_CARD_ORDER.length }),
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
     browserRequirements: layout("browserRequirements"),
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    featureList: layout.raw("features"),
+    featureList: [layout("featuresModes", { count: MODE_CARD_ORDER.length }), ...(layout.raw("features") as string[])],
   };
 
   // --- site-redesign --- hero (with the live preview), today's challenge, the modes wall, how it works, the FAQ

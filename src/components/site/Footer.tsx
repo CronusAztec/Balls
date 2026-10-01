@@ -45,8 +45,8 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-line bg-bg">
-      <div className="site-container grid grid-cols-2 gap-x-6 gap-y-10 py-12 md:grid-cols-4">
-        <nav aria-label={s("footer.product")}>
+      <nav aria-label={t("navLabel")} className="site-container grid grid-cols-2 gap-x-6 gap-y-10 py-12 md:grid-cols-4">
+        <div>
           <h2 className="eyebrow text-ink-3">{s("footer.product")}</h2>
           <ul className="mt-4 space-y-3">
             {product.map((l) => (
@@ -59,8 +59,8 @@ export default function Footer() {
           </ul>
           {/* --- pwa --- only while the browser offers to install the site */}
           <InstallAppButton />
-        </nav>
-        <nav aria-label={s("footer.modes")}>
+        </div>
+        <div>
           <h2 className="eyebrow text-ink-3">{s("footer.modes")}</h2>
           <ul className="mt-4 space-y-3">
             {modeFamilies().map((f) => (
@@ -72,8 +72,8 @@ export default function Footer() {
               </li>
             ))}
           </ul>
-        </nav>
-        <nav aria-label={s("footer.legal")}>
+        </div>
+        <div>
           <h2 className="eyebrow text-ink-3">{s("footer.legal")}</h2>
           <ul className="mt-4 space-y-3">
             {legal.map((l) => (
@@ -84,8 +84,8 @@ export default function Footer() {
               </li>
             ))}
           </ul>
-        </nav>
-        <nav aria-label={s("lang.label")}>
+        </div>
+        <div>
           <h2 className="eyebrow text-ink-3">{s("lang.label")}</h2>
           <ul className="mt-4 space-y-3">
             {LOCALE_OPTIONS.map((opt) => (
@@ -96,8 +96,8 @@ export default function Footer() {
               </li>
             ))}
           </ul>
-        </nav>
-      </div>
+        </div>
+      </nav>
       <div className="border-t border-line">
         <div className="site-container flex flex-col gap-3 py-6 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>

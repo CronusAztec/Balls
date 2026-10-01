@@ -18,7 +18,7 @@ export default function Hero() {
     <section className="border-b border-line" aria-labelledby="hero-title">
       <div className="site-container grid items-center gap-12 py-12 sm:py-16 lg:grid-cols-[minmax(0,1fr)_270px] lg:gap-20 lg:py-20 xl:gap-28">
         <div className="min-w-0">
-          <p className="eyebrow text-ink-3">{t("hero.eyebrow")}</p>
+          <div className="eyebrow text-ink-3">{t("hero.eyebrow")}</div>
           <h1 id="hero-title" className="mt-5 max-w-[17ch] text-2xl font-bold text-ink sm:text-3xl lg:text-4xl">
             {t("hero.title")}
           </h1>

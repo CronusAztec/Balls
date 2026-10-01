@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { usePathname, useRouter } from "@/i18n/navigation";
@@ -9,9 +9,10 @@ import { IconCheck, IconChevronDown, IconGlobe } from "@/components/ui/icons";
 import { cx } from "@/components/ui/cx";
 
 /*
- * Language switcher. --- site-redesign --- A quiet ghost button (globe, language name, chevron) that opens a menu of the
- * languages (arrow keys move, Esc closes and returns to the button); in the header's mobile sheet the languages are a
- * plain list. The page keeps its query string when the language changes.
+ * Language switcher. --- site-redesign --- A quiet ghost button (globe, language name, chevron) that discloses the list of
+ * languages – a disclosure (button + list of buttons), not an ARIA menu: the arrow keys move between them, Escape closes it
+ * and returns to the button, tabbing out of it closes it. In the header's mobile sheet the languages are a plain row. The
+ * page keeps its query string when the language changes.
  */
 export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMenu?: boolean }) {
   const locale = useLocale();
@@ -23,6 +24,7 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const listId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -45,19 +47,18 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
     router.replace({ pathname: (pathname + search) as any, params: params as Record<string, string> } as never, { locale: code });
   };
 
-  const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
+  const onMenuKey = (e: KeyboardEvent<HTMLUListElement>) => {
     const items = itemsRef.current.filter(Boolean) as HTMLButtonElement[];
     const index = items.indexOf(document.activeElement as HTMLButtonElement);
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       setOpen(false);
       buttonRef.current?.focus();
     } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       const next = (index + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
       items[next]?.focus();
-    } else if (e.key === "Tab") {
-      setOpen(false);
     }
   };
 
@@ -84,13 +85,21 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div
+      className="relative"
+      ref={ref}
+      onBlur={(e) => {
+        // Focus moving to another element outside closes it (a click elsewhere is handled by the mousedown listener).
+        const next = e.relatedTarget as Node | null;
+        if (next && !ref.current?.contains(next)) setOpen(false);
+      }}
+    >
       <button
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
         aria-label={`${t("lang.label")}: ${current.label}`}
         className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink cursor-pointer"
       >
@@ -100,25 +109,26 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
         <IconChevronDown size={14} className={cx("transition-transform duration-150", open && "rotate-180")} />
       </button>
       {open && (
-        <div role="menu" aria-label={t("lang.label")} onKeyDown={onMenuKey} className="absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-line bg-surface-2 p-1 shadow-[var(--shadow-float)] animate-fadeIn">
+        <ul id={listId} aria-label={t("lang.label")} onKeyDown={onMenuKey} className="absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-line bg-surface-2 p-1 shadow-[var(--shadow-float)] animate-fadeIn">
           {LOCALE_OPTIONS.map((opt, i) => (
-            <button
-              type="button"
-              key={opt.code}
-              ref={(el) => {
-                itemsRef.current[i] = el;
-              }}
-              role="menuitem"
-              lang={opt.code}
-              onClick={() => switchTo(opt.code)}
-              className={cx("flex h-9 w-full items-center gap-3 rounded-md px-3 text-sm cursor-pointer", locale === opt.code ? "text-ink" : "text-ink-2 hover:bg-surface-3 hover:text-ink")}
-            >
-              <span className="num w-6 text-xs uppercase text-ink-3">{opt.code}</span>
-              <span>{opt.label}</span>
-              {locale === opt.code && <IconCheck size={16} className="ml-auto text-accent" />}
-            </button>
+            <li key={opt.code}>
+              <button
+                type="button"
+                ref={(el) => {
+                  itemsRef.current[i] = el;
+                }}
+                lang={opt.code}
+                aria-current={locale === opt.code ? "true" : undefined}
+                onClick={() => switchTo(opt.code)}
+                className={cx("flex h-9 w-full items-center gap-3 rounded-md px-3 text-sm cursor-pointer", locale === opt.code ? "text-ink" : "text-ink-2 hover:bg-surface-3 hover:text-ink")}
+              >
+                <span className="num w-6 text-xs uppercase text-ink-3">{opt.code}</span>
+                <span>{opt.label}</span>
+                {locale === opt.code && <IconCheck size={16} className="ml-auto text-accent" />}
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

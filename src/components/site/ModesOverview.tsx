@@ -47,7 +47,7 @@ export default function ModesOverview({ interactive = false, current, onPicked, 
     const content = (
       <PosterCard
         image={assetPath(`/modes/${id}.webp`)}
-        alt={s("modesWall.previewAlt", { mode: name })}
+        alt={t("previewAlt", { name }) /* --- review fix (ui-i18n) --- */}
         name={name}
         tag={chipLabel(family)}
         description={t(`${id}.description`)}

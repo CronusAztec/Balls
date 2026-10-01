@@ -47,16 +47,18 @@ function formatSeconds(sec: number) {
   return Number.isInteger(sec) ? String(sec) : sec.toFixed(1);
 }
 
+/** `cols: "wrap"` lays the buttons out in a wrapping row (each at least as wide as its label) instead of fixed grid columns. */
 function Choice<T extends string>({ t, labelKey, tipKey, options, labels, value, onChange, cols }: { t: Translate; labelKey: string; tipKey: string; options: readonly T[]; labels: Readonly<Record<string, string>>; value: T; onChange: (v: T) => void; cols: string }) {
+  const wrap = cols === "wrap"; // --- review fix (ui-i18n) ---
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-zinc-300">
         {t(labelKey)}
         <Tooltip text={t(tipKey)} />
       </label>
-      <div className={`grid ${cols} gap-1`} role="group" aria-label={t(labelKey)}>
+      <div className={wrap ? "flex flex-wrap gap-1" : `grid ${cols} gap-1`} role="group" aria-label={t(labelKey)}>
         {options.map((option) => (
-          <button type="button" key={option} onClick={() => onChange(option)} aria-pressed={value === option} className={pick(value === option)}>
+          <button type="button" key={option} onClick={() => onChange(option)} aria-pressed={value === option} className={`${wrap ? "flex-auto whitespace-nowrap " : ""}${pick(value === option)}`}>
             {t(labels[option])}
           </button>
         ))}
@@ -106,7 +108,7 @@ export default function PolyrhythmSection({ t, search, matches, settings: s, upd
         </Searchable>
       )}
       <Searchable search={search} matches={matches} labelKey="prTempos">
-        <Choice t={t} labelKey="prTempos" tipKey="prTemposTip" options={POLY_TEMPOS} labels={TEMPO_LABELS} value={s.prTempos} onChange={(v) => update({ prTempos: v })} cols="grid-cols-3" />
+        <Choice t={t} labelKey="prTempos" tipKey="prTemposTip" options={POLY_TEMPOS} labels={TEMPO_LABELS} value={s.prTempos} onChange={(v) => update({ prTempos: v })} cols="wrap" /* --- review fix (ui-i18n) --- es "Personalizados" fits */ />
       </Searchable>
       {(s.prTempos !== "custom" || all) && (
         <Slider t={t} search={search} matches={matches} labelKey="prCount" tipKey="prCountTip" value={s.prCount} range={RANGES.prCount} onChange={(v) => update({ prCount: v })} display={String(s.prCount)} left="▪" right="▪▪▪" />

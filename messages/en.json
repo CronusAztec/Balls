@@ -24,14 +24,14 @@
   },
   "SimulatorPage": {
     "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator with 12 modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
+    "metaDescription": "Free browser-based ball physics simulator with {count} modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
   },
   "Layout": {
     "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and 12 unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
+    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and {count} unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
+    "featuresModes": "{count} simulation modes",
     "features": [
-      "12 simulation modes",
       "Customisable physics and visuals",
       "Rainbow wall effects",
       "Colour trail",
@@ -303,6 +303,7 @@
     "wallBreakSound": "Wall Break Sound",
     "wallBreakSoundDesc": "Play a custom audio clip instead of the default tones when the ball breaks through a wall.",
     "wallBreakSoundDefault": "Default tones",
+    "customWallBreak": "Custom",
     "importWallBreak": "Import Custom Wall Break Sound",
     "chooseWallBreakFile": "Choose audio file",
     "dropWallBreakHere": "Drop your audio file here!",
@@ -330,6 +331,7 @@
     "defaultSong": "Default tones",
     "loadingSong": "Loading song...",
     "notesLoaded": "notes loaded",
+    "uploadedMidi": "Uploaded MIDI",
     "importMidi": "Import Custom MIDI",
     "chooseMidiFile": "Choose .mid file",
     "dropMidiHere": "Drop your MIDI file here!",
@@ -858,6 +860,8 @@
     "obstaclesMax": "That is the maximum of {max} obstacles.",
     "obstaclePosition": "x {x} · y {y}",
     "obstacleRemove": "Remove obstacle {n}",
+    "obstacleXOf": "Horizontal position of obstacle {n}",
+    "obstacleYOf": "Vertical position of obstacle {n}",
     "obstacleSize": "Size",
     "obstacleLength": "Length",
     "obstacleAngle": "Angle",
@@ -1476,6 +1480,7 @@
     "unlimited": "Wide sliders"
   },
   "Modes": {
+    "previewAlt": "{name} mode preview",
     "classic": {
       "name": "Classic",
       "description": "A ball bounces inside concentric rings that each have a single gap. Every wall it slips through breaks with a satisfying effect. Simple, hypnotic and endlessly rewatchable."
@@ -1711,6 +1716,7 @@
     "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers."
   },
   "Footer": {
+    "navLabel": "Footer",
     "about": "About",
     "tiktok": "TikTok Videos",
     "disclaimer": "Disclaimer",
@@ -1933,7 +1939,7 @@
   },
   "TikTokBallVideos": {
     "metaTitle": "Make Bouncing Ball Videos for TikTok – Free Tool – {siteName}",
-    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with 12 modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
+    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with {count} modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
@@ -1947,7 +1953,7 @@
     "p6": "You can also export 500×500 (square), 1280×720 (HD) or 1920×1080 (Full HD) for Reels, YouTube Shorts and other platforms. Recording happens entirely in your browser; nothing is uploaded and no watermark is added unless you add your own.",
     "h2_3": "Start with a Proven Format",
     "p7": "The best TikTok ball videos follow a simple recipe: a clear visual hook in the first second, a visible progress indicator such as the number of walls left, and a satisfying payoff when the ball finally escapes. The Find Simulation tool searches for a seed that produces a run of your target length, so you can plan the clip instead of guessing.",
-    "p8": "All eleven modes, Classic, Accumulation, Multiply, Lines, Paint, Target, Grow, Shatter, Color Match, Portal and Ball Drop, produce a different rhythm, so you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
+    "p8": "Every mode, from Classic and Multiply to Ball Drop, Square Racing and Glass Smash, produces a different rhythm, so you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
     "cta": "Make Your First TikTok Ball Video"
   },
   "About": {
@@ -3195,7 +3201,6 @@
       "intro": "{count} formats – escape rings, rhythm machines, duels and journeys. Pick one and it opens in the studio, ready to run.",
       "all": "All",
       "filterLabel": "Filter modes by family",
-      "previewAlt": "{mode} mode preview",
       "current": "Current"
     },
     "studio": {

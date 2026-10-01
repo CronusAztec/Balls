@@ -24,14 +24,14 @@
   },
   "SimulatorPage": {
     "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas gratuito en el navegador con 12 modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
+    "metaDescription": "Simulador de física de pelotas gratuito en el navegador con {count} modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
   },
   "Layout": {
     "metaTitle": "Simulador de física de pelotas gratuito y satisfactorio para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas gratuito en el navegador. Crea simulaciones hipnóticas con física personalizable, efectos arcoíris y 12 modos únicos, y exporta vídeos MP4 para TikTok, Reels y Shorts. Sin registro ni instalación.",
+    "metaDescription": "Simulador de física de pelotas gratuito en el navegador. Crea simulaciones hipnóticas con física personalizable, efectos arcoíris y {count} modos únicos, y exporta vídeos MP4 para TikTok, Reels y Shorts. Sin registro ni instalación.",
     "browserRequirements": "Requiere un navegador moderno con JavaScript activado",
+    "featuresModes": "{count} modos de simulación",
     "features": [
-      "12 modos de simulación",
       "Física y aspecto personalizables",
       "Efectos arcoíris en las paredes",
       "Rastro de color",
@@ -294,6 +294,7 @@
     "wallBreakSound": "Sonido de ruptura",
     "wallBreakSoundDesc": "Reproduce un clip de audio personalizado en lugar de los tonos por defecto cuando la pelota atraviesa una pared.",
     "wallBreakSoundDefault": "Tonos por defecto",
+    "customWallBreak": "Personalizado",
     "importWallBreak": "Importar sonido de ruptura",
     "chooseWallBreakFile": "Elegir archivo de audio",
     "dropWallBreakHere": "¡Suelta tu archivo de audio aquí!",
@@ -321,6 +322,7 @@
     "defaultSong": "Tonos por defecto",
     "loadingSong": "Cargando canción...",
     "notesLoaded": "notas cargadas",
+    "uploadedMidi": "MIDI subido",
     "importMidi": "Importar MIDI personalizado",
     "chooseMidiFile": "Elegir archivo .mid",
     "dropMidiHere": "¡Suelta tu archivo MIDI aquí!",
@@ -849,6 +851,8 @@
     "obstaclesMax": "Has llegado al máximo de {max} obstáculos.",
     "obstaclePosition": "x {x} · y {y}",
     "obstacleRemove": "Quitar el obstáculo {n}",
+    "obstacleXOf": "Posición horizontal del obstáculo {n}",
+    "obstacleYOf": "Posición vertical del obstáculo {n}",
     "obstacleSize": "Tamaño",
     "obstacleLength": "Longitud",
     "obstacleAngle": "Ángulo",
@@ -1467,6 +1471,7 @@
     "unlimited": "Deslizadores amplios"
   },
   "Modes": {
+    "previewAlt": "Vista previa del modo {name}",
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
     "accumulation": { "name": "Acumulación", "description": "La pelota tiene unos segundos para escapar antes de congelarse donde está. Cada pelota congelada se convierte en un obstáculo para la siguiente. ¿Logrará salir la última?" },
     "multiply": { "name": "Multiplicar", "description": "Cada vez que una pelota escapa del anillo genera pelotas nuevas. La arena se llena de caos en segundos, ideal para clips explosivos que se comparten solos." },
@@ -1636,6 +1641,7 @@
     "modeBeatDrop": "Un modo rítmico sin anillos, pensado para ediciones musicales: una escena vertical sobre un degradado oscuro en la que una pelota cae y rebota de obstáculo en obstáculo, y cada obstáculo entra volando desde fuera de la pantalla –por la izquierda, la derecha, arriba o abajo, nunca por el lado del que llega la pelota– con una desaceleración suave y se detiene un instante antes de su pulso, así que la pelota aterriza sobre él exactamente en el pulso. El recorrido se planifica de antemano a partir del pulso que sigue (el pulso detectado de la canción cargada o el BPM configurado): la velocidad de salida de cada vuelo se calcula para que el vuelo dure exactamente el tiempo entre dos pulsos, a cualquier tempo y con rejillas irregulares, así que cada aterrizaje queda a una fracción de milisegundo de su pulso. Seis tipos de obstáculo –tablas, bloques, muelles (un rebote más alto con un «boing»), cuñas (desvían la pelota de lado), barras giratorias (planas justo en el pulso) y grandes tambores– se aplastan con el impacto, brillan con el pulso y se deslizan fuera desvaneciéndose cuando la pelota ya se ha ido; la pelota se aplasta y se estira y deja una estela, y cada aterrizaje lanza una onda y una nube de partículas. Los aterrizajes tocan batería sintetizada –bombo en los tiempos 1 y 3, caja en el 2 y el 4, charles a contratiempo y el acento propio de cada obstáculo–, la siguiente nota de la melodía o ambas cosas. El desplazamiento infinito sigue a la pelota hacia abajo sin fin; la arena la mantiene dentro del encuadre. Nunca falla un pulso, así que Buscar simulación simplemente elige una semilla y ajusta el clip a los pulsos que cubre."
   },
   "Footer": {
+    "navLabel": "Pie de página",
     "about": "Acerca de",
     "tiktok": "Vídeos para TikTok",
     "disclaimer": "Aviso legal",
@@ -1775,7 +1781,7 @@
   },
   "TikTokBallVideos": {
     "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – herramienta gratuita – {siteName}",
-    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web gratuita con 12 modos, física personalizada y exportación vertical 1080×1920. Sin registro.",
+    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web gratuita con {count} modos, física personalizada y exportación vertical 1080×1920. Sin registro.",
     "badge": "Contenido para TikTok",
     "navLabel": "Vídeos de pelotas para TikTok",
     "title": "Vídeos de pelotas rebotando para TikTok",
@@ -1789,7 +1795,7 @@
     "p6": "También puedes exportar 500×500 (cuadrado), 1280×720 (HD) o 1920×1080 (Full HD) para Reels, YouTube Shorts y otras plataformas. La grabación ocurre íntegramente en tu navegador; nada se sube y no se añade ninguna marca de agua a menos que tú pongas la tuya.",
     "h2_3": "Empieza con un formato probado",
     "p7": "Los mejores vídeos de pelotas en TikTok siguen una receta simple: un gancho visual claro en el primer segundo, un indicador de progreso visible como el número de paredes restantes y una recompensa satisfactoria cuando la pelota por fin escapa. La herramienta Buscar simulación encuentra una semilla que produce una ejecución de tu duración objetivo, así que puedes planificar el clip en lugar de adivinar.",
-    "p8": "Los once modos, Clásico, Acumulación, Multiplicar, Líneas, Pintar, Objetivo, Crecer, Fragmentación, Coincidir color, Portal y Caída de pelotas, tienen ritmos distintos, así que puedes variar tu contenido sin empezar de cero. Guarda tus configuraciones favoritas como presets y publica un vídeo nuevo cada día con un clic.",
+    "p8": "Cada modo, de Clásico y Multiplicar a Caída de pelotas, Gran Premio de Cuadrados y Rompecristales, tiene un ritmo distinto, así que puedes variar tu contenido sin empezar de cero. Guarda tus configuraciones favoritas como presets y publica un vídeo nuevo cada día con un clic.",
     "cta": "Crea tu primer vídeo de pelotas para TikTok"
   },
   "About": {
@@ -3037,7 +3043,6 @@
       "intro": "{count} formatos: anillos de escape, máquinas de ritmo, duelos y viajes. Elige uno y se abrirá en el estudio, listo para empezar.",
       "all": "Todos",
       "filterLabel": "Filtrar modos por familia",
-      "previewAlt": "Vista previa del modo {mode}",
       "current": "Actual"
     },
     "studio": {

@@ -6,6 +6,7 @@ import { routing } from "@/i18n/routing";
 import { SITE_NAME, SITE_URL, absoluteUrl, pageUrl } from "@/lib/site";
 import Analytics from "@/components/site/Analytics";
 import { localeAlternates } from "@/i18n/alternates";
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 // --- pwa ---
 import PwaRegister from "@/components/site/PwaRegister";
 import { PWA_ICON_FILES, PWA_THEME_COLOR } from "@/lib/pwa";
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Layout" });
   const title = t("metaTitle", { siteName: SITE_NAME });
-  const description = t("metaDescription");
+  const description = t("metaDescription", { count: MODE_CARD_ORDER.length });
   return {
     metadataBase: new URL(SITE_URL),
     title,
