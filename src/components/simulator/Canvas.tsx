@@ -852,7 +852,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     let bdTeams: CanvasTeamOptions | null | undefined;
     // --- odd-territory --- Territory's layer (the offscreen tile map, sprites, the bar's easing) and its per-frame options
     const tyLayer = new TerritoryLayer();
-    const tyRender: TerritoryRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showTrails: true, trailThickness: 0.8, wallThickness: 2, labels: DEFAULT_TERRITORY_LABELS, nowMs: 0 };
+    const tyRender: TerritoryRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, trailThickness: 0.8, wallThickness: 2, labels: DEFAULT_TERRITORY_LABELS, nowMs: 0 };
     const tyBodyColor = (ball: Ball) => tyLayer.colorOf(ball.team ?? 0);
     const tyJolt = { x: 0, y: 0 }; // a bomber blast's jolt of the board this frame
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
@@ -862,7 +862,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const crowdPalette: string[] = [];
     // --- odd-maze --- the Maze's layer (cached walls, trail and fog) and its per-frame options
     const mazeLayer = new MazeLayer();
-    const mazeRender: MazeRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showWallGlow: true, labels: DEFAULT_MAZE_LABELS, nowMs: 0, width: 0, height: 0 };
+    const mazeRender: MazeRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showWallGlow: true, labels: DEFAULT_MAZE_LABELS, nowMs: 0, width: 0, height: 0 };
     const mazeBodyColor = (ball: Ball) => {
       const first = engine.getMazeView().runners[0]?.id ?? 0;
       return mazeLayer.colorOf(ball.id - first);
@@ -1042,6 +1042,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       illusionRender.dpr = scale;
       sbRender.dpr = scale;
       plRender.dpr = scale;
+      tyRender.dpr = scale; // --- odd-territory --- (the board's and trails' layers)
+      mazeRender.dpr = scale; // --- odd-maze --- (the walls' and the paint's layers)
       // Background
       ctx.fillStyle = p.backgroundColor;
       ctx.fillRect(0, 0, Math.max(canvas.width, sizeRef.current.width), Math.max(canvas.height, sizeRef.current.height)); // --- split-screen --- (the whole world, also when it is drawn below 1 device px per px: a split-screen arena)
