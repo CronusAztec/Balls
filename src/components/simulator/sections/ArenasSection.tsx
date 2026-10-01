@@ -18,6 +18,8 @@ import {
   type ArenaOverride,
   type SoundArena,
 } from "@/lib/splitScreen";
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 export interface ArenasSectionProps {
   t: Translate;
@@ -88,17 +90,20 @@ function OverrideSlider({
         )}
       </div>
       {value !== undefined && (
-        <input
-          type="range"
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-          style={sliderStyle(value, range.min, range.max)}
-          aria-label={t(labelKey)}
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+            style={sliderStyle(value, range.min, range.max)}
+            aria-label={t(labelKey)}
+          />
+          <NumberField value={value} onCommit={onChange} label={t(labelKey)} range={range} rules={rulesForRange(range)} settingKey={`arena:${labelKey}`} /* --- uncap-all --- */ />
+        </div>
       )}
     </div>
   );

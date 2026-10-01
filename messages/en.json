@@ -232,8 +232,8 @@
     "twoBalls": "Two Balls",
     "twoBallsTip": "Spawn a second ball moving in the opposite direction for double the action.",
     "ballColor2": "Second Ball Color",
-    "bouncier": "Bouncier Each Hit",
-    "bouncierTip": "Ball gets faster with every wall bounce, building momentum until it escapes.",
+    "bouncier": "Bounciness",
+    "bouncierTip": "Every wall bounce adds (Bounciness − 1) × the Ball Speed to the rebound, with no ceiling: 1 = off, 1.03 = the classic Bouncier, 3 = +200 % a bounce, 1e6 = a million times. The ball keeps getting faster until it escapes – or breaks the page.",
     "ballInteraction": "Ball Interaction",
     "ballInteractionTip": "What balls do to each other: bounce off (the default), merge into one bigger ball when they touch, split in two every time a ball breaks through a wall, or pass straight through each other. Deterministic: shared links, presets and Find Simulation include it.",
     "interactionBounce": "Bounce",
@@ -1480,7 +1480,8 @@
     "publish": "Publish",
     "publishTip": "Send the finished clip to your TikTok, Instagram and YouTube accounts – several per platform – in one click: YouTube straight from the browser, TikTok and Instagram through a small relay you host, or the no-setup share buttons.",
     "publishAccounts": "Accounts (TikTok, Instagram, YouTube)",
-    "publishQuickShare": "Quick share"
+    "publishQuickShare": "Quick share",
+    "unlimited": "Wide sliders"
   },
   "Modes": {
     "classic": {
@@ -3017,5 +3018,32 @@
         "badUrl": "The relay URL is not a valid http(s) address."
       }
     }
+  },
+  "Unlimited": {
+    "label": "Wide sliders",
+    "tip": "Nothing is capped whether this is on or off: every slider has a number field next to it that takes any number. On, the sliders also stretch past their normal range on a log scale up to 1B.",
+    "on": "ON",
+    "off": "OFF",
+    "warning": "Extreme values can slow the run to a crawl or melt the picture – that is the point. Allowed to melt, never to crash.",
+    "typeValue": "Type a value for {label}",
+    "invalidValue": "Not a valid value: a finite number of at least {min}.",
+    "softCeiling": "The engine runs at most {value} of this; the link keeps your number.",
+    "finderLimited": "No limits: a heavy run – only {count} seeds tested, a slice of every frame at a time.",
+    "canvasRealTime": "x[ratio] REAL TIME",
+    "canvasArenaFull": "ARENA FULL",
+    "canvasBalls": "[count] BALLS",
+    "canvasAteArena": "THE BALL ATE THE ARENA"
+  },
+  "Uncap": {
+    "fieldLabel": "{label} – type any number",
+    "errEmpty": "Type a number.",
+    "errNotNumber": "“{text}” is not a number – the old value stays.",
+    "errNotFinite": "Infinity cannot run – type a finite number (1e308 works).",
+    "errBelowMin": "At least {min} – the old value stays.",
+    "beyondTip": "Beyond the slider: {value} (the slider covers {min}–{max}; the value runs as typed)",
+    "memoryCeiling": "Memory-safety ceiling: the run builds at most {value} of these (ARENA FULL); the link keeps your number.",
+    "canvasSpeed": "⚡ [speed] PX/S",
+    "canvasOverflow": "NUMBERS OVERFLOWED ×[count]",
+    "finderEndless": "These values never end a run, so there is nothing to search for – it just keeps going (record it instead)."
   }
 }

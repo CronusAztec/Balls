@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { JOURNEY_STAGE_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import {
   DEFAULT_JOURNEY_STAGES,
   JOURNEY_TRAVEL_KINDS,
@@ -150,9 +151,10 @@ describe("the stage list", () => {
 
   it("round-trips and caps the list at MAX_JOURNEY_STAGES before HOME", () => {
     expect(sanitizeJourneyStages(DEFAULT_JOURNEY_STAGES)).toBe(DEFAULT_JOURNEY_STAGES);
-    const long = Array.from({ length: 30 }, (_, i) => JOURNEY_TRAVEL_KINDS[i % JOURNEY_TRAVEL_KINDS.length]).join(",");
+    const long = Array.from({ length: JOURNEY_STAGE_CEILING + 30 }, (_, i) => JOURNEY_TRAVEL_KINDS[i % JOURNEY_TRAVEL_KINDS.length]).join(","); // --- uncap-all --- the list stops at its memory-safety ceiling
     const stages = parseJourneyStages(long);
-    expect(stages).toHaveLength(MAX_JOURNEY_STAGES + 1);
+    expect(stages).toHaveLength(JOURNEY_STAGE_CEILING + 1);
+    expect(parseJourneyStages(Array(MAX_JOURNEY_STAGES + 18).fill("pegs").join(","))).toHaveLength(MAX_JOURNEY_STAGES + 19); // past the panel's MAX_JOURNEY_STAGES
     expect(stages[stages.length - 1].kind).toBe("home");
     expect(sanitizeJourneyStages(formatJourneyStages(stages))).toBe(formatJourneyStages(stages));
   });
@@ -170,7 +172,7 @@ describe("the stage list", () => {
     expect(addJourneyStage(text, "home")).toBe(text);
     expect(resizeJourneyStage(text, 2, "l")).toBe("rings,pegs,glass-l,home");
     expect(resizeJourneyStage(text, 3, "s")).toBe("rings,pegs,glass,home-s");
-    const full = parseJourneyStages(Array(MAX_JOURNEY_STAGES).fill("pegs").join(","));
+    const full = parseJourneyStages(Array(JOURNEY_STAGE_CEILING).fill("pegs").join(",")); // --- uncap-all ---
     expect(addJourneyStage(formatJourneyStages(full), "rings")).toBe(formatJourneyStages(full));
   });
 });
@@ -203,7 +205,8 @@ describe("the seeded auto sequence", () => {
     for (let i = 0; i < 40; i++) for (const s of generateJourneyStages(12, rnd)) seen.add(`${s.kind}-${s.size}`);
     for (const kind of JOURNEY_TRAVEL_KINDS) for (const size of ["s", "m", "l"]) expect(seen.has(`${kind}-${size}`)).toBe(true);
     expect(generateJourneyStages(0, stageRandom(1))).toHaveLength(2);
-    expect(generateJourneyStages(99, stageRandom(1))).toHaveLength(MAX_JOURNEY_STAGES + 1);
+    expect(generateJourneyStages(99, stageRandom(1))).toHaveLength(100); // --- uncap-all --- past MAX_JOURNEY_STAGES, up to its memory-safety ceiling
+    expect(generateJourneyStages(1e9, stageRandom(1))).toHaveLength(JOURNEY_STAGE_CEILING + 1);
   });
 
   it("an auto journey comes from the engine's seed: the same seed plays the same route, other seeds other routes", () => {
@@ -236,7 +239,7 @@ describe("settings, URL and presets", () => {
     expect(defaultSettings("classic").journeyStages).toBe(DEFAULT_JOURNEY_STAGES);
     expect(RANGES.journeyAutoStages).toEqual(JOURNEY_RANGES.journeyAutoStages);
     expect(resolveJourneySettings(undefined)).toEqual(DEFAULT_JOURNEY_SETTINGS);
-    expect(resolveJourneySettings({ stages: "glass,rings", auto: 99 })).toEqual({ stages: "glass,rings,home", auto: MAX_JOURNEY_STAGES });
+    expect(resolveJourneySettings({ stages: "glass,rings", auto: 99 })).toEqual({ stages: "glass,rings,home", auto: 99 }); // --- uncap-all --- (no maximum)
     expect(resolveJourneySettings({ auto: -3 }).auto).toBe(0);
     expect(resolveJourneySettings({ auto: Number.NaN }).auto).toBe(0);
     expect(resolveJourneyFields({ journeyStages: "x", journeyAutoStages: 2.6 })).toEqual({ journeyStages: "home", journeyAutoStages: 3 });
@@ -256,7 +259,7 @@ describe("settings, URL and presets", () => {
     expect(auto.journeyAutoStages).toBe(7);
     expect(auto.journeyStages).toBe("pegs-l,home");
     expect(settingsToSearchParams(auto).get("jsa")).toBe("7");
-    expect(settingsFromSearchParams(new URLSearchParams("mode=journey&jsa=500")).journeyAutoStages).toBe(MAX_JOURNEY_STAGES);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=journey&jsa=500")).journeyAutoStages).toBe(500); // --- uncap-all --- (kept)
     expect(settingsFromSearchParams(new URLSearchParams("mode=journey&jsa=abc")).journeyAutoStages).toBe(0);
   });
 

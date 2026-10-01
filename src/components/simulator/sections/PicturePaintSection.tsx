@@ -5,6 +5,8 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import { PAINT_BEAT_SOURCES } from "@/lib/physics/picturePaint";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 /** The picture uploaded in this session (a data: URL kept in memory, like the custom ball image). */
 export interface PaintPictureInfo {
@@ -154,17 +156,20 @@ export default function PicturePaintSection({ t, search, matches, settings: s, u
                     <span>{t("paintManualBpm")}</span>
                     <span className="text-zinc-500">{s.bpm}</span>
                   </label>
-                  <input
-                    type="range"
-                    min={RANGES.bpm.min}
-                    max={RANGES.bpm.max}
-                    step={RANGES.bpm.step}
-                    value={s.bpm}
-                    onChange={(e) => update({ bpm: Number(e.target.value) })}
-                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                    style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
-                    aria-label={t("paintManualBpm")}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={RANGES.bpm.min}
+                      max={RANGES.bpm.max}
+                      step={RANGES.bpm.step}
+                      value={s.bpm}
+                      onChange={(e) => update({ bpm: Number(e.target.value) })}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                      style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
+                      aria-label={t("paintManualBpm")}
+                    />
+                    <NumberField value={s.bpm} onCommit={(v) => update({ bpm: v })} label={t("paintManualBpm")} range={RANGES.bpm} rules={rulesForRange(RANGES.bpm)} settingKey="bpm" /* --- uncap-all --- */ />
+                  </div>
                 </>
               )}
             </div>

@@ -5,6 +5,7 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { DEFAULT_WALL_WOBBLE, resolveWallWobble } from "../wobble";
 import { buildPendulumField, pendulumPitch, type PendulumField } from "./pendulum";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Circle Illusion ("illusion" mode, rhythm family – feature jdm-illusions; the project.jdm "Circle Bounce ILLUSION",
@@ -110,7 +111,7 @@ export interface IllusionSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value (counts and cycles whole, the speed on its 0.05 steps); unknown options fall back to the defaults. */
@@ -119,10 +120,10 @@ export function resolveIllusionSettings(config: Partial<IllusionSettings> | null
   if (!config) return out;
   const R = ILLUSION_RANGES;
   if (isIllusionType(config.type)) out.type = config.type;
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.ilBalls, out.balls));
-  if (config.rings !== undefined) out.rings = Math.round(clampNumber(config.rings, R.ilRings, out.rings));
+  if (config.balls !== undefined) out.balls = memoryCeiling("ilBalls", Math.round(clampNumber(config.balls, R.ilBalls, out.balls)));
+  if (config.rings !== undefined) out.rings = memoryCeiling("ilRings", Math.round(clampNumber(config.rings, R.ilRings, out.rings)));
   if (config.depth !== undefined) out.depth = Math.round(clampNumber(config.depth, R.ilDepth, out.depth));
-  if (config.painters !== undefined) out.painters = Math.round(clampNumber(config.painters, R.ilPainters, out.painters));
+  if (config.painters !== undefined) out.painters = memoryCeiling("ilPainters", Math.round(clampNumber(config.painters, R.ilPainters, out.painters)));
   if (isIllusionPatternChoice(config.pattern)) out.pattern = config.pattern;
   if (config.speed !== undefined) out.speed = Math.round(20 * clampNumber(config.speed, R.ilSpeed, out.speed)) / 20;
   if (typeof config.tracks === "boolean") out.tracks = config.tracks;
@@ -859,7 +860,16 @@ export class IllusionMode implements GameMode {
       final = true;
     }
     const slotSec = v.cycleSec / (2 * n);
-    for (let m = lo; m < hi; m++) {
+    // --- uncap-all --- a speed so high that one step spans more than a whole cycle of rim touches: the earlier ones repeat
+    // the last cycle's (every ball's last touch and note are the same), so only the last 2N slots are walked – and past
+    // the float's whole numbers (2⁵³) the slots are no longer countable at all: the step touches nothing
+    let from = lo;
+    if (hi > Number.MAX_SAFE_INTEGER) from = hi;
+    else if (hi - from > 2 * n) {
+      v.noteCount += hi - 2 * n - from;
+      from = hi - 2 * n;
+    }
+    for (let m = from; m < hi; m++) {
       const touch = lineTouch(m, n, v.direction);
       v.lastHitStep[touch.ball] = step + 1;
       this.queueNote(this.pitch[touch.ball], 1, false);

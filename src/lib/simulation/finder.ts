@@ -1,5 +1,6 @@
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { resolvePhysicsExtras } from "@/lib/physics/extras";
+import { unlimitedExtrasOf } from "@/lib/physics/limits"; // --- unlimited ---
 import type { BoxSettings, DropSettings, PendulumSettings } from "@/lib/physics/modes";
 import { resolveBoxSettings } from "@/lib/physics/modes/box";
 import { resolveDropSettings } from "@/lib/physics/modes/drop";
@@ -50,6 +51,8 @@ import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 
 export interface ModeSettings {
   bouncierEnabled: boolean;
+  /** --- uncap-all --- The numeric Bounciness (the uncapped Bouncier; absent = what `bouncierEnabled` meant: 1.03 or off). */
+  bounciness?: number;
   countdownTotal: number;
   countdownRandom: boolean;
   colorMatchColorCount: number;
@@ -285,6 +288,12 @@ export interface FinderResult {
   /** On beat: the distinct beats the found run's wall hits land on, and its timed hits (set when On beat applies). */
   beatsCovered?: number;
   beatHits?: number;
+  // --- unlimited ---
+  /** A heavy No limits run: the search tested only this many seeds (the time budget; see unlimitedFinder.ts). */
+  limitedSeeds?: number;
+  // --- uncap-all ---
+  /** Not one tested seed ended within the search's horizon: with these values the run never ends (the page says so). */
+  neverEnded?: boolean;
 }
 
 /**
@@ -294,8 +303,9 @@ export interface FinderResult {
  * identically in the page with the same extras.
  */
 export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, settings: ModeSettings, seed: number): PhysicsEngine {
-  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount)
+  const engine = new PhysicsEngine({ ...config, ...resolvePhysicsExtras(config), ...unlimitedExtrasOf(config), twoBalls: settings.twoBalls, ...(settings.ballCount !== undefined ? { ballCount: settings.ballCount } : {}) }); // --- teams --- (ballCount) --- unlimited --- (the extras past their ranges, as the page's engine runs them)
   engine.setBouncier(settings.bouncierEnabled);
+  if (settings.bounciness !== undefined) engine.setBounciness(settings.bounciness); // --- uncap-all ---
   if (mode === "target") {
     engine.setCountdownTotal(settings.countdownTotal);
     engine.setCountdownRandomOrder(settings.countdownRandom);
@@ -478,6 +488,7 @@ export function findSimulation(
     let bestDuration = Infinity;
     let bestSeed = 0;
     let bestDiff = Infinity;
+    let unfinished = 0; // --- uncap-all --- seeds that ran to the horizon without ending
     const base = Date.now() | 0;
     const seedAt = (i: number) => (base + 0x9e3779b1 * i) | 0;
 
@@ -494,6 +505,7 @@ export function findSimulation(
         const seed = seedAt(i);
         const durationMs = simulateSeed(seed, request, maxSimMs);
         i++;
+        if (durationMs >= maxSimMs) unfinished++; // --- uncap-all ---
         const diff = Math.abs(durationMs - targetMs);
         if (diff < bestDiff) {
           bestDiff = diff;
@@ -515,7 +527,7 @@ export function findSimulation(
         bestSeed,
       });
       if (tested >= request.maxSeeds) {
-        resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested });
+        resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested, ...(tested > 0 && unfinished === tested ? { neverEnded: true } : {}) }); // --- uncap-all --- (a run that never ends says so)
       } else {
         requestAnimationFrame(runBatch);
       }

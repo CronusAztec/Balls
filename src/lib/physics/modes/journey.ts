@@ -14,6 +14,7 @@ import { RingsStage } from "../journey/rings";
 import { HomeStage } from "../journey/home";
 import { segmentBetween, type Obstacle, type SegmentObstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent, WallHitResult } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Journey ("journey" mode, feature gerald-journey – the geraldbounces "Gerald bounces through his commute", "The last stage
@@ -78,7 +79,7 @@ export function resolveJourneySettings(config: Partial<JourneySettings> | null |
   if (typeof config.stages === "string") out.stages = sanitizeJourneyStages(config.stages);
   if (config.auto !== undefined) {
     const n = typeof config.auto === "number" || typeof config.auto === "string" ? Number(config.auto) : NaN;
-    if (Number.isFinite(n)) out.auto = Math.round(Math.max(JOURNEY_RANGES.journeyAutoStages.min, Math.min(JOURNEY_RANGES.journeyAutoStages.max, n)));
+    if (Number.isFinite(n)) out.auto = memoryCeiling("journeyAutoStages", Math.round(atLeastMin(n, JOURNEY_RANGES.journeyAutoStages))); // --- uncap-all --- (no maximum; the stages a run builds stop at their memory-safety ceiling)
   }
   return out;
 }

@@ -3,7 +3,8 @@
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, offBtn, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
-import { FAST_EXPORT_FPS, realtimeFactor, resolveFastExportFps, type FastExportPhase } from "@/lib/recording/fastRenderPlan";
+import { FAST_EXPORT_FPS, FAST_EXPORT_RANGES, realtimeFactor, resolveFastExportFps, type FastExportPhase } from "@/lib/recording/fastRenderPlan";
+import NumberField from "../NumberField"; // --- uncap-all ---
 import type { SimulatorSettings } from "@/lib/settings";
 
 /*
@@ -132,19 +133,23 @@ export function FastExportFpsControl({ t, search, matches, settings: s, update, 
           {t("fastExportFps")}
           <Tooltip text={t("fastExportFpsTip")} />
         </span>
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label={t("fastExportFps")}>
-          {FAST_EXPORT_FPS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={disabled}
-              onClick={() => update({ fastExportFps: value })}
-              aria-pressed={fps === value}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fps === value ? onBtn : offBtn}`}
-            >
-              {t(value === 30 ? "fastExportFps30" : "fastExportFps60")}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="grid flex-1 grid-cols-2 gap-2" role="group" aria-label={t("fastExportFps")}>
+            {FAST_EXPORT_FPS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                disabled={disabled}
+                onClick={() => update({ fastExportFps: value })}
+                aria-pressed={fps === value}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fps === value ? onBtn : offBtn}`}
+              >
+                {t(value === 30 ? "fastExportFps30" : "fastExportFps60")}
+              </button>
+            ))}
+          </div>
+          {/* --- uncap-all --- any other frame rate (from 30 up, 240, 1000…): typed */}
+          <NumberField value={fps} onCommit={(v) => update({ fastExportFps: v })} label={t("fastExportFps")} range={FAST_EXPORT_RANGES.fastExportFps} rules={{ min: FAST_EXPORT_RANGES.fastExportFps.min }} disabled={disabled} settingKey="fastExportFps" />
         </div>
       </div>
     </Searchable>

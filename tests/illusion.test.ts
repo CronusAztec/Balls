@@ -97,7 +97,7 @@ describe("illusion settings", () => {
     expect(resolveIllusionSettings(null)).toEqual(DEFAULT_ILLUSION_SETTINGS);
     expect(DEFAULT_ILLUSION_SETTINGS.type).toBe("lines");
     const r = resolveIllusionSettings({ balls: 99, rings: 1, depth: 7.6, painters: -3, speed: 9, cycles: 2.4 });
-    expect(r).toMatchObject({ balls: 32, rings: 2, depth: 5, painters: 1, speed: 3, cycles: 2 });
+    expect(r).toMatchObject({ balls: 99, rings: 2, depth: 8, painters: 1, speed: 9, cycles: 2 }); // --- uncap-all --- (no maximum)
     expect(resolveIllusionSettings({ speed: 1.337 }).speed).toBeCloseTo(1.35, 12);
     const junk = { type: "spiral", pattern: "cat", tracks: "yes", reveal: 1, balls: "x" } as unknown as Partial<IllusionSettings>;
     expect(resolveIllusionSettings(junk)).toEqual(DEFAULT_ILLUSION_SETTINGS);
@@ -130,13 +130,13 @@ describe("illusion settings", () => {
     expect(back.wallWobble).toBe(0.65);
     // Out-of-range and unknown values are clamped or ignored.
     const bad = settingsFromSearchParams(new URLSearchParams("mode=illusion&ilt=blob&ilb=500&ild=1&ils=0&ilpt=cat&wob=7&iltr=maybe"));
-    expect(illusionSettingsOf(bad)).toMatchObject({ type: "lines", balls: 32, depth: 2, speed: 0.25, pattern: "auto", tracks: true });
-    expect(bad.wallWobble).toBe(1);
+    expect(illusionSettingsOf(bad)).toMatchObject({ type: "lines", balls: 500, depth: 2, speed: 0.25, pattern: "auto", tracks: true }); // --- uncap-all --- (ilb=500 and wob=7 kept)
+    expect(bad.wallWobble).toBe(7);
   });
 
   it("validate presets", () => {
     const loaded = presetToSettings({ mode: "illusion", ilType: "nested", ilDepth: 9, ilSpeed: -1, ilPattern: "heart", wallWobble: -2 } as Parameters<typeof presetToSettings>[0]);
-    expect(illusionSettingsOf(loaded)).toMatchObject({ type: "nested", depth: 5, speed: 0.25, pattern: "heart" });
+    expect(illusionSettingsOf(loaded)).toMatchObject({ type: "nested", depth: 9, speed: 0.25, pattern: "heart" }); // --- uncap-all --- (ilDepth 9 kept)
     expect(loaded.wallWobble).toBe(0);
     const old = presetToSettings({ mode: "classic" });
     expect(illusionSettingsOf(old)).toEqual(DEFAULT_ILLUSION_SETTINGS);

@@ -1,6 +1,7 @@
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
+import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
 import {
@@ -17,6 +18,7 @@ import {
   audioTimestampUs,
   exportDurationSec,
   exportFrameIndex,
+  exportFrameRange, // --- uncap-all ---
   exportProgress,
   fnv1a,
   frameDurationUs,
@@ -33,6 +35,7 @@ import {
   type ExportFormat,
   type FastExportPhase,
 } from "./fastRenderPlan";
+import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -233,6 +236,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
   // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
   if (ev.bdDrum) {
     audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
+    return;
+  }
+  // --- unlimited --- a ball ate the arena: the gulp
+  if (ev.ate) {
+    audio.playArenaEaten();
     return;
   }
   if (ev.type === "gap") onWallBreak();
@@ -442,6 +450,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     let bedStopped = false;
     let exported = 0;
     let lastYield = performance.now();
+    const yieldAfterMs = engine.getUnlimitedView().on ? FRAME_BUDGET_MS : 32; // --- unlimited --- (a heavy run yields every frame budget: the page stays responsive)
     for (let simFrame = 0; simFrame < lastFrame; simFrame++) {
       const t = simFrameTimeMs(simFrame);
       if (simFrame > 0 && t >= tracker.endMs) break;
@@ -461,19 +470,24 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
           bedStopped = true;
         }
       });
-      const index = exportFrameIndex(simFrame, fps);
-      if (index < 0) continue;
+      // --- uncap-all --- the export frames of this simulation frame (one at 60 fps, none or one at 30, several past 60), and
+      // never more than the memory-safety ceiling of one export (the muxer holds the whole file)
+      const [firstIndex, endIndex] = exportFrameRange(simFrame, fps);
+      if (endIndex <= firstIndex) continue;
+      if (firstIndex >= EXPORT_FRAME_CEILING) break;
       drawRecordingFrame(frameCtx, frameRenderer.canvas, width, height, options.backgroundColor, composeOptions, textLayout);
-      const frame = new VideoFrame(frameCanvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
-      videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
-      frame.close();
-      if (index % DIGEST_EVERY === 0) {
-        thumbCtx.drawImage(frameCanvas, 0, 0, 16, 16);
-        digest = fnv1a(thumbCtx.getImageData(0, 0, 16, 16).data, digest);
+      for (let index = firstIndex; index < endIndex && index < EXPORT_FRAME_CEILING; index++) {
+        const frame = new VideoFrame(frameCanvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
+        videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
+        frame.close();
+        if (index % DIGEST_EVERY === 0) {
+          thumbCtx.drawImage(frameCanvas, 0, 0, 16, 16);
+          digest = fnv1a(thumbCtx.getImageData(0, 0, 16, 16).data, digest);
+        }
+        exported = index + 1;
+        await drainQueue(videoEncoder, 6);
       }
-      exported = index + 1;
-      await drainQueue(videoEncoder, 6);
-      if (performance.now() - lastYield > 32) {
+      if (performance.now() - lastYield > yieldAfterMs) {
         report("frames", expectedFrames > 0 ? exported / expectedFrames : 1, exported, t / 1000);
         await yieldTask();
         lastYield = performance.now();

@@ -3,6 +3,7 @@ import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./mul
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
+import type { UnlimitedConfig } from "./limits"; // --- unlimited ---
 import type { BounceMathConfig } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
 /**
@@ -169,7 +170,7 @@ export interface BallInteractionConfig {
 }
 
 // --- gerald-multipliers --- the stat-multiplier settings (cap, smash threshold, pickups) travel in the config too
-export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig> {
+export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig>, Partial<UnlimitedConfig> /* --- unlimited --- */ {
   width: number;
   height: number;
   gravity: number;
@@ -272,6 +273,9 @@ export interface SoundEvent {
    */
   bdDrum?: "kick" | "snare" | "hat" | "none";
   bdPad?: BeatDropPadKind;
+  // --- unlimited ---
+  /** A ball ate the arena (No limits): the page plays the gulp (`ToneGenerator.playArenaEaten()`) instead of a wall break. */
+  ate?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
@@ -375,6 +379,8 @@ export interface ModeContext {
   /** Credits `ball` with a broken wall segment in the per-ball stats only (no split): Color Match's segment breaks. */
   creditWallBreak?(ball: Ball): void;
   isBouncierEnabled(): boolean;
+  /** --- uncap-all --- The rebound gain per bounce of the Bounciness (0.03 = the old Bouncier), with no ceiling. */
+  getBouncierIncrement?(): number;
   getBounceSpeedMultiplier(): number;
   setBounceSpeedMultiplier(value: number): void;
   setDestructionMode(enabled: boolean): void;
@@ -425,6 +431,13 @@ export interface ModeContext {
    * centred on the canvas, where the ring walls live). The mode moves its own obstacles; the physics is unchanged.
    */
   shiftWorld?(dx: number, dy: number): void;
+  // --- unlimited ---
+  /** With No limits on, how many more full-physics balls the run may hold; null while the switch is off (the modes' own caps apply). */
+  unlimitedRoom?(): number | null;
+  /** With No limits on, adds `count` balls to the crowd at (x, y), fanned out from `angle` at `speed`; false once the crowd is full. */
+  spawnCrowd?(count: number, x: number, y: number, speed: number, radius: number, angle: number, slot: number): boolean;
+  /** With No limits on, a mode refused a clone at its ball limit (a mode without a crowd): the canvas shows ARENA FULL. A no-op while the switch is off. */
+  noteArenaFull?(): void;
   // --- bounce-math ---
   /**
    * A mode that resolves its own walls reports a bounce of `ball` (bounce math's "bounce" trigger). `rebound`: the mode has

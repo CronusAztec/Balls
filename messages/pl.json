@@ -223,8 +223,8 @@
     "twoBalls": "Dwie piłki",
     "twoBallsTip": "Dodaj drugą piłkę poruszającą się w przeciwnym kierunku, aby podwoić akcję.",
     "ballColor2": "Kolor drugiej piłki",
-    "bouncier": "Coraz bardziej sprężysta",
-    "bouncierTip": "Piłka przyspiesza z każdym odbiciem od ściany, nabierając rozpędu aż do ucieczki.",
+    "bouncier": "Sprężystość",
+    "bouncierTip": "Każde odbicie od ściany dodaje do odbicia (Sprężystość − 1) × prędkość piłki, bez żadnego sufitu: 1 = wyłączone, 1,03 = klasyczne „coraz bardziej sprężysta”, 3 = +200 % na odbicie, 1e6 = milion razy. Piłka przyspiesza, aż ucieknie – albo wysadzi stronę.",
     "ballInteraction": "Interakcja piłek",
     "ballInteractionTip": "Co piłki robią ze sobą nawzajem: odbijają się (domyślnie), łączą się w jedną większą piłkę przy zetknięciu, dzielą się na dwie przy każdym przebiciu ściany albo przenikają przez siebie. Deterministyczne: uwzględniają to udostępniane linki, presety i wyszukiwanie symulacji.",
     "interactionBounce": "Odbicie",
@@ -1471,7 +1471,8 @@
     "publish": "Publikuj",
     "publishTip": "Wyślij gotowy klip na swoje konta TikTok, Instagram i YouTube – po kilka na platformę – jednym kliknięciem: na YouTube prosto z przeglądarki, na TikToka i Instagrama przez mały relay, który hostujesz sam, albo przyciskami udostępniania bez konfiguracji.",
     "publishAccounts": "Konta (TikTok, Instagram, YouTube)",
-    "publishQuickShare": "Szybkie udostępnianie"
+    "publishQuickShare": "Szybkie udostępnianie",
+    "unlimited": "Szerokie suwaki"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -2794,5 +2795,32 @@
         "badUrl": "Adres relaya nie jest poprawnym adresem http(s)."
       }
     }
+  },
+  "Unlimited": {
+    "label": "Szerokie suwaki",
+    "tip": "Nic nie jest ograniczone, niezależnie od tego przełącznika: każdy suwak ma obok pole na dowolną liczbę. Po włączeniu suwaki dodatkowo sięgają poza zwykły zakres, w skali logarytmicznej aż do 1 mld.",
+    "on": "WŁ.",
+    "off": "WYŁ.",
+    "warning": "Ekstremalne wartości mogą spowolnić symulację do żółwiego tempa albo roztopić obraz – i o to chodzi. Wolno jej się roztopić, nigdy wysypać.",
+    "typeValue": "Wpisz wartość: {label}",
+    "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
+    "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",
+    "finderLimited": "Bez limitów: ciężka symulacja – sprawdzono tylko {count, plural, one {# ziarno} few {# ziarna} many {# ziaren} other {# ziarna}}, po kawałku każdej klatki.",
+    "canvasRealTime": "x[ratio] CZASU RZECZYWISTEGO",
+    "canvasArenaFull": "ARENA PEŁNA",
+    "canvasBalls": "[count] KULEK",
+    "canvasAteArena": "KULKA ZJADŁA ARENĘ"
+  },
+  "Uncap": {
+    "fieldLabel": "{label} – wpisz dowolną liczbę",
+    "errEmpty": "Wpisz liczbę.",
+    "errNotNumber": "„{text}” to nie liczba – zostaje poprzednia wartość.",
+    "errNotFinite": "Nieskończoność się nie uruchomi – wpisz skończoną liczbę (1e308 działa).",
+    "errBelowMin": "Co najmniej {min} – zostaje poprzednia wartość.",
+    "beyondTip": "Poza suwakiem: {value} (suwak obejmuje {min}–{max}; wartość działa tak, jak ją wpisano)",
+    "memoryCeiling": "Limit bezpieczeństwa pamięci: symulacja tworzy najwyżej {value} takich elementów (ARENA PEŁNA); link zachowuje twoją liczbę.",
+    "canvasSpeed": "⚡ [speed] PX/S",
+    "canvasOverflow": "LICZBY SIĘ PRZEPEŁNIŁY ×[count]",
+    "finderEndless": "Przy tych wartościach symulacja nigdy się nie kończy, więc nie ma czego szukać – po prostu trwa (nagraj ją)."
   }
 }

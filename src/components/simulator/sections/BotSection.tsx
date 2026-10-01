@@ -9,6 +9,7 @@ import type { ClipPlan } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE } from "@/lib/bot/store";
 import type { ModeId } from "@/lib/physics/types";
 import type { BotPanelProps } from "../useViralBot";
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
 
 export type { BotPanelProps } from "../useViralBot";
 
@@ -148,6 +149,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             style={sliderStyle(o.count, BOT_COUNT_RANGE.min, BOT_COUNT_RANGE.max)}
             aria-label={b("count")}
           />
+          <NumberField value={o.count} onCommit={(v) => bot.setOptions({ count: v })} label={b("count")} range={BOT_COUNT_RANGE} rules={{ min: BOT_COUNT_RANGE.min, integer: true }} disabled={busy} settingKey="botCount" /* --- uncap-all --- */ />
         </div>
 
         <div className="grid grid-cols-3 gap-2">

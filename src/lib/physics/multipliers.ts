@@ -1,4 +1,5 @@
 import type { Ball, CircularWall, ModeContext, ModeId, SoundEvent } from "./types";
+import { ENTITY_CEILING, uncapped } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Stat multipliers (the geraldbounces "multipliers" formats: "the ball gets faster to unlimited, and size and damage
@@ -48,12 +49,15 @@ export function copyMultipliers(mult: BallMultipliers | undefined): BallMultipli
 }
 
 /**
- * Keeps a stacked value a finite float: 1e15 is far beyond anything a run reaches (2⁵⁰), so it is not a gameplay cap
- * – it only stops a pathological stack from overflowing to Infinity.
+ * Keeps a stacked value a finite float – --- uncap-all --- the float range itself (the largest finite number), so a
+ * stack is never cut short; it only stops a pathological stack from overflowing to Infinity.
  */
-export const MULTIPLIER_CEILING = 1e15;
-/** The restitution factor a bounce multiplier may reach (the stat is uncapped, its effect is not – for stability). */
-export const MAX_EFFECTIVE_BOUNCE = 1.5;
+export const MULTIPLIER_CEILING = Number.MAX_VALUE;
+/**
+ * The restitution factor a bounce multiplier may reach – --- uncap-all --- none: the engine plans the sub-steps of every
+ * rebound it gives (time dilation beyond 64), so a bounce stat scales the rebounds as far as it goes.
+ */
+export const MAX_EFFECTIVE_BOUNCE = Infinity;
 
 /** The cap in effect: Infinity while unlimited (or with the cap at 0). */
 export function effectiveCap(config: Pick<MultiplierConfig, "mpUnlimited" | "mpCap">): number {
@@ -114,9 +118,9 @@ export function hitDamage(ball: Pick<Ball, "mult">): number {
   return ball.mult ? ball.mult.damage : 1;
 }
 
-/** Restitution factor of a ball's bounce multiplier (capped at `MAX_EFFECTIVE_BOUNCE`). */
-export function effectiveBounce(ball: Pick<Ball, "mult">): number {
-  return ball.mult ? Math.min(MAX_EFFECTIVE_BOUNCE, ball.mult.bounce) : 1;
+/** Restitution factor of a ball's bounce multiplier (capped at `MAX_EFFECTIVE_BOUNCE`; --- unlimited --- No limits passes Infinity). */
+export function effectiveBounce(ball: Pick<Ball, "mult">, cap = MAX_EFFECTIVE_BOUNCE): number {
+  return ball.mult ? Math.min(cap, ball.mult.bounce) : 1;
 }
 
 /** Modes whose rings a ball with enough damage may smash (escape formats; Lines, Paint, Grow and Target keep their arena). */
@@ -226,8 +230,7 @@ export const MULTIPLIER_RANGES = {
 } as const;
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return uncapped(value, range, fallback); // --- uncap-all --- (a finite number from the minimum up, never a maximum)
 }
 
 /** Keeps the known kinds of a comma-separated list, in canonical order, without duplicates ("" when none is left). */
@@ -407,6 +410,14 @@ export interface PickupOrb {
 
 /** Most orbs afloat at once. */
 export const MAX_ORBS = 5;
+/**
+ * --- uncap-all --- Orbs afloat at once for a pickup rate: `MAX_ORBS` up to the slider's 3 orbs per 10 s, then in
+ * proportion to the rate (300 a second → 500 at once), up to the entities' memory-safety ceiling.
+ */
+export function orbsAfloat(rate: number): number {
+  const scaled = rate > MULTIPLIER_RANGES.pickupRate.max ? Math.ceil((MAX_ORBS * rate) / MULTIPLIER_RANGES.pickupRate.max) : MAX_ORBS;
+  return scaled > ENTITY_CEILING ? ENTITY_CEILING : scaled;
+}
 /** Orb drift speed range, px/s. */
 export const ORB_DRIFT_MIN = 12;
 export const ORB_DRIFT_MAX = 30;
@@ -518,6 +529,8 @@ export class MultiplierRuntime {
   private readonly fit: RingFit = { burst: [], outgrown: false, dist: 0 };
   private mode: ModeId | undefined;
   private readonly plan: StepPlan = { subSteps: 0, dilation: 1 };
+  /** --- unlimited --- The most a bounce multiplier may scale a rebound (`MAX_EFFECTIVE_BOUNCE`; Infinity with No limits on). */
+  bounceCap = MAX_EFFECTIVE_BOUNCE;
   private readonly view: MultiplierView = {
     active: false,
     speed: 1,
@@ -625,7 +638,7 @@ export class MultiplierRuntime {
       const b = balls[i];
       if (b.frozen) continue;
       const v = Math.hypot(b.vx, b.vy);
-      let rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(MAX_EFFECTIVE_BOUNCE, b.mult.bounce) : reboundSpeed;
+      let rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(this.bounceCap, b.mult.bounce) : reboundSpeed; // --- unlimited --- (the cap in effect)
       if (b.restitution !== undefined) rebound *= b.restitution; // --- bounce-math --- the ball's bounciness scales its rebounds
       const bound = SPEED_MARGIN * (v > rebound ? v : rebound) + Math.abs(gravity * (b.gravityScale ?? 1)) * stepSec;
       const r = (bound * stepSec) / maxMovePerSubStep(b.radius);
@@ -680,7 +693,7 @@ export class MultiplierRuntime {
     if (Number.isNaN(this.nextSpawnMs)) this.nextSpawnMs = now + 1000 * pickupInterval(this.config.pickupRate, ctx.random());
     if (now < this.nextSpawnMs) return;
     this.nextSpawnMs = now + 1000 * pickupInterval(this.config.pickupRate, ctx.random());
-    if (orbs.length >= MAX_ORBS) return;
+    if (orbs.length >= orbsAfloat(this.config.pickupRate)) return; // --- uncap-all --- (more orbs afloat at rates past the slider)
     const balls = ctx.getBalls();
     const ref = balls.find((b) => !b.frozen);
     if (!ref || walls.length === 0) return;
@@ -778,7 +791,11 @@ export class MultiplierRuntime {
     const host = this.host;
     const copies = Math.max(0, Math.round(factor) - 1);
     for (let k = 0; k < copies; k++) {
-      if (ctx.getBalls().length >= maxBalls) return;
+      if (ctx.getBalls().length >= maxBalls) {
+        // --- unlimited --- with No limits on the clones past the full-physics balls join the crowd (ARENA FULL once it is full)
+        if (ctx.unlimitedRoom?.() != null) ctx.spawnCrowd?.(copies - k, ball.x, ball.y, Math.hypot(ball.vx, ball.vy), ball.radius, Math.atan2(ball.vy, ball.vx), 0);
+        return;
+      }
       const turn = (ctx.random() < 0.5 ? -1 : 1) * (0.35 + 0.35 * ctx.random());
       const c = Math.cos(turn);
       const s = Math.sin(turn);

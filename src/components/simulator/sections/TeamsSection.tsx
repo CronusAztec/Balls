@@ -52,9 +52,15 @@ export function BallCountControl({ t, search, matches, settings: s, update }: Om
   if (search && !matches("ballCount") && !matches("twoBalls")) return null;
   const count = effectiveBallCount(s);
   const range = { ...RANGES.ballCount, max: Math.min(RANGES.ballCount.max, modeBallCap(s.mode)) };
+  // --- unlimited --- the count goes past the team balls (the rest are crowd balls): the plain ball-count range, unclamped
+  // --- uncap-all --- whatever the Wide sliders switch: the slider keeps the mode's team range (two in Grow) unless Wide
+  // sliders is on, and a count past the six team balls – typed into the number field or from a link – is a crowd
+  const crowd = s.unlimited;
+  const pastTeams = s.ballCount > RANGES.ballCount.max;
+  const shown = crowd || pastTeams ? Math.max(count, Math.floor(s.ballCount)) : count;
   const body = (
     <div className="space-y-3">
-      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={count} range={range} onChange={(v) => update(ballCountPatch(s, v, defaultTeamNames(t)))} display={String(count)} left="⚪" right="🎱" />
+      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={shown} range={crowd ? RANGES.ballCount : range} onChange={(v) => update((crowd && v > range.max) || v > RANGES.ballCount.max ? { ballCount: v, twoBalls: true } : ballCountPatch(s, v, defaultTeamNames(t)))} display={String(shown)} left="⚪" right="🎱" />
       {count >= 2 && !s.rainbowBall && s.teams.length === 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-300">{t("ballColor2")}</label>

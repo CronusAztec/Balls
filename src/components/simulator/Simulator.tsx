@@ -47,6 +47,12 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
+import { uncapConfigOf } from "@/lib/physics/limits"; // --- unlimited --- (--- uncap-all --- engaged by the values, not a switch)
+import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
+import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
+import { pastAnyMemoryCeiling, uncappedEngaged } from "@/lib/settings"; // --- uncap-all ---
+import NumberField from "./NumberField"; // --- uncap-all --- (the Find Simulation length has a number field too)
+import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
 import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
@@ -255,6 +261,7 @@ export default function Simulator() {
 
   const initEngineForMode = useCallback((engine: PhysicsEngine, s: SimulatorSettings) => {
     engine.setBouncier(s.bouncierEnabled);
+    engine.setBounciness(s.bounciness); // --- uncap-all --- (the uncapped Bouncier: its gain per bounce)
     engine.setWallBreakStyle(s.wallBreakStyle);
     engine.setCinematicEnabled(s.cinematicEnabled);
     engine.setCountdownTotal(s.targetCount);
@@ -316,6 +323,7 @@ export default function Simulator() {
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
+      ...uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), pastAnyMemoryCeiling(s)), // --- unlimited --- (before the first run: its crowd; --- uncap-all --- engaged by any value past its slider)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -379,6 +387,14 @@ export default function Simulator() {
 
   // Keep the engine in sync with the settings object.
   const s = settings;
+  // --- unlimited --- No limits travels in the physics config (the switch and the crowd: the Ball Count past the team balls).
+  // Declared first, so the engine knows the switch before the values past their ranges below reach it.
+  // --- uncap-all --- engaged by any value past its slider (whatever the Wide sliders switch), ARENA FULL past a memory ceiling
+  const uncapEngaged = uncappedEngaged(s);
+  const uncapMemoryFull = pastAnyMemoryCeiling(s);
+  useEffect(() => {
+    engineRef.current?.setConfig(uncapConfigOf(uncapEngaged, s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), uncapMemoryFull));
+  }, [uncapEngaged, uncapMemoryFull, s.ballCount, s.mode, s.teams, s.twoBalls]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setConfig({
       gravity: s.gravity,
@@ -418,7 +434,8 @@ export default function Simulator() {
   }, [s.wallBreakStyle]);
   useEffect(() => {
     engineRef.current?.setBouncier(s.bouncierEnabled);
-  }, [s.bouncierEnabled]);
+    engineRef.current?.setBounciness(s.bounciness); // --- uncap-all ---
+  }, [s.bouncierEnabled, s.bounciness]);
   useEffect(() => {
     engineRef.current?.setCinematicEnabled(s.cinematicEnabled);
     // --- review fix (modes-rhythm) --- the director changes how a seed plays out: a found run's promise goes with the switch
@@ -1078,7 +1095,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -1154,6 +1171,7 @@ export default function Simulator() {
       live: (engine, arena) => {
         engine.setWallBreakStyle(arena.wallBreakStyle);
         engine.setBouncier(arena.bouncierEnabled);
+        engine.setBounciness(arena.bounciness ?? (arena.bouncierEnabled ? 1.03 : 1)); // --- uncap-all ---
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- gerald-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
@@ -1283,6 +1301,7 @@ export default function Simulator() {
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
       Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
+      fresh.unlimited = themeLookRef.current.unlimited; // --- unlimited --- the switch carries over (the new mode starts from its defaults)
       Object.assign(fresh, bounceMathCarryOver(themeLookRef.current)); // --- bounce-math --- the rules script the clip in every mode: they carry over
       setSettings(fresh);
       if (engine) {
@@ -1377,6 +1396,11 @@ export default function Simulator() {
           // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
           if (ev.bdDrum) {
             audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
+            continue;
+          }
+          // --- unlimited --- a ball ate the arena: the gulp
+          if (ev.ate) {
+            audio.playArenaEaten();
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
@@ -2251,7 +2275,7 @@ export default function Simulator() {
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
-      findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others')
+      uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       {
         targetDurationSec: findDuration,
         toleranceSec: findTolerance,
@@ -2261,6 +2285,7 @@ export default function Simulator() {
         mode: settings.mode,
         modeSettings: {
           bouncierEnabled: settings.bouncierEnabled,
+          bounciness: settings.bounciness, // --- uncap-all ---
           countdownTotal: settings.targetCount,
           countdownRandom: settings.countdownRandom,
           colorMatchColorCount: settings.colorMatchColorCount,
@@ -2326,11 +2351,11 @@ export default function Simulator() {
       const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0);
       // --- rigged --- a found outcome run that goes on past its clip (never escapes; Multiply) has no end to hold for
       const hold = result.outcome && !result.finished ? 0 : holdMs;
-      update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + hold / 1000))) });
+      update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + hold / 1000)) }); // (--- uncap-all --- a found run longer than the slider keeps its whole length)
       // --- jdm-double-pendulum --- the clip length is this mode's run length (its finale ends the clip): a found seed keeps it
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
       // --- odd-string-battle --- a found battle is recorded with its finish hold (the last shatter and the winner banner)
-      if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000))) });
+      if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000)) }) /* --- uncap-all --- */;
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
@@ -2523,6 +2548,18 @@ export default function Simulator() {
         done: t("BeatDrop.canvasDone"),
         doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
       },
+      // --- unlimited ---
+      unlimited: {
+        realTime: (ratio) => fill("Unlimited.canvasRealTime", { ratio }),
+        arenaFull: t("Unlimited.canvasArenaFull"),
+        balls: (count) => fill("Unlimited.canvasBalls", { count }),
+        ateArena: t("Unlimited.canvasAteArena"),
+      },
+      // --- uncap-all ---
+      uncap: {
+        speed: (speed) => fill("Uncap.canvasSpeed", { speed }),
+        overflow: (count) => fill("Uncap.canvasOverflow", { count }),
+      },
       // --- bounce-math ---
       bounceMath: {
         bounce: t("BounceMath.hudBounce"),
@@ -2651,13 +2688,13 @@ export default function Simulator() {
                   physicsEngine={engineRef.current}
                   audioIntensity={0}
                   showTrails={s.showTrails}
-                  trailThickness={s.trailThickness}
+                  trailThickness={visualValue(s.trailThickness) /* --- unlimited --- (--- uncap-all --- as typed; stroked no wider than any canvas) */}
                   showGlow={s.showGlow}
                   showWallGlow={s.showWallGlow}
                   isPaused={isPaused}
                   isStarted={isStarted}
                   circleColor={s.circleColor}
-                  wallThickness={s.wallThickness}
+                  wallThickness={visualValue(s.wallThickness) /* --- unlimited --- (--- uncap-all --- as typed; stroked no wider than any canvas) */}
                   watermarkText={s.watermarkText}
                   rainbowWalls={s.rainbowWalls}
                   rainbowWallMode={s.rainbowWallMode}
@@ -2875,17 +2912,21 @@ export default function Simulator() {
                     </label>
                     <span className="text-xs font-mono text-cyan-400">{findDuration}s</span>
                   </div>
-                  <input
-                    id="find-duration"
-                    type="range"
-                    min={RANGES.findDuration.min}
-                    max={RANGES.findDuration.max}
-                    step={RANGES.findDuration.step}
-                    value={findDuration}
-                    onChange={(e) => setFindDuration(Number(e.target.value))}
-                    className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
-                    style={sliderStyle(findDuration, RANGES.findDuration.min, RANGES.findDuration.max)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="find-duration"
+                      type="range"
+                      min={RANGES.findDuration.min}
+                      max={RANGES.findDuration.max}
+                      step={RANGES.findDuration.step}
+                      value={findDuration}
+                      onChange={(e) => setFindDuration(Number(e.target.value))}
+                      className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                      style={sliderStyle(findDuration, RANGES.findDuration.min, RANGES.findDuration.max)}
+                    />
+                    {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) */}
+                    <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration)} disabled={isSearching} settingKey="findDuration" />
+                  </div>
                   <div className="flex justify-between text-[10px] text-zinc-600">
                     <span>{RANGES.findDuration.min}s</span>
                     <span>{RANGES.findDuration.max}s</span>
@@ -2914,6 +2955,18 @@ export default function Simulator() {
                     ✕
                   </button>
                 </div>
+              )}
+              {/* --- unlimited --- a heavy No limits run: fewer seeds were tested, a slice of every frame at a time */}
+              {/* --- uncap-all --- no tested seed ever ended: with these values the run never ends */}
+              {!isSearching && searchResult?.neverEnded && (
+                <p className="px-3 text-[10px] text-amber-400" data-testid="finder-never-ended">
+                  ♾️ {t("Uncap.finderEndless")}
+                </p>
+              )}
+              {!isSearching && searchResult?.limitedSeeds !== undefined && (
+                <p className="px-3 text-[10px] text-amber-400" data-testid="finder-unlimited-note">
+                  ♾️ {t("Unlimited.finderLimited", { count: searchResult.limitedSeeds })}
+                </p>
               )}
               {!isSearching && searchResult && searchResult.found && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">

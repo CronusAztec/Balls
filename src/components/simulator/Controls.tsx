@@ -79,11 +79,17 @@ import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
 import { ACCENT } from "@/lib/site";
+// --- unlimited --- the No limits switch and the unlimited sliders of the whole panel
+import UnlimitedSection, { UNLIMITED_KEYS } from "./sections/UnlimitedSection";
+import { UnlimitedProvider } from "./unlimitedSlider";
+import { bouncinessPatch } from "@/lib/settings"; // --- uncap-all --- the numeric Bounciness
 import BounceMathSection, { BOUNCE_MATH_KEYS, type BounceMathPanelProps } from "./sections/BounceMathSection"; // --- bounce-math ---
 import { defaultBounceMathFields } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
+import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
+import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
 
 export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions" | "timeline" | "arenas"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions") --- timeline --- ("timeline") --- split-screen --- ("arenas")
 
@@ -215,6 +221,8 @@ SECTION_KEYS.ball.push(...JOURNEY_KEYS);
 SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
+// --- unlimited --- the No limits switch opens the Ball & Physics section
+SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
 SECTION_KEYS.ball.push(...BOUNCE_MATH_KEYS);
 // --- social-publish --- the Publish block (TikTok, Instagram, YouTube) closes the Recording section, after the Viral video bot block.
@@ -330,6 +338,8 @@ export default function Controls(props: ControlsProps) {
   const ballSection = () => (
     <div className="space-y-4">
       <ResetButton search={search} t={t} section="ball" onReset={props.onResetSection} />
+      {/* --- unlimited --- the No limits switch (every numeric setting past its slider range) */}
+      <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
       <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
       <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} left="🐢" right="🚀" />
@@ -393,9 +403,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
-        <Searchable search={search} matches={matches} labelKey="bouncier">
-          <Toggle t={t} labelKey="bouncier" tipKey="bouncierTip" value={s.bouncierEnabled} onChange={(v) => update({ bouncierEnabled: v })} caseStyle="title" />
-        </Searchable>
+        // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
+        <Slider t={t} search={search} matches={matches} labelKey="bouncier" tipKey="bouncierTip" value={s.bounciness} range={RANGES.bounciness} onChange={(v) => update(bouncinessPatch(v))} left="🏀" right="⚡" />
       )}
       {/* --- bounce-math --- the rule list, presets, Show values and the live readout (every mode; a parameter a mode ignores is marked) */}
       <BounceMathSection t={t} search={search} matches={matches} settings={s} update={update} panel={props.bounceMath} />
@@ -851,17 +860,20 @@ export default function Controls(props: ControlsProps) {
                   <span>{t("bpm")}</span>
                   <span className="text-zinc-500">{s.bpm}</span>
                 </label>
-                <input
-                  type="range"
-                  min={RANGES.bpm.min}
-                  max={RANGES.bpm.max}
-                  step={RANGES.bpm.step}
-                  value={s.bpm}
-                  onChange={(e) => update({ bpm: Number(e.target.value) })}
-                  className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                  style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
-                  aria-label={t("bpm")}
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={RANGES.bpm.min}
+                    max={RANGES.bpm.max}
+                    step={RANGES.bpm.step}
+                    value={s.bpm}
+                    onChange={(e) => update({ bpm: Number(e.target.value) })}
+                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                    style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
+                    aria-label={t("bpm")}
+                  />
+                  <NumberField value={s.bpm} onCommit={(v) => update({ bpm: v })} label={t("bpm")} range={RANGES.bpm} rules={rulesForRange(RANGES.bpm)} settingKey="bpm" /* --- uncap-all --- */ />
+                </div>
               </>
             )}
           </div>
@@ -1023,6 +1035,7 @@ export default function Controls(props: ControlsProps) {
                 aria-label={t("durationSpan")}
               />
               <span className="text-sm">⏳</span>
+              <NumberField value={s.recordingDuration} onCommit={(v) => update({ recordingDuration: v })} label={t("durationSpan")} range={RANGES.recordingDuration} rules={rulesForRange(RANGES.recordingDuration)} disabled={props.isRecording} settingKey="recordingDuration" /* --- uncap-all --- */ />
             </div>
             <div className="flex justify-between text-xs text-zinc-500">
               <span>{t("minDuration")}</span>
@@ -1091,17 +1104,20 @@ export default function Controls(props: ControlsProps) {
               </span>
               <span className="text-zinc-500">{s.textSize.toFixed(1)}×</span>
             </label>
-            <input
-              type="range"
-              min={RANGES.textSize.min}
-              max={RANGES.textSize.max}
-              step={RANGES.textSize.step}
-              value={s.textSize}
-              onChange={(e) => update({ textSize: Number(e.target.value) })}
-              className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-              style={sliderStyle(s.textSize, RANGES.textSize.min, RANGES.textSize.max)}
-              aria-label={t("textSize")}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={RANGES.textSize.min}
+                max={RANGES.textSize.max}
+                step={RANGES.textSize.step}
+                value={s.textSize}
+                onChange={(e) => update({ textSize: Number(e.target.value) })}
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                style={sliderStyle(s.textSize, RANGES.textSize.min, RANGES.textSize.max)}
+                aria-label={t("textSize")}
+              />
+              <NumberField value={s.textSize} onCommit={(v) => update({ textSize: v })} label={t("textSize")} range={RANGES.textSize} rules={rulesForRange(RANGES.textSize)} settingKey="textSize" /* --- uncap-all --- */ />
+            </div>
             <div className="flex justify-between text-xs text-zinc-500">
               <span>{t("minSize")}</span>
               <span>{t("maxSize")}</span>
@@ -1278,6 +1294,7 @@ export default function Controls(props: ControlsProps) {
   const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id])) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   return (
+    <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
     <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-zinc-800">
       <h2 className="text-lg font-bold text-white mb-2">{t("controlsTitle")}</h2>
       <button
@@ -1480,6 +1497,7 @@ export default function Controls(props: ControlsProps) {
         </label>
       </div>
     </div>
+    </UnlimitedProvider>
   );
 }
 
@@ -1496,6 +1514,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         twoBalls: d.twoBalls,
         ballColor2: d.ballColor2,
         bouncierEnabled: d.bouncierEnabled,
+        bounciness: d.bounciness, // --- uncap-all ---
         ballInteraction: d.ballInteraction,
         splitMinRadius: d.splitMinRadius,
         maxBalls: d.maxBalls,

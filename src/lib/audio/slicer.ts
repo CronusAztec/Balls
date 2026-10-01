@@ -1,3 +1,4 @@
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 /**
  * Song slicer arithmetic – the viral "each bounce plays the next bit of a song" format.
  *
@@ -41,7 +42,7 @@ export interface SlicePlan {
 export function normalizeSliceOptions(options: Partial<SliceOptions>, base: SliceOptions): SliceOptions {
   const clamp = (value: unknown, range: { min: number; max: number }, fallback: number) => {
     const n = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+    return Number.isFinite(n) ? atLeastMin(n, range) : fallback; // --- uncap-all --- (never a maximum)
   };
   return {
     sliceSec: clamp(options.sliceSec ?? base.sliceSec, SLICE_LIMITS.sliceSec, base.sliceSec),

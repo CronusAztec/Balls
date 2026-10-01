@@ -21,6 +21,7 @@ import { base64ToBytes, bytesToBase64 } from "@/lib/base64";
 import { SONGS, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/songs";
 import { CUSTOM_HIT_SAMPLE_ID } from "@/lib/audio/sampler";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
+import { keepsUnlimitedValue } from "@/lib/unlimited"; // --- unlimited ---
 import { SITE_NAME } from "@/lib/site";
 import { themeById } from "@/lib/themes";
 import { isModeId } from "@/lib/physics/types";
@@ -300,7 +301,10 @@ export function resolveProjectSettings(raw: unknown, assets: ProjectAssets = {})
     } else if (typeof fallback === "number") {
       if (typeof value === "number" && Number.isFinite(value)) {
         const range = ranges[key];
-        clean[key] = range ? Math.max(range.min, Math.min(range.max, value)) : value;
+        // --- unlimited --- a file keeps its big values (presetToSettings() validates them); the rest is clamped
+        // --- uncap-all --- whatever its switch: every valid value is kept exactly, an invalid one is lifted onto the minimum
+        const lifted = range !== undefined && keepsUnlimitedValue(key, value, range);
+        clean[key] = range && !lifted ? range.min : value; // (--- uncap-all --- never a maximum: only a value below the minimum is lifted onto it)
       }
     } else if (typeof fallback === "string") {
       if (typeof value === "string") clean[key] = value.slice(0, MAX_TEXT_SETTING);

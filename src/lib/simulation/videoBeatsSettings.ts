@@ -1,6 +1,7 @@
 import { BEAT_SOURCE_KINDS, MAX_MARKER_TEXT, beatClockConfigOf, bpmBeatSource, isBeatSourceKind, manualBeatSource, parseMarkers, serializeMarkers, type BeatSourceKind } from "./beatSource";
 import type { OnBeatConfig } from "@/lib/physics/onBeat";
 import type { BeatGrid } from "./beatClock";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * --- video-beats --- The settings glue of "Beats from a video": the fields of the SimulatorSettings object, their slider
@@ -37,7 +38,7 @@ export function defaultVideoBeatsFields(): VideoBeatsFields {
 
 function clampTo(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Known source, markers re-encoded (malformed text drops them), clamped numbers, real booleans (URL parameters and presets alike). */

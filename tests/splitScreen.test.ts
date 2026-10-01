@@ -237,15 +237,15 @@ describe("split-screen: settings and the URL", () => {
 
   it("drops what it does not know from a URL: bad counts, layouts, sounds, colours, modes and numbers", () => {
     const back = settingsFromSearchParams(new URLSearchParams("mode=classic&ac=3&al=diagonal&sa=loud&ar=" + encodeURIComponent("Red~gabc~cxyz~mnope~v99999~s12.7|B~zzz")));
-    expect(back.arenaCount).toBe(2);
+    expect(back.arenaCount).toBe(3); // --- uncap-all --- any whole number of arenas (the run builds at most its memory-safety ceiling)
     expect(back.arenaLayout).toBe("row");
     expect(back.soundArena).toBe("first");
-    expect(back.arenas).toEqual([{ label: "Red", ballSpeed: 800, seed: 13 }, { label: "B" }]);
-    expect(settingsFromSearchParams(new URLSearchParams("ac=9")).arenaCount).toBe(4);
+    expect(back.arenas).toEqual([{ label: "Red", ballSpeed: 99999, seed: 13 }, { label: "B" }]); // --- uncap-all --- (no maximum)
+    expect(settingsFromSearchParams(new URLSearchParams("ac=9")).arenaCount).toBe(9);
     expect(settingsFromSearchParams(new URLSearchParams("ac=-1")).arenaCount).toBe(1);
     expect(decodeArenas("")).toEqual([]);
     expect(encodeArenas([{ label: "A" }, { label: "" }, { label: "" }])).toBe("A");
-    expect(decodeArenas("a|b|c|d|e|f")).toHaveLength(4);
+    expect(decodeArenas("a|b|c|d|e|f")).toHaveLength(6); // --- uncap-all --- up to the arenas' memory-safety ceiling
   });
 
   it("validates a preset's (or project file's) race like a URL's", () => {

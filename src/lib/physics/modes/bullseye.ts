@@ -1,6 +1,7 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import { circleObstacle, resolveBallCircle, segmentBetween, type CircleObstacle, type Obstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Bullseye ("bullseye" mode, feature gerald-bullseye – the geraldbounces "bulleye!!" clips). No rings to escape: a portrait
@@ -88,7 +89,7 @@ export interface BullseyeFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Rounds onto a slider's step, two decimals at most. */
@@ -101,10 +102,10 @@ export function resolveBullseyeSettings(config: Partial<BullseyeSettings> | null
   const out = { ...DEFAULT_BULLSEYE_SETTINGS };
   if (!config) return out;
   const R = BULLSEYE_RANGES;
-  if (config.shots !== undefined) out.shots = Math.round(clampNumber(config.shots, R.byShots, out.shots));
+  if (config.shots !== undefined) out.shots = memoryCeiling("byShots", Math.round(clampNumber(config.shots, R.byShots, out.shots)));
   if (config.interval !== undefined) out.interval = onStep(clampNumber(config.interval, R.byInterval, out.interval), R.byInterval.step);
   if (config.chaos !== undefined) out.chaos = onStep(clampNumber(config.chaos, R.byChaos, out.chaos), R.byChaos.step);
-  if (config.rings !== undefined) out.rings = Math.round(clampNumber(config.rings, R.byRings, out.rings));
+  if (config.rings !== undefined) out.rings = memoryCeiling("byRings", Math.round(clampNumber(config.rings, R.byRings, out.rings)));
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (config.perfect !== undefined) out.perfect = Math.round(clampNumber(config.perfect, R.byPerfect, out.perfect));
   if (isScaleId(config.scale)) out.scale = config.scale;

@@ -1,10 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import type { ControlSection } from "./Controls";
 import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- timeline ---
+import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimitedSlider"; // --- unlimited --- (--- uncap-all --- the Wide sliders track)
+// --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
+import NumberField from "./NumberField";
+import { beyondSlider, formatCompact, memoryCeiling } from "@/lib/uncap";
 import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
 
 /*
@@ -17,7 +21,8 @@ export type Translate = ReturnType<typeof useTranslations>;
 export type Matcher = (key: string) => boolean;
 
 export function sliderStyle(value: number, min: number, max: number) {
-  const pct = ((value - min) / (max - min)) * 100;
+  const raw = ((value - min) / (max - min)) * 100;
+  const pct = raw > 100 ? 100 : raw < 0 || !(raw === raw) ? 0 : raw; // --- uncap-all --- (the fill pins at the track's end for a value beyond it)
   return {
     background: `linear-gradient(to right, ${ACCENT_LIGHT} 0%, ${ACCENT} ${pct}%, #27272a ${pct}%, #27272a 100%)`,
     accentColor: ACCENT,
@@ -82,32 +87,48 @@ export function Slider({
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
   const shown = live ? live.value : value;
+  // --- unlimited --- with Wide sliders on, an uncapped setting's slider goes logarithmic past its range
+  const wideKey = useUnlimitedKey(range);
+  // --- uncap-all --- the number field (always), the track pinned at its end beyond the comfort range, the memory ceiling note
+  const settingKey = keyOfRange(range);
+  const beyond = !live && beyondSlider(value, range);
+  const ceiling = settingKey ? memoryCeiling(settingKey, value) : value;
+  const label = t(labelKey);
+  const u = useTranslations("Uncap");
   return (
     <Searchable search={search} matches={matches} labelKey={labelKey}>
-      <div className="space-y-2">
+      <div className="space-y-2" data-uncap-slider={settingKey ?? labelKey}>
         <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
           <span>
-            {t(labelKey)}
+            {label}
             {tipKey && <Tooltip text={t(tipKey)} />}
           </span>
-          <span className="text-zinc-500">{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : (display ?? value)}</span>
+          <span className={beyond ? "text-amber-400 font-semibold" : "text-zinc-500"}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? formatCompact(value) : (display ?? value)}</span>
         </label>
         <div className="flex items-center gap-2">
           {left && <span className="text-sm">{left}</span>}
-          <input
-            type="range"
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            value={shown}
-            disabled={disabled || !!live}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-            style={sliderStyle(shown, range.min, range.max)}
-            aria-label={t(labelKey)}
-          />
+          {wideKey && !live ? (
+            <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} />
+          ) : (
+            <span className={`relative flex w-full items-center ${beyond ? "rounded-lg ring-1 ring-amber-500/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
+              <input
+                type="range"
+                min={range.min}
+                max={range.max}
+                step={range.step}
+                value={shown}
+                disabled={disabled || !!live}
+                onChange={(e) => onChange(Number(e.target.value))}
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+                style={sliderStyle(shown, range.min, range.max)}
+                aria-label={label}
+              />
+            </span>
+          )}
           {right && <span className="text-sm">{right}</span>}
+          <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} />
         </div>
+        {ceiling < value && <p className="text-xs text-amber-400/90">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
       </div>
     </Searchable>
   );

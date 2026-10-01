@@ -120,7 +120,7 @@ describe("settings, URL and presets", () => {
   });
 
   it("resolve clamps onto the sliders and drops bad values", () => {
-    expect(resolveVortexSettings({ balls: 99, stagger: -1, rings: 2, duration: 100, gravity: 0, depthScale: 7 })).toMatchObject({ balls: 30, stagger: 0, rings: 6, duration: 30, gravity: 0.2, depthScale: 1 });
+    expect(resolveVortexSettings({ balls: 99, stagger: -1, rings: 2, duration: 100, gravity: 0, depthScale: 7 })).toMatchObject({ balls: 99, stagger: 0, rings: 6, duration: 100, gravity: 0.2, depthScale: 7 }); // --- uncap-all --- (no maximum)
     expect(resolveVortexSettings({ balls: 4.6, stagger: 0.333, duration: 7.3, gravity: 1.337, depthScale: 0.42 })).toMatchObject({ balls: 5, stagger: 0.35, duration: 7.5, gravity: 1.35, depthScale: 0.4 });
     const junk = { balls: "many", loop: "yes", rings: null, scale: "klingon", rootNote: "x" } as unknown as Partial<VortexSettings>;
     expect(resolveVortexSettings(junk)).toEqual(DEFAULT_VORTEX_SETTINGS);
@@ -143,9 +143,9 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("vortex");
     expect(resolveVortexFields(back)).toEqual({ vxBalls: 20, vxStagger: 0.75, vxRings: 18, vxDuration: 9, vxGravity: 2.5, vxLoop: true, vxDepthScale: 0.8 });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=vortex&vxn=500&vxr=abc&vxl=7&vxd=1"));
-    expect(resolveVortexFields(bad)).toEqual({ ...defaultVortexFields(), vxBalls: 30, vxDuration: 3 });
+    expect(resolveVortexFields(bad)).toEqual({ ...defaultVortexFields(), vxBalls: 500, vxDuration: 3 }); // --- uncap-all --- (no maximum)
     const preset = presetToSettings({ mode: "vortex", vxBalls: 0, vxLoop: "no", vxGravity: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
-    expect(resolveVortexFields(preset)).toMatchObject({ vxBalls: 1, vxLoop: false, vxGravity: 3 });
+    expect(resolveVortexFields(preset)).toMatchObject({ vxBalls: 1, vxLoop: false, vxGravity: 9 });
   });
 
   it("the mode is registered: a rhythm card with the Gerald family, before Glass Smash", () => {

@@ -38,14 +38,15 @@ describe("settings serialisation", () => {
     for (const key of ["inst", "minst", "scale", "root", "qz", "bpm", "grid"]) expect(defaults.has(key)).toBe(false);
   });
 
-  it("rejects unknown instruments, scales, grids and out-of-range root/BPM", () => {
+  it("rejects unknown instruments, scales and grids, and keeps a root / BPM past the slider (--- uncap-all ---)", () => {
     const s = settingsFromSearchParams(new URLSearchParams("inst=organ&minst=kazoo&scale=dorian&grid=1%2F3&root=14&bpm=999&qz=1"));
     expect(s.instrument).toBe("triangle");
     expect(s.melodyInstrument).toBe("sine");
     expect(s.scale).toBe("chromatic");
     expect(s.quantizeGrid).toBe("1/8");
-    expect(s.rootNote).toBe(0);
-    expect(s.bpm).toBe(120);
+    expect(s.rootNote).toBe(14);
+    expect(s.bpm).toBe(999);
+    expect(settingsFromSearchParams(new URLSearchParams("root=-3&bpm=abc"))).toMatchObject({ rootNote: 0, bpm: 120 });
     expect(s.quantizeToBeat).toBe(true);
   });
 
@@ -79,10 +80,11 @@ describe("settings serialisation", () => {
     expect(s.scale).toBe("chromatic");
     expect(s.quantizeGrid).toBe("1/8");
     expect(s.quantizeToBeat).toBe(false);
-    expect(s.rootNote).toBe(0);
-    expect(s.bpm).toBe(200);
+    // --- uncap-all --- numbers past their sliders are kept; below the minimum they are lifted onto it
+    expect(s.rootNote).toBe(14);
+    expect(s.bpm).toBe(999);
     expect(s.sliceMs).toBe(80);
-    expect(s.sliceFadeMs).toBe(50);
+    expect(s.sliceFadeMs).toBe(999);
     expect(s.hitSoundMode).toBe("tones");
     const good = presetToSettings({ mode: "portal", instrument: "chip", melodyInstrument: "marimba", scale: "blues", quantizeGrid: "1/16", quantizeToBeat: true, rootNote: 7, bpm: 90 });
     expect(good).toMatchObject({ instrument: "chip", melodyInstrument: "marimba", scale: "blues", quantizeGrid: "1/16", quantizeToBeat: true, rootNote: 7, bpm: 90 });
@@ -123,18 +125,18 @@ describe("physics extras settings", () => {
     expect(settingsToSearchParams({ ...defaultSettings("classic"), gapSize: 0.35, trailThickness: 1.2 }).toString()).toBe("mode=classic&gap=0.35&tt=1.2");
   });
 
-  it("are clamped to their ranges from URLs and presets, falling back to off", () => {
+  it("are kept past their sliders (--- uncap-all ---), lifted onto the minimum below it and fall back to off when invalid", () => {
     const s = settingsFromSearchParams(new URLSearchParams("drag=9&wx=-3&spin=abc&wb=0.1&bw=1&bws=0&rg=720"));
-    expect(s.airDrag).toBe(0.05);
-    expect(s.windX).toBe(-0.5);
+    expect(s.airDrag).toBe(9);
+    expect(s.windX).toBe(-3);
     expect(s.spinStrength).toBe(0);
     expect(s.wallBounciness).toBe(0.5);
-    expect(s.breathingAmplitude).toBe(0.3);
+    expect(s.breathingAmplitude).toBe(1);
     expect(s.breathingSpeed).toBe(0.1);
-    expect(s.rotatingGravity).toBe(180);
+    expect(s.rotatingGravity).toBe(720);
     const p = presetToSettings({ mode: "classic", airDrag: -1, windY: 2, rotatingGravity: "sideways" } as unknown as Partial<SimulatorSettings>);
     expect(p.airDrag).toBe(0);
-    expect(p.windY).toBe(0.5);
+    expect(p.windY).toBe(2);
     expect(p.rotatingGravity).toBe(0);
     expect(p.wallBounciness).toBe(1);
     expect(presetToSettings({ mode: "portal", spinStrength: 0.4, breathingAmplitude: 0.2 })).toMatchObject({ spinStrength: 0.4, breathingAmplitude: 0.2, breathingSpeed: 1 });
@@ -158,14 +160,14 @@ describe("ball interaction settings", () => {
     expect(settingsToSearchParams({ ...defaultSettings("classic"), ballInteraction: "merge" }).toString()).toBe("mode=classic&bi=merge");
   });
 
-  it("reject unknown interactions and clamp the split limits to whole numbers in their ranges, from URLs and presets", () => {
+  it("reject unknown interactions and keep the split limits whole numbers from their minimum up (--- uncap-all --- no maximum), from URLs and presets", () => {
     const s = settingsFromSearchParams(new URLSearchParams("bi=explode&smr=99&mb=0"));
     expect(s.ballInteraction).toBe("bounce");
-    expect(s.splitMinRadius).toBe(20);
+    expect(s.splitMinRadius).toBe(99);
     expect(s.maxBalls).toBe(2);
     expect(settingsFromSearchParams(new URLSearchParams("bi=pass&smr=abc&mb=7.6"))).toMatchObject({ ballInteraction: "pass", splitMinRadius: 4, maxBalls: 8 });
     const p = presetToSettings({ mode: "multiply", ballInteraction: "merge", maxBalls: 100, splitMinRadius: -3 } as unknown as Partial<SimulatorSettings>);
-    expect(p).toMatchObject({ ballInteraction: "merge", maxBalls: 64, splitMinRadius: 4 });
+    expect(p).toMatchObject({ ballInteraction: "merge", maxBalls: 100, splitMinRadius: 4 });
     expect(presetToSettings({ mode: "classic", ballInteraction: 3 } as unknown as Partial<SimulatorSettings>).ballInteraction).toBe("bounce");
     expect(presetToSettings({ mode: "grow" })).toMatchObject(DEFAULT_BALL_INTERACTION);
   });

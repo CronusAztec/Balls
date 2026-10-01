@@ -1,6 +1,7 @@
 import { resolveBallSegment, segmentBetween, segmentObstacle, type Obstacle, type SegmentObstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
 import { applyMultiplier, hitDamage } from "../multipliers"; // --- gerald-multipliers ---
+import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Glass Smash ("glass" mode, the geraldbounces "Gerald is determined to smash all of the glass" format): no rings. A
@@ -80,16 +81,18 @@ export interface GlassSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range as a whole number (non-boolean flags and bad numbers fall back to the defaults). */
 export function resolveGlassSettings(config: Partial<GlassSettings> | null | undefined): GlassSettings {
   const out = { ...DEFAULT_GLASS_SETTINGS };
   if (!config) return out;
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, GLASS_RANGES.glassRows, out.rows));
+  if (config.rows !== undefined) out.rows = memoryCeiling("glassRows", Math.round(clampNumber(config.rows, GLASS_RANGES.glassRows, out.rows)));
   if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, GLASS_RANGES.glassHp, out.hp));
-  if (config.stages !== undefined) out.stages = Math.round(clampNumber(config.stages, GLASS_RANGES.glassStages, out.stages));
+  if (config.stages !== undefined) out.stages = memoryCeiling("glassStages", Math.round(clampNumber(config.stages, GLASS_RANGES.glassStages, out.stages)));
+  // (--- uncap-all --- the rows of every stage together: at most ENTITY_CEILING panes are built – memory-safety, ARENA FULL past it)
+  if (out.rows * out.stages > ENTITY_CEILING) out.stages = Math.max(1, Math.floor(ENTITY_CEILING / out.rows));
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (typeof config.holes === "boolean") out.holes = config.holes;
   if (typeof config.gates === "boolean") out.gates = config.gates;
