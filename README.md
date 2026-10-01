@@ -69,6 +69,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Publish to TikTok, Instagram & YouTube** | A **Publish** block at the end of the Recording section (feature social-publish) sends the last recording, fast export, batch or viral-bot clip – or a picked video file – to **several accounts per platform in one click**: its words per platform (title, caption, hashtags from the viral bot's copy, editable per platform with live counters for each platform's limits: TikTok 2,200, Instagram 2,200 and 30 hashtags, YouTube a 100-character title, 5,000-byte description and 500 characters of tags, #Shorts first), the accounts grouped by platform with avatar and handle, tick boxes and **Send to selected** with per-account progress and result links, and a recent-sends log (the last 50). Three paths, all static-site friendly: **YouTube straight from the browser** (Google Identity Services + the resumable upload API; a client ID from `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` or the App setup panel; any number of channels), **a self-hostable relay** (`relay/server.mjs`, one Node 22 file) that holds the TikTok, Meta and Google app secrets, runs the OAuth sign-ins, keeps refresh tokens and posts – TikTok Content Posting API, Instagram Reels through the Graph API, YouTube – with **access keys** so a team or several creators share one relay, each seeing only their own accounts; and a **no-setup quick share** (the phone's share sheet with the file, or download + caption on the clipboard + the upload page on a computer). The bot CLI posts through the relay too (`--relay`) |
 | **Wide sliders** (was No limits) | The **Wide sliders** switch at the top of the Ball & Physics section (`unlimited`, URL `inf=1` – the old No limits key, kept for old links – saved in presets, project files and share codes; off by default) stretches the slider of every uncapped setting past its comfort range on a logarithmic track up to **1B**. It no longer gates anything else: every value is uncapped whether it is on or off (see the Uncapped row), and turning it off changes no value – the track pins at its end. |
 | **Uncapped everything** | No parameter has a maximum any more (feature uncap-all, `src/lib/uncap.ts`): every slider in every section has a **number field** next to it (type any finite number – `1e9`, `2.5M`, `0.0001`, `1,5`; Enter, leaving the field or ↑/↓ commit it, invalid text keeps the old value and says why), and the other numeric controls got the same field (the BPM, the clip length, the text size, the rotation speed, timeline keyframes, the batch sweep, the bot, the export frame rate, arena overrides, obstacle rows, Find Simulation's times). A value past its slider pins the track at its end with a faint tint and a "beyond the slider" tooltip, the readout shows it short (1.2M), and links, presets, project files and share codes carry it exactly. The engine runs it as typed – no speed, size, gravity, rotation, restitution or multiplier ceiling – and engages its extreme-values machinery by itself (planned sub-steps and time dilation, time-slicing, the crowd, cheaper drawing) only when a value is past its slider, so at the defaults nothing changes. **Bouncier** is now a numeric **Bounciness** (`bnc`; the old `bounce=1` means 1.03, off = 1): every bounce adds (Bounciness − 1) × the Ball Speed to the rebound, forever – 3, 100, 1e6 – and the canvas shows the fastest ball's speed (**⚡ 12.3K PX/S**) climbing. The only ceilings left are memory-safety ceilings on what a value allocates (a million crowd balls, 10,000 rings, 5,000 entities of a mode…), past which the run says **ARENA FULL**; numbers that overflow the float range are put back at the centre with **NUMBERS OVERFLOWED**. |
+| **Windows app (desktop-exe)** | The whole simulator as a downloadable Windows EXE (`desktop/`, Electron): an installer (per user, no admin) and a portable EXE from [GitHub Releases](https://github.com/CronusAztec/Balls/releases/latest), linked from a **Download for Windows** button on the landing page and the `/download` page. Inside the app a **Desktop studio** group appears under the simulator: **GPU** (the graphics card and what Chromium accelerates, the fast export encoding on the GPU first – `hardwareAcceleration: "prefer-hardware"` with the software fallback kept – bundled ffmpeg with NVENC / AMF / Quick Sync picked automatically after a test encode, a benchmark), **Render queue** (seeds, share links or the viral bot's plan × resolutions × frame rates × H.264 / HEVC / AV1 × TikTok / Reels / Shorts / 4K 60 presets, rendered through the fast export and saved straight into a folder – progress, cancel, retry, and a crash-safe journal that resumes after a restart), **AI studio** (a local GGUF model through llama.cpp – downloaded once with its licence shown, resumable and checksummed, GPU offload via CUDA / Vulkan – or your own Anthropic / OpenAI-compatible key: it plans videos with the viral bot and Find Simulation as tools, writes hooks, captions and hashtags, changes settings on request with Undo and pitches ideas from the virality playbook; every reply is validated before it is applied) and **Library** (thumbnails, length, size, play, show in folder, re-render, delete, publish extension point). Native menu, tray, shortcuts, file dialogs, drag and drop, single instance and auto-update; the website itself is unchanged |
 
 ## Getting started
 
@@ -718,7 +719,7 @@ Feature bounce-math: "add more bounciness on every bounce – customisable, math
 - **Rules and maths** – `src/lib/simulation/bounceMath.ts` (pure, no DOM; `tests/bounceMath.test.ts`): a `BounceRule` is `{ param, trigger, every, op, amount, formula?, min?, max?, scope }` over `BOUNCE_PARAMS` (bounciness, speed, size, gravity, rotation, gap, thickness, damping, trail, hue, pitch, timeScale, wobble, balls), `BOUNCE_TRIGGERS` (bounce, pass, collide, break, beat, bar, second, start) and `BOUNCE_OPS` (add, subtract, multiply, divide, power, root, modulo, set, random, formula). `applyRule(value, rule, ctx)` runs the operation, clamps to the rule's own min / max (none by default – no upper limit, the owner's rule), rounds counts and then fits the parameter's domain (`BOUNCE_PARAM_DOMAINS`): NaN, ±Infinity or a value below what the parameter can mean (a negative or zero size, a zero speed…) is rejected and the value stays as it was; above a physical ceiling (a gap wider than the ring, all the speed dragged away, 200 trail points) or the float ceiling `FLOAT_CEILING` (±10¹⁵ – not a gameplay limit, it only keeps a × 1.05-per-bounce stack from overflowing into NaN) it is clamped. Formulas (`compileFormula()`): a recursive-descent parser for + − * / ^ ( ) (^ right-associative and above unary minus), v n t b r, pi and e, sin cos tan abs sqrt pow min max floor ceil round log exp clamp; it compiles once into a postfix program (`Int32Array` of op / argument pairs and a `Float64Array` of constants) evaluated per fire on its own preallocated stack – never `eval` or `Function`, no allocation. Errors come back with a code, a position and the name (`FormulaError`), which the panel translates. `serializeRules()` / `parseRules()` are the URL form (`bmr`: `param.trigger.every.op.amount[.min][.max][.scope]`, rules joined by `;`; numbers write their decimal point as `_` because `.` separates the fields, a formula is percent-encoded in the amount field, `all` is the only scope written; the parse is tolerant – an invalid rule is dropped, the rest stays). `bm` stays the beat markers' key. `BOUNCE_MATH_PRESETS` are the six presets, `addRule` / `updateRule` / `moveRule` / `removeRule` / `appendPreset` the panel's list edits, `rotateHue()` the colour shift.
 - **Engine** – `src/lib/physics/bounceMathRuntime.ts` (`BounceMathRuntime`, owned by `PhysicsEngine`, wired into `engine.ts` in delimited `--- bounce-math ---` blocks). The rules travel in the physics config (`PhysicsConfig.bounceMath` = rules, the beat grid, the canvas values' starting points, Show values: `bounceMathConfigOf()`), so the seed finder, split-screen arenas, the batch renderer and the fast export – which all build their engines from `engine.config` – replay a rule run exactly. The hooks only queue a trigger (preallocated, allocation-free): the ring bounce and the obstacle / editor-obstacle hits (`BM_BOUNCE`), the gap pass (`notePass()`, once per pass), the ball pair and a merge (`BM_COLLIDE`, both balls), a mode's own bounces (`ctx.creditBounce()` – String Battle – and the new optional `ctx.noteBounce()` that Bouncing Shapes, Glass Smash and the Journey's glass stage call), and the step's "gap" sound events for wall breaks (paired with the balls `reportWallBreak()` / `ctx.creditWallBreak()` reported). The start trigger fires at the start of a run's first step; at the end of every step the beats and bars of the grid (`beatSchedule.ts`: the grid Beat Drop and Picture Paint follow – the page's `rhythmBeat`, i.e. the loaded song's beats, an imported video's or the hand-placed markers, else the Sound section's BPM; a bar is every beat whose index is a multiple of four) and the whole seconds that fell into the step are queued, and the queue applies in order – each trigger's rules in list order, every N-th time. Random numbers come from the engine's seeded `random()` (only "random" rules and formulas that read r draw). A run without rules never enters any of this and replays exactly as before (`tests/extras.test.ts` still reproduces every mode's recorded trajectory).
   - Per ball: bounciness is `ball.restitution` (a factor on the engine's ring rebounds; on the obstacles' restitution – applied after their 0.98 cap (`rebound(…, ballRestitution, liftSpeed)` in obstacles.ts), so it has no upper limit: a 2 turns a 0.7 peg into a 1.4 rebound, and what it adds is bounded by a lift speed – the ball's cruising speed × the restitution scale × the bounciness, what a ring rebound sets – so a ball bouncing between pegs settles there instead of gaining speed hit after hit (Ball Drop, Bullseye, the obstacle editor, Bullseye's stuck darts, a knock from below on Glass Smash's and the Journey's panes); on Glass Smash's and the Journey's pane landings it scales the hop (a 2 hops twice as fast, four times as high); and – at most once, never compounding – on a rebound a mode sets itself – Bouncing Shapes' mirror walls report theirs through `ctx.noteBounce(ball, true)` and each shape's own speed carries the bounciness exactly once; the step planner's rebound bound includes it); speed and size go through the multipliers (`MultiplierRuntime.apply()`: the speed scale sets the velocity at once and the cruising speed from then on; the size refits the ball into its corridor, bursting rings it no longer fits, and a ball bigger than the arena ends the run with the multipliers' OUTGREW THE ARENA finish – in a mode without rings it stops at 45 % of the canvas' smaller side), so the multipliers' planner sub-steps fast balls (up to 64 sub-steps, then time dilation) and nothing tunnels; hue turns `ball.color` (`hueShift`; white, black and greys – the default ball is white – have no hue of their own, so `rotateHue()` turns them from a saturated colour of a similar lightness and the shift always shows), pitch is `ball.pitchShift` – the ring and obstacle hits of the ball (and Bouncing Shapes' wall notes) carry the shifted pitch in the sound event's `frequency` (the existing pitch override), nothing else in the audio changes. Clones and split halves inherit them.
-  - World: gravity, the ring spin and the gap size go into the engine's config (the gap in place, like a keyframed gap, in the modes whose rings are built from it); `engine.config` hands out the page's values meanwhile and the next run starts from them again; a page patch that merely re-sends the page's value keeps the rule's, a new value replaces it. Air drag, the clock scale (`clockScale()`: each step covers that much more simulated time, planned like a multiplier run – in the modes the engine integrates itself), the trail length (the engine's trail ring buffer, up to 200 points) and the canvas' wall thickness and wobble (read by `components/simulator/bounceMathRenderer.ts`, so the fast export draws them too) are held by the runtime; balls spawns copies of the ball (the multipliers' clone with a seeded turn) within Multiply's memory-safe ceiling of 200 balls.
+  - World: gravity, the ring spin and the gap size go into the engine's config (the gap in place, like a keyframed gap, in the modes whose rings are built from it); `engine.config` hands out the page's values meanwhile and the next run starts from them again; a page patch that merely re-sends the page's value keeps the rule's, a new value replaces it. Air drag, the clock scale (`clockScale()`: each step covers that much more simulated time, planned like a multiplier run – in the modes the engine integrates itself), the trail length (the engine's trail ring buffer, up to 200 points) and the canvas' wall thickness and wobble (read by `components/simulator/bounceMathRenderer.ts`, so the fast export draws them too) are held by the runtime; balls spawns copies of the ball (the multipliers' clone with a seeded turn) within Multiply's memory-safe ceiling of 200 balls (with No limits on the ceiling is lifted like Multiply's: the copies fill the run's full-physics balls and the rest join the crowd).
   - A parameter a mode has no use for is ignored there (`bounceParamApplies()`: bounciness, speed and size in the ten ring modes, Ball Drop, Bouncing Shapes, Glass Smash, Bullseye and Journey; the gap in Classic, Accumulation and Multiply; balls in the ring modes; the clock where the engine integrates the balls) and the panel marks the rule.
   - Every mode reports its bounces: the engine's rings and obstacles, and every mode that resolves its own contacts calls `ctx.noteBounce(ball)` – String Battle, Bouncing Shapes, Glass Smash and the Journey's panes, the Collision Playground's container, the Multipliers board's walls, pegs and bars, the arena games' and the race's walls and obstacles, Beat Drop's landings, Paddle Keep-Up's walls, ceiling and paddle, Power Layers' stack hits, Circle Illusion's contacts, Bullseye's stuck darts – and in the rhythm modes without contacts the ball's note counts as its bounce (a Pendulum Wave bob's swing note, a harp pluck, a Polyrhythm dot's turn, a Sound Vortex ring, Beat Runner's landings). Ball-to-ball hits a mode resolves itself go through `ctx.noteCollide(a, b)` (the Collision Playground's orbs and lollipops, the Multipliers board, the arena games' clashes, the sparring double pendulums), next to the engine's own pair pass. `bounceTriggerApplies()` says where a trigger can never fire – a gap pass outside the ring modes and the Journey, a ball hit where balls pass through each other, a wall break where nothing breaks – and the rule row shows `BounceMath.triggerNotInMode` (`data-applies="0"`).
 - **Page** – `components/simulator/sections/BounceMathSection.tsx` (search keys `BOUNCE_MATH_KEYS` in `SECTION_KEYS.ball`): the rule rows (parameter, trigger, every N, operation, amount with a comfort slider or the formula with live validation and an example line, min / max, this ball / all balls, ↑ ↓ ✕), + Add rule, the preset picker, Clear, Show values and the live readout (polled from `engine.getBounceMathView()` ten times a second). Simulator.tsx sends `bounceMathConfigOf(settings, rhythmBeat)` in an effect (new rules – or a new beat while a rule may follow it – drop a found seed like new keyframes), carries the rules over to another mode and hands the arenas the page's config. `bounceMathRenderer.ts` draws the Show values badge in the recorded square (bottom-left above the page's buttons, the bottom text and the song bar; top-right below the scoreboard and SLOW-MO while bottom captions show) and mirrors `data-bm-*` (rules, fires, total, the last ball's bounciness / colour / speed / size, gravity, balls, clock, the badge's rectangle). Words live in `Controls.bounceMath*` and the `BounceMath` namespace of `messages/*.json`.
@@ -887,6 +888,177 @@ are cached per colour and power-of-two size, one glow sprite per colour, at most
 points into a trail layer (a finished run records no more), and the Lines / Grow strings go out in one path per colour.
 Leaving the simulator (an in-app link) stops a recording and closes the audio. The pages hand the client only the message
 namespaces their client components read (`src/i18n/clientMessages.ts`; the simulator page gets the whole catalogue).
+
+## Windows app
+
+Feature desktop-exe: the owner asked for "a EXE file that is downloadable and the exe is the project but i can use my gpu to
+create videos and use a AI build into the exe for video creation and other bits". `desktop/` is that app – an Electron shell
+around the site's own static export, with its own `package.json`, `tsconfig.json`, tests and electron-builder configuration.
+It is **not** a dependency of the site: `npm ci` / `npm run build` at the root and the GitHub Pages workflow never install or
+touch it (the root `tsconfig.json`, ESLint and Vitest ignore `desktop/`).
+
+### Architecture
+
+```
+desktop/
+  package.json                 its own dependencies: electron, electron-builder, electron-store, electron-updater,
+                               ffmpeg-static, node-llama-cpp, @anthropic-ai/sdk (+ esbuild, typescript, vitest)
+  electron-builder.config.cjs  NSIS installer (per user) + portable EXE, icons from public/icons/icon-512.png,
+                               the site export (../out → resources/site) and docs/virality-playbook.md
+  scripts/build-site.mjs       builds the site for the app: NEXT_PUBLIC_BASE_PATH="" (share links on the public site)
+  scripts/build.mjs            esbuild: src/main.ts → dist/main.js (ESM), src/preload.ts → dist/preload.cjs
+  src/main.ts                  app lifecycle, window (state remembered), menu, tray, single instance, IPC, smoke run
+  src/preload.ts               window.desktop – built from the contract's method table, exposed with contextBridge
+  src/protocol.ts              app:// – the export served like GitHub Pages (index.html, foo.html, 404.html)
+  src/gpu.ts                   GPU switches and the GPU panel's read-out (app.getGPUInfo / getGPUFeatureStatus)
+  src/ffmpeg/                  encoders.ts (probe + choice), args.ts (command lines per preset), run.ts (spawn, progress)
+  src/render.ts, library.ts    saving renders (+ ffmpeg pass), thumbnails, the Library index
+  src/journal.ts               crash-safe JSON files (temporary file + fsync + rename, .bak fallback)
+  src/models/                  catalog.ts (GGUF models, sizes, SHA-256, licences), manager.ts (resumable downloads)
+  src/ai/                      local.ts (node-llama-cpp), cloud.ts (Anthropic SDK / OpenAI-compatible SSE),
+                               gbnf.ts (reply schema → grammar), secrets.ts (safeStorage), service.ts (routing)
+  src/updater.ts, menu.ts, media.ts, prefs.ts, logger.ts, handlers.ts
+src/lib/desktop/               shared with the page (pure): contract.ts (every IPC channel, event and payload),
+                               bridge.ts, gpuEncode.ts, presets.ts, renderQueue.ts, queueSources.ts, publish.ts,
+                               release.ts, ai/ (agent loop, JSON schema checks, settings patches, studio tasks, playbook)
+src/components/simulator/sections/DesktopSection.tsx + desktop/*  the Desktop group (GPU, Render queue, AI, Library)
+src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, navbar and footer); the navbar / footer link
+                               and the landing button read the small DesktopLink namespace, which every page hands its client
+```
+
+- **Renderer** – the page is the site's export for an empty base path, served by the privileged, secure `app://` scheme
+  (`app://jumpingballslive/<locale>/simulator/`), so WebCodecs, fetch, storage and every relative URL work as on GitHub
+  Pages. Context isolation on, Node integration off, the renderer sandboxed; navigation outside `app://` opens in the system
+  browser; the service worker is never registered in the app (`PwaRegister` checks `isDesktopApp()`, and `app://` does not
+  allow workers). The page detects `window.desktop` (`getDesktop()`, API version checked) and only then renders the Desktop
+  group – on the website nothing changes.
+- **IPC contract** – `src/lib/desktop/contract.ts` lists every channel (`IPC`), event (`DESKTOP_EVENTS`) and payload type and
+  the `window.desktop` method table (`BRIDGE_METHODS`); the preload builds the bridge from it, the main process registers a
+  handler for every channel (a `Record` over the channels, so a missing one does not compile) and `guarded()` refuses calls
+  that do not come from the app's page or whose arguments fail `checkIpcArgs()`.
+- **GPU video** – the app launches with `ignore-gpu-blocklist`, GPU rasterisation, zero-copy, the high-performance GPU,
+  WebGPU and hardware video features (`gpuSwitches()`; `--safe-mode` turns the GPU off for a broken driver). In the app the
+  fast export asks WebCodecs for the GPU first (`resolveVideoConfig()` in `gpuEncode.ts`: every probed and configured video
+  config carries `hardwareAcceleration: "prefer-hardware"`, the plain config is the fallback) – H.264, and HEVC / AV1 MP4
+  when the render queue asks for them (`pickDesktopFormat()`, mp4-muxer `hevc` / `av1` tracks), through Chromium's Media
+  Foundation encoders on Windows. ffmpeg (ffmpeg-static, unpacked from the asar; or a full build the user points to in the
+  GPU panel) does the rest: `ffmpeg -encoders` plus a one-second test encode per listed hardware encoder, then the running
+  GPU's encoder first – NVENC on NVIDIA, AMF on AMD, QSV on Intel – any other working hardware encoder, else libx264 /
+  libx265 / SVT-AV1 (`chooseEncoders()`). Transcodes (WebM → MP4, H.264 / HEVC / AV1), the platform presets (TikTok 1080×1920
+  60 fps 10 Mbit/s AAC 192k; Reels 30 fps 8 Mbit/s AAC 128k; Shorts 60 fps 12 Mbit/s AAC 384k) and the 4K 60 upscale
+  (2160×3840, Lanczos) are `buildTranscodeArgs()`; the benchmark encodes 5 s of a 1080×1920 60 fps pattern per encoder.
+- **Render queue** – `renderQueue.ts` is a pure state machine (queued → rendering → encoding → done / failed / cancelled,
+  retry, reorder, batch expansion over resolutions × fps × codecs × presets, journal (de)serialisation); the page
+  (`useRenderQueue.ts`) runs one job at a time through the batch renderer's `runJobs()` – the page's own fast export, so a
+  job renders exactly what the page would – and hands the bytes to the app, which writes them to the output folder (default
+  Videos\JumpingBallsLive) and runs ffmpeg when the preset or codec asks for it. The journal is written after every change
+  (`JsonFileStore`: temporary file, fsync, rename, `.bak`); after a crash or restart the interrupted job goes back to the
+  queue (a render cannot resume half-way – it starts over, at most `MAX_ATTEMPTS` times) and the panel offers **Resume**.
+- **AI studio** – one tool-call loop (`ai/agent.ts`) for every job: each model reply must be one JSON object – a tool call or
+  the final answer – and is validated (`jsonSchema.ts`: the envelope, the tool's argument schema and checks, the answer's
+  schema and the task's checks) before anything runs or is applied; invalid replies go back to the model with the errors,
+  at most three times in a row, then the run fails and nothing changes. **Make videos** gives the model the viral bot's
+  planner (`plan_clips`), Find Simulation (`find_simulation`) and checked settings changes (`set_clip_settings`) as tools; its
+  answer (clips with name, title, hook, caption and 5–15 hashtags per platform, only for plans it really made) goes into the
+  render queue with the platform's preset. **Captions & hashtags** writes per-platform copy for the Publish block (copy
+  buttons, "use hook as top text"). **Settings assistant** returns a patch checked by `validateSettingsPatch()` (known
+  settings, types, `RANGES` – with No limits on, the unlimited settings take any valid value from their minimum up, as
+  links and presets do, and the prompt and the schema say so –, options, colours, and the settings loader's final word)
+  and applies it with **Undo**. **Ideas**
+  is grounded in `docs/virality-playbook.md` (bundled; `selectPlaybookContext()` picks the recipe section and the chunks
+  closest to the request). The model: node-llama-cpp in the main process (`getLlama({ gpu: "auto" })` – CUDA, Vulkan or the
+  CPU; `gpuLayers: "auto"`; every reply constrained by a grammar built from the reply's JSON schema, `toGrammarSchema()`), or
+  the cloud provider: Anthropic through the official SDK (streaming Messages API, `claude-opus-5-5` by default with the
+  server-side refusal fallback) or any OpenAI-compatible endpoint (also a local Ollama / LM Studio). The key is typed in
+  the AI panel, sealed with `safeStorage` (DPAPI) in the app's config, never returned to the page and never bundled.
+- **Models** – the model manager downloads into the data folder (`%APPDATA%\JumpingBallsLive\models`, next to the EXE for
+  the portable build) with an HTTP Range resume, progress events, and a size + SHA-256 check before the file is used; a
+  GGUF file you pick is used in place. The catalog (sizes and checksums are the files' published LFS ids):
+
+  | Model | Size | Licence |
+  | --- | --- | --- |
+  | Llama 3.2 3B Instruct Q4_K_M (default) | 2.0 GB | [Llama 3.2 Community License](https://www.llama.com/llama3_2/license/) – commercial use allowed under its terms ("Built with Llama") |
+  | Qwen3 4B Instruct 2507 Q4_K_M | 2.5 GB | Apache-2.0 |
+  | Qwen2.5 3B Instruct Q4_K_M | 2.1 GB | Qwen Research License – **non-commercial** |
+  | Qwen2.5 1.5B Instruct Q4_K_M (small PCs) | 1.1 GB | Apache-2.0 |
+
+  The packaged app carries llama.cpp's CPU and Vulkan builds (Vulkan runs on NVIDIA, AMD and Intel GPUs); the CUDA builds add
+  ~180 MB (+370 MB of CUDA runtime) and are packed only with `JBL_CUDA=1` (the workflow's `cuda` input).
+- **Other bits** – window size and position remembered (electron-store), a native menu in English / Polish / Spanish with
+  shortcuts (Ctrl+Enter start/pause, Ctrl+E fast export, Ctrl+1–4 the Desktop tabs, Ctrl+O / Ctrl+Shift+O open a song /
+  video, F11 full screen), a tray icon (closing the window keeps renders going), native dialogs for the output folder and
+  for songs / videos / projects, drag and drop of media anywhere on the window (a song becomes the music bed, a video the
+  "Beats from a video" source, a MIDI file the melody, a picture the ball, a project file is opened), a single instance
+  (a second start focuses the window and opens the files it was given), logs in the data folder (Help → Open logs), and
+  auto-update from GitHub Releases (electron-updater; installed builds only, never an error when offline).
+- **Publish** – `src/lib/desktop/publish.ts` is the extension point for the Publish feature: once it registers its targets
+  (`registerPublishTarget()` – direct YouTube upload, the relay, share) every Library clip gets a "Publish to …" button that
+  hands the target the clip's file and post copy. Until then the Library offers "Copy post text" and "Show in folder".
+
+### Build it locally
+
+```bash
+npm ci                               # the site
+cd desktop && npm ci                 # the app (Electron downloads on first run: npx install-electron)
+npm run site                         # the site's export for the app (NEXT_PUBLIC_BASE_PATH="") into ../out
+npm run typecheck && npm test        # desktop TypeScript + unit tests
+npm start                            # build and run the app from the checkout
+npm run smoke                        # electron . --smoke: load the simulator, check the bridge, print the GPU status, exit 0
+npm run pack                         # electron-builder --dir (unpacked app for this OS)
+npm run dist                         # on Windows: release/JumpingBallsLive-Setup-<version>.exe + JumpingBallsLive-<version>-portable.exe
+```
+
+Start the app with `--safe-mode` (or `JBL_SAFE_MODE=1`) to turn GPU acceleration off; `JBL_VERBOSE=1` mirrors the log
+to the console.
+
+### Release workflow
+
+`.github/workflows/desktop.yml` runs on `windows-latest` for pull requests that touch the app, for `desktop-v*` tags and by
+hand (inputs `version`, `publish`, `cuda`): it builds the site with an empty base path, installs the app, type-checks and
+tests it, packages the NSIS installer and the portable EXE, smoke-runs the packaged `JumpingBallsLive.exe --smoke`, uploads
+the EXEs (plus blockmaps, `latest.yml` and `SHA256SUMS.txt`) as a workflow artifact and – for a tag or a manual run with
+`publish` – creates the GitHub Release `desktop-v<version>` with them and fixed-name copies (`JumpingBallsLive-Setup.exe`,
+`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>`. To release: bump
+`desktop/package.json` (or pass `version`), push the tag `desktop-v1.2.3`. electron-updater reads the newest release's
+`latest.yml`, so keep app releases the repository's "latest" release.
+
+**Code signing**: the EXEs are unsigned until a certificate is configured – Windows SmartScreen then shows "Windows protected
+your PC" (**More info → Run anyway**), which the download page explains. To sign, add the repository secrets `WIN_CSC_LINK`
+(the .pfx certificate, base64-encoded, or an HTTPS URL to it) and `WIN_CSC_KEY_PASSWORD`; the workflow passes them to
+electron-builder, which signs both EXEs. Never commit certificates, keys, models or built binaries (`.gitignore` covers
+`desktop/node_modules`, `dist`, `release` and `*.gguf`).
+
+### Tests and what is verified where
+
+- `desktop/tests/` (Vitest, node environment, `npm test` in `desktop/`): encoder selection from a mocked `ffmpeg -encoders`
+  output and a scripted runner, the ffmpeg arguments per preset, the GPU switches and read-out, `app://` resolution, the
+  model manager against a fake download server (progress, Range resume, a server that ignores ranges, checksum mismatch,
+  cancel, picked GGUF files), the render queue with the crash-safe journal across a simulated restart, the AI loop through
+  the app's AI service with a mocked node-llama-cpp (plan validation, retries, settings patches, the reply grammar), the
+  Anthropic and OpenAI-compatible adapters and the sealed key, the IPC contract (the preload's bridge against a mocked
+  Electron, every channel registered, origin and argument checks), the updater (offline and failing checks never throw),
+  preferences, window state, menu, media and the render saver with a stand-in ffmpeg.
+- `tests/desktop*.test.ts` (the site's Vitest): the render queue state machine and journal, queue sources, the AI loop with a
+  scripted model, JSON-schema checks, settings patches, playbook grounding, prefer-hardware configs, HEVC / AV1 formats,
+  output presets and the IPC argument checks.
+- The site's smoke test checks the download page and its links, the navbar / footer / landing button, and the Desktop group
+  with a stand-in `window.desktop` (GPU panel, queue, AI panel, Library) – and that the group is absent on the website.
+- **Verified on Linux** (the development machine – no Windows, no GPU): `tsc` and the 47 app tests, the site's type check,
+  lint, unit tests and smoke test; `npm run pack` (electron-builder `--dir`, Linux x64) and `--smoke` under Xvfb both from the
+  checkout and from the packaged `release/linux-unpacked` app – the export loads over `app://` (a secure context,
+  WebCodecs present, missing paths answer 404, no service worker), `window.desktop` answers, the Desktop group renders
+  under the simulator, the GPU read-out and the bundled ffmpeg probe work (ffmpeg-static 7.0.2 unpacked from the asar:
+  libx264, libx265 and libaom-av1 pass the test encode; that static Linux build has no hardware encoders), the AI status
+  reports the default model and the updater stays off. Also run by hand: real ffmpeg transcodes for every preset (TikTok
+  1080×1920 + AAC, 4K 60 2160×3840, HEVC, thumbnails, the benchmark), a real resumable Hugging Face download through the
+  model manager with its SHA-256 check, and node-llama-cpp loading a small GGUF model (CPU backend) and answering through
+  the reply grammar – replies that failed the checks were retried and never applied.
+- **Not verifiable on Linux** – covered by the Windows workflow or to be checked on a Windows PC: building the NSIS installer
+  and the portable EXE (`npm run dist` needs Windows or Wine; the workflow builds and smoke-runs them on `windows-latest`);
+  installing per user and the shortcuts; NVENC / AMF / Quick Sync in ffmpeg and Chromium's Media Foundation encoders behind
+  `prefer-hardware` (need the GPU and its driver – on a PC without one the app falls back to software and says so in the GPU
+  panel); CUDA / Vulkan offload in llama.cpp; DPAPI behind `safeStorage` (on this Linux box without a keyring the app
+  correctly refuses to store a key); electron-updater against a real `desktop-v*` release; code signing and SmartScreen.
 
 ## Browser support
 

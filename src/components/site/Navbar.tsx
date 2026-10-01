@@ -9,6 +9,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 export default function Navbar({ backHref, backLabel }: { backHref?: string; backLabel?: string }) {
   const t = useTranslations("Navbar");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
+  const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (a small namespace: every page hands it to the client)
   const [open, setOpen] = useState(false);
   // --- review fix (ui-i18n) --- the collapsed mobile menu is inert (out of the tab order and the accessibility tree);
   // Escape closes the open menu and returns focus to the hamburger when it was inside the menu.
@@ -46,6 +47,10 @@ export default function Navbar({ backHref, backLabel }: { backHref?: string; bac
           <Link href="/gallery" className="hidden sm:inline-flex text-sm text-zinc-400 hover:text-[#93d119] transition-colors font-medium">
             {gallery("navLabel")}
           </Link>
+          {/* --- desktop-exe --- */}
+          <Link href="/download" className="hidden md:inline-flex text-sm text-zinc-400 hover:text-[#93d119] transition-colors font-medium">
+            {desktop("navLabel")}
+          </Link>
           <div className="hidden sm:block">
             <LanguageSwitcher />
           </div>
@@ -72,6 +77,10 @@ export default function Navbar({ backHref, backLabel }: { backHref?: string; bac
           {/* --- daily-gallery --- */}
           <Link href="/gallery" className="px-3 py-2 text-sm text-zinc-300 hover:text-[#93d119] transition-colors font-medium" onClick={() => setOpen(false)}>
             {gallery("navLabel")}
+          </Link>
+          {/* --- desktop-exe --- */}
+          <Link href="/download" className="px-3 py-2 text-sm text-zinc-300 hover:text-[#93d119] transition-colors font-medium" onClick={() => setOpen(false)}>
+            {desktop("navLabel")}
           </Link>
           <div className="px-3 py-2">
             <LanguageSwitcher isMobileMenu />

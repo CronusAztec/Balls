@@ -7,7 +7,7 @@ import { localeAlternates } from "@/i18n/alternates";
  * Rendered at build time into out/sitemap.xml. Add new static routes here – only indexable ones: a page whose metadata says
  * `robots: { index: false }` (the feedback form) stays out (--- review fix (site-static) ---).
  */
-const STATIC_PATHS: readonly string[] = ["", "/simulator", "/about", "/tiktok-ball-videos", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- the preset gallery */];
+const STATIC_PATHS: readonly string[] = ["", "/simulator", "/about", "/tiktok-ball-videos", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- the preset gallery */, "/download" /* --- desktop-exe --- the Windows app */];
 
 export const dynamic = "force-static";
 

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import DownloadAppButton from "./DownloadAppButton"; // --- desktop-exe ---
 import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
@@ -40,6 +41,7 @@ export default function Hero() {
           >
             {t("exploreModes")}
           </a>
+          <DownloadAppButton /* --- desktop-exe --- */ />
         </div>
       </div>
     </section>

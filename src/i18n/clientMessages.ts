@@ -8,8 +8,12 @@
  * walks each page's client components and checks that their `useTranslations()` namespaces are covered here.
  */
 
-/** Namespaces the client components on every page read (Navbar, LanguageSwitcher, the footer's InstallAppButton). */
-export const SHARED_CLIENT_NAMESPACES = ["Navbar", "Gallery", "Pwa"] as const;
+/**
+ * Namespaces the client components on every page read (Navbar, LanguageSwitcher, the footer's InstallAppButton; --- desktop-exe ---
+ * DesktopLink: the navbar's Windows app link and the landing page's download button – three strings, kept apart from the
+ * Desktop group's catalogue, which only the simulator and the download page read).
+ */
+export const SHARED_CLIENT_NAMESPACES = ["Navbar", "Gallery", "Pwa", "DesktopLink"] as const;
 
 /** Further namespaces of the client components of a page (by route, "" = the landing page); a page not listed has none. */
 export const PAGE_CLIENT_NAMESPACES: Readonly<Record<string, readonly string[]>> = {
