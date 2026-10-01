@@ -369,7 +369,7 @@ export function drawGlassOverlay(ctx: CanvasRenderingContext2D, view: GlassView,
   if (!level) return 0;
   const f = level.field;
   const n = level.stages.length;
-  let topBottom = 0; // --- review fix (modes-boris-odd) --- the dots' bottom, for the captions
+  let topBottom = 0; // --- review fix (modes-gerald-odd) --- the dots' bottom, for the captions
   ctx.save();
   if (n > 1) {
     const r = Math.max(2.5, 0.007 * f.height);

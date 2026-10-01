@@ -525,7 +525,7 @@ describe("caption clip clock and layout", () => {
     expect(captionStackStarts(800, 600, b, { top: 0, bottom: 0 }).top).toBeCloseTo(120 + 0.5 * CAPTION_MARGIN * 600, 9);
   });
 
-  it("--- review fix (modes-boris-odd) --- starts the top stack below a mode's own top HUD (the lower of it and the scoreboard)", () => {
+  it("--- review fix (modes-gerald-odd) --- starts the top stack below a mode's own top HUD (the lower of it and the scoreboard)", () => {
     const b = bounds();
     // Power Layers' second pill ends at 150 px, the scoreboard at 90: the stack starts below the pill.
     const modeTopHud = 150;

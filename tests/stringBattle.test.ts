@@ -1018,7 +1018,7 @@ describe("the String Battle sounds", () => {
   });
 });
 
-/* ------------------------------------------------------------------ review fix (modes-boris-odd) */
+/* ------------------------------------------------------------------ review fix (modes-gerald-odd) */
 
 /** A 2D context that records the texts and circles drawn (everything else is a no-op). */
 function recordingCtx() {
@@ -1048,7 +1048,7 @@ const RED_BLUE = [
   { name: "Blue", color: "#3b82f6", emoji: "" },
 ];
 
-describe("review fixes (modes-boris-odd)", () => {
+describe("review fixes (modes-gerald-odd)", () => {
   it("keeps the forced winner with the merge interaction: a merge that would absorb the chosen ball keeps it in the battle", { timeout: 120_000 }, () => {
     for (let seed = 1; seed <= 40; seed++) {
       const engine = battle({ balls: 4 }, seed, { ...config, ballInteraction: "merge", forcedWinner: 1 });

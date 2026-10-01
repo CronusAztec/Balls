@@ -127,7 +127,7 @@ export interface CanvasLabels {
   /** The multipliers board is done: "N Gerald made it home", with the clones made along the way. */
   madeItHome?: (n: number) => string;
   madeItHomeSub?: (clones: number) => string;
-  /** --- review fix (modes-boris-odd) --- "N lost" after the clones when balls got stuck for good (they are not hidden). */
+  /** --- review fix (modes-gerald-odd) --- "N lost" after the clones when balls got stuck for good (they are not hidden). */
   madeItHomeLost?: (lost: number) => string;
   // --- jdm-double-pendulum ---
   /** Double Pendulum: the banner at the end of the clip, with the plucks, the sparring hits or the seconds of chaos. */
@@ -188,7 +188,7 @@ export interface CanvasHandle {
   /** --- camera --- True while the escape replay is about to play or playing: the page holds the end screen (and a recording) back. */
   holdsEndScreen: () => boolean;
   /**
-   * --- review fix (modes-boris-odd) --- Real ms the camera's slow motion has added to the run so far (the split screen: the most of
+   * --- review fix (modes-gerald-odd) --- Real ms the camera's slow motion has added to the run so far (the split screen: the most of
    * any arena). A recording measures its clip on the run's pace: it is extended by what this grows while it records.
    */
   getSlowLagMs: () => number;
@@ -421,7 +421,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const recordingRef = useRef(false);
   /** --- captions --- performance.now() when the current recording started, and the export frame it records into. */
   const clipStartRef = useRef(0);
-  /** --- review fix (modes-boris-odd) --- the camera's slow-motion lag when the recording started (the clip clock subtracts what it adds since). */
+  /** --- review fix (modes-gerald-odd) --- the camera's slow-motion lag when the recording started (the clip clock subtracts what it adds since). */
   const clipLag0Ref = useRef(0);
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
@@ -603,7 +603,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     setRecording: (v: boolean, exportSize?: { width: number; height: number }) => {
       if (v && !recordingRef.current) {
         clipStartRef.current = performance.now(); // --- captions --- the clip's clock starts
-        clipLag0Ref.current = cinematicRef.current?.getSlowLagMs() ?? 0; // --- review fix (modes-boris-odd) --- (and the slow motion's lag it leaves out)
+        clipLag0Ref.current = cinematicRef.current?.getSlowLagMs() ?? 0; // --- review fix (modes-gerald-odd) --- (and the slow motion's lag it leaves out)
       }
       recordingRef.current = v;
       exportSizeRef.current = v ? (exportSize ?? null) : null;
@@ -622,7 +622,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     },
     // --- end themes
     holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
-    getSlowLagMs: () => cinematicRef.current?.getSlowLagMs() ?? 0, // --- review fix (modes-boris-odd) ---
+    getSlowLagMs: () => cinematicRef.current?.getSlowLagMs() ?? 0, // --- review fix (modes-gerald-odd) ---
   }));
 
   useEffect(() => {
@@ -723,7 +723,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const teamLayer = new TeamLayer(); // --- teams ---
     const scoreboardBox = { x: 0, y: 0, w: 0, h: 0 }; // --- gerald-multipliers --- where the scoreboard goes this frame (the HUD keeps clear)
     let multHudTop = -1;
-    // --- review fix (modes-boris-odd) --- screen y of the lowest top overlay a mode drew in the square this frame (Power Layers' pills,
+    // --- review fix (modes-gerald-odd) --- screen y of the lowest top overlay a mode drew in the square this frame (Power Layers' pills,
     // Glass Smash's stage dots, the multiplier badges, the String Battle's badge and HUD; 0 = none): the top captions start below it
     let modeTopHud = 0;
     const multTopOut = { bottom: 0 };
@@ -2086,7 +2086,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
-      // --- odd-string-battle --- faces on the fighters (--- review fix (modes-boris-odd) --- in the web style two eyes above the lives the body shows)
+      // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
@@ -2201,7 +2201,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- gerald-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
-      modeTopHud = 0; // --- review fix (modes-boris-odd) ---
+      modeTopHud = 0; // --- review fix (modes-gerald-odd) ---
       if (glassView) modeTopHud = Math.max(modeTopHud, drawGlassOverlay(ctx, glassView, glassRender));
       // --- jdm-race --- standings, mini-map, callouts, the countdown, the podium and the cup table (screen space, part of the recording);
       // live, below the page's buttons over a nearly square canvas
@@ -2214,7 +2214,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionLayer.drawOverlay(ctx, size.width, size.height, illusionView, engine.getElapsedMs(), illusionLabels);
       }
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
-      if (plView) modeTopHud = Math.max(modeTopHud, plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS)); // --- review fix (modes-boris-odd) --- (the pills' bottom)
+      if (plView) modeTopHud = Math.max(modeTopHud, plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS)); // --- review fix (modes-gerald-odd) --- (the pills' bottom)
       // --- gerald-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- gerald-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
@@ -2239,11 +2239,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const sq = Math.min(size.width, size.height);
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
         multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut);
-        modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-boris-odd) ---
+        modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-gerald-odd) ---
       }
 
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
-      // (--- review fix (modes-boris-odd) --- the badge takes the top-right corner when the teams scoreboard sits in the top-left one;
+      // (--- review fix (modes-gerald-odd) --- the badge takes the top-right corner when the teams scoreboard sits in the top-left one;
       // the badge and the HUD are what the top captions start below)
       if (sbView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
@@ -2419,7 +2419,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         };
         if (multView.outgrown) fitBanner(L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), "#c4b5fd");
         else if (multBoard && multBoard.done) {
-          // (--- review fix (modes-boris-odd) --- and the balls lost on the way, when there are any)
+          // (--- review fix (modes-gerald-odd) --- and the balls lost on the way, when there are any)
           const sub = (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones);
           fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
         }
@@ -2615,9 +2615,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionView.insetBottom = live ? 56 : 0;
         // --- viral-bot --- an arena game's scoreboard band (the top HUD_BAND of the square) is the top captions' limit too
         const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
-        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-boris-odd) --- (the mode's top HUD)
+        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-gerald-odd) --- (the mode's top HUD)
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
-        // (--- review fix (modes-boris-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
+        // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);
       } else captionLayer.clear();
@@ -2678,7 +2678,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
       // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
-      const scoreboardBottom = Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, modeTopHud); // --- teams --- (--- review fix (modes-boris-odd) --- and the mode's top HUD)
+      const scoreboardBottom = Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, modeTopHud); // --- teams --- (--- review fix (modes-gerald-odd) --- and the mode's top HUD)
       const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       if (sbView) sbLayer.applyGlitch(ctx); // --- odd-string-battle --- the neon style's glitch bars over the finished frame
@@ -2814,7 +2814,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbPainted", String(sbLayer.painted));
         setCanvasData("sbWobble", String(sbLayer.wobbling));
         setCanvasData("sbBadge", sbLayer.badgeDrawn ? "1" : "0");
-        setCanvasData("sbBadgeRight", sbLayer.badgeDrawn && sbLayer.badgeRight ? "1" : "0"); // --- review fix (modes-boris-odd) --- (clear of the scoreboard)
+        setCanvasData("sbBadgeRight", sbLayer.badgeDrawn && sbLayer.badgeRight ? "1" : "0"); // --- review fix (modes-gerald-odd) --- (clear of the scoreboard)
         setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
         setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
         setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
@@ -2897,7 +2897,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("captions", String(captionLayer.drawn));
         setCanvasData("captionTexts", captionLayer.summary);
         setCanvasData("captionReveal", captionLayer.revealed ? "1" : "0");
-        setCanvasData("captionModeHud", modeTopHud.toFixed(1)); // --- review fix (modes-boris-odd) --- the mode's top HUD the stack starts below (0: none)
+        setCanvasData("captionModeHud", modeTopHud.toFixed(1)); // --- review fix (modes-gerald-odd) --- the mode's top HUD the stack starts below (0: none)
         const st = captionLayer.starts;
         if (st.top !== mirrored.stackTop || st.bottom !== mirrored.stackBottom) {
           mirrored.stackTop = st.top;
@@ -3014,7 +3014,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       elapsedRef.current = 0;
       recordingRef.current = true;
       clipStartRef.current = 0;
-      clipLag0Ref.current = 0; // --- review fix (modes-boris-odd) --- (a fresh camera)
+      clipLag0Ref.current = 0; // --- review fix (modes-gerald-odd) --- (a fresh camera)
       exportSizeRef.current = { width: offline.exportWidth, height: offline.exportHeight };
       offline.attach({
         canvas,
@@ -3024,7 +3024,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           songProgressRef.current = v;
         },
         holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
-        slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-boris-odd) ---
+        slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
         paintBackground: (c, width, height, crop) => bgPainter().paintExport(c, width, height, crop, backgroundLook()),
         ready: () => {
           const pics = picturesRef.current;

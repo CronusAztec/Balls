@@ -6421,7 +6421,7 @@ const bdInstrument = () =>
 }
 // --- end beat-drop ---
 
-// --- review fix (modes-boris-odd) ---
+// --- review fix (modes-gerald-odd) ---
 // 1. The camera's slow motion stretches the real time a run takes (data-camera-slow-lag): a recording is extended by the lag it
 // adds, so it is still running when its length of wall time is up. 2. The top captions start below a mode's own top HUD
 // (data-caption-mode-hud) in Power Layers, Glass Smash, String Battle and on the multipliers board. 3. With a team roster and
@@ -6475,7 +6475,7 @@ const bdInstrument = () =>
   await page.screenshot({ path: path.join(outDir, "sim-string-battle-badge-corner.png") });
   check("the String Battle's warning badge moves to the top-right corner when the teams scoreboard takes the top-left one", roster.badge === "1" && roster.right === "1" && plain.badge === "1" && plain.right === "0", `(${JSON.stringify({ roster, plain })})`);
 }
-// --- end review fix (modes-boris-odd) ---
+// --- end review fix (modes-gerald-odd) ---
 
 // --- daily-gallery --- the preset gallery (cards, preview images, Try it) and the daily challenge (the landing card, daily=
 // links, the Play today's seed button, the end-of-run panel that copies the challenge link, the streak)

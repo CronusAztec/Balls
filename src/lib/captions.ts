@@ -470,7 +470,7 @@ export const CAPTION_MARGIN = 0.035;
 export const CAPTION_COLUMN = 0.84;
 
 /**
- * --- review fix (modes-boris-odd) --- Whether a screen rectangle from `x` to `x + w` reaches into the caption column of a square
+ * --- review fix (modes-gerald-odd) --- Whether a screen rectangle from `x` to `x + w` reaches into the caption column of a square
  * `side` px wide centred on `cx`: a mode HUD in a corner that stays clear of the column does not push the top captions down.
  */
 export function inCaptionColumn(x: number, w: number, cx: number, side: number): boolean {

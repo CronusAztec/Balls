@@ -101,7 +101,7 @@ describe("fast export: the end of the clip (the page's recorder rule)", () => {
     expect(frames).toBe(600);
   });
 
-  it("--- review fix (modes-boris-odd) --- extends the clip by the slow motion's lag while the run goes on, up to the cap", () => {
+  it("--- review fix (modes-gerald-odd) --- extends the clip by the slow motion's lag while the run goes on, up to the cap", () => {
     // A run slowed down to 0.5× for its first 4 s of real time (2 s of lag), finishing 1 s after the clip length's worth of run.
     const lagAt = (t: number) => Math.min(t, 4000) / 2;
     const tracker = new ExportEndTracker(10_000);

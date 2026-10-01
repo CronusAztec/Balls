@@ -108,7 +108,7 @@ export class ExportEndTracker {
   private firstDoneAt: number | null = null;
   private holdStart: number | null = null;
   private finishedBeforeClipEnd = false;
-  /** --- review fix (modes-boris-odd) --- the slow motion's lag credited to the clip (it stops growing once the run is over). */
+  /** --- review fix (modes-gerald-odd) --- the slow motion's lag credited to the clip (it stops growing once the run is over). */
   private lagMs = 0;
 
   constructor(

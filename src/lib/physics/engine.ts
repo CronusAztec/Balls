@@ -2676,7 +2676,7 @@ export class PhysicsEngine {
       a.team = b.team;
       a.color = b.color;
     }
-    // --- review fix (modes-boris-odd) --- the String Battle knows a fighter by its ball's id and has no rings (the rig above is off
+    // --- review fix (modes-gerald-odd) --- the String Battle knows a fighter by its ball's id and has no rings (the rig above is off
     // there): a merge that would absorb the forced winner's own ball gives the merged ball that identity instead, so the chosen
     // fighter plays on with it and the other one is the fighter that is out
     let goneId = b.id;

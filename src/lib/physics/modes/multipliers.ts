@@ -443,7 +443,7 @@ export const BUMPER_KICK = 140;
 export const STUCK_NUDGE_MS = 2500;
 export const STUCK_GIVEUP_MS = 15000;
 /**
- * --- review fix (modes-boris-odd) --- Closing time of the count gates (simulation ms): from then on they no longer clone, so
+ * --- review fix (modes-gerald-odd) --- Closing time of the count gates (simulation ms): from then on they no longer clone, so
  * the board drains and the run ends. A crowded board (big balls up to a big ball cap, count gates only) otherwise refills
  * itself as fast as balls arrive and never finishes. It is the count search's horizon (finder.ts simulates a board for at
  * most max(its clip, 240 s)), so no run the finder or a recording uses changes; the ball cap itself stays as set.
@@ -850,7 +850,7 @@ export class MultipliersMode implements GameMode {
       v.gatePasses++;
       switch (gate.kind) {
         case "count": {
-          if (ctx.getElapsedMs() >= COUNT_GATES_CLOSE_MS) break; // --- review fix (modes-boris-odd) --- closing time: the board drains
+          if (ctx.getElapsedMs() >= COUNT_GATES_CLOSE_MS) break; // --- review fix (modes-gerald-odd) --- closing time: the board drains
           // Every generation of clones takes the next colour, so the crowd shows where it multiplied (and stays a few paths to draw).
           ball.color = nextCloneColor(ball.color);
           const copies = Math.round(gate.factor) - 1;
@@ -914,7 +914,7 @@ export class MultipliersMode implements GameMode {
       // Waiting in a door's cup counts at a quarter of the rate (the door opens every couple of seconds; the stuck
       // limit is only a safety net that makes sure every run ends).
       this.stuck[id] += this.waitingAtDoor(board, b, t) ? dtMs / 4 : dtMs;
-      // --- review fix (modes-boris-odd) --- a ball grown by size gates wedges between the rows long before it is as wide as
+      // --- review fix (modes-gerald-odd) --- a ball grown by size gates wedges between the rows long before it is as wide as
       // the board: the last ball in play stuck for good that way has outgrown the board (the run ends with the celebration)
       // instead of silently vanishing. With other balls still in play it is lost as before, so a busy board is not cut short.
       if (this.stuck[id] >= STUCK_GIVEUP_MS && b.mult && b.mult.size > 1 && runtime && balls.length - this.removals === 1) {

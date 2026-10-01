@@ -74,7 +74,7 @@ export function withSplitScreen(Inner: CanvasComponent): CanvasComponent {
   return CanvasWithSplitScreen;
 }
 
-/** --- review fix (modes-boris-odd) --- The most real time the camera's slow motion has added to any of the first `n` arenas' runs (ms). */
+/** --- review fix (modes-gerald-odd) --- The most real time the camera's slow motion has added to any of the first `n` arenas' runs (ms). */
 function slowLagOf(slots: readonly (ArenaSlot | undefined)[], n: number): number {
   let lag = 0;
   for (let i = 0; i < n && i < slots.length; i++) lag = Math.max(lag, slots[i]?.renderer?.slowLagMs() ?? 0);
@@ -110,7 +110,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   const fpsRef = useRef(60);
   const recordingRef = useRef(false);
   const clipStartRef = useRef(0);
-  const clipLag0Ref = useRef(0); // --- review fix (modes-boris-odd) --- the arenas' slow-motion lag when the recording started
+  const clipLag0Ref = useRef(0); // --- review fix (modes-gerald-odd) --- the arenas' slow-motion lag when the recording started
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   const songProgressRef = useRef<number | null>(null);
   const captionLayerRef = useRef<CaptionLayer | null>(null);
@@ -191,7 +191,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     setRecording: (v: boolean, exportSize?: { width: number; height: number }) => {
       if (v && !recordingRef.current) {
         clipStartRef.current = performance.now();
-        clipLag0Ref.current = slowLagOf(slotsRef.current, splitRef.current.engines.length); // --- review fix (modes-boris-odd) ---
+        clipLag0Ref.current = slowLagOf(slotsRef.current, splitRef.current.engines.length); // --- review fix (modes-gerald-odd) ---
       }
       recordingRef.current = v;
       exportSizeRef.current = v ? (exportSize ?? null) : null;
@@ -208,7 +208,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       slotsRef.current.some((s, i) => i < splitRef.current.engines.length && !!s.renderer?.holdsEndScreen()) ||
       (captionLayerRef.current?.holdsEndScreen() ?? false) ||
       splitRef.current.runner.holding(performance.now(), SPLIT_FINISH_HOLD_MS),
-    getSlowLagMs: () => slowLagOf(slotsRef.current, splitRef.current.engines.length), // --- review fix (modes-boris-odd) --- (the slowest arena)
+    getSlowLagMs: () => slowLagOf(slotsRef.current, splitRef.current.engines.length), // --- review fix (modes-gerald-odd) --- (the slowest arena)
   }));
 
   // The one loop: restarts caught, every arena stepped and drawn, the frame composed.
@@ -432,7 +432,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         captionView.insetBottom = live ? 56 : 0;
         edgeTextBounds(edgeLines, 0, captionView);
         captionView.dtMs = playing ? dt : 0;
-        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, slowLagOf(slots, n) - clipLag0Ref.current)) / 1000 : -1; // --- review fix (modes-boris-odd) --- (on the run's pace)
+        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, slowLagOf(slots, n) - clipLag0Ref.current)) / 1000 : -1; // --- review fix (modes-gerald-odd) --- (on the run's pace)
         captionLayer.draw(ctx, sp.engines[0], captionOptions, captionView);
       } else captionLayer.clear();
 
