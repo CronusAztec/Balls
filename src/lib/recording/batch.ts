@@ -315,6 +315,31 @@ export function linkJobSettings(link: SimulatorSettings, page: SimulatorSettings
   return { ...keepExportFormat(link, page), wallBreakSound: page.wallBreakSound };
 }
 
+/**
+ * --- review fix (recording-export) --- The longest clip of a batch (s), for its summary: the page's clip length, the longest
+ * swept one in a sweep of the clip length, a long link's own `dur` (a link job keeps its clip length: `keepExportFormat()`
+ * keeps only the resolution and the frame rate). Null when it is only known once a job runs: a short `?c=` link, whose
+ * code is decoded then.
+ */
+export function batchLongestClipSec(def: BatchDefinition, list: BatchListParse, pageDurationSec: number): number | null {
+  if (def.variant === "sweep" && def.sweepKey === "recordingDuration") {
+    const values = sweepValues(def.sweepKey, def.sweepFrom, def.sweepTo, def.sweepSteps);
+    return values.length > 0 ? Math.max(...values) : pageDurationSec;
+  }
+  if (def.source !== "list") return pageDurationSec;
+  let longest = 0;
+  for (const entry of list.entries) {
+    if (!entry.link) {
+      longest = Math.max(longest, pageDurationSec);
+      continue;
+    }
+    const params = linkParams(entry.link);
+    if (!params || params.has(SHARE_CODE_PARAM)) return null;
+    longest = Math.max(longest, settingsFromSearchParams(params).recordingDuration);
+  }
+  return longest > 0 ? longest : pageDurationSec;
+}
+
 /** The settings with one swept value. */
 export function sweepSettings(settings: SimulatorSettings, key: SweepKey, value: number): SimulatorSettings {
   return { ...settings, [key]: value };

@@ -423,6 +423,7 @@
     "saveBtn": "Guardar",
     "noSavedPresets": "Aún no hay presets guardados",
     "loadBtn": "Cargar",
+    "presetLoadLocked": "Termina o detén el renderizado por lotes antes de cargar un preajuste.",
     "deletePreset": "Eliminar preset",
     "ballPhysicsTab": "Pelota y física",
     "wallSettingsTab": "Ajustes de paredes",
@@ -1145,6 +1146,7 @@
     "projectImporting": "Abriendo el proyecto…",
     "projectExported": "Guardado {file} ({size}).",
     "projectImported": "Abierto «{name}».",
+    "projectImportLocked": "Hay un renderizado en curso: termina o detén el lote (o la exportación rápida) antes de abrir un proyecto.",
     "projectImportedSkipped": "Abierto «{name}», pero se omitieron {count} archivo(s) multimedia dañados.",
     "projectErrorNotJson": "Este archivo no es un archivo de proyecto (no es un JSON válido).",
     "projectErrorNotProject": "Este archivo no es un proyecto de JumpingBallsLive.",
@@ -2015,6 +2017,7 @@
       "recordingDuration": "Duración del clip (s)"
     },
     "summary": "{count, plural, =0 {Todavía no hay nada que renderizar} one {# clip} other {# clips}} · {resolution} · {fps} fps · hasta {seconds} s cada uno",
+    "summaryPerJob": "{count, plural, =0 {Todavía no hay nada que renderizar} one {# clip} other {# clips}} · {resolution} · {fps} fps · cada uno tan largo como diga su enlace",
     "truncated": "Solo se renderizan los primeros {max} clips: un lote admite como máximo {max}.",
     "start": "Renderizar lote",
     "unsupported": "El renderizado por lotes usa la exportación rápida, que necesita WebCodecs, y este navegador no lo tiene.",
@@ -2043,6 +2046,7 @@
     "downloadAll": "Descargar todo en ZIP",
     "zipping": "Empaquetando el ZIP…",
     "zipFailed": "No se pudo crear el ZIP (¿demasiado grande para este navegador?): descarga los clips uno a uno con ⬇.",
+    "settingsChanged": "Los ajustes cambiaron durante el lote, así que se detuvo ahí y los conservó.",
     "clear": "Vaciar la lista",
     "progressLabel": "Progreso del clip del lote"
   },

@@ -7,6 +7,7 @@ import {
   SWEEP_KEYS,
   batchFileBase,
   batchJobCount,
+  batchLongestClipSec,
   batchVariants,
   batchZipBase,
   defaultBatchDefinition,
@@ -367,5 +368,31 @@ describe("names and times", () => {
     expect(formatElapsed(151_000)).toBe("2:31");
     expect(formatElapsed(3_723_000)).toBe("1:02:03");
     expect(formatElapsed(-5)).toBe("0:00");
+  });
+});
+
+// --- review fix (recording-export) --- the summary's "up to N s each" follows the plan, not only the page's clip length
+describe("the longest clip of a batch", () => {
+  const def = (patch: Partial<BatchDefinition>): BatchDefinition => ({ ...defaultBatchDefinition(), ...patch });
+
+  it("is the page's clip length for seeds", () => {
+    expect(batchLongestClipSec(def({ source: "random" }), parseBatchList(""), 10)).toBe(10);
+    expect(batchLongestClipSec(def({ source: "list", list: "101\n202" }), parseBatchList("101\n202"), 25)).toBe(25);
+  });
+
+  it("is the longest swept value in a sweep of the clip length", () => {
+    const d = def({ source: "list", list: "101", variant: "sweep", sweepKey: "recordingDuration", sweepFrom: 10, sweepTo: 120, sweepSteps: 3 });
+    expect(batchLongestClipSec(d, parseBatchList(d.list), 10)).toBe(120);
+    const g = def({ source: "list", list: "101", variant: "sweep", sweepKey: "gravity", sweepFrom: 0, sweepTo: 500, sweepSteps: 2 });
+    expect(batchLongestClipSec(g, parseBatchList(g.list), 10)).toBe(10);
+  });
+
+  it("is a long link's own clip length (links keep theirs); unknown for a short ?c= link", () => {
+    const list = "101\nhttps://x.test/en/simulator/?mode=classic&dur=45 202";
+    expect(batchLongestClipSec(def({ source: "list", list }), parseBatchList(list), 10)).toBe(45);
+    const short = "https://x.test/en/simulator/?c=q1bKzU9JVbJSSs5JLC7OTFbSUSpSstI1rQUA";
+    expect(batchLongestClipSec(def({ source: "list", list: short }), parseBatchList(short), 10)).toBeNull();
+    const shorter = "https://x.test/en/simulator/?mode=classic 7";
+    expect(batchLongestClipSec(def({ source: "list", list: shorter }), parseBatchList(shorter), 60)).toBe(defaultSettings("classic").recordingDuration);
   });
 });

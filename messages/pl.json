@@ -423,6 +423,7 @@
     "saveBtn": "Zapisz",
     "noSavedPresets": "Brak zapisanych presetów",
     "loadBtn": "Wczytaj",
+    "presetLoadLocked": "Dokończ lub zatrzymaj renderowanie partii, zanim wczytasz preset.",
     "deletePreset": "Usuń preset",
     "ballPhysicsTab": "Piłka i fizyka",
     "wallSettingsTab": "Ustawienia ścian",
@@ -1145,6 +1146,7 @@
     "projectImporting": "Otwieranie projektu…",
     "projectExported": "Zapisano {file} ({size}).",
     "projectImported": "Otwarto „{name}”.",
+    "projectImportLocked": "Trwa renderowanie – dokończ lub zatrzymaj partię (albo szybki eksport), zanim otworzysz projekt.",
     "projectImportedSkipped": "Otwarto „{name}”, ale pominięto uszkodzone pliki multimedialne (liczba: {count}).",
     "projectErrorNotJson": "To nie jest plik projektu (niepoprawny JSON).",
     "projectErrorNotProject": "Ten plik nie jest projektem JumpingBallsLive.",
@@ -2015,6 +2017,7 @@
       "recordingDuration": "Długość klipu (s)"
     },
     "summary": "{count, plural, =0 {Na razie nie ma czego renderować} one {# klip} few {# klipy} many {# klipów} other {# klipu}} · {resolution} · {fps} kl./s · do {seconds} s każdy",
+    "summaryPerJob": "{count, plural, =0 {Na razie nie ma czego renderować} one {# klip} few {# klipy} many {# klipów} other {# klipu}} · {resolution} · {fps} kl./s · każdy tak długi, jak mówi jego link",
     "truncated": "Renderowanych jest tylko pierwszych {max} klipów – seria mieści najwyżej {max}.",
     "start": "Renderuj serię",
     "unsupported": "Renderowanie seryjne korzysta z szybkiego eksportu, który wymaga WebCodecs – ta przeglądarka go nie ma.",
@@ -2043,6 +2046,7 @@
     "downloadAll": "Pobierz wszystko jako ZIP",
     "zipping": "Pakowanie ZIP-a…",
     "zipFailed": "Nie udało się utworzyć pliku ZIP (za duży dla tej przeglądarki?) – pobierz klipy pojedynczo przyciskiem ⬇.",
+    "settingsChanged": "Ustawienia zmieniły się w trakcie partii, więc zatrzymała się w tym miejscu i je zachowała.",
     "clear": "Wyczyść listę",
     "progressLabel": "Postęp klipu z serii"
   },
