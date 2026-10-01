@@ -50,7 +50,7 @@ import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
 import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
-import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
+import { FIXED_RUN_SLACK_MS, createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
@@ -962,6 +962,33 @@ describe("Find Simulation", () => {
     const rigged = await withFrames(() => findSimulation(request({ outcome, physicsConfig: { ...config, forcedWinner: 1 } }), () => undefined));
     expect(rigged.found).toBe(true);
     expect(rigged.seedsTested).toBe(1);
+  });
+
+  it("follows a countdown longer than the search's horizon to its verdict (a 120 s battle under the page's 60 s horizon)", { timeout: 60_000 }, async () => {
+    // The page asks for Find Duration + 30 s (60 s at the default 30): a 61–120 s countdown never finished within it, so no
+    // seed could match – not even with the forced winner.
+    const long = (patch: Partial<FinderRequest> = {}) => request({ maxSimTimeSec: 60, modeSettings: { ...modeSettings, territory: { duration: 120 } }, ...patch });
+    const outcome = { kind: "winner" as const, clipSec: 30, team: 1 };
+    const run = simulateOutcomeRun(7, long(), outcome);
+    expect(run.finished).toBe(true);
+    expect(run.durationMs).toBeGreaterThan(120_000 - 1);
+    expect(run.durationMs).toBeLessThan(120_000 + FIXED_RUN_SLACK_MS);
+    expect(outcomeMatches(outcome, run) || outcomeMatches({ ...outcome, team: 0 }, run) || run.teams.every((t) => t.escapes > 0) /* a draw */).toBe(true);
+    const rigged = await withFrames(() => findSimulation(long({ outcome, physicsConfig: { ...config, forcedWinner: 1 } }), () => undefined));
+    expect(rigged).toMatchObject({ found: true, seedsTested: 1, finished: true });
+    expect(rigged.duration).toBeCloseTo(120, 1);
+    const replay = territory({ duration: 120 }, rigged.seed, { ...config, forcedWinner: 1 });
+    while (!replay.isSimulationFinished()) replay.update(STEP, 0);
+    expect(replay.getTerritoryView().winner).toBe(1);
+    // Without the rig the search finds a seed the team wins on its own (about every other seed).
+    const natural = await withFrames(() => findSimulation(long({ outcome }), () => undefined));
+    expect(natural.found).toBe(true);
+    const engine = territory({ duration: 120 }, natural.seed);
+    while (!engine.isSimulationFinished()) engine.update(STEP, 0);
+    expect(engine.getTerritoryView().winner).toBe(1);
+    // The other battles' lengths are the seed's: they keep the horizon (`fixedRunDurationSec()` has none for them).
+    expect(fixedRunDurationSec("stringBattle", {} as never)).toBeNull();
+    expect(fixedRunDurationSec("maze", {} as never)).toBeNull();
   });
 });
 

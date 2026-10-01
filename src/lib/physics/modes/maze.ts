@@ -322,7 +322,7 @@ export const MZ_PALETTE: readonly { name: string; color: string }[] = [
 export const MZ_SPEED_BASE = 0.62;
 /** The pull at Gravity 1, in field heights per second². */
 export const MZ_GRAVITY_BASE = 1.6;
-/** No ball flies faster than this many times its cruising speed (a long fall, a climb boost). */
+/** No ball flies faster than this many times its cruising speed (a long fall, a climb boost) – or its climb speed, where that is more (`climbSpeed()`). */
 export const MZ_MAX_SPEED = 4;
 /** A steered ball slower than this share of its cruising speed picks up speed again (by `MZ_RECOVER` per second). */
 export const MZ_MIN_SPEED = 0.5;
@@ -706,6 +706,17 @@ export class MazeMode implements GameMode {
     return MZ_GRAVITY_BASE * this.view.field.height * this.view.settings.gravity;
   }
 
+  /**
+   * The speed (px/s) a ball steered upward needs to climb `MZ_CLIMB` cells against the pull from its cruising speed (0
+   * without a pull). The speed caps admit it: at a low Speed and a strong Pull it is more than `MZ_MAX_SPEED` × the cruising
+   * speed (Speed 0.25, Pull 1, 12 columns: 181 px/s against a cap of 156), and a capped ball bounced at the foot of every
+   * upward corridor – the steering's promise is a ball that can rise a cell.
+   */
+  private climbSpeed(cruise: number): number {
+    const g = this.gravity();
+    return g > 0 ? Math.sqrt(cruise * cruise + 2 * MZ_CLIMB * g * this.view.field.cell) : 0;
+  }
+
   /** Whether the exit is open to `r`: always, but while the rig's forced winner is still in only to it. */
   private exitOpenFor(r: MazeRunner): boolean {
     const w = this.view.forcedWinner;
@@ -766,7 +777,7 @@ export class MazeMode implements GameMode {
     const cruise = this.cruise(r, ball);
     const steered = r.brain !== "bounce";
     let speed = Math.hypot(ball.vx, ball.vy);
-    const maxSpeed = MZ_MAX_SPEED * cruise;
+    const maxSpeed = Math.max(MZ_MAX_SPEED * cruise, this.climbSpeed(cruise)); // (a climb is never capped below its speed)
     if (speed > maxSpeed) {
       const k = maxSpeed / speed;
       ball.vx *= k;
@@ -1025,10 +1036,10 @@ export class MazeMode implements GameMode {
       d = explorerChoice(grid, cell, mask, explored, parent, this.random);
     }
     if (d < 0) return;
-    const g = this.gravity();
+    const climb = this.climbSpeed(cruise);
     let sp = Math.max(Math.hypot(ball.vx, ball.vy), cruise);
-    if (d === MZ_N && g > 0) sp = Math.max(sp, Math.sqrt(cruise * cruise + 2 * MZ_CLIMB * g * v.field.cell));
-    sp = Math.min(sp, MZ_MAX_SPEED * cruise);
+    if (d === MZ_N) sp = Math.max(sp, climb);
+    sp = Math.min(sp, Math.max(MZ_MAX_SPEED * cruise, climb));
     const a = (2 * ctx.random() - 1) * MZ_STEER_SCATTER;
     const cs = Math.cos(a);
     const sn = Math.sin(a);

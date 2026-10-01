@@ -34,9 +34,20 @@ export const MZ_FIELD_WIDTH = 0.56;
 export const MZ_FIELD_HEIGHT = 0.8;
 /** A ball's radius is at most this fraction of a cell (the corridors stay a little wider than the balls). */
 export const MZ_BALL_FRACTION = 0.27;
-/** The walls are this fraction of a cell thick (at least `MZ_MIN_WALL` px). */
+/** The walls are this fraction of a cell thick (at least `MZ_MIN_WALL` px – but at most `MZ_MAX_WALL_FRACTION` of a cell). */
 export const MZ_WALL_FRACTION = 0.1;
 export const MZ_MIN_WALL = 1;
+/**
+ * The pixel minimums give way in a tiny cell: a wall is at most this fraction of a cell thick, and a ball's smallest
+ * radius (`MZ_MIN_RADIUS` px) at most `MZ_MIN_RADIUS_FRACTION` of a cell. So the contact distance (radius + half the wall)
+ * stays within `MZ_BALL_FRACTION` + `MZ_MAX_WALL_FRACTION` / 2 of a cell and a ball fits every corridor at any size – up to
+ * the columns' memory-safety ceiling, where the world's 450 px square holds cells of 252 / 200 px (with a 1 px wall and a
+ * 0.5 px ball the contact distance outgrew half a cell from about 116 columns on, and no ball got out of the chute).
+ * Nothing changes up to about 50 columns.
+ */
+export const MZ_MAX_WALL_FRACTION = 0.2;
+export const MZ_MIN_RADIUS = 0.5;
+export const MZ_MIN_RADIUS_FRACTION = 0.2;
 /** A micro-step moves a ball at most this fraction of its contact distance (radius + half the wall). */
 export const MZ_MICRO_STEP = 0.45;
 
@@ -225,17 +236,20 @@ export function buildMazeField(width: number, height: number, cols: number, rows
   f.height = cell * rows;
   f.left = (width - f.width) / 2;
   f.top = (height - f.height) / 2;
-  f.wall = Math.max(MZ_MIN_WALL, MZ_WALL_FRACTION * cell);
+  f.wall = Math.min(Math.max(MZ_MIN_WALL, MZ_WALL_FRACTION * cell), MZ_MAX_WALL_FRACTION * cell);
   f.side = side;
   f.sx = (width - side) / 2;
   f.sy = (height - side) / 2;
   return f;
 }
 
-/** A ball's radius in a maze with cells of `cell` px: the Ball Size, at most `MZ_BALL_FRACTION` of a cell. */
+/**
+ * A ball's radius in a maze with cells of `cell` px: the Ball Size, at most `MZ_BALL_FRACTION` of a cell and at least
+ * `MZ_MIN_RADIUS` px – or `MZ_MIN_RADIUS_FRACTION` of a cell where that is less (a tiny cell: the ball still fits).
+ */
 export function mazeBallRadius(ballRadius: number, cell: number): number {
   const r = Number.isFinite(ballRadius) && ballRadius > 0 ? ballRadius : 8;
-  return Math.max(0.5, Math.min(r, MZ_BALL_FRACTION * cell));
+  return Math.max(Math.min(MZ_MIN_RADIUS, MZ_MIN_RADIUS_FRACTION * cell), Math.min(r, MZ_BALL_FRACTION * cell));
 }
 
 /* ------------------------------------------------------------------ collision */
