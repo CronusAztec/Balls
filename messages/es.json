@@ -12,7 +12,8 @@
     "simulator": "Simulador",
     "goHome": "Ir al inicio",
     "openMenu": "Abrir menú",
-    "closeMenu": "Cerrar menú"
+    "closeMenu": "Cerrar menú",
+    "back": "Volver"
   },
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",

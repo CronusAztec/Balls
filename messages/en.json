@@ -12,7 +12,8 @@
     "simulator": "Simulator",
     "goHome": "Go to Home",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "back": "Back"
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",

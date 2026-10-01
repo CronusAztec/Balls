@@ -12,7 +12,8 @@
     "simulator": "Symulator",
     "goHome": "Strona główna",
     "openMenu": "Otwórz menu",
-    "closeMenu": "Zamknij menu"
+    "closeMenu": "Zamknij menu",
+    "back": "Wróć"
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
