@@ -67,7 +67,8 @@ import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, reso
  * Every user-facing simulator setting lives in this one object. The controls panel,
  * URL sharing, presets and the seed finder all read from it, so adding a setting means:
  *  1. add a field here (+ default in `defaultSettings`),
- *  2. optionally add a short URL key in URL_KEYS so it is shareable,
+ *  2. optionally add a short URL key in NUMERIC_URL_KEYS / BOOLEAN_URL_KEYS / STRING_URL_KEYS (or the feature's
+ *     write…Params / read…Params helpers) so it is shareable,
  *  3. render a control for it in components/simulator/Controls.tsx,
  *  4. apply it to the engine in components/simulator/Simulator.tsx.
  */

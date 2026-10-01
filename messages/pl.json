@@ -1157,7 +1157,7 @@
     "projectImportLocked": "Trwa renderowanie – dokończ lub zatrzymaj partię (albo szybki eksport), zanim otworzysz projekt.",
     "projectImportedSkipped": "Otwarto „{name}”, ale pominięto uszkodzone pliki multimedialne (liczba: {count}).",
     "projectErrorNotJson": "To nie jest plik projektu (niepoprawny JSON).",
-    "projectErrorNotProject": "Ten plik nie jest projektem JumpingBallsLive.",
+    "projectErrorNotProject": "Ten plik nie jest projektem {siteName}.",
     "projectErrorNewer": "Ten projekt zapisano w nowszej wersji symulatora. Odśwież stronę, aby wczytać najnowszą wersję, i spróbuj ponownie.",
     "projectErrorTooLarge": "Ten projekt jest za duży, aby go otworzyć (najwyżej {max} multimediów).",
     "projectErrorNotFile": "„{file}” nie jest plikiem projektu – wybierz plik .jumpingballslive.json.",
@@ -2292,7 +2292,7 @@
     },
     "schedule": {
       "title": "Harmonogram publikacji",
-      "intro": "Zaplanowane przez bota wiralowych filmów JumpingBallsLive na {date} ({platform}). Zakończenia są naprzemienne, żeby porównać klipy rozstrzygnięte i cliffhangery.",
+      "intro": "Zaplanowane przez bota wiralowych filmów {siteName} na {date} ({platform}). Zakończenia są naprzemienne, żeby porównać klipy rozstrzygnięte i cliffhangery.",
       "time": "Godzina",
       "file": "Plik",
       "recipe": "Przepis",

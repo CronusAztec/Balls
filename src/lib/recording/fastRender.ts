@@ -2,7 +2,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
-import { drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
+import { EXPORT_BASE_NAME, drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
 import {
   AUDIO_BITRATE,
   DIGEST_EVERY,
@@ -326,7 +326,7 @@ async function createMuxer(format: ExportFormat, width: number, height: number, 
 }
 
 /** Triggers the download of an export (`jumpingballslive-export.mp4` / `.webm`). */
-export function downloadExport(blob: Blob, extension: string, baseName = "jumpingballslive-export") {
+export function downloadExport(blob: Blob, extension: string, baseName = EXPORT_BASE_NAME) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

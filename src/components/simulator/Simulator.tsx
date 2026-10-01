@@ -38,7 +38,7 @@ import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from 
 import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
-import { VideoRecorder } from "@/lib/recording/recorder";
+import { EXPORT_BASE_NAME, VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
 import { findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- gerald-faces ---
@@ -1553,8 +1553,8 @@ export default function Simulator() {
     const recorder = recorderRef.current;
     if (recorder) {
       const blob = await recorder.stopRecording();
-      if (blob) recorder.downloadBlob(blob, "jumpingballslive-export");
-      if (blob) offerPublishClip({ blob, name: "jumpingballslive-export", source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null }); // --- social-publish ---
+      if (blob) recorder.downloadBlob(blob, EXPORT_BASE_NAME);
+      if (blob) offerPublishClip({ blob, name: EXPORT_BASE_NAME, source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null }); // --- social-publish ---
     }
     setIsRecording(false);
   }, []);
@@ -1758,7 +1758,7 @@ export default function Simulator() {
       if (!result) setFastExport({ status: "cancelled" });
       else {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
-        if (!batchJob) offerPublishClip({ blob: result.blob, name: `jumpingballslive-export.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
+        if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
       }
     } catch (err) {

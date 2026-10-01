@@ -13,7 +13,7 @@ const cardClass =
 const CATEGORY_HEADINGS = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle" /* --- odd-string-battle --- */, journey: "modesJourney" /* --- gerald-journey --- */ } as const;
 
 /**
- * Mode cards, grouped under a heading per family (escape modes, rhythm modes – see lib/modes.ts). On the
+ * Mode cards, grouped under a heading per family (escape, rhythm, battle and journey modes – see MODE_CATEGORY_IDS in lib/modes.ts). On the
  * simulator page a click dispatches a DOM event the simulator listens to (so the mode switches in place);
  * elsewhere the card links to the simulator.
  */
