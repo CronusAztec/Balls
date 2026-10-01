@@ -9,6 +9,7 @@ import { expandBatch, queueSummary, type BatchClipSource, type QueueJob } from "
 import { planSource, seedSource } from "@/lib/desktop/queueSources";
 import { linkJobSettings, parseBatchList, randomSeeds, resolveLinkSettings } from "@/lib/recording/batch";
 import { loadBotState } from "@/lib/bot/store";
+import { SITE_NAME } from "@/lib/site";
 import type { RenderQueueApi } from "./useRenderQueue";
 import type { DesktopPageHooks } from "./pageHooks";
 import { Bar, Card, Chip, dangerBtn, errorText, formatBytes, formatSeconds, ghostBtn, inputClass, primaryBtn } from "./ui";
@@ -137,7 +138,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
           {message && <p className="text-xs text-zinc-300" data-testid="queue-message">{message}</p>}
         </Card>
         <Card title={t("queueFolderTitle")}>
-          <p className="text-xs text-zinc-400 break-all" data-testid="queue-folder">{folder || t("queueFolderDefault")}</p>
+          <p className="text-xs text-zinc-400 break-all" data-testid="queue-folder">{folder || t("queueFolderDefault", { siteName: SITE_NAME }) /* --- review fix (docs-consistency) --- */}</p>
           <div className="flex gap-2">
             <button
               type="button"

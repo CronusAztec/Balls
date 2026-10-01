@@ -1,5 +1,12 @@
-/** Central place for branding. Change SITE_NAME (and the accent colours below) to rebrand the whole site. */
+/**
+ * Central place for branding: SITE_NAME (the pages, the `{siteName}` messages and – through SITE_SLUG – the download names read
+ * it) and the accent colours below. A rebrand also touches the theme tokens, the icon and the accent hex written out in class
+ * names; README "Rebrand" lists every step and what stays fixed on purpose (storage keys, file formats).
+ */
 export const SITE_NAME = "JumpingBallsLive";
+
+/** --- review fix (docs-consistency) --- SITE_NAME as a file-name slug ("jumpingballslive"): the stem of every download name. */
+export const SITE_SLUG = SITE_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "export";
 
 /**
  * Sub-folder the site is served from ("" for the domain root, "/Balls" for a GitHub Pages

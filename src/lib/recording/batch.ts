@@ -1,4 +1,5 @@
 import { MODE_CARD_ORDER } from "@/lib/modes";
+import { SITE_SLUG } from "@/lib/site";
 import { isModeId, type ModeId } from "@/lib/physics/types";
 import { RANGES, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { SHARE_CODE_PARAM, decodeShareCode, mergeShareParams } from "@/lib/shareCode";
@@ -389,7 +390,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** The ZIP's file name (without extension): `jumpingballslive-batch-20260929-1432`. */
 export function batchZipBase(date: Date): string {
-  return `jumpingballslive-batch-${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
+  return `${SITE_SLUG}-batch-${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
 }
 
 /** A wall-clock time for the queue: `0:07`, `2:31`, `1:02:03`. */
