@@ -157,6 +157,7 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- end odd-maze ---
   // --- gerald-conveyor --- Conveyor Belt: the balls the belt loads (full-physics balls, the pile's pairs every sub-step)
   cvMaxBalls: BOARD_BALL_CEILING,
+  splatMax: ENTITY_CEILING, // --- gerald-exit-splat --- the splats standing at once (each a pooled circle every ball near it is tested against)
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

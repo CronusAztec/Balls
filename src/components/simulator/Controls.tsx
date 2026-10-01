@@ -43,6 +43,7 @@ import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- time
 // --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS, hasWobblyWalls } from "./sections/WallWobbleSection";
+import { EXIT_BEHAVIOR_KEYS, ExitBehaviorControls, SPLAT_BARRIER_KEYS, SplatBarrierControls } from "./sections/ExitSplatSection"; // --- gerald-exit-splat ---
 import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
@@ -216,6 +217,9 @@ SECTION_KEYS.ball.push(...DOUBLE_PENDULUM_KEYS);
 // --- jdm-illusions --- the Circle Illusion block is searched with the Ball section, Wobbly Walls with the Visual section.
 SECTION_KEYS.ball.push(...ILLUSION_KEYS);
 SECTION_KEYS.visual.push(...WALL_WOBBLE_KEYS);
+// --- gerald-exit-splat --- the Exit behaviour block closes the Wall section, the Splat barrier block follows Wobbly Walls in the Visual section.
+SECTION_KEYS.wall.push(...EXIT_BEHAVIOR_KEYS);
+SECTION_KEYS.visual.push(...SPLAT_BARRIER_KEYS);
 // --- odd-string-battle --- the String Battle block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...STRING_BATTLE_KEYS);
 // --- odd-power-layers --- the Power layers block of the Mode row is searched with the Ball section too.
@@ -596,6 +600,8 @@ export default function Controls(props: ControlsProps) {
             </Searchable>
           </>
         )}
+        {/* --- gerald-exit-splat --- how the exits move: with their rings, jump, flee or shrink (the ring modes with one exit a ring) */}
+        <ExitBehaviorControls t={t} search={search} matches={matches} settings={s} update={update} />
         <Searchable search={search} matches={matches} labelKey="wallColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -694,6 +700,8 @@ export default function Controls(props: ControlsProps) {
       <CameraSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- jdm-illusions --- Wobbly Walls: circular walls deform where a ball hits them (ring modes, Circle Illusion) */}
       <WallWobbleSection t={t} search={search} matches={matches} settings={s} update={update} />
+      {/* --- gerald-exit-splat --- the Splat barrier: wall hits leave solid splats of paint (ring modes) */}
+      <SplatBarrierControls t={t} search={search} matches={matches} settings={s} update={update} />
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="cinematic">
           <Toggle t={t} labelKey="cinematic" tipKey="cinematicTip" value={s.cinematicEnabled} onChange={(v) => update({ cinematicEnabled: v })} caseStyle="title" />
@@ -1746,6 +1754,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         wallBounciness: d.wallBounciness,
         breathingAmplitude: d.breathingAmplitude,
         breathingSpeed: d.breathingSpeed,
+        exitBehavior: d.exitBehavior, exitJumpSeconds: d.exitJumpSeconds, exitSense: d.exitSense, exitFleeSpeed: d.exitFleeSpeed, // --- gerald-exit-splat ---
       };
     case "visual":
       return {
@@ -1776,6 +1785,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         ...cameraSettingsOf(d), // --- camera ---
         ...riggedConfigOf(d), // --- rigged --- never escape off, no forced winner
         wallWobble: d.wallWobble, // --- jdm-illusions ---
+        splatBarrier: d.splatBarrier, splatSize: d.splatSize, splatMax: d.splatMax, // --- gerald-exit-splat ---
       };
     case "sound":
       return {

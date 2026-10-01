@@ -10,6 +10,7 @@ import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone";
 import { scheduleSwooshTone } from "./swooshTone"; // --- gerald-journey ---
 import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- gerald-bullseye ---
 import { scheduleGulpTone } from "./gulpTone"; // --- unlimited ---
+import { SPLAT_SAMPLE_GAIN, SPLAT_SAMPLE_RATE, scheduleSplatTone, splatLevel } from "./splatTone"; // --- gerald-exit-splat ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { DEFAULT_HUM_FREQUENCY, scheduleConveyorClick, scheduleConveyorHum } from "./conveyorTones"; // --- gerald-conveyor ---
@@ -881,6 +882,39 @@ export class ToneGenerator {
     }
   }
   // --- end gerald-conveyor ---
+
+  // --- gerald-exit-splat ---
+  /** Splats played so far: each reads the noise from a little further on, so consecutive splats differ. */
+  private splatCount = 0;
+
+  /**
+   * A splat of the splat barrier landed (splatTone.ts): a short wet noise burst with a low "blop", `level` loud (0–1). An
+   * effect, not a note (never snapped, never a melody note or a song slice): on the beat grid when the beat lock is on,
+   * without taking a bounce's slot, ducking the music bed; in sample mode the hit sample plays instead, an octave down and
+   * softer – the wet version of the bounce.
+   */
+  playSplat(level = 0.6) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleSplat(level));
+      return;
+    }
+    this.scheduleSplat(level);
+  }
+
+  private scheduleSplat(level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(SPLAT_SAMPLE_RATE, time, SPLAT_SAMPLE_GAIN * splatLevel(level));
+      else scheduleSplatTone(this.audioContext, this.masterGain, time, this.noiseCache.get(this.audioContext), level, 0.0173 * this.splatCount++);
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the splat:", err);
+    }
+  }
+  // --- end gerald-exit-splat ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

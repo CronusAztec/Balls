@@ -34,6 +34,8 @@ import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
 import { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
+import { EXIT_BEHAVIOR_KEYS, SPLAT_BARRIER_KEYS } from "./sections/ExitSplatSection"; // --- gerald-exit-splat ---
+import { supportsMovingExits, supportsSplats } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 
 /*
  * --- review fix (site-redesign) --- Which of the panel's searchable controls a mode shows: the Wall section's rules (shared
@@ -137,6 +139,8 @@ export interface PanelShown {
 const MULTIPLIER_GROUP_SET: ReadonlySet<string> = new Set(MULTIPLIER_KEYS);
 const BALL_INTERACTION_SET: ReadonlySet<string> = new Set(BALL_INTERACTION_KEYS);
 const WALL_WOBBLE_SET: ReadonlySet<string> = new Set(WALL_WOBBLE_KEYS);
+const EXIT_BEHAVIOR_SET: ReadonlySet<string> = new Set(EXIT_BEHAVIOR_KEYS); // --- gerald-exit-splat ---
+const SPLAT_BARRIER_SET: ReadonlySet<string> = new Set(SPLAT_BARRIER_KEYS); // --- gerald-exit-splat ---
 const VIDEO_BEATS_SET: ReadonlySet<string> = new Set(VIDEO_BEATS_KEYS);
 const BATCH_SET: ReadonlySet<string> = new Set(BATCH_KEYS);
 const BOT_SET: ReadonlySet<string> = new Set(BOT_KEYS);
@@ -173,5 +177,8 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   if (SPLIT_EDITOR_SET.has(key)) return p.arenas;
   if (CAPTION_FORM_SET.has(key)) return p.captions;
   if (key === "teamAdd") return p.teams;
+  // --- gerald-exit-splat --- the moving exits in the ring modes with one exit a ring, the splat barrier in the ring modes
+  if (EXIT_BEHAVIOR_SET.has(key)) return supportsMovingExits(p.mode);
+  if (SPLAT_BARRIER_SET.has(key)) return supportsSplats(p.mode);
   return true;
 }

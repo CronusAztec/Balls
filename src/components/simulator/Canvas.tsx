@@ -35,6 +35,7 @@ import { CinematicCamera } from "./cameraRenderer";
 import { DEFAULT_CAMERA_SETTINGS, type CameraSettings } from "@/lib/simulation/camera";
 // --- obstacle-editor --- the creator's pegs, bumpers, blockers and spinners: drawing and pointer / Backspace editing
 import { ObstacleEditorLayer, isTextEntryTarget, type ObstacleRenderOptions } from "./obstacleEditorRenderer";
+import { ExitSplatLayer } from "./exitSplatRenderer"; // --- gerald-exit-splat ---
 import type { EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CaptionLayer, type CanvasCaptionOptions, type CaptionView } from "./captionsRenderer"; // --- captions ---
 import { edgeTextBounds, emptyEdgeTextLines, exportEdgeTextLines, liveEdgeTextLines } from "@/lib/captions"; // --- captions ---
@@ -817,6 +818,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- obstacle-editor --- the editor obstacles' renderer options, refreshed per frame, and the layer that draws and edits them
     const obstacleRender: ObstacleRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showWallGlow: true, gradient: false, editing: false };
     const obstacleLayer = (obstacleLayerRef.current ??= new ObstacleEditorLayer());
+    const exitSplatLayer = new ExitSplatLayer(); // --- gerald-exit-splat --- the splats and the moving exits' effects
     // --- jdm-illusions --- the wobbly walls (contacts → displacement waves) and the Circle Illusion's layers, with their per-frame options
     const wobble = new WobbleLayer();
     const illusionLayer = new IllusionLayer();
@@ -1379,6 +1381,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         obstacleLayer.draw(ctx, editorField, engine.getElapsedMs(), obstacleRender);
       }
       // --- end obstacle-editor ---
+      // --- gerald-exit-splat --- the splats (under the balls, turning with their rings) and the moving exits' flashes; data-exit-* / data-splat*
+      exitSplatLayer.draw(ctx, engine, walls, rotations, broken, cx, cy, time, p.rainbowBall, canvas.dataset);
 
       // Bouncing Shapes: the box, its walls glowing on recent hits like the rings do.
       const isBox = engine.isBoxMode();

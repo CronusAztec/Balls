@@ -9576,6 +9576,129 @@ const bdInstrument = () =>
 }
 // --- end gerald-conveyor ---
 
+// --- gerald-exit-splat --- Moving exits and splat barriers of the ring modes: URL → the Exit Behaviour buttons (Wall
+// Settings) and the Splat Barrier switch (Visual Effects), controls → URL, the search box, where they are offered, a run with
+// a jumping exit that leaves splats (at most Most Splats standing), Flee and Shrink moving the exit, off by default, and the
+// frame rate of a crowded Multiply run full of splats.
+{
+  const exitGroup = page.getByRole("group", { name: "Exit Behaviour", exact: true });
+  const exitPressed = (name) => exitGroup.getByRole("button", { name, exact: true }).getAttribute("aria-pressed");
+  const splatSwitch = page.getByRole("switch", { name: switchName("Splat Barrier") });
+  await page.goto(`${BASE}/en/simulator/?mode=classic&exit=jump&exj=1&splat=1&spm=20`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Wall Settings/ }).click();
+  const wall = { jump: await exitPressed("Jump"), rotate: await exitPressed("Rotate"), timer: await sliderValue("Exit Timer"), sense: await sliderValue("Exit Sense"), flee: await page.locator('input[aria-label="Flee Speed"]').count() };
+  await page.getByRole("button", { name: /Visual Effects/ }).click();
+  const visual = { on: await splatSwitch.getAttribute("aria-checked"), size: await sliderValue("Splat Size"), max: await sliderValue("Most Splats") };
+  check(
+    "moving exits and the splat barrier load from the URL",
+    wall.jump === "true" && wall.rotate === "false" && wall.timer === "1" && wall.sense === "20" && wall.flee === 0 && visual.on === "true" && visual.size === "1" && visual.max === "20",
+    `(${JSON.stringify(wall)}, ${JSON.stringify(visual)})`,
+  );
+  await page.locator('input[aria-label="Most Splats"]').evaluate(setRangeValue, "30");
+  await page.getByRole("button", { name: /Wall Settings/ }).click();
+  await exitGroup.getByRole("button", { name: "Flee", exact: true }).click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const fleeShown = (await page.locator('input[aria-label="Flee Speed"]').count()) === 1;
+    const timerHidden = (await page.locator('input[aria-label="Exit Timer"]').count()) === 0;
+    check(
+      "moving exits and the splat barrier mirror into the URL (Flee shows its speed, not the timer)",
+      query.get("exit") === "flee" && query.get("exj") === "1" && query.get("splat") === "1" && query.get("spm") === "30" && !query.has("exs") && fleeShown && timerHidden,
+      `(${query.toString()}, flee speed shown=${fleeShown}, timer hidden=${timerHidden})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("splat");
+  const splatFound = (await page.locator('input[aria-label="Splat Size"]').isVisible()) && (await splatSwitch.isVisible());
+  await page.getByPlaceholder("Search settings...").fill("exit sense");
+  const senseFound = await page.locator('input[aria-label="Exit Sense"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the exit behaviour and the splat barrier", splatFound && senseFound && ballSpeedHidden, `(splat=${splatFound}, exit sense=${senseFound}, ball speed hidden=${ballSpeedHidden})`);
+
+  // Offered where they apply: Lines has no exit behaviour but splats, Shatter neither.
+  const offered = {};
+  for (const mode of ["lines", "shatter", "multiply"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Wall Settings/ }).click();
+    const exits = await exitGroup.count();
+    await page.getByRole("button", { name: /Visual Effects/ }).click();
+    offered[mode] = { exits, splats: await splatSwitch.count() };
+  }
+  check(
+    "the exit behaviour is offered in the one-exit ring modes, the splat barrier in the ring modes but Shatter",
+    offered.lines.exits === 0 && offered.lines.splats === 1 && offered.shatter.exits === 0 && offered.shatter.splats === 0 && offered.multiply.exits === 1 && offered.multiply.splats === 1,
+    `(${JSON.stringify(offered)})`,
+  );
+
+  // A run: the exits jump (every second, or as the ball comes near) and every wall hit leaves a splat.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&exit=jump&exj=1&splat=1&spm=20`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const seen = await page
+    .waitForFunction(
+      () => {
+        const d = document.querySelector("main canvas")?.dataset;
+        return d && d.exitBehavior === "jump" && Number(d.exitMoves) >= 1 && Number(d.splats) >= 1 ? { ...d } : false;
+      },
+      null,
+      { timeout: 30000 },
+    )
+    .then((h) => h.jsonValue())
+    .catch(() => null);
+  await page.waitForTimeout(1500);
+  const later = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-classic-exit-splat.png") });
+  const pick = (d) => d && { behavior: d.exitBehavior, moves: d.exitMoves, angle: d.exitAngle, splats: d.splats, created: d.splatsCreated, hits: d.splatHits, max: d.splatsMax };
+  check(
+    "a jumping exit moves and the ball's wall hits leave splats, at most Most Splats standing",
+    !!seen && Number(seen.splats) <= 20 && seen.splatsMax === "20" && Number(later.splats) <= 20 && Number(later.splatsCreated) >= Number(seen.splatsCreated) && Number(later.exitMoves) >= Number(seen.exitMoves),
+    `(${JSON.stringify(pick(seen))} → ${JSON.stringify(pick(later))})`,
+  );
+
+  // Flee and Shrink move the exit too (a wide sense makes the exit run at once; a 1 s timer shuts it within a second).
+  const moved = {};
+  for (const behavior of ["flee", "shrink"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=classic&exit=${behavior}&exj=1&exs=90&exf=180`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    const first = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.exitAngle ?? false, null, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => null);
+    const changed = await page
+      .waitForFunction((a) => { const d = document.querySelector("main canvas")?.dataset; return !!d && d.exitAngle !== undefined && d.exitAngle !== a; }, first, { timeout: 15000 })
+      .then(() => true)
+      .catch(() => false);
+    const d = await canvasData();
+    moved[behavior] = { behavior: d.exitBehavior, first, changed, now: d.exitAngle, moves: d.exitMoves };
+  }
+  check(
+    "fleeing and shrinking exits move along their rings",
+    moved.flee.behavior === "flee" && moved.flee.changed && moved.shrink.behavior === "shrink" && moved.shrink.changed,
+    `(${JSON.stringify(moved)})`,
+  );
+
+  // Off by default: a plain Classic run has neither.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const plain = await canvasData();
+  check("moving exits and splats are off by default", plain.exitBehavior === undefined && plain.splats === undefined, `(data-exit-behavior=${plain.exitBehavior}, data-splats=${plain.splats})`);
+
+  // The frame rate of a crowded run: Multiply's balls splatting up to 300 splats while the exits flee (1080×1920).
+  await page.goto(`${BASE}/en/simulator/?mode=multiply&exit=flee&splat=1&spm=300`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(4000);
+  const fps = await pageFrameRates(4000);
+  const busy = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-multiply-splats.png") });
+  await timingCheck(
+    "a Multiply run full of splats with fleeing exits keeps 30+ fps",
+    Number(busy.splatsCreated) > 0 && busy.exitBehavior === "flee",
+    fpsOk(fps, 6, 30),
+    `(${JSON.stringify(pick(busy))}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 5, 30),
+  );
+}
+// --- end gerald-exit-splat ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));
