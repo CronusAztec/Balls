@@ -219,6 +219,12 @@ export class ExitController {
   /** Shrink: each exit's full width, and the width last written (a different one means the engine resized it). */
   private fullWidth: number[] = [];
   private written: number[] = [];
+  /**
+   * Shrink: each exit's centre (ring-relative radians) as last written. The engine resizes a gap in place keeping its start
+   * (`resizeGaps()`: a gap-size keyframe or bounce-math rule, a new Gap Size or Ball Size), not its centre, so after a resize
+   * the exit is put back round the centre it had – else every resize of a half-shut exit would slide it along its ring.
+   */
+  private centres: number[] = [];
   /** Shrink: seconds left of a re-opening. */
   private reopening: number[] = [];
   /** Flee: each exit's angular velocity (rad/s). */
@@ -314,6 +320,7 @@ export class ExitController {
     resize(this.pending, 0);
     resize(this.fullWidth, 0);
     resize(this.written, NaN);
+    resize(this.centres, 0);
     resize(this.reopening, 0);
     resize(this.omega, 0);
     resize(this.nearAbs, Infinity);
@@ -325,17 +332,25 @@ export class ExitController {
     for (let w = 0; w < n; w++) {
       const gap = walls[w].gaps.length === 1 ? walls[w].gaps[0] : null;
       this.fullWidth[w] = gap ? gap.endAngle - gap.startAngle : 0;
+      this.centres[w] = gap ? gapCentre(gap) : 0;
       // The first jump comes after a full interval (the innermost ring's exactly), the shrinking exits start part-way
       // shut – spread over the rings so they never all move at once.
       this.timers[w] = this.cfg.behavior === "jump" ? this.cfg.jumpSec * (1 + 0.5 * spread(w, 0.6180339887498949)) : 0.5 * spread(w, 0.3819660112501051);
     }
   }
 
-  /** Opens every exit "shrink" narrowed back to its full width (leaving the behaviour). */
+  /**
+   * Opens every exit "shrink" narrowed back to its full width (leaving the behaviour), round its centre. An exit it never
+   * wrote is the engine's own as it stands; one the engine resized since is already at its full width – the new one.
+   */
   private restoreWidths(walls: CircularWall[]) {
     for (let w = 0; w < walls.length && w < this.fullWidth.length; w++) {
       const gap = walls[w].gaps.length === 1 ? walls[w].gaps[0] : null;
-      if (gap && this.fullWidth[w] > 0) placeGap(gap, gapCentre(gap), this.fullWidth[w]);
+      if (!gap || Number.isNaN(this.written[w])) continue;
+      const width = gap.endAngle - gap.startAngle;
+      const resized = !(Math.abs(width - this.written[w]) <= 1e-9);
+      const full = resized ? width : this.fullWidth[w];
+      if (full > 0) placeGap(gap, resized ? this.centres[w] : gapCentre(gap), full);
     }
   }
 
@@ -448,10 +463,12 @@ export class ExitController {
   private stepShrink(ctx: ModeContext, w: number, wall: CircularWall, rotation: number, dt: number) {
     const gap = wall.gaps[0];
     const width = gap.endAngle - gap.startAngle;
-    // The engine (re)sized this exit since it was last written – a new gap size, a bigger ball: that is its full width now.
+    // The engine (re)sized this exit since it was last written – a new gap size, a bigger ball: that is its full width now,
+    // round the centre the exit had (the resize kept the gap's start, which moved its centre by half the change).
+    const resized = !Number.isNaN(this.written[w]) && !(Math.abs(width - this.written[w]) <= 1e-9);
     if (!(Math.abs(width - this.written[w]) <= 1e-9)) this.fullWidth[w] = width;
     const full = this.fullWidth[w];
-    const centre = gapCentre(gap);
+    const centre = resized ? this.centres[w] : gapCentre(gap);
     let next: number;
     if (this.reopening[w] > 0) {
       this.reopening[w] -= dt;
@@ -469,6 +486,7 @@ export class ExitController {
         this.reopening[w] = REOPEN_SEC;
         placeGap(gap, to - rotation, 0);
         this.written[w] = gap.endAngle - gap.startAngle;
+        this.centres[w] = gapCentre(gap);
         this.view.closing[w] = 1;
         return;
       }
@@ -477,6 +495,7 @@ export class ExitController {
     }
     placeGap(gap, centre, next);
     this.written[w] = gap.endAngle - gap.startAngle;
+    this.centres[w] = gapCentre(gap);
   }
 
   /** Counts a move and flashes its two spots. */

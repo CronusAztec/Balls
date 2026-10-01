@@ -2388,7 +2388,8 @@ export class PhysicsEngine {
       const keepMoving = !this.currentMode?.ballsMayRest;
       const hasObstacles = this.obstacles.length > 0;
       // --- rigged --- the director's hard constraints for this step (never escape, forced winner); both off = the plain path
-      this.rigOn = this.cinematicDirector.rig.beginStep(modeName, this._config, extras, this.circularWalls, this.wallRotations, this.brokenWalls, this.gravityAccel(audioIntensity), gDirX, gDirY, keepMoving, this._elapsedMs);
+      // (--- gerald-exit-splat --- with moving exits the rings hold still this step: the rig predicts them standing)
+      this.rigOn = this.cinematicDirector.rig.beginStep(modeName, this._config, extras, this.circularWalls, this.wallRotations, this.brokenWalls, this.gravityAccel(audioIntensity), gDirX, gDirY, keepMoving, this._elapsedMs, this.exitsHoldRings);
       if (this.rigOn) {
         for (let i = 0; i < this.balls.length; i++) this.cinematicDirector.rig.guide(this.balls[i]); // mid-flight guidance
         this.cinematicDirector.rig.markInside(this.balls); // the backstop below keeps these balls in

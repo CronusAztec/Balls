@@ -51,7 +51,7 @@ import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { arenaPhysicsConfig, playArenaSound, type ArenaSoundSink } from "@/lib/simulation/multi";
 import { EXTRA_ARENA_LEVEL } from "@/lib/splitScreen";
-import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { createEngineForSettings, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { MEMORY_CEILINGS } from "@/lib/uncap";
@@ -528,17 +528,50 @@ describe("moving exits: shrink", () => {
     expect(r.view.moves).toBe(2);
   });
 
-  it("follows the engine's resizes and opens every exit again when the behaviour changes", () => {
+  it("follows the engine's resizes round the centre it had, and opens every exit again when the behaviour changes", () => {
     const walls = [ring(200, 0, 0.6)];
+    const gap = walls[0].gaps[0];
+    /** The engine's resize in place (`resizeGaps()`: a gap-size keyframe, a new Gap Size or Ball Size): the start stays. */
+    const resize = (full: number) => {
+      gap.endAngle = gap.startAngle + full;
+    };
     const r = rig(walls);
     r.exits.configure(exitSplat({ exitBehavior: "shrink", exitJumpSeconds: 2 }));
     r.sub(240);
-    placeGap(walls[0].gaps[0], gapCentre(walls[0].gaps[0]), 0.8); // a bigger gap size (or a smaller ball) mid-run
+    resize(0.8); // a bigger gap size (or a smaller ball) mid-run, the exit half shut
     r.sub(1);
     expect(width(walls[0])).toBeCloseTo(shrinkWidth(0.8, 241 / 480), 9);
-    r.exits.configure(exitSplat({ exitBehavior: "rotate" }));
-    expect(width(walls[0])).toBeCloseTo(0.8, 12);
     expect(centreOf(walls[0])).toBeCloseTo(0.3, 12);
+    // Resized every step (a keyframed ramp of the gap size): it narrows on the spot, it never slides along its ring.
+    for (let i = 1; i <= 40; i++) {
+      resize(0.8 + 0.005 * i);
+      r.sub(4);
+      expect(centreOf(walls[0])).toBeCloseTo(0.3, 12);
+    }
+    expect(width(walls[0])).toBeCloseTo(shrinkWidth(1, 401 / 480), 9);
+    expect(r.view.moves).toBe(0);
+    // Shut, it re-opens elsewhere; a resize while it opens keeps it opening there, at the new full width.
+    while (r.view.moves === 0) r.sub(1);
+    r.sub(10);
+    const spot = centreOf(walls[0]);
+    expect(Math.abs(wrapPi(spot - 0.3))).toBeGreaterThanOrEqual(MIN_REOPEN_RAD);
+    resize(0.9);
+    r.sub(1);
+    expect(centreOf(walls[0])).toBeCloseTo(spot, 12);
+    expect(width(walls[0])).toBeCloseTo(0.9 * (11 / Math.round(REOPEN_SEC / SUB)), 6);
+    r.sub(Math.round(REOPEN_SEC / SUB));
+    expect(width(walls[0])).toBeCloseTo(0.9, 4); // open again (and just starting to shrink)
+    expect(centreOf(walls[0])).toBeCloseTo(spot, 12);
+    // Leaving "shrink" opens it to its full width round its centre – the engine's new one when it resized it last.
+    r.exits.configure(exitSplat({ exitBehavior: "rotate" }));
+    expect(width(walls[0])).toBeCloseTo(0.9, 12);
+    expect(centreOf(walls[0])).toBeCloseTo(spot, 12);
+    r.exits.configure(exitSplat({ exitBehavior: "shrink", exitJumpSeconds: 2 }));
+    r.sub(120);
+    resize(0.5);
+    r.exits.configure(exitSplat({ exitBehavior: "jump" }));
+    expect(width(walls[0])).toBeCloseTo(0.5, 12);
+    expect(centreOf(walls[0])).toBeCloseTo(spot, 9);
   });
 });
 
@@ -839,6 +872,75 @@ describe("moving exits and splats in the engine", () => {
     }
     const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 5, maxSeeds: 1, maxSimTimeSec: 60, physicsConfig: { ...config, ...exitSplat({ exitBehavior: "jump", splatBarrier: true }) }, mode: "classic", modeSettings };
     expect(simulateSeed(77, request, 30_000)).toBe(simulateSeed(77, request, 30_000));
+  });
+
+  it("let the forced winner out first: the rig steers at the exits where they are, the rings held still", { timeout: 120_000 }, () => {
+    // Classic with the page's defaults, two balls and the second forced to win: with every behaviour it escapes first,
+    // within two minutes (the rig used to predict turning rings and steered it at where their gaps would have been).
+    for (const behavior of ["jump", "flee", "shrink"] as const) {
+      const s: SimulatorSettings = { ...defaultSettings("classic"), ballCount: 2, twoBalls: true, forcedWinner: 1, exitBehavior: behavior };
+      const cfg = physicsConfigOfSettings(s, { width: 800, height: 450 });
+      for (let seed = 1; seed <= 6; seed++) {
+        const engine = createEngineForSettings(cfg, "classic", modeSettingsOfSettings(s), seed);
+        const teams = engine.getTeamStats();
+        for (let i = 0; i < 120 * 60 && teams[1].firstEscapeMs < 0 && !engine.isSimulationFinished(); i++) {
+          engine.update(1000 / 60, 0);
+          engine.consumeSoundEvents();
+        }
+        const label = `${behavior} seed ${seed}`;
+        expect(engine.getExitView().live, label).toBe(true);
+        expect(engine.getWallRotations().every((r) => r === 0), label).toBe(true);
+        expect(engine.getRigView().winner, label).toBe(1);
+        expect(teams[1].firstEscapeMs, label).toBeGreaterThan(0);
+        expect(teams[1].firstEscapeMs, label).toBeLessThanOrEqual(120_000);
+        expect(teams[0].firstEscapeMs < 0 || teams[0].firstEscapeMs >= teams[1].firstEscapeMs, label).toBe(true);
+      }
+    }
+  });
+
+  it("keep a shrinking exit on its spot while the engine resizes it: gap-size keyframes, a Gap Size drag", () => {
+    // Gap-size keyframes 0.4 → 0.8 over 8 s resize every ring's gap in place every step (keeping its start): a shrinking
+    // exit narrows where it is – its centre moves only when it shuts and re-opens elsewhere, once per re-opening.
+    const timeline = [
+      { time: 0, key: "gapSize" as const, value: 0.4 },
+      { time: 8, key: "gapSize" as const, value: 0.8 },
+    ];
+    const engine = createEngineForSettings({ ...config, timeline, ...exitSplat({ exitBehavior: "shrink" }) }, "classic", quiet, 5);
+    const centres = () => engine.getCircularWalls().map((w) => gapCentre(w.gaps[0]));
+    let prev = centres();
+    let shifts = 0;
+    for (let i = 0; i < 8.5 * 60; i++) {
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      const now = centres();
+      now.forEach((c, k) => {
+        if (!engine.getBrokenWalls().has(k) && Math.abs(wrapPi(c - prev[k])) > 1e-9) shifts++;
+      });
+      prev = now;
+    }
+    expect(engine.getExitView().moves).toBeGreaterThan(0);
+    expect(shifts).toBe(engine.getExitView().moves);
+    // The exits follow the keyframes: every exit is the 0.8 gap narrowed by how far it has closed (width = full × (1 − closing)).
+    const view = engine.getExitView();
+    let measured = 0;
+    engine.getCircularWalls().forEach((w, k) => {
+      if (engine.getBrokenWalls().has(k) || view.closing[k] > 0.9) return;
+      measured++;
+      expect(width(w) / (1 - view.closing[k]), `ring ${k}`).toBeCloseTo(0.8, 6);
+    });
+    expect(measured).toBeGreaterThanOrEqual(3);
+    // A Gap Size drag mid-run (ten frames, 0.40 → 0.50): the outer exit stays where it is.
+    const page = createEngineForSettings({ ...config, ...exitSplat({ exitBehavior: "shrink" }) }, "classic", quiet, 5);
+    for (let i = 0; i < 60; i++) page.update(1000 / 60, 0);
+    const outer = page.getCircularWalls().length - 1;
+    const before = gapCentre(page.getCircularWalls()[outer].gaps[0]);
+    const moves = page.getExitView().moves;
+    for (let k = 1; k <= 10; k++) {
+      page.setConfig({ gapSize: 0.4 + 0.01 * k });
+      page.update(1000 / 60, 0);
+    }
+    expect(page.getExitView().moves).toBe(moves);
+    expect(Math.abs(wrapPi(gapCentre(page.getCircularWalls()[outer].gaps[0]) - before))).toBeLessThan(1e-9);
   });
 
   it("start every run afresh: no moves, no flashes, no splats", () => {

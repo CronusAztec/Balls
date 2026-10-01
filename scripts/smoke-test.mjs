@@ -9682,6 +9682,54 @@ const bdInstrument = () =>
   const plain = await canvasData();
   check("moving exits and splats are off by default", plain.exitBehavior === undefined && plain.splats === undefined, `(data-exit-behavior=${plain.exitBehavior}, data-splats=${plain.splats})`);
 
+  // --- review fix (gerald-exit-splat) --- a forced winner gets out with moving exits: the rig steers at the exits where they
+  // are (the rings hold still), no longer where turning rings would have carried them – with Flee and Shrink it almost never
+  // escaped. Two teams, Blue forced to win, a pinned seed, at 8×: out after 42 / 29 / 25 s of the run (before: 145 s, never
+  // within 4 minutes, 112 s).
+  const forced = {};
+  const pair = "Red*ef4444*🔥,Blue*3b82f6*💧";
+  for (const behavior of ["jump", "flee", "shrink"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(pair)}&fw=1&exit=${behavior}&seed=15`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    const out = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.firstEscape) >= 0, null, { timeout: 60000 }).then(() => true).catch(() => false);
+    const d = await canvasData();
+    const escapes = (d.teamStats || "").split(",").map((t) => Number(t.split("/")[2]));
+    forced[behavior] = { out, at: d.firstEscape, winner: d.rigWinner, exit: d.exitBehavior, teams: d.teamStats, chosenFirst: escapes[1] >= 1 && escapes[0] === 0 };
+  }
+  check(
+    "a forced winner gets out first with jumping, fleeing and shrinking exits",
+    Object.entries(forced).every(([behavior, f]) => f.out && Number(f.at) <= 90 && f.winner === "1" && f.exit === behavior && f.chosenFirst),
+    `(${JSON.stringify(forced)})`,
+  );
+
+  // --- review fix (gerald-exit-splat) --- a shrinking exit narrows on its spot while the engine resizes its gap in place
+  // (gap-size keyframes 0.4 → 0.8: the resize keeps the gap's start) – it used to slide along its ring with every step.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&exit=shrink&exj=6&kf=gap_0_0.4_8_0.8`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(500);
+  const samples = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const out = [];
+        const timer = setInterval(() => {
+          const d = document.querySelector("main canvas")?.dataset ?? {};
+          out.push([d.exitAngle ?? null, d.exitMoves ?? null]);
+          if (out.length >= 28) {
+            clearInterval(timer);
+            resolve(out);
+          }
+        }, 150);
+      }),
+  );
+  let slides = 0;
+  for (let i = 1; i < samples.length; i++) if (samples[i][1] === samples[i - 1][1] && samples[i][0] !== samples[i - 1][0]) slides++;
+  check(
+    "a shrinking exit stays on its spot while gap-size keyframes resize it",
+    samples.every((x) => x[0] !== null) && slides <= 2,
+    `(${slides} slides in ${samples.length} samples: ${samples.map((x) => `${x[0]}°/${x[1]}`).join(" ")})`,
+  );
+
   // The frame rate of a crowded run: Multiply's balls splatting up to 300 splats while the exits flee (1080×1920).
   await page.goto(`${BASE}/en/simulator/?mode=multiply&exit=flee&splat=1&spm=300`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();

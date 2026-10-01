@@ -301,6 +301,21 @@ describe("RigDirector", () => {
     expect(away.vy).toBe(0);
   });
 
+  it("predicts the rings standing still while moving exits hold them (the engine's ring rate is 0 then)", () => {
+    // --- gerald-exit-splat --- a chosen ball flying straight at the gap's middle: with the rings held it passes the gap where
+    // it stands; turning (0.8 rad/s), the gap has moved past the spot by the time the ball gets there (~0.47 s → 0.38 rad).
+    const cfg: PhysicsConfig = { ...config, gravity: 0, rotationSpeed: 1, ballCount: 2, forcedWinner: 1 };
+    const chosen = ball({ team: 1 });
+    const held = new RigDirector();
+    expect(held.beginStep("classic", cfg, DEFAULT_PHYSICS_EXTRAS, walls, rotations, new Set(), 0, 0, 1, true, 0, true)).toBe(true);
+    expect(held.fly(chosen, 0, 400, emptyFlight())).toMatchObject({ wall: -1, passes: 1 });
+    const turning = new RigDirector();
+    turning.beginStep("classic", cfg, DEFAULT_PHYSICS_EXTRAS, walls, rotations, new Set(), 0, 0, 1, true, 0);
+    const f = turning.fly(chosen, 0, 400, emptyFlight());
+    expect(f).toMatchObject({ wall: 0, passes: 0 });
+    expect(f.timeSec).toBeCloseTo((200 - 8 - 2) / 400, 1);
+  });
+
   it("closes the last barrier to every ball with never escape, and only in the escape modes", () => {
     const r = rig();
     expect(r.on).toBe(true);

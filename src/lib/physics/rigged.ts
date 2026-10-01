@@ -298,7 +298,9 @@ export class RigDirector {
 
   /**
    * Refreshes the rig for the coming step: the rules in effect (from the config and the mode), the walls and the forces
-   * the steering predicts with. Returns `on`. Allocation-free.
+   * the steering predicts with. Returns `on`. Allocation-free. `ringsHeld`: the engine holds its rings still this step
+   * (--- gerald-exit-splat --- moving exits: the exits move by themselves and the engine's ring rate is 0), so the flights
+   * predict every gap where it stands instead of where a turning ring would carry it.
    */
   beginStep(
     mode: ModeId | undefined,
@@ -312,6 +314,7 @@ export class RigDirector {
     gDirY: number,
     keepMoving: boolean,
     elapsedMs = 0,
+    ringsHeld = false,
   ): boolean {
     if (!this.refreshRules(mode, config, walls.length)) return false;
     this.nowMs = elapsedMs;
@@ -319,7 +322,7 @@ export class RigDirector {
     this.syncWalls(walls, rotations);
     this.cx = config.width / 2;
     this.cy = config.height / 2;
-    this.spin = (config.rotationSpeed ?? 1) * 0.8;
+    this.spin = ringsHeld ? 0 : (config.rotationSpeed ?? 1) * 0.8; // (the engine's `wallRotationRate()`)
     this.shatter = mode === "shatter";
     this.baseSpeed = config.ballSpeed || 400;
     this.gravity = gravityAccel;
