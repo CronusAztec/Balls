@@ -158,6 +158,8 @@
     "shareCodeInvalid": "No se pudo leer el código compartido de este enlace, así que no se aplicaron los ajustes compartidos.",
     "shareCodeUnsupported": "Este navegador no puede abrir enlaces cortos (?c=…). Abre el enlace en una versión actual de Chrome, Edge, Firefox o Safari, o pide el enlace largo.",
     "shareCodeDismiss": "Cerrar",
+    "softCeiling": "{setting}: {asked}. La simulación usa {running} para que la página siga fluida.",
+    "recordingStartError": "No se pudo iniciar la grabación. Prueba otra resolución en la sección Grabación, o un Chrome, Edge o Firefox actual.",
     "canvasRaceGo": "¡YA!",
     "canvasRaceStandings": "CLASIFICACIÓN",
     "canvasRaceLeader": "LÍDER",
