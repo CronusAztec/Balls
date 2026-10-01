@@ -12,6 +12,7 @@ import { recordingTextLayout, type RecordingCrop } from "@/lib/recording/recorde
 import { BackgroundPainter, type BackgroundLook } from "./themeRenderer";
 import { DEFAULT_BACKGROUND_COLORS } from "@/lib/themes";
 import { ACCENT } from "@/lib/site";
+import { FrameGate } from "./renderBudget"; // --- review fix (performance) ---
 
 /*
  * --- split-screen --- The page's canvas during a split-screen race (lib/splitScreen.ts, lib/simulation/multi.ts). Every
@@ -108,6 +109,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   /** The stage clock (performance.now() of the frame being drawn), which every arena's driver reads relative to its origin. */
   const clockRef = useRef(0);
   const fpsRef = useRef(60);
+  const framesDrawnRef = useRef(0); // --- review fix (performance) ---
   const recordingRef = useRef(false);
   const clipStartRef = useRef(0);
   const clipLag0Ref = useRef(0); // --- review fix (modes-gerald-odd) --- the arenas' slow-motion lag when the recording started
@@ -202,6 +204,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       slotsRef.current[0]?.renderer?.setSongProgress(v);
     },
     fpsRef,
+    framesDrawn: () => framesDrawnRef.current, // --- review fix (performance) --- (the composed frames)
     noteWallBreak: () => slotsRef.current[0]?.renderer?.noteWallBreak(),
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => (painterRef.current ??= new BackgroundPainter()).paintExport(c, width, height, crop, lookOf(propsRef.current, bgImageRef.current)),
     holdsEndScreen: () =>
@@ -244,10 +247,13 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
     };
 
-    const frame = () => {
+    const gate = new FrameGate(); // --- review fix (performance) ---
+    const frame = (ts?: number) => {
       raf = requestAnimationFrame(frame);
-      const now = performance.now();
-      if (now - last < 15) return;
+      // --- review fix (performance) --- a 60 fps budget on the rAF timestamps (not a 15 ms minimum gap: 37–55 fps at 75–165 Hz)
+      const now = ts ?? performance.now();
+      if (!gate.due(now)) return;
+      framesDrawnRef.current++;
       const dt = last > 0 ? Math.min(now - last, 100) : 16.7;
       last = now;
       const sp = splitRef.current;

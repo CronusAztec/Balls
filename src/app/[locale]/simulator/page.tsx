@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl"; // --- review fix (performance) --- (the whole catalogue for this page)
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import Simulator from "@/components/simulator/Simulator";
@@ -26,19 +27,23 @@ export default async function SimulatorPage({ params }: { params: Promise<{ loca
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
-  // --- site-redesign --- the studio fills the first screen under the header; the guide (physics, modes, tips, help) reads below
+  // --- site-redesign --- the studio fills the first screen under the header; the guide (physics, modes, tips, help) reads below.
+  // --- review fix (performance) --- the simulator's panel reads nearly every namespace: this page gets the whole catalogue
+  // (the provider fills it in from the request config; the layout passes only the shared namespaces)
   return (
-    <div className="min-h-screen bg-bg text-ink">
-      <Navbar variant="studio" />
-      {/* --- review fix (site-static) --- the page's main heading for search and screen readers, outside the Suspense boundary */}
-      <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
-      <div id="content">
-        <Suspense fallback={<div className="flex h-[calc(100svh-56px)] items-center justify-center text-sm text-ink-3">…</div>}>
-          <Simulator />
-        </Suspense>
+    <NextIntlClientProvider>
+      <div className="min-h-screen bg-bg text-ink">
+        <Navbar variant="studio" />
+        {/* --- review fix (site-static) --- the page's main heading for search and screen readers, outside the Suspense boundary */}
+        <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
+        <div id="content">
+          <Suspense fallback={<div className="flex h-[calc(100svh-56px)] items-center justify-center text-sm text-ink-3">…</div>}>
+            <Simulator />
+          </Suspense>
+        </div>
+        <EditorialSections />
+        <Footer />
       </div>
-      <EditorialSections />
-      <Footer />
-    </div>
+    </NextIntlClientProvider>
   );
 }

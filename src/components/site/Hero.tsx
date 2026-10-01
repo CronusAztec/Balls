@@ -13,6 +13,7 @@ import LivePreview from "./LivePreview";
  */
 export default function Hero() {
   const t = useTranslations("SiteRedesign");
+  const desktop = useTranslations("Desktop"); // --- desktop-exe --- (server-side: the button's labels as props)
   const count = modesForFilter("all").length;
   return (
     <section className="border-b border-line" aria-labelledby="hero-title">
@@ -29,6 +30,8 @@ export default function Hero() {
               <IconArrowRight size={18} />
             </Link>
             <DownloadAppButton
+              label={desktop("heroButton")}
+              note={desktop("heroNote")}
               fallback={
                 <a href="#modes" className={buttonClass({ variant: "secondary", size: "md" })}>
                   {t("hero.seeModes")}

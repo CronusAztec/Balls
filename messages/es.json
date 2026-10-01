@@ -3013,7 +3013,8 @@
       "openStudio": "Abrir el estudio",
       "skip": "Saltar al contenido",
       "primary": "Navegación principal",
-      "menu": "Menú"
+      "menu": "Menú",
+      "windowsApp": "App para Windows"
     },
     "lang": {
       "label": "Idioma"

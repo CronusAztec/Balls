@@ -13,12 +13,11 @@ import es from "../../../messages/es.json";
 // InstallAppButton), read by static property access so webpack's JSON tree-shaking leaves the rest of the catalogs (the
 // simulator's ~1,900 keys) out of the /404 chunk. A namespace a component of this page starts to use must be added here.
 // --- site-redesign --- the header, the footer and the language list read their labels from SiteRedesign (navigation,
-// footer columns, mode families, the search hint), the footer's family headings from Headings, the links from Gallery and
-// Desktop.
+// footer columns, mode families, the search hint, the Windows app link), the footer's family headings from Headings, the
+// gallery link from Gallery.
 type SiteChrome = Pick<typeof en.SiteRedesign, "nav" | "footer" | "lang" | "families"> & { studio: Pick<typeof en.SiteRedesign.studio, "search"> };
 type StaticMessages = Pick<typeof en, "NotFound" | "Navbar" | "Footer" | "Pwa" | "Headings"> & {
   Gallery: Pick<typeof en.Gallery, "navLabel">;
-  Desktop: Pick<typeof en.Desktop, "navLabel">;
   SiteRedesign: SiteChrome;
 };
 const chrome = (c: typeof en): SiteChrome => ({
@@ -29,9 +28,9 @@ const chrome = (c: typeof en): SiteChrome => ({
   studio: { search: c.SiteRedesign.studio.search },
 });
 const MESSAGES: Record<Locale, StaticMessages> = {
-  en: { NotFound: en.NotFound, Navbar: en.Navbar, Footer: en.Footer, Gallery: { navLabel: en.Gallery.navLabel }, Pwa: en.Pwa, Headings: en.Headings, Desktop: { navLabel: en.Desktop.navLabel }, SiteRedesign: chrome(en) },
-  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Footer: pl.Footer, Gallery: { navLabel: pl.Gallery.navLabel }, Pwa: pl.Pwa, Headings: pl.Headings, Desktop: { navLabel: pl.Desktop.navLabel }, SiteRedesign: chrome(pl) },
-  es: { NotFound: es.NotFound, Navbar: es.Navbar, Footer: es.Footer, Gallery: { navLabel: es.Gallery.navLabel }, Pwa: es.Pwa, Headings: es.Headings, Desktop: { navLabel: es.Desktop.navLabel }, SiteRedesign: chrome(es) },
+  en: { NotFound: en.NotFound, Navbar: en.Navbar, Footer: en.Footer, Gallery: { navLabel: en.Gallery.navLabel }, Pwa: en.Pwa, Headings: en.Headings, SiteRedesign: chrome(en) },
+  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Footer: pl.Footer, Gallery: { navLabel: pl.Gallery.navLabel }, Pwa: pl.Pwa, Headings: pl.Headings, SiteRedesign: chrome(pl) },
+  es: { NotFound: es.NotFound, Navbar: es.Navbar, Footer: es.Footer, Gallery: { navLabel: es.Gallery.navLabel }, Pwa: es.Pwa, Headings: es.Headings, SiteRedesign: chrome(es) },
 };
 
 /** Reads the locale from the URL the static host failed to serve (/<base>/<locale>/...). */

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages"; // --- review fix (performance) ---
 import ProseLayout from "@/components/site/ProseLayout";
 import FeedbackForm from "@/components/site/FeedbackForm";
 import { SITE_NAME, pageUrl } from "@/lib/site";
@@ -24,7 +26,10 @@ export default async function FeedbackPage({ params }: { params: Promise<{ local
   return (
     <ProseLayout title={t("title")} lede={t("subtitle")} plain>
       <div className="rounded-xl border border-line bg-surface-1 p-5 sm:p-8">
-        <FeedbackForm />
+        {/* --- review fix (performance) --- the form's own messages (the layout passes only the shared ones) */}
+        <NextIntlClientProvider messages={pickMessages(await getMessages(), pageClientNamespaces("/feedback"))}>
+          <FeedbackForm />
+        </NextIntlClientProvider>
       </div>
     </ProseLayout>
   );

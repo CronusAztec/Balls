@@ -3171,7 +3171,8 @@
       "openStudio": "Open the studio",
       "skip": "Skip to content",
       "primary": "Main",
-      "menu": "Menu"
+      "menu": "Menu",
+      "windowsApp": "Windows app"
     },
     "lang": {
       "label": "Language"

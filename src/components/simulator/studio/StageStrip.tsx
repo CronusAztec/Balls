@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { aspectRatioLabel } from "@/lib/siteDesign";
 import { IconChevronDown } from "@/components/ui/icons";
@@ -18,7 +18,7 @@ export default function StageStrip({
   timeLabelRef,
   clipSec,
   resolution,
-  fps,
+  fpsReadout,
 }: {
   modeName: string;
   onOpenModePicker: () => void;
@@ -27,7 +27,8 @@ export default function StageStrip({
   timeLabelRef: RefObject<HTMLSpanElement | null>;
   clipSec: number;
   resolution: string;
-  fps: number;
+  /** The FPS number (Simulator's FpsReadout: it re-renders only itself, twice a second). */
+  fpsReadout: ReactNode;
 }) {
   const t = useTranslations("SiteRedesign");
   const sim = useTranslations("Simulator");
@@ -74,7 +75,7 @@ export default function StageStrip({
         </span>
       </span>
       <span className={`${readout} ml-auto hidden md:flex`}>
-        <span className="num text-sm text-ink-2">{fps}</span>
+        {fpsReadout}
         <span className="eyebrow text-ink-3">{sim("fps")}</span>
       </span>
     </div>

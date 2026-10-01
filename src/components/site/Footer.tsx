@@ -22,7 +22,6 @@ export default function Footer() {
   const s = useTranslations("SiteRedesign");
   const headings = useTranslations("Headings");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
-  const desktop = useTranslations("Desktop"); // --- desktop-exe ---
   const locale = useLocale();
   const pathname = usePathname();
   const mod = useModifierKey();
@@ -30,7 +29,7 @@ export default function Footer() {
   const product = [
     { href: "/simulator", label: s("nav.studio") },
     { href: "/gallery", label: gallery("navLabel") },
-    { href: "/download", label: desktop("navLabel") },
+    { href: "/download", label: s("nav.windowsApp") } /* --- desktop-exe --- */,
     { href: "/tiktok-ball-videos", label: t("tiktok") },
     { href: "/about", label: t("about") },
     { href: "/feedback", label: t("feedback") },

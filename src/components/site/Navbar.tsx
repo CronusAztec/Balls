@@ -22,7 +22,6 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
   const t = useTranslations("SiteRedesign");
   const nav = useTranslations("Navbar");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
-  const desktop = useTranslations("Desktop"); // --- desktop-exe ---
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const studio = variant === "studio";
@@ -45,7 +44,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
   const links = [
     { href: "/simulator", label: t("nav.studio") },
     { href: "/gallery", label: gallery("navLabel") },
-    { href: "/download", label: desktop("navLabel") },
+    { href: "/download", label: t("nav.windowsApp") } /* --- desktop-exe --- */,
     { href: "/about", label: t("nav.about") },
   ];
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
