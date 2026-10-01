@@ -44,8 +44,8 @@ function coordinate(v: number): string {
   return `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`;
 }
 
-/** A compact slider for one number of one obstacle. */
-function RowSlider({ label, value, range, display, onChange }: { label: string; value: number; range: { min: number; max: number; step: number }; display: string; onChange: (v: number) => void }) {
+/** A compact slider for one number of one obstacle (`ariaLabel` names it when the visible label is a short symbol). */
+function RowSlider({ label, ariaLabel, value, range, display, onChange }: { label: string; ariaLabel?: string; value: number; range: { min: number; max: number; step: number }; display: string; onChange: (v: number) => void }) {
   return (
     <label className="flex items-center gap-2 text-[11px] text-zinc-400">
       <span className="w-14 shrink-0 truncate">{label}</span>
@@ -56,7 +56,7 @@ function RowSlider({ label, value, range, display, onChange }: { label: string; 
         step={range.step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={label}
+        aria-label={ariaLabel ?? label}
         className="flex-1 min-w-0 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
         style={sliderStyle(value, range.min, range.max)}
       />
@@ -86,6 +86,9 @@ function ObstacleRow({ t, obstacle: o, index, onChange, onRemove }: { t: Transla
           ✕
         </button>
       </div>
+      {/* --- review fix (ui-i18n) --- the position can be set without dragging on the canvas (keyboard, switch access) */}
+      <RowSlider label={`x ${n}`} ariaLabel={t("obstacleXOf", { n })} value={o.x} range={OBSTACLE_LIMITS.position} display={coordinate(o.x)} onChange={(v) => onChange({ x: v })} />
+      <RowSlider label={`y ${n}`} ariaLabel={t("obstacleYOf", { n })} value={o.y} range={OBSTACLE_LIMITS.position} display={coordinate(o.y)} onChange={(v) => onChange({ y: v })} />
       <RowSlider
         label={`${t(circle ? "obstacleSize" : "obstacleLength")} ${n}`}
         value={o.size}
@@ -103,8 +106,8 @@ function ObstacleRow({ t, obstacle: o, index, onChange, onRemove }: { t: Transla
  * The Obstacles section: pick a kind (peg, bumper, blocker, spinner) and add it on a free spot, edit each one's size
  * (length, angle and spin speed for the bars) or remove it, clear the layout, and set how hard bumpers kick. The layout
  * is the `obstacles` setting (arena-relative, so it scales with the canvas; URL `obs`, saved in presets); positions are
- * set on the canvas – before the start or while paused an obstacle can be dragged there, and Backspace deletes the
- * selected one. The obstacles play in the ring modes; in the others the section says so and keeps the layout.
+ * set with each row's x / y sliders or on the canvas – before the start or while paused an obstacle can be dragged there,
+ * and Backspace deletes the selected one. The obstacles play in the ring modes; in the others the section says so and keeps the layout.
  */
 export default function ObstaclesSection({ t, search, matches, settings: s, update, onReset }: ObstaclesSectionProps) {
   const [kind, setKind] = useState<ObstacleKind>("peg");

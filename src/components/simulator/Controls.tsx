@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
 import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
+import EscapeModeSection, { ESCAPE_MODE_KEYS_BY_MODE } from "./sections/EscapeModeSection"; // --- review fix (ui-i18n) ---
 import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
 import BoxArenaSection, { BOX_ARENA_KEYS } from "./sections/BoxArenaSection";
 import CharacterSection, { CHARACTER_KEYS } from "./sections/CharacterSection"; // --- gerald-faces ---
@@ -84,6 +85,7 @@ import { defaultBounceMathFields } from "@/lib/simulation/bounceMath"; // --- bo
 // --- unlimited --- the No limits switch and the unlimited sliders of the whole panel
 import UnlimitedSection, { UNLIMITED_KEYS } from "./sections/UnlimitedSection";
 import { UnlimitedProvider } from "./unlimitedSlider";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
@@ -348,7 +350,7 @@ export default function Controls(props: ControlsProps) {
         <Searchable search={search} matches={matches} labelKey="ballColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-zinc-300">{t("ballColor")}</label>
+              <span className="text-sm font-medium text-zinc-300">{t("ballColor")}</span>
               <button
                 type="button"
                 onClick={() => update({ rainbowBall: !s.rainbowBall })}
@@ -366,6 +368,8 @@ export default function Controls(props: ControlsProps) {
       {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Ball Drop controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- review fix (ui-i18n) --- the Mode-row controls of the six escape modes (spikes, targets, colours, growth…) */}
+      {ESCAPE_MODE_KEYS_BY_MODE[s.mode] && !!search && <EscapeModeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "box" && !!search && <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "pendulum" && !!search && <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "polyrhythm" && !!search && <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />}
@@ -479,8 +483,11 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
     const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
+    // --- review fix (ui-i18n) --- Grow builds one gapless ring and Portal's gaps come only from used-up portals: no Gap Size there
+    // (their Rotation toggle still applies – Grow's Spin extra, Portal's rotating gaps).
+    const hasGapSize = hasGapControls && s.mode !== "grow" && s.mode !== "portal";
     // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
     const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex" || s.mode === "bullseye" || s.mode === "beatDrop"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- gerald-vortex --- (the sound rings) --- gerald-bullseye --- (the walls, the landing line, the target's rim) --- beat-drop --- (the obstructions' outlines)
     return (
@@ -494,7 +501,7 @@ export default function Controls(props: ControlsProps) {
         )}
         {hasGapControls && (
           <>
-            {showAdvanced && (
+            {hasGapSize && showAdvanced && (
               <Slider t={t} search={search} matches={matches} labelKey="gapSize" tipKey="gapSizeTip" value={s.gapSize} range={RANGES.gapSize} onChange={(v) => update({ gapSize: v })} display={s.gapSize.toFixed(2)} left="🤏" right="👐" />
             )}
             <Searchable search={search} matches={matches} labelKey="rotation">
@@ -524,7 +531,7 @@ export default function Controls(props: ControlsProps) {
         <Searchable search={search} matches={matches} labelKey="wallColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-zinc-300">{t("wallColor")}</label>
+              <span className="text-sm font-medium text-zinc-300">{t("wallColor")}</span>
               <button
                 type="button"
                 onClick={() => update({ rainbowWalls: !s.rainbowWalls })}
@@ -730,7 +737,7 @@ export default function Controls(props: ControlsProps) {
                   <option value="">{t("defaultSong")}</option>
                   {props.customSoundId === "custom-upload" && (
                     <option value="custom-upload">
-                      {props.customMidiName || "Uploaded MIDI"} ({props.customSoundNoteCount} {t("notesLoaded")})
+                      {props.customMidiName || t("uploadedMidi") /* --- review fix (ui-i18n) --- */} ({props.customSoundNoteCount} {t("notesLoaded")})
                     </option>
                   )}
                   {SONGS.map((song) => (
@@ -831,8 +838,10 @@ export default function Controls(props: ControlsProps) {
         {(s.scale !== "chromatic" || search) && (
           <Searchable search={search} matches={matches} labelKey="rootNote">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">{t("rootNote")}</label>
-              <div className="grid grid-cols-6 gap-1" role="group" aria-label={t("rootNote")}>
+              <span id="root-note-label" className="text-sm font-medium text-zinc-300">
+                {t("rootNote")}
+              </span>
+              <div className="grid grid-cols-6 gap-1" role="group" aria-labelledby="root-note-label">
                 {NOTE_NAMES.map((name, index) => (
                   <button
                     type="button"
@@ -876,8 +885,10 @@ export default function Controls(props: ControlsProps) {
         {(s.quantizeToBeat || search) && (
           <Searchable search={search} matches={matches} labelKey="quantizeGrid">
             <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-medium text-zinc-300">{t("quantizeGrid")}</label>
-              <div className="flex gap-1" role="group" aria-label={t("quantizeGrid")}>
+              <span id="quantize-grid-label" className="text-sm font-medium text-zinc-300">
+                {t("quantizeGrid")}
+              </span>
+              <div className="flex gap-1" role="group" aria-labelledby="quantize-grid-label">
                 {QUANTIZE_GRIDS.map((grid) => (
                   <button
                     type="button"
@@ -936,7 +947,7 @@ export default function Controls(props: ControlsProps) {
                   {snd.name}
                 </option>
               ))}
-              {s.wallBreakSound?.startsWith("blob:") && <option value={s.wallBreakSound}>{props.customWallBreakName || "Custom"}</option>}
+              {s.wallBreakSound?.startsWith("blob:") && <option value={s.wallBreakSound}>{props.customWallBreakName || t("customWallBreak") /* --- review fix (ui-i18n) --- */}</option>}
             </select>
           </div>
         </Searchable>
@@ -1157,71 +1168,14 @@ export default function Controls(props: ControlsProps) {
   /* Mode-specific controls shown inside the Mode row. */
   const modeSpecific = () => {
     switch (s.mode) {
+      // --- review fix (ui-i18n) --- the six escape modes' blocks live in EscapeModeSection (also rendered in the Ball section while searching)
       case "accumulation":
-        return (
-          <div className="space-y-3 pt-2">
-            <Slider t={t} search={search} matches={matches} labelKey="accumulationEscape" tipKey="accumulationEscapeTip" value={s.accumulationTime} range={RANGES.accumulationTime} onChange={(v) => update({ accumulationTime: v })} display={`${s.accumulationTime}s`} />
-            <Toggle t={t} labelKey="spikes" tipKey="spikesTip" value={s.spikesEnabled} onChange={(v) => update({ spikesEnabled: v })} onClass="bg-red-600 text-white" />
-            {s.spikesEnabled && (
-              <Slider t={t} search={search} matches={matches} labelKey="spikeCount" tipKey="spikeCountTip" value={s.spikeCount} range={RANGES.spikeCount} onChange={(v) => update({ spikeCount: v })} />
-            )}
-          </div>
-        );
       case "multiply":
-        return (
-          <div className="space-y-3 pt-2">
-            <Slider t={t} search={search} matches={matches} labelKey="spawnCount" tipKey="spawnCountTip" value={s.multiplySpawnCount} range={RANGES.multiplySpawnCount} onChange={(v) => update({ multiplySpawnCount: v })} />
-          </div>
-        );
       case "lines":
-        return (
-          <div className="space-y-3 pt-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-zinc-300">{t("lineColor")}</label>
-                <button type="button" onClick={() => update({ rainbowLines: !s.rainbowLines })} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowLines ? rainbowBtn : offBtn}`}>
-                  {t("rainbowSettings")}
-                </button>
-              </div>
-              {!s.rainbowLines && <ColorPicker value={s.lineColor} onChange={(v) => update({ lineColor: v })} label={t("lineColor")} />}
-            </div>
-            <div className="pt-2 border-t border-zinc-800/60">
-              <Toggle t={t} labelKey="centerDot" tipKey="centerDotTip" value={s.linesCenterDot} onChange={(v) => update({ linesCenterDot: v })} />
-            </div>
-          </div>
-        );
       case "target":
-        return (
-          <div className="space-y-3 pt-2">
-            <Slider t={t} search={search} matches={matches} labelKey="targetCount" tipKey="targetCountTip" value={s.targetCount} range={RANGES.targetCount} onChange={(v) => update({ targetCount: v })} />
-            <Toggle t={t} labelKey="randomOrder" tipKey="randomOrderTip" value={s.countdownRandom} onChange={(v) => update({ countdownRandom: v })} onClass="bg-yellow-600 text-white" />
-          </div>
-        );
       case "colorMatch":
-        return (
-          <div className="space-y-3 pt-2">
-            <Slider t={t} search={search} matches={matches} labelKey="colorCount" tipKey="colorCountTip" value={s.colorMatchColorCount} range={RANGES.colorMatchColorCount} onChange={(v) => update({ colorMatchColorCount: v })} />
-          </div>
-        );
       case "grow":
-        return (
-          <div className="space-y-3 pt-2">
-            <Slider t={t} search={search} matches={matches} labelKey="growthRate" tipKey="growthRateTip" value={s.growRate} range={RANGES.growRate} onChange={(v) => update({ growRate: v })} display={`${s.growRate}%`} />
-            <Toggle t={t} labelKey="centerDot" tipKey="centerDotTip" value={s.growCenterDot} onChange={(v) => update({ growCenterDot: v })} />
-            <Toggle t={t} labelKey="growLines" tipKey="growLinesTip" value={s.growLines} onChange={(v) => update({ growLines: v })} />
-            {s.growLines && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-zinc-300">{t("lineColor")}</label>
-                  <button type="button" onClick={() => update({ rainbowLines: !s.rainbowLines })} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowLines ? rainbowBtn : offBtn}`}>
-                    {t("rainbowSettings")}
-                  </button>
-                </div>
-                {!s.rainbowLines && <ColorPicker value={s.lineColor} onChange={(v) => update({ lineColor: v })} label={t("lineColor")} />}
-              </div>
-            )}
-          </div>
-        );
+        return <EscapeModeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "drop":
         return <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "box":
@@ -1282,7 +1236,11 @@ export default function Controls(props: ControlsProps) {
     }
   };
 
-  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(SECTION_KEYS[id])) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
+  // --- review fix (ui-i18n) --- the Ball section also matches the current escape mode's Mode-row keys (only that mode's,
+  // so a search for "Spikes" in Classic still reports no results)
+  const ballKeys = [...SECTION_KEYS.ball, ...(ESCAPE_MODE_KEYS_BY_MODE[s.mode] ?? [])];
+  const keysOf = (id: ControlSection) => (id === "ball" ? ballKeys : SECTION_KEYS[id]);
+  const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(keysOf(id))) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   return (
     <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
@@ -1294,7 +1252,7 @@ export default function Controls(props: ControlsProps) {
         disabled={!props.recordingSupported}
         className={`w-full px-4 py-3.5 my-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
           props.isRecording
-            ? "bg-red-600 text-white/90 animate-pulse hover:bg-red-700 shadow-red-600/20"
+            ? "bg-red-600 text-white/90 motion-safe:animate-pulse hover:bg-red-700 shadow-red-600/20"
             : "bg-gradient-to-r from-cyan-600 to-cyan-500 text-slate-950 hover:from-cyan-500 hover:to-cyan-400 shadow-cyan-600/20"
         }`}
       >
@@ -1344,7 +1302,7 @@ export default function Controls(props: ControlsProps) {
           </div>
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
             {!anyResults && <p className="text-xs text-zinc-500 text-center py-4">{t("noSearchResults")}</p>}
-            {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(SECTION_KEYS[id]) && <div key={id}>{renderSection(id)}</div>)}
+            {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(keysOf(id)) && <div key={id}>{renderSection(id)}</div>)}
             {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
           </div>
         </div>
@@ -1370,7 +1328,7 @@ export default function Controls(props: ControlsProps) {
                       href="#modes"
                       onClick={(e) => {
                         e.preventDefault();
-                        document.getElementById("modes")?.scrollIntoView({ behavior: "smooth" });
+                        document.getElementById("modes")?.scrollIntoView({ behavior: scrollBehavior() });
                       }}
                       className={`text-xs text-[#93d119] hover:text-[#7fb315] transition-colors`}
                     >

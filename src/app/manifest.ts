@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { routing } from "@/i18n/routing";
 import { BASE_PATH, SITE_NAME } from "@/lib/site";
 import { buildWebAppManifest } from "@/lib/pwa";
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the description's {count} is the mode count
 import en from "../../messages/en.json";
 
 /**
@@ -15,7 +16,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return buildWebAppManifest({
     basePath: BASE_PATH,
     name: SITE_NAME,
-    description: en.Layout.metaDescription,
+    description: en.Layout.metaDescription.replace("{count}", String(MODE_CARD_ORDER.length)),
     locale: routing.defaultLocale,
     simulatorLabel: en.Navbar.simulator,
   });

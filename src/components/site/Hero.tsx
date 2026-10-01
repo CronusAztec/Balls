@@ -3,6 +3,8 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import DownloadAppButton from "./DownloadAppButton"; // --- desktop-exe ---
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 export default function Hero() {
   const t = useTranslations("Hero");
@@ -24,7 +26,7 @@ export default function Hero() {
           <br />
           <span className="bg-gradient-to-r from-cyan-600 to-cyan-500 bg-clip-text text-transparent">{t("title2")}</span>
         </h1>
-        <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-slate-400 leading-relaxed">{t("subtitle")}</p>
+        <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-slate-400 leading-relaxed">{t("subtitle", { count: MODE_CARD_ORDER.length })}</p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/simulator" className="px-8 py-3.5 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-600/20 hover:scale-105 active:scale-95 transition-all">
             {t("startCreating")}
@@ -33,7 +35,7 @@ export default function Hero() {
             href="#modes"
             onClick={(e) => {
               e.preventDefault();
-              document.getElementById("modes")?.scrollIntoView({ behavior: "smooth" });
+              document.getElementById("modes")?.scrollIntoView({ behavior: scrollBehavior() });
             }}
             className="px-8 py-3.5 rounded-xl font-bold text-slate-300 border border-zinc-700 hover:border-cyan-500 hover:text-cyan-400 transition-all"
           >

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SimulatorSettings } from "@/lib/settings";
 import { DAILY_PARAM, dailySettings, dailyStreak, loadDailyHistory, recordDailyResult, saveDailyHistory, todaysChallenge, utcDateKey, type DailyChallenge } from "@/lib/daily";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 /*
  * --- daily-gallery --- The simulator's side of the daily challenge (lib/daily.ts).
@@ -99,7 +100,7 @@ export function useDailyChallenge(o: UseDailyChallengeOptions): DailyChallengeSt
       latest.current.pinSeed(challenge.seed);
       setLoaded(challenge);
       setPinTick((n) => n + 1);
-      document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     } finally {
       setBusy(false);
     }

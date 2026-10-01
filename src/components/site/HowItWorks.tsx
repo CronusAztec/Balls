@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 
 export default function HowItWorks() {
   const t = useTranslations("HowItWorks");
@@ -11,7 +12,7 @@ export default function HowItWorks() {
           <div key={step} className="flex flex-col items-center text-center gap-3">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-slate-950 text-lg font-extrabold shadow-[0_0_24px_rgba(6,182,212,0.3)]">{i + 1}</div>
             <h3 className="text-lg font-semibold text-white">{t(`${step}.title`)}</h3>
-            <p className="text-sm text-zinc-400 leading-relaxed max-w-xs">{t(`${step}.description`)}</p>
+            <p className="text-sm text-zinc-400 leading-relaxed max-w-xs">{t(`${step}.description`, { count: MODE_CARD_ORDER.length })}</p>
           </div>
         ))}
       </div>
