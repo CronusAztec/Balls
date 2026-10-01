@@ -9,7 +9,7 @@ import { cx } from "@/components/ui/cx";
 
 /*
  * --- site-redesign --- The hero's live, muted mini simulation in a 9:16 phone frame: the real engine with a fixed seed
- * (livePreviewRenderer.ts, loaded after the page is up), rotating through a few modes every 8 s. It pauses while it is
+ * (livePreviewEngine.ts, loaded after the page is up), rotating through a few modes every 8 s. It pauses while it is
  * scrolled out of view or the tab is hidden. With prefers-reduced-motion, or when the engine cannot start, the frame shows
  * the mode's preview picture instead (a background picture, not an <img>: the mode cards stay the page's only <img> of
  * each preview). A click opens the playing mode in the studio.
@@ -68,7 +68,7 @@ export default function LivePreview() {
       last = 0;
       schedule();
     };
-    import("./livePreviewRenderer")
+    import("./livePreviewEngine")
       .then(({ createPreviewEngine, drawPreview, stepPreview }) => {
         if (cancelled) return;
         const ctx = canvas.getContext("2d");
