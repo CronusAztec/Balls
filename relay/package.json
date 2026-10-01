@@ -1,0 +1,12 @@
+{
+  "name": "jumpingballslive-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted publish relay for JumpingBallsLive: TikTok, Instagram and YouTube connections with access keys. One file, no dependencies.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.mjs",
+    "create-key": "node server.mjs create-key"
+  }
+}

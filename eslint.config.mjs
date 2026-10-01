@@ -10,7 +10,7 @@ const compat = new FlatCompat({ baseDirectory: __dirname });
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    ignores: ["node_modules/**", ".next/**", "out/**", "scripts/**", "public/**", "next-env.d.ts", "desktop/**"], // --- desktop-exe --- (desktop/ is the Windows app: its own package, tsconfig and tests)
+    ignores: ["node_modules/**", ".next/**", "out/**", "scripts/**", "public/**", "next-env.d.ts", "relay/**" /* --- social-publish --- the self-hosted relay is not part of the site */, "desktop/**"], // --- desktop-exe --- (desktop/ is the Windows app: its own package, tsconfig and tests)
   },
 ];
 

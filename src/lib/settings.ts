@@ -61,6 +61,8 @@ import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 // --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
 import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
 import type { BeatSourceKind } from "@/lib/simulation/beatSource";
+// --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
+import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, resolveBounceMathFields, writeBounceMathParams, type BounceRule } from "@/lib/simulation/bounceMath";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -656,6 +658,12 @@ export interface SimulatorSettings {
   videoBackground: boolean;
   videoBgOpacity: number;
   // --- end video-beats ---
+  // --- bounce-math --- Bounce math (lib/simulation/bounceMath.ts, lib/physics/bounceMathRuntime.ts)
+  /** The rules, applied in list order (URL `bmr`: param.trigger.every.op.amount[.min][.max][.scope] joined by ";"). */
+  bounceMath: BounceRule[];
+  /** "Show values": the bounce-math HUD badge on the canvas while rules are in play (URL `bmh`). */
+  bounceMathHud: boolean;
+  // --- end bounce-math ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -773,6 +781,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBeatDropFields(),
     ...beatDropModeDefaults(mode),
     ...defaultVideoBeatsFields(), // --- video-beats ---
+    ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
   };
 }
 
@@ -842,6 +851,7 @@ export const RANGES = {
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
+  ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1081,6 +1091,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
+  writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   return params;
 }
 
@@ -1201,6 +1212,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
+  readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   return settings;
 }
 
@@ -1398,6 +1410,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
+  Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   return merged;
 }
 

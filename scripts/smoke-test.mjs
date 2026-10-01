@@ -6708,6 +6708,349 @@ const bdInstrument = () =>
 }
 // --- end pwa ---
 
+// --- bounce-math ---
+// Bounce math: a rule from the link fills the "Bounce math" block of the Ball & Physics section; an edit in the panel (the
+// trigger, the amount, a formula – an invalid one shows its error and stays out of the link) lands in the link (`bmr`); the
+// search box finds the block; the "Bouncier every bounce" preset plays and the readout of the ball that bounced last grows
+// (data-bm-bounce on the canvas, the panel's readout, the Show values badge drawn in the recorded square); a beat rule at
+// 120 BPM fires twice a second of simulation time (data-bm-fires / data-bm-time).
+{
+  const bmrOf = () => new URL(page.url()).searchParams.get("bmr") ?? "";
+  const bmData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bmr=speed.bounce.1.multiply.1_05`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  const rows = page.getByTestId("bm-rule");
+  await rows.first().waitFor({ timeout: 10000 }).catch(() => {});
+  const loaded = { count: await rows.count(), param: await page.getByTestId("bm-param").first().inputValue().catch(() => ""), trigger: await page.getByTestId("bm-trigger").first().inputValue().catch(() => ""), op: await page.getByTestId("bm-op").first().inputValue().catch(() => ""), amount: await page.getByTestId("bm-amount").first().inputValue().catch(() => "") };
+  check("bounce math: a rule from the link fills the Bounce math block", loaded.count === 1 && loaded.param === "speed" && loaded.trigger === "bounce" && loaded.op === "multiply" && loaded.amount === "1.05", `(${JSON.stringify(loaded)})`);
+  await page.getByTestId("bm-trigger").first().selectOption("pass");
+  const amount = page.getByTestId("bm-amount").first();
+  await amount.fill("1.2");
+  await amount.press("Enter");
+  await page.waitForTimeout(400);
+  const edited = bmrOf();
+  await page.getByTestId("bm-op").first().selectOption("formula");
+  const formula = page.getByTestId("bm-formula").first();
+  await formula.fill("v *");
+  await page.waitForTimeout(300);
+  const errorShown = await page.getByTestId("bm-formula-error").first().isVisible().catch(() => false);
+  const whileInvalid = bmrOf();
+  await formula.fill("v * 1.1 + sin(n)");
+  await page.waitForTimeout(400);
+  const withFormula = bmrOf();
+  const formulaField = withFormula.split(".")[4] ?? "";
+  let decodedFormula = "";
+  try {
+    decodedFormula = decodeURIComponent(formulaField);
+  } catch {
+    decodedFormula = "";
+  }
+  check(
+    "bounce math: an edit in the panel lands in the link (an invalid formula shows its error and stays out)",
+    edited === "speed.pass.1.multiply.1_2" && errorShown && whileInvalid.startsWith("speed.pass.1.formula.") && decodeURIComponent(whileInvalid.split(".")[4] ?? "") === "v * 1.2" && withFormula.startsWith("speed.pass.1.formula.") && decodedFormula === "v * 1.1 + sin(n)",
+    `(after edit: ${edited}; invalid shown=${errorShown}, link ${whileInvalid}; with formula: ${withFormula} → "${decodedFormula}")`,
+  );
+  await page.getByPlaceholder("Search settings...").fill("bounce math");
+  const found = await page.getByTestId("bm-section").isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("bounce math: the search box finds the block", found, `(visible=${found})`);
+
+  // "Bouncier every bounce": clear the list, append the preset and play.
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click().catch(() => {});
+  const section = page.getByTestId("bm-section");
+  if (!(await section.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  await page.getByTestId("bm-clear").click();
+  await page.getByTestId("bm-preset").selectOption("bouncier");
+  await page.waitForTimeout(400);
+  const presetLink = bmrOf();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= 3, null, { timeout: 30000 }).catch(() => {});
+  const early = await bmData();
+  await page.waitForFunction((n) => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= n + 5, Number(early.bmFires ?? 0), { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(250);
+  const later = await bmData();
+  const readout = await page.getByTestId("bm-readout-bounce").innerText({ timeout: 5000 }).catch(() => "");
+  const hud = (later.bmHud ?? "").split(",").map(Number);
+  check(
+    "bounce math: 'Bouncier every bounce' plays and the readout of the ball that bounced last grows",
+    presetLink === "bounciness.bounce.1.multiply.1_05" && Number(early.bmBounce) > 1 && Number(later.bmBounce) > Number(early.bmBounce) && Number(later.bmFires) > Number(early.bmFires) && Math.abs(Number(later.bmBounce) - Math.pow(1.05, Number(later.bmFires))) < 0.02 * Number(later.bmBounce) + 0.002 && Number(readout) > 1 && hud.length === 4 && hud[2] > 0 && hud[3] > 0,
+    `(link ${presetLink}; fires ${early.bmFires} → ${later.bmFires}, bounciness ${early.bmBounce} → ${later.bmBounce}, panel ${readout}, badge ${later.bmHud})`,
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-bounce-math.png") });
+
+  // A beat rule at 120 BPM (no song loaded: the Sound section's BPM) fires twice a second of simulation time.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bpm=120&bmr=hue.beat.1.add.10`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmTime ?? 0) >= 1.2, null, { timeout: 30000 }).catch(() => {});
+  const b0 = await bmData();
+  await page.waitForFunction((t) => Number(document.querySelector("main canvas")?.dataset.bmTime ?? 0) >= t + 4, Number(b0.bmTime ?? 0), { timeout: 30000 }).catch(() => {});
+  const b1 = await bmData();
+  const dt = Number(b1.bmTime) - Number(b0.bmTime);
+  const perSecond = (Number(b1.bmFires) - Number(b0.bmFires)) / dt;
+  // every beat at 0, 0.5, 1 … s has fired by the time the clock passes it (within one 60 Hz step)
+  const expected = Math.floor(2 * Number(b1.bmTime) + 1e-6) + 1;
+  check(
+    "bounce math: a beat rule at 120 BPM fires twice a second",
+    dt >= 3.5 && Math.abs(perSecond - 2) < 0.35 && Math.abs(Number(b1.bmFires) - expected) <= 1,
+    `(${b0.bmFires} → ${b1.bmFires} fires over ${dt.toFixed(2)} s: ${perSecond.toFixed(2)}/s; at ${b1.bmTime} s expected ≈${expected})`,
+  );
+}
+// --- end bounce-math ---
+// --- social-publish --- Publish (the block after the Viral video bot block of the Recording section): with nothing set up
+// it renders, explains the three paths and offers only the quick share; on a computer "Send to TikTok" downloads the clip,
+// copies the caption and opens the TikTok upload page; on a phone (a stubbed navigator.share / canShare) the file itself
+// goes to the share sheet; a relay profile is saved and its accounts are listed from a stubbed relay; a YouTube channel
+// connected through a stubbed Google token client uploads to a stubbed endpoint (a 308 resume, the progress) and one click
+// sends to YouTube and three relay accounts; a fast export's clip is offered to the block.
+{
+  const pubErrors = [];
+  const track = (p) => {
+    p.on("pageerror", (e) => pubErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => {
+      if (m.type() === "error") pubErrors.push(`console: ${m.text()}`);
+    });
+  };
+  const origin = new URL(BASE).origin;
+  const clipFile = { name: "smoke-clip.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(700 * 1024, 7) };
+  const openPublish = async (p) => {
+    await p.getByRole("button", { name: /Recording/ }).click();
+    await p.locator("[data-publish]").waitFor({ timeout: 15000 });
+    return p.locator("[data-publish]");
+  };
+  const pubState = (p) => p.locator("[data-publish]").getAttribute("data-publish").catch(() => null);
+  let ctx1 = null;
+  let phone = null;
+  try {
+    ctx1 = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, permissions: ["clipboard-read", "clipboard-write"] });
+    // The platforms' upload pages (the quick share opens them) and a Google Identity Services stand-in: its token client
+    // answers at once with a token for the scopes it was asked for.
+    await ctx1.route(/^https:\/\/www\.(tiktok|instagram|youtube)\.com\//, (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>upload page</title><p>upload</p>" }));
+    await ctx1.addInitScript(() => {
+      window.__gisRequests = [];
+      window.google = {
+        accounts: {
+          oauth2: {
+            initTokenClient: (cfg) => ({
+              requestAccessToken: (o) => {
+                window.__gisRequests.push({ clientId: cfg.client_id, scope: cfg.scope, prompt: o?.prompt ?? null });
+                setTimeout(() => cfg.callback({ access_token: "ya29.smoke", expires_in: 3600, scope: cfg.scope, token_type: "Bearer" }), 30);
+              },
+            }),
+            revoke: () => {},
+          },
+        },
+      };
+    });
+    // A relay: the key's label and platforms, three accounts, one job that ends with two published and one failed.
+    const RELAY = "https://relay.smoke.test";
+    const relay = { forms: [], polls: 0 };
+    await ctx1.route(`${RELAY}/**`, async (route) => {
+      const req = route.request();
+      const url = new URL(req.url());
+      const cors = { "access-control-allow-origin": origin, "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, DELETE, OPTIONS" };
+      const json = (body, status = 200) => route.fulfill({ status, headers: cors, contentType: "application/json", body: JSON.stringify(body) });
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      if (req.headers().authorization !== "Bearer jbl_smoke_key") return json({ error: { code: "unauthorized", message: "Unknown access key" } }, 401);
+      if (url.pathname === "/api/me") return json({ name: "jumpingballslive-relay", version: "1.0.0", key: { id: "k_1", label: "Smoke team" }, platforms: { tiktok: true, instagram: true, youtube: true } });
+      if (url.pathname === "/api/accounts") return json({ accounts: [{ id: "a_tt1", platform: "tiktok", name: "Smoke Tok", handle: "@smoketok", avatar: null, status: "ok" }, { id: "a_tt2", platform: "tiktok", name: "Second Tok", handle: "@tok2", avatar: null, status: "ok" }, { id: "a_ig1", platform: "instagram", name: "Smoke IG", handle: "@smoke_ig", avatar: null, status: "ok" }] });
+      if (url.pathname === "/api/publish" && req.method() === "POST") {
+        relay.forms.push((req.postDataBuffer() ?? Buffer.alloc(0)).toString("latin1"));
+        return json({ jobId: "j_smoke", job: { id: "j_smoke", status: "running", items: [] } }, 202);
+      }
+      if (url.pathname === "/api/jobs/j_smoke") {
+        relay.polls++;
+        const done = relay.polls >= 2;
+        return json({
+          id: "j_smoke",
+          status: done ? "partial" : "running",
+          items: [
+            { accountId: "a_tt1", platform: "tiktok", name: "Smoke Tok (@smoketok)", status: done ? "published" : "processing", progress: done ? 1 : 0.9, link: done ? "https://www.tiktok.com/@smoketok/video/1" : null },
+            { accountId: "a_tt2", platform: "tiktok", name: "Second Tok (@tok2)", status: done ? "published" : "uploading", progress: done ? 1 : 0.5, link: done ? "https://www.tiktok.com/@tok2/video/2" : null },
+            { accountId: "a_ig1", platform: "instagram", name: "Smoke IG (@smoke_ig)", status: done ? "failed" : "processing", progress: 0.4, error: done ? "Instagram refused: this Meta app is not yet approved for publishing" : null },
+          ],
+        });
+      }
+      return json({ error: { code: "not_found", message: "Not found." } }, 404);
+    });
+    // YouTube: the channel, a resumable session, a first PUT answered with a 308 (only 256 KiB arrived) and the resumed rest.
+    const yt = { init: null, puts: [] };
+    await ctx1.route("https://www.googleapis.com/**", async (route) => {
+      const req = route.request();
+      const url = req.url();
+      const cors = { "access-control-allow-origin": origin, "access-control-expose-headers": "Location, Range", "access-control-allow-headers": "authorization, content-type, content-range, x-upload-content-length, x-upload-content-type", "access-control-allow-methods": "GET, POST, PUT, OPTIONS" };
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      if (url.startsWith("https://www.googleapis.com/youtube/v3/channels")) return route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify({ items: [{ id: "UCsmoke", snippet: { title: "Smoke Channel", customUrl: "@smokechannel", thumbnails: {} } }] }) });
+      if (url.startsWith("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable") && req.method() === "POST") {
+        yt.init = { auth: req.headers().authorization, length: req.headers()["x-upload-content-length"], body: req.postData() };
+        return route.fulfill({ status: 200, headers: { ...cors, location: "https://www.googleapis.com/upload/youtube/v3/videos?upload_id=smoke" }, body: "" });
+      }
+      if (url.includes("upload_id=smoke") && req.method() === "PUT") {
+        yt.puts.push({ range: req.headers()["content-range"], bytes: (req.postDataBuffer() ?? Buffer.alloc(0)).length });
+        if (yt.puts.length === 1) return route.fulfill({ status: 308, headers: { ...cors, range: "bytes=0-262143" }, body: "" });
+        await new Promise((r) => setTimeout(r, 400)); // long enough for the page to show the resumed progress
+        return route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify({ id: "smokeShort", snippet: { title: "x" } }) });
+      }
+      return route.fulfill({ status: 404, headers: cors, contentType: "application/json", body: "{}" });
+    });
+
+    const p1 = await ctx1.newPage();
+    track(p1);
+    await p1.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await p1.evaluate(() => localStorage.removeItem("jumpingballslive_publish"));
+    await p1.reload({ waitUntil: "networkidle" });
+    let block = await openPublish(p1);
+    // 1. Nothing set up.
+    const empty = {
+      status: await pubState(p1),
+      paths: await p1.getByTestId("publish-paths").locator("li").count().catch(() => 0),
+      noClip: await p1.getByTestId("publish-no-clip").isVisible().catch(() => false),
+      shareOff: await p1.getByTestId("publish-share-tiktok").isDisabled(),
+      sendOff: await p1.getByTestId("publish-send").isDisabled(),
+      accounts: await block.locator("[data-publish-account]").count(),
+      groups: await block.locator("[data-publish-group]").count(),
+    };
+    check("publish: with nothing set up the block renders, explains the three paths and offers only the quick share", empty.status === "empty" && empty.paths === 3 && empty.noClip && empty.shareOff && empty.sendOff && empty.accounts === 0 && empty.groups === 3, `(${JSON.stringify(empty)})`);
+
+    // 2. A computer: pick a clip, the words are written, Send to TikTok downloads + copies + opens the upload page.
+    await p1.locator("#publish-file-input").setInputFiles(clipFile);
+    const ready = await p1.waitForFunction(() => document.querySelector("[data-publish]")?.getAttribute("data-publish") === "ready", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const caption = await p1.locator('[data-publish-field="caption"]').inputValue().catch(() => "");
+    const limits = await block.locator("[data-publish-limits]").count();
+    const [download, popup] = await Promise.all([p1.waitForEvent("download", { timeout: 15000 }).catch(() => null), ctx1.waitForEvent("page", { timeout: 15000 }).catch(() => null), p1.getByTestId("publish-share-tiktok").click()]);
+    await popup?.waitForLoadState("domcontentloaded").catch(() => {});
+    const note = { kind: await p1.getByTestId("publish-share-note").getAttribute("data-kind").catch(() => null), copied: await p1.getByTestId("publish-share-note").getAttribute("data-copied").catch(() => null) };
+    const clipboard = await p1.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+    check(
+      "publish: on a computer Send to TikTok downloads the clip, copies the caption with its hashtags and opens the TikTok upload page",
+      ready && caption.length > 10 && limits === 3 && !!download && download.suggestedFilename() === "smoke-clip.mp4" && popup?.url() === "https://www.tiktok.com/upload" && note.kind === "desktop" && note.copied === "1" && clipboard.includes("#fyp") && clipboard.includes(caption.split("\n")[0]),
+      `(ready=${ready}, download=${download?.suggestedFilename()}, tab=${popup?.url()}, note=${JSON.stringify(note)}, clipboard=${JSON.stringify(clipboard.slice(0, 80))})`,
+    );
+    await popup?.close().catch(() => {});
+
+    // 3. A relay profile: saved, its accounts listed (and kept after a reload), Test shows the key's label.
+    await block.getByTestId("publish-relay-settings").locator("summary").click();
+    await p1.locator("#publish-relay-url").fill(RELAY);
+    await p1.locator("#publish-relay-key").fill("jbl_smoke_key");
+    await p1.locator("#publish-relay-label").fill("Smoke team");
+    await block.getByRole("button", { name: "Save relay" }).click();
+    const listed = await p1.waitForFunction(() => document.querySelectorAll('[data-publish-via="relay"]').length === 3, null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await block.getByRole("button", { name: "Test", exact: true }).click();
+    const test = await p1.getByTestId("publish-relay-test").innerText({ timeout: 10000 }).catch(() => "");
+    await p1.reload({ waitUntil: "networkidle" });
+    block = await openPublish(p1);
+    const kept = await p1.waitForFunction(() => document.querySelectorAll('[data-publish-via="relay"]').length === 3, null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const groups = await block.locator("[data-publish-account]").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-publish-platform")}:${e.getAttribute("data-publish-via")}`));
+    check("publish: a relay profile is saved and its TikTok and Instagram accounts are listed (after a reload too)", listed && kept && /Smoke team/.test(test) && /3 accounts/.test(test) && groups.filter((g) => g === "tiktok:relay").length === 2 && groups.includes("instagram:relay"), `(${JSON.stringify(groups)}; test "${test}")`);
+
+    // 4. YouTube straight from the browser: the App setup's client ID, Connect YouTube through the (stubbed) token client.
+    await p1.locator("#publish-file-input").setInputFiles(clipFile);
+    await p1.waitForFunction(() => document.querySelector("[data-publish]")?.getAttribute("data-publish") === "ready", null, { timeout: 10000 }).catch(() => {});
+    await block.getByTestId("publish-yt-settings").locator("summary").click();
+    await p1.locator("#publish-yt-client").fill("1234567890-smoke.apps.googleusercontent.com");
+    await block.getByRole("button", { name: "Save client ID" }).click();
+    await p1.locator('[data-publish-connect="youtube-direct"]').click();
+    const connected = await p1.waitForFunction(() => !!document.querySelector('[data-publish-account="yt:UCsmoke"]'), null, { timeout: 10000 }).then(() => true).catch(() => false);
+    const gis = await p1.evaluate(() => window.__gisRequests);
+    const channel = await block.locator('[data-publish-account="yt:UCsmoke"]').innerText().catch(() => "");
+    check("publish: Connect YouTube asks the Google token client for youtube.upload and lists the channel", connected && gis.length === 1 && gis[0].clientId === "1234567890-smoke.apps.googleusercontent.com" && gis[0].scope.includes("youtube.upload") && gis[0].prompt === "select_account" && channel.includes("Smoke Channel"), `(${JSON.stringify(gis)}, "${channel.replace(/\s+/g, " ")}")`);
+
+    // 5. One click: the YouTube channel and the three relay accounts, unlisted; the YouTube progress is watched.
+    for (const id of ["a_tt1", "a_tt2", "a_ig1"]) await block.locator(`[data-publish-account$=":${id}"] input[type=checkbox]`).check();
+    await p1.locator("#publish-visibility").selectOption("unlisted");
+    const sendLabel = await p1.getByTestId("publish-send").innerText();
+    await p1.evaluate(() => {
+      window.__ytProgress = [];
+      new MutationObserver(() => {
+        const el = document.querySelector('[data-publish-send="yt:UCsmoke"]');
+        const v = el ? Number(el.getAttribute("data-publish-progress")) : null;
+        if (v !== null && window.__ytProgress[window.__ytProgress.length - 1] !== v) window.__ytProgress.push(v);
+      }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-publish-progress"] });
+    });
+    await p1.getByTestId("publish-send").click();
+    const settled = await p1
+      .waitForFunction(() => {
+        const items = [...document.querySelectorAll("[data-publish-send]")];
+        return items.length === 4 && items.every((el) => ["published", "failed", "needsAuth"].includes(el.getAttribute("data-publish-status")));
+      }, null, { timeout: 30000 })
+      .then(() => true)
+      .catch(() => false);
+    const items = await block.locator("[data-publish-send]").evaluateAll((els) => els.map((e) => ({ key: e.getAttribute("data-publish-send"), status: e.getAttribute("data-publish-status"), progress: Number(e.getAttribute("data-publish-progress")), link: e.querySelector("a")?.getAttribute("href") ?? null })));
+    const progress = await p1.evaluate(() => window.__ytProgress);
+    const ytItem = items.find((i) => i.key === "yt:UCsmoke");
+    const initBody = yt.init?.body ? JSON.parse(yt.init.body) : null;
+    check(
+      "publish: a connected YouTube channel uploads to the (stubbed) resumable endpoint – a 308 resume, the progress, the Short's link",
+      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "unlisted" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
+      `(${JSON.stringify(ytItem)}, puts ${JSON.stringify(yt.puts)}, progress ${JSON.stringify(progress)})`,
+    );
+    const form = relay.forms[0] ?? "";
+    const recent = Number(await block.locator("[data-publish-recent]").getAttribute("data-publish-recent").catch(() => "0"));
+    check(
+      "publish: Send to selected sends to every ticked account in one click – YouTube direct plus two TikTok and one Instagram account through one relay upload – with per-account results",
+      settled && /\(4\)/.test(sendLabel) && relay.forms.length === 1 && form.includes("a_tt1,a_tt2,a_ig1") && form.includes('name="posts"') && form.includes("#fyp") && form.includes("#reels") && form.includes('filename="smoke-clip.mp4"') && items.find((i) => i.key.endsWith(":a_tt1"))?.link === "https://www.tiktok.com/@smoketok/video/1" && items.find((i) => i.key.endsWith(":a_ig1"))?.status === "failed" && recent === 5,
+      `(${JSON.stringify(items)}, ${relay.forms.length} upload(s), recent ${recent}, "${sendLabel}")`,
+    );
+
+    // 6. A fast export's clip is offered to the block.
+    const webCodecs = await p1.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+    if (webCodecs) {
+      await p1.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+      const fastDownload = p1.waitForEvent("download", { timeout: 240000 }).catch(() => null);
+      await p1.getByRole("button", { name: /Fast export/ }).click();
+      const fastFile = await fastDownload;
+      block = await openPublish(p1);
+      const offered = await p1.waitForFunction(() => document.querySelector("[data-publish-clip-source]")?.getAttribute("data-publish-clip-source") === "fast", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const name = await block.locator("[data-publish-clip-source]").getAttribute("data-publish-clip-name").catch(() => null);
+      check("publish: a fast export's clip is offered to the Publish block", !!fastFile && offered && name === fastFile.suggestedFilename(), `(download ${fastFile?.suggestedFilename()}, block ${name})`);
+    }
+    await p1.evaluate(() => localStorage.removeItem("jumpingballslive_publish")).catch(() => {});
+
+    // 7. A phone: the share sheet gets the video file itself.
+    phone = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+      isMobile: true,
+      hasTouch: true,
+      acceptDownloads: true,
+      permissions: ["clipboard-read", "clipboard-write"],
+    });
+    await phone.addInitScript(() => {
+      window.__shared = [];
+      Object.defineProperty(Navigator.prototype, "canShare", { configurable: true, value: (d) => !!(d && Array.isArray(d.files) && d.files.length > 0 && d.files.every((f) => f instanceof File)) });
+      Object.defineProperty(Navigator.prototype, "share", {
+        configurable: true,
+        value: async (d) => {
+          window.__shared.push({ files: (d.files || []).map((f) => ({ name: f.name, type: f.type, size: f.size })), text: d.text || "", title: d.title || "" });
+        },
+      });
+    });
+    const p2 = await phone.newPage();
+    track(p2);
+    let phoneDownload = false;
+    p2.on("download", () => (phoneDownload = true));
+    await p2.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await openPublish(p2);
+    await p2.locator("#publish-file-input").setInputFiles(clipFile);
+    await p2.waitForFunction(() => document.querySelector("[data-publish]")?.getAttribute("data-publish") === "ready", null, { timeout: 10000 }).catch(() => {});
+    await p2.getByTestId("publish-share-instagram").click();
+    const sharedNote = await p2.getByTestId("publish-share-note").getAttribute("data-kind", { timeout: 10000 }).catch(() => null);
+    const shared = await p2.evaluate(() => window.__shared);
+    check(
+      "publish: on a phone Send to Instagram hands the video file to the share sheet (navigator.share with the file and the caption)",
+      shared.length === 1 && shared[0].files.length === 1 && shared[0].files[0].name === "smoke-clip.mp4" && shared[0].files[0].type === "video/mp4" && shared[0].files[0].size === clipFile.buffer.length && shared[0].text.includes("#reels") && sharedNote === "shared" && !phoneDownload,
+      `(${JSON.stringify(shared)}, note ${sharedNote}, download ${phoneDownload})`,
+    );
+  } catch (err) {
+    check("publish: the Publish checks run to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await ctx1?.close().catch(() => {});
+    await phone?.close().catch(() => {});
+  }
+  const pubHard = pubErrors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
+  check("publish: no page errors in the Publish checks", pubHard.length === 0, pubHard.length ? `\n   ${pubHard.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end social-publish ---
+
 // --- desktop-exe --- the Windows app on the website: the download page and its links, the landing button, the navbar /
 // footer / sitemap entries; the Desktop group absent on the website and working with a stand-in window.desktop (the bridge
 // the app's preload exposes): GPU panel, render queue (a real fast export saved through the bridge, with its ffmpeg pass

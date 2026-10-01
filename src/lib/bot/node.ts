@@ -8,3 +8,4 @@ export { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, RECIPES, i
 export { BOT_LOCALES, isBotLocale, copyString } from "./copy";
 export { DEFAULT_BOT_WORLD } from "./finderRequest";
 export { INSTAGRAM_ENV, InstagramError, instagramConfigFromEnv, publicVideoUrl, publishReel, redact } from "./instagram";
+export { RelayClient, RelayError } from "@/lib/publish/relayClient"; // --- social-publish --- the CLI's --relay path
