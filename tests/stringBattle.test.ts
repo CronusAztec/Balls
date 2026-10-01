@@ -44,6 +44,9 @@ import { availableOutcomes, outcomeClipSec, outcomeMatches } from "@/lib/simulat
 import { emptyStats } from "@/lib/physics/ballStats";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
+import { TeamLayer, type TeamLabels } from "@/components/simulator/teamsRenderer";
+import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleRenderOptions } from "@/components/simulator/stringBattleRenderer";
+import { drawFace } from "@/components/simulator/faceRenderer";
 
 /**
  * String Battle (lib/physics/modes/stringBattle.ts, feature odd-string-battle): the settings (resolve, URL, presets),
@@ -1012,5 +1015,105 @@ describe("the String Battle sounds", () => {
       expect(g.started.filter((s) => s.kind === "buffer").length).toBe(1);
       expect(g.started.filter((s) => s.kind === "osc").length).toBe(3);
     });
+  });
+});
+
+/* ------------------------------------------------------------------ review fix (modes-boris-odd) */
+
+/** A 2D context that records the texts and circles drawn (everything else is a no-op). */
+function recordingCtx() {
+  const texts: { text: string; x: number; y: number }[] = [];
+  const circles: { x: number; y: number; r: number }[] = [];
+  const target: Record<string, unknown> = {
+    fillText: (text: string, x: number, y: number) => texts.push({ text: String(text), x, y }),
+    measureText: (text: string) => ({ width: 7 * String(text).length }),
+    arc: (x: number, y: number, r: number) => circles.push({ x, y, r }),
+    ellipse: (x: number, y: number, rx: number, ry: number) => circles.push({ x, y, r: Math.max(rx, ry) }),
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+  };
+  const ctx = new Proxy(target, {
+    get: (t, key) => (typeof key === "string" && !(key in t) ? (t[key] = () => {}) : t[key as string]),
+    set: (t, key, value) => {
+      t[key as string] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  return { ctx, texts, circles };
+}
+
+const TEAM_LABELS: TeamLabels = { bounces: "Bounces", walls: "Walls", escapes: "Escapes", kills: "Kills", win: "Win", wins: (name) => `${name} wins!`, tie: "It's a tie!", team: (n) => `Team ${n}` };
+const RED_BLUE = [
+  { name: "Red", color: "#ef4444", emoji: "" },
+  { name: "Blue", color: "#3b82f6", emoji: "" },
+];
+
+describe("review fixes (modes-boris-odd)", () => {
+  it("keeps the forced winner with the merge interaction: a merge that would absorb the chosen ball keeps it in the battle", { timeout: 120_000 }, () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const engine = battle({ balls: 4 }, seed, { ...config, ballInteraction: "merge", forcedWinner: 1 });
+      runBattle(engine, 300_000);
+      const v = engine.getStringBattleView();
+      expect(engine.isSimulationFinished(), `seed ${seed}`).toBe(true);
+      expect(v.winner, `seed ${seed}`).toBe(1);
+      expect(v.fighters[1].alive, `seed ${seed}`).toBe(true);
+    }
+  });
+
+  it("names a String Battle's kills and its win in the teams banner and scoreboard, not walls and escapes", () => {
+    const engine = battle({ balls: 2, hud: false }, 5);
+    runBattle(engine);
+    expect(engine.isSimulationFinished()).toBe(true);
+    const layer = new TeamLayer();
+    layer.beginFrame(engine, { roster: RED_BLUE, showNames: true, showScoreboard: true, position: "top-left", labels: TEAM_LABELS });
+    const { ctx, texts } = recordingCtx();
+    layer.drawOverlay(ctx, engine, { width: 800, height: 600, dtMs: 16, inset: 0, modeBanner: false });
+    const drawn = texts.map((t) => t.text);
+    expect(drawn).toEqual(expect.arrayContaining(["Bounces", "Kills", "Win"]));
+    expect(drawn.some((t) => /Walls|Escapes/.test(t))).toBe(false);
+    expect(drawn.some((t) => / wins!$/.test(t))).toBe(true);
+    const sub = drawn.find((t) => t.startsWith("Kills "));
+    expect(sub).toMatch(/^Kills \d+ · Bounces \d+$/);
+    // The ring modes keep their words.
+    const ring = createEngineForSettings({ ...config, ballCount: 2 }, "classic", modeSettings, 3);
+    const ringLayer = new TeamLayer();
+    ringLayer.beginFrame(ring, { roster: RED_BLUE, showNames: true, showScoreboard: true, position: "top-left", labels: TEAM_LABELS });
+    const rec = recordingCtx();
+    ringLayer.drawOverlay(rec.ctx, ring, { width: 800, height: 600, dtMs: 16, inset: 0, modeBanner: false });
+    expect(rec.texts.map((t) => t.text)).toEqual(expect.arrayContaining(["Bounces", "Walls", "Escapes"]));
+  });
+
+  it("moves the warning badge to the top-right corner when the teams scoreboard takes the top-left one, and reports the top HUD", () => {
+    const engine = battle({ balls: 4 }, 7);
+    const view = engine.getStringBattleView();
+    const layer = new StringBattleLayer();
+    const o: StringBattleRenderOptions = { dpr: 1, roster: [], showNames: false, wallThickness: 4, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: 0, simDtMs: 0, contacts: null, width: 800, height: 600 };
+    const badgeX = (badgeRight: boolean) => {
+      const { ctx, texts } = recordingCtx();
+      const bottom = layer.drawOverlay(ctx, view, o, { inset: 0, dtMs: 0, teamBanner: false, badgeRight });
+      return { x: texts.find((t) => t.text === DEFAULT_STRING_BATTLE_LABELS.badgeTop)!.x, bottom };
+    };
+    const left = badgeX(false);
+    const right = badgeX(true);
+    expect(left.x).toBeLessThan(400);
+    expect(right.x).toBeGreaterThan(400);
+    // The web style's HUD (top right, a row per ball) is the lowest top item; both reach into the captions' column.
+    expect(left.bottom).toBeGreaterThan(0.15 * 600);
+    const noHud = battle({ balls: 4, hud: false }, 7).getStringBattleView();
+    const { ctx } = recordingCtx();
+    const badgeOnly = layer.drawOverlay(ctx, noHud, o, { inset: 0, dtMs: 0, teamBanner: false });
+    expect(badgeOnly).toBeGreaterThan(0);
+    expect(badgeOnly).toBeLessThan(left.bottom);
+  });
+
+  it("draws the fighters' faces as two eyes above the lives in the web style (the whole face in the neon style)", () => {
+    expect(sbFaceLayout("web")).toEqual({ shape: "circle", countdown: true });
+    expect(sbFaceLayout("neon")).toBeNull();
+    const r = 20;
+    const { ctx, circles } = recordingCtx();
+    drawFace(ctx, 100, 100, r, "cute", { expression: "neutral", closure: 0, lookX: 0, lookY: 0 }, "#ef4444", { compact: true });
+    expect(circles.length).toBeGreaterThan(0);
+    // The lives are drawn at 1.15 r around the centre: the eyes stay above the digit's top (about 0.35 r above the centre).
+    for (const c of circles) expect(c.y + c.r).toBeLessThan(100 - 0.35 * r);
   });
 });

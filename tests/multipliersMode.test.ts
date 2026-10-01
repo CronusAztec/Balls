@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { MODE_CATEGORIES, MODE_CARD_ORDER, modesInCategory } from "@/lib/modes";
 import {
+  COUNT_GATES_CLOSE_MS,
   DEFAULT_MULTIPLIERS_SETTINGS,
   GATE_KINDS,
   MULTIPLIERS_RANGES,
@@ -401,5 +402,52 @@ describe("clone colours", () => {
     });
     expect(colors.size).toBeGreaterThan(2);
     expect(colors.size).toBeLessThanOrEqual(CLONE_COLORS.length + 1);
+  });
+});
+
+describe("review fix (modes-boris-odd): a ball grown by size gates", () => {
+  it("outgrows the board when it wedges between the rows, instead of silently vanishing as a lost ball", { timeout: 120_000 }, () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = board({ rows: 20, gateMix: "001000", startBalls: 1, maxBalls: 200 }, seed, { width: 800, height: 600 });
+      runOut(engine, 400);
+      const label = `seed ${seed}`;
+      expect(engine.isSimulationFinished(), label).toBe(true);
+      expect(engine.getMultiplierView().outgrown, label).toBe(true);
+      expect(engine.getMultipliersView().lost, label).toBe(0);
+    }
+  });
+
+  it("does not cut a busy board short: a grown ball stuck while others are still in play is lost as before", { timeout: 120_000 }, () => {
+    // Count and size gates: grown balls wedge now and then among hundreds of others (ending on the first one sent these boards
+    // home with 209–300 balls still in play and 713 / 1249 home instead of 2296 / 2005).
+    for (const seed of [2, 4]) {
+      const engine = board({ rows: 20, gateMix: "211100", startBalls: 3, maxBalls: 300 }, seed);
+      runOut(engine, 400);
+      const label = `seed ${seed}`;
+      const v = engine.getMultipliersView();
+      expect(engine.isSimulationFinished(), label).toBe(true);
+      expect(engine.getMultiplierView().outgrown, label).toBe(false);
+      expect(v.active, label).toBe(0);
+      expect(v.home, label).toBeGreaterThan(2000);
+    }
+  });
+});
+
+describe("review fix (modes-boris-odd): the count gates' closing time", () => {
+  it("stops cloning at COUNT_GATES_CLOSE_MS, so a crowded board of big balls that keeps refilling itself drains and ends", { timeout: 120_000 }, () => {
+    // Big balls, count gates only, a small board: it refills as fast as balls arrive (without the closing time it runs 413 s).
+    const engine = board({ rows: 20, gateMix: "900000", startBalls: 10, maxBalls: 200 }, 1, { width: 300, height: 300, ballRadius: 20 });
+    let clonesAfterClose = -1;
+    for (let f = 0; f < 600 * 60 && !engine.isSimulationFinished(); f++) {
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      if (clonesAfterClose < 0 && engine.getElapsedMs() >= COUNT_GATES_CLOSE_MS + 100) clonesAfterClose = engine.getMultipliersView().clones;
+    }
+    const v = engine.getMultipliersView();
+    expect(clonesAfterClose).toBeGreaterThan(1000); // it was still multiplying at closing time
+    expect(engine.isSimulationFinished()).toBe(true);
+    expect(v.clones).toBe(clonesAfterClose);
+    expect(v.active).toBe(0);
+    expect(engine.getElapsedMs()).toBeLessThan(COUNT_GATES_CLOSE_MS + 60_000);
   });
 });

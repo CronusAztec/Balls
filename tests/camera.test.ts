@@ -33,8 +33,10 @@ import {
   stepCameraView,
   worldToScreen,
   zoomScale,
+  maxSlowLagMs,
   type CameraSettings,
 } from "@/lib/simulation/camera";
+import { ExportEndTracker, NO_END_HOLDS, SIM_FRAME_MS, maxSimFrames, simFrameTimeMs } from "@/lib/recording/fastRenderPlan";
 import { REPLAY_MAX_BALLS, REPLAY_TRAIL, ReplayBuffer } from "@/lib/simulation/replay";
 import { INTERP_MAX_BALLS, INTERP_SNAP_PX, StepInterpolator } from "@/lib/simulation/stepInterpolation";
 import { CinematicCamera } from "@/components/simulator/cameraRenderer";
@@ -924,5 +926,86 @@ describe("live slow motion", () => {
     const n = Math.min(plain.length, steps.length);
     expect(n).toBeGreaterThan(600);
     expect(steps.slice(0, n)).toEqual(plain.slice(0, n));
+  });
+});
+
+describe("slow motion and the clip length (review fix modes-boris-odd)", () => {
+  const SLOW: CameraSettings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true };
+
+  /** The run's length without the camera – what Find Simulation measures headlessly (ms). */
+  function plainRunMs(mode: ModeId, seed: number) {
+    const engine = makeEngine(mode, seed);
+    for (let f = 0; f < 60 * 400 && !engine.isSimulationFinished(); f++) engine.update(STEP, 0);
+    return engine.getElapsedMs();
+  }
+
+  it("extends a found run's clip by the real time the slow motion adds, so its escape is in the recording and the fast export", { timeout: 180_000 }, () => {
+    let lateWithoutLag = 0;
+    const runs: [ModeId, number][] = [
+      ["classic", 2],
+      ["classic", 3],
+      ["shatter", 1],
+      ["shatter", 3],
+      ["shatter", 5],
+      ["shatter", 6],
+    ];
+    for (const [mode, seed] of runs) {
+      const label = `${mode} seed ${seed}`;
+      // Find Simulation sets the clip to the whole seconds of the run.
+      const clipMs = 1000 * Math.ceil(plainRunMs(mode, seed) / 1000);
+      const engine = makeEngine(mode, seed);
+      const cam = new CinematicCamera();
+      cam.settings = SLOW;
+      const tracker = new ExportEndTracker(clipMs);
+      let accumulator = 0;
+      let finishedAt = -1;
+      // The fast export's frame loop (the page's recorder follows the same rule): frame j is drawn at j · 16.67 ms, the canvas
+      // feeds the engine frameMs × the slow motion's time scale, the clip ends at its length plus the lag the slow motion added.
+      const frames = maxSimFrames(clipMs / 1000, 1 / SLOW.slowMoFactor);
+      for (let j = 0; j < frames; j++) {
+        const t = simFrameTimeMs(j);
+        if (j > 0 && t >= tracker.endMs) break;
+        accumulator += SIM_FRAME_MS * cam.timeScale();
+        while (accumulator >= STEP) {
+          engine.update(STEP, 0);
+          cam.afterStep(engine);
+          accumulator -= STEP;
+        }
+        cam.frame(engine, SIM_FRAME_MS, true);
+        const finished = engine.isSimulationFinished();
+        if (finished && finishedAt < 0) finishedAt = t;
+        tracker.frame(t, finished, false, NO_END_HOLDS, cam.getSlowLagMs());
+      }
+      const lag = cam.getSlowLagMs();
+      expect(lag, label).toBeGreaterThan(0);
+      expect(lag, label).toBeLessThanOrEqual(maxSlowLagMs(clipMs));
+      // The escape is in the clip: the run finished before the (extended) clip ended.
+      expect(finishedAt, label).toBeGreaterThan(0);
+      expect(finishedAt, label).toBeLessThanOrEqual(clipMs + lag + SIM_FRAME_MS);
+      expect(tracker.finishedAt, label).not.toBeNull();
+      if (finishedAt > clipMs) lateWithoutLag++;
+    }
+    // Measured on real time alone, the clip would have ended before these escapes.
+    expect(lateWithoutLag).toBeGreaterThan(0);
+  });
+
+  it("counts the lag only while the run plays in a window, and forgets it with the run", () => {
+    const engine = makeEngine("classic", 2);
+    const cam = new CinematicCamera();
+    cam.settings = SLOW;
+    for (let f = 0; f < 60 * 30; f++) {
+      const scale = cam.timeScale();
+      if (scale < 1) {
+        const before = cam.getSlowLagMs();
+        cam.frame(engine, STEP, false); // paused: no lag
+        expect(cam.getSlowLagMs()).toBe(before);
+      }
+      engine.update(STEP * scale, 0);
+      cam.frame(engine, STEP, true);
+    }
+    expect(cam.getSlowLagMs()).toBeGreaterThan(0);
+    engine.initMode("classic"); // a restart
+    cam.frame(engine, STEP, true);
+    expect(cam.getSlowLagMs()).toBe(0);
   });
 });
