@@ -1,4 +1,5 @@
 import { circleObstacle, segmentBetween, segmentObstacle, type Obstacle, type SegmentObstacle } from "./obstacles";
+import { ENTITY_CEILING, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * The track of the Square Racing Grand Prix ("race" mode, modes/race.ts): a long vertical corridor generated
@@ -233,13 +234,29 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
   return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : fallback;
 }
 
-/** The track-relevant settings, filled in and clamped (whole racers 2–16, 3–20 screens, 1–5 laps, a known mix). */
+/**
+ * --- uncap-all --- The most screens of track one race builds, every lap's copy of the rows together (memory-safety: each
+ * lap is built as its own rows, obstacles and pads).
+ */
+export const RACE_SCREEN_CEILING = ENTITY_CEILING;
+
+/** --- uncap-all --- The laps a track of `trackLength` screens builds: all of them together stop at RACE_SCREEN_CEILING screens. */
+export function raceLapsWithin(trackLength: number, laps: number): number {
+  return Math.max(1, Math.min(laps, Math.floor(RACE_SCREEN_CEILING / Math.max(1, trackLength))));
+}
+
+/**
+ * The track-relevant settings, filled in (whole racers 2–16, from 3 screens, from 1 lap, a known mix) – --- uncap-all --- no
+ * maximum but the memory-safety ones: the racers stop at MAX_RACERS (the per-racer state and the roster are sized for
+ * them), the screens at the track's ceiling, the laps where all of them together reach RACE_SCREEN_CEILING screens.
+ */
 export function resolveRaceTrackSettings(settings: Partial<RaceTrackSettings> | null | undefined): RaceTrackSettings {
   const s = settings ?? {};
+  const trackLength = memoryCeiling("rcTrackLength", clampInt(s.trackLength, 3, Infinity, 8));
   return {
     racers: clampInt(s.racers, MIN_RACERS, MAX_RACERS, 8),
-    trackLength: clampInt(s.trackLength, 3, 20, 8),
-    laps: clampInt(s.laps, 1, 5, 1),
+    trackLength,
+    laps: raceLapsWithin(trackLength, clampInt(s.laps, 1, Infinity, 1)),
     feature: isRaceFeature(s.feature) ? s.feature : "mixed",
   };
 }

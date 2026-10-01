@@ -635,7 +635,7 @@ export class StringBattleMode implements GameMode {
   private readonly ballOf: (Ball | null)[] = new Array<Ball | null>(MAX_TEAMS).fill(null);
   /** Slots that reached 0 lives this sub-step, and who took their last life (−1: nobody). */
   private readonly pending: number[] = [];
-  private readonly killerOf = new Int32Array(MAX_TEAMS).fill(-1);
+  private killerOf = new Int32Array(MAX_TEAMS).fill(-1); // (--- unlimited --- grown at init for more balls than the slider's MAX_TEAMS)
   private readonly spareStrings: SbString[] = [];
   private readonly spareGhosts: SbGhost[] = [];
   private readonly scratch = { x: 0, y: 0, angle: 0 };
@@ -705,6 +705,7 @@ export class StringBattleMode implements GameMode {
     v.tie = false;
     this.pending.length = 0;
     this.ballOf.fill(null);
+    if (this.killerOf.length < s.balls) this.killerOf = new Int32Array(s.balls).fill(-1); // --- unlimited --- (more balls than MAX_TEAMS; a typed array never grows by itself)
     this.plucksThisStep = 0;
     const base = (cfg.ballSpeed || 400) * SB_SPEED_SCALE;
     const radius = (cfg.ballRadius || 8) * SB_BALL_SCALE;

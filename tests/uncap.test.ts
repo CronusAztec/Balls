@@ -463,10 +463,13 @@ describe("uncap-all: the guard", () => {
   });
 
   it("keeps the memory-safety ceilings at memory-safe values, far past every slider", () => {
+    // (--- review fix (unlimited) --- but the race's racers: its per-racer state and roster are sized for the slider's 16,
+    // so its ceiling is the slider's end – a grid past it builds 16 and says ARENA FULL)
+    const atSliderEnd = new Set(["rcRacers"]);
     for (const [key, ceiling] of Object.entries(MEMORY_CEILINGS)) {
       const range = ranges[key];
       expect([key, range !== undefined]).toEqual([key, true]);
-      expect([key, ceiling > range.max]).toEqual([key, true]);
+      expect([key, atSliderEnd.has(key) ? ceiling === range.max : ceiling > range.max]).toEqual([key, true]);
     }
     expect(MEMORY_CEILINGS.ballCount).toBe(1_000_000);
   });

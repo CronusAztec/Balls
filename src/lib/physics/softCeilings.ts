@@ -9,8 +9,9 @@
  * machinery's own ceiling (--- uncap-all --- the memory-safety `RING_CEILING`), the segments and spikes at what a frame can
  * label and draw – while the settings keep the typed value and the page says so under the canvas
  * (`softCeilingNotes()`). They apply inside the engine, so the page, Find Simulation, the fast export, batch
- * renders and the bot all run the same, deterministic world for a seed. With No limits on, limits.ts applies the same
- * ceilings (`ENGINE_CEILINGS` in lib/unlimited.ts, the source of these numbers); these keep them with it off too.
+ * renders and the bot all run the same, deterministic world for a seed. (--- uncap-all --- whatever the Wide sliders switch
+ * says: limits.ts builds at most `LIVE_WALL_LIMIT` rings, and the segments and spikes stop below their memory-safety
+ * ceilings in `MEMORY_CEILINGS`, at these.)
  */
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 

@@ -305,9 +305,11 @@ describe("the obstacle field", () => {
     expect(f.configure({ width: 1600, height: 1200, editorObstacles: LAYOUT })).toBe(true);
     expect(f.items[0]).toMatchObject({ x: 800 + 0.2 * 450, y: 600 - 0.3 * 450 });
     expect(f.items[0].kind === "circle" && f.items[0].radius).toBeCloseTo(0.06 * 450, 9);
-    // The boost is taken without a rebuild, validated.
+    // The boost is taken without a rebuild, validated (--- uncap-all --- past the slider as typed, below it lifted onto its minimum).
     expect(f.configure({ width: 1600, height: 1200, editorObstacles: LAYOUT, bumperBoost: 5 })).toBe(false);
-    expect(f.bumperBoost).toBe(2);
+    expect(f.bumperBoost).toBe(5);
+    f.configure({ width: 1600, height: 1200, editorObstacles: LAYOUT, bumperBoost: 0.2 });
+    expect(f.bumperBoost).toBe(1);
     expect(f.configure({ width: 1600, height: 1200, editorObstacles: [] })).toBe(true);
     expect(f.count).toBe(0);
   });

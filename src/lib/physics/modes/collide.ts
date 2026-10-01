@@ -177,6 +177,13 @@ export const POSITION_CORRECTION = 0.8;
 /** Passes over the contact pairs per sub-step. */
 export const COLLISION_ITERATIONS = 3;
 /**
+ * --- unlimited --- Contact pairs a sub-step resolves at most while the extreme-values runtime is engaged (any value past
+ * its slider): thousands of orbs crushed into one corner by a billion-strong wind or gravity touch millions of pairs; past
+ * this many the rest wait for the next sub-step (the pile melts into itself, the step stays bounded). A free-flying
+ * 5,000-orb playground has a fraction of it, and a run at the sliders' values never meets it.
+ */
+export const COLLIDE_PAIR_BUDGET = 40_000;
+/**
  * Speed cap (× the Ball Speed; raised under strong gravity to what a fall across the container gives): a safety net
  * against a crowded pile squeezing an orb out at an absurd speed. It sits far above the speeds small orbs reach by
  * equipartition (their share of the energy makes them faster than big ones), so it never cools a normal run.
@@ -878,7 +885,7 @@ export class CollideMode implements GameMode {
     }
     const margin = Math.max(0.5, 0.2 * maxR);
     this.hash.build(xs, ys, m, 2 * maxR + margin, field.left - maxR, field.top - maxR, field.right + maxR, field.bottom + maxR);
-    const count = this.hash.collectContacts(xs, ys, rs, margin, this.pairs);
+    const count = this.hash.collectContacts(xs, ys, rs, margin, this.pairs, ctx.config.unlimited ? COLLIDE_PAIR_BUDGET : Infinity); // --- unlimited --- (a bounded pile)
     const pairs = this.pairs.pairs;
     // Alternate the direction of the passes, so a push travels through a pile both ways.
     for (let it = 0; it < COLLISION_ITERATIONS; it++) {

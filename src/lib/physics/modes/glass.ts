@@ -91,8 +91,16 @@ export function resolveGlassSettings(config: Partial<GlassSettings> | null | und
   if (config.rows !== undefined) out.rows = memoryCeiling("glassRows", Math.round(clampNumber(config.rows, GLASS_RANGES.glassRows, out.rows)));
   if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, GLASS_RANGES.glassHp, out.hp));
   if (config.stages !== undefined) out.stages = memoryCeiling("glassStages", Math.round(clampNumber(config.stages, GLASS_RANGES.glassStages, out.stages)));
-  // (--- uncap-all --- the rows of every stage together: at most ENTITY_CEILING panes are built – memory-safety, ARENA FULL past it)
-  if (out.rows * out.stages > ENTITY_CEILING) out.stages = Math.max(1, Math.floor(ENTITY_CEILING / out.rows));
+  // (--- uncap-all --- the panes of every stage together: at most ENTITY_CEILING are built – memory-safety, ARENA FULL past it;
+  // counted stage by stage, as `stageRows()` grows them)
+  let panes = 0;
+  for (let stage = 0; stage < out.stages; stage++) {
+    panes += stageRows(out.rows, stage);
+    if (panes > ENTITY_CEILING) {
+      out.stages = Math.max(1, stage);
+      break;
+    }
+  }
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (typeof config.holes === "boolean") out.holes = config.holes;
   if (typeof config.gates === "boolean") out.gates = config.gates;
@@ -116,14 +124,19 @@ export const MAX_STAGE_ROWS = 30;
 /** No pane takes more hits than this (the thickest glass). */
 export const MAX_PANE_HP = 7;
 
-/** Panes in stage `stage` (0-based): the setting, plus a third of it per stage after the first, up to MAX_STAGE_ROWS. */
+/**
+ * Panes in stage `stage` (0-based): the setting, plus a third of it per stage after the first, up to MAX_STAGE_ROWS –
+ * --- unlimited --- or up to the setting itself when it is past MAX_STAGE_ROWS (every stage that many panes).
+ */
 export function stageRows(rows: number, stage: number): number {
-  return Math.min(MAX_STAGE_ROWS, Math.round(rows) + Math.ceil((stage * Math.round(rows)) / 3));
+  const n = Math.round(rows);
+  return Math.min(Math.max(MAX_STAGE_ROWS, n), n + Math.ceil((stage * n) / 3));
 }
 
-/** Hit points of the panes in stage `stage`: the setting, one more every other stage (at most two more). */
+/** Hit points of the panes in stage `stage`: the setting, one more every other stage (at most two more; MAX_PANE_HP on the slider). */
 export function stageHp(hp: number, stage: number): number {
-  return Math.min(MAX_PANE_HP, Math.round(hp) + Math.min(2, Math.floor(stage / 2)));
+  const n = Math.round(hp);
+  return Math.min(Math.max(MAX_PANE_HP, n), n + Math.min(2, Math.floor(stage / 2))); // --- unlimited --- (past the slider: the setting's own)
 }
 
 /** Chance that a pane of stage `stage` has a hole (from the second stage on, more from the fifth). */
@@ -411,7 +424,7 @@ export function stageHue(stage: number): number {
 
 /** Thickness (px) of a pane with `hp` hit points in a view `viewH` px tall. */
 export function paneThickness(hp: number, viewH: number): number {
-  return PANE_THICKNESS * viewH * (1 + 0.28 * (hp - 1));
+  return PANE_THICKNESS * viewH * (1 + 0.28 * (Math.min(MAX_PANE_HP, hp) - 1)); // --- unlimited --- (a billion hit points look like the thickest glass)
 }
 
 /** Rebuilds the collision capsules of a pane from its current geometry (a sliding pane moves them every step). */
@@ -578,6 +591,8 @@ export function paneDamage(pane: Pick<GlassPane, "hp" | "maxHp">): number {
 export const CRACK_GROW_MS = 160;
 /** Most segments one crack holds (5 rays of 4 segments plus branches). */
 const MAX_CRACK_SEGMENTS = 32;
+/** --- unlimited --- Cracks a pane keeps (the newest): more than the thickest glass of the slider ever takes (MAX_PANE_HP hits). */
+export const MAX_PANE_CRACKS = 16;
 
 /**
  * A procedural crack from a hit at `impactX` (relative to the pane's centre) on the top face (`fromAbove`) or the
@@ -765,6 +780,7 @@ export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impac
   view.hits++;
   const impactX = ball.x - pane.x;
   pane.cracks.push(makeCrack(pane, impactX, fromAbove, paneDamage(pane), o.timeMs, o.random));
+  if (pane.cracks.length > MAX_PANE_CRACKS) pane.cracks.shift(); // --- unlimited --- (glass of a billion hit points keeps its newest cracks; visual only)
   if (pane.hp <= 0) {
     pane.shattered = true;
     pane.shatteredAtMs = o.timeMs;

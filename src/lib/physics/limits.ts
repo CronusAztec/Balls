@@ -535,13 +535,16 @@ export class UnlimitedRuntime {
   }
 
   /**
-   * At most `MAX_SOUNDS_PER_FRAME` events per frame (in place): every non-bounce event first (breaks, stacks, merges, the
-   * ate-the-arena sound), then bounces spread evenly over the frame. Without the switch the queue is untouched.
+   * At most `MAX_SOUNDS_PER_FRAME` events per frame (in place): the ate-the-arena gulp always (it is queued after the
+   * step's bursts, so a ball eating a thousand rings would otherwise lose it behind their "gap" sounds), then the other
+   * non-bounce events (breaks, stacks, merges) up to half the frame, then bounces spread evenly over the rest. While the
+   * runtime is not engaged the queue is untouched.
    */
   thinSounds(events: SoundEvent[]): SoundEvent[] {
     if (!this.live || events.length <= MAX_SOUNDS_PER_FRAME) return events;
     const keep: SoundEvent[] = [];
-    for (const ev of events) if (ev.type !== "hit" && keep.length < MAX_SOUNDS_PER_FRAME / 2) keep.push(ev);
+    for (const ev of events) if (ev.ate) keep.push(ev);
+    for (const ev of events) if (ev.type !== "hit" && !ev.ate && keep.length < MAX_SOUNDS_PER_FRAME / 2) keep.push(ev);
     const hits = events.filter((ev) => ev.type === "hit");
     const room = MAX_SOUNDS_PER_FRAME - keep.length;
     const every = Math.max(1, Math.ceil(hits.length / room));

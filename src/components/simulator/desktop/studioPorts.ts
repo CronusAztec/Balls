@@ -1,10 +1,11 @@
-import type { SimulatorSettings } from "@/lib/settings";
+import { uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
 import type { BotWorld } from "@/lib/bot/finderRequest";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { hashString, localIsoDate, planClipSteps, planDaySteps, type ClipPlan } from "@/lib/bot/planner";
 import { recipeById } from "@/lib/bot/playbook";
 import { findSimulation } from "@/lib/simulation/finder";
+import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
 import type { FindAnswer, FindRequest, PlanClipsRequest, StudioPorts } from "@/lib/desktop/ai/studio";
 
 /*
@@ -57,7 +58,10 @@ export function studioPorts(options: StudioPortOptions): StudioPorts {
       const world = options.getWorld() ?? undefined;
       const base = finderRequestOfSettings(settings, world);
       const outcome = request.outcome === "duration" ? undefined : { kind: request.outcome, clipSec: request.targetSec, ...(request.atSec !== null ? { atSec: request.atSec } : {}) };
-      const result = await findSimulation({ ...base, targetDurationSec: request.targetSec, toleranceSec: 0.5, maxSeeds: 300, ...(outcome ? { outcome } : {}) }, (p) => progress(`${p.seedsTested}/${p.maxSeeds}`), signal);
+      // --- unlimited --- the page's search for a run past the sliders: time-sliced by whole steps, fewer seeds when heavy
+      // (--- uncap-all --- engaged by the values, as the page's Find Simulation)
+      const find = uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation;
+      const result = await find({ ...base, targetDurationSec: request.targetSec, toleranceSec: 0.5, maxSeeds: 300, ...(outcome ? { outcome } : {}) }, (p) => progress(`${p.seedsTested}/${p.maxSeeds}`), signal);
       if (signal?.aborted) throw new DOMException("cancelled", "AbortError");
       return { found: result.found, seed: result.seed, durationSec: result.duration, endless: result.endless };
     },

@@ -202,7 +202,7 @@ export const RIM_AT = 0.46;
 export const ENTRY_AT = 0.955;
 /** Radius of the hole as a fraction of the rim radius. */
 export const HOLE_AT = 0.075;
-/** Most balls and rings (the view's arrays are allocated once at this size). */
+/** Most balls and rings on the sliders (the view's arrays are allocated at this size; --- unlimited --- a run past them grows them). */
 export const MAX_VORTEX_BALLS = 30;
 export const MAX_VORTEX_RINGS = 24;
 
@@ -247,7 +247,7 @@ export function buildVortexField(width: number, height: number, rings: number, o
   out.rim = RIM_AT * size;
   out.entry = ENTRY_AT * out.rim;
   out.hole = HOLE_AT * out.rim;
-  out.ringCount = Math.max(0, Math.min(MAX_VORTEX_RINGS, Math.round(rings)));
+  out.ringCount = Math.max(0, Math.min(out.rings.length, Math.round(rings))); // (the field's capacity: MAX_VORTEX_RINGS, more past the slider)
   ringRadii(out.entry, out.hole, out.ringCount, out.rings);
   return out;
 }
@@ -523,21 +523,21 @@ export class VortexMode implements GameMode {
   private clockMs = 0;
   private stepStartMs = 0;
   /** Per slot: the polar state, when it (re-)enters (s), its seeded entry speed factor and entry angle, its engine ball. */
-  private readonly r = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly vr = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly theta = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly L = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly entryAt = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly enteredAtMs = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly speedFactor = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly entryAngle = new Float64Array(MAX_VORTEX_BALLS);
-  private readonly ballId = new Int32Array(MAX_VORTEX_BALLS).fill(-1);
+  private r = new Float64Array(MAX_VORTEX_BALLS);
+  private vr = new Float64Array(MAX_VORTEX_BALLS);
+  private theta = new Float64Array(MAX_VORTEX_BALLS);
+  private L = new Float64Array(MAX_VORTEX_BALLS);
+  private entryAt = new Float64Array(MAX_VORTEX_BALLS);
+  private enteredAtMs = new Float64Array(MAX_VORTEX_BALLS);
+  private speedFactor = new Float64Array(MAX_VORTEX_BALLS);
+  private entryAngle = new Float64Array(MAX_VORTEX_BALLS);
+  private ballId = new Int32Array(MAX_VORTEX_BALLS).fill(-1);
   private readonly slotOfId = new Map<number, number>();
   /** The first entry angle of the run (the seed's) and the entry angle of the last ball in. */
   private phase = 0;
   private lastAngle = 0;
   /** Rings crossed (and pews due) during the current step, voiced in `onPostUpdate()`. */
-  private readonly stepRings = new Uint8Array(MAX_VORTEX_RINGS);
+  private stepRings = new Uint8Array(MAX_VORTEX_RINGS);
   private stepRingCount = 0;
   /** Where (the angle) a ring was last crossed this step: the reactive background's flash. */
   private stepAngle = 0;
@@ -585,6 +585,7 @@ export class VortexMode implements GameMode {
     const s = this.settings;
     const v = this.view;
     v.settings = { ...s };
+    this.ensureCapacity(s.balls, s.rings); // --- unlimited --- (more balls and rings than the slider's)
     // The seed: the whirl direction, the run tempo and the first entry angle (per-ball draws follow as the balls enter).
     v.dir = ctx.random() < 0.5 ? -1 : 1;
     v.tempo = 1 + (ctx.random() - 0.5) * TEMPO_SPREAD;
@@ -623,6 +624,41 @@ export class VortexMode implements GameMode {
     this.layout(ctx.config.width, ctx.config.height);
     // The balls due at 0 s enter now (the first always: the engine then adds no default ball).
     for (let i = 0; i < s.balls; i++) if (this.entryAt[i] <= 1e-9) this.enter(ctx, i);
+  }
+
+  /**
+   * --- unlimited --- The per-ball and per-ring arrays hold `MAX_VORTEX_BALLS` and `MAX_VORTEX_RINGS` (the sliders' ends);
+   * a run with more (a value past the slider, up to its memory-safety ceiling) grows them once – the mode's and the view's
+   * alike – before it starts. Grow-only.
+   */
+  private ensureCapacity(balls: number, rings: number) {
+    const v = this.view;
+    if (balls > this.r.length) {
+      const n = Math.ceil(balls);
+      this.r = new Float64Array(n);
+      this.vr = new Float64Array(n);
+      this.theta = new Float64Array(n);
+      this.L = new Float64Array(n);
+      this.entryAt = new Float64Array(n);
+      this.enteredAtMs = new Float64Array(n);
+      this.speedFactor = new Float64Array(n);
+      this.entryAngle = new Float64Array(n);
+      this.ballId = new Int32Array(n).fill(-1);
+      v.slotState = new Uint8Array(n);
+      v.slotR = new Float64Array(n);
+      v.slotTheta = new Float64Array(n);
+      v.slotX = new Float64Array(n);
+      v.slotY = new Float64Array(n);
+      v.slotNoteMs = new Float64Array(n).fill(-Infinity);
+      v.slotColor = new Array<string>(n).fill("#ffffff");
+      v.slotRing = new Int16Array(n);
+    }
+    if (rings > this.stepRings.length) {
+      const n = Math.ceil(rings);
+      this.stepRings = new Uint8Array(n);
+      v.ringHitMs = new Float64Array(n).fill(-Infinity);
+      v.field.rings = new Float64Array(n);
+    }
   }
 
   /** (Re)builds the funnel for the canvas size and the run's physics constants. */

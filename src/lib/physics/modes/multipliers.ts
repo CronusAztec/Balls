@@ -847,7 +847,7 @@ export class MultipliersMode implements GameMode {
     this.steps++;
     if (!board) return;
     const runtime = ctx.getMultipliers?.();
-    const cap = effectiveCap(resolveMultiplierConfig(ctx.config));
+    const cap = runtime ? runtime.getCap() : effectiveCap(resolveMultiplierConfig(ctx.config)); // --- unlimited --- (the run's cap)
     const maxBalls = v.settings.maxBalls;
     const balls = ctx.getBalls();
     // 1. Gate passes, in the order they happened.

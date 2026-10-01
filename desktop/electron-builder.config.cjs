@@ -31,7 +31,13 @@ module.exports = {
     "!node_modules/@node-llama-cpp/*-riscv64/**",
     "!node_modules/@node-llama-cpp/mac-*/**",
     ...(withCuda ? [] : ["!node_modules/@node-llama-cpp/*-cuda/**", "!node_modules/@node-llama-cpp/*-cuda-ext/**"]),
-    "!node_modules/node-llama-cpp/llama/**",
+    // node-llama-cpp reads llama/binariesGithubRelease.json (a top-level await of its index) and llama.cpp.info.json, and
+    // builds grammars from llama/grammars: those small files must ship, or `import("node-llama-cpp")` throws while the
+    // module loads and the local AI cannot start. Only the heavy source-build parts of llama/ are left out.
+    "!node_modules/node-llama-cpp/llama/llama.cpp/**",
+    "!node_modules/node-llama-cpp/llama/gitRelease.bundle",
+    "!node_modules/node-llama-cpp/llama/localBuilds/**",
+    "!node_modules/node-llama-cpp/llama/xpack/**",
     "!node_modules/node-llama-cpp/templates/**",
   ],
   extraResources: [
@@ -39,7 +45,9 @@ module.exports = {
     { from: "../docs/virality-playbook.md", to: "playbook/virality-playbook.md" },
   ],
   asar: true,
-  asarUnpack: ["node_modules/ffmpeg-static/**", "node_modules/node-llama-cpp/bins/**", "node_modules/@node-llama-cpp/**"],
+  // node-llama-cpp's llama/ files are unpacked too: it checks its grammars folder with fs.access, which Electron's asar
+  // support answers ENOENT for a directory inside the archive (getGrammarFor("json") would fail in the package only).
+  asarUnpack: ["node_modules/ffmpeg-static/**", "node_modules/node-llama-cpp/bins/**", "node_modules/node-llama-cpp/llama/**", "node_modules/@node-llama-cpp/**"],
   electronLanguages: ["en-US", "pl", "es"],
   win: {
     target: [

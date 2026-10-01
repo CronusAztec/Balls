@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import fs from "fs";
 import path from "path";
 import en from "../messages/en.json";
-import { defaultSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, presetToSettings } from "@/lib/settings";
+import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
+import { createEngineForSettings } from "@/lib/simulation/finder";
+import { usesBudgetedSearch } from "@/lib/simulation/unlimitedFinder";
+import { effectiveBallCount } from "@/lib/teams";
+import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { RECIPES } from "@/lib/bot/playbook";
 import { planClip } from "@/lib/bot/planner";
 import type { BotCopy } from "@/lib/bot/copy";
@@ -194,6 +199,40 @@ describe("settings assistant", () => {
     expect(validateSettingsPatch(bouncy, { bouncierEnabled: false })).toEqual({ ok: true, patch: { bouncierEnabled: false, bounciness: 1 } });
     expect(validateSettingsPatch(current, { bounciness: 50 }).ok).toBe(false); // past its slider only with Wide sliders on
     expect(validateSettingsPatch({ ...current, unlimited: true }, { bounciness: 50 })).toEqual({ ok: true, patch: { bounciness: 50, bouncierEnabled: true } });
+  });
+
+  // --- review fix (unlimited) x uncap-all --- the switch is only Wide sliders now: turning it off through the assistant
+  // changes no value, as the panel's switch does (the limits are gone either way)
+  it("turns Wide sliders off the way the panel does: every value past its slider stays as it is", () => {
+    const big = { ...current, mode: "classic" as const, unlimited: true, wallCount: 1e5, ballSpeed: 1e6, ballCount: 5e4, glassHp: 1000, windX: -1e6 };
+    const off = validateSettingsPatch(big, { unlimited: false });
+    expect(off).toEqual({ ok: true, patch: { unlimited: false } });
+    if (!off.ok) return;
+    // Applied, the settings loader keeps the switch off and every big value.
+    const applied = presetToSettings({ ...big, ...off.patch });
+    expect([applied.unlimited, applied.wallCount, applied.ballSpeed, applied.ballCount, applied.glassHp, applied.windX]).toEqual([false, 1e5, 1e6, 5e4, 1000, -1e6]);
+    // A value the patch sets itself comes in too – inside the slider now that the assistant's suggestions are no longer widened.
+    const own = validateSettingsPatch(big, { unlimited: false, wallCount: 12 });
+    expect(own.ok && own.patch.wallCount).toBe(12);
+    expect(validateSettingsPatch(big, { unlimited: false, wallCount: 5000 }).ok).toBe(false);
+    expect(RANGES.wallCount.max).toBeLessThan(5000);
+  });
+
+  // --- review fix (unlimited) x uncap-all --- find_simulation searches the run the page renders: the extreme-values runtime
+  // engages by the values (whatever the switch), with the crowd and the page's budgeted search
+  it("plans an uncapped clip's search on the page engine's config: engaged by the values, the crowd and the memory-safety ceilings", () => {
+    for (const unlimited of [false, true]) {
+      const plan = { ...defaultSettings("classic"), unlimited, wallCount: 1e5, ballCount: 5e4 };
+      const request = finderRequestOfSettings(plan);
+      expect(request.physicsConfig).toMatchObject({ unlimited: true, crowdCount: 5e4 - effectiveBallCount(plan) });
+      expect(usesBudgetedSearch(request)).toBe(true);
+      const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, 1);
+      expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
+    }
+    // At the sliders' values nothing of it is in the request (the default run is the one it always was).
+    const plain = finderRequestOfSettings(defaultSettings("classic"));
+    expect(plain.physicsConfig.unlimited).toBeUndefined();
+    expect(plain.physicsConfig.crowdCount).toBeUndefined();
   });
 
   it("runs as an agent task: an out-of-range change is sent back, the corrected one comes out", async () => {

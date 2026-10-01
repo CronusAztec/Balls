@@ -591,7 +591,7 @@ export interface BullseyeView {
   shotX: Float64Array;
   shotY: Float64Array;
   shotLandMs: Float64Array;
-  shotRing: Int8Array;
+  shotRing: Int16Array; // (--- unlimited --- a ring index past 127: rings past the slider, up to their memory-safety ceiling)
   shotScore: Int8Array;
   /** The launcher's aim for the next shot (radians, π/2 = straight down) and the last launch (world ms). */
   aimAngle: number;
@@ -638,7 +638,7 @@ function createView(): BullseyeView {
     shotX: new Float64Array(MAX_BULLSEYE_SHOTS),
     shotY: new Float64Array(MAX_BULLSEYE_SHOTS),
     shotLandMs: new Float64Array(MAX_BULLSEYE_SHOTS).fill(-Infinity),
-    shotRing: new Int8Array(MAX_BULLSEYE_SHOTS).fill(-1),
+    shotRing: new Int16Array(MAX_BULLSEYE_SHOTS).fill(-1),
     shotScore: new Int8Array(MAX_BULLSEYE_SHOTS).fill(-1),
     aimAngle: Math.PI / 2,
     launchMs: -Infinity,
@@ -670,19 +670,19 @@ export class BullseyeMode implements GameMode {
   /** The seed's draws: the deflector salt, the moving target's phase and per shot the launch jitter and aim (−1…1). */
   private salt = 0;
   private phase = 0;
-  private readonly jitter = new Float64Array(MAX_BULLSEYE_SHOTS);
-  private readonly aim = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private jitter = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private aim = new Float64Array(MAX_BULLSEYE_SHOTS);
   /** Per shot: its engine ball id, the world ms it has been at rest, whether it rides the target and where it sticks. */
-  private readonly ballId = new Int32Array(MAX_BULLSEYE_SHOTS).fill(-1);
+  private ballId = new Int32Array(MAX_BULLSEYE_SHOTS).fill(-1);
   private readonly slotOfId = new Map<number, number>();
-  private readonly restMs = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private restMs = new Float64Array(MAX_BULLSEYE_SHOTS);
   /** Per shot: the world ms it last touched a stuck ball, and how often it was nudged off a deflector it rested on. */
-  private readonly touchMs = new Float64Array(MAX_BULLSEYE_SHOTS);
-  private readonly perches = new Uint8Array(MAX_BULLSEYE_SHOTS);
-  private readonly onTarget = new Uint8Array(MAX_BULLSEYE_SHOTS);
+  private touchMs = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private perches = new Uint8Array(MAX_BULLSEYE_SHOTS);
+  private onTarget = new Uint8Array(MAX_BULLSEYE_SHOTS);
   /** A stuck ball's offset from the target's centre (on the target) or the field's middle (off it), and its height above the floor beyond its radius. */
-  private readonly stuckDx = new Float64Array(MAX_BULLSEYE_SHOTS);
-  private readonly stuckLift = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private stuckDx = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private stuckLift = new Float64Array(MAX_BULLSEYE_SHOTS);
   /** The stuck balls as circle obstacles (the mode resolves the flying balls against them), in landing order. */
   private readonly stuck: CircleObstacle[] = [];
   private readonly stuckShot: number[] = [];
@@ -731,6 +731,8 @@ export class BullseyeMode implements GameMode {
     const s = this.settings;
     const v = this.view;
     v.settings = { ...s };
+    // --- unlimited --- more shots and rings than the slider's: the arrays grow first, so the seed's draws below land in them
+    this.ensureCapacity(s.shots, s.rings);
     // The seed, all up front: the deflectors, the target's phase, then per shot its launch jitter and its aim.
     this.salt = Math.floor(ctx.random() * 0x100000000) >>> 0;
     this.phase = ctx.random() * 2 * Math.PI;
@@ -787,6 +789,36 @@ export class BullseyeMode implements GameMode {
     // The first shot leaves at once (the engine then adds no default ball).
     this.launch(ctx, 0);
     this.updateAim(ctx);
+  }
+
+  /**
+   * --- unlimited --- The per-shot and per-ring arrays hold `MAX_BULLSEYE_SHOTS` and `MAX_BULLSEYE_RINGS` (the sliders' ends);
+   * a run with more (a value past the slider, up to its memory-safety ceiling) grows them once – the mode's and the view's
+   * alike – before it starts. Grow-only.
+   */
+  private ensureCapacity(shots: number, rings: number) {
+    const v = this.view;
+    if (shots > this.jitter.length) {
+      const n = Math.ceil(shots);
+      this.jitter = new Float64Array(n);
+      this.aim = new Float64Array(n);
+      this.ballId = new Int32Array(n).fill(-1);
+      this.restMs = new Float64Array(n);
+      this.touchMs = new Float64Array(n);
+      this.perches = new Uint8Array(n);
+      this.onTarget = new Uint8Array(n);
+      this.stuckDx = new Float64Array(n);
+      this.stuckLift = new Float64Array(n);
+      v.shotState = new Uint8Array(n);
+      v.shotColor = new Array<string>(n).fill("#ffffff");
+      v.shotLaunchMs = new Float64Array(n).fill(-Infinity);
+      v.shotX = new Float64Array(n);
+      v.shotY = new Float64Array(n);
+      v.shotLandMs = new Float64Array(n).fill(-Infinity);
+      v.shotRing = new Int16Array(n).fill(-1);
+      v.shotScore = new Int8Array(n).fill(-1);
+    }
+    if (rings > v.ringHitMs.length) v.ringHitMs = new Float64Array(Math.ceil(rings)).fill(-Infinity);
   }
 
   private rebuild(ctx: ModeContext) {

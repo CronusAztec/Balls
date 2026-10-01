@@ -7320,6 +7320,41 @@ const bdInstrument = () =>
   const ate = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedAte === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
   const ateData = await unlimitedData();
   check("no limits: a ball bigger than the arena eats it (the run ends with its banner)", ate && ateData.multOutgrew === "1", `(ate=${ate}, outgrew ${ateData.multOutgrew})`);
+
+  // --- review fix (unlimited) x uncap-all --- a link with a value past its range but without `inf=1` keeps the switch off (it
+  // is only Wide sliders now): the extreme-values runtime engages by the value itself – the rings' memory-safety ceiling, the
+  // frame budget and the badges – so 100,000 rings never freeze the page
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=100000`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const ringsEngaged = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimited === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const frames = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let n = 0;
+        const t0 = performance.now();
+        const tick = () => (performance.now() - t0 < 3000 ? (n++, requestAnimationFrame(tick)) : resolve(n));
+        requestAnimationFrame(tick);
+      }),
+  );
+  const ringsLink = await page.evaluate(() => {
+    const q = new URLSearchParams(location.search);
+    return { inf: q.get("inf"), wc: q.get("wc") };
+  });
+  const ringsSwitch = await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null);
+  check(
+    "no limits: a link with 100,000 rings and no inf=1 keeps the switch off, engages the runtime by the value and stays responsive (the rings' ceiling, the frame budget)",
+    ringsEngaged && frames >= 6 && ringsLink.inf === null && ringsLink.wc === "100000" && ringsSwitch !== "true",
+    `(engaged ${ringsEngaged}, ${frames} frames in 3 s, link inf=${ringsLink.inf} wc=${ringsLink.wc}, switch ${ringsSwitch}${loadNote()})`,
+  );
+  // A mode's own settings run past their sliders with the switch off: 4,000 Power Layers, 40 panes a stage of Glass Smash
+  // (the slider stops at 30).
+  await page.goto(`${BASE}/en/simulator/?mode=powerLayers&pll=4000`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const plLayers = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.plLayers, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => null);
+  await page.goto(`${BASE}/en/simulator/?mode=glass&glr=40&gls=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const glassPanes = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.glassPanes, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => null);
+  check("no limits: a mode's own settings run past their sliders with the switch off (4,000 power layers, 40 panes a stage)", plLayers === "4000" && glassPanes === "80", `(layers ${plLayers}, panes ${glassPanes})`);
 }
 // --- end unlimited ---
 
@@ -7923,7 +7958,7 @@ const bdInstrument = () =>
     ];
     const state = {
       prefs: { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: "llama-3.2-3b-instruct-q4km", aiGpu: "auto" },
-      journal: null, saves: [], chats: [], logs: [],
+      journal: null, saves: [], chats: [], logs: [], reveals: [], opened: [],
       library: [{ id: "lib-1", path: "D:/Clips/earlier.mp4", fileName: "earlier.mp4", bytes: 2400000, durationSec: 12.5, width: 1080, height: 1920, createdAt: Date.now() - 60000, thumbnail: null, exists: true, encoder: "h264_nvenc", meta: { title: "Earlier", mode: "classic", seed: 7, link: "/en/simulator/?mode=classic&seed=7", platform: "tiktok", hook: "Can it escape?", caption: "Which ring?", hashtags: ["#physics"], queueJobId: null } }],
     };
     const emit = (event, payload) => (listeners[event] || []).forEach((l) => l(payload));
@@ -7950,7 +7985,7 @@ const bdInstrument = () =>
         cancel: async () => {},
       },
       journal: { load: async () => state.journal, save: async (j) => { state.journal = JSON.parse(JSON.stringify(j)); } },
-      library: { list: async () => state.library, remove: async (id) => (state.library = state.library.filter((i) => i.id !== id)), reveal: async () => {}, open: async () => {}, openFolder: async () => {}, read: async () => { throw new Error("no file"); } },
+      library: { list: async () => state.library, remove: async (id) => (state.library = state.library.filter((i) => i.id !== id)), reveal: async (id) => void state.reveals.push(id), open: async () => {}, openFolder: async () => {}, read: async (id) => ({ name: (state.library.find((i) => i.id === id) || {}).fileName || "clip.mp4", path: "D:/Clips/clip.mp4", mimeType: "video/mp4", kind: "video", data: new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]) }) },
       ai: {
         status: async () => ({ provider: "local", ready: true, local: { model: "llama-3.2-3b-instruct-q4km", loaded: true, backend: "vulkan", gpuLayers: 29, error: null }, cloud: { provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-opus-5-5", hasKey: false, encryption: true } }),
         models: async () => [{ id: "llama-3.2-3b-instruct-q4km", name: "Llama 3.2 3B Instruct (Q4_K_M)", size: 2019377696, sha256: "x", licence: "Llama 3.2 Community License", licenceUrl: "https://www.llama.com/llama3_2/license/", url: "https://huggingface.co/x.gguf", state: "ready", downloaded: 2019377696, path: "C:/m.gguf", custom: false, selected: true }],
@@ -7966,6 +8001,8 @@ const bdInstrument = () =>
       update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
       on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
     };
+    // The app sends web pages to the system browser (main.ts setWindowOpenHandler); here they are only noted.
+    window.open = (url) => (state.opened.push(String(url)), null);
     window.__fakeDesktop = { state, emit };
   })();`;
   const dctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
@@ -7988,6 +8025,35 @@ const bdInstrument = () =>
     const libTab = await dp.locator("[data-desktop-group]").getAttribute("data-desktop-tab");
     const libItems = await dp.locator("[data-library-item]").count();
     check("desktop-exe: a menu action opens the Library, which lists the saved clips", libTab === "library" && libItems === 1, `(tab ${libTab}, items ${libItems})`);
+
+    // --- review fix (desktop-exe) --- the Library publishes through the Publish feature: the ticked accounts (none yet: the clip
+    // waits in the Publish block and the Library says where to go) and the quick share of the clip's own platform (TikTok here)
+    const libItem = dp.locator("[data-library-item]").first();
+    const publishButtons = await libItem.getByRole("button", { name: /^Publish to/ }).allInnerTexts().catch(() => []);
+    await libItem.getByRole("button", { name: "Publish to your accounts" }).click().catch(() => {});
+    const noAccounts = await dp.getByTestId("desktop-library").getByText(/waiting in the Publish block/).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    await libItem.getByRole("button", { name: "Publish to TikTok (quick share)" }).click().catch(() => {});
+    const shareNote = await dp.getByTestId("desktop-library").getByText(/upload page opened/).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    // (the folder opens once the share has run: the note above shows after it)
+    await dp.waitForFunction(() => window.__fakeDesktop.state.reveals.length > 0, null, { timeout: 5000 }).catch(() => {});
+    const { reveals, opened } = await dp.evaluate(() => ({ reveals: window.__fakeDesktop.state.reveals.slice(), opened: window.__fakeDesktop.state.opened.slice() }));
+    check(
+      "desktop-exe: the Library publishes through the Publish feature – to the ticked accounts (or says where to tick them) and a quick share of the clip's platform",
+      publishButtons.join("|") === "Publish to your accounts|Publish to TikTok (quick share)" && noAccounts && shareNote && reveals.includes("lib-1") && opened.includes("https://www.tiktok.com/upload"),
+      `(buttons ${JSON.stringify(publishButtons)}, no accounts note ${noAccounts}, share note ${shareNote}, revealed ${JSON.stringify(reveals)}, opened ${JSON.stringify(opened)})`,
+    );
+    // In the app the Publish block offers YouTube through the relay (Google's sign-in does not take app:// as an origin)
+    await dp.getByRole("button", { name: /Recording/ }).click().catch(() => {});
+    const appYouTube = await dp.getByTestId("publish-app-youtube").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const directYouTube = await dp.locator('[data-publish-connect="youtube-direct"]').count();
+    const ytSetup = await dp.getByTestId("publish-yt-settings").count();
+    const publishClips = await dp.locator("[data-publish]").getAttribute("data-publish-clips").catch(() => null);
+    check(
+      "desktop-exe: in the app the Publish block holds the Library's clip and offers YouTube through the relay, without the direct Google sign-in",
+      appYouTube && directYouTube === 0 && ytSetup === 0 && Number(publishClips) >= 1,
+      `(note ${appYouTube}, direct buttons ${directYouTube}, setup ${ytSetup}, clips ${publishClips})`,
+    );
+    await dp.getByRole("button", { name: /Recording/ }).click().catch(() => {});
 
     await dp.getByTestId("desktop-tab-queue").click();
     const q = dp.getByTestId("desktop-queue");

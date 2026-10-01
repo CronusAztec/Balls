@@ -199,7 +199,10 @@ export function resolveBumperBoost(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return DEFAULT_BUMPER_BOOST;
   const r = OBSTACLE_EDITOR_RANGES.bumperBoost;
-  return round(clamp(n, r.min, r.max), 2);
+  // --- uncap-all --- from the slider's minimum up, never a maximum: a boost past the slider runs as typed (two decimals while
+  // they mean something – a huge one is kept whole, where rounding it would overflow the float)
+  const v = Math.max(r.min, n);
+  return v < 1e12 ? round(v, 2) : v;
 }
 
 export function defaultObstacleSettings(): ObstacleSettings {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { Crowd } from "@/lib/physics/crowd";
-import { BREAK_EFFECTS_PER_STEP, CROWD_POUR_PER_STEP, DENSE_RINGS_FROM, OBJECT_MIN, RING_OBJECT_WORK, STEP_RING_WORK, WALL_HITS_KEPT, fitIntoSortedRings, objectLimitFor, LOD_POINTS_FROM, MAX_SAFE_SPEED, MAX_SOUNDS_PER_FRAME, PAIR_COLLISIONS_UP_TO, STEP_WORK_CAP, UnlimitedRuntime, unlimitedConfigOf, unlimitedExtrasOf } from "@/lib/physics/limits";
+import { BREAK_EFFECTS_PER_STEP, CROWD_POUR_PER_STEP, DENSE_RINGS_FROM, OBJECT_MIN, RING_OBJECT_WORK, STEP_RING_WORK, WALL_HITS_KEPT, fitIntoSortedRings, objectLimitFor, LOD_POINTS_FROM, MAX_SAFE_SPEED, MAX_SOUNDS_PER_FRAME, PAIR_COLLISIONS_UP_TO, STEP_WORK_CAP, UnlimitedRuntime, uncapConfigOf, unlimitedConfigOf, unlimitedExtrasOf } from "@/lib/physics/limits";
 import { MAX_EFFECTIVE_BOUNCE, MULTIPLIER_CEILING, effectiveBounce, fitBallToRings, type RingFit, type StepPlan } from "@/lib/physics/multipliers";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
@@ -12,8 +12,26 @@ import { FRAME_BUDGET_MS, FrameBudget, formatRealTime } from "@/lib/simulation/f
 import { EFFECT_RENDER_CAP, ateSizeLabel, cappedEffects } from "@/components/simulator/unlimitedRenderer";
 import { FINDER_MIN_SEEDS, findSimulationBudgeted, seedsWithinBudget, usesBudgetedSearch } from "@/lib/simulation/unlimitedFinder";
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
-import { ENTITY_CEILING } from "@/lib/uncap"; // --- uncap-all ---
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { ENTITY_CEILING, MEMORY_CEILINGS, RACER_CEILING } from "@/lib/uncap"; // --- uncap-all ---
+import { dropSettingFields } from "@/lib/physics/modes/drop";
+import { boxSettingFields } from "@/lib/physics/modes/box";
+import { pendulumSettingFields } from "@/lib/physics/modes/pendulum";
+import { polyrhythmSettingFields } from "@/lib/physics/modes/polyrhythm";
+import { collideSettingFields } from "@/lib/physics/modes/collide";
+import { glassSettingFields, stageHp, stageRows } from "@/lib/physics/modes/glass";
+import { multipliersSettingFields } from "@/lib/physics/modes/multipliers";
+import { doublePendulumSettingFields } from "@/lib/physics/modes/doublePendulum";
+import { illusionSettingFields } from "@/lib/physics/modes/illusion";
+import { stringBattleSettingFields } from "@/lib/physics/modes/stringBattle";
+import { powerLayersSettingFields, powerLayersFixedDurationSec } from "@/lib/physics/modes/powerLayers";
+import { runnerSettingFields } from "@/lib/physics/modes/runner";
+import { paddleSettingFields } from "@/lib/physics/modes/paddle";
+import { vortexSettingFields } from "@/lib/physics/modes/vortex";
+import { journeySettingFields } from "@/lib/physics/modes/journey";
+import { bullseyeSettingFields, ringScore } from "@/lib/physics/modes/bullseye";
+import { fixedRunDurationSec } from "@/lib/simulation/finder";
+import { MAX_RACERS, RACE_SCREEN_CEILING, resolveRaceTrackSettings } from "@/lib/physics/raceTrack";
 import { resolveProjectSettings } from "@/lib/project";
 import { decodeShareCode, encodeShareCode, supportsShareCodes } from "@/lib/shareCode";
 import {
@@ -95,6 +113,29 @@ describe("No limits: parsing", () => {
     expect(parseUnlimitedValue("ballSpeed", Infinity, ranges.ballSpeed)).toBeNull();
     expect(parseUnlimitedValue("ballRadius", 3, ranges.ballRadius)).toBeNull(); // below the sensible minimum
     expect(parseUnlimitedValue("wallCount", 12.6, ranges.wallCount)).toBe(13); // counts are whole
+  });
+
+  // --- review fix (unlimited) x uncap-all --- a big value in a link or preset without `inf=1` keeps the switch off (it is only
+  // Wide sliders now): the extreme-values runtime engages by the value itself, so 100,000 rings never hang the tab
+  it("runs a link or preset that carries a value past its range with the switch off, and the tab never hangs", () => {
+    const link = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=100000"));
+    expect([link.unlimited, link.wallCount]).toEqual([false, 100000]);
+    expect(settingsToSearchParams(link).get("inf")).toBeNull();
+    expect(settingsToSearchParams(link).get("wc")).toBe("100000");
+    const engine = createEngineForSettings(physicsConfigOfSettings(link), "classic", modeSettingsOfSettings(link), 3);
+    expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
+    const start = performance.now();
+    engine.update(1000 / 60, 0);
+    expect(performance.now() - start).toBeLessThan(1000);
+    const preset = presetToSettings({ ...defaultSettings("classic"), unlimited: false, ballSpeed: 1e9 });
+    expect([preset.unlimited, preset.ballSpeed]).toEqual([false, 1e9]);
+    expect(physicsConfigOfSettings(preset).unlimited).toBe(true); // (engaged by the value, not by the switch)
+    expect(resolveProjectSettings({ mode: "classic", wallCount: 5000 })).toMatchObject({ unlimited: false, wallCount: 5000 }); // (a project file keeps it too)
+    // Values inside their ranges engage nothing, and a mode setting past its slider reaches its run with the switch off.
+    const plain = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=12&s=800"));
+    expect(plain.unlimited).toBe(false);
+    expect(physicsConfigOfSettings(plain).unlimited).toBeUndefined();
+    expect(presetToSettings({ ...defaultSettings("glass"), unlimited: false, glassHp: 1000 })).toMatchObject({ unlimited: false, glassHp: 1000 });
   });
 
   // --- uncap-all --- the switch no longer gates anything but the slider tracks (Wide sliders)
@@ -459,6 +500,28 @@ describe("No limits: the engine", () => {
     expect(rt.thinSounds(events)).toBe(events);
   });
 
+  // --- review fix (unlimited) --- the gulp is queued after the step's bursts; the cap must never drop it
+  it("keeps the ate-the-arena gulp however many rings the ball ate in its step", () => {
+    const rt = new UnlimitedRuntime();
+    rt.configure({ unlimited: true });
+    const events: SoundEvent[] = [];
+    for (let i = 0; i < 1000; i++) events.push({ type: "gap", wallIndex: i });
+    for (let i = 0; i < 50; i++) events.push({ type: "hit", wallIndex: i % 7 });
+    events.push({ type: "gap", wallIndex: 0, ate: true });
+    const kept = rt.thinSounds(events);
+    expect(kept.length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
+    expect(kept.filter((e) => e.ate)).toHaveLength(1);
+    expect(kept.filter((e) => e.type === "gap" && !e.ate).length).toBeGreaterThan(0); // the breaks still come before the bounces
+    // A ball bigger than the arena eating 7, 50 and LIVE_WALL_LIMIT (100,000 asked) rings in one step: the page and the export hear the gulp.
+    for (const wallCount of [7, 50, 1e5]) {
+      const engine = engineFor("classic", { wallCount, ballRadius: 1e6 });
+      engine.setWallBreakStyle("all");
+      engine.update(1000 / 60, 0);
+      expect(engine.getUnlimitedView().ate).toBe(true);
+      expect([wallCount, engine.consumeSoundEvents().some((e) => e.ate)]).toEqual([wallCount, true]);
+    }
+  });
+
   it("survives every mode with absurd values: no throw, finite state, bounded steps", () => {
     const extremes: Partial<PhysicsConfig>[] = [
       { ballSpeed: 1e9, gravity: 1e9, rotationSpeed: 1e9 },
@@ -490,7 +553,8 @@ describe("No limits: the engine", () => {
         for (const key of unlimitedSettingKeys()) preset[key] = SEMANTIC_MAX[key] ?? Math.max(ranges[key].max, 1e9);
         if (!bigBall) preset.ballRadius = defaultSettings(mode).ballRadius;
         const s = presetToSettings(preset as Partial<SimulatorSettings>);
-        const physics = { ...physicsConfigOfSettings(s), ...unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(mode)) };
+        const physics = physicsConfigOfSettings(s); // (the page's config: --- uncap-all --- engaged by the values, the crowd, ARENA FULL)
+        expect(physics).toMatchObject(uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(mode), pastAnyMemoryCeiling(s)));
         const engine = createEngineForSettings(physics, mode, modeSettingsOfSettings(s), 3);
         for (let i = 0; i < 8; i++) {
           engine.update(1000 / 60, 0);
@@ -502,6 +566,187 @@ describe("No limits: the engine", () => {
         expect(engine.getCrowd().count).toBeLessThanOrEqual(CROWD_LIMIT);
       }
     }
+  });
+
+  // --- review fix (unlimited) x uncap-all --- every setting reaches the engine past its slider, whatever the switch: min(typed,
+  // its memory-safety ceiling)
+  it("runs every mode's own settings past their sliders, as typed or at their memory-safety ceilings, through the page's own path", () => {
+    /** The engine-side value of every setting a mode's engine (or the run's config) holds, under the settings' names. */
+    const engineSide = (engine: ReturnType<typeof createEngineForSettings>): Record<string, number> => {
+      const race = engine.getRaceSettings();
+      const battle = engine.getBattleSettings();
+      const ctf = engine.getCtfSettings();
+      const mult = engine.getMultiplierRuntime().getConfig();
+      const extras = engine.getPhysicsExtras();
+      const editor = (engine as unknown as { editorObstacles: { bumperBoost: number } }).editorObstacles;
+      return {
+        ...dropSettingFields(engine.getDropSettings()),
+        ...boxSettingFields(engine.getBoxSettings()),
+        ...pendulumSettingFields(engine.getPendulumSettings()),
+        ...polyrhythmSettingFields(engine.getPolyrhythmSettings()),
+        ...collideSettingFields(engine.getCollideSettings()),
+        ...glassSettingFields(engine.getGlassSettings()),
+        ...multipliersSettingFields(engine.getMultipliersSettings()),
+        ...doublePendulumSettingFields(engine.getDoublePendulumSettings()),
+        ...illusionSettingFields(engine.getIllusionSettings()),
+        ...stringBattleSettingFields(engine.getStringBattleSettings()),
+        ...powerLayersSettingFields(engine.getPowerLayersSettings()),
+        ...runnerSettingFields(engine.getRunnerSettings()),
+        ...paddleSettingFields(engine.getPaddleSettings()),
+        ...vortexSettingFields(engine.getVortexSettings()),
+        ...journeySettingFields(engine.getJourneySettings()),
+        ...bullseyeSettingFields(engine.getBullseyeSettings()),
+        rcRacers: race.racers,
+        rcTrackLength: race.trackLength,
+        rcLaps: race.laps,
+        btCount: battle.count,
+        btHp: battle.hp,
+        btDamage: battle.damage,
+        ctfPerTeam: ctf.perTeam,
+        ctfScoreToWin: ctf.scoreToWin,
+        mpCap: mult.mpCap,
+        wallSmashThreshold: mult.wallSmashThreshold,
+        pickupRate: mult.pickupRate,
+        pickupLifetime: mult.pickupLifetime,
+        bumperBoost: editor.bumperBoost,
+        ballSpeed: engine.config.ballSpeed,
+        ballRadius: engine.config.ballRadius,
+        gravity: engine.config.gravity,
+        rotationSpeed: engine.config.rotationSpeed,
+        wallCount: engine.config.wallCount,
+        windX: extras.windX,
+        windY: extras.windY,
+        spinStrength: extras.spinStrength,
+        wallBounciness: extras.wallBounciness,
+        breathingSpeed: extras.breathingSpeed,
+        rotatingGravity: extras.rotatingGravity,
+        airDrag: extras.airDrag,
+        breathingAmplitude: extras.breathingAmplitude,
+        splitMinRadius: engine.getBallInteraction().splitMinRadius,
+      } as unknown as Record<string, number>;
+    };
+    // Settings the run takes elsewhere than these, each checked in its own place: the Ball Count (team balls + the crowd,
+    // "builds the engine config"), the canvas' thicknesses (`visualValue()`), the counts the page hands the engine's own
+    // setters at their ceilings (`ceilValue()`: spikes, Target numbers, Multiply's spawns, Grow, the accumulation timer), the
+    // split limit (lowered by the ring count), the paint brush (below).
+    const elsewhere = new Set(["ballCount", "wallThickness", "trailThickness", "spikeCount", "targetCount", "multiplySpawnCount", "growRate", "accumulationTime", "maxBalls", "paintBrush"]);
+    // (--- uncap-all --- every numeric setting is uncapped now – volumes, the recording, the camera, captions… –; the ones a
+    // mode's engine or the run's config holds are walked here, the rest round-trip in tests/uncap.test.ts)
+    const fresh = engineSide(new PhysicsEngine({ ...config }));
+    const keys = unlimitedSettingKeys().filter((key) => key in fresh);
+    expect(keys.length).toBeGreaterThan(90);
+    // Settings whose ceiling is shared with another one (the panes of every Glass Smash stage, the bobs of every pendulum chain,
+    // the screens of every lap): far past every slider at once they stop where the other one leaves room – checked just past
+    // their sliders, and in their own tests.
+    const shared = new Set(["glassStages", "dpCount", "rcLaps"]);
+    // Two passes: everything typed far past its slider with the Wide sliders switch off (a memory-safety ceiling runs, or the
+    // typed value), and just past the slider with it on (the typed value runs) – the switch changes nothing either way.
+    for (const far of [true, false]) {
+      const seen = new Map<string, number>();
+      const typed: Record<string, number> = {};
+      for (const key of keys) {
+        const r = ranges[key];
+        const ceiling = softCeiling(key, r);
+        typed[key] = far ? (SEMANTIC_MAX[key] ?? 1e9) : Math.min(ceiling, r.max + 3 * r.step);
+      }
+      // A mode's own settings reach only its own engine (the others keep their defaults): each key is read from the first
+      // engine that holds something other than a fresh engine's default.
+      for (const mode of MODE_IDS) {
+        const s = presetToSettings({ ...defaultSettings(mode), unlimited: !far, rotationEnabled: true, ...typed } as Partial<SimulatorSettings>);
+        expect(s.unlimited).toBe(!far);
+        const engine = createEngineForSettings(physicsConfigOfSettings(s), mode, modeSettingsOfSettings(s), 3);
+        const values = engineSide(engine);
+        for (const key of keys) if (!elsewhere.has(key) && key in values && values[key] !== fresh[key] && !seen.has(key)) seen.set(key, values[key]);
+      }
+      for (const key of keys) {
+        if (elsewhere.has(key) || (far && shared.has(key))) continue;
+        const r = ranges[key];
+        const want = Math.min(typed[key], softCeiling(key, r));
+        expect([key, far, seen.get(key)], `${key} runs ${seen.get(key)}, want ${want}`).toEqual([key, far, expect.closeTo(want, 6)]);
+      }
+    }
+    // Every ceiling lies past its slider – but the race's racers: its per-racer state and its roster are sized for the slider's
+    // 16 (RACER_CEILING = MAX_RACERS), so a grid past it builds 16 and says ARENA FULL.
+    const atSliderEnd = new Set(["rcRacers"]);
+    for (const key of keys) expect([key, softCeiling(key, ranges[key]) > ranges[key].max]).toEqual([key, !atSliderEnd.has(key)]);
+    expect([RACER_CEILING, MEMORY_CEILINGS.rcRacers, RANGES.rcRacers.max]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
+    const bigGrid = settingsFromSearchParams(new URLSearchParams("mode=race&rcn=40"));
+    expect([bigGrid.rcRacers, pastAnyMemoryCeiling(bigGrid)]).toEqual([40, true]);
+    const grid = createEngineForSettings(physicsConfigOfSettings(bigGrid), "race", modeSettingsOfSettings(bigGrid), 3);
+    expect([grid.getRaceSettings().racers, grid.getRaceView().racers, grid.getBalls().length]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
+    expect(allFinite(grid)).toBe(true);
+    expect(softCeiling("glassHp", ranges.glassHp)).toBe(Infinity); // (hit points allocate nothing)
+    // The values do what they say: a thousand panes a stage of a billion hit points, power layers by the thousand, long races.
+    expect(stageRows(500, 3)).toBe(500);
+    expect(stageHp(1e9, 4)).toBe(1e9);
+    expect(stageRows(12, 9)).toBe(30); // (the slider's run is unchanged)
+    const glassLink = settingsFromSearchParams(new URLSearchParams("mode=glass&glhp=1000&glr=40"));
+    const glass = createEngineForSettings(physicsConfigOfSettings(glassLink), "glass", modeSettingsOfSettings(glassLink), 3);
+    expect(glass.getGlassView().settings.hp).toBe(1000);
+    expect(glass.getGlassView().level!.panes[0].maxHp).toBe(1000);
+    expect(glass.getGlassView().level!.stages[0].rows).toBe(40);
+    // Power Layers: 4,000 layers run as typed, 100,000 at the layers' memory-safety ceiling (the link keeps the typed value),
+    // and the finder plans the run the engine plays: its fixed length from the settings as the engine resolves them.
+    for (const [asked, runs] of [[4000, 4000], [100_000, MEMORY_CEILINGS.plLayers]]) {
+      const pl = settingsFromSearchParams(new URLSearchParams(`mode=powerLayers&pll=${asked}`));
+      expect(pl.plLayers).toBe(asked);
+      const plEngine = createEngineForSettings(physicsConfigOfSettings(pl), "powerLayers", modeSettingsOfSettings(pl), 3);
+      expect(plEngine.getPowerLayersView().layers).toBe(runs);
+      expect(fixedRunDurationSec("powerLayers", modeSettingsOfSettings(pl))).toBe(powerLayersFixedDurationSec({ layers: runs }));
+    }
+    // The race track follows the settings past their sliders: 30 screens, 7 laps – every lap's rows together at most the
+    // track's ceiling of screens.
+    const longRace = settingsFromSearchParams(new URLSearchParams("mode=race&rcl=30&rclp=7"));
+    const raceEngine = createEngineForSettings(physicsConfigOfSettings(longRace), "race", modeSettingsOfSettings(longRace), 3);
+    expect(raceEngine.getRaceSettings()).toMatchObject({ trackLength: 30, laps: 7 });
+    expect(raceEngine.getRaceView().track!.laps).toBe(7);
+    expect(resolveRaceTrackSettings({ trackLength: 1e9, laps: 1e9 })).toMatchObject({ trackLength: MEMORY_CEILINGS.rcTrackLength, laps: 1 });
+    expect(resolveRaceTrackSettings({ trackLength: 50, laps: 1e9 }).laps).toBe(RACE_SCREEN_CEILING / 50);
+    // The brush of Picture Paint: past its slider as typed, and the run paints on.
+    const paint = engineFor("paint");
+    paint.setPaintOptions({ brush: 50 });
+    expect(paint.getPaintOptions().brush).toBe(50);
+    paint.setPaintOptions({ brush: 1e12 });
+    expect(paint.getPaintOptions().brush).toBe(1e12);
+    for (let i = 0; i < 10; i++) paint.update(1000 / 60, 0);
+    expect(allFinite(paint)).toBe(true);
+  });
+
+  // --- unlimited --- String Battle past the slider's MAX_TEAMS: every slot keeps its kill record (a typed array never grows)
+  // (--- uncap-all --- with the Wide sliders switch off: the limits are gone either way)
+  it("credits every String Battle elimination to its killer with more balls than the slider's six", () => {
+    const s = presetToSettings({ ...defaultSettings("stringBattle"), unlimited: false, sbBalls: 20, sbLives: 1 } as Partial<SimulatorSettings>);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "stringBattle", modeSettingsOfSettings(s), 5);
+    const view = engine.getStringBattleView();
+    for (let i = 0; i < 60 * 120 && !view.finished; i++) engine.update(1000 / 60, 0);
+    expect(view.count).toBe(20);
+    expect(view.finished).toBe(true);
+    const eliminated = view.fighters.filter((f) => !f.alive).length;
+    expect(eliminated).toBe(19);
+    // Seed 5's battle: every ball cut down by another one, slots past the sixth included.
+    expect(view.fighters.reduce((sum, f) => sum + f.kills, 0)).toBe(eliminated);
+    expect(view.fighters.slice(6).some((f) => f.kills > 0)).toBe(true);
+  });
+
+  // --- review fix (unlimited) x uncap-all --- Bullseye past the slider's 30 shots and 10 rings: the arrays grow before the
+  // seed's draws, so a fresh engine's first run (the finder's) and a restart (the page's) play the same run
+  it("grows Bullseye's arrays before the seed's draws: past the slider a fresh engine and a restart play the same run", () => {
+    const s = presetToSettings({ ...defaultSettings("bullseye"), unlimited: false, byShots: 40, byRings: 200, byInterval: 0.3 } as Partial<SimulatorSettings>);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "bullseye", modeSettingsOfSettings(s), 9);
+    const play = () => {
+      for (let i = 0; i < 60 * 20; i++) engine.update(1000 / 60, 0);
+      const v = engine.getBullseyeView();
+      return { launched: v.launched, landed: v.landed, total: v.total, x: Array.from(v.shotX), rings: Array.from(v.shotRing), scores: Array.from(v.shotScore) };
+    };
+    const first = play();
+    engine.setSeed(9);
+    engine.initMode("bullseye");
+    const again = play();
+    expect(first.launched).toBe(40);
+    expect(first.x).toHaveLength(40);
+    expect(again).toEqual(first);
+    // Every landing's score is its ring's (no ring index wrapped round a narrow typed array).
+    for (let k = 0; k < 40; k++) if (first.rings[k] >= 0) expect(first.scores[k]).toBe(ringScore(first.rings[k], 200));
   });
 
   it("fits a ball into a thousand rings in one quick pass, exactly as the multipliers' ring fit does", () => {

@@ -60,6 +60,12 @@ export const JOURNEY_STAGE_CEILING = 500;
 export const PANE_CEILING = 1_000;
 /** Strings a String Battle ball may keep (every ball is tested against every string, every sub-step). */
 export const STRING_CEILING = 1_024;
+/**
+ * Racers of one Square Racing Grand Prix: the race's per-racer state (typed arrays, the standings, the photo finish) and its
+ * roster (names, colours) are sized for `MAX_RACERS` of lib/physics/raceTrack.ts (a test keeps them equal) – past it the
+ * grid builds that many (ARENA FULL).
+ */
+export const RACER_CEILING = 16;
 /** Split-screen arenas one run builds: each is a whole engine with its own world and a part of the canvas (a 6 × 6 grid). */
 export const ARENA_CEILING = 36;
 /** Clips one batch or one bot plan renders and keeps in memory for the ZIP / the downloads (a few MB each). */
@@ -101,7 +107,7 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   sbBalls: PAIRWISE_BODY_CEILING,
   sbMaxStrings: STRING_CEILING,
   plLayers: ENTITY_CEILING,
-  rcRacers: ENTITY_CEILING,
+  rcRacers: RACER_CEILING,
   rcTrackLength: ENTITY_CEILING,
   btCount: PAIRWISE_BODY_CEILING,
   ctfPerTeam: PAIRWISE_BODY_CEILING,

@@ -6,6 +6,7 @@ import {
   buildRaceTrack,
   firstRowFrom,
   isRaceFeature,
+  raceLapsWithin,
   setSpinnerAngles,
   type RaceFeature,
   type RacePad,
@@ -109,6 +110,7 @@ export function resolveRaceSettings(config: Partial<RaceSettings> | null | undef
   if (isRaceShape(config.shape)) out.shape = config.shape;
   if (config.trackLength !== undefined) out.trackLength = memoryCeiling("rcTrackLength", clampInt(config.trackLength, R.rcTrackLength, out.trackLength));
   if (config.laps !== undefined) out.laps = clampInt(config.laps, R.rcLaps, out.laps);
+  out.laps = raceLapsWithin(out.trackLength, out.laps); // --- uncap-all --- (every lap's rows together: at most RACE_SCREEN_CEILING screens, as the track builds them)
   if (isRaceFeature(config.feature)) out.feature = config.feature;
   if (isRaceCamera(config.camera)) out.camera = config.camera;
   if (typeof config.cup === "boolean") out.cup = config.cup;

@@ -219,6 +219,7 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
  * set and the page says what to change instead.
  */
 export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">): number | null {
+  // (--- uncap-all --- the resolvers below are the engine's: every value past its slider, memory-safety ceilings aside)
   // --- jdm-polyrhythm --- (cycles × the cycle length, the seed only picks the direction)
   if (mode === "polyrhythm") {
     const p = resolvePolyrhythmSettings(settings.polyrhythm);

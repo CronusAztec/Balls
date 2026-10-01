@@ -11,8 +11,8 @@ import { IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 /*
  * --- desktop-exe --- The Library: the clips the render queue saved, newest first – thumbnail, length, size, encoder, the
  * post copy – with Open, Show in folder, Re-render (the clip's simulator link and seed back into the queue), Copy post text,
- * Delete (from the list, or to the recycle bin) and one-click Publish through the Publish feature's targets when it is
- * installed (lib/desktop/publish.ts).
+ * Delete (from the list, or to the recycle bin) and one-click Publish through the Publish feature's targets (lib/desktop/publish.ts,
+ * registered by lib/publish/desktopTargets.ts: the accounts ticked in the Publish block, and the quick share).
  */
 
 const noTargets: PublishTarget[] = [];
@@ -33,7 +33,7 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
     try {
       const file = pickedToFile(await bridge.library.read(item.id));
       const result = await target.publish({ item, file, title: item.meta.title, caption: item.meta.caption ?? "", hashtags: item.meta.hashtags });
-      setStatus(result && result.url ? t("libPublishedAt", { url: result.url }) : t("libPublished", { target: target.label }));
+      setStatus(result && result.message ? result.message : result && result.url ? t("libPublishedAt", { url: result.url }) : t("libPublished", { target: target.label }));
     } catch (err) {
       setStatus(errorText(err));
     }
@@ -104,7 +104,7 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
                     {copied === item.id ? t("copied") : t("libCopyPost")}
                   </button>
                   {/* --- desktop-exe --- publish hook: one button per target the Publish feature registered */}
-                  {targets.map((target) => (
+                  {targets.filter((target) => !target.available || target.available(item)).map((target) => (
                     <button key={target.id} type="button" className={`${primaryBtn} !py-0.5`} disabled={!item.exists} onClick={() => void publish(target, item)}>
                       {t("libPublishTo", { target: target.label })}
                     </button>

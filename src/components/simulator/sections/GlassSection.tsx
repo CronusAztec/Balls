@@ -2,7 +2,7 @@
 
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { glassSettingsOf, stageHp, stageRows } from "@/lib/physics/modes/glass";
+import { glassSettingsOf, resolveGlassSettings, stageHp, stageRows } from "@/lib/physics/modes/glass";
 
 export interface GlassSectionProps {
   t: Translate;
@@ -17,7 +17,7 @@ export const GLASS_KEYS = ["glassRows", "glassHp", "glassStages", "glassMoving",
 
 /** Panes and hits of the whole run with these settings (every pane shattered), for the summary line. */
 export function glassRunSize(s: SimulatorSettings): { panes: number; hits: number } {
-  const g = glassSettingsOf(s);
+  const g = resolveGlassSettings(glassSettingsOf(s)); // --- unlimited --- (the run the engine plays: its memory-safety ceilings applied)
   let panes = 0;
   let hits = 0;
   for (let stage = 0; stage < g.stages; stage++) {
