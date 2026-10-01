@@ -47,7 +47,7 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
-import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-boris-odd) --- the slow motion's lag)
+import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
@@ -1561,7 +1561,7 @@ export default function Simulator() {
       setIsRecording(false);
       return;
     }
-    // --- review fix (modes-boris-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
+    // --- review fix (modes-gerald-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
     // a run takes, so an unfinished run's clip is extended by the lag it added while recording (re-armed until it stops growing,
     // at most the whole clip at the slowest factor – a paused run adds none) and the finished effect below ends it as usual
     const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
@@ -1685,7 +1685,7 @@ export default function Simulator() {
         world: { width: page.config.width, height: page.config.height },
         resolution,
         durationSec: s.recordingDuration,
-        slowMoStretch: s.slowMoOnNearMiss ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-boris-odd) --- (the clip is extended by the slow motion's lag)
+        slowMoStretch: s.slowMoOnNearMiss ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag)
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
@@ -2380,7 +2380,7 @@ export default function Simulator() {
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
       madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
       madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
-      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-boris-odd) ---
+      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
       dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),
@@ -2522,7 +2522,7 @@ export default function Simulator() {
         bounces: t("Simulator.canvasTeamBounces"),
         walls: t("Simulator.canvasTeamWalls"),
         escapes: t("Simulator.canvasTeamEscapes"),
-        kills: t("Simulator.canvasTeamKills"), // --- review fix (modes-boris-odd) --- a String Battle's columns and banner
+        kills: t("Simulator.canvasTeamKills"), // --- review fix (modes-gerald-odd) --- a String Battle's columns and banner
         win: t("Simulator.canvasTeamWin"),
         wins: (name) => fill("Simulator.canvasTeamWins", "name", name),
         tie: t("Simulator.canvasTeamTie"),

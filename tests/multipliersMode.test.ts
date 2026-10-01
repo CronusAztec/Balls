@@ -405,7 +405,7 @@ describe("clone colours", () => {
   });
 });
 
-describe("review fix (modes-boris-odd): a ball grown by size gates", () => {
+describe("review fix (modes-gerald-odd): a ball grown by size gates", () => {
   it("outgrows the board when it wedges between the rows, instead of silently vanishing as a lost ball", { timeout: 120_000 }, () => {
     for (let seed = 1; seed <= 12; seed++) {
       const engine = board({ rows: 20, gateMix: "001000", startBalls: 1, maxBalls: 200 }, seed, { width: 800, height: 600 });
@@ -433,7 +433,7 @@ describe("review fix (modes-boris-odd): a ball grown by size gates", () => {
   });
 });
 
-describe("review fix (modes-boris-odd): the count gates' closing time", () => {
+describe("review fix (modes-gerald-odd): the count gates' closing time", () => {
   it("stops cloning at COUNT_GATES_CLOSE_MS, so a crowded board of big balls that keeps refilling itself drains and ends", { timeout: 120_000 }, () => {
     // Big balls, count gates only, a small board: it refills as fast as balls arrive (without the closing time it runs 413 s).
     const engine = board({ rows: 20, gateMix: "900000", startBalls: 10, maxBalls: 200 }, 1, { width: 300, height: 300, ballRadius: 20 });

@@ -473,7 +473,7 @@ export class PowerLayersLayer {
     ctx.globalCompositeOperation = "source-over";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    let topBottom = 0; // --- review fix (modes-boris-odd) --- the lowest top item, for the captions
+    let topBottom = 0; // --- review fix (modes-gerald-odd) --- the lowest top item, for the captions
     if (s.badge === "warning" || s.badge === "both") topBottom = Math.max(topBottom, this.warningBadge(ctx, view, labels.warningTop, labels.warningBottom));
     if (s.badge === "sound" || s.badge === "both") topBottom = Math.max(topBottom, this.soundBadge(ctx, view, labels.soundOn, s.badge === "both"));
     if (s.pills) {

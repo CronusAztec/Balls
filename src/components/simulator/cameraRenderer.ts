@@ -90,7 +90,7 @@ export class CinematicCamera {
   private lastMisses = -1;
   private scaleNow = 1;
   /**
-   * --- review fix (modes-boris-odd) --- Real ms the slow motion has added to this run: every frame played in a window takes
+   * --- review fix (modes-gerald-odd) --- Real ms the slow motion has added to this run: every frame played in a window takes
    * `frameMs × (1 − timeScale)` longer than the run itself moves on. Reset with the run (`checkRestart()`).
    */
   private slowLagMs = 0;
@@ -245,7 +245,7 @@ export class CinematicCamera {
       if (s.slowMoOnNearMiss && live) this.slowMo.trigger(s.slowMoMs);
     }
     if (!running) return;
-    // --- review fix (modes-boris-odd) --- the real time this frame's slow motion added (this frame's time scale, see timeScale())
+    // --- review fix (modes-gerald-odd) --- the real time this frame's slow motion added (this frame's time scale, see timeScale())
     if (this.phase === "idle") this.slowLagMs += frameMs * (1 - this.scaleNow);
     this.shakeAge += frameMs;
     this.slowMo.advance(frameMs, s.slowMoMs);
@@ -485,7 +485,7 @@ export class CinematicCamera {
     setData(data, "cameraReplays", String(this.replays));
     setData(data, "cameraSlowFrames", String(this.slowFrames));
     setData(data, "cameraSlowStill", String(this.slowStill));
-    setData(data, "cameraSlowLag", String(Math.round(this.slowLagMs))); // --- review fix (modes-boris-odd) --- the real ms the slow motion added
+    setData(data, "cameraSlowLag", String(Math.round(this.slowLagMs))); // --- review fix (modes-gerald-odd) --- the real ms the slow motion added
   }
 }
 

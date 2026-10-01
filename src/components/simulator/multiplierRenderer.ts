@@ -515,7 +515,7 @@ function overlaps(x: number, y: number, w: number, h: number, r: HudRect | null 
  * top captions start below.
  */
 export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null, avoid?: HudRect | null, top?: { bottom: number }): number {
-  if (top) top.bottom = 0; // --- review fix (modes-boris-odd) ---
+  if (top) top.bottom = 0; // --- review fix (modes-gerald-odd) ---
   if (!mv.active) return -1;
   ctx.save();
   const fs = Math.max(11, 0.034 * side);

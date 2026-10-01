@@ -66,7 +66,7 @@ export interface OfflineFrameRenderer {
   setSongProgress(progress: number | null): void;
   /** True while the canvas holds the end screen back (the escape replay, a caption's answer). */
   holdsEndScreen(): boolean;
-  /** --- review fix (modes-boris-odd) --- Real ms the camera's slow motion has added to the run so far (the clip is extended by it). */
+  /** --- review fix (modes-gerald-odd) --- Real ms the camera's slow motion has added to the run so far (the clip is extended by it). */
   slowLagMs(): number;
   /** Paints the export frame's background (theme gradient / picture, so the letterbox bars continue it). */
   paintBackground(ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop): void;
@@ -148,7 +148,7 @@ export interface FastRenderOptions {
   /** The clip length (s): the export ends there, or earlier when the run finishes (see `ExportEndTracker`). */
   durationSec: number;
   /**
-   * --- review fix (modes-boris-odd) --- The most the camera's slow motion can stretch the clip (1 / its factor with slow motion
+   * --- review fix (modes-gerald-odd) --- The most the camera's slow motion can stretch the clip (1 / its factor with slow motion
    * on near misses, else 1): the clip is extended by the slow motion's lag, and the frames and the mix are sized for it.
    */
   slowMoStretch?: number;
@@ -391,7 +391,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
   };
 
   // The offline mix: a copy of the page's sound set-up scheduling into an OfflineAudioContext on the export clock.
-  const stretch = Math.max(1, Number.isFinite(options.slowMoStretch) ? (options.slowMoStretch as number) : 1); // --- review fix (modes-boris-odd) ---
+  const stretch = Math.max(1, Number.isFinite(options.slowMoStretch) ? (options.slowMoStretch as number) : 1); // --- review fix (modes-gerald-odd) ---
   const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec, stretch)), sampleRate: EXPORT_SAMPLE_RATE });
   const mix = await (options.audio ?? new ToneGenerator()).createOfflineTwin(audioContext, () => clock.ms / 1000);
   if (signal?.aborted) return null;
@@ -437,7 +437,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop) };
     let digest = 0x811c9dc5;
 
-    const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-boris-odd) --- (the slow motion's lag)
+    const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-gerald-odd) --- (the slow motion's lag)
     const lastFrame = maxSimFrames(options.durationSec, stretch);
     let bedStopped = false;
     let exported = 0;

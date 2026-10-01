@@ -48,7 +48,7 @@ export const CAMERA_RANGES = {
 export const CAMERA_SETTING_KEYS = Object.keys(DEFAULT_CAMERA_SETTINGS) as (keyof CameraSettings)[];
 
 /**
- * --- review fix (modes-boris-odd) --- The slow motion stretches the real time a run takes (the recorder films real time): a
+ * --- review fix (modes-gerald-odd) --- The slow motion stretches the real time a run takes (the recorder films real time): a
  * recording of `clipMs` is extended by the lag the slow motion adds while it records, at most this much – the whole clip played
  * at the slowest factor. A paused run adds no lag, so a recording never waits past it.
  */

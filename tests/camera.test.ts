@@ -929,7 +929,7 @@ describe("live slow motion", () => {
   });
 });
 
-describe("slow motion and the clip length (review fix modes-boris-odd)", () => {
+describe("slow motion and the clip length (review fix modes-gerald-odd)", () => {
   const SLOW: CameraSettings = { ...DEFAULT_CAMERA_SETTINGS, slowMoOnNearMiss: true };
 
   /** The run's length without the camera – what Find Simulation measures headlessly (ms). */

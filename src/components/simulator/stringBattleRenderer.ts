@@ -75,7 +75,7 @@ export interface StringBattleRenderOptions {
 }
 
 /**
- * --- review fix (modes-boris-odd) --- How the ball characters' faces sit on the fighters (`FaceLayer.drawOverlays()`): in the web
+ * --- review fix (modes-gerald-odd) --- How the ball characters' faces sit on the fighters (`FaceLayer.drawOverlays()`): in the web
  * style two eyes above the lives the body shows (the compact face of a countdown), in the neon style – no number – the whole face.
  */
 const SB_FACE_LAYOUT = { shape: "circle", countdown: true } as const;
@@ -177,7 +177,7 @@ export class StringBattleLayer {
   badgeDrawn = false;
   hudDrawn = false;
   bannerDrawn = false;
-  /** --- review fix (modes-boris-odd) --- the warning badge sits in the top-right corner this frame (the teams scoreboard has the left one). */
+  /** --- review fix (modes-gerald-odd) --- the warning badge sits in the top-right corner this frame (the teams scoreboard has the left one). */
   badgeRight = false;
   // The last badge / HUD rectangle drawn (screen px): what the top captions keep clear of.
   private badgeX = 0;
@@ -657,7 +657,7 @@ export class StringBattleLayer {
     if (view.settings.badge) this.drawBadge(ctx, this.badgeRight ? sx + side - margin : sx + margin, sy + frame.inset + margin, side, o.labels, this.badgeRight);
     this.hudDrawn = sbHudShown(view.settings);
     if (this.hudDrawn) this.drawHud(ctx, view, sx + side - margin, sy + frame.inset + margin, side, o.labels);
-    // --- review fix (modes-boris-odd) --- the corner items the top captions have to start below
+    // --- review fix (modes-gerald-odd) --- the corner items the top captions have to start below
     let topBottom = 0;
     if (this.badgeDrawn && inCaptionColumn(this.badgeX, this.badgeW, sx + side / 2, side)) topBottom = this.badgeBottom;
     if (this.hudDrawn && inCaptionColumn(this.hudX, this.hudW, sx + side / 2, side)) topBottom = Math.max(topBottom, this.hudBottom);
