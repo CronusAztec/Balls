@@ -246,10 +246,14 @@ SECTION_KEYS.recording.push(...PUBLISH_KEYS);
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
   const t = useTranslations("Controls");
-  // --- site-redesign --- the rail: one group open at a time – the Mode group first, as the old Mode row was open – and a press
-  // on the open one closes it (the old section headers toggled the same way). On phones the panel is a bottom sheet.
-  const [active, setActive] = useState<StudioSection | null>("mode");
+  // --- site-redesign --- the rail opens blocks in the panel the way the old panel's headers did: the Mode block (open at
+  // first) and Saved Presets toggle on their own, and one of the other groups is open at a time below the Mode block; a
+  // press on an open item closes it. On phones the panel is a bottom sheet.
+  const [modeOpen, setModeOpen] = useState(true);
+  const [section, setSection] = useState<ControlSection | null>(null);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const scrollTo = useRef<StudioSection | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const pendingFocus = useRef<{ label: string; tries: StudioSection[] } | null>(null);
   const [focusTick, setFocusTick] = useState(0);
@@ -1268,25 +1272,43 @@ export default function Controls(props: ControlsProps) {
   const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(keysOf(id))) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
   // --- site-redesign --- the studio: the rail (a tab strip below 1280 px), the stage the page hands in, and the panel with
-  // the open group – today's renderSection() output – under a pinned search field, its Reset and Show Advanced Options below.
+  // the open blocks – the Mode block, the open group (today's renderSection() output), Saved Presets, the project file –
+  // under a pinned search field, the open group's Reset and Show Advanced Options below.
   const railItems: (TabStripItem & { id: StudioSection })[] = [
     { id: "mode", label: t("modeSpan"), icon: <IconGrid /> },
     ...sections,
     { id: "presets", label: t("savedPresetsSpan"), icon: <IconBookmark /> },
   ];
-  const activeItem = railItems.find((item) => item.id === active) ?? null;
-  const resettable = activeItem && activeItem.id !== "mode" && activeItem.id !== "presets" ? (activeItem.id as ControlSection) : null;
+  const isOpen = (id: StudioSection) => (id === "mode" ? modeOpen : id === "presets" ? presetsOpen : section === id);
+  const openIds = railItems.filter((item) => isOpen(item.id)).map((item) => item.id);
+  const resettable = section && railItems.some((item) => item.id === section) ? section : null;
   const panelOpen = !phone || sheetOpen;
-  const select = (id: string) => {
-    setSearch("");
-    if (active === id && panelOpen) {
-      setActive(null);
-      setSheetOpen(false);
-      return;
-    }
-    setActive(id as StudioSection);
+  /** Opens a block (never closes it) and brings it into view in the panel. */
+  const openGroup = (id: StudioSection) => {
+    if (id === "mode") setModeOpen(true);
+    else if (id === "presets") setPresetsOpen(true);
+    else setSection(id);
+    scrollTo.current = id;
     setSheetOpen(true);
   };
+  const select = (id: string) => {
+    const item = id as StudioSection;
+    setSearch("");
+    if (!panelOpen || !isOpen(item)) return openGroup(item);
+    if (item === "mode") setModeOpen(false);
+    else if (item === "presets") setPresetsOpen(false);
+    else setSection(null);
+    // the sheet closes with its last block
+    if (phone && openIds.length <= 1) setSheetOpen(false);
+  };
+  // A block just opened: scroll the panel to it (the Mode block above stays where it is).
+  useEffect(() => {
+    const id = scrollTo.current;
+    if (!id) return;
+    scrollTo.current = null;
+    if (id === "mode") return;
+    document.getElementById(`studio-block-${id}`)?.scrollIntoView({ block: "nearest" });
+  }, [modeOpen, section, presetsOpen]);
 
   // The command palette: every group, and every searchable control of the groups on the rail.
   const paletteEntries = useMemo<PaletteEntry[]>(() => {
@@ -1309,8 +1331,7 @@ export default function Controls(props: ControlsProps) {
   const choosePalette = (entry: PaletteEntry) => {
     setPaletteOpen(false);
     setSearch("");
-    setActive(entry.section as StudioSection);
-    setSheetOpen(true);
+    openGroup(entry.section as StudioSection);
     // A control: focus it once its group has rendered – in its group, else in the Mode group (a mode's own block), else
     // the search box shows it (an advanced option, a control of another mode).
     pendingFocus.current = entry.kind === "control" ? { label: entry.label, tries: [entry.section as StudioSection, "mode"] } : null;
@@ -1333,12 +1354,12 @@ export default function Controls(props: ControlsProps) {
     const [, ...rest] = pending.tries;
     if (rest.length) {
       pendingFocus.current = { label: pending.label, tries: rest };
-      setActive(rest[0]);
+      openGroup(rest[0]);
     } else {
       pendingFocus.current = null;
       setSearch(pending.label);
     }
-  }, [active, focusTick]);
+  }, [modeOpen, section, presetsOpen, focusTick]);
 
   // Cmd/Ctrl+K opens the palette from anywhere in the studio.
   useEffect(() => {
@@ -1407,7 +1428,6 @@ export default function Controls(props: ControlsProps) {
           ))}
         </ul>
       )}
-      {props.project && <ProjectSection t={t} search="" matches={matches} project={props.project} /> /* --- project-files --- */}
     </div>
   );
 
@@ -1438,18 +1458,32 @@ export default function Controls(props: ControlsProps) {
           {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
         </div>
       );
-    if (!activeItem) return <p className="py-8 text-center text-sm text-ink-3">{site("studio.panelEmpty")}</p>;
+    const block = (id: StudioSection, label: string, body: ReactNode) => (
+      <section key={id} id={`studio-block-${id}`} className="scroll-mt-4 border-t border-line pt-4 first:border-t-0 first:pt-0 animate-fadeIn">
+        <h2 className="eyebrow mb-4 text-ink-3">{label}</h2>
+        {body}
+      </section>
+    );
+    const sectionItem = section ? railItems.find((item) => item.id === section) : null;
     return (
-      <div key={activeItem.id} className="animate-fadeIn">
-        <h2 className="eyebrow mb-4 text-ink-3">{activeItem.label}</h2>
-        {activeItem.id === "mode" ? modePanel() : activeItem.id === "presets" ? presetsPanel() : renderSection(activeItem.id as ControlSection)}
+      <div className="space-y-6">
+        {modeOpen && block("mode", t("modeSpan"), modePanel())}
+        {sectionItem && block(sectionItem.id, sectionItem.label, renderSection(sectionItem.id as ControlSection))}
+        {presetsOpen && block("presets", t("savedPresetsSpan"), presetsPanel())}
+        {!modeOpen && !sectionItem && !presetsOpen && <p className="py-8 text-center text-sm text-ink-3">{site("studio.panelEmpty")}</p>}
+        {props.project && (
+          <div className="border-t border-line pt-4">
+            <ProjectSection t={t} search="" matches={matches} project={props.project} /* --- project-files --- */ />
+          </div>
+        )}
       </div>
     );
   };
 
+
   return (
     <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
-      <div className="studio" data-studio-active={active ?? ""}>
+      <div className="studio" data-studio-active={section ?? (modeOpen ? "mode" : "")}>
         <div className="studio-stage">{props.stage}</div>
         <div className={cx("studio-desk", sheetOpen && "studio-desk-open")}>
           <div className="studio-rail">
@@ -1460,7 +1494,7 @@ export default function Controls(props: ControlsProps) {
             </button>
             <TabStrip
               items={railItems}
-              active={panelOpen ? active : null}
+              active={panelOpen ? openIds : null}
               onSelect={select}
               label={site("studio.rail")}
               controls="studio-panel"
@@ -1470,7 +1504,7 @@ export default function Controls(props: ControlsProps) {
               tooltipClassName="studio-rail-tip"
             />
           </div>
-          <aside id="studio-panel" className="studio-panel" aria-label={activeItem?.label ?? t("controlsTitle")} hidden={phone && !sheetOpen}>
+          <aside id="studio-panel" className="studio-panel" aria-label={t("controlsTitle")} hidden={phone && !sheetOpen}>
             <div className="studio-panel-search">
               <div className="relative min-w-0 flex-1">
                 <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />

@@ -5,7 +5,7 @@ import { cx } from "./cx";
 
 /*
  * --- site-redesign --- A strip of section switches: the studio's rail (vertical, ≥ 1280 px) and its tab strip
- * (horizontal, below). Every item is a toggle button – aria-pressed and aria-expanded on the open one, aria-controls on
+ * (horizontal, below). Every item is a toggle button – aria-pressed and aria-expanded on the open ones, aria-controls on
  * the panel it fills – so it keeps the semantics (and the accessible names) of the panel's old section headers; a press
  * on the open item closes it again. Arrow keys move along the strip (both axes, it turns with the layout), Home / End
  * jump to its ends; one Tab stop for the whole strip (roving tabindex).
@@ -30,7 +30,8 @@ export default function TabStrip({
   tooltipClassName,
 }: {
   items: readonly TabStripItem[];
-  active: string | null;
+  /** The open item – or items, where several can be open at once (the studio's rail). */
+  active: string | readonly string[] | null;
   onSelect: (id: string) => void;
   label: string;
   /** The id of the panel the items fill. */
@@ -44,7 +45,8 @@ export default function TabStrip({
   tooltipClassName?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const activeIndex = Math.max(0, items.findIndex((i) => i.id === active));
+  const isOn = (id: string) => (Array.isArray(active) ? active.includes(id) : id === active);
+  const activeIndex = Math.max(0, items.findIndex((i) => isOn(i.id)));
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let next = -1;
     if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (index + 1) % items.length;
@@ -58,7 +60,7 @@ export default function TabStrip({
   return (
     <div role="toolbar" aria-label={label} className={className}>
       {items.map((item, index) => {
-        const on = item.id === active;
+        const on = isOn(item.id);
         return (
           <button
             key={item.id}
