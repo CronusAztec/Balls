@@ -9,7 +9,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 export default function Navbar({ backHref, backLabel }: { backHref?: string; backLabel?: string }) {
   const t = useTranslations("Navbar");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
-  const desktop = useTranslations("Desktop"); // --- desktop-exe ---
+  const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (a small namespace: every page hands it to the client)
   const [open, setOpen] = useState(false);
   // --- review fix (ui-i18n) --- the collapsed mobile menu is inert (out of the tab order and the accessibility tree);
   // Escape closes the open menu and returns focus to the hamburger when it was inside the menu.

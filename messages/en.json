@@ -3048,6 +3048,11 @@
     "canvasBalls": "[count] BALLS",
     "canvasAteArena": "THE BALL ATE THE ARENA"
   },
+  "DesktopLink": {
+    "navLabel": "Windows app",
+    "heroButton": "Download for Windows",
+    "heroNote": "Free · GPU video rendering · built-in AI"
+  },
   "Desktop": {
     "groupTitle": "Desktop studio",
     "tab": {
@@ -3267,9 +3272,6 @@
     "libForget": "Remove from list",
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
-    "navLabel": "Windows app",
-    "heroButton": "Download for Windows",
-    "heroNote": "Free · GPU video rendering · built-in AI",
     "metaTitle": "Download {siteName} for Windows – GPU video rendering and a built-in AI",
     "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download.",
     "badge": "Windows app",

@@ -2825,6 +2825,11 @@
     "canvasBalls": "[count] KULEK",
     "canvasAteArena": "KULKA ZJADŁA ARENĘ"
   },
+  "DesktopLink": {
+    "navLabel": "Aplikacja Windows",
+    "heroButton": "Pobierz dla Windows",
+    "heroNote": "Za darmo · renderowanie wideo na GPU · wbudowana AI"
+  },
   "Desktop": {
     "groupTitle": "Studio desktopowe",
     "tab": {
@@ -3044,9 +3049,6 @@
     "libForget": "Usuń z listy",
     "libDelete": "Usuń plik",
     "libDeleteConfirm": "Przenieść {name} do kosza?",
-    "navLabel": "Aplikacja Windows",
-    "heroButton": "Pobierz dla Windows",
-    "heroNote": "Za darmo · renderowanie wideo na GPU · wbudowana AI",
     "metaTitle": "Pobierz {siteName} dla Windows – renderowanie wideo na GPU i wbudowana AI",
     "metaDescription": "Cały symulator {siteName} jako aplikacja Windows: renderuj klipy na GPU (NVENC, AMF, Quick Sync), renderuj całe kolejki prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo.",
     "badge": "Aplikacja Windows",

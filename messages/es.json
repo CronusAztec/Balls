@@ -2825,6 +2825,11 @@
     "canvasBalls": "[count] BOLAS",
     "canvasAteArena": "LA BOLA SE COMIÓ LA ARENA"
   },
+  "DesktopLink": {
+    "navLabel": "App para Windows",
+    "heroButton": "Descargar para Windows",
+    "heroNote": "Gratis · vídeo renderizado en la GPU · IA integrada"
+  },
   "Desktop": {
     "groupTitle": "Estudio de escritorio",
     "tab": {
@@ -3044,9 +3049,6 @@
     "libForget": "Quitar de la lista",
     "libDelete": "Eliminar archivo",
     "libDeleteConfirm": "¿Mover {name} a la papelera?",
-    "navLabel": "App para Windows",
-    "heroButton": "Descargar para Windows",
-    "heroNote": "Gratis · vídeo renderizado en la GPU · IA integrada",
     "metaTitle": "Descarga {siteName} para Windows: vídeo renderizado en la GPU e IA integrada",
     "metaDescription": "Todo el simulador {siteName} como aplicación de Windows: renderiza clips en tu GPU (NVENC, AMF, Quick Sync), renderiza colas enteras directamente en una carpeta y planifica vídeos con una IA integrada que funciona sin conexión. Descarga gratuita.",
     "badge": "App para Windows",

@@ -85,7 +85,7 @@ describe("client message namespaces", () => {
     const all = [...SHARED_CLIENT_NAMESPACES, ...NOT_FOUND_CLIENT_NAMESPACES, ...Object.values(PAGE_CLIENT_NAMESPACES).flat()];
     for (const messages of [en, pl, es] as Record<string, unknown>[]) for (const ns of all) expect(messages[ns], ns).toBeTypeOf("object");
     const picked = pickMessages(en as Record<string, unknown>, pageClientNamespaces("/feedback"));
-    expect(Object.keys(picked).sort()).toEqual(["Feedback", "Gallery", "Navbar", "Pwa"]);
+    expect(Object.keys(picked).sort()).toEqual(["DesktopLink", "Feedback", "Gallery", "Navbar", "Pwa"]); // --- desktop-exe --- (DesktopLink)
     expect(pickMessages(en as Record<string, unknown>, ["NoSuchNamespace"])).toEqual({});
     // The shared set is a small part of the catalogue the pages embedded before.
     expect(JSON.stringify(pickMessages(en as Record<string, unknown>, SHARED_CLIENT_NAMESPACES)).length).toBeLessThan(JSON.stringify(en).length / 10);

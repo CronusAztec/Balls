@@ -7,7 +7,7 @@ import { isDesktopApp } from "@/lib/desktop/bridge";
 
 /* --- desktop-exe --- "Download for Windows" on the landing page (links the download page; hidden inside the app itself). */
 export default function DownloadAppButton() {
-  const t = useTranslations("Desktop");
+  const t = useTranslations("DesktopLink"); // (a small namespace: every page hands it to the client)
   const [inApp, setInApp] = useState(false);
   useEffect(() => setInApp(isDesktopApp()), []);
   if (inApp) return null;

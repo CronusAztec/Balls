@@ -917,7 +917,8 @@ src/lib/desktop/               shared with the page (pure): contract.ts (every I
                                bridge.ts, gpuEncode.ts, presets.ts, renderQueue.ts, queueSources.ts, publish.ts,
                                release.ts, ai/ (agent loop, JSON schema checks, settings patches, studio tasks, playbook)
 src/components/simulator/sections/DesktopSection.tsx + desktop/*  the Desktop group (GPU, Render queue, AI, Library)
-src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, navbar and footer)
+src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, navbar and footer); the navbar / footer link
+                               and the landing button read the small DesktopLink namespace, which every page hands its client
 ```
 
 - **Renderer** – the page is the site's export for an empty base path, served by the privileged, secure `app://` scheme

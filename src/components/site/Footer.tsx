@@ -6,7 +6,7 @@ import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa --
 export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
   const t = useTranslations("Footer");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
-  const desktop = useTranslations("Desktop"); // --- desktop-exe ---
+  const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (a small namespace: every page hands it to the client)
   const links: { href: string; label: string }[] = [
     { href: "/about", label: t("about") },
     { href: "/tiktok-ball-videos", label: t("tiktok") },

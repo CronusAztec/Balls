@@ -28,7 +28,6 @@ describe("Desktop messages", () => {
     const files = [
       ...fs.readdirSync(path.join(root, "components/simulator/desktop")).map((f) => path.join(root, "components/simulator/desktop", f)),
       path.join(root, "components/simulator/sections/DesktopSection.tsx"),
-      path.join(root, "components/site/DownloadAppButton.tsx"),
       path.join(root, "app/[locale]/download/page.tsx"),
     ].filter((f) => f.endsWith(".tsx"));
     const all = new Set(keys(en));
@@ -36,6 +35,13 @@ describe("Desktop messages", () => {
     for (const file of files) for (const m of fs.readFileSync(file, "utf8").matchAll(/\bt\("([A-Za-z0-9_.]+)"/g)) used.add(m[1]);
     expect(used.size).toBeGreaterThan(100);
     expect([...used].filter((k) => !all.has(k))).toEqual([]);
+    // The landing button and the navbar / footer link read the small DesktopLink namespace (every page hands it to the client).
+    const link = new Set(Object.keys((en as unknown as { DesktopLink: Record<string, string> }).DesktopLink));
+    const linkUsed = [...fs.readFileSync(path.join(root, "components/site/DownloadAppButton.tsx"), "utf8").matchAll(/\bt\("([A-Za-z0-9_.]+)"/g)].map((m) => m[1]);
+    for (const f of ["Navbar.tsx", "Footer.tsx"]) for (const m of fs.readFileSync(path.join(root, "components/site", f), "utf8").matchAll(/\bdesktop\("([A-Za-z0-9_.]+)"/g)) linkUsed.push(m[1]);
+    expect(linkUsed.length).toBeGreaterThanOrEqual(3);
+    expect(linkUsed.filter((k) => !link.has(k))).toEqual([]);
+    for (const m of [pl, es] as unknown as { DesktopLink: Record<string, string> }[]) expect(Object.keys(m.DesktopLink).sort()).toEqual([...link].sort());
     // Keys built at run time: every status, tab, preset, codec, task and update state.
     for (const group of ["status", "tab", "preset", "codec", "aiTask", "aiTaskHint", "aiPlaceholder", "update", "queueSource", "open", "ending", "requirements", "features"]) expect(Object.keys((en.Desktop as unknown as Record<string, Tree>)[group]).length).toBeGreaterThan(1);
   });
