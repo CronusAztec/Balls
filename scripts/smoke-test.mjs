@@ -6267,6 +6267,12 @@ const jyFrameRates = async (ms) => {
 /** The stage rows of the Journey block as "kind-size". */
 const jyRows = () => page.getByTestId("journey-stages").locator("li").evaluateAll((els) => els.map((e) => `${e.dataset.stage}-${e.dataset.size}`));
 const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
+/**
+ * Seeds of "multipliers-l,multipliers-l,pegs,glass-s,home" whose grown ball wedged in the peg field before the bars
+ * counted, on the simulator canvas of this viewport (790×444): 12, 32 and 37 hopped 4 times and squeezed through, 14
+ * hopped once (in a corner at a wall).
+ */
+const JY_WEDGE_SEEDS = [12, 14, 32, 37];
 {
   await page.goto(`${BASE}/en/simulator/?mode=journey&js=rings-s,pegs-l,glass,home`, { waitUntil: "networkidle" });
   {
@@ -6343,6 +6349,27 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
     done && kinds.join(",") === "pegs,glass,home" && swooshes === 2 && data.journeySwooshes === "2" && data.journeyHome === "1" && data.journeyFinished === "1" && Number(data.journeyNotes) >= 3 && data.face === "cute",
     fpsOk(fps, 6, 30),
     `(finished=${done}, stages ${kinds.join(",")}, ${swooshes} swoosh tones, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("journey") && k !== "journeySequence")))}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+  );
+}
+{
+  // Size gates above a peg field (the review of gerald-journey): two large gate stages grow the ball only as far as the
+  // narrowest opening of the pegs below – two bar tips, not two pegs – and the outermost peg or bar of a full row sits
+  // on the wall, so the grown ball never wedges (no stuck hop, no squeeze); the glass after it breaks by Glass Smash's
+  // own rules and HOME celebrates. Seeds that wedged (at this canvas size) before the fix; at 8×.
+  const runs = [];
+  for (const seed of JY_WEDGE_SEEDS) {
+    await page.goto(`${BASE}/en/simulator/?mode=journey&js=multipliers-l,multipliers-l,pegs,glass-s,home&seed=${seed}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.journeyFinished === "1", null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const rect = await page.locator("main canvas").first().evaluate((c) => `${Math.round(c.getBoundingClientRect().width)}x${Math.round(c.getBoundingClientRect().height)}`);
+    runs.push({ seed, run: data.seed, done, nudges: data.journeyNudges, swooshes: data.journeySwooshes, home: data.journeyHome, at: data.journeyFinishedMs, canvas: rect });
+  }
+  check(
+    "journey: size gates never grow the ball into a wedge in the peg field below – no stuck hop – and the run breaks the glass and reaches HOME",
+    runs.length > 0 && runs.every((r) => r.done && r.run === String(r.seed) && r.nudges === "0" && r.swooshes === "4" && r.home === "1"),
+    `(${JSON.stringify(runs)})`,
   );
 }
 {
