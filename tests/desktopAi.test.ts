@@ -165,6 +165,26 @@ describe("settings assistant", () => {
     expect(patchFromChanges([{ setting: "gravity", value: 0 }, { setting: "gravity", value: 50 }])).toEqual({ gravity: 50 });
   });
 
+  it("with No limits on takes values past the sliders, as links and presets do (only invalid ones are refused)", () => {
+    // --- unlimited --- the assistant's patches follow the switch: big values kept, negative / below-minimum ones refused
+    const unlimited = { ...current, unlimited: true };
+    const r = validateSettingsPatch(unlimited, { ballSpeed: 5000, ballCount: 1e6, windX: -40 });
+    expect(r).toEqual({ ok: true, patch: { ballSpeed: 5000, ballCount: 1e6, windX: -40 } });
+    const bad = validateSettingsPatch(unlimited, { ballSpeed: -5, airDrag: 3, recordingDuration: 5000 });
+    expect(bad.ok).toBe(false);
+    const text = bad.ok ? "" : bad.errors.join("\n");
+    expect(text).toMatch(/"ballSpeed" must be a number from 50, no upper limit/);
+    expect(text).toMatch(/"airDrag" must be a number from 0 up to 1/);
+    expect(text).toMatch(/"recordingDuration" must be between/); // a bounded setting keeps its range
+    // a patch may turn the switch on itself; without it the ranges apply
+    expect(validateSettingsPatch(current, { unlimited: true, ballSpeed: 5000 })).toEqual({ ok: true, patch: { unlimited: true, ballSpeed: 5000 } });
+    expect(validateSettingsPatch(current, { ballSpeed: 5000 }).ok).toBe(false);
+    expect(settingsCatalog(unlimited)).toContain("ballSpeed (number from 50, no upper limit (No limits is on), slider 50–800, step 10) = 400");
+    const schema = changesSchema(unlimited);
+    expect(validateJson(schema, [{ setting: "ballSpeed", value: 1e9 }])).toEqual([]);
+    expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);
+  });
+
   it("runs as an agent task: an out-of-range change is sent back, the corrected one comes out", async () => {
     const model = scripted([
       '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":1600},{"setting":"rainbowBall","value":true}],"summary":"x2"}}',

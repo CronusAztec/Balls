@@ -650,6 +650,24 @@ describe("bounce math in the engine", () => {
     expect(engine.getBalls().length).toBe(MULTIPLY_MAX_BALLS);
   });
 
+  it("with No limits on spawns past Multiply's ceiling: full-physics balls up to the run's limit, then the crowd", { timeout: 120_000 }, () => {
+    // --- unlimited --- the balls parameter follows the switch like Multiply's clone storms (lifted ceiling, crowd overflow)
+    const engine = makeEngine([rule({ param: "balls", op: "multiply", amount: 2 })], "classic", 5, { unlimited: true });
+    let steps = 0;
+    while (engine.getCrowd().spawned === 0 && steps < 600) {
+      engine.update(STEP, 0);
+      steps++;
+    }
+    expect(engine.getBalls().length).toBeGreaterThan(MULTIPLY_MAX_BALLS);
+    expect(engine.getCrowd().spawned).toBeGreaterThan(0);
+    for (const b of engine.getBalls()) expect(Number.isFinite(b.x) && Number.isFinite(b.y)).toBe(true);
+    // the same rule without the switch keeps Multiply's ceiling
+    const capped = makeEngine([rule({ param: "balls", op: "multiply", amount: 2 })], "classic", 5);
+    run(capped, 1);
+    expect(capped.getBalls().length).toBe(MULTIPLY_MAX_BALLS);
+    expect(capped.getCrowd().spawned).toBe(0);
+  });
+
   it("shifts the ring bounce notes by the ball's pitch (the existing pitch override)", () => {
     const engine = makeEngine([rule({ trigger: "start", param: "pitch", op: "set", amount: 12 })], "classic", 5);
     const hits: SoundEvent[] = [];

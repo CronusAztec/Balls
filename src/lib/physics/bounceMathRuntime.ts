@@ -1,6 +1,7 @@
 import type { Ball, ModeContext, ModeId, SoundEvent } from "./types";
 import type { MultiplierRuntime } from "./multipliers";
 import { MULTIPLY_MAX_BALLS } from "./modes/multiply";
+import { CROWD_LIMIT } from "@/lib/unlimited"; // --- unlimited ---
 import { OBSTACLE_EDITOR_MODES } from "./obstacleEditor";
 import { wallHitFrequency } from "@/lib/audio/sampler";
 import { beatTimeSec, firstBeatAtOrAfter, sameBeatSchedule } from "@/lib/simulation/beatSchedule";
@@ -46,7 +47,8 @@ import {
  *    when the next run starts; the gap only in the modes whose rings are built from it); air drag, the clock scale, the
  *    trail length, the wall thickness and the wobble are held here (the canvas reads the last three);
  *  - balls: copies of the involved ball (the multipliers' clone with a seeded turn), within Multiply's memory-safe
- *    ceiling of `MULTIPLY_MAX_BALLS`.
+ *    ceiling of `MULTIPLY_MAX_BALLS` (--- unlimited --- with No limits on: up to the run's full-physics balls, the rest
+ *    join the crowd).
  * A parameter a mode has no use for is ignored there (`BOUNCE_MATH_BALL_MODES`, `BOUNCE_MATH_SPAWN_MODES`,
  * `BOUNCE_MATH_CLOCK_MODES`, `GAP_SIZED_MODES`).
  */
@@ -738,11 +740,15 @@ export class BounceMathRuntime {
     const v = balls.length;
     const next = applyRule(v, compiled, this.ruleCtx);
     const copies = next - v;
-    if (!(copies >= 1) || v >= MULTIPLY_MAX_BALLS) return;
+    // --- unlimited --- with No limits on Multiply's ceiling is lifted here too: the copies fill the run's full-physics balls
+    // and the rest join the crowd (ARENA FULL once it is full), like Multiply's clone storms; null while the switch is off
+    const room = ctx.unlimitedRoom?.() ?? null;
+    if (!(copies >= 1) || (room === null && v >= MULTIPLY_MAX_BALLS)) return;
     const source = ball && !ball.frozen && balls.includes(ball) ? ball : this.focusBall();
     if (!source) return;
     // Multiply's swarm ceiling: never more than MULTIPLY_MAX_BALLS balls, however big the count gets (a soft, memory-safe limit).
-    this.host.multipliers().cloneBall(ctx, source, Math.min(copies, MULTIPLY_MAX_BALLS) + 1, MULTIPLY_MAX_BALLS);
+    if (room === null) this.host.multipliers().cloneBall(ctx, source, Math.min(copies, MULTIPLY_MAX_BALLS) + 1, MULTIPLY_MAX_BALLS);
+    else this.host.multipliers().cloneBall(ctx, source, Math.min(copies, CROWD_LIMIT) + 1, v + room); // --- unlimited ---
   }
 
   /* ---------------------------------------------------------------- the readout */
