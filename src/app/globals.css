@@ -1,120 +1,287 @@
 @import "tailwindcss";
 
 /*
- * Theme tokens.
- * The original design maps Tailwind's cyan/blue/purple scales to a lime-green accent
- * and uses a neutral, slightly warm dark palette. Overriding the tokens here means every
- * `bg-cyan-600`, `text-blue-500`, `border-zinc-800` etc. in the components renders with
- * the intended colours. Change the accent by editing --color-cyan-500 / -600 below.
+ * --- site-redesign --- Design tokens: "the stage and the desk".
+ * The simulation is the performer; everything around it is a quiet, precise, dark desk. Components select colours,
+ * type, radii and motion through these semantic tokens only (bg-surface-2, text-ink-2, border-line, bg-accent …);
+ * colours that are content (team colours, ball colours, theme presets, canvas drawing) stay as they are.
+ * See README → "Design" for the type roles, layout zones and breakpoints.
  */
 @theme {
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-bricolage), var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  /* Type roles – the faces are self-hosted by next/font/local (src/app/fonts.ts). The latin-ext face comes first: it only
+     covers its unicode-range, every other glyph falls through to the latin face and its metric fallback. */
+  --font-sans: var(--font-ui-ext), var(--font-ui-latin), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-display-ext), var(--font-display-latin), var(--font-ui-latin), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-ext), var(--font-mono-latin), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-heading: var(--font-display);
 
+  /* Modular scale: 12 / 13 / 14 / 16 / 20 / 24 / 32 / 48 / 64 – text at 1.5, display at 1.1–1.2. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.5;
+  --text-md: 0.875rem;
+  --text-md--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 1.2;
+  --text-2xl: 2rem;
+  --text-2xl--line-height: 1.15;
+  --text-3xl: 3rem;
+  --text-3xl--line-height: 1.1;
+  --text-4xl: 4rem;
+  --text-4xl--line-height: 1.1;
+
+  /* Three weights: 400 text, 500 interface, 700 display. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 500;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 700;
+  --font-weight-black: 700;
+
+  --tracking-display: -0.03em;
+  --tracking-label: 0.08em;
+
+  /* Colour: a near-black stage, surfaces 3–4 % lighter per step, hairlines, three inks, one accent. */
+  --color-bg: #0b0b0d;
+  --color-surface-1: #121215;
+  --color-surface-2: #18181c;
+  --color-surface-3: #202025;
+  --color-line: rgb(242 242 237 / 0.1);
+  --color-line-strong: rgb(242 242 237 / 0.18);
+  --color-ink: #f2f2ed;
+  --color-ink-2: #a8a8b0;
+  --color-ink-3: #8e8e97;
+  --color-accent: #b0f02a;
+  --color-accent-strong: #c6ff3d;
+  --color-accent-dim: #93d119;
+  --color-accent-ink: #0b0b0d;
+  --color-ok: #5ad17a;
+  --color-warn: #f2b84b;
+  --color-danger: #f47272;
+
+  /* Radii: 6 px controls, 10 px panels, 16 px for the stage frame only. The stock scale is folded onto these so every
+     section of the panel follows. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 10px;
+  --radius-2xl: 10px;
+  --radius-3xl: 10px;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-stage: 16px;
+
+  /* Elevation comes from the surface steps; one soft shadow for floating sheets and dialogs. */
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+  --shadow-float: 0 24px 64px -16px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(242 242 237 / 0.1);
+
+  /* Motion: 150–200 ms ease-out for panels, sheets and dialogs; a gentle pulse on the recording dot. */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 180ms var(--ease-out) both;
+  --animate-sheet-in: sheet-in 200ms var(--ease-out) both;
+  --animate-dialog-in: dialog-in 180ms var(--ease-out) both;
+  --animate-rec: rec-pulse 1.6s ease-in-out infinite;
+  --animate-accordion-in: fade-in 180ms var(--ease-out) both;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes sheet-in {
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes dialog-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.99); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes rec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* --- legacy palette aliases: the components still select colours through cyan/blue/indigo/purple/slate/zinc until
+     the colour sweep (stage 5 of site-redesign) moves them onto the semantic tokens above; then this block goes. --- */
   --color-cyan-300: #d8ff7a;
   --color-cyan-400: #c6ff3d;
   --color-cyan-500: #b0f02a;
   --color-cyan-600: #93d119;
-
   --color-blue-300: #d8ff7a;
   --color-blue-400: #c6ff3d;
   --color-blue-500: #b0f02a;
   --color-blue-600: #93d119;
   --color-blue-800: #2e3a0e;
   --color-blue-900: #1e260a;
-
   --color-indigo-500: #b0f02a;
   --color-purple-300: #d8ff7a;
   --color-purple-500: #b0f02a;
   --color-purple-600: #93d119;
-
-  --color-slate-50: #f7f7f2;
+  --color-slate-50: #f2f2ed;
   --color-slate-300: #bfbfc6;
-  --color-slate-400: #9a9aa2;
-  --color-slate-500: #6e6e76;
+  --color-slate-400: #a8a8b0;
+  --color-slate-500: #8e8e97;
   --color-slate-700: #2f2f34;
-  --color-slate-800: #202024;
-  --color-slate-900: #141417;
+  --color-slate-800: #202025;
+  --color-slate-900: #121215;
   --color-slate-950: #0b0b0d;
-
   --color-zinc-200: #dddde0;
   --color-zinc-300: #bfbfc6;
-  --color-zinc-400: #9a9aa2;
-  --color-zinc-500: #6e6e76;
+  --color-zinc-400: #a8a8b0;
+  --color-zinc-500: #8e8e97;
   --color-zinc-600: #45454b;
   --color-zinc-700: #2f2f34;
-  --color-zinc-800: #202024;
-  --color-zinc-900: #141417;
+  --color-zinc-800: #202025;
+  --color-zinc-900: #121215;
   --color-zinc-950: #0b0b0d;
-
-  --animate-fade-in: fadeIn 0.25s ease-out both;
-  --animate-accordion-in: accordionItemIn 0.2s ease-out both;
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes accordionItemIn {
-    0% { opacity: 0; transform: translateY(6px); }
-    100% { opacity: 1; transform: translateY(0); }
-  }
 }
 
-:root {
-  --font-bricolage: "Bricolage Grotesque";
-  --font-hanken: "Hanken Grotesk";
-  color-scheme: dark;
+/* Mono readouts with tabular figures (seeds, timers, slider values, number fields, keyboard hints). */
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
 }
 
-html {
-  background: #0b0b0d;
-  scroll-behavior: smooth;
+/* A label in the hardware style: uppercase, wide tracking, mono. */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
 }
 
-body {
-  background: #0b0b0d;
-  color: #f7f7f2;
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-h1, h2, h3, h4 {
-  font-family: var(--font-heading);
-}
-
-/* Container utility (Tailwind v4 no longer centers by default). */
-.container {
+/* The site container (1200 px) and the reading column (680 px). */
+@utility site-container {
+  width: 100%;
+  max-width: 1200px;
   margin-inline: auto;
-  padding-inline: 1rem;
+  padding-inline: 16px;
+  @media (width >= 640px) {
+    padding-inline: 24px;
+  }
+  @media (width >= 1024px) {
+    padding-inline: 32px;
+  }
+}
+@utility prose-column {
+  width: 100%;
+  max-width: 680px;
 }
 
-/* Range inputs: a thin track with a round accent thumb, like the original. */
+/* Base elements – in the base layer, so the utilities can restyle them. */
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    background: var(--color-bg);
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-display);
+  }
+
+  ::selection {
+    background: rgb(176 240 42 / 0.3);
+    color: var(--color-ink);
+  }
+
+  kbd,
+  code,
+  samp {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Focus: an accent ring on every interactive element (keyboard focus; text fields show it on any focus). */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [contenteditable="true"]):not([data-no-ring]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+:where(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea):focus-visible {
+  outline-offset: 0;
+}
+
+/* Range inputs: a 4 px track inside a 20 px hit area, the fill drawn by sliderStyle(), a plain thumb – no transition. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  height: 0.5rem;
+  height: 20px;
   border-radius: 9999px;
-  background: #27272a;
-  outline: none;
+  background-color: transparent;
+  background-size: 100% 4px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  cursor: pointer;
+  transition: none !important;
+}
+input[type="range"]:not([style*="background"]) {
+  background-image: linear-gradient(var(--color-surface-3), var(--color-surface-3));
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 20px;
+  background: transparent;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
   border-radius: 9999px;
-  background: #ffffff;
-  border: 2px solid #93d119;
-  box-shadow: 0 0 0 2px rgba(147, 209, 25, 0.25);
+  background: var(--color-ink);
+  border: 0;
+  box-shadow: 0 0 0 3px var(--color-bg);
   cursor: pointer;
+  transition: none;
+}
+input[type="range"]::-moz-range-track {
+  height: 20px;
+  background: transparent;
 }
 input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 9999px;
-  background: #ffffff;
-  border: 2px solid #93d119;
+  background: var(--color-ink);
+  border: 0;
+  box-shadow: 0 0 0 3px var(--color-bg);
   cursor: pointer;
+  transition: none;
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  background: var(--color-accent);
+}
+input[type="range"]:focus-visible::-moz-range-thumb {
+  background: var(--color-accent);
+}
+input[type="range"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 input[type="range"]:disabled::-webkit-slider-thumb {
   cursor: not-allowed;
@@ -128,29 +295,79 @@ input[type="color"]::-webkit-color-swatch-wrapper {
 }
 input[type="color"]::-webkit-color-swatch {
   border: none;
-  border-radius: 0.375rem;
+  border-radius: 4px;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #2f2f34;
+/* Checkboxes drawn as switches (the role stays checkbox): Show Advanced Options and friends. */
+input[type="checkbox"].switch {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
   border-radius: 9999px;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-line-strong);
+  cursor: pointer;
+}
+input[type="checkbox"].switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--color-ink-2);
+  transition: transform 150ms var(--ease-out);
+}
+input[type="checkbox"].switch:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+input[type="checkbox"].switch:checked::after {
+  background: var(--color-accent-ink);
+  transform: translateX(14px);
+}
+
+/* Thin scrollbars on the desk. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-3) transparent;
+}
+
+/* The stage: the one place a gradient is allowed – a subtle vignette behind the frame. */
+.stage-vignette {
+  background-color: var(--color-bg);
+  background-image: radial-gradient(ellipse at 50% 45%, rgb(242 242 237 / 0.04) 0%, transparent 70%);
+}
+
+/* A rainbow swatch: content (it shows what a Rainbow option does), not chrome. */
+.swatch-rainbow {
+  background: conic-gradient(#ff4d4d, #ffb84d, #f5f53d, #5ad17a, #4dc3ff, #8a6bff, #ff4dd2, #ff4d4d);
 }
 
 .animate-fadeIn {
   animation: var(--animate-fade-in);
 }
 
-.btn-bounce {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+/* Native <dialog> (components/ui/Dialog.tsx): the scrim and the opening motion. */
+dialog.ui-dialog::backdrop {
+  background: rgb(5 5 6 / 0.72);
 }
-.btn-bounce:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 10px 30px -10px rgba(147, 209, 25, 0.5);
-}
-.btn-bounce:active {
-  transform: scale(0.97);
+dialog.ui-dialog[open] {
+  animation: var(--animate-dialog-in);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

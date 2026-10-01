@@ -6,6 +6,7 @@ import { PWA_ICON_FILES, PWA_THEME_COLOR } from "@/lib/pwa";
 import { assetPath } from "@/lib/site";
 // --- end pwa ---
 import "../globals.css";
+import { fontVariables } from "../fonts"; // --- site-redesign --- self-hosted type (no font CDN)
 
 export const metadata: Metadata = {
   title: SITE_NAME,
@@ -28,13 +29,7 @@ export const viewport: Viewport = { themeColor: PWA_THEME_COLOR };
  */
 export default function StaticLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark" style={{ colorScheme: "dark" }}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font -- root layout of the locale-less pages */}
-        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="en" className={`dark ${fontVariables}`} style={{ colorScheme: "dark" }}>
       <body className="antialiased">
         {children}
         <PwaRegister />
