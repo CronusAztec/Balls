@@ -47,7 +47,7 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
-import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
+import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
@@ -326,6 +326,11 @@ export default function Simulator() {
     setEngineReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // --- review fix (audio) --- leaving the page (an in-app link, a language switch) closes the AudioContext: the music bed,
+  // the keep-alive oscillator, the hit samples and the slicer stop with it. The generator itself is kept – stop() can be
+  // restarted (start() rebuilds the context and re-attaches the bed with its track) – so StrictMode's simulated unmount
+  // and remount keep the settings already pushed to it.
+  useEffect(() => () => audioRef.current?.stop(), []);
 
   /**
    * Restarts the current mode from scratch: the run and everything that plays along with it – the melody from its first
@@ -335,12 +340,18 @@ export default function Simulator() {
    * bed starts from its start offset when it resumes.
    */
   const restartRun = useCallback(
-    (keepPaused: boolean) => {
+    (keepPaused: boolean, opts?: { sameSeed?: boolean }) => {
       const engine = engineRef.current;
       if (!engine) return;
       const paused = keepPaused && isPaused;
       setFinished(false);
       if (!paused) setIsPaused(false);
+      // --- review fix (recording-export) --- the end-screen holds start over with the run (the frame loop sets them again)
+      paintFinishedAtRef.current = null;
+      winnerShownAtRef.current = null;
+      illusionRevealAtRef.current = null;
+      battleFinishAtRef.current = null;
+      arenaWinAtRef.current = null;
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
@@ -348,8 +359,15 @@ export default function Simulator() {
       // cannot tell a restart from "still running", so it is done here).
       if (isStarted && !paused) audioRef.current?.getMusicBed().restart();
       else audioRef.current?.getMusicBed().stop();
+      // --- review fix (recording-export) --- `sameSeed`: the run starts over from its own seed (Record Video on a finished run
+      // records the run again – the one the fast export would render); a seed nobody pinned is let go again afterwards, so
+      // later restarts roll new ones. (The split-screen arenas start over with this engine's clock, as on any restart.)
+      const replaySeed = opts?.sameSeed ? engine.getSeed() : null;
+      const pinned = engine.getPinnedSeed() !== null;
+      if (replaySeed !== null) engine.setSeed(replaySeed);
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (replaySeed !== null && !pinned) engine.setSeed(null);
     },
     [settings, isStarted, isPaused, initEngineForMode],
   );
@@ -1293,6 +1311,7 @@ export default function Simulator() {
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
   useEffect(() => {
     const handler = (e: Event) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (a batch puts its own modes on the page)
       const mode = (e as CustomEvent<ModeId>).detail;
       changeMode(mode);
       document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth" });
@@ -1535,6 +1554,12 @@ export default function Simulator() {
       await stopRecordingAndDownload();
       return;
     }
+    // --- review fix (recording-export) --- a finished run (its end screen, or the hold before it) is recorded again from
+    // its own seed, as the fast export renders it – not as half a second of the frozen end screen. restartRun() clears
+    // `finished` in this same handler, so the stop-after-the-finish effect below never sees the old run's end.
+    const engineNow = engineRef.current;
+    const runOver = isStarted && !!engineNow && (finished || (engineNow.isSimulationFinished() && (splitRunnerRef.current?.allFinished() ?? true)));
+    if (runOver) restartRun(false, { sameSeed: true });
     if (!isStarted) await start();
     recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
     await audioRef.current?.start();
@@ -1543,7 +1568,7 @@ export default function Simulator() {
     canvasRef.current?.setRecording(true, resolution);
     setIsRecording(true);
     const ok = await recorderRef.current.startRecording({
-      mimeType: "video/mp4",
+      // --- review fix (recording-export) --- no preferred type: the recorder's own order (H.264 + AAC in MP4, else WebM)
       resolution,
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
@@ -1556,7 +1581,13 @@ export default function Simulator() {
       setIsRecording(false);
       return;
     }
-    recordTimerRef.current = setTimeout(() => {
+    // --- review fix (modes-gerald-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
+    // a run takes, so an unfinished run's clip is extended by the lag it added while recording (re-armed until it stops growing,
+    // at most the whole clip at the slowest factor – a paused run adds none) and the finished effect below ends it as usual
+    const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
+    const maxExtraMs = maxSlowLagMs(1000 * settings.recordingDuration);
+    let credited = 0;
+    const onClipEnd = () => {
       // The run is already over and the page is still holding it (the winner banner, the escape replay, a finished
       // picture): the effect below stops the export once that hold is over instead of cutting it off here. The
       // fallback timer only matters if the hold never ends (the run paused by hand, say).
@@ -1564,9 +1595,16 @@ export default function Simulator() {
         recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), END_HOLD_FALLBACK_MS);
         return;
       }
+      const extra = Math.min(maxExtraMs - credited, (canvasRef.current?.getSlowLagMs() ?? 0) - lag0 - credited);
+      if (extra > SLOW_LAG_MIN_MS) {
+        credited += extra;
+        recordTimerRef.current = setTimeout(onClipEnd, extra);
+        return;
+      }
       void stopRecordingAndDownload();
-    }, 1000 * settings.recordingDuration);
-  }, [isRecording, isStarted, recordingSupported, settings, start, stopRecordingAndDownload]);
+    };
+    recordTimerRef.current = setTimeout(onClipEnd, 1000 * settings.recordingDuration);
+  }, [isRecording, isStarted, finished, recordingSupported, settings, start, stopRecordingAndDownload, restartRun]);
 
   // Stop the recording shortly after the run finishes.
   useEffect(() => {
@@ -1601,6 +1639,12 @@ export default function Simulator() {
   const fastRunning = fastExport.status === "running";
   // --- batch-render --- a batch job for the next export: its seed, and the file handed back instead of downloaded (useBatchRender.ts)
   const batchExportRef = useRef<BatchExportRequest | null>(null);
+  // --- review fix (recording-export) --- while a batch runs (the Batch block's or the viral bot's renders through it) nothing
+  // else may put settings on the page: Import project, a dropped project, a saved preset, a mode card or a share code would be
+  // rolled back by the batch's next job or by its restore at the end. Set by the batch itself as it starts and ends.
+  const [batchActive, setBatchActive] = useState(false);
+  const batchActiveRef = useRef(false);
+  batchActiveRef.current = batchActive;
   const startFastExport = useCallback(async () => {
     const batchJob = batchExportRef.current; // --- batch-render ---
     batchExportRef.current = null;
@@ -1667,6 +1711,7 @@ export default function Simulator() {
         world: { width: page.config.width, height: page.config.height },
         resolution,
         durationSec: s.recordingDuration,
+        slowMoStretch: s.slowMoOnNearMiss ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag)
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
@@ -1717,7 +1762,16 @@ export default function Simulator() {
   }, []);
 
   const onWallBreakSoundUpload = useCallback(
-    (file: File) => {
+    async (file: File) => {
+      // --- review fix (audio) --- a clip the browser cannot decode is refused here (like the song and the music track)
+      // instead of silently leaving every wall break on the default sound
+      try {
+        await audioRef.current?.decodeAudio(await file.arrayBuffer());
+      } catch (err) {
+        console.warn("Failed to decode the wall-break sound:", err);
+        alert(t("Controls.wallBreakDecodeError"));
+        return;
+      }
       if (wallBreakObjectUrlRef.current) URL.revokeObjectURL(wallBreakObjectUrlRef.current);
       const url = URL.createObjectURL(file);
       wallBreakObjectUrlRef.current = url;
@@ -1725,7 +1779,7 @@ export default function Simulator() {
       projectUploadsRef.current.wallBreakSound = file; // --- project-files ---
       update({ wallBreakSound: url });
     },
-    [update],
+    [t, update],
   );
 
   const onHitSampleUpload = useCallback(
@@ -2001,6 +2055,7 @@ export default function Simulator() {
 
   const onLoadPreset = useCallback(
     (name: string) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (the Load buttons are off meanwhile)
       const preset = presets[name];
       if (preset) loadPresetSettings(preset);
     },
@@ -2051,8 +2106,12 @@ export default function Simulator() {
       onCustomSoundSelect,
       onBeatMediaUpload: videoBeats.onImport, // --- video-beats ---
     },
+    locked: batchActive || fastRunning, // --- review fix (recording-export) --- (refused with a status line meanwhile)
   });
-  const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
+  // --- review fix (recording-export) --- (a share code decoded while a batch runs is not put over the batch's settings)
+  const shareCode = useShareCodeLoader(searchParams.toString(), (shared) => {
+    if (!batchActiveRef.current) loadPresetSettings(shared);
+  });
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
   // --- batch-render --- a batch that puts other settings on the page drops a found simulation on the way (the preset loader
@@ -2093,6 +2152,7 @@ export default function Simulator() {
     fastExport,
     supported: fastSupported,
     disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || settings.arenaCount > 1, // --- split-screen --- (not during a race)
+    onRunningChange: setBatchActive, // --- review fix (recording-export) ---
   });
   // --- end batch-render ---
   // --- viral-bot --- the Viral video bot block after the Batch block: it plans clips (lib/bot/planner.ts) in this page's
@@ -2352,6 +2412,7 @@ export default function Simulator() {
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
       madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
       madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
+      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
       dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),
@@ -2493,6 +2554,8 @@ export default function Simulator() {
         bounces: t("Simulator.canvasTeamBounces"),
         walls: t("Simulator.canvasTeamWalls"),
         escapes: t("Simulator.canvasTeamEscapes"),
+        kills: t("Simulator.canvasTeamKills"), // --- review fix (modes-gerald-odd) --- a String Battle's columns and banner
+        win: t("Simulator.canvasTeamWin"),
         wins: (name) => fill("Simulator.canvasTeamWins", "name", name),
         tie: t("Simulator.canvasTeamTie"),
         team: (n) => fill("Simulator.canvasTeamFallback", "n", n),
@@ -2892,7 +2955,7 @@ export default function Simulator() {
           )}
         </div>
 
-        <ProjectDropZone className="lg:col-span-1" label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} /* --- project-files --- */>
+        <ProjectDropZone className="lg:col-span-1" label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} disabled={projectFiles.panel.importLocked} lockedLabel={t("Controls.projectImportLocked")} /* --- project-files --- */ /* --- review fix (recording-export) --- (locked during a batch) */>
           <Controls
             settings={settings}
             update={update}
@@ -2943,6 +3006,7 @@ export default function Simulator() {
             fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
+            batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)
             videoBeats={videoBeats.panel} // --- video-beats ---
             bot={viralBot} // --- viral-bot ---
             bounceMath={bounceMathPanel} // --- bounce-math ---

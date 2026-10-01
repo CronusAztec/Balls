@@ -862,6 +862,113 @@ const dlPath = path.join(outDir, download.suggestedFilename());
 await download.saveAs(dlPath);
 const size = fs.statSync(dlPath).size;
 check("video recorded and downloaded", size > 10000, `(${download.suggestedFilename()}, ${size} bytes, music bed ${bedForRecording ? "on" : "OFF"})`);
+// --- review fix (recording-export) --- Record Video writes MP4 only with H.264 (never VP9 + Opus inside an .mp4), WebM otherwise
+{
+  const bytes = fs.readFileSync(dlPath);
+  const isMp4 = download.suggestedFilename().endsWith(".mp4");
+  const hasAvc = bytes.includes(Buffer.from("avc1")) || bytes.includes(Buffer.from("avc3"));
+  const hasVp9 = bytes.includes(Buffer.from("vp09"));
+  check("Record Video: an .mp4 holds H.264, anything else is a .webm", isMp4 ? hasAvc && !hasVp9 : bytes.readUInt32BE(0) === 0x1a45dfa3, `(${download.suggestedFilename()}: avc ${hasAvc}, vp09 ${hasVp9})`);
+}
+
+// --- review fix (recording-export) --- links with numbers out of their slider range, Record Video on a finished run, a
+// pre-rename preset's watermark and the batch summary's clip length
+{
+  const errorsBefore = errors.length;
+  // 1. A negative ball size – as a long link and as the share code of mode=classic&r=-5 – opens at the smallest ball (the
+  // canvas used to throw on arc() with a negative radius and Next showed its "Application error" page).
+  const opened = [];
+  for (const query of ["mode=classic&r=-5", "c=q1bKzU9JVbJSSs5JLC7OTFbSUSpSstI1rQUA"]) {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => new URL(location.href).searchParams.get("r") === "4", null, { timeout: 10000 }).catch(() => {});
+    const appError = await page.getByText(/Application error/).isVisible().catch(() => false);
+    const started = await page.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    opened.push({ query, r: new URL(page.url()).searchParams.get("r"), appError, started });
+  }
+  const newErrors = errors.slice(errorsBefore).filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
+  check("a link or share code with r=-5 opens at the smallest ball size (r=4) without a crash", opened.every((o) => o.r === "4" && !o.appError && o.started) && newErrors.length === 0, `(${JSON.stringify(opened)}${newErrors.length ? `, ${newErrors[0]}` : ""})`);
+
+  // 2. wc=3000 keeps its 3000 rings (big values are kept) and the page stays responsive: the canvas draws about one ring per pixel.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=3000`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const t0 = Date.now();
+  await page.evaluate(() => 1);
+  const roundTrip = Date.now() - t0;
+  const t1 = Date.now();
+  const bigStarted = await page.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 }).then(() => true).catch(() => false);
+  const clickMs = Date.now() - t1;
+  const bigFrames = await page.evaluate(() => new Promise((resolve) => {
+    let n = 0;
+    const s = performance.now();
+    const f = (t) => (++n, t - s < 2000 ? requestAnimationFrame(f) : resolve(n));
+    requestAnimationFrame(f);
+  }));
+  check("a link with wc=3000 keeps its rings and the page stays responsive", new URL(page.url()).searchParams.get("wc") === "3000" && bigStarted && roundTrip < 2000 && bigFrames >= 4, `(round trip ${roundTrip} ms, Start ${clickMs} ms, ${bigFrames} frames in 2 s)`);
+
+  // 3. Record Video on a finished run records the run again from its seed (as the fast export renders it), not half a second
+  // of the frozen end screen: right after the click the end screen is gone and Stop & Export shows; the clip ends with the run.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=1&gap=1&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  const runStart = Date.now();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const over = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const runMs = Date.now() - runStart;
+  const seedBefore = await page.evaluate(() => document.querySelector("main canvas")?.dataset.seed ?? null);
+  let downloadAt = null;
+  let replayDownload = null;
+  const onReplayDownload = (d) => {
+    downloadAt ??= Date.now();
+    replayDownload ??= d;
+  };
+  page.on("download", onReplayDownload);
+  const clickedAt = Date.now();
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  await page.waitForTimeout(400);
+  const stopShown = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+  const endScreenGone = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false));
+  const seedAfter = await page.evaluate(() => document.querySelector("main canvas")?.dataset.seed ?? null);
+  await page.waitForTimeout(1600);
+  // (a run of a few seconds cannot be over again within 2 s; a very short one – a first-bounce escape – may be)
+  const earlyDownload = downloadAt !== null && downloadAt - clickedAt < 2000 && runMs > 4000;
+  for (let i = 0; i < 60 && !replayDownload; i++) await page.waitForTimeout(500);
+  page.off("download", onReplayDownload);
+  let replayBytes = 0;
+  if (replayDownload) {
+    const out = path.join(outDir, `replay-${replayDownload.suggestedFilename()}`);
+    await replayDownload.saveAs(out);
+    replayBytes = fs.statSync(out).size;
+  }
+  const replayMs = downloadAt ? downloadAt - clickedAt : null;
+  check(
+    "Record Video on a finished run records the run again from its seed (no half-second still of the end screen)",
+    over && stopShown && endScreenGone && seedBefore !== null && seedAfter === seedBefore && !earlyDownload && replayMs !== null && replayMs > 0.5 * runMs && replayBytes > 10000,
+    `(run ${runMs} ms, seed ${seedBefore} → ${seedAfter}, stop shown ${stopShown}, end screen gone ${endScreenGone}, download after ${replayMs} ms, ${replayBytes} bytes)`,
+  );
+
+  // 4. A preset saved before the rename (under the old storage key, with the old default watermark) loads with today's
+  // default watermark: the link carries no wm=viralballs.com.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    localStorage.removeItem("jumpingballslive_saved_settings");
+    localStorage.setItem("viralballs_saved_settings", JSON.stringify({ "My old preset": { mode: "shatter", gravity: 700, watermarkText: "viralballs.com" } }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Saved Presets/ }).click();
+  const presetRow = page.locator("div", { hasText: /^My old preset/ }).last();
+  await presetRow.getByRole("button", { name: "Load", exact: true }).click({ timeout: 10000 }).catch(() => {});
+  await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 10000 }).catch(() => {});
+  const presetParams = new URL(page.url()).searchParams;
+  check("a pre-rename preset loads without the old viralballs.com watermark", presetParams.get("mode") === "shatter" && presetParams.get("g") === "700" && !presetParams.has("wm"), `(${presetParams.toString()})`);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_saved_settings"));
+
+  // 5. The batch summary names the longest clip of the plan: a sweep of the clip length from 10 to 120 s says "up to 120 s".
+  await page.evaluate(() => localStorage.setItem("jumpingballslive_batch_render", JSON.stringify({ v: 1, source: "list", list: "101", variant: "sweep", sweepKey: "recordingDuration", sweepFrom: 10, sweepTo: 120, sweepSteps: 3 })));
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const sweepSummary = await page.locator("[data-batch]").getByText(/clips? · 500×500/).first().innerText({ timeout: 10000 }).catch(() => "");
+  check("the batch summary of a clip-length sweep names its longest clip", /up to 120 s each/.test(sweepSummary), `("${sweepSummary}")`);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
+}
 
 // 6. Find Simulation
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
@@ -4811,9 +4918,33 @@ const jrSeed = async () => (await canvasData()).seed;
     const onDownload = (d) => downloads.push(d);
     page.on("download", onDownload);
     const startedAt = Date.now();
+    const urlBeforeBatch = page.url();
     await block.getByRole("button", { name: /Render batch/ }).click();
+    // --- review fix (recording-export) --- while the batch renders, Import project is off and a project dropped on the panel
+    // is refused with a status line (the batch would roll it back); the page has its own settings again afterwards
+    await page.waitForFunction(() => document.querySelector("[data-batch-job='rendering']"), null, { timeout: 60000 }).catch(() => {});
+    if (!(await page.getByTestId("project-section").isVisible().catch(() => false))) await page.getByRole("button", { name: /Project file/ }).click();
+    const importButton = page.getByTestId("project-section").getByRole("button", { name: /Import project/ });
+    const importDisabled = await importButton.isDisabled({ timeout: 5000 }).catch(() => false);
+    const midBatchProject = JSON.stringify({ format: "jumpingballslive-project", version: 1, name: "Imported mid-batch", settings: { mode: "shatter", gravity: 900 }, assets: {} });
+    const lockDrop = await page.evaluateHandle((text) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([text], "mid-batch.jumpingballslive.json", { type: "application/json" }));
+      return dt;
+    }, midBatchProject);
+    const lockZone = page.getByTestId("project-drop-zone");
+    await lockZone.dispatchEvent("dragenter", { dataTransfer: lockDrop });
+    await lockZone.dispatchEvent("dragover", { dataTransfer: lockDrop });
+    await lockZone.dispatchEvent("drop", { dataTransfer: lockDrop });
+    const lockStatus = await page.getByTestId("project-status").innerText({ timeout: 10000 }).catch(() => "");
     const finished = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "finished", null, { timeout: 300000 }).then(() => true).catch(() => false);
     const ms = Date.now() - startedAt;
+    await page.waitForTimeout(500);
+    check(
+      "batch render: settings are locked while it runs (Import project off, a dropped project refused) and the page is unchanged afterwards",
+      importDisabled && /finish or stop the batch/i.test(lockStatus) && page.url() === urlBeforeBatch && !(await page.getByText(/Opened “Imported mid-batch”/).isVisible().catch(() => false)),
+      `(import disabled ${importDisabled}, status "${lockStatus}", url ${page.url().split("?")[1]} vs ${urlBeforeBatch.split("?")[1]})`,
+    );
     await page.waitForTimeout(1000);
     page.off("download", onDownload);
     const rows = await batchRows();
@@ -6418,6 +6549,62 @@ const bdInstrument = () =>
 }
 // --- end beat-drop ---
 
+// --- review fix (modes-gerald-odd) ---
+// 1. The camera's slow motion stretches the real time a run takes (data-camera-slow-lag): a recording is extended by the lag it
+// adds, so it is still running when its length of wall time is up. 2. The top captions start below a mode's own top HUD
+// (data-caption-mode-hud) in Power Layers, Glass Smash, String Battle and on the multipliers board. 3. With a team roster and
+// the HUD off, the String Battle's warning badge takes the top-right corner (the scoreboard has the top-left one).
+{
+  // (a 10 s clip – the shortest Clip Length – at the slowest slow motion, whose windows last 1.5 s)
+  const CLIP_MS = 10000;
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=10`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const lagNow = () => page.evaluate(() => Number(document.querySelector("main canvas")?.dataset.cameraSlowLag ?? 0));
+  const downloadWait = page.waitForEvent("download", { timeout: 150000 }).catch(() => null);
+  const t0 = Date.now();
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  const lag0 = await lagNow();
+  await page.waitForTimeout(Math.max(0, CLIP_MS + 150 - (Date.now() - t0)));
+  const extra = (await lagNow()) - lag0;
+  const recording = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+  const download = await downloadWait;
+  const wallMs = Date.now() - t0;
+  check(
+    "a recording is extended by the real time the slow motion added, so the clip covers its length of the run",
+    !!download && (extra > 1000 ? recording && wallMs > CLIP_MS + 0.8 * extra : true),
+    `(slow motion added ${extra} ms by the clip length, recording then=${recording}, download after ${wallMs} ms${extra > 1000 ? "" : " – too little slow motion to tell"})`,
+  );
+}
+{
+  const cap = encodeURIComponent("cd*t*0*0*p*1.2*ffffff*000000,q*t*0*0*p*1.3*ffffff*000000*Who will win this battle?*ACID");
+  const rows = [];
+  for (const mode of ["powerLayers&plb=both", "glass", "stringBattle", "multipliers&mpsb=3"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}&cap=${cap}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(800);
+    const d = await canvasData();
+    const [stackTop] = (d.captionStack ?? "").split(",").map(Number);
+    const hud = Number(d.captionModeHud);
+    rows.push({ mode, stackTop, hud, ok: Number(d.captions) >= 1 && hud > 0 && stackTop > hud });
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-captions-below-mode-hud.png") });
+  check("the top captions start below the mode's own top HUD (Power Layers, Glass Smash, String Battle, multipliers)", rows.every((r) => r.ok), `(${JSON.stringify(rows)})`);
+}
+{
+  const corner = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=stringBattle&${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    const d = await canvasData();
+    return { badge: d.sbBadge, right: d.sbBadgeRight, scoreboard: d.scoreboard ?? "" };
+  };
+  const roster = await corner(`sbh=0&teams=${encodeURIComponent("Red*ef4444*x,Blue*3b82f6*y")}`);
+  const plain = await corner("sbh=0");
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-badge-corner.png") });
+  check("the String Battle's warning badge moves to the top-right corner when the teams scoreboard takes the top-left one", roster.badge === "1" && roster.right === "1" && plain.badge === "1" && plain.right === "0", `(${JSON.stringify({ roster, plain })})`);
+}
+// --- end review fix (modes-gerald-odd) ---
+
 // --- daily-gallery --- the preset gallery (cards, preview images, Try it) and the daily challenge (the landing card, daily=
 // links, the Play today's seed button, the end-of-run panel that copies the challenge link, the streak)
 {
@@ -6707,6 +6894,61 @@ const bdInstrument = () =>
   check("pwa: no page errors while offline or across the update", offErrors.length === 0, offErrors.length ? `\n   ${offErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end pwa ---
+
+// --- review fix (audio) ---
+// Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its
+// AudioContext – the music bed and the keep-alive oscillator stop instead of playing on under the landing page with nothing
+// there to stop them – and coming back and starting again runs one new context, not a second one next to the first.
+{
+  const p = await ctx.newPage();
+  p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  p.on("console", (m) => {
+    if (m.type() === "error") errors.push(`console: ${m.text()}`);
+  });
+  await p.addInitScript(() => {
+    const Native = window.AudioContext;
+    const made = (window.__acMade = []);
+    window.__acClosed = 0;
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        made.push(this);
+      }
+      close() {
+        window.__acClosed++;
+        return super.close();
+      }
+    };
+  });
+  const contexts = () => p.evaluate(() => ({ made: window.__acMade.length, closed: window.__acClosed, states: window.__acMade.map((c) => c.state) }));
+  await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await p.getByRole("button", { name: /Custom Sound/ }).click();
+  await p.locator("#music-file-input").setInputFiles({ name: "smoke-bed.wav", mimeType: "audio/wav", buffer: makeWav(4) });
+  const listed = await p.getByTestId("music-track").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  await p.getByRole("button", { name: /Start Simulator/ }).click();
+  const bedOn = await p.getByTestId("music-playing").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+  await p.waitForTimeout(2000);
+  const running = await contexts();
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.locator("header a", { hasText: "Back" }).first().click();
+  await p.waitForURL(/\/en\/$/, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  const left = await contexts();
+  const leftTo = new URL(p.url()).pathname;
+  const sameDocument = await p.evaluate(() => Array.isArray(window.__acMade));
+  await p.goBack({ waitUntil: "networkidle" }).catch(() => null);
+  await p.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  const back = await contexts();
+  const backTo = new URL(p.url()).pathname;
+  check(
+    "leaving the simulator by an in-app link closes its AudioContext (the music bed stops) and coming back runs one new context",
+    listed && bedOn && running.states.includes("running") && sameDocument && /\/en\/$/.test(leftTo) && left.closed >= 1 && left.states.every((st) => st === "closed") && /\/simulator\/$/.test(backTo) && back.states.filter((st) => st !== "closed").length === 1,
+    `(bed ${listed ? "loaded" : "missing"}${bedOn ? ", playing" : ""}; running ${JSON.stringify(running)}; after Back to ${leftTo}: ${JSON.stringify(left)}; back to ${backTo} and started again: ${JSON.stringify(back)})`,
+  );
+  await p.close();
+}
+// --- end review fix (audio) ---
 
 // --- bounce-math ---
 // Bounce math: a rule from the link fills the "Bounce math" block of the Ball & Physics section; an edit in the panel (the

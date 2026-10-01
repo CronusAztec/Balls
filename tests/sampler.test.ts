@@ -6,12 +6,15 @@ import {
   DEFAULT_HIT_SAMPLE_ID,
   HIT_SAMPLES,
   HitSampler,
+  MAX_VOICES,
+  VOICE_FADE_SEC,
   type HitSampleStatus,
   builtInHitSampleUrl,
   hitSamplePlaybackRate,
   isHitSoundMode,
   normalizeHitSampleId,
   resolveHitSoundSource,
+  voiceEnvelopeAt,
   wallHitFrequency,
 } from "@/lib/audio/sampler";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
@@ -205,5 +208,66 @@ describe("HitSampler decode status", () => {
     await sampler.load("fast");
     expect(seen.at(-1)).toBe("ready"); // straight from the cache, no "loading" in between
     expect(seen.filter((s) => s === "loading")).toHaveLength(1);
+  });
+});
+
+// --- review fix (audio) ---
+describe("hit sample voice stealing", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("knows the level of a voice's envelope at any time", () => {
+    const v = { start: 1, level: 0.5, fade: 0.02, end: 2 };
+    expect(voiceEnvelopeAt(v, 0.5)).toBe(0);
+    expect(voiceEnvelopeAt(v, 1)).toBe(0);
+    expect(voiceEnvelopeAt(v, 1.01)).toBeCloseTo(0.25, 12); // half-way through the fade in
+    expect(voiceEnvelopeAt(v, 1.02)).toBeCloseTo(0.5, 12);
+    expect(voiceEnvelopeAt(v, 1.5)).toBe(0.5); // the plateau
+    expect(voiceEnvelopeAt(v, 1.99)).toBeCloseTo(0.25, 12); // half-way through the fade out
+    expect(voiceEnvelopeAt(v, 2)).toBe(0);
+    expect(voiceEnvelopeAt(v, 3)).toBe(0);
+  });
+
+  /** A context whose gain params log every automation call ([method, value, time]) and read `value` as the default 1 – what an OfflineAudioContext that has not rendered yet reports. */
+  function loggingContext() {
+    const gains: [string, number, number][][] = [];
+    const ctx = {
+      currentTime: 0,
+      decodeAudioData: async () => ({ duration: 1 }),
+      createGain: () => {
+        const calls: [string, number, number][] = [];
+        gains.push(calls);
+        return {
+          gain: {
+            value: 1,
+            setValueAtTime: (v: number, t: number) => void calls.push(["set", v, t]),
+            linearRampToValueAtTime: (v: number, t: number) => void calls.push(["linear", v, t]),
+            cancelScheduledValues: (t: number) => void calls.push(["cancel", 0, t]),
+          },
+          connect: () => undefined,
+          disconnect: () => undefined,
+        };
+      },
+      createBufferSource: () => ({ buffer: null, playbackRate: { value: 1 }, onended: null, connect: () => undefined, disconnect: () => undefined, start: () => undefined, stop: () => undefined }),
+    };
+    return { ctx: ctx as unknown as AudioContext, gains };
+  }
+
+  it("fades a stolen voice out from the level it plays at, not from the param's last rendered value", async () => {
+    vi.stubGlobal("fetch", okFetch());
+    const { ctx, gains } = loggingContext();
+    const sampler = new HitSampler(ctx, {} as AudioNode);
+    sampler.setVolume(0.8);
+    await sampler.load("/hitSounds/pluck.wav");
+    const level = 0.8 / Math.sqrt(8); // one note of an 8-note chord
+    sampler.play(1, 0, 1 / Math.sqrt(8));
+    for (let i = 0; i < MAX_VOICES; i++) sampler.play(1, 0.3, 0); // a full pool: the first voice is stolen at 0.3 s, on its plateau
+    const first = gains[0];
+    const cancel = first.findIndex(([m, , t]) => m === "cancel" && t === 0.3);
+    expect(cancel).toBeGreaterThan(0);
+    const [method, value, time] = first[cancel + 1];
+    expect(method).toBe("set");
+    expect(time).toBe(0.3);
+    expect(value).toBeCloseTo(level, 12); // 0.283 – the old code jumped to 1 (the default value) here
+    expect(first[cancel + 2]).toEqual(["linear", 0, 0.3 + VOICE_FADE_SEC]);
   });
 });
