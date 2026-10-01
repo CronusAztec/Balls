@@ -16,12 +16,13 @@ import { TWO_PI } from "../types";
  *
  *  - `vortex`: its balls curve their own path, and every `powerEvery` seconds a ball drags a whirl – two spiral arms that
  *    sweep out to `radius` tiles around it over `TY_WHIRL_MS`, converting the enemy tiles they cross;
- *  - `bomber`: every `powerEvery` seconds a ball explodes – every tile within `radius` becomes its team's (a shock ring,
- *    debris, the wall-break sound and a screen shake; nearby balls are blown away) – one bounce can flip the board;
- *  - `painter`: every `powerEvery` seconds a ball dashes (`TY_DASH_MS`, a little faster) straight through enemy territory
- *    without bouncing, painting a one-tile trail;
- *  - `ghost`: its balls pass through enemy tiles without bouncing (and without converting them) and convert the 3×3 block
- *    they are in on every bounce off the arena's frame;
+ *  - `bomber`: every `powerEvery` seconds a ball arms, and it explodes on its next bounce off an enemy tile (or where it
+ *    is, `TY_ARM_MAX_MS` later) – every tile within `radius` becomes its team's (a shock ring, debris, the wall-break sound
+ *    and a jolt of the board; nearby balls are blown away): one bounce can flip the board;
+ *  - `painter`: every `powerEvery` seconds a ball dashes (`TY_DASH_TILES` tiles, a little faster) straight through enemy
+ *    territory without bouncing, painting a one-tile trail;
+ *  - `ghost`: its balls pass through enemy tiles without bouncing (and without converting them) and convert a 3×3 block
+ *    (the one around the tile they are in, moved inside the board) on every bounce off the arena's frame;
  *  - `none`: classic pong wars.
  *
  * Physics: the engine moves the balls (no gravity: `gravityScale` 0, its slow-ball boost off: `ballsMayRest`), resolves
@@ -29,9 +30,11 @@ import { TWO_PI } from "../types";
  * ball at its cruising speed (a fraction of the square per second – the same run on any canvas size, up to rounding), bounces
  * it off the frame with a seeded scatter, off the optional pegs (`pegs`: the reels' faint dotted grid, a dot every
  * `TY_PEG_STEP` tiles, resolved with the obstacle layer's `resolveBallCircle()`), and runs the tile probe: eight points on
- * the ball's rim, and a point moving into an enemy tile converts it and reflects the velocity about the probe's direction.
- * Everything random – the spawn, the headings, the curve of a vortex, the power phases, every frame bounce's scatter –
- * comes from `ctx.random()`, so a seed replays exactly and Find Simulation can search it.
+ * the ball's rim; every point moving into an enemy tile converts it, and the ball reflects once about the sum of their
+ * directions. No side and no ball order is favoured: the reflection is the same for every heading, the conversions of a
+ * sub-step apply at its end (every ball judges the board as it stood when the sub-step began), and the teams' balls join
+ * the engine's ball list in turns. Everything random – the spawn, the headings, the curve of a vortex, the power phases,
+ * every frame bounce's scatter – comes from `ctx.random()`, so a seed replays exactly and Find Simulation can search it.
  *
  * The tiles live in a `Uint8Array` (row-major, the owner per tile) with running counts per team; the canvas keeps an
  * offscreen copy and repaints only the tiles that changed. Recent flips go into a fixed ring (`flipTile` …) for the
@@ -285,13 +288,15 @@ export const TY_WHIRL_TURNS = 1.25;
 export const TY_WHIRL_ARMS = 2;
 /** Samples per whirl arm and tile of radius (every tile the arm crosses is hit). */
 export const TY_WHIRL_SAMPLES_PER_TILE = 16;
-/** Painter: a dash lasts this long (simulation ms), this much faster. */
-export const TY_DASH_MS = 300;
+/** Painter: a dash runs this many tiles (the same trail on any board), this much faster. */
+export const TY_DASH_TILES = 5.5;
 export const TY_DASH_SPEED = 1.1;
 /** Ghost: weightless, it drifts this much faster than the other balls. */
 export const TY_GHOST_SPEED = 1.5;
 /** Bomber: balls within this many blast radii are blown away. */
 export const TY_BLAST_PUSH = 1.5;
+/** Bomber: an armed ball that has not bounced off an enemy tile this long (simulation ms) after arming explodes where it is. */
+export const TY_ARM_MAX_MS = 150;
 /** A timed power first fires between this fraction of its interval and the whole interval (seeded per ball). */
 export const TY_POWER_PHASE_MIN = 0.35;
 /** The last TY_FINALE_MS of the countdown: the balls speed up to TY_FINALE_SPEED× ("the end gets intense"). */
@@ -516,8 +521,10 @@ export interface TyBall {
   id: number;
   team: number;
   power: TyPower;
-  /** Simulation time (ms) of its next power trigger (Infinity: no timed power, or the battle is over). */
+  /** Simulation time (ms) of its next power trigger (Infinity: no timed power, an armed bomber, or the battle is over). */
   nextPowerMs: number;
+  /** Bomber: when it armed (simulation ms; −Infinity while it is not armed) – it explodes on its next bounce off an enemy tile. */
+  armedMs: number;
   /** Simulation time (ms) of its last trigger (−Infinity before the first): the canvas' charge ring. */
   lastPowerMs: number;
   /** Power triggers so far. */
@@ -661,6 +668,16 @@ export class TerritoryMode implements GameMode {
   private lastLeader = -1;
   private readonly peg = circleObstacle(0, 0, 1, { restitution: 1, friction: 0 });
   private readonly scratch = { x: 0, y: 0 };
+  /**
+   * The conversions of the balls' moves wait for the end of the sub-step (`flush()`): every ball of a sub-step judges the
+   * board as it stood when the sub-step began, so the order the engine moves the balls in favours no team.
+   */
+  private deferring = false;
+  private qIdx = new Int32Array(256);
+  private qTeam = new Uint8Array(256);
+  private qRow = new Int32Array(256);
+  private qSound = new Uint8Array(256);
+  private qLen = 0;
 
   getSettings(): TerritorySettings {
     return { ...this.settings, powers: [...this.settings.powers] };
@@ -729,26 +746,33 @@ export class TerritoryMode implements GameMode {
     this.lastNoteMs = -Infinity;
     this.lastBoomMs = -Infinity;
     this.lastLeader = -1;
+    this.deferring = false;
+    this.qLen = 0;
     this.firstId = ctx.getNextId();
     const f = v.field;
     const radius = f.tile * Math.max(TY_MIN_RADIUS, Math.min(TY_MAX_RADIUS, TY_BALL_SCALE * ((cfg.ballRadius || 8) / 8)));
     const radiusScale = radius / (cfg.ballRadius || 8);
     const speed = this.cruise(cfg.ballSpeed);
-    for (let team = 0; team < v.teams; team++) {
-      // The team's region, in tiles: its rows and columns (the balls start a tile clear of its edges).
-      const rowSplit = v.rows / 2;
-      const topHalf = v.teams < 4 ? team === 0 : team < 2;
-      const r0 = topHalf ? 0 : rowSplit;
-      const r1 = topHalf ? rowSplit : v.rows;
-      let c0 = 0;
-      let c1 = v.cols;
-      if (v.teams === 4) {
-        const leftHalf = team % 2 === 0;
-        c0 = leftHalf ? 0 : Math.ceil(v.cols / 2);
-        c1 = leftHalf ? Math.floor(v.cols / 2) : v.cols;
-      }
-      const power = s.powers[team] ?? "none";
-      for (let k = 0; k < s.ballsPerTeam; k++) {
+    // The balls join in rounds – one ball of every team a round, the first team of a round turning (from a seeded start) –
+    // so no team's balls always move first in the engine's ball loop (a tile two teams reach in the same sub-step goes to
+    // the ball that moves first).
+    const first = Math.floor(ctx.random() * v.teams);
+    for (let k = 0; k < s.ballsPerTeam; k++) {
+      for (let j = 0; j < v.teams; j++) {
+        const team = (first + k + j) % v.teams;
+        // The team's region, in tiles: its rows and columns (the balls start a tile clear of its edges).
+        const rowSplit = v.rows / 2;
+        const topHalf = v.teams < 4 ? team === 0 : team < 2;
+        const r0 = topHalf ? 0 : rowSplit;
+        const r1 = topHalf ? rowSplit : v.rows;
+        let c0 = 0;
+        let c1 = v.cols;
+        if (v.teams === 4) {
+          const leftHalf = team % 2 === 0;
+          c0 = leftHalf ? 0 : Math.ceil(v.cols / 2);
+          c1 = leftHalf ? Math.floor(v.cols / 2) : v.cols;
+        }
+        const power = s.powers[team] ?? "none";
         // A few seeded tries for a spot clear of the team's other balls (the last try is taken anyway).
         let x = 0;
         let y = 0;
@@ -776,6 +800,7 @@ export class TerritoryMode implements GameMode {
           team,
           power,
           nextPowerMs: timed ? phase * 1000 * s.powerEvery : Infinity,
+          armedMs: -Infinity,
           lastPowerMs: -Infinity,
           triggers: 0,
           curve,
@@ -807,6 +832,7 @@ export class TerritoryMode implements GameMode {
   onPreUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
+    this.flush(ctx, now);
     // The rig follows the config (the page may pick a forced winner mid-battle); the seed finder's engines carry it from the start.
     v.forcedWinner = territoryForcedWinner(ctx.config.forcedWinner, v.teams);
     this.notesThisStep = 0;
@@ -826,15 +852,23 @@ export class TerritoryMode implements GameMode {
     for (let k = 0; k < v.balls.length; k++) {
       const tb = v.balls[k];
       const B = eb[k];
-      if (!B || tb.nextPowerMs > now) continue;
+      if (!B) continue;
+      // An armed bomber that found no enemy tile to bounce off in time explodes where it is.
+      if (tb.armedMs > -Infinity && now - tb.armedMs >= TY_ARM_MAX_MS) this.blast(ctx, B, tb, now);
+      if (tb.nextPowerMs > now) continue;
       this.trigger(ctx, B, tb, now);
       while (tb.nextPowerMs <= now) tb.nextPowerMs += every;
     }
   }
 
-  /** A timed power fires: the vortex's whirl, the bomber's blast, the painter's dash. */
+  /** A timed power fires: the vortex's whirl, the painter's dash – the bomber arms (its blast waits for its next bounce off an enemy tile). */
   private trigger(ctx: ModeContext, ball: Ball, tb: TyBall, now: number) {
     const v = this.view;
+    if (tb.power === "bomber") {
+      tb.armedMs = now;
+      tb.nextPowerMs = Infinity; // the next charge starts at the blast
+      return;
+    }
     tb.triggers++;
     tb.lastPowerMs = now;
     if (tb.power === "vortex") {
@@ -844,19 +878,22 @@ export class TerritoryMode implements GameMode {
       tb.curve = -tb.curve;
       v.whirls++;
       ctx.addPendingSoundEvent({ type: "multiplier", wallIndex: 0, multiplier: 3 });
-    } else if (tb.power === "bomber") this.blast(ctx, ball, tb, now);
-    else if (tb.power === "painter") {
-      tb.dashUntilMs = now + TY_DASH_MS;
+    } else if (tb.power === "painter") {
+      tb.dashUntilMs = now + (1000 * TY_DASH_TILES * v.field.tile) / (this.cruise(ctx.config.ballSpeed) * v.speedFactor * TY_DASH_SPEED);
       v.dashes++;
       const row = Math.floor((ball.y - v.field.gy) / v.field.tile);
       ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: flipFrequency(tb.team, row, v.rows), accent: true });
     }
   }
 
-  /** The bomber's blast: every tile within the reach turns its team's, nearby balls are blown away, a shock ring, the wall-break sound and a shake. */
+  /** The bomber's blast: every tile within the reach turns its team's, nearby balls are blown away, a shock ring, the wall-break sound and a shake; the next charge starts. */
   private blast(ctx: ModeContext, ball: Ball, tb: TyBall, now: number) {
     const v = this.view;
     const f = v.field;
+    tb.triggers++;
+    tb.lastPowerMs = now;
+    tb.armedMs = -Infinity;
+    tb.nextPowerMs = now + 1000 * v.settings.powerEvery;
     const R = v.settings.radius;
     const cu = (ball.x - f.gx) / f.tile;
     const cv = (ball.y - f.gy) / f.tile;
@@ -897,6 +934,7 @@ export class TerritoryMode implements GameMode {
 
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     const v = this.view;
+    this.deferring = true;
     const tb = this.ballOf(ball);
     const team = tb ? tb.team : Math.max(0, Math.min(v.teams - 1, ball.team ?? 0));
     const now = ctx.getElapsedMs();
@@ -961,7 +999,7 @@ export class TerritoryMode implements GameMode {
     }
     if (v.settings.pegs) this.pegs(ctx, ball, dtSec);
     if (dashing) this.paintTrail(ctx, ball, team, now);
-    else if (!(tb && tb.power === "ghost")) this.probeTiles(ctx, ball, team, now);
+    else if (!(tb && tb.power === "ghost")) this.probeTiles(ctx, ball, tb, team, now);
     if (tb) {
       if (tb.whirlMs > -Infinity) this.stepWhirl(ctx, ball, tb, now);
       tb.u = (ball.x - f.gx) / f.tile;
@@ -970,11 +1008,13 @@ export class TerritoryMode implements GameMode {
   }
 
   /**
-   * The pong-wars tile test: eight probes on the rim; a probe moving into a tile of another team converts it (unless the
-   * battle is over or the rig absorbs it) and reflects the velocity about the probe's direction. A ball whose centre sits
-   * on an enemy tile (a blast engulfed it) converts that tile too, so it eats its way out.
+   * The pong-wars tile test: eight probes on the rim. Every probe moving into a tile of another team converts it (unless
+   * the battle is over or the rig absorbs it), and the ball reflects once about the sum of those probes' directions – a
+   * flat border sends it straight back, a corner back the way it came – the same whichever way the ball moves, so no side
+   * of the board is favoured. A ball whose centre sits on an enemy tile (a blast engulfed it) converts that tile too, so it
+   * eats its way out. An armed bomber explodes on the bounce.
    */
-  private probeTiles(ctx: ModeContext, ball: Ball, team: number, now: number) {
+  private probeTiles(ctx: ModeContext, ball: Ball, tb: TyBall | null, team: number, now: number) {
     const v = this.view;
     const f = v.field;
     const tiles = v.tiles;
@@ -988,24 +1028,34 @@ export class TerritoryMode implements GameMode {
       if (col >= 0 && row >= 0 && col < cols && row < rows && tiles[row * cols + col] !== team) this.convert(ctx, row * cols + col, team, now, row, true);
     }
     const r = ball.radius;
-    let bounced = false;
+    const vx = ball.vx;
+    const vy = ball.vy;
+    let sx = 0;
+    let sy = 0;
     for (let k = 0; k < 8; k++) {
       const nx = PROBE_X[k];
       const ny = PROBE_Y[k];
-      const vn = ball.vx * nx + ball.vy * ny;
-      if (vn <= 0) continue;
+      if (vx * nx + vy * ny <= 0) continue;
       const col = Math.floor((ball.x + nx * r - f.gx) * inv);
       const row = Math.floor((ball.y + ny * r - f.gy) * inv);
       if (col < 0 || row < 0 || col >= cols || row >= rows) continue;
       const idx = row * cols + col;
       if (tiles[idx] === team) continue;
       if (live) this.convert(ctx, idx, team, now, row, true);
-      ball.vx -= 2 * vn * nx;
-      ball.vy -= 2 * vn * ny;
-      v.tileBounces++;
-      bounced = true;
+      sx += nx;
+      sy += ny;
     }
-    if (bounced) ctx.noteBounce?.(ball); // a bounce-math trigger, once a step however many probes reflected
+    // Every probe that hit moves into its tile (v · n > 0), so the sum does too: one reflection about its direction.
+    const len = Math.hypot(sx, sy);
+    if (len <= 1e-9) return;
+    const nx = sx / len;
+    const ny = sy / len;
+    const vn = vx * nx + vy * ny;
+    ball.vx = vx - 2 * vn * nx;
+    ball.vy = vy - 2 * vn * ny;
+    v.tileBounces++;
+    ctx.noteBounce?.(ball); // a bounce-math trigger
+    if (live && tb && tb.armedMs > -Infinity) this.blast(ctx, ball, tb, now); // one bounce can flip the board
   }
 
   /** The painter's dash: no bounces off enemy tiles, the tile under the ball turns its team's – a one-tile trail. */
@@ -1019,12 +1069,12 @@ export class TerritoryMode implements GameMode {
     if (v.tiles[idx] !== team) this.convert(ctx, idx, team, now, row, true);
   }
 
-  /** The ghost's frame bounce: the 3×3 block around the tile it is in turns its team's. */
+  /** The ghost's frame bounce: the 3×3 block around the tile it is in – moved inside the board, so it is a whole block at the frame – turns its team's. */
   private ghostBlock(ctx: ModeContext, ball: Ball, team: number, now: number) {
     const v = this.view;
     const f = v.field;
-    const col = Math.max(0, Math.min(v.cols - 1, Math.floor((ball.x - f.gx) / f.tile)));
-    const row = Math.max(0, Math.min(v.rows - 1, Math.floor((ball.y - f.gy) / f.tile)));
+    const col = Math.max(1, Math.min(v.cols - 2, Math.floor((ball.x - f.gx) / f.tile)));
+    const row = Math.max(1, Math.min(v.rows - 2, Math.floor((ball.y - f.gy) / f.tile)));
     let converted = 0;
     for (let rr = Math.max(0, row - 1); rr <= Math.min(v.rows - 1, row + 1); rr++) {
       for (let cc = Math.max(0, col - 1); cc <= Math.min(v.cols - 1, col + 1); cc++) if (this.convert(ctx, rr * v.cols + cc, team, now, rr, false)) converted++;
@@ -1086,10 +1136,47 @@ export class TerritoryMode implements GameMode {
   }
 
   /**
-   * Tile `idx` (in row `row`) turns `team`'s: the counts, the flip log and – with `sound` – a flip note (at most one per
-   * step and TY_NOTE_GAP_MS). False when it already was, or the rig absorbed the conversion.
+   * Tile `idx` (in row `row`) turns `team`'s – at once, or (during the balls' moves) at the end of the sub-step. False when
+   * it already is `team`'s, or the battle is over.
    */
   private convert(ctx: ModeContext, idx: number, team: number, now: number, row: number, sound: boolean): boolean {
+    const v = this.view;
+    if (v.tiles[idx] === team || v.finished) return false;
+    if (!this.deferring) return this.apply(ctx, idx, team, now, row, sound);
+    if (this.qLen >= this.qIdx.length) this.growQueue();
+    const n = this.qLen++;
+    this.qIdx[n] = idx;
+    this.qTeam[n] = team;
+    this.qRow[n] = row;
+    this.qSound[n] = sound ? 1 : 0;
+    return true;
+  }
+
+  private growQueue() {
+    const size = 2 * this.qIdx.length;
+    const grow = <T extends Int32Array | Uint8Array>(a: T, b: T) => {
+      b.set(a);
+      return b;
+    };
+    this.qIdx = grow(this.qIdx, new Int32Array(size));
+    this.qTeam = grow(this.qTeam, new Uint8Array(size));
+    this.qRow = grow(this.qRow, new Int32Array(size));
+    this.qSound = grow(this.qSound, new Uint8Array(size));
+  }
+
+  /** Applies the conversions the sub-step queued, in order (a tile two teams took in the same sub-step goes to the first). */
+  private flush(ctx: ModeContext, now: number) {
+    this.deferring = false;
+    const n = this.qLen;
+    this.qLen = 0;
+    for (let k = 0; k < n; k++) this.apply(ctx, this.qIdx[k], this.qTeam[k], now, this.qRow[k], this.qSound[k] === 1);
+  }
+
+  /**
+   * Tile `idx` (in row `row`) turns `team`'s: the counts, the flip log and – with `sound` – a flip note (at most one per
+   * step and TY_NOTE_GAP_MS). False when it already was, the battle is over or the rig absorbed the conversion.
+   */
+  private apply(ctx: ModeContext, idx: number, team: number, now: number, row: number, sound: boolean): boolean {
     const v = this.view;
     const from = v.tiles[idx];
     if (from === team || v.finished) return false;
@@ -1117,8 +1204,12 @@ export class TerritoryMode implements GameMode {
     return true;
   }
 
-  /** After the engine's ball-to-ball pass: a collision may have pushed a ball over the frame – back onto the board (the next sub-step's frame test turns it). */
+  /**
+   * After the engine's ball-to-ball pass: the sub-step's conversions apply, and a ball a collision pushed over the frame
+   * goes back onto the board (the next sub-step's frame test turns it).
+   */
   onPostSubStep(ctx: ModeContext) {
+    this.flush(ctx, ctx.getElapsedMs());
     const f = this.view.field;
     const balls = ctx.getBalls();
     for (let i = 0; i < balls.length; i++) {
@@ -1134,6 +1225,7 @@ export class TerritoryMode implements GameMode {
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
+    this.flush(ctx, now);
     if (!v.finished) {
       const leader = tileLeader(v.counts, v.teams);
       if (leader >= 0 && this.lastLeader >= 0 && leader !== this.lastLeader) {
@@ -1163,6 +1255,7 @@ export class TerritoryMode implements GameMode {
     v.winner = v.leaders.length === 1 ? v.leaders[0] : -1;
     for (const tb of v.balls) {
       tb.nextPowerMs = Infinity;
+      tb.armedMs = -Infinity;
       tb.dashUntilMs = -Infinity;
     }
     // The team stats: the tiles as "walls" (the scoreboard ranks the rest by them), the leaders an "escape" (the win).

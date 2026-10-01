@@ -823,6 +823,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const tyLayer = new TerritoryLayer();
     const tyRender: TerritoryRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showTrails: true, trailThickness: 0.8, wallThickness: 2, labels: DEFAULT_TERRITORY_LABELS, nowMs: 0 };
     const tyBodyColor = (ball: Ball) => tyLayer.colorOf(ball.team ?? 0);
+    const tyJolt = { x: 0, y: 0 }; // a bomber blast's jolt of the board this frame
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
     const unlimitedLayer = new UnlimitedLayer();
@@ -1083,6 +1084,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           cam.view.scale = 1;
         }
       }
+      // --- odd-territory --- a bomber's blast jolts the board (the camera's own Screen Shake shakes it instead while that is on)
+      if (engine.isTerritoryMode() && !(cam.settings.screenShake > 0) && tyLayer.blastJolt(engine.getTerritoryView(), engine.getElapsedMs(), Math.min(size.width, size.height), tyJolt)) ctx.translate(tyJolt.x, tyJolt.y);
       // --- gerald-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
       // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
       const glassView = engine.isGlassMode() ? engine.getGlassView() : null;

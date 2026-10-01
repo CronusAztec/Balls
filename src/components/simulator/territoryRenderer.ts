@@ -18,6 +18,7 @@ import {
 } from "@/lib/physics/modes/territory";
 import type { TeamEntry } from "@/lib/teams";
 import { inCaptionColumn } from "@/lib/captions";
+import { SHAKE_DECAY_MS, shakeAmplitude, shakeOffset } from "@/lib/simulation/camera";
 
 /**
  * Canvas drawing of Territory (feature odd-territory; lib/physics/modes/territory.ts), one `TerritoryLayer` per draw
@@ -29,11 +30,15 @@ import { inCaptionColumn } from "@/lib/captions";
  *    flipped (the wobble field's envelope, `wobbleEnvelope()`), the faint dotted grid of the pegs, the thin grey frame
  *    (flashing at the verdict), the bombers' shock rings and debris and the vortices' whirls;
  *  - `drawBodies()` (world space, the ball pass): short trails, soft colour halos and glossy bodies per team (a ghost
- *    translucent, a painter's dash bright, a bomber's charge ring), and the names of a team roster;
+ *    translucent, a painter's dash bright, a charge ring, an armed bomber's flickering one), and the names of a team roster;
  *  - `drawOverlay()` (screen space, the HUD band at the top of the square the recorder exports): the "FLASHING LIGHTS –
  *    THE END GETS INTENSE" badge, PICK A SIDE, the countdown, "VORTEX 52% VS BOMBER 48%", the live percentage bar (its
  *    segments ease toward the counts) and – without a team roster (the teams banner takes over with one) – the winner
  *    banner (or DRAW) with its confetti.
+ *
+ * `blastJolt()` gives the world offset of a bomber's blast: the board jolts like the cinematic camera's screen shake (its
+ * envelope and wobble, `TY_BLAST_SHAKE` strong) on the simulation clock – Canvas.tsx applies it while the camera's own
+ * Screen Shake is off (with it on, the camera shakes the view on the blast's wall-break sound instead).
  *
  * Visual only: it reads the view and never writes to the engine. The pops, rings and debris run on the simulation clock
  * (a pause freezes them, a recording replays them); the confetti and the bar's easing are decoration. Steady-state frames
@@ -90,6 +95,10 @@ const DEBRIS = 14;
 /** The trail behind a ball: its last this many positions (60 Hz steps). */
 const TRAIL_POINTS = 7;
 const GAP_COLOR = "#050508";
+/** How hard a bomber's blast jolts the board, on the camera's Screen Shake scale (0–1). */
+export const TY_BLAST_SHAKE = 0.5;
+/** White at alpha 0.55 … 1 in eleven steps (an armed bomber's flicker), built once. */
+const ARMED_WHITE: readonly string[] = Array.from({ length: 11 }, (_, k) => `rgba(255, 255, 255, ${(0.55 + 0.045 * k).toFixed(3)})`);
 
 function hexRgb(color: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(color.trim());
@@ -170,6 +179,9 @@ export class TerritoryLayer {
   private bannerGeneration = -1;
   /** For tools and the smoke test: tiles repainted in the offscreen map this run, pops drawn last frame, what the overlay drew. */
   repaints = 0;
+  /** Blasts that jolted the board (`blastJolt()`), and the last one's seed. */
+  jolts = 0;
+  private joltSeed = Number.NaN;
   pops = 0;
   badgeDrawn = false;
   /** The badge sits in the top-right corner (the teams scoreboard has the top-left one). */
@@ -538,6 +550,14 @@ export class TerritoryLayer {
         ctx.arc(B.x, B.y, 1.35 * r, 0, TWO_PI);
         ctx.stroke();
         ctx.setLineDash([]);
+      } else if (tb && tb.armedMs > -Infinity && !view.finished) {
+        // An armed bomber: a full ring flickering white – it blows on its next bounce off an enemy tile.
+        const flicker = 0.5 + 0.5 * Math.sin((now - tb.armedMs) * 0.06);
+        ctx.strokeStyle = ARMED_WHITE[Math.round(10 * flicker)];
+        ctx.lineWidth = Math.max(1.2, (0.18 + 0.1 * flicker) * r);
+        ctx.beginPath();
+        ctx.arc(B.x, B.y, (1.45 + 0.15 * flicker) * r, 0, TWO_PI);
+        ctx.stroke();
       } else if (tb && (power === "bomber" || power === "vortex" || power === "painter") && !view.finished) {
         // The charge ring: how far the next trigger is (white when it is about to fire).
         const every = 1000 * view.settings.powerEvery;
@@ -571,6 +591,26 @@ export class TerritoryLayer {
     if (balls.length === 0) return null;
     const k = B.id - balls[0].id;
     return k >= 0 && k < balls.length && balls[k].id === B.id ? balls[k] : null;
+  }
+
+  /**
+   * The world offset (px) of the latest bomber blast's jolt at simulation time `nowMs` on a canvas whose shorter side is
+   * `minDim`, written into `out` – false (and `out` zeroed) when no blast is shaking the board. Counts the jolts in `jolts`.
+   */
+  blastJolt(view: TerritoryView, nowMs: number, minDim: number, out: { x: number; y: number }): boolean {
+    out.x = 0;
+    out.y = 0;
+    const shocks = view.shocks;
+    if (shocks.length === 0) return false;
+    const s = shocks[shocks.length - 1];
+    const age = nowMs - s.t0;
+    if (!(age >= 0) || age >= SHAKE_DECAY_MS) return false;
+    if (s.seed !== this.joltSeed) {
+      this.joltSeed = s.seed;
+      this.jolts++;
+    }
+    shakeOffset(age, shakeAmplitude(TY_BLAST_SHAKE, minDim), s.seed, out);
+    return true;
   }
 
   /* ------------------------------------------------------------------ screen space */
@@ -883,6 +923,7 @@ export const TERRITORY_DATA_KEYS = [
   "tyHud",
   "tyBanner",
   "tyInField",
+  "tyJolts",
 ] as const;
 
 const pctScratch: number[] = [];
@@ -924,4 +965,5 @@ export function writeTerritoryDataset(view: TerritoryView, layer: TerritoryLayer
   let inField = true;
   for (const b of balls) if (b.x < f.gx - 0.5 || b.x > f.gx + f.gridW + 0.5 || b.y < f.gy - 0.5 || b.y > f.gy + f.gridH + 0.5) inField = false;
   set("tyInField", inField ? "1" : "0");
+  set("tyJolts", String(layer.jolts));
 }

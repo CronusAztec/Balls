@@ -3,7 +3,9 @@ import {
   DEFAULT_TERRITORY_SETTINGS,
   DEFAULT_TY_POWERS,
   TERRITORY_RANGES,
-  TY_DASH_MS,
+  TY_ARM_MAX_MS,
+  TY_DASH_SPEED,
+  TY_DASH_TILES,
   TY_FINALE_MS,
   TY_FINALE_SPEED,
   TY_GHOST_SPEED,
@@ -36,6 +38,7 @@ import {
   tilePercentages,
   whirlPoint,
   type TerritorySettings,
+  type TyBall,
   type TyPower,
 } from "@/lib/physics/modes/territory";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -114,6 +117,22 @@ function accounted(engine: PhysicsEngine) {
 function onlyBall(engine: PhysicsEngine, team: number) {
   engine.setBalls(engine.getBalls().filter((b) => b.team === team).slice(0, 1));
   return engine.getBalls()[0];
+}
+
+/** The mode's record of an engine ball (its power and the power's state). */
+function teamBall(engine: PhysicsEngine, ball: { id: number }): TyBall {
+  const tb = engine.getTerritoryView().balls.find((b) => b.id === ball.id);
+  if (!tb) throw new Error(`no team ball ${ball.id}`);
+  return tb;
+}
+
+/** Sets tile (col, row) to `team`, keeping the running counts right. */
+function setTile(engine: PhysicsEngine, col: number, row: number, team: number) {
+  const v = engine.getTerritoryView();
+  const idx = row * v.cols + col;
+  v.counts[v.tiles[idx]]--;
+  v.tiles[idx] = team;
+  v.counts[team]++;
 }
 
 function tileOf(engine: PhysicsEngine, x: number, y: number) {
@@ -376,6 +395,97 @@ describe("Territory in the engine", () => {
     expect(Math.hypot(ball.vx, ball.vy)).toBeCloseTo(TY_SPEED * f.side, 6);
   });
 
+  it("bounces the same off a border or a corner from either side: no side of the board is favoured", () => {
+    // Team 0 above the border and team 1 below it are each other's 180° turn; so are their bounces.
+    const shots: [number, number, number, number][] = [
+      [7.5, -0.5, 0.3, 0.95],
+      [7.2, -0.5, -0.6, 0.8],
+      [11.9, -0.4, 0.95, 0.3],
+      [4.05, -1.3, -0.7, 0.7],
+    ];
+    for (const corner of [false, true]) {
+      for (const [u, dv, ux, uy] of shots) {
+        const top = territory({ powers: NONE, ballsPerTeam: 1 });
+        const bottom = territory({ powers: NONE, ballsPerTeam: 1 });
+        const v = top.getTerritoryView();
+        const f = v.field;
+        const mid = v.rows / 2;
+        if (corner) {
+          // An enemy tile sticking into each side next to the ball: a concave corner of the border.
+          setTile(top, Math.floor(u) + 1, mid - 1, 1);
+          setTile(bottom, v.cols - 1 - (Math.floor(u) + 1), mid, 0);
+        }
+        const a = onlyBall(top, 0);
+        const b = onlyBall(bottom, 1);
+        a.x = f.gx + u * f.tile;
+        a.y = f.gy + (mid + dv) * f.tile - a.radius + 0.5 * f.tile;
+        a.vx = 400 * ux;
+        a.vy = 400 * uy;
+        b.x = f.gx + f.gridW - (a.x - f.gx);
+        b.y = f.gy + f.gridH - (a.y - f.gy);
+        b.vx = -a.vx;
+        b.vy = -a.vy;
+        for (let i = 0; i < 3; i++) {
+          top.update(STEP, 0);
+          bottom.update(STEP, 0);
+        }
+        const label = `${corner ? "corner" : "border"} ${u},${dv}`;
+        expect(b.vx, label).toBeCloseTo(-a.vx, 6);
+        expect(b.vy, label).toBeCloseTo(-a.vy, 6);
+        expect(b.x - f.gx, label).toBeCloseTo(f.gridW - (a.x - f.gx), 6);
+        expect(top.getTerritoryView().conversions, label).toBe(bottom.getTerritoryView().conversions);
+        expect(top.getTerritoryView().counts[0], label).toBe(bottom.getTerritoryView().counts[1]);
+      }
+    }
+  });
+
+  it("judges a sub-step on the board as it stood when the sub-step began: the order the balls move in changes nothing", () => {
+    const run = (order: "ab" | "ba") => {
+      const engine = territory({ powers: NONE, ballsPerTeam: 1 });
+      const v = engine.getTerritoryView();
+      const f = v.field;
+      const boundary = f.gy + (v.rows / 2) * f.tile;
+      const a = engine.getBalls().find((b) => b.team === 0)!;
+      const b = engine.getBalls().find((b) => b.team === 1)!;
+      // A dives into tile X (team 1's, just below the border) while B, below X, rises into it. In the first sub-step A takes
+      // X while B – which judged X its own when the sub-step began – flies on into it, whoever moves first; in the next one
+      // B bounces off X and takes it back.
+      a.x = b.x = f.gx + 7.5 * f.tile;
+      a.y = boundary - a.radius - 0.5;
+      a.vx = 0;
+      a.vy = 400;
+      b.y = boundary + f.tile + b.radius + 0.5;
+      b.vx = 0;
+      b.vy = -400;
+      engine.setBalls(order === "ab" ? [a, b] : [b, a]);
+      engine.update(STEP, 0);
+      const at = (ball: { x: number; y: number; vx: number; vy: number }) => [ball.x, ball.y, ball.vx, ball.vy].map((n) => Math.round(n * 1e6));
+      return { x: owner(engine, 7, v.rows / 2), a: at(a), b: at(b), conversions: v.conversions, counts: Array.from(v.counts.subarray(0, 2)) };
+    };
+    const ab = run("ab");
+    const ba = run("ba");
+    expect(ab).toEqual(ba);
+    expect(ab.conversions).toBe(2);
+    expect(ab.x).toBe(1);
+    expect(ab.a[3]).toBeLessThan(0);
+    expect(ab.b[3]).toBeGreaterThan(0);
+  });
+
+  it("lets the balls join in rounds, a ball of every team a round, so no team always moves first", () => {
+    for (const teams of [2, 4] as const) {
+      const firsts = new Set<number>();
+      for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+        const engine = territory({ teams, ballsPerTeam: 3 }, seed);
+        const order = engine.getBalls().map((b) => b.team!);
+        for (let round = 0; round < 3; round++) expect(new Set(order.slice(round * teams, (round + 1) * teams)).size).toBe(teams);
+        // The team that starts a round turns from round to round (and the first one from seed to seed).
+        expect(order[teams]).toBe((order[0] + 1) % teams);
+        firsts.add(order[0]);
+      }
+      expect(firsts.size).toBeGreaterThan(1);
+    }
+  });
+
   it("keeps the percentages accounted for at every step of whole runs, with every power and 4 teams", () => {
     for (const settings of [{}, { teams: 4 as const, ballsPerTeam: 3, powers: ["vortex", "bomber", "painter", "ghost"] as TyPower[] }, { pegs: true, powers: ["ghost", "painter", "none", "none"] as TyPower[] }]) {
       const engine = territory({ ...settings, duration: 12 });
@@ -406,7 +516,7 @@ describe("Territory in the engine", () => {
     const v = engine.getTerritoryView();
     const f = v.field;
     const ball = onlyBall(engine, 0);
-    const tb = v.balls[0];
+    const tb = teamBall(engine, ball);
     tb.nextPowerMs = Infinity;
     ball.x = f.gx + 0.5 * f.gridW;
     ball.y = f.gy + 0.25 * f.gridH;
@@ -447,40 +557,90 @@ describe("Territory in the engine", () => {
     expect(accounted(engine).ok).toBe(true);
   });
 
-  it("bomber: a blast converts every tile within its reach, rings, booms and blows the other balls away", () => {
-    const engine = territory({ powers: ["none", "bomber", "none", "none"], ballsPerTeam: 2, radius: 3 });
+  it("bomber: it arms on its timer and blows on its next bounce off an enemy tile – every tile within its reach, a ring, a boom, the other balls blown away", () => {
+    const engine = territory({ powers: ["none", "bomber", "none", "none"], ballsPerTeam: 2, radius: 3, powerEvery: 3 });
     const v = engine.getTerritoryView();
     const f = v.field;
-    // The two bombers of team 1 alone: one blasts at the border, its teammate nearby is blown away (it never converts back).
+    // The two bombers of team 1 alone: one arms in the middle of its own half, then meets the border; its teammate nearby is
+    // blown away (a teammate never converts its own tiles back).
     engine.setBalls(engine.getBalls().filter((b) => b.team === 1));
     const [bomber, other] = engine.getBalls();
+    const tb = teamBall(engine, bomber);
+    teamBall(engine, other).nextPowerMs = Infinity;
     bomber.x = f.gx + 10.5 * f.tile;
-    bomber.y = f.gy + (v.rows / 2 + 0.5) * f.tile;
+    bomber.y = f.gy + 0.75 * f.gridH;
+    bomber.vx = 300;
+    bomber.vy = 0;
+    other.x = f.gx + 0.85 * f.gridW;
+    other.y = f.gy + 0.9 * f.gridH;
+    other.vx = 0;
+    other.vy = 300;
+    tb.nextPowerMs = 0;
+    engine.update(STEP, 0);
+    expect(engine.consumeSoundEvents().some((e) => e.type === "gap")).toBe(false);
+    // Armed: nothing blows until the bomber bounces off an enemy tile (its own half has none).
+    expect(tb.armedMs).toBeGreaterThan(-Infinity);
+    expect(v.blasts).toBe(0);
+    expect(v.conversions).toBe(0);
+    // Now at the border, heading into the enemy half, its teammate just below it.
+    bomber.x = f.gx + 10.5 * f.tile;
+    bomber.y = f.gy + (v.rows / 2) * f.tile + bomber.radius + 0.5;
     bomber.vx = 0;
-    bomber.vy = 300;
+    bomber.vy = -300;
     other.x = bomber.x + 2 * f.tile;
-    other.y = bomber.y - 1 * f.tile;
+    other.y = bomber.y + 1 * f.tile;
     other.vx = -300;
     other.vy = 0;
-    const toward = (other.vx * 2 + other.vy * -1) / (Math.hypot(other.vx, other.vy) * Math.hypot(2, -1));
-    for (const tb of v.balls) tb.nextPowerMs = tb.id === bomber.id ? 0 : Infinity;
-    const cu = (bomber.x - f.gx) / f.tile;
-    const cv = (bomber.y - f.gy) / f.tile;
+    const toward = (other.vx * 2 + other.vy * 1) / (Math.hypot(other.vx, other.vy) * Math.hypot(2, 1));
     engine.update(STEP, 0);
     const events = engine.consumeSoundEvents();
     expect(v.blasts).toBe(1);
     expect(v.shocks).toHaveLength(1);
     expect(events.filter((e) => e.type === "gap")).toHaveLength(1);
+    expect(tb.armedMs).toBe(-Infinity);
+    expect(tb.nextPowerMs).toBeCloseTo(engine.getElapsedMs() + 3000, 6);
+    // Every tile within the reach of the blast's centre is the bomber's – half of them were the enemy's.
+    const shock = v.shocks[0];
+    let taken = 0;
     for (let row = 0; row < v.rows; row++) {
       for (let col = 0; col < v.cols; col++) {
-        if (Math.hypot(col + 0.5 - cu, row + 0.5 - cv) <= 3 - 0.1) expect(owner(engine, col, row), `${col},${row}`).toBe(1);
+        if (Math.hypot(col + 0.5 - shock.u, row + 0.5 - shock.v) <= 3) {
+          expect(owner(engine, col, row), `${col},${row}`).toBe(1);
+          if (row < v.rows / 2) taken++;
+        }
       }
     }
+    expect(taken).toBeGreaterThan(8);
     // The shock turned the other ball away from the blast.
     const dx = other.x - bomber.x;
     const dy = other.y - bomber.y;
     expect((other.vx * dx + other.vy * dy) / (Math.hypot(other.vx, other.vy) * Math.hypot(dx, dy))).toBeGreaterThan(toward + 0.2);
     expect(accounted(engine).ok).toBe(true);
+  });
+
+  it("bomber: an armed ball that meets no enemy tile blows where it is after a short fuse", () => {
+    const engine = territory({ powers: ["none", "bomber", "none", "none"], ballsPerTeam: 1, radius: 2 });
+    const v = engine.getTerritoryView();
+    const f = v.field;
+    const bomber = onlyBall(engine, 1);
+    const tb = teamBall(engine, bomber);
+    bomber.x = f.gx + 0.5 * f.gridW;
+    bomber.y = f.gy + 0.8 * f.gridH;
+    bomber.vx = 300;
+    bomber.vy = 0;
+    tb.nextPowerMs = 0;
+    engine.update(STEP, 0);
+    const armed = tb.armedMs;
+    expect(armed).toBeGreaterThan(-Infinity);
+    while (engine.getElapsedMs() < armed + TY_ARM_MAX_MS - 1e-6) {
+      expect(v.blasts).toBe(0);
+      engine.update(STEP, 0);
+    }
+    engine.update(STEP, 0);
+    expect(v.blasts).toBe(1);
+    expect(v.shocks).toHaveLength(1);
+    expect(v.conversions).toBe(0); // its own half: nothing to take
+    expect(tb.armedMs).toBe(-Infinity);
   });
 
   it("painter: a dash runs straight through enemy territory painting a one-tile trail, then bounces again", () => {
@@ -493,8 +653,10 @@ describe("Territory in the engine", () => {
     ball.y = f.gy + (v.rows / 2) * f.tile - ball.radius - 0.5;
     ball.vx = 0;
     ball.vy = 400;
-    v.balls[0].nextPowerMs = 0;
-    const frames = Math.floor(TY_DASH_MS / STEP) - 1;
+    teamBall(engine, ball).nextPowerMs = 0;
+    // The dash runs TY_DASH_TILES tiles at the dash speed: the same trail on any board.
+    const dashMs = (1000 * TY_DASH_TILES * f.tile) / (TY_SPEED * f.side * TY_DASH_SPEED);
+    const frames = Math.floor(dashMs / STEP) - 1;
     for (let i = 0; i < frames; i++) engine.update(STEP, 0);
     expect(v.dashes).toBe(1);
     expect(v.tileBounces).toBe(0);
@@ -502,12 +664,13 @@ describe("Territory in the engine", () => {
     const { row } = tileOf(engine, ball.x, ball.y);
     for (let r = v.rows / 2; r <= row; r++) expect(owner(engine, col, r)).toBe(0);
     expect(v.conversions).toBe(row - v.rows / 2 + 1);
+    expect(v.conversions).toBeGreaterThanOrEqual(Math.floor(TY_DASH_TILES) - 1);
     for (let i = 0; i < 30; i++) engine.update(STEP, 0);
     expect(v.tileBounces).toBeGreaterThan(0);
     expect(accounted(engine).ok).toBe(true);
   });
 
-  it("ghost: passes through enemy tiles without bouncing or converting, and converts a 3×3 block on a wall bounce", () => {
+  it("ghost: passes through enemy tiles without bouncing or converting, and converts a whole 3×3 block on a wall bounce", () => {
     const engine = territory({ powers: ["ghost", "none", "none", "none"], ballsPerTeam: 1 });
     const v = engine.getTerritoryView();
     const f = v.field;
@@ -528,8 +691,9 @@ describe("Territory in the engine", () => {
     engine.update(STEP, 0);
     expect(v.wallBounces).toBe(1);
     expect(v.ghostBlocks).toBe(1);
-    expect(v.conversions).toBe(6);
-    for (let r = v.rows - 2; r < v.rows; r++) for (let c = 9; c <= 11; c++) expect(owner(engine, c, r)).toBe(0);
+    // The block around its tile, moved inside the board: three whole rows above the frame.
+    expect(v.conversions).toBe(9);
+    for (let r = v.rows - 3; r < v.rows; r++) for (let c = 9; c <= 11; c++) expect(owner(engine, c, r)).toBe(0);
     expect(accounted(engine).ok).toBe(true);
   });
 

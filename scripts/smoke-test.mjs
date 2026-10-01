@@ -7313,154 +7313,6 @@ const bdInstrument = () =>
   check("no limits: a ball bigger than the arena eats it (the run ends with its banner)", ate && ateData.multOutgrew === "1", `(ate=${ate}, outgrew ${ateData.multOutgrew})`);
 }
 // --- end unlimited ---
-// --- odd-territory ---
-// Territory: the preview image and the card under the battle heading; URL → the Territory block of the Mode row (teams,
-// balls, powers, interval, reach, columns, countdown, pegs, badge, HUD), controls → URL (the Countdown moves the clip
-// length), the search box and the finder's outcomes; the frame rate of 4 teams × 8 balls on 48 columns; a default run at 4×
-// that paints the board – conversions, a bomber blast, a vortex whirl, flip notes on the pentatonic ladder
-// (OscillatorNode.start instrumented), the badge and the HUD, percentages adding up to 100, the offscreen board repainted
-// only where tiles flipped – and ends at its countdown with a verdict held before the end screen; a roster whose rigged
-// Blue wins under the teams banner; and Find Simulation's winner outcome.
-{
-  const res = await page.request.get(`${BASE}/modes/territory.webp`);
-  check("asset /modes/territory.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
-  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
-  const card = await page.locator('img[src$="/modes/territory.webp"]').count();
-  const heading = await page.getByRole("heading", { name: "Battle modes" }).count();
-  check("the Territory card is on the landing page under the battle heading", card === 1 && heading === 1, `(cards=${card}, heading=${heading})`);
-}
-{
-  await page.goto(`${BASE}/en/simulator/?mode=territory&tyc=36&tyt=4&tyb=3&typ=ghost,painter,none,bomber&tye=4.5&tyr=5&tyd=45&typg=1&tybg=0`, { waitUntil: "networkidle" });
-  const section = page.getByTestId("territory-section");
-  const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
-  const teams = (name) => section.getByRole("group", { name: "Teams", exact: true }).getByRole("button", { name });
-  {
-    const values = { tyb: await sliderValue("Balls per Team"), tye: await sliderValue("Power Every"), tyr: await sliderValue("Power Reach"), tyc: await sliderValue("Board Columns"), tyd: await sliderValue("Countdown") };
-    const four = await teams("4 teams").getAttribute("aria-pressed");
-    const powers = [];
-    for (const name of ["PINK", "CYAN", "LIME", "GOLD"]) powers.push(await section.locator(`select[aria-label="Power of ${name}"]`).inputValue().catch(() => "?"));
-    const pegs = await toggle("Dotted Grid").getAttribute("aria-checked");
-    const badge = await toggle("Warning Badge").getAttribute("aria-checked");
-    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
-    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
-    const winners = await page.locator("#find-outcome").selectOption("winner").then(() => page.locator("#find-winner option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
-    check(
-      "territory loads from URL",
-      values.tyb === "3" && values.tye === "4.5" && values.tyr === "5" && values.tyc === "36" && values.tyd === "45" && four === "true" && powers.join(",") === "ghost,painter,none,bomber" && pegs === "true" && badge === "false" && noRingControls && options.join(",") === "duration,winner" && winners.join(",") === "PINK,CYAN,LIME,GOLD",
-      `(${JSON.stringify(values)}, 4 teams=${four}, powers=${powers.join(",")}, pegs=${pegs}, badge=${badge}, finder outcomes=${options.join(",")}, winners=${winners.join(",")})`,
-    );
-  }
-  await teams("2 teams").click();
-  await section.locator('select[aria-label="Power of PINK"]').selectOption("vortex");
-  await page.locator('input[aria-label="Balls per Team"]').evaluate(setRangeValue, "2");
-  await page.locator('input[aria-label="Countdown"]').evaluate(setRangeValue, "60");
-  await toggle("Warning Badge").click();
-  await page.waitForTimeout(300);
-  {
-    const query = new URLSearchParams(page.url().split("?")[1] || "");
-    check(
-      "territory mirrors into the URL (the Countdown moves the clip length)",
-      query.get("mode") === "territory" && !query.has("tyt") && query.get("tyb") === null && query.get("typ") === "vortex,painter,none,bomber" && query.get("tyd") === "60" && query.get("dur") === "64" && !query.has("tybg") && query.get("tyc") === "36",
-      `(${query.toString()})`,
-    );
-  }
-  await page.getByPlaceholder("Search settings...").fill("power reach");
-  const found = await page.locator('input[aria-label="Power Reach"]').isVisible();
-  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
-  await page.getByPlaceholder("Search settings...").fill("");
-  check("search finds the territory controls", found && hidden, `(power reach=${found}, ball speed hidden=${hidden})`);
-}
-{
-  // The frame rate of the heaviest board: 4 teams × 8 balls on 48 columns, at 1× (a 60 s countdown: still running for the retry).
-  await page.goto(`${BASE}/en/simulator/?mode=territory&tyt=4&tyb=8&tyc=48&tyd=60`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Start Simulator/ }).click();
-  const fr = await pageFrameRates(5000);
-  const data = await canvasData();
-  await page.screenshot({ path: path.join(outDir, "sim-territory-32.png") });
-  await timingCheck(
-    "simulator mode=territory runs 32 balls on 48 columns at 30+ fps",
-    data.tyBalls === "32" && data.tyCols === "48" && data.tyTeams === "4" && Number(data.tyConversions) > 50 && data.tyInField === "1",
-    fpsOk(fr, 8, 30),
-    `(${JSON.stringify({ balls: data.tyBalls, conversions: data.tyConversions, repaints: data.tyRepaints, counts: data.tyCounts })}, ${fpsNote(fr)}, floor 30${loadNote()})`,
-    fpsRetry(4000, 6, 30),
-  );
-}
-{
-  // A default battle at 4×: 24 columns, PINK vortex VS CYAN bomber, 2 balls each, a 30 s countdown.
-  await page.goto(`${BASE}/en/simulator/?mode=territory`, { waitUntil: "networkidle" });
-  await page.evaluate(() => {
-    const osc = [];
-    window.__tyOsc = osc;
-    const start = OscillatorNode.prototype.start;
-    OscillatorNode.prototype.start = function () {
-      if (this.frequency.value !== 1) osc.push(this.frequency.value);
-      return start.apply(this, arguments);
-    };
-  });
-  await page.getByRole("button", { name: /Start Simulator/ }).click();
-  await page.waitForTimeout(1500);
-  const early = await canvasData();
-  await page.screenshot({ path: path.join(outDir, "sim-territory.png") });
-  await page.getByRole("button", { name: "4x", exact: true }).click();
-  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.tyFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
-  await page.waitForTimeout(800);
-  const data = await canvasData();
-  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
-  await page.screenshot({ path: path.join(outDir, "sim-territory-winner.png") });
-  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10_000 }).then(() => true).catch(() => false);
-  const counts = (data.tyCounts || "").split(",").map(Number);
-  const pct = (data.tyPct || "").split(",").map(Number);
-  const total = Number(data.tyCols) * Number(data.tyRows);
-  const verdict = data.tyTie === "1" ? data.tyWinner === "-1" : Number(data.tyWinner) >= 0 && counts[Number(data.tyWinner)] === Math.max(...counts) && !!data.tyWinnerName;
-  check(
-    "a default territory battle paints the board and ends at its countdown, its verdict held before the end screen",
-    early.tyHud === "1" && early.tyBadge === "1" && ended && counts.length === 2 && counts[0] + counts[1] === total && pct[0] + pct[1] === 100 && Number(data.tyConversions) >= 40 && Number(data.tyBlasts) >= 1 && Number(data.tyWhirls) >= 1 && verdict && data.tyBanner === "1" && Number(data.tyRepaints) > total && Number(data.tyRepaints) <= 3 * total + Number(data.tyConversions) /* only changed tiles (and a rebuild on a resize) */ && held && endScreen,
-    `(${JSON.stringify({ counts: data.tyCounts, pct: data.tyPct, conversions: data.tyConversions, blasts: data.tyBlasts, whirls: data.tyWhirls, repaints: data.tyRepaints, winner: data.tyWinner, name: data.tyWinnerName, tie: data.tyTie, banner: data.tyBanner })}, held=${held}, end screen=${endScreen})`,
-  );
-  const pitches = await page.evaluate(() => window.__tyOsc);
-  const ladder = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86];
-  const onLadder = pitches.filter((f) => ladder.some((m) => Math.abs(f - 440 * Math.pow(2, (m - 69) / 12)) < 0.5)).length;
-  check("territory flips play notes on the pentatonic ladder", onLadder >= 10, `(${onLadder} of ${pitches.length} oscillator notes on the ladder, ${data.tyNotes} flip notes queued)`);
-}
-{
-  // A roster: Red and Blue; Blue is the Forced Winner, and the teams banner crowns it. The HUD is off, so the scoreboard
-  // takes the top-left corner and the warning badge moves to the top-right one.
-  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧";
-  await page.goto(`${BASE}/en/simulator/?mode=territory&tyd=10&tyh=0&teams=${encodeURIComponent(roster)}&fw=1`, { waitUntil: "networkidle" });
-  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
-  await page.getByRole("button", { name: /Start Simulator/ }).click();
-  await page.getByRole("button", { name: "8x", exact: true }).click();
-  const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 60_000 }).then(() => true).catch(() => false);
-  const data = await canvasData();
-  await page.screenshot({ path: path.join(outDir, "sim-territory-teams.png") });
-  const counts = (data.tyCounts || "").split(",").map(Number);
-  check(
-    "a rigged territory battle is won by the chosen roster team under the teams banner",
-    won && data.teamWinner === "Blue" && data.tyWinner === "1" && data.tyWinnerName === "Blue" && data.teams === "2" && data.tyBanner === "0" && counts[1] >= counts[0] && /Blue wins/.test(note) && data.tyHud === "0" && data.tyBadgeRight === "1",
-    `(winner=${data.teamWinner}, ty winner=${data.tyWinner} ${data.tyWinnerName}, counts=${data.tyCounts}, teams=${data.teams}, stats=${data.teamStats}, own banner=${data.tyBanner}, hud=${data.tyHud}, badge right=${data.tyBadgeRight}, note="${note}")`,
-  );
-}
-{
-  // Find Simulation: a 10 s battle CYAN (the second team) wins.
-  await page.goto(`${BASE}/en/simulator/?mode=territory&tyd=10`, { waitUntil: "networkidle" });
-  await page.locator("#find-outcome").selectOption("winner");
-  await page.locator("#find-winner").selectOption("1");
-  const hint = await page.getByTestId("finder-outcome-hint").innerText().catch(() => "");
-  const button = page.getByRole("button", { name: /Find a Run CYAN Wins/ });
-  const labelled = await button.isVisible();
-  await button.click();
-  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
-  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
-  let data = {};
-  if (/Found! CYAN wins/.test(text)) {
-    await page.getByRole("button", { name: /Start Simulator/ }).click();
-    await page.getByRole("button", { name: "8x", exact: true }).click();
-    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.tyFinished === "1", null, { timeout: 60_000 }).catch(() => {});
-    data = await canvasData();
-  }
-  check("Find Simulation finds a territory battle the chosen team wins, and it plays out that way", labelled && /countdown/i.test(hint) && /Found! CYAN wins/.test(text) && data.tyWinner === "1", `("${text}", hint="${hint}", replay winner=${data.tyWinner})`);
-}
-// --- end odd-territory ---
 
 // --- review fix (audio) ---
 // Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its
@@ -8493,6 +8345,155 @@ const bdInstrument = () =>
   }
 }
 // --- end review fix (performance) ---
+
+// --- odd-territory ---
+// Territory: the preview image and the card under the battle heading; URL → the Territory block of the Mode row (teams,
+// balls, powers, interval, reach, columns, countdown, pegs, badge, HUD), controls → URL (the Countdown moves the clip
+// length), the search box and the finder's outcomes; the frame rate of 4 teams × 8 balls on 48 columns; a default run at 4×
+// that paints the board – conversions, a bomber blast that jolts the board, a vortex whirl, flip notes on the pentatonic ladder
+// (OscillatorNode.start instrumented), the badge and the HUD, percentages adding up to 100, the offscreen board repainted
+// only where tiles flipped – and ends at its countdown with a verdict held before the end screen; a roster whose rigged
+// Blue wins under the teams banner; and Find Simulation's winner outcome.
+{
+  const res = await page.request.get(`${BASE}/modes/territory.webp`);
+  check("asset /modes/territory.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const card = await page.locator('img[src$="/modes/territory.webp"]').count();
+  const heading = await page.getByRole("heading", { name: "Battle modes" }).count();
+  check("the Territory card is on the landing page under the battle heading", card === 1 && heading === 1, `(cards=${card}, heading=${heading})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=territory&tyc=36&tyt=4&tyb=3&typ=ghost,painter,none,bomber&tye=4.5&tyr=5&tyd=45&typg=1&tybg=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("territory-section");
+  const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
+  const teams = (name) => section.getByRole("group", { name: "Teams", exact: true }).getByRole("button", { name });
+  {
+    const values = { tyb: await sliderValue("Balls per Team"), tye: await sliderValue("Power Every"), tyr: await sliderValue("Power Reach"), tyc: await sliderValue("Board Columns"), tyd: await sliderValue("Countdown") };
+    const four = await teams("4 teams").getAttribute("aria-pressed");
+    const powers = [];
+    for (const name of ["PINK", "CYAN", "LIME", "GOLD"]) powers.push(await section.locator(`select[aria-label="Power of ${name}"]`).inputValue().catch(() => "?"));
+    const pegs = await toggle("Dotted Grid").getAttribute("aria-checked");
+    const badge = await toggle("Warning Badge").getAttribute("aria-checked");
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    const winners = await page.locator("#find-outcome").selectOption("winner").then(() => page.locator("#find-winner option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+    check(
+      "territory loads from URL",
+      values.tyb === "3" && values.tye === "4.5" && values.tyr === "5" && values.tyc === "36" && values.tyd === "45" && four === "true" && powers.join(",") === "ghost,painter,none,bomber" && pegs === "true" && badge === "false" && noRingControls && options.join(",") === "duration,winner" && winners.join(",") === "PINK,CYAN,LIME,GOLD",
+      `(${JSON.stringify(values)}, 4 teams=${four}, powers=${powers.join(",")}, pegs=${pegs}, badge=${badge}, finder outcomes=${options.join(",")}, winners=${winners.join(",")})`,
+    );
+  }
+  await teams("2 teams").click();
+  await section.locator('select[aria-label="Power of PINK"]').selectOption("vortex");
+  await page.locator('input[aria-label="Balls per Team"]').evaluate(setRangeValue, "2");
+  await page.locator('input[aria-label="Countdown"]').evaluate(setRangeValue, "60");
+  await toggle("Warning Badge").click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "territory mirrors into the URL (the Countdown moves the clip length)",
+      query.get("mode") === "territory" && !query.has("tyt") && query.get("tyb") === null && query.get("typ") === "vortex,painter,none,bomber" && query.get("tyd") === "60" && query.get("dur") === "64" && !query.has("tybg") && query.get("tyc") === "36",
+      `(${query.toString()})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("power reach");
+  const found = await page.locator('input[aria-label="Power Reach"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the territory controls", found && hidden, `(power reach=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // The frame rate of the heaviest board: 4 teams × 8 balls on 48 columns, at 1× (a 60 s countdown: still running for the retry).
+  await page.goto(`${BASE}/en/simulator/?mode=territory&tyt=4&tyb=8&tyc=48&tyd=60`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const fr = await pageFrameRates(5000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory-32.png") });
+  await timingCheck(
+    "simulator mode=territory runs 32 balls on 48 columns at 30+ fps",
+    data.tyBalls === "32" && data.tyCols === "48" && data.tyTeams === "4" && Number(data.tyConversions) > 50 && data.tyInField === "1",
+    fpsOk(fr, 8, 30),
+    `(${JSON.stringify({ balls: data.tyBalls, conversions: data.tyConversions, repaints: data.tyRepaints, counts: data.tyCounts })}, ${fpsNote(fr)}, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
+  );
+}
+{
+  // A default battle at 4×: 24 columns, PINK vortex VS CYAN bomber, 2 balls each, a 30 s countdown.
+  await page.goto(`${BASE}/en/simulator/?mode=territory`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    window.__tyOsc = osc;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory.png") });
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.tyFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(800);
+  const data = await canvasData();
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-territory-winner.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10_000 }).then(() => true).catch(() => false);
+  const counts = (data.tyCounts || "").split(",").map(Number);
+  const pct = (data.tyPct || "").split(",").map(Number);
+  const total = Number(data.tyCols) * Number(data.tyRows);
+  const verdict = data.tyTie === "1" ? data.tyWinner === "-1" : Number(data.tyWinner) >= 0 && counts[Number(data.tyWinner)] === Math.max(...counts) && !!data.tyWinnerName;
+  check(
+    "a default territory battle paints the board and ends at its countdown, its verdict held before the end screen",
+    early.tyHud === "1" && early.tyBadge === "1" && ended && counts.length === 2 && counts[0] + counts[1] === total && pct[0] + pct[1] === 100 && Number(data.tyConversions) >= 40 && Number(data.tyBlasts) >= 1 && Number(data.tyJolts) >= 1 /* a blast jolts the board */ && Number(data.tyWhirls) >= 1 && verdict && data.tyBanner === "1" && Number(data.tyRepaints) > total && Number(data.tyRepaints) <= 3 * total + Number(data.tyConversions) /* only changed tiles (and a rebuild on a resize) */ && held && endScreen,
+    `(${JSON.stringify({ counts: data.tyCounts, pct: data.tyPct, conversions: data.tyConversions, blasts: data.tyBlasts, jolts: data.tyJolts, whirls: data.tyWhirls, repaints: data.tyRepaints, winner: data.tyWinner, name: data.tyWinnerName, tie: data.tyTie, banner: data.tyBanner })}, held=${held}, end screen=${endScreen})`,
+  );
+  const pitches = await page.evaluate(() => window.__tyOsc);
+  const ladder = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86];
+  const onLadder = pitches.filter((f) => ladder.some((m) => Math.abs(f - 440 * Math.pow(2, (m - 69) / 12)) < 0.5)).length;
+  check("territory flips play notes on the pentatonic ladder", onLadder >= 10, `(${onLadder} of ${pitches.length} oscillator notes on the ladder, ${data.tyNotes} flip notes queued)`);
+}
+{
+  // A roster: Red and Blue; Blue is the Forced Winner, and the teams banner crowns it. The HUD is off, so the scoreboard
+  // takes the top-left corner and the warning badge moves to the top-right one.
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧";
+  await page.goto(`${BASE}/en/simulator/?mode=territory&tyd=10&tyh=0&teams=${encodeURIComponent(roster)}&fw=1`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const won = await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.teamWinner, null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory-teams.png") });
+  const counts = (data.tyCounts || "").split(",").map(Number);
+  check(
+    "a rigged territory battle is won by the chosen roster team under the teams banner",
+    won && data.teamWinner === "Blue" && data.tyWinner === "1" && data.tyWinnerName === "Blue" && data.teams === "2" && data.tyBanner === "0" && counts[1] >= counts[0] && /Blue wins/.test(note) && data.tyHud === "0" && data.tyBadgeRight === "1",
+    `(winner=${data.teamWinner}, ty winner=${data.tyWinner} ${data.tyWinnerName}, counts=${data.tyCounts}, teams=${data.teams}, stats=${data.teamStats}, own banner=${data.tyBanner}, hud=${data.tyHud}, badge right=${data.tyBadgeRight}, note="${note}")`,
+  );
+}
+{
+  // Find Simulation: a 10 s battle CYAN (the second team) wins.
+  await page.goto(`${BASE}/en/simulator/?mode=territory&tyd=10`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("1");
+  const hint = await page.getByTestId("finder-outcome-hint").innerText().catch(() => "");
+  const button = page.getByRole("button", { name: /Find a Run CYAN Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  let data = {};
+  if (/Found! CYAN wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.tyFinished === "1", null, { timeout: 60_000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check("Find Simulation finds a territory battle the chosen team wins, and it plays out that way", labelled && /countdown/i.test(hint) && /Found! CYAN wins/.test(text) && data.tyWinner === "1", `("${text}", hint="${hint}", replay winner=${data.tyWinner})`);
+}
+// --- end odd-territory ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
