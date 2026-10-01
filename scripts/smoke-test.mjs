@@ -5444,9 +5444,12 @@ const jrSeed = async () => (await canvasData()).seed;
       await page.locator("#batch-list").fill(`303\n${BASE}/en/simulator/?mode=shatter&g=500 404`);
       await batch.getByRole("button", { name: "Sweep a setting", exact: true }).click();
       await page.locator("#batch-sweep-key").selectOption("gravity");
-      await batch.getByLabel("From", { exact: true }).fill("0");
-      await batch.getByLabel("To", { exact: true }).fill("100");
-      await batch.getByLabel("Steps", { exact: true }).fill("2");
+      // --- review fix (uncap-all) --- the sweep's fields are the shared number field (Enter commits)
+      for (const [key, value] of [["batchSweepFrom", "0"], ["batchSweepTo", "100"], ["batchSweepSteps", "2"]]) {
+        const field = batch.locator(`input[data-number-field="${key}"]`);
+        await field.fill(value);
+        await field.press("Enter");
+      }
     });
     check("batch render: an uploaded wall-break sound plays in every clip of a sweep – of a seed and of a share link – and stays on the page", sweepUpload.ok && sweepUpload.mode === "shatter", sweepUpload.detail);
     const modesUpload = await wallBreakBatch("mode=target", async (batch) => {
@@ -5496,9 +5499,12 @@ const jrSeed = async () => (await canvasData()).seed;
     await page.locator("#batch-list").fill("101");
     await block.getByRole("button", { name: "Sweep a setting", exact: true }).click();
     await page.locator("#batch-sweep-key").selectOption("gravity");
-    await block.getByLabel("From", { exact: true }).fill("0");
-    await block.getByLabel("To", { exact: true }).fill("100");
-    await block.getByLabel("Steps", { exact: true }).fill("2");
+    // --- review fix (uncap-all) --- the sweep's fields are the shared number field (Enter commits)
+    for (const [key, value] of [["batchSweepFrom", "0"], ["batchSweepTo", "100"], ["batchSweepSteps", "2"]]) {
+      const field = block.locator(`input[data-number-field="${key}"]`);
+      await field.fill(value);
+      await field.press("Enter");
+    }
     await block.getByRole("button", { name: /Render batch/ }).click();
     const stopSweep = block.getByRole("button", { name: /Stop after this clip/ });
     if (await stopSweep.waitFor({ timeout: 15000 }).then(() => true).catch(() => false)) await stopSweep.click();
@@ -7519,8 +7525,116 @@ const bdInstrument = () =>
     sliders += found.sliders;
     for (const label of found.missing) if (!missing.includes(label)) missing.push(label);
   }
-  await page.getByLabel("Show Advanced Options").uncheck();
   check("uncap: every slider of every panel section has a number field", sliders > 30 && missing.length === 0, `(${sliders} sliders seen, without a field: ${missing.slice(0, 12).join(", ") || "none"})`);
+
+  // --- review fix (uncap-all) --- (D) again for every mode's own controls: the Mode block of each mode (the list read from
+  // MODE_IDS in src/lib/physics/types.ts, so a new mode is covered), advanced options on.
+  const typesSource = fs.readFileSync(new URL("../src/lib/physics/types.ts", import.meta.url), "utf8");
+  const modeIds = [...(typesSource.match(/export const MODE_IDS = \[([\s\S]*?)\] as const/)?.[1] ?? "").matchAll(/^\s*"([A-Za-z]+)",/gm)].map((m) => m[1]);
+  let modeSliders = 0;
+  const modeMissing = [];
+  const modesWithSliders = [];
+  for (const mode of modeIds) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}`, { waitUntil: "networkidle" });
+    const advanced = page.getByLabel("Show Advanced Options");
+    if (await advanced.isVisible().catch(() => false)) await advanced.check().catch(() => {});
+    await page.waitForTimeout(150);
+    const found = await page.evaluate(() => {
+      const out = { sliders: 0, missing: [] };
+      const block = document.getElementById("studio-block-mode");
+      for (const range of block ? block.querySelectorAll('input[type="range"]') : []) {
+        if (!range.offsetParent || /^Scroll/.test(range.getAttribute("aria-label") || "")) continue;
+        out.sliders++;
+        let box = range.parentElement;
+        let has = false;
+        for (let up = 0; up < 4 && box && !has; up++, box = box.parentElement) has = !!box.querySelector("input[data-number-field]");
+        if (!has) out.missing.push(range.getAttribute("aria-label") || range.getAttribute("data-unlimited-slider") || "?");
+      }
+      return out;
+    });
+    modeSliders += found.sliders;
+    if (found.sliders > 0) modesWithSliders.push(mode);
+    for (const label of found.missing) modeMissing.push(`${mode}: ${label}`);
+  }
+  await page.getByLabel("Show Advanced Options").uncheck().catch(() => {});
+  check(
+    "uncap: every slider of every mode's own controls has a number field",
+    modeIds.length >= 25 && modesWithSliders.length >= 20 && modeSliders > 60 && modeMissing.length === 0,
+    `(${modeIds.length} modes, ${modesWithSliders.length} with sliders, ${modeSliders} sliders seen, without a field: ${modeMissing.slice(0, 12).join(", ") || "none"})`,
+  );
+
+  // --- review fix (uncap-all) --- (E) the Multipliers gate mix: a weight of 40 typed into the Count field goes into the
+  // link exactly, comma-separated (the old 0–9 cap is gone), and an old six-digit link still reads as the same mix.
+  await page.goto(`${BASE}/en/simulator/?mode=multipliers&mpgm=421111`, { waitUntil: "networkidle" });
+  const legacyMix = await page.locator('input[data-number-field="mpGateMix:speed"]').first().inputValue().catch(() => "");
+  await typeInto('input[data-number-field="mpGateMix:count"]', "40");
+  const mixParam = new URL(page.url()).searchParams.get("mpgm");
+  const countBeyond = await page.locator('input[data-number-field="mpGateMix:count"]').first().getAttribute("data-beyond").catch(() => null);
+  check(
+    "uncap: a gate weight of 40 goes into the link as mpgm=40,2,1,1,1,1 (an old six-digit link reads as the same mix)",
+    legacyMix === "2" && mixParam === "40,2,1,1,1,1" && countBeyond === "1",
+    `(old link's speed weight "${legacyMix}", mpgm=${mixParam}, beyond=${countBeyond})`,
+  );
+
+  // --- review fix (uncap-all) --- (F) the Timeline's keyframe rows are the shared number field: ↓ on a Ball Speed keyframe
+  // of 1,000 steps to 990 (the browser's own number input snapped it to the slider's 800), ↑ on a time moves its row and
+  // keeps the focus in its field (a second ↑ goes on), and a time typed past the slider's 120 s stays.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&kf=s_0_1000_5_2000`, { waitUntil: "networkidle" });
+  await panelSection(/Timeline/);
+  const kfParam = () => new URL(page.url()).searchParams.get("kf") ?? "";
+  const keyRows = page.getByTestId("timeline-row");
+  await keyRows.first().getByTestId("timeline-value").press("ArrowDown");
+  await page.waitForTimeout(400);
+  const steppedDown = kfParam();
+  await keyRows.nth(1).getByTestId("timeline-time").press("ArrowUp");
+  await page.waitForTimeout(400);
+  const focusKept = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "timeline-time");
+  await page.keyboard.press("ArrowUp");
+  await page.waitForTimeout(400);
+  const steppedTime = kfParam();
+  const movedTime = keyRows.nth(1).getByTestId("timeline-time");
+  await movedTime.fill("150");
+  await movedTime.press("Enter");
+  await page.waitForTimeout(400);
+  const typedTime = kfParam();
+  check(
+    "uncap: a keyframe row's fields step and type past the slider (1000 ↓ 990, not 800; a 150 s time), and a moved row keeps the focus",
+    steppedDown === "s_0_990_5_2000" && focusKept && steppedTime === "s_0_990_5.2_2000" && typedTime === "s_0_990_150_2000",
+    `(after ↓ kf=${steppedDown}, focus kept=${focusKept}, after ↑↑ kf=${steppedTime}, typed kf=${typedTime})`,
+  );
+
+  // --- review fix (uncap-all) --- (G) the obstacle editor caps nothing: a spinner's Spin field takes 1,000 rpm (the slider
+  // ends at 120) and a position past the arena, both into the link exactly.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&obs=${encodeURIComponent("s:0,0.45,40,0,20")}`, { waitUntil: "networkidle" });
+  await panelSection(/Obstacles/);
+  await typeInto('input[data-number-field="obstacle:Spin 1"]', "1000");
+  await typeInto('input[data-number-field="obstacle:x 1"]', "3");
+  const spinObs = new URL(page.url()).searchParams.get("obs");
+  check("uncap: an obstacle's Spin field takes 1000 rpm and its x a spot past the arena, into the link exactly", spinObs === "s:3,0.45,40,0,1000", `(obs=${spinObs})`);
+
+  // --- review fix (uncap-all) --- (H) only the settings the run's engine reads engage the uncapped runtime and its badges:
+  // a 180 s clip, a text size of 4, the old Bouncier and Glass Smash rows in Classic raise neither the speed badge nor
+  // ARENA FULL; the same rows in Glass Smash (past their ceiling of 1,000) and a nested-circle depth of 1e9 do say ARENA FULL.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=180&ts=4&bounce=1&glr=2000`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  const quiet = await canvasData();
+  const fullIn = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    return page
+      .waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedFull === "1", null, { timeout: 30000 })
+      .then(() => true)
+      .catch(() => false);
+  };
+  const glassFull = await fullIn("mode=glass&glr=2000");
+  const nestedFull = await fullIn("mode=illusion&ilt=nested&ild=1e9");
+  const nestedAnswers = await Promise.race([page.evaluate(() => document.querySelectorAll("main canvas").length), new Promise((r) => setTimeout(() => r(-1), 5000))]);
+  check(
+    "uncap: settings a run never reads raise no badge (180 s clip, text size 4, the old Bouncier, Glass rows in Classic); Glass rows of 2000 and a nested depth of 1e9 say ARENA FULL",
+    quiet.uncapShow === "0" && quiet.unlimitedFull !== "1" && glassFull && nestedFull && nestedAnswers >= 1,
+    `(classic: shown=${quiet.uncapShow}, full=${quiet.unlimitedFull}; glass full=${glassFull}; nested full=${nestedFull}, page answers=${nestedAnswers !== -1}${loadNote()})`,
+  );
 }
 // --- end uncap-all ---
 
@@ -8012,8 +8126,10 @@ const bdInstrument = () =>
 
   const FAKE_BRIDGE = `(() => {
     const listeners = {};
+    // --- review fix (uncap-all) --- the first reply is invalid by being below the minimum: a speed past the slider (5,000)
+    // is a valid change now, whatever the Wide sliders switch
     const replies = [
-      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":5000},{"setting":"rainbowBall","value":true}],"summary":"x"}}',
+      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":-800},{"setting":"rainbowBall","value":true}],"summary":"x"}}',
       '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":800},{"setting":"rainbowBall","value":true},{"setting":"gravity","value":0}],"summary":"Twice as fast, rainbow, no gravity"}}',
     ];
     const state = {
@@ -8118,7 +8234,9 @@ const bdInstrument = () =>
     await dp.getByTestId("desktop-tab-queue").click();
     const q = dp.getByTestId("desktop-queue");
     await q.getByTestId("queue-source-random").click();
-    await q.locator('input[type="number"]').fill("1");
+    // --- review fix (uncap-all) --- the random-seed count is the shared number field (Enter commits; no 100 cap)
+    await q.getByTestId("queue-random-count").fill("1");
+    await q.getByTestId("queue-random-count").press("Enter");
     await q.getByRole("button", { name: "500x500", exact: true }).click();
     await q.getByRole("button", { name: "1080x1920", exact: true }).click();
     await q.getByRole("button", { name: "30 fps", exact: true }).click();
@@ -8149,7 +8267,7 @@ const bdInstrument = () =>
     const undone = await dp.evaluate(() => new URLSearchParams(location.search).toString());
     const chats = await dp.evaluate(() => window.__fakeDesktop.state.chats.length);
     check(
-      "desktop-exe: the AI settings assistant retries an out-of-range patch, applies the valid one and Undo restores the page",
+      "desktop-exe: the AI settings assistant retries an invalid patch (a speed below its minimum), applies the valid one and Undo restores the page",
       changed.includes("ballSpeed") && changed.includes("gravity") && /↻/.test(retried) && chats === 2 && applied !== undone,
       `(changed "${changed}", chats ${chats}, url after ${applied.slice(0, 60)}, after undo ${undone.slice(0, 60)})`,
     );

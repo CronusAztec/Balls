@@ -53,6 +53,7 @@ import { raceArpeggioLength, raceArpeggioNotes } from "@/lib/audio/raceTones";
 import { segmentEndpoints, type SegmentObstacle } from "@/lib/physics/obstacles";
 import { createEngineForSettings, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RACER_CEILING } from "@/lib/uncap";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 
 const config: PhysicsConfig = {
@@ -128,7 +129,11 @@ describe("race settings", () => {
   it("fills in the defaults and clamps every value", () => {
     expect(resolveRaceSettings(null)).toEqual(DEFAULT_RACE_SETTINGS);
     const r = resolveRaceSettings({ racers: 40, trackLength: 1.4, laps: 9, winner: 99, shape: "hexagon" as never, feature: "lava" as never, camera: "drone" as never, cup: "yes" as never });
-    expect(r.racers).toBe(MAX_RACERS); // --- uncap-all --- (no maximum; the grid builds at most its ceiling: the 16 racers its per-racer state holds – the link keeps 40)
+    // --- uncap-all --- no maximum (--- review fix (uncap-all) --- 40 racers race as typed: the per-racer state and the roster
+    // are sized for the grid at init; the grid stops at its memory-safety ceiling only)
+    expect(r.racers).toBe(40);
+    expect(MAX_RACERS).toBeLessThan(40);
+    expect(resolveRaceSettings({ racers: 1e6 }).racers).toBe(RACER_CEILING);
     expect(r.trackLength).toBe(RACE_RANGES.rcTrackLength.min);
     expect(r.laps).toBe(9);
     expect(r.winner).toBe(99); // a staged winner past the grid stages nobody (favouredRacer)
@@ -332,9 +337,10 @@ describe("race track generator", () => {
   });
 
   it("resolves its track settings", () => {
-    // --- uncap-all --- no maximum but the memory-safety ones: 100 screens as typed, the racers at most MAX_RACERS
+    // --- uncap-all --- no maximum but the memory-safety ones: 100 screens as typed, the racers at most RACER_CEILING
     expect(resolveRaceTrackSettings({ racers: 0, trackLength: 100, laps: 2.4, feature: "x" as never })).toEqual({ racers: 2, trackLength: 100, laps: 2, feature: "mixed" });
-    expect(resolveRaceTrackSettings({ racers: 40, trackLength: 1.4, laps: 9 })).toEqual({ racers: MAX_RACERS, trackLength: 3, laps: 9, feature: "mixed" });
+    expect(resolveRaceTrackSettings({ racers: 40, trackLength: 1.4, laps: 9 })).toEqual({ racers: 40, trackLength: 3, laps: 9, feature: "mixed" });
+    expect(resolveRaceTrackSettings({ racers: 5000 }).racers).toBe(RACER_CEILING);
   });
 });
 

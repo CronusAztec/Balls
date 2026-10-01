@@ -189,15 +189,26 @@ export const PADDLE_SUBSTEPS = 4;
 /** Every this many catches in a row plays the rising arpeggio. */
 export const STREAK_CHIME = 10;
 
-/** The ball radius (field heights) for a Ball Size (px at the default 8). */
+/**
+ * The ball radius (field heights) for a Ball Size (px at the default 8), from 0.012 – --- review fix (uncap-all) --- no
+ * maximum: a ball bigger than the field ate the arena (`paddleBallFits()`; the engine's ate-the-arena finish).
+ */
 export function paddleBallRadius(ballSize: number): number {
   const s = Number.isFinite(ballSize) && ballSize > 0 ? ballSize : 8;
-  return Math.max(0.012, Math.min(0.06, (PD_BALL_R * s) / 8));
+  return Math.max(0.012, (PD_BALL_R * s) / 8);
 }
 
-/** The gravity factor of the Gravity setting (300 → 1), clamped to 0.3–3. */
+/**
+ * --- review fix (uncap-all) --- Whether a ball of radius `r` (field heights) fits the field: between the side walls, and
+ * between the ceiling and the platform line. A ball that does not has eaten the arena (the run ends with the banner and gulp).
+ */
+export function paddleBallFits(r: number): boolean {
+  return 2 * r < PD_ASPECT && PD_CEILING + r < PD_PLATFORM - r;
+}
+
+/** The gravity factor of the Gravity setting (300 → 1), from 0.3 (--- review fix (uncap-all) --- no maximum). */
 export function paddleGravityFactor(gravitySetting: number): number {
-  return Number.isFinite(gravitySetting) ? Math.max(0.3, Math.min(3, gravitySetting / 300)) : 1;
+  return Number.isFinite(gravitySetting) ? Math.max(0.3, gravitySetting / 300) : 1;
 }
 
 /** Tempo after `hits` catches (1 at the start, `speedUp` more per catch, at most `MAX_TEMPO`). */
@@ -566,6 +577,11 @@ export class PaddleMode implements GameMode {
     this.sizeW = 0;
     this.refreshField(ctx.config.width, ctx.config.height);
     this.serve(ctx, 0);
+    // --- review fix (uncap-all) --- a Ball Size the field cannot hold: the ball ate the arena (the engine's finish)
+    if (!paddleBallFits(v.r)) {
+      const ball = this.findBall(ctx);
+      if (ball) ctx.getMultipliers?.().outgrow(ctx, ball);
+    }
   }
 
   private refreshField(width: number, height: number) {
@@ -819,6 +835,7 @@ export class PaddleMode implements GameMode {
    * at most `maxMs`. The same steps as `engine.update()`, so the length is exactly the page's.
    */
   runLengthMs(ctx: ModeContext, maxMs: number, stepMs = 1000 / 60): number {
+    if (!paddleBallFits(this.view.r)) return 0; // --- review fix (uncap-all) --- the ball ate the arena at the start: the run is over
     this.silent = true;
     let elapsed = 0;
     try {

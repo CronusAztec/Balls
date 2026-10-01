@@ -145,7 +145,8 @@ export class OnBeatController {
 
   setConfig(patch: Partial<OnBeatConfig>) {
     this.config = { ...this.config, ...patch };
-    this.config.range = Math.max(0.05, Math.min(1, Number.isFinite(this.config.range) ? this.config.range : DEFAULT_ON_BEAT.range));
+    // --- review fix (uncap-all) --- from 0.05, no maximum: a range past 1 lets a flight stretch or squeeze by more than 2×
+    this.config.range = Math.max(0.05, Number.isFinite(this.config.range) ? this.config.range : DEFAULT_ON_BEAT.range);
     this.config.subdivisions = [1, 2, 4].includes(this.config.subdivisions) ? this.config.subdivisions : 1;
   }
 

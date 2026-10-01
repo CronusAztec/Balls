@@ -235,7 +235,8 @@ export class HitSampler {
     const ctx = this.context;
     const now = when ?? ctx.currentTime;
     const rate = Math.max(0.125, Math.min(8, playbackRate));
-    const level = Math.min(1, this.volume * Math.max(0, gainScale));
+    // --- review fix (uncap-all) --- a volume past 1 amplifies the clip (the master bus' limiter and soft clip guard the output)
+    const level = this.volume * Math.max(0, gainScale);
     try {
       this.dropFinishedVoices(now); // --- fast-render ---
       while (this.voices.length >= MAX_VOICES) this.release(this.voices.shift()!, now);

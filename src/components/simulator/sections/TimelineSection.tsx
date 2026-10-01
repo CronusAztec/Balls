@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Tooltip from "../Tooltip";
 import { Searchable, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
@@ -26,7 +26,7 @@ import {
   type Keyframe,
   type TimelineKey,
 } from "@/lib/simulation/timeline";
-import UncapNumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control (this section has its own NumberField for the keyframe time)
+import UncapNumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control (--- review fix (uncap-all) --- the keyframe rows' too)
 import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 export interface TimelineSectionProps {
@@ -41,6 +41,9 @@ export interface TimelineSectionProps {
 /** Search keys of the Timeline section (SECTION_KEYS.timeline in Controls.tsx). */
 export const TIMELINE_SECTION_KEYS = ["timeline", "timelineSetting", "timelineValue", "timelineAdd", "timelineKeyframes"];
 
+/** data-number-field of a keyframe row's time field (the row's focus follows it when a new time moves the row). */
+const KEYFRAME_TIME_FIELD = "keyframeTime";
+
 /** "Add keyframe at 12.3 s" – the simulation clock, refreshed ten times a second without re-rendering the section. */
 function AddLabel({ t }: { t: Translate }) {
   const time = useTimelineTime();
@@ -48,59 +51,24 @@ function AddLabel({ t }: { t: Translate }) {
 }
 
 /**
- * A number field that edits a draft while it has the focus and commits on Enter or when it loses the focus (Escape
- * drops the draft) – the list re-sorts on a commit, so a row never moves under the cursor while the value is typed.
+ * One keyframe of the list: its setting, time and value (both editable) and ✕. `unused`: why it does nothing right now
+ * (struck through), or null. --- review fix (uncap-all) --- both fields are the shared number field: any time from 0 s
+ * (past the slider's 120 s too) and any value of the setting (past its slider – ↑/↓ step on from 1,000 instead of
+ * snapping back to the slider's end, as the browser's own number input did). Typing only changes the draft; Enter,
+ * leaving the field or an arrow key commits, and the list re-sorts then (a moved row keeps its time field's focus).
  */
-function NumberField({ value, range, ariaLabel, onCommit, className, testId }: { value: number; range: { min: number; max: number; step: number }; ariaLabel: string; onCommit: (v: number) => void; className: string; testId: string }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const cancelled = useRef(false);
-  const commit = () => {
-    const text = draft;
-    setDraft(null);
-    if (cancelled.current) {
-      cancelled.current = false;
-      return;
-    }
-    if (text === null || text.trim() === "") return;
-    const v = Number(text);
-    if (Number.isFinite(v) && v !== value) onCommit(v);
-  };
-  return (
-    <input
-      type="number"
-      inputMode="decimal"
-      value={draft ?? String(value)}
-      min={range.min}
-      max={range.max}
-      step={range.step}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        else if (e.key === "Escape") {
-          cancelled.current = true;
-          e.currentTarget.blur();
-        }
-      }}
-      aria-label={ariaLabel}
-      data-testid={testId}
-      className={`${className} px-1.5 py-1 bg-surface-1 text-ink text-xs tabular-nums rounded-md border border-line-strong focus:border-accent-dim `}
-    />
-  );
-}
-
-/** One keyframe of the list: its setting, time and value (both editable) and ✕. `unused`: why it does nothing right now (struck through), or null. */
 function KeyframeRow({ t, keyframe, index, unused, onChange, onRemove }: { t: Translate; keyframe: Keyframe; index: number; unused: string | null; onChange: (patch: Partial<Pick<Keyframe, "time" | "value">>) => void; onRemove: () => void }) {
   const n = index + 1;
+  const range = RANGES[keyframe.key];
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-line-strong/60 bg-surface-2/40 px-2 py-1.5" data-testid="timeline-row" data-key={keyframe.key}>
+    <div className="flex items-center gap-1.5 rounded-lg border border-line-strong/60 bg-surface-2/40 px-2 py-1.5" data-testid="timeline-row" data-key={keyframe.key} data-time={keyframe.time}>
       <span className="w-2 h-2 shrink-0 rotate-45 rounded-[1px]" style={{ background: TIMELINE_KEY_COLORS[keyframe.key] }} aria-hidden="true" />
       <span className={`flex-1 min-w-0 truncate text-xs ${unused ? "text-ink-3 line-through" : "text-ink"}`} title={unused ?? t(timelineKeyLabel(keyframe.key))}>
         {t(timelineKeyLabel(keyframe.key))}
       </span>
-      <NumberField value={keyframe.time} range={TIMELINE_RANGES.keyframeTime} ariaLabel={t("timelineTimeOf", { n })} onCommit={(time) => onChange({ time })} className="w-14" testId="timeline-time" />
+      <UncapNumberField value={keyframe.time} onCommit={(time) => onChange({ time })} label={t("timelineTimeOf", { n })} range={TIMELINE_RANGES.keyframeTime} rules={{ min: 0 }} settingKey={KEYFRAME_TIME_FIELD} className="w-16" testId="timeline-time" />
       <span className="text-xs text-ink-3">s</span>
-      <NumberField value={keyframe.value} range={RANGES[keyframe.key]} ariaLabel={t("timelineValueOf", { n })} onCommit={(value) => onChange({ value })} className="w-16" testId="timeline-value" />
+      <UncapNumberField value={keyframe.value} onCommit={(value) => onChange({ value })} label={t("timelineValueOf", { n })} range={range} rules={rulesForRange(range, keyframe.key)} settingKey={`keyframeValue:${keyframe.key}`} className="w-20" testId="timeline-value" />
       <button type="button" onClick={onRemove} aria-label={t("timelineRemove", { n })} className="shrink-0 px-1 py-0.5 text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer">
         <IconClose size={14} />
       </button>
@@ -155,6 +123,16 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
   const obstacles = supportsObstacles(s.mode);
   const offered = TIMELINE_KEYS.filter((key) => timelineKeyShown(key, s.mode, obstacles));
   const [picked, setPicked] = useState<TimelineKey>("gravity");
+  // --- review fix (uncap-all) --- a row's React key is its setting and time, so a time committed while its field has the
+  // focus (Enter, an arrow key) re-creates the row at its new place: the field there gets the focus back (null: none to restore)
+  const refocus = useRef<string | null>(null);
+  useEffect(() => {
+    const target = refocus.current;
+    if (target === null) return;
+    refocus.current = null;
+    const row = [...document.querySelectorAll<HTMLElement>('[data-testid="timeline-row"]')].find((el) => `${el.dataset.key}@${el.dataset.time}` === target);
+    row?.querySelector<HTMLInputElement>(`input[data-number-field="${KEYFRAME_TIME_FIELD}"]`)?.focus();
+  });
   const settingKey = offered.includes(picked) ? picked : offered[0];
   const keyframes = s.keyframes;
   const searching = !!search;
@@ -219,7 +197,11 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
               keyframe={keyframe}
               index={i}
               unused={!timelineKeyShown(keyframe.key, s.mode, obstacles) ? t("timelineUnused") : keyframe.key === "rotationSpeed" && !s.rotationEnabled ? t("timelineRotationOff") : null}
-              onChange={(patch) => setKeyframes(updateKeyframe(keyframes, i, patch, RANGES))}
+              onChange={(patch) => {
+                const focused = document.activeElement;
+                if (patch.time !== undefined && focused instanceof HTMLInputElement && focused.dataset.numberField === KEYFRAME_TIME_FIELD) refocus.current = `${keyframe.key}@${snapKeyframeTime(patch.time)}`;
+                setKeyframes(updateKeyframe(keyframes, i, patch, RANGES));
+              }}
               onRemove={() => setKeyframes(removeKeyframe(keyframes, i))}
             />
           ))}

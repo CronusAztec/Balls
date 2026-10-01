@@ -630,9 +630,11 @@ export class MultiplierRuntime {
   /**
    * The step plan for balls moving under `gravity` (px/s² of a normal-weight ball) whose rebounds may reach
    * `reboundSpeed` × their speed multiplier (0 for a mode without the engine's rebounds): sub-steps so no ball moves
-   * more than its limit, and the dilation when 64 sub-steps are not enough.
+   * more than its limit, and the dilation when 64 sub-steps are not enough. --- review fix (uncap-all) --- `kick` (≥ 1)
+   * multiplies what a ball may reach within the step (the obstacle editor's bumper boost) and `fling` (px/s) adds to it (its
+   * spinners' surface speed); with the defaults (1, 0) the plan is exactly the old one.
    */
-  planStep(balls: readonly Ball[], stepSec: number, gravity: number, reboundSpeed: number): StepPlan {
+  planStep(balls: readonly Ball[], stepSec: number, gravity: number, reboundSpeed: number, kick = 1, fling = 0): StepPlan {
     let ratio = 0;
     for (let i = 0; i < balls.length; i++) {
       const b = balls[i];
@@ -640,7 +642,7 @@ export class MultiplierRuntime {
       const v = Math.hypot(b.vx, b.vy);
       let rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(this.bounceCap, b.mult.bounce) : reboundSpeed; // --- unlimited --- (the cap in effect)
       if (b.restitution !== undefined) rebound *= b.restitution; // --- bounce-math --- the ball's bounciness scales its rebounds
-      const bound = SPEED_MARGIN * (v > rebound ? v : rebound) + Math.abs(gravity * (b.gravityScale ?? 1)) * stepSec;
+      const bound = SPEED_MARGIN * ((v > rebound ? v : rebound) * kick + fling) + Math.abs(gravity * (b.gravityScale ?? 1)) * stepSec;
       const r = (bound * stepSec) / maxMovePerSubStep(b.radius);
       if (r > ratio) ratio = r;
     }

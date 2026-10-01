@@ -2296,11 +2296,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const liveInset = !recordingRef.current ? 52 : 0; // live: above the playback-speed buttons (never in a recording, which crops them away)
         unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset);
       }
-      // --- uncap-all --- the fastest ball's speed (and NUMBERS OVERFLOWED) while a Bounciness grows the rebounds or a value is past its slider
+      // --- uncap-all --- the fastest ball's speed (and NUMBERS OVERFLOWED) while the run is extreme: a value its engine reads
+      // past its slider, a Bounciness that grew the rebounds past the old ×3, an obstacle kick past the old cap – the engine's
+      // runtime engaged (--- review fix (uncap-all) --- not for a plain Bouncier or a setting the run never reads: a classic
+      // 1.03 Bouncier clip, a 180 s clip or a big text stay as they were)
       uncapInfo.speed = fastestSpeed(engine.getBalls());
       uncapInfo.bounce = engine.getBounceSpeedMultiplier();
       uncapInfo.rescued = unlimitedView.rescued;
-      uncapInfo.show = unlimitedView.on || engine.isBouncierEnabled();
+      uncapInfo.show = unlimitedView.on;
       if (uncapInfo.show) {
         const sq = Math.min(size.width, size.height);
         drawUncapHud(ctx, uncapInfo, (labelsRef.current ?? DEFAULT_LABELS).uncap ?? DEFAULT_UNCAP_LABELS, cx - sq / 2, cy - sq / 2, sq, !recordingRef.current ? 52 : 0);

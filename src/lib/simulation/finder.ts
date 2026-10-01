@@ -383,6 +383,90 @@ export function simulateSeed(seed: number, request: FinderRequest, maxSimMs: num
   return maxSimMs;
 }
 
+// --- review fix (uncap-all) ---
+/** The least simulated time (s) a seed that outlived the search's horizon is followed before a search says the run never ends. */
+export const NEVER_ENDS_CONFIRM_SEC = 600;
+/** Wall-clock ms the confirmation may take in all; past it the search says nothing about the run ending (it may well end). */
+export const NEVER_ENDS_CONFIRM_BUDGET_MS = 20_000;
+
+/** How far (s) a search follows a seed that outlived its horizon before saying the run never ends: 600 s, or ten times the target. */
+export function neverEndsHorizonSec(targetDurationSec: number): number {
+  return Math.max(NEVER_ENDS_CONFIRM_SEC, 10 * (Number.isFinite(targetDurationSec) ? targetDurationSec : 0));
+}
+
+type FrameSchedule = (fn: () => void) => void;
+
+const nextFrame: FrameSchedule = (fn) => {
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => fn());
+  else setTimeout(fn, 0);
+};
+
+/**
+ * --- review fix (uncap-all) --- Every seed a search tested outlived its horizon (the page's is only the target + 30 s, and a
+ * Paint or Target run of the defaults lasts 100–310 s): before the search says "these values never end a run" it follows
+ * `seed` on to `neverEndsHorizonSec()` of simulated time, `frameBudgetMs` of every frame at a time (whole steps, so the run
+ * is the page's). Resolves with the run's length (ms) when it ends there, `null` when it still has not (the claim holds), or
+ * "unknown" when the wall-clock budget ran out or the search was cancelled first – then nothing is claimed.
+ */
+export function confirmRunEnds(
+  request: FinderRequest,
+  seed: number,
+  signal?: AbortSignal,
+  frameBudgetMs = FINDER_FRAME_BUDGET_MS,
+  now: () => number = () => performance.now(),
+  schedule: FrameSchedule = nextFrame,
+): Promise<number | null | "unknown"> {
+  const horizonMs = neverEndsHorizonSec(request.targetDurationSec) * 1000;
+  // The modes that know their run's length up front (or run their own fast path) answer at once.
+  if (request.mode === "powerLayers" || request.mode === "runner" || request.mode === "paddle" || request.mode === "beatDrop") {
+    const ms = simulateSeed(seed, request, horizonMs);
+    return Promise.resolve(ms >= horizonMs ? null : ms);
+  }
+  return new Promise((resolve) => {
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
+    const step = 1000 / 60;
+    const started = now();
+    let elapsed = 0;
+    const run = () => {
+      if (signal?.aborted || now() - started > NEVER_ENDS_CONFIRM_BUDGET_MS) {
+        resolve("unknown");
+        return;
+      }
+      const frameStart = now();
+      while (now() - frameStart < frameBudgetMs) {
+        engine.update(step, 0);
+        engine.consumeSoundEvents();
+        elapsed += step;
+        if (engine.isSimulationFinished()) {
+          resolve(elapsed);
+          return;
+        }
+        if (elapsed >= horizonMs) {
+          resolve(null);
+          return;
+        }
+      }
+      schedule(run);
+    };
+    schedule(run);
+  });
+}
+
+/**
+ * --- review fix (uncap-all) --- The end of a run-length search that found nothing: when every tested seed outlived the
+ * horizon the best one is followed on (`confirmRunEnds()`) – `neverEnded` only when it still does not end, else the result
+ * carries the length it really has (the closest the search can name).
+ */
+export function settleUnfound(base: FinderResult, allUnfinished: boolean, request: FinderRequest, signal?: AbortSignal, frameBudgetMs?: number, now?: () => number, schedule?: FrameSchedule): Promise<FinderResult> {
+  if (!allUnfinished || base.seedsTested <= 0 || signal?.aborted) return Promise.resolve(base);
+  return confirmRunEnds(request, base.seed, signal, frameBudgetMs, now, schedule).then((ended) => {
+    if (ended === null) return { ...base, neverEnded: true };
+    if (ended === "unknown") return base;
+    return { ...base, duration: ended / 1000 };
+  });
+}
+// --- end review fix (uncap-all) ---
+
 // --- beat-drop ---
 /**
  * The Beat Drop "search": the run cannot fail (every seed lands every beat), so the first seed is the one. The run for a
@@ -528,7 +612,9 @@ export function findSimulation(
         bestSeed,
       });
       if (tested >= request.maxSeeds) {
-        resolve({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested, ...(tested > 0 && unfinished === tested ? { neverEnded: true } : {}) }); // --- uncap-all --- (a run that never ends says so)
+        // --- uncap-all --- (a run that never ends says so – --- review fix (uncap-all) --- once its best seed, followed far past
+        // the horizon, still has not ended: the page's horizon is only the target + 30 s)
+        settleUnfound({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested }, unfinished === tested, request, signal).then(resolve);
       } else {
         requestAnimationFrame(runBatch);
       }

@@ -340,13 +340,22 @@ describe("the duration search yields within its frame budget", () => {
     let clock = 0;
     vi.spyOn(performance, "now").mockImplementation(() => (clock += 16));
     const progress: FinderProgress[] = [];
+    const framesAtProgress: number[] = [];
     const request: FinderRequest = { targetDurationSec: 1000, toleranceSec: 0.5, maxSeeds: 7, maxSimTimeSec: 1, physicsConfig: config, mode: "classic", modeSettings: settings };
-    const result = await findSimulation(request, (p) => progress.push(p));
+    const result = await findSimulation(request, (p) => {
+      progress.push(p);
+      framesAtProgress.push(frames);
+    });
     expect(FINDER_FRAME_BUDGET_MS).toBe(30);
     expect(result.found).toBe(false);
     expect(result.seedsTested).toBe(7);
     expect(progress.map((p) => p.seedsTested)).toEqual([2, 4, 6, 7]);
-    expect(frames).toBe(4);
+    expect(framesAtProgress).toEqual([1, 2, 3, 4]); // two seeds a frame
+    // --- review fix (uncap-all) --- every seed outlived its 1 s horizon, so before anything is claimed the best one is
+    // followed on (confirmRunEnds) – a frame's budget at a time as well: it yields instead of blocking. Here the mocked clock
+    // spends the confirmation's wall-clock budget at two steps a frame, so it gives up without a claim: no "never ends".
+    expect(frames).toBeGreaterThan(4 + 10);
+    expect(result.neverEnded).toBeUndefined();
     // Cancelled after the first slice: the search stops at the next frame.
     const controller = new AbortController();
     const cancelled = await findSimulation({ ...request, maxSeeds: 100 }, () => controller.abort(), controller.signal);

@@ -19,7 +19,7 @@ import {
   type ObstacleKind,
 } from "@/lib/physics/obstacleEditor";
 import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
-import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
+import { formatCompact } from "@/lib/uncap"; // --- review fix (uncap-all) ---
 
 export interface ObstaclesSectionProps {
   t: Translate;
@@ -41,14 +41,18 @@ export const OBSTACLE_KIND_LABELS: Record<ObstacleKind, { icon: string; labelKey
   spinner: { icon: "⟳", labelKey: "obstacleKindSpinner" },
 };
 
-/** A signed coordinate with two decimals ("+0.25", "−0.40", "0.00"). */
+/** A signed coordinate with two decimals ("+0.25", "−0.40", "0.00"; a far one short: "+1.2K"). */
 function coordinate(v: number): string {
   if (Math.abs(v) < 0.005) return "0.00";
-  return `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`;
+  return `${v > 0 ? "+" : "−"}${Math.abs(v) < 1000 ? Math.abs(v).toFixed(2) : formatCompact(Math.abs(v))}`;
 }
 
-/** A compact slider for one number of one obstacle (`ariaLabel` names it when the visible label is a short symbol). */
-function RowSlider({ label, ariaLabel, value, range, display, onChange }: { label: string; ariaLabel?: string; value: number; range: { min: number; max: number; step: number }; display: string; onChange: (v: number) => void }) {
+/**
+ * A compact slider for one number of one obstacle (`ariaLabel` names it when the visible label is a short symbol). The
+ * slider spans the comfort range; the number field takes any value (--- review fix (uncap-all) --- `signed`: a position, an
+ * angle or a spin has no minimum either – a size stops at its slider's minimum only).
+ */
+function RowSlider({ label, ariaLabel, value, range, display, onChange, signed = false }: { label: string; ariaLabel?: string; value: number; range: { min: number; max: number; step: number }; display: string; onChange: (v: number) => void; signed?: boolean }) {
   return (
     <label className="flex items-center gap-2 text-xs text-ink-2">
       <span className="w-14 shrink-0 truncate">{label}</span>
@@ -64,7 +68,7 @@ function RowSlider({ label, ariaLabel, value, range, display, onChange }: { labe
         style={sliderStyle(value, range.min, range.max)}
       />
       <span className="w-14 shrink-0 text-right font-mono tabular-nums text-ink-3">{display}</span>
-      <NumberField value={value} onCommit={onChange} label={label} range={range} rules={rulesForRange(range)} settingKey={`obstacle:${label}`} className="w-16" /* --- uncap-all --- */ />
+      <NumberField value={value} onCommit={onChange} label={label} range={range} rules={signed ? {} : { min: range.min }} settingKey={`obstacle:${label}`} className="w-16" /* --- uncap-all --- */ />
     </label>
   );
 }
@@ -91,17 +95,17 @@ function ObstacleRow({ t, obstacle: o, index, onChange, onRemove }: { t: Transla
         </button>
       </div>
       {/* --- review fix (ui-i18n) --- the position can be set without dragging on the canvas (keyboard, switch access) */}
-      <RowSlider label={`x ${n}`} ariaLabel={t("obstacleXOf", { n })} value={o.x} range={OBSTACLE_LIMITS.position} display={coordinate(o.x)} onChange={(v) => onChange({ x: v })} />
-      <RowSlider label={`y ${n}`} ariaLabel={t("obstacleYOf", { n })} value={o.y} range={OBSTACLE_LIMITS.position} display={coordinate(o.y)} onChange={(v) => onChange({ y: v })} />
+      <RowSlider label={`x ${n}`} ariaLabel={t("obstacleXOf", { n })} value={o.x} range={OBSTACLE_LIMITS.position} display={coordinate(o.x)} onChange={(v) => onChange({ x: v })} signed />
+      <RowSlider label={`y ${n}`} ariaLabel={t("obstacleYOf", { n })} value={o.y} range={OBSTACLE_LIMITS.position} display={coordinate(o.y)} onChange={(v) => onChange({ y: v })} signed />
       <RowSlider
         label={`${t(circle ? "obstacleSize" : "obstacleLength")} ${n}`}
         value={o.size}
         range={circle ? OBSTACLE_LIMITS.circleSize : OBSTACLE_LIMITS.barSize}
-        display={`${o.size}%`}
+        display={`${formatCompact(o.size)}%`}
         onChange={(v) => onChange({ size: v })}
       />
-      {!circle && <RowSlider label={`${t("obstacleAngle")} ${n}`} value={o.angle} range={OBSTACLE_LIMITS.angle} display={`${o.angle}°`} onChange={(v) => onChange({ angle: v })} />}
-      {o.kind === "spinner" && <RowSlider label={`${t("obstacleRpm")} ${n}`} value={o.rpm} range={OBSTACLE_LIMITS.rpm} display={`${o.rpm} rpm`} onChange={(v) => onChange({ rpm: v })} />}
+      {!circle && <RowSlider label={`${t("obstacleAngle")} ${n}`} value={o.angle} range={OBSTACLE_LIMITS.angle} display={`${o.angle}°`} onChange={(v) => onChange({ angle: v })} signed />}
+      {o.kind === "spinner" && <RowSlider label={`${t("obstacleRpm")} ${n}`} value={o.rpm} range={OBSTACLE_LIMITS.rpm} display={`${formatCompact(o.rpm)} rpm`} onChange={(v) => onChange({ rpm: v })} signed />}
     </div>
   );
 }

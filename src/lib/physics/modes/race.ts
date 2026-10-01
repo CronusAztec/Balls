@@ -282,15 +282,18 @@ export function racerNote(i: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-/** The race tempo: the Ball Speed relative to its default (0.25×–2×); the whole race runs that much faster. */
+/**
+ * The race tempo: the Ball Speed relative to its default (from 0.25×; --- review fix (uncap-all) --- no maximum: a Ball Speed
+ * of 80,000 runs the race 200× faster); the whole race runs that much faster.
+ */
 export function raceTempo(ballSpeed: number): number {
   const k = Number.isFinite(ballSpeed) && ballSpeed > 0 ? ballSpeed / 400 : 1;
-  return Math.max(0.25, Math.min(2, k));
+  return Math.max(0.25, k);
 }
 
-/** The Gravity setting relative to its default (0.3×–3×). */
+/** The Gravity setting relative to its default (from 0.3×; --- review fix (uncap-all) --- no maximum). */
 export function raceGravityFactor(gravity: number): number {
-  return Number.isFinite(gravity) ? Math.max(0.3, Math.min(3, gravity / 300)) : 1;
+  return Number.isFinite(gravity) ? Math.max(0.3, gravity / 300) : 1;
 }
 
 /**
@@ -348,7 +351,11 @@ export interface RaceView {
   racers: number;
   /** The favoured racer (−1 in a fair race). */
   favoured: number;
-  /** Per racer (MAX_RACERS slots): its engine ball id, progress down the track (px), lap (1-based), place (1-based; 0 racing, −1 DNF), finish time (ms after the gun, NaN before), gap to the leader (ms). */
+  /**
+   * Per racer (at least MAX_RACERS slots, --- review fix (uncap-all) --- grown at init for a bigger grid): its engine ball id,
+   * progress down the track (px), lap (1-based), place (1-based; 0 racing, −1 DNF), finish time (ms after the gun, NaN
+   * before), gap to the leader (ms).
+   */
   ballIds: Int32Array;
   progress: Float64Array;
   lap: Int32Array;
@@ -385,8 +392,8 @@ export interface RaceView {
   kicks: number;
 }
 
-function createView(): RaceView {
-  const f64 = () => new Float64Array(MAX_RACERS);
+function createView(capacity = MAX_RACERS): RaceView {
+  const f64 = () => new Float64Array(capacity);
   return {
     track: null,
     settings: { ...DEFAULT_RACE_SETTINGS },
@@ -398,10 +405,10 @@ function createView(): RaceView {
     cameraY: 0,
     racers: 0,
     favoured: -1,
-    ballIds: new Int32Array(MAX_RACERS).fill(-1),
+    ballIds: new Int32Array(capacity).fill(-1),
     progress: f64(),
-    lap: new Int32Array(MAX_RACERS),
-    place: new Int32Array(MAX_RACERS),
+    lap: new Int32Array(capacity),
+    place: new Int32Array(capacity),
     finishMs: f64().fill(NaN),
     gapMs: f64(),
     hitAtMs: f64().fill(-Infinity),
@@ -447,14 +454,16 @@ export class RaceMode implements GameMode {
   private readonly view: RaceView = createView();
   private readonly clock = new LeaderClock(1024);
   /** The racers' balls by racer index (refreshed every step). */
-  private readonly racerBall: (Ball | null)[] = new Array(MAX_RACERS).fill(null);
-  private readonly prevY = new Float64Array(MAX_RACERS);
-  private readonly bestU = new Float64Array(MAX_RACERS);
-  private readonly bestAtMs = new Float64Array(MAX_RACERS);
-  private readonly soundAtMs = new Float64Array(MAX_RACERS);
+  private racerBall: (Ball | null)[] = new Array(MAX_RACERS).fill(null);
+  private prevY = new Float64Array(MAX_RACERS);
+  private bestU = new Float64Array(MAX_RACERS);
+  private bestAtMs = new Float64Array(MAX_RACERS);
+  private soundAtMs = new Float64Array(MAX_RACERS);
   /** Finishers of the current sub-step (racer, exact crossing time), placed at its end in time order. */
-  private readonly pendingRacer = new Int32Array(MAX_RACERS);
-  private readonly pendingMs = new Float64Array(MAX_RACERS);
+  private pendingRacer = new Int32Array(MAX_RACERS);
+  private pendingMs = new Float64Array(MAX_RACERS);
+  /** --- review fix (uncap-all) --- Racer slots of the per-racer state (MAX_RACERS, or the grid's size once a bigger one ran). */
+  private capacity = MAX_RACERS;
   private pendingCount = 0;
   private idBase = 0;
   private soundsThisStep = 0;
@@ -501,6 +510,7 @@ export class RaceMode implements GameMode {
     ctx.setBounceSpeedMultiplier(1);
     const cfg = ctx.config;
     const tape: number[] = [];
+    this.ensureCapacity(this.settings.racers);
     const track = buildRaceTrack(cfg.width, cfg.height, this.settings, cfg.ballRadius || 8, () => {
       const u = ctx.random();
       tape.push(u);
@@ -522,6 +532,36 @@ export class RaceMode implements GameMode {
     }
     this.refreshBalls(ctx);
     this.updateMotion(ctx);
+  }
+
+  /**
+   * --- review fix (uncap-all) --- Sizes the per-racer state for `n` racers: a grid past the slider's MAX_RACERS – any size up
+   * to the racers' memory-safety ceiling (`RACER_CEILING`) – gets its slots once, at init, before the seed's draws (so a
+   * fresh engine and a restart play the same race); it never shrinks.
+   */
+  private ensureCapacity(n: number) {
+    if (n <= this.capacity) return;
+    const cap = n;
+    const v = this.view;
+    const f64 = () => new Float64Array(cap);
+    v.ballIds = new Int32Array(cap).fill(-1);
+    v.progress = f64();
+    v.lap = new Int32Array(cap);
+    v.place = new Int32Array(cap);
+    v.finishMs = f64().fill(NaN);
+    v.gapMs = f64();
+    v.hitAtMs = f64().fill(-Infinity);
+    v.boostAtMs = f64().fill(-Infinity);
+    v.swapAtMs = f64().fill(-Infinity);
+    v.roll = f64();
+    this.racerBall = new Array(cap).fill(null);
+    this.prevY = f64();
+    this.bestU = f64();
+    this.bestAtMs = f64();
+    this.soundAtMs = f64();
+    this.pendingRacer = new Int32Array(cap);
+    this.pendingMs = f64();
+    this.capacity = cap;
   }
 
   private resetView(track: RaceTrack) {
@@ -744,7 +784,7 @@ export class RaceMode implements GameMode {
     ball.vx *= keep;
     ball.vy *= keep;
     // The finish line (placed at the end of the sub-step, in crossing order).
-    if (v.place[i] === 0 && this.prevY[i] < track.finishY && ball.y >= track.finishY && this.pendingCount < MAX_RACERS) {
+    if (v.place[i] === 0 && this.prevY[i] < track.finishY && ball.y >= track.finishY && this.pendingCount < this.capacity) {
       const dy = ball.y - this.prevY[i];
       const f = dy > 0 ? (track.finishY - this.prevY[i]) / dy : 1;
       this.pendingRacer[this.pendingCount] = i;

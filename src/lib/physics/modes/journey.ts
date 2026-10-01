@@ -145,7 +145,11 @@ export const STUCK_PX = 3;
  * huge ball wedged somewhere – so every journey still reaches HOME).
  */
 export const STUCK_SQUEEZE_AFTER = 4;
-/** Fastest the ball may fly, in view heights per second (× its speed multiplier): it never tunnels through thin glass. */
+/**
+ * The ball's old terminal speed, in view heights per second (× its speed multiplier). --- review fix (uncap-all) --- No
+ * longer a cap: past it the engine plans the steps for the ball (`JourneyMode.stepSpeedBound()`), so it never tunnels
+ * through thin glass at any speed.
+ */
 export const MAX_BALL_SPEED = 4.2;
 /** The column walls keep this much of the approach speed. */
 export const COLUMN_RESTITUTION = 0.6;
@@ -475,16 +479,33 @@ export class JourneyMode implements GameMode {
     if (!stage.controlsBall()) {
       const override = stage.gravityOverride ? stage.gravityOverride(this.env, ball) : -1;
       ball.vy += (override >= 0 ? override : this.gravity(ball)) * dtSec;
-      // Never faster than the cap (× the speed multiplier): nothing tunnels through thin glass.
-      const field = this.view.field!;
-      const cap = Math.max(MAX_BALL_SPEED * field.height, 1.6 * (ctx.config.ballSpeed || 400)) * glassTempo(ball);
-      const speed = Math.hypot(ball.vx, ball.vy);
-      if (speed > cap) {
-        ball.vx *= cap / speed;
-        ball.vy *= cap / speed;
-      }
+      // --- review fix (uncap-all) --- no terminal speed any more: past the old one (`classicSpeedCap()`) the engine plans the
+      // step for the ball (`stepSpeedBound()`), so it falls as fast as its gravity makes it and still meets thin glass
     }
     stage.onBallStep?.(this.env, ball, dtSec);
+  }
+
+  /**
+   * The speed the journey held its ball under before uncap-all (MAX_BALL_SPEED view heights a second, at least 1.6 × the Ball
+   * Speed, × the speed multiplier): no longer a cap, only the line past which the engine plans the steps.
+   */
+  private classicSpeedCap(ctx: ModeContext, ball: Ball): number {
+    const field = this.view.field;
+    return Math.max(MAX_BALL_SPEED * (field ? field.height : 600), 1.6 * (ctx.config.ballSpeed || 400)) * glassTempo(ball);
+  }
+
+  /**
+   * --- review fix (uncap-all) --- The fastest the ball may move within the next step – its speed plus a step of its gravity –
+   * once it outruns the old terminal speed (nothing faster happened before uncap-all, so a run that never gets there
+   * replays exactly), else 0: the engine plans the step for it (sub-steps, time dilation past 64).
+   */
+  stepSpeedBound(ctx: ModeContext, stepSec: number): number {
+    const ball = this.findBall(ctx);
+    if (!ball) return 0;
+    const speed = Math.hypot(ball.vx, ball.vy);
+    if (!(speed > this.classicSpeedCap(ctx, ball))) return 0;
+    const g = this.gravity(ball);
+    return speed + (g > 0 ? g * stepSec : 0);
   }
 
   onPostSubStep(ctx: ModeContext) {

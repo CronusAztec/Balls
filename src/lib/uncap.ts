@@ -61,19 +61,41 @@ export const PANE_CEILING = 1_000;
 /** Strings a String Battle ball may keep (every ball is tested against every string, every sub-step). */
 export const STRING_CEILING = 1_024;
 /**
- * Racers of one Square Racing Grand Prix: the race's per-racer state (typed arrays, the standings, the photo finish) and its
- * roster (names, colours) are sized for `MAX_RACERS` of lib/physics/raceTrack.ts (a test keeps them equal) – past it the
- * grid builds that many (ARENA FULL).
+ * Racers of one Square Racing Grand Prix: every pair of racers is tested every sub-step (n² work, like the other pairwise
+ * modes), so the grid stops where a step still takes a fraction of a second – --- review fix (uncap-all) --- it was the
+ * slider's own 16, while the per-racer state and the roster were sized for it; both are sized for the grid at init now.
  */
-export const RACER_CEILING = 16;
+export const RACER_CEILING = PAIRWISE_BODY_CEILING;
 /** Split-screen arenas one run builds: each is a whole engine with its own world and a part of the canvas (a 6 × 6 grid). */
 export const ARENA_CEILING = 36;
 /** Clips one batch or one bot plan renders and keeps in memory for the ZIP / the downloads (a few MB each). */
 export const CLIP_CEILING = 50;
 /** Timeline keyframes (each a row of the panel and a few characters of the link). */
 export const KEYFRAME_CEILING = 2_000;
+/**
+ * --- review fix (uncap-all) --- Trail points a ball keeps (bounce math's "trail" rule): every full-physics ball holds its
+ * own, and the canvas strokes every segment of every trail each frame – 200 each for two thousand balls is 400,000 points.
+ */
+export const TRAIL_POINT_CEILING = 200;
 /** Frames one export may hold in memory (the muxer keeps the whole file): an hour at 60 fps. */
 export const EXPORT_FRAME_CEILING = 216_000;
+/**
+ * --- review fix (uncap-all) --- Obstacles of the obstacle editor's layout (the list setting `obstacles`): each is resolved
+ * against every ball every sub-step and is a row of number fields in the panel – a thousand (forty times the old 24, a
+ * frame-cost cap) hold well under a megabyte and cost a step about a millisecond per ten balls.
+ */
+export const OBSTACLE_CEILING = 1_000;
+/**
+ * --- review fix (uncap-all) --- Captions of one clip (the list setting `captions`): each is a row of the panel and a few
+ * characters of the link, and the canvas lays out only the ones showing – a thousand (the old cap was 8, a design count).
+ */
+export const CAPTION_CEILING = 1_000;
+/**
+ * --- review fix (uncap-all) --- Bounce math rules of one list (the list setting `bounceMath`): each is a card of the panel
+ * and a few dozen characters of the link, and every trigger runs through the list – a thousand (the old 24 was a design
+ * count) stay a fraction of a millisecond a bounce.
+ */
+export const BOUNCE_RULE_CEILING = 1_000;
 
 /**
  * The settings whose value sizes an allocation, and the most of it a run builds (the memory-safety ceiling). The link,
@@ -103,6 +125,7 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   dpStrings: ENTITY_CEILING,
   ilBalls: ENTITY_CEILING,
   ilRings: ENTITY_CEILING,
+  ilDepth: ENTITY_CEILING, // --- review fix (uncap-all) --- the nested circles: ten typed arrays of depth + 1 and a body each (a billion crashed the tab)
   ilPainters: ENTITY_CEILING,
   sbBalls: PAIRWISE_BODY_CEILING,
   sbMaxStrings: STRING_CEILING,
@@ -118,18 +141,33 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   byRings: ENTITY_CEILING,
   journeyAutoStages: JOURNEY_STAGE_CEILING,
   arenaCount: ARENA_CEILING,
+  // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
+  obstacles: OBSTACLE_CEILING,
+  captions: CAPTION_CEILING,
 };
 
-/** The most a run builds of an allocating setting `key` (its memory-safety ceiling), the value itself otherwise. */
+/**
+ * --- review fix (uncap-all) --- The settings of `MEMORY_CEILINGS` that are lists (their entries allocate, each a row of the
+ * panel too): a link or preset keeps at most the ceiling's first entries, so a list is full – ARENA FULL where it is in
+ * play – once it holds that many (`pastMemoryCeiling()`).
+ */
+export const LIST_CEILING_KEYS: ReadonlySet<string> = new Set(["obstacles", "captions"]);
+
+/** The most a run builds of an allocating setting `key` (its memory-safety ceiling), the value itself otherwise (a list: its length). */
 export function memoryCeiling(key: string, value: number): number {
   const ceiling = MEMORY_CEILINGS[key];
   return ceiling !== undefined && value > ceiling ? ceiling : value;
 }
 
-/** True when `value` of `key` allocates more than its memory-safety ceiling (the run builds less: ARENA FULL). */
+/**
+ * True when `value` of `key` allocates more than its memory-safety ceiling (the run builds less: ARENA FULL) – or, for a
+ * list setting, holds as many entries as its ceiling allows (a longer link or preset was cut there; nothing more can be added).
+ */
 export function pastMemoryCeiling(key: string, value: unknown): boolean {
   const ceiling = MEMORY_CEILINGS[key];
-  return ceiling !== undefined && typeof value === "number" && value > ceiling;
+  if (ceiling === undefined) return false;
+  if (Array.isArray(value)) return LIST_CEILING_KEYS.has(key) && value.length >= ceiling;
+  return typeof value === "number" && value > ceiling;
 }
 
 /* ------------------------------------------------------------------ validation (never a maximum) */
@@ -177,6 +215,11 @@ export interface NumberRules {
   min?: number;
   /** Whole numbers only (counts): a decimal is rounded. */
   integer?: boolean;
+  /**
+   * --- review fix (uncap-all) --- An optional value (bounce math's min / max: none means no bound): an empty field clears
+   * it instead of being refused.
+   */
+  optional?: boolean;
 }
 
 /** Why typed text was refused (the field keeps the old value and says why). */
@@ -343,9 +386,9 @@ export type NumberFieldEvent =
  * a valid draft, leaving the field commits it too, an arrow key steps the value (or the valid draft) and commits at
  * once, Escape drops the draft. Invalid text is never committed: the value stays as it was and `error` says why (on
  * blur the field shows the value again, with the error kept until the next edit). Returns the next state and, when
- * something is committed, the value.
+ * something is committed, the value – or, for an optional value (`rules.optional`) left empty, `clear` (no value).
  */
-export function numberFieldReduce(state: NumberFieldState, event: NumberFieldEvent, value: number, range: NumericRange, rules: NumberRules = {}): { state: NumberFieldState; commit?: number } {
+export function numberFieldReduce(state: NumberFieldState, event: NumberFieldEvent, value: number, range: NumericRange, rules: NumberRules = {}): { state: NumberFieldState; commit?: number; clear?: true } {
   switch (event.type) {
     case "type":
       return { state: { draft: event.text, error: null } };
@@ -354,6 +397,7 @@ export function numberFieldReduce(state: NumberFieldState, event: NumberFieldEve
     case "commit":
     case "blur": {
       if (state.draft === null) return { state: event.type === "blur" ? { draft: null, error: state.error } : state };
+      if (rules.optional && state.draft.trim() === "") return { state: IDLE_FIELD, clear: true }; // --- review fix (uncap-all) ---
       const check = checkTypedNumber(state.draft, rules);
       if (!check.ok) {
         const error = { reason: check.reason, min: check.min, text: state.draft };

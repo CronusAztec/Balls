@@ -21,7 +21,7 @@ import { base64ToBytes, bytesToBase64 } from "@/lib/base64";
 import { SONGS, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/songs";
 import { CUSTOM_HIT_SAMPLE_ID } from "@/lib/audio/sampler";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
-import { keepsUnlimitedValue } from "@/lib/unlimited"; // --- unlimited ---
+import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
 import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 import { themeById } from "@/lib/themes";
 import { isModeId } from "@/lib/physics/types";
@@ -278,7 +278,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * The settings of a file, validated like a preset: only known fields of the right type are kept (the rest falls back
- * to the mode's defaults), numbers are finite and clamped to their slider ranges, then `presetToSettings()` checks the
+ * to the mode's defaults), numbers are finite and at least their slider minimum (--- uncap-all --- never a maximum), then `presetToSettings()` checks the
  * enumerations, lists and feature settings. A custom hit sample stays selected only when its medium came along; a
  * picture background without its picture falls back to the picked theme's background, and the wall-break sound is one
  * of the built-in clips or none.
@@ -301,10 +301,11 @@ export function resolveProjectSettings(raw: unknown, assets: ProjectAssets = {})
     } else if (typeof fallback === "number") {
       if (typeof value === "number" && Number.isFinite(value)) {
         const range = ranges[key];
-        // --- unlimited --- a file keeps its big values (presetToSettings() validates them); the rest is clamped
-        // --- uncap-all --- whatever its switch: every valid value is kept exactly, an invalid one is lifted onto the minimum
-        const lifted = range !== undefined && keepsUnlimitedValue(key, value, range);
-        clean[key] = range && !lifted ? range.min : value; // (--- uncap-all --- never a maximum: only a value below the minimum is lifted onto it)
+        // --- unlimited --- a file keeps its big values (presetToSettings() validates them)
+        // --- uncap-all --- whatever its switch: only a value below the minimum of an unsigned setting is lifted onto it; every
+        // other finite value is kept exactly for presetToSettings() to validate – a list index too (the Rigged forced winner's
+        // team slot: resolveRiggedConfig() turns a slot past the team list off, and keeps every slot on it)
+        clean[key] = range && value < range.min && !SIGNED_KEYS.has(key) ? range.min : value;
       }
     } else if (typeof fallback === "string") {
       if (typeof value === "string") clean[key] = value.slice(0, MAX_TEXT_SETTING);

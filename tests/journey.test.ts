@@ -790,10 +790,13 @@ describe("the journey in the engine", () => {
     expect(xs.size).toBe(4);
   }, 60_000);
 
-  it("the journey's gravity follows the Gravity setting (clamped) and the view size", () => {
+  it("the journey's gravity follows the Gravity setting (from 0.3× up, no maximum) and the view size", () => {
     expect(journeyGravity(300, 500)).toBeCloseTo(2.4 * 500, 9);
     expect(journeyGravity(600, 500)).toBeCloseTo(4.8 * 500, 9);
-    expect(journeyGravity(5000, 500)).toBeCloseTo(3 * 2.4 * 500, 9);
+    // --- review fix (uncap-all) --- past the slider the gravity follows the setting as typed (it stopped at 3× before)
+    expect(journeyGravity(5000, 500)).toBeCloseTo((5000 / 300) * 2.4 * 500, 6);
+    expect(journeyGravity(3e6, 500)).toBeCloseTo(1e4 * 2.4 * 500, 3);
+    expect(journeyGravity(10, 500)).toBeCloseTo(0.3 * 2.4 * 500, 9);
     expect(new JourneyMode().ballsMayRest).toBe(true);
   });
 });

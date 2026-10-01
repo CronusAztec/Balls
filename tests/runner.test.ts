@@ -165,10 +165,11 @@ describe("jump-timing solver", () => {
     expect(phys.flatFlight).toBeCloseTo((2 * phys.jumpSpeed) / RUNNER_GRAVITY, 12);
     // The apex is the jump height, half-way through the flat flight.
     expect(jumpHeightAt(phys.jumpSpeed, phys.gravity, phys.flatFlight / 2)).toBeCloseTo(DEFAULT_RUNNER_SETTINGS.jumpHeight, 9);
-    // The Gravity setting scales g (0.5×–2×), so the same jump height flies faster or slower.
+    // The Gravity setting scales g (from 0.5× up – --- review fix (uncap-all) --- no maximum: it stopped at 2× before), so
+    // the same jump height flies faster or slower.
     expect(runnerPhysics(DEFAULT_RUNNER_SETTINGS, 600).gravity).toBe(2 * RUNNER_GRAVITY);
     expect(runnerPhysics(DEFAULT_RUNNER_SETTINGS, 0).gravity).toBe(0.5 * RUNNER_GRAVITY);
-    expect(runnerPhysics(DEFAULT_RUNNER_SETTINGS, 99999).gravity).toBe(2 * RUNNER_GRAVITY);
+    expect(runnerPhysics(DEFAULT_RUNNER_SETTINGS, 99999).gravity).toBeCloseTo((99999 / 300) * RUNNER_GRAVITY, 9);
     expect(runnerPhysics(DEFAULT_RUNNER_SETTINGS, 600).flatFlight).toBeCloseTo(phys.flatFlight / Math.SQRT2, 12);
   });
 
@@ -208,10 +209,10 @@ describe("jump-timing solver", () => {
     expect(0.5 * g * dropTime(g, 1) ** 2).toBeCloseTo(1, 12);
   });
 
-  it("fits as many spikes under the arc as it clears (1–3) at every speed, height and gravity the sliders allow", () => {
+  it("fits as many spikes under the arc as it clears (1–3) at every speed and height the sliders allow, up to twice the default gravity", () => {
     for (const speed of [RUNNER_RANGES.runnerSpeed.min, 9, RUNNER_RANGES.runnerSpeed.max]) {
       for (const jumpHeight of [RUNNER_RANGES.runnerJump.min, 2.6, RUNNER_RANGES.runnerJump.max]) {
-        for (const gravity of [0, 300, 2000]) {
+        for (const gravity of [0, 300, 600]) {
           const p = runnerPhysics({ speed, jumpHeight }, gravity);
           const n = runnerMaxSpikes(p);
           expect(n).toBeGreaterThanOrEqual(1);
@@ -223,6 +224,33 @@ describe("jump-timing solver", () => {
         }
       }
     }
+  });
+
+  // --- review fix (uncap-all) --- a heavier Gravity (the slider's 2,000 and past it) is no longer held at 2×: it flattens the
+  // arc further, so fewer spikes fit under it – and where not even one does, the course hops there instead. A spike is
+  // never laid where the jump cannot clear it.
+  it("lays only clearable spikes under any gravity – a hop where the arc clears none", () => {
+    for (const gravity of [2000, 20_000, 1e6]) {
+      for (const speed of [RUNNER_RANGES.runnerSpeed.min, RUNNER_RANGES.runnerSpeed.max]) {
+        for (const jumpHeight of [RUNNER_RANGES.runnerJump.min, RUNNER_RANGES.runnerJump.max]) {
+          const p = runnerPhysics({ speed, jumpHeight }, gravity);
+          const n = runnerMaxSpikes(p);
+          expect(n).toBeGreaterThanOrEqual(0);
+          expect(n).toBeLessThanOrEqual(3);
+          if (n > 0) {
+            const L = p.speed * p.flatFlight;
+            const w = (n - 1) / 2 + SPIKE_HALF_W + 0.5 - CUBE_PAD;
+            expect(p.jumpHeight * (1 - ((2 * w) / L) ** 2) + CUBE_PAD).toBeGreaterThan(SPIKE_HIT_H);
+          }
+        }
+      }
+    }
+    const heavy = runnerPhysics({ speed: RUNNER_RANGES.runnerSpeed.min, jumpHeight: RUNNER_RANGES.runnerJump.min }, 1e6);
+    expect(runnerMaxSpikes(heavy)).toBe(0);
+    const course = buildRunnerCourse({ ...DEFAULT_RUNNER_SETTINGS, speed: RUNNER_RANGES.runnerSpeed.min, jumpHeight: RUNNER_RANGES.runnerJump.min, mix: "spikes" }, 1e6, lcg(3));
+    expect(course.spikes).toHaveLength(0);
+    expect(course.events.some((e) => e.kind === "hop")).toBe(true);
+    for (const e of course.events) expect(Number.isFinite(e.landSec)).toBe(true);
   });
 });
 
@@ -718,9 +746,11 @@ describe("Beat Runner re-plans", () => {
     expect(sameRunnerPlan(base, plan())).toBe(true);
     // Every course setting and the auto jump.
     for (const patch of [{ runnerObstacles: 30 }, { runnerSpeed: 12 }, { runnerJump: 3 }, { runnerDensity: 0.9 }, { runnerMix: "gaps" as const }, { runnerAutoJump: false }]) expect(sameRunnerPlan(base, plan(patch))).toBe(false);
-    // The Gravity, by the factor the course uses (0.5×–2×).
+    // The Gravity, by the factor the course uses (from 0.5× up – --- review fix (uncap-all) --- no maximum: 700 and 900 are
+    // two courses now, they were both held at 2× before; below 0.5× the factor stays and so does the course).
     expect(sameRunnerPlan(base, plan({}, null, 450))).toBe(false);
-    expect(sameRunnerPlan(plan({}, null, 700), plan({}, null, 900))).toBe(true);
+    expect(sameRunnerPlan(plan({}, null, 700), plan({}, null, 900))).toBe(false);
+    expect(sameRunnerPlan(plan({}, null, 0), plan({}, null, 100))).toBe(true);
     // The scale and the root follow live.
     expect(sameRunnerPlan(base, plan({ scale: "minor", rootNote: 5 }))).toBe(true);
     // The BPM: only while the course follows it.

@@ -30,19 +30,43 @@ export interface RaceRoster {
   emoji: string[];
 }
 
+/** Two hex digits of a channel 0…1. */
+function hex2(v: number): string {
+  return Math.round(Math.max(0, Math.min(1, v)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+}
+
 /**
- * The 16 racer slots: the roster's teams first (a team without a name takes the default name of its slot), then the
- * default colours and names (`defaultNames[i]`, translated colour names; "#n" without one). Emoji only come from teams.
+ * --- review fix (uncap-all) --- The colour of racer slot `i`: the palette's sixteen, then hues a golden angle apart (bright,
+ * each distinct from its neighbours) for a grid past the slider.
  */
-export function raceRoster(teams: readonly TeamEntry[], defaultNames: readonly string[] = []): RaceRoster {
+export function racerColor(i: number): string {
+  if (i >= 0 && i < RACE_COLORS.length) return RACE_COLORS[i];
+  const hue = (i * 137.50776405) % 360;
+  const s = 0.8;
+  const l = 0.6;
+  const k = (n: number) => (n + hue / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return `#${hex2(f(0))}${hex2(f(8))}${hex2(f(4))}`;
+}
+
+/**
+ * The racer slots – `count` of them (the slider's 16 by default; --- review fix (uncap-all) --- any grid, a slot per racer):
+ * the roster's teams first (a team without a name takes the default name of its slot), then the default colours and names
+ * (`defaultNames[i]`, translated colour names; "#n" without one; past the palette, colours by hue). Emoji only come from teams.
+ */
+export function raceRoster(teams: readonly TeamEntry[], defaultNames: readonly string[] = [], count = MAX_RACERS): RaceRoster {
   const names: string[] = [];
   const colors: string[] = [];
   const emoji: string[] = [];
-  for (let i = 0; i < MAX_RACERS; i++) {
+  const n = Number.isFinite(count) ? Math.max(MAX_RACERS, Math.floor(count)) : MAX_RACERS;
+  for (let i = 0; i < n; i++) {
     const team = teams[i];
     const fallback = defaultNames[i] || `#${i + 1}`;
     names.push((team && sanitizeTeamName(team.name)) || fallback);
-    colors.push((team && normalizeHexColor(team.color)) || RACE_COLORS[i % RACE_COLORS.length]);
+    colors.push((team && normalizeHexColor(team.color)) || racerColor(i));
     emoji.push(team ? sanitizeTeamEmoji(team.emoji) : "");
   }
   return { names, colors, emoji };

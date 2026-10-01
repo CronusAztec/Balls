@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import {
-  BUMPER_SPEED_CAP,
   DEFAULT_BUMPER_BOOST,
   MAX_OBSTACLES,
   MAX_OBSTACLE_SOUNDS_PER_STEP,
   ObstacleField,
-  RING_CAPTURE_MARGIN,
-  RING_CAPTURE_SHARE,
   addObstacle,
   applyAffine,
   arenaFrameOf,
@@ -20,7 +17,7 @@ import {
   obstacleConfigOf,
   obstacleReach,
   obstacleNote,
-  obstacleSpeedLimit,
+  classicObstacleSpeed,
   parseObstacles,
   pickObstacle,
   removeObstacle,
@@ -37,7 +34,8 @@ import { isTextEntryTarget } from "@/components/simulator/obstacleEditorRenderer
 import type { Ball, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { MODE_IDS } from "@/lib/physics/types";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
-import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
+import { OBSTACLE_CEILING } from "@/lib/uncap";
 
 /**
  * The obstacle editor (lib/physics/obstacleEditor.ts): the compact URL form and its validation, the arena ↔ world ↔
@@ -116,22 +114,42 @@ describe("obstacle URL form", () => {
     expect(parseObstacles(serializeObstacles([o]))).toEqual([o]);
   });
 
-  it("skips garbage, fills missing numbers with the defaults and clamps the rest", () => {
-    const list = parseObstacles("p:abc,1;x:1,2,3;b:0.1,0.2;k:5,-5,999,270;s:0,0;q;p:,1;P:0.5,0.5,1");
+  it("skips garbage, fills missing numbers with the defaults and keeps every other number – past the sliders too", () => {
+    // --- review fix (uncap-all) --- positions and spins signed and unbounded, sizes from their minimum up (no maximum)
+    const list = parseObstacles("p:abc,1;x:1,2,3;b:0.1,0.2;k:5,-5,999,270;s:0,0;q;p:,1;P:0.5,0.5,1;s:-40,1e6,5000,0,-1000");
     expect(list).toEqual([
       { kind: "bumper", x: 0.1, y: 0.2, size: 8, angle: 0, rpm: 0 },
-      { kind: "blocker", x: 1.3, y: -1.3, size: 120, angle: -90, rpm: 0 },
+      { kind: "blocker", x: 5, y: -5, size: 999, angle: -90, rpm: 0 },
       { kind: "spinner", x: 0, y: 0, size: 50, angle: 0, rpm: 20 },
       { kind: "peg", x: 0.5, y: 0.5, size: 2, angle: 0, rpm: 0 },
+      { kind: "spinner", x: -40, y: 1e6, size: 5000, angle: 0, rpm: -1000 },
     ]);
+    expect(parseObstacles(serializeObstacles(list))).toEqual(list);
+    // A huge number is kept whole (rounding it would overflow the float), a negative size is lifted onto the minimum.
+    expect(sanitizeObstacle({ kind: "spinner", x: 1e300, y: -1e308, size: 1e308, angle: 0, rpm: 1e308 })).toEqual({ kind: "spinner", x: 1e300, y: -1e308, size: 1e308, angle: 0, rpm: 1e308 });
+    expect(sanitizeObstacle({ kind: "bumper", x: 0, y: 0, size: -50 })!.size).toBe(2);
     // Circles carry no angle or spin, blockers no spin.
     expect(sanitizeObstacle({ kind: "peg", x: 0, y: 0, size: 5, angle: 45, rpm: 30 })).toEqual({ kind: "peg", x: 0, y: 0, size: 5, angle: 0, rpm: 0 });
     expect(sanitizeObstacle({ kind: "blocker", x: 0, y: 0, size: 30, angle: 45, rpm: 30 })!.rpm).toBe(0);
     expect(sanitizeObstacle({ kind: "wall", x: 0, y: 0 })).toBeNull();
     expect(sanitizeObstacle(null)).toBeNull();
-    // At most MAX_OBSTACLES.
+    // --- review fix (uncap-all) --- far past the old 24: up to the obstacles' memory-safety ceiling.
+    expect(MAX_OBSTACLES).toBe(OBSTACLE_CEILING);
+    expect(OBSTACLE_CEILING).toBeGreaterThanOrEqual(1000);
     const many = Array.from({ length: 40 }, (_, i) => `p:${(i / 100).toFixed(2)},0,5`).join(";");
-    expect(parseObstacles(many)).toHaveLength(MAX_OBSTACLES);
+    expect(parseObstacles(many)).toHaveLength(40);
+    const tooMany = Array.from({ length: OBSTACLE_CEILING + 25 }, (_, i) => `p:${(i / 1000).toFixed(3)},0,5`).join(";");
+    expect(parseObstacles(tooMany)).toHaveLength(OBSTACLE_CEILING);
+  });
+
+  it("says ARENA FULL for a layout at its memory-safety ceiling in a ring mode only", () => {
+    const full = Array.from({ length: OBSTACLE_CEILING }, (_, i) => defaultObstacle("peg", (i % 40) / 40, Math.floor(i / 40) / 40));
+    expect(pastAnyMemoryCeiling({ ...defaultSettings("classic"), obstacles: full })).toBe(true);
+    expect(pastAnyMemoryCeiling({ ...defaultSettings("classic"), obstacles: full.slice(1) })).toBe(false);
+    // The layout is kept, unused, in the modes without obstacles: nothing is full there.
+    expect(pastAnyMemoryCeiling({ ...defaultSettings("drop"), obstacles: full })).toBe(false);
+    const link = settingsFromSearchParams(new URLSearchParams(`mode=classic&obs=${serializeObstacles(full)};p:0,0,5`));
+    expect([link.obstacles.length, pastAnyMemoryCeiling(link)]).toEqual([OBSTACLE_CEILING, true]);
   });
 
   it("travels in the settings URL (obs, obb) and is left out when empty or default", () => {
@@ -155,7 +173,7 @@ describe("obstacle URL form", () => {
 
   it("is validated in presets", () => {
     const loaded = presetToSettings({ mode: "classic", obstacles: [{ kind: "peg", x: 3, y: "0.5", size: 100 }, { kind: "nope" }, LAYOUT[3]] as unknown as EditorObstacle[], bumperBoost: 0.2 });
-    expect(loaded.obstacles).toEqual([{ kind: "peg", x: 1.3, y: 0.5, size: 25, angle: 0, rpm: 0 }, LAYOUT[3]]);
+    expect(loaded.obstacles).toEqual([{ kind: "peg", x: 3, y: 0.5, size: 100, angle: 0, rpm: 0 }, LAYOUT[3]]); // --- review fix (uncap-all) --- (as stored)
     expect(loaded.bumperBoost).toBe(1);
     // An old preset without the fields gets the defaults.
     const old = presetToSettings({ mode: "portal" });
@@ -181,6 +199,7 @@ describe("obstacle list edits", () => {
     expect(Math.hypot(next.x - spinner.x, next.y - spinner.y)).toBeGreaterThanOrEqual(0.25 + 0.05 + 0.1 - 1e-9);
     const full = Array.from({ length: MAX_OBSTACLES }, () => defaultObstacle("peg"));
     expect(addObstacle(full, "spinner")).toHaveLength(MAX_OBSTACLES);
+    expect(addObstacle(full.slice(0, 30), "spinner")).toHaveLength(31); // --- review fix (uncap-all) --- (past the old 24)
     expect(nextObstacleSpot(full)).toEqual({ x: 0, y: -0.3 });
     // No spot is free: the one with the most room (on the outer ring, away from a huge bar across the middle).
     const crowded = [{ kind: "blocker" as const, x: 0, y: 0, size: 120, angle: 0, rpm: 0 }];
@@ -190,7 +209,12 @@ describe("obstacle list edits", () => {
 
   it("updates (validated) and removes by index without touching the others", () => {
     const moved = updateObstacle(LAYOUT, 1, { x: 9, size: 12.34 });
-    expect(moved[1]).toEqual({ kind: "bumper", x: 1.3, y: 0.1, size: 12.3, angle: 0, rpm: 0 });
+    expect(moved[1]).toEqual({ kind: "bumper", x: 9, y: 0.1, size: 12.3, angle: 0, rpm: 0 }); // --- review fix (uncap-all) --- (no position bound)
+    // What the panel's number fields type: a spin of 1000 rpm, a length of 500 %, a size of 1e6 % – as typed.
+    expect(updateObstacle(LAYOUT, 3, { rpm: 1000, size: 500 })[3]).toMatchObject({ rpm: 1000, size: 500 });
+    expect(updateObstacle(LAYOUT, 3, { rpm: -1e9 })[3].rpm).toBe(-1e9);
+    expect(updateObstacle(LAYOUT, 0, { size: 1e6 })[0].size).toBe(1e6);
+    expect(serializeObstacles(updateObstacle(LAYOUT, 3, { rpm: 1000 }))).toContain("s:0,-0.5,50,-45,1000");
     expect(moved[0]).toBe(LAYOUT[0]);
     expect(removeObstacle(LAYOUT, 2).map((o) => o.kind)).toEqual(["peg", "bumper", "spinner"]);
     expect(LAYOUT).toHaveLength(4);
@@ -359,7 +383,7 @@ describe("the obstacle field", () => {
     expect(Math.hypot(lifted.vx, lifted.vy)).toBeCloseTo(600, 6);
   });
 
-  it("makes a bumper multiply the ball speed by the boost, capped, with the ding event", () => {
+  it("makes a bumper multiply the ball speed by the boost – with no cap – with the ding event", () => {
     const f = field([defaultObstacle("bumper", 0, 0)], 800, 600, 1.5); // radius 18 px
     const events: SoundEvent[] = [];
     const b = ball(400, 300 - 25.5, 0, 400); // 0.5 px into it
@@ -369,15 +393,21 @@ describe("the obstacle field", () => {
     expect(b.vy).toBeLessThan(0);
     expect(f.bumpCount).toBe(1);
     expect(events).toEqual([{ type: "hit", wallIndex: 0, frequency: bumperNote(0), accent: true, bumper: true }]);
-    // Never past BUMPER_SPEED_CAP × the ball speed setting …
+    expect(f.pastClassicLimit).toBe(false); // (inside what the bumpers ever gave)
+    // --- review fix (uncap-all) --- past the old 3 × the ball speed setting: the kick is the boost, whatever the speed …
     const fast = ball(400, 300 - 25.5, 0, 1000);
     const g = field([defaultObstacle("bumper", 0, 0)], 800, 600, 2);
     g.collide(fast, DT, 1, 40, 400, 0, events);
-    expect(Math.hypot(fast.vx, fast.vy)).toBeCloseTo(BUMPER_SPEED_CAP * 400, 9);
-    // … and a ball already faster than that is not slowed down by the cap (only the restitution cap of the rebound).
+    expect(Math.hypot(fast.vx, fast.vy)).toBeCloseTo(2000, 9);
+    expect(g.pastClassicLimit).toBe(true);
     const faster = ball(400, 300 - 25.5, 0, 2000);
     g.collide(faster, DT, 1, 40, 400, 0, events);
-    expect(Math.hypot(faster.vx, faster.vy)).toBeCloseTo(2000 * 0.98, 6);
+    expect(Math.hypot(faster.vx, faster.vy)).toBeCloseTo(4000, 6);
+    // … and a boost far past the slider kicks as typed: ×1000.
+    const huge = field([defaultObstacle("bumper", 0, 0)], 800, 600, 1000);
+    const h = ball(400, 300 - 25.5, 0, 400);
+    huge.collide(h, DT, 1, 40, 400, 0, events);
+    expect(Math.hypot(h.vx, h.vy)).toBeCloseTo(400_000, 3);
     // A boost of 1 gives the ball its speed back exactly: an elastic bumper.
     const one = field([defaultObstacle("bumper", 0, 0)], 800, 600, 1);
     const c = ball(400 + 5, 300 - 25, 0, 400);
@@ -385,13 +415,15 @@ describe("the obstacle field", () => {
     expect(Math.hypot(c.vx, c.vy)).toBeCloseTo(400, 9);
   });
 
-  it("never lets a spinner fling or a bumper kick carry the ball past a ring's capture band in one sub-step", () => {
-    // A ring catches a ball whose centre lands within radius + RING_CAPTURE_MARGIN px of it: at most RING_CAPTURE_SHARE of that per sub-step.
-    expect(obstacleSpeedLimit(400, 8, 400, DT)).toBeCloseTo(BUMPER_SPEED_CAP * 400, 9); // the 3× cap is the tighter one
-    expect(obstacleSpeedLimit(400, 4, 800, DT)).toBeCloseTo((RING_CAPTURE_SHARE * (4 + RING_CAPTURE_MARGIN)) / DT, 9); // 1296 px/s < 2400
-    expect(obstacleSpeedLimit(3000, 30, 400, DT)).toBe(3000); // a faster ball keeps what it had, within the band
-    // A spinner at the slider maximums (120 % long, 120 rpm) around the ball: its tip moves at ~2,260 px/s.
-    const spinner = field([{ kind: "spinner", x: 0, y: 0, size: 120, angle: 0, rpm: 120 }], 800, 800);
+  it("lets a spinner fling and a bumper kick leave the ball as fast as they make it; past what they ever gave before, the field says so", () => {
+    // --- review fix (uncap-all) --- nothing is clamped: what the obstacles gave before uncap-all (3 × the ball speed setting,
+    // within 90 % of a ring's capture band a sub-step) only marks the run whose steps the engine plans from then on.
+    expect(classicObstacleSpeed(400, 8, 400, DT)).toBeCloseTo(3 * 400, 9); // the 3× cap was the tighter one
+    expect(classicObstacleSpeed(400, 4, 800, DT)).toBeCloseTo((0.9 * (4 + 2)) / DT, 9); // 1296 px/s < 2400
+    expect(classicObstacleSpeed(3000, 30, 400, DT)).toBe(3000); // a faster ball kept what it had, within the band
+    // A spinner past its old slider (120 % long, 1,000 rpm, the old end was 120) around the ball: its tip moves at ~19,000 px/s.
+    const spinner = field([{ kind: "spinner", x: 0, y: 0, size: 120, angle: 0, rpm: 1000 }], 800, 800);
+    expect(spinner.flingSpeed).toBeGreaterThan(15_000);
     const bar = spinner.items[0];
     const events: SoundEvent[] = [];
     let fastest = 0;
@@ -408,15 +440,19 @@ describe("the obstacle field", () => {
       spinner.collide(b, DT, 1, 40, 400, 0, events);
       fastest = Math.max(fastest, Math.hypot(b.vx, b.vy));
     }
-    expect(fastest).toBeGreaterThan(400); // it still flings
-    expect(fastest).toBeLessThanOrEqual(obstacleSpeedLimit(400, 8, 400, DT) + 1e-6);
-    // Bumpers at boost 2 with ball speed 800 and size 4: the kick stops at the band, not at 3 × 800.
+    expect(fastest).toBeGreaterThan(3 * classicObstacleSpeed(400, 8, 400, DT)); // it flings at its surface speed
+    expect(spinner.pastClassicLimit).toBe(true);
+    spinner.reset();
+    expect(spinner.pastClassicLimit).toBe(false);
+    // Bumpers at boost 2 with ball speed 800 and size 4: the kick is ×2 (it stopped at the capture band before, 1,296 px/s).
     const bumper = field([defaultObstacle("bumper", 0, 0)], 800, 600, 2);
     const small = ball(400, 300 - 21.5, 0, 1000, 4); // 0.5 px into an 18 px bumper
     bumper.collide(small, DT, 1, 40, 800, 0, events);
     expect(bumper.bumpCount).toBe(1);
-    expect(Math.hypot(small.vx, small.vy)).toBeCloseTo((RING_CAPTURE_SHARE * 6) / DT, 6);
-    expect((Math.hypot(small.vx, small.vy) * DT) / (small.radius + RING_CAPTURE_MARGIN)).toBeLessThan(1);
+    expect(Math.hypot(small.vx, small.vy)).toBeCloseTo(2000, 6);
+    expect(bumper.pastClassicLimit).toBe(true);
+    expect(bumper.kickFactor(1)).toBe(2);
+    expect(field([defaultObstacle("peg", 0, 0)], 800, 600, 2).kickFactor(1)).toBe(1); // (no bumper, no kick)
   });
 
   it("queues at most MAX_OBSTACLE_SOUNDS_PER_STEP sounds per step, while every hit still counts", () => {
@@ -544,6 +580,40 @@ describe("obstacles in the engine", () => {
       expect(firstTunnel("lines", bumpers, seed, 20, 800, { ballSpeed: 800, ballRadius: 4 }, 2)).toBe(-1);
       expect(firstTunnel("classic", bumpers, seed, 20, 800, { ballSpeed: 800, ballRadius: 4 }, 2)).toBe(-1);
     }
+  });
+
+  it("run a kick or a fling far past the old caps as typed: the steps are planned from then on and no ball tunnels", () => {
+    // --- review fix (uncap-all) --- a bumper boost of 10 and a spinner at 2,000 rpm (the old caps: 3 × the ball speed and 120 rpm)
+    let bumpers: EditorObstacle[] = [];
+    for (let i = 0; i < 6; i++) bumpers = addObstacle(bumpers, "bumper");
+    const wild = [...bumpers, { kind: "spinner" as const, x: 0, y: 0.3, size: 120, angle: 0, rpm: 2000 }];
+    for (const seed of [1, 2]) {
+      expect(firstTunnel("lines", wild, seed, 12, 800, {}, 10)).toBe(-1);
+      expect(firstTunnel("classic", wild, seed, 12, 800, {}, 10)).toBe(-1);
+    }
+    const cfg: PhysicsConfig = { ...config, width: 800, height: 800, ...obstacleConfigOf({ obstacles: wild, bumperBoost: 10 }) };
+    const run = (seed: number) => {
+      const engine = createEngineForSettings(cfg, "lines", modeSettings, seed);
+      let top = 0;
+      for (let i = 0; i < 12 * 60; i++) {
+        engine.update(1000 / 60, 0);
+        for (const b of engine.getBalls()) top = Math.max(top, Math.hypot(b.vx, b.vy));
+      }
+      const b = engine.getBalls()[0];
+      return { top, planned: engine.getEditorObstacles()!.pastClassicLimit, end: [b.x, b.y, b.vx, b.vy] };
+    };
+    const a = run(3);
+    expect(a.planned).toBe(true);
+    expect(a.top).toBeGreaterThan(3 * 400 * 3); // far past the old cap of 3 × the ball speed
+    expect(run(3)).toEqual(a); // deterministic for a seed
+    // The page engages its extreme-values machinery (the ⚡ readout) for values past the sliders – the boost, a spinner's rpm –,
+    // not for a layout inside them (whose kicks the steps still plan once they pass the old cap).
+    const page = (patch: Partial<SimulatorSettings>) => uncappedEngaged({ ...defaultSettings("classic"), obstacles: bumpers, ...patch });
+    expect(page({})).toBe(false);
+    expect(page({ bumperBoost: 10 })).toBe(true);
+    expect(page({ obstacles: wild })).toBe(true);
+    expect(page({ obstacles: [...bumpers, { kind: "spinner", x: 0, y: 0.3, size: 60, angle: 0, rpm: 100 }] })).toBe(false);
+    expect(uncappedEngaged({ ...defaultSettings("drop"), obstacles: wild })).toBe(false); // (kept, unused, outside the ring modes)
   });
 
   it("queue bumper dings as sound events", () => {

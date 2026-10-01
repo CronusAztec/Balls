@@ -1,4 +1,5 @@
 import { DEFAULT_BEAT_CLOCK, isUsableGrid, type BeatClockConfig, type BeatGrid } from "./beatClock";
+import { BOUNCE_RULE_CEILING, TRAIL_POINT_CEILING } from "@/lib/uncap"; // --- review fix (uncap-all) ---
 
 /**
  * Bounce math (feature bounce-math): a list of user-defined RULES, each changing one parameter by a mathematical step
@@ -87,9 +88,10 @@ export const BOUNCE_PARAM_KIND: Readonly<Record<BounceParam, BounceParamKind>> =
 
 /**
  * Where a value means something. Below `min` (or at it when `minOpen`) the result is REJECTED (the rule leaves the value
- * unchanged: a negative size, a zero speed…); above `max` it is clamped (a physical ceiling, not a comfort limit: a gap
- * cannot open more than the whole ring, air drag cannot take more than all the speed, a trail is at most
- * `MAX_TRAIL_POINTS` points); `integer` rounds (a ball count, a trail length).
+ * unchanged: a negative size, a zero speed…); above `max` it is clamped – --- review fix (uncap-all) --- only where the
+ * value ends in meaning (a gap cannot open more than the whole ring) or allocates (a trail keeps at most `MAX_TRAIL_POINTS`
+ * points, its memory-safety ceiling); everything else runs to the float range itself; `integer` rounds (a ball count, a
+ * trail length).
  */
 export interface BounceParamDomain {
   min: number;
@@ -98,31 +100,29 @@ export interface BounceParamDomain {
   integer: boolean;
 }
 
-/** Longest trail the engine keeps per ball, points (memory and the canvas' per-segment strokes). */
-export const MAX_TRAIL_POINTS = 200;
+/** Longest trail the engine keeps per ball, points: --- review fix (uncap-all) --- its memory-safety ceiling (`TRAIL_POINT_CEILING`, lib/uncap.ts). */
+export const MAX_TRAIL_POINTS = TRAIL_POINT_CEILING;
 /** The engine's trail length without a trail rule, points. */
 export const DEFAULT_TRAIL_POINTS = 20;
 /** Widest gap (radians): just short of the whole ring. */
 export const MAX_GAP = 2 * Math.PI - 0.01;
-/** Most air drag per 60 Hz step (1 would stop every ball dead). */
-export const MAX_DAMPING = 0.99;
 
 /**
- * Keeps a value a finite float (like the multipliers' `MULTIPLIER_CEILING`): 10¹⁵ is far beyond anything a clip shows – a
- * ball bouncing 10¹⁵ times harder, gravity of 10¹⁵ px/s² – so it is not a gameplay limit; it only stops a runaway stack
- * (× 1.05 on every one of thousands of bounces) from overflowing to Infinity, which would turn every position into NaN.
+ * The float range itself (--- review fix (uncap-all) --- it was 10¹⁵): a rule's result is kept up to the largest finite
+ * number, like the multipliers' `MULTIPLIER_CEILING`; only a result that overflowed (NaN, ±Infinity) is refused – the value
+ * stays as it was – and a ball whose numbers overflowed is put back by the runtime (`bounceMathRuntime.ts`).
  */
-export const FLOAT_CEILING = 1e15;
-/** The clock scale's ceiling: far past what the step planner can follow anyway (it dilates the step back beyond ~40×). */
-export const MAX_TIME_SCALE = 1e6;
-/** The canvas parameters' ceilings (px of wall thickness, the wobble amount): far past covering the whole frame. */
-export const MAX_THICKNESS = 1e6;
-export const MAX_WOBBLE = 100;
+export const FLOAT_CEILING = Number.MAX_VALUE;
 
 const OPEN = (min: number, max = FLOAT_CEILING, integer = false): BounceParamDomain => ({ min, minOpen: true, max, integer });
 const CLOSED = (min: number, max = FLOAT_CEILING, integer = false): BounceParamDomain => ({ min, minOpen: false, max, integer });
 const ANY: BounceParamDomain = { min: -FLOAT_CEILING, minOpen: false, max: FLOAT_CEILING, integer: false };
 
+/**
+ * --- review fix (uncap-all) --- No ceiling on the wall thickness (drawn no wider than any canvas: `visualValue()`), the
+ * wobble, the clock (the step planner dilates a scaled step back: time dilation past 64 sub-steps) or the air drag (a drag
+ * of 1 or more stops the balls each step and never reverses them, like the physics extra's).
+ */
 export const BOUNCE_PARAM_DOMAINS: Readonly<Record<BounceParam, BounceParamDomain>> = {
   bounciness: CLOSED(0),
   speed: OPEN(0),
@@ -130,13 +130,13 @@ export const BOUNCE_PARAM_DOMAINS: Readonly<Record<BounceParam, BounceParamDomai
   gravity: ANY,
   rotation: ANY,
   gap: CLOSED(0, MAX_GAP),
-  thickness: CLOSED(0, MAX_THICKNESS),
-  damping: CLOSED(0, MAX_DAMPING),
+  thickness: CLOSED(0),
+  damping: CLOSED(0),
   trail: CLOSED(0, MAX_TRAIL_POINTS, true),
   hue: ANY,
   pitch: ANY,
-  timeScale: OPEN(0, MAX_TIME_SCALE),
-  wobble: CLOSED(0, MAX_WOBBLE),
+  timeScale: OPEN(0),
+  wobble: CLOSED(0),
   balls: CLOSED(0, FLOAT_CEILING, true),
 };
 
@@ -158,12 +158,10 @@ export const BOUNCE_PARAM_SCALE: Readonly<Record<BounceParam, number>> = {
   balls: 1,
 };
 
-/** Most rules in a list. */
-export const MAX_BOUNCE_RULES = 24;
+/** Most rules in a list (--- review fix (uncap-all) --- was 24: now the rule list's memory-safety ceiling, lib/uncap.ts). */
+export const MAX_BOUNCE_RULES = BOUNCE_RULE_CEILING;
 /** Longest formula, characters. */
 export const MAX_FORMULA_LENGTH = 200;
-/** Largest "every N". */
-export const MAX_EVERY = 1_000_000;
 
 /**
  * Slider comfort ranges (spread into `RANGES` in settings.ts): the "every N" slider and a generic amount range. The number
@@ -629,9 +627,10 @@ export function ruleOperation(value: number, rule: BounceRule | CompiledRule, ct
 
 /**
  * Fits a raw result into the rule's min / max and the parameter's domain: NaN or ±Infinity, or a value below what the
- * parameter can mean (a negative size, a zero speed…) is rejected – `previous` comes back unchanged; above a physical
- * ceiling (a gap wider than the ring, all the speed dragged away, a trail longer than `MAX_TRAIL_POINTS`) or the float
- * ceiling (`FLOAT_CEILING`, ±10¹⁵ – not a gameplay limit) it is clamped; counts and trail lengths are rounded.
+ * parameter can mean (a negative size, a zero speed…) is rejected – `previous` comes back unchanged; above where it ends in
+ * meaning (a gap wider than the ring) or a memory-safety ceiling (a trail longer than `MAX_TRAIL_POINTS`) it is clamped –
+ * --- review fix (uncap-all) --- nothing else is: every other result runs to the float range itself; counts and trail
+ * lengths are rounded.
  */
 export function fitRuleValue(raw: number, previous: number, rule: Pick<BounceRule, "param" | "min" | "max">): number {
   if (!Number.isFinite(raw)) return previous;
@@ -665,7 +664,8 @@ function finiteOrUndefined(value: unknown): number | undefined {
 
 /**
  * A clean rule, or null: an unknown parameter, trigger or operation, a non-finite amount (a formula rule needs none), or a
- * formula that does not compile. `every` becomes a whole number ≥ 1 (1 when missing), min / max stay only when finite
+ * formula that does not compile. `every` becomes a whole number ≥ 1 (1 when missing; --- review fix (uncap-all) --- no
+ * maximum: the old 1,000,000 cap is gone, a rule every 1e9-th bounce simply waits), min / max stay only when finite
  * (swapped when min > max), the scope is "ball" unless it is "all"; a formula is kept only on a "formula" rule.
  */
 export function sanitizeRule(value: unknown): BounceRule | null {
@@ -673,7 +673,7 @@ export function sanitizeRule(value: unknown): BounceRule | null {
   const v = value as Record<string, unknown>;
   if (!isBounceParam(v.param) || !isBounceTrigger(v.trigger) || !isBounceOp(v.op)) return null;
   const everyRaw = Number(v.every);
-  const every = Number.isFinite(everyRaw) && everyRaw >= 1 ? Math.min(MAX_EVERY, Math.floor(everyRaw)) : 1;
+  const every = Number.isFinite(everyRaw) && everyRaw >= 1 ? Math.floor(everyRaw) : 1;
   let amount = typeof v.amount === "number" ? v.amount : Number(v.amount);
   if (!Number.isFinite(amount)) {
     if (v.op !== "formula") return null;
@@ -739,7 +739,7 @@ export function serializeRule(rule: BounceRule): string {
   const fields = [
     rule.param,
     rule.trigger,
-    String(rule.every),
+    encodeRuleNumber(rule.every), // --- review fix (uncap-all) --- (1e21 and up: no "." from "1.5e+21" in the field)
     rule.op,
     rule.op === "formula" ? encodeFormulaText(rule.formula ?? "") : encodeRuleNumber(rule.amount),
     rule.min !== undefined ? encodeRuleNumber(rule.min) : "",

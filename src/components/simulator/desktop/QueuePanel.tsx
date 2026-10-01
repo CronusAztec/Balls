@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import type { DesktopApi, VideoCodec } from "@/lib/desktop/contract";
 import { VIDEO_CODECS } from "@/lib/desktop/contract";
 import { OUTPUT_PRESETS, QUEUE_FPS, QUEUE_RESOLUTIONS, type OutputPreset } from "@/lib/desktop/presets";
-import { expandBatch, queueSummary, type BatchClipSource, type QueueJob } from "@/lib/desktop/renderQueue";
+import { MAX_QUEUE_JOBS, expandBatch, queueSummary, type BatchClipSource, type QueueJob } from "@/lib/desktop/renderQueue";
+import NumberField from "../NumberField"; // --- review fix (uncap-all) ---
 import { planSource, seedSource } from "@/lib/desktop/queueSources";
 import { linkJobSettings, parseBatchList, randomSeeds, resolveLinkSettings } from "@/lib/recording/batch";
 import { loadBotState } from "@/lib/bot/store";
@@ -22,6 +23,13 @@ import { Bar, Card, Chip, dangerBtn, errorText, formatBytes, formatSeconds, ghos
  */
 
 type SourceKind = "seeds" | "random" | "bot";
+
+/**
+ * --- review fix (uncap-all) --- The random-seed count: the shared number field, from 1 with no upper limit of its own (it
+ * was 100); the queue itself holds at most `MAX_QUEUE_JOBS` jobs (its memory-safety ceiling: the jobs live in memory and in
+ * the journal), so at most that many seeds are drawn and a count past it says so.
+ */
+const RANDOM_COUNT_RANGE = { min: 1, max: 100, step: 1 } as const;
 
 export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { bridge: DesktopApi; queue: RenderQueueApi; page: DesktopPageHooks; folder: string; onFolder: (folder: string) => void }) {
   const t = useTranslations("Desktop");
@@ -48,7 +56,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
         if (!plan || plan.clips.length === 0) throw new Error(t("queueNoBotPlan"));
         clips.push(...plan.clips.map(planSource));
       } else if (source === "random") {
-        for (const seed of randomSeeds(count)) clips.push(seedSource(page.settings, seed));
+        for (const seed of randomSeeds(Math.min(count, MAX_QUEUE_JOBS))) clips.push(seedSource(page.settings, seed));
       } else {
         if (parsed.entries.length === 0) clips.push(seedSource(page.settings, page.pageSeed()));
         for (const entry of parsed.entries) {
@@ -92,10 +100,13 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
             </>
           )}
           {source === "random" && (
-            <label className="flex items-center gap-2 text-xs text-ink-2">
-              {t("queueRandomCount")}
-              <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))))} className={`${inputClass} w-20`} />
-            </label>
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 text-xs text-ink-2">
+                {t("queueRandomCount")}
+                <NumberField value={count} onCommit={setCount} label={t("queueRandomCount")} range={RANDOM_COUNT_RANGE} rules={{ min: RANDOM_COUNT_RANGE.min, integer: true }} settingKey="queueRandomCount" testId="queue-random-count" />
+              </label>
+              {count > MAX_QUEUE_JOBS && <p className="text-xs text-warn">{t("queueRandomCeiling", { max: MAX_QUEUE_JOBS })}</p>}
+            </div>
           )}
           {source === "bot" && <p className="text-xs text-ink-3">{t("queueBotHint")}</p>}
           <div className="space-y-2">

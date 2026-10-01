@@ -12,7 +12,10 @@ import {
   countGatePitch,
   countTolerance,
   doorOpenAt,
+  formatGateMix,
   gateFactor,
+  gateMixWeights,
+  gateOdds,
   generateBoardLayout,
   multipliersSettingFields,
   multipliersSettingsOf,
@@ -358,14 +361,16 @@ describe("multipliers board settings", () => {
     for (const key of ["mprw", "mpgm", "mpsb", "mpmb", "mptg"]) expect(params.has(key)).toBe(false);
     expect(GATE_KINDS).toHaveLength(6);
     expect(parseGateMix("421111")).toEqual({ count: 4, speed: 2, size: 1, damage: 1, reverse: 1, release: 1 });
+    expect(parseGateMix(DEFAULT_MULTIPLIERS_SETTINGS.gateMix)).toEqual({ count: 4, speed: 2, size: 1, damage: 1, reverse: 1, release: 1 });
+    expect(DEFAULT_MULTIPLIERS_SETTINGS.gateMix).toBe("4,2,1,1,1,1");
   });
 
   it("round-trip through the URL keys", () => {
-    const s = { ...defaultSettings("multipliers"), ...multipliersSettingFields({ rows: 14, gateMix: "900303", startBalls: 4, maxBalls: 1200, target: 250 }) };
+    const s = { ...defaultSettings("multipliers"), ...multipliersSettingFields({ rows: 14, gateMix: "9,0,0,3,0,3", startBalls: 4, maxBalls: 1200, target: 250 }) };
     const params = settingsToSearchParams(s);
     expect(params.get("mode")).toBe("multipliers");
     expect(params.get("mprw")).toBe("14");
-    expect(params.get("mpgm")).toBe("900303");
+    expect(params.get("mpgm")).toBe("9,0,0,3,0,3");
     expect(params.get("mpsb")).toBe("4");
     expect(params.get("mpmb")).toBe("1200");
     expect(params.get("mptg")).toBe("250");
@@ -379,13 +384,74 @@ describe("multipliers board settings", () => {
     expect(s.mpMaxBalls).toBe(MULTIPLIERS_RANGES.mpMaxBalls.min);
     expect(s.mpTarget).toBe(0);
     expect(s.mpGateMix).toBe(DEFAULT_MULTIPLIERS_SETTINGS.gateMix);
-    expect(sanitizeGateMix("12")).toBe("120000");
-    expect(sanitizeGateMix("1234567")).toBe("123456");
-    expect(resolveMultipliersSettings({ rows: 7.6, gateMix: undefined })).toMatchObject({ rows: 8, gateMix: "421111" });
+    // --- review fix (uncap-all) --- the old six-digit form still reads (digit by digit), stored comma-separated
+    expect(sanitizeGateMix("12")).toBe("1,2,0,0,0,0");
+    expect(sanitizeGateMix("1234567")).toBe("1,2,3,4,5,6");
+    expect(resolveMultipliersSettings({ rows: 7.6, gateMix: undefined })).toMatchObject({ rows: 8, gateMix: "4,2,1,1,1,1" });
     const p = presetToSettings({ mode: "multipliers", mpRows: 3, mpGateMix: "abc", mpMaxBalls: 1e9 });
     expect(p.mpRows).toBe(4);
-    expect(p.mpGateMix).toBe("421111");
+    expect(p.mpGateMix).toBe("4,2,1,1,1,1");
     expect(p.mpMaxBalls).toBe(1e9); // --- uncap-all --- (kept; the board holds at most its memory-safety ceiling)
+  });
+
+  // --- review fix (uncap-all) --- every weight is a number ≥ 0 with no maximum, stored comma-separated (mpgm=5,3,2,1,0,1)
+  it("take any weight ≥ 0 – no 0–9 cap – comma-separated, and still read the old six digits", () => {
+    expect(sanitizeGateMix("5,3,2,1,0,1")).toBe("5,3,2,1,0,1");
+    expect(sanitizeGateMix(" 40, 0.5 ,-3,abc,,1e6")).toBe("40,0.5,0,0,0,1000000");
+    expect(sanitizeGateMix("1,2,3,4,5,6,7")).toBe("1,2,3,4,5,6");
+    expect(sanitizeGateMix("7,1")).toBe("7,1,0,0,0,0");
+    expect(sanitizeGateMix("0,0,0,0,0,0")).toBe(DEFAULT_MULTIPLIERS_SETTINGS.gateMix);
+    expect(sanitizeGateMix("Infinity,NaN,-1")).toBe(DEFAULT_MULTIPLIERS_SETTINGS.gateMix);
+    expect(sanitizeGateMix(12)).toBe(DEFAULT_MULTIPLIERS_SETTINGS.gateMix);
+    expect(gateMixWeights("421111")).toEqual([4, 2, 1, 1, 1, 1]);
+    expect(gateMixWeights("0,0")).toBeNull();
+    expect(formatGateMix([1e21, 0.1, 0, 0, 0, 2])).toBe("1e+21,0.1,0,0,0,2");
+    expect(gateMixWeights(formatGateMix([1e21, 0.1, 0, 0, 0, 2]))).toEqual([1e21, 0.1, 0, 0, 0, 2]);
+    // A weight past the old 0–9 goes into the link exactly and comes back; the legacy link reads as the same mix.
+    for (const gateMix of ["40,0.5,0,1000000,0,3", "12,0,0,0,0,1", "1e+300,1,0,0,0,0"]) {
+      const s = { ...defaultSettings("multipliers"), ...multipliersSettingFields({ ...DEFAULT_MULTIPLIERS_SETTINGS, gateMix }) };
+      const params = settingsToSearchParams(s);
+      expect(params.get("mpgm")).toBe(gateMix);
+      expect(settingsFromSearchParams(params).mpGateMix).toBe(gateMix);
+    }
+    expect(settingsFromSearchParams(new URLSearchParams("mode=multipliers&mpgm=900303")).mpGateMix).toBe("9,0,0,3,0,3");
+    expect(settingsFromSearchParams(new URLSearchParams("mode=multipliers&mpgm=5,3,2,1,0,1")).mpGateMix).toBe("5,3,2,1,0,1");
+    expect(presetToSettings({ mode: "multipliers", mpGateMix: "421111" }).mpGateMix).toBe("4,2,1,1,1,1");
+    expect(settingsToSearchParams(presetToSettings({ mode: "multipliers", mpGateMix: "421111" })).has("mpgm")).toBe(false);
+  });
+
+  it("draw an old six-digit mix and its comma-separated form into the same board (old links replay)", () => {
+    const seeded = (seed: number) => {
+      let s = seed;
+      return () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+    };
+    for (const [legacy, mix] of [["900303", "9,0,0,3,0,3"], ["421111", "4,2,1,1,1,1"], ["211100", "2,1,1,1,0,0"]]) {
+      const a = generateBoardLayout(resolveMultipliersSettings({ rows: 20, gateMix: legacy }), seeded(11));
+      const b = generateBoardLayout(resolveMultipliersSettings({ rows: 20, gateMix: mix }), seeded(11));
+      expect(b).toEqual(a);
+    }
+  });
+
+  it("weigh gates past 9 as typed, and huge weights without overflowing the draw", () => {
+    const seeded = (seed: number) => {
+      let s = seed;
+      return () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+    };
+    const kinds = (gateMix: string, seed = 5) => generateBoardLayout(resolveMultipliersSettings({ rows: 200, gateMix }), seeded(seed)).rows.flatMap((r) => r.gates.map((g) => g.kind));
+    // 1,000 to 1: almost every gate counts (the old cap made 9 to 1 the most).
+    const heavy = kinds("1000,1,0,0,0,0");
+    const share = heavy.filter((k) => k === "count").length / heavy.length;
+    expect(share).toBeGreaterThan(0.99);
+    const capped = kinds("9,1,0,0,0,0");
+    expect(capped.filter((k) => k === "count").length / capped.length).toBeLessThan(0.97);
+    // Two weights near the largest number sum to Infinity: they are weighed relative to the largest, the same odds as 1 to 1.
+    expect(gateOdds(parseGateMix("1e308,1e308,0,0,0,0"))).toEqual({ count: 1, speed: 1, size: 0, damage: 0, reverse: 0, release: 0 });
+    expect(gateOdds(parseGateMix("5,3,2,1,0,1"))).toEqual(parseGateMix("5,3,2,1,0,1"));
+    const huge = kinds("1e308,1e308,0,0,0,0");
+    expect(huge).toEqual(kinds("1,1,0,0,0,0"));
+    expect(new Set(huge)).toEqual(new Set(["count", "speed"]));
+    // Decimal weights work as well (0.5 to 0.5 is 1 to 1).
+    expect(kinds("0.5,0.5,0,0,0,0")).toEqual(kinds("1,1,0,0,0,0"));
   });
 });
 

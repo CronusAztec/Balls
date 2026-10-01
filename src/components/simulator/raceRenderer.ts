@@ -192,8 +192,8 @@ export class RaceLayer {
   private readonly glowSprites = new Map<string, HTMLCanvasElement>();
   private readonly fitCache = new Map<string, string>();
   private readonly widthCache = new Map<string, number>();
-  /** Where each racer's standings row is drawn (eased toward its place, so overtakes slide). */
-  private readonly rowY = new Float64Array(16).fill(NaN);
+  /** Where each racer's standings row is drawn (eased toward its place, so overtakes slide); --- review fix (uncap-all) --- a slot per racer of the grid. */
+  private rowY = new Float64Array(16).fill(NaN);
   private lastRun = -1;
   private readonly cupOrder: number[] = [];
   private cupTable: RaceCup | null = null;
@@ -650,6 +650,7 @@ export class RaceLayer {
     if (!track) return;
     if (view.runSerial !== this.lastRun) {
       this.lastRun = view.runSerial;
+      if (this.rowY.length < view.racers) this.rowY = new Float64Array(view.racers);
       this.rowY.fill(NaN);
     }
     const labels = race?.labels ?? DEFAULT_RACE_LABELS;
@@ -670,11 +671,12 @@ export class RaceLayer {
     const track = view.track!;
     const f = track.field;
     const S = f.size;
-    const n = view.racers;
+    // --- review fix (uncap-all) --- a grid past the slider lists the leading racers that fit (rows of at least 9 px)
     const x0 = f.left + 0.01 * S;
     const w = (TRACK_X0 - 0.022) * S;
     const y0 = f.top + 0.012 * S + insetTop;
     const avail = f.bottom - 0.02 * S - y0;
+    const n = Math.max(1, Math.min(view.racers, Math.floor(avail / 9 - 1.3)));
     const rh = Math.max(9, Math.min(0.05 * S, avail / (n + 1.3)));
     const fs = 0.6 * rh;
     const header = 1.2 * rh;

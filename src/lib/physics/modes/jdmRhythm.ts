@@ -62,9 +62,13 @@ export function clampNumber(value: unknown, range: { min: number; max: number },
   return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
-/** Rounds to a slider step (so URL and preset values land on the slider). */
+/**
+ * Rounds to a slider step (so URL and preset values land on the slider). --- review fix (uncap-all) --- A value too big for
+ * its steps to mean anything (2^53 of them) is kept whole: dividing it by a step below 1 could overflow the float.
+ */
 export function toStep(value: number, step: number): number {
-  return step > 0 ? Number((Math.round(value / step) * step).toFixed(6)) : value;
+  if (!(step > 0) || !(Math.abs(value / step) < 2 ** 53)) return value;
+  return Number((Math.round(value / step) * step).toFixed(6));
 }
 
 /** Up to three decimals, trailing zeros dropped (like settings.ts), so slider values survive the URL. */

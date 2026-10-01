@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import en from "../messages/en.json";
 import es from "../messages/es.json";
 import pl from "../messages/pl.json";
+import { CAPTION_CEILING } from "@/lib/uncap";
 import {
   CAPTION_ANSWER_HOLD_MS,
   CAPTION_ENTER_SEC,
@@ -114,13 +115,18 @@ describe("caption settings", () => {
     expect(serializeCaptions([defaultCaption("question", { text: "Q", answer: "A" })])).toBe("q*t*0*0*p*1.3*ffffff*000000*Q*A");
   });
 
-  it("reads bad links safely: unknown types skipped, bad fields fall back, numbers clamped, at most eight", () => {
+  it("reads bad links safely: unknown types skipped, bad fields fall back, numbers kept from their minimum up, at most the captions' memory-safety ceiling", () => {
     const parsed = parseCaptions("zz*t*0*0*p,cd*x*-5*999*?*9*nothex*alsobad,q,tx*c*2.3*abc*s*0.74*ABC*def*  Hi  there  ");
     expect(parsed).toHaveLength(3);
     expect(parsed[0]).toEqual({ ...defaultCaption("countdown"), start: 0, end: 999, style: { size: 9, color: "#ffffff", background: "#000000" } }); // --- uncap-all --- (no maximum)
     expect(parsed[1]).toEqual(defaultCaption("question"));
     expect(parsed[2]).toMatchObject({ type: "text", position: "center", start: 2.5, end: 0, animation: "slide", text: "Hi there", style: { size: 0.7, color: "#aabbcc", background: "#ddeeff" } });
-    expect(parseCaptions(Array.from({ length: 12 }, () => "tx*b*0*0*f*1*ffffff**x").join(","))).toHaveLength(MAX_CAPTIONS);
+    // --- review fix (uncap-all) --- past the old 8: up to CAPTION_CEILING (a thousand)
+    expect(MAX_CAPTIONS).toBe(CAPTION_CEILING);
+    expect(parseCaptions(Array.from({ length: 12 }, () => "tx*b*0*0*f*1*ffffff**x").join(","))).toHaveLength(12);
+    expect(parseCaptions(Array.from({ length: CAPTION_CEILING + 20 }, () => "tx*b*0*0*f*1*ffffff**x").join(","))).toHaveLength(CAPTION_CEILING);
+    // A huge time or size is kept whole (never Infinity).
+    expect(parseCaptions("tx*b*1e308*0*f*1e308*ffffff**x")[0]).toMatchObject({ start: 1e308, style: { size: 1e308 } });
     expect(parseCaptions("")).toEqual([]);
     expect(parseCaptions(null)).toEqual([]);
   });

@@ -13,7 +13,7 @@
  * and every run with the switch off – goes to `findSimulation()` unchanged.
  */
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { createEngineForSettings, findSimulation, runNeverFinishes, type FinderProgress, type FinderRequest, type FinderResult } from "./finder";
+import { createEngineForSettings, findSimulation, runNeverFinishes, settleUnfound, type FinderProgress, type FinderRequest, type FinderResult } from "./finder";
 
 /** Wall-clock ms the search simulates per animation frame. */
 export const FINDER_FRAME_BUDGET_MS = 12;
@@ -82,8 +82,12 @@ export function findSimulationBudgeted(
       duration: Number.isFinite(durationMs) ? durationMs / 1000 : 0,
       seedsTested: tested,
       ...(limited ? { limitedSeeds: maxSeeds } : {}),
-      ...(!found && tested > 0 && unfinished === tested ? { neverEnded: true } : {}), // --- uncap-all --- (a run that never ends says so)
     });
+    /**
+     * --- uncap-all --- the end of a search that found nothing (a run that never ends says so – --- review fix (uncap-all) ---
+     * once its best seed, followed far past the horizon, still has not ended)
+     */
+    const settle = () => settleUnfound(result(false, best.seed, best.durationMs), tested > 0 && unfinished === tested, request, signal, FINDER_FRAME_BUDGET_MS, now, schedule).then(resolve);
     const finishSeed = (durationMs: number): boolean => {
       tested++;
       if (durationMs >= maxSimMs) unfinished++; // --- uncap-all ---
@@ -129,7 +133,7 @@ export function findSimulationBudgeted(
         }
       }
       onProgress({ seedsTested: tested, maxSeeds, currentSeed: engine ? seed : seedAt(Math.max(0, tested - 1)), bestDuration: Number.isFinite(best.durationMs) ? best.durationMs / 1000 : 0, bestSeed: best.seed });
-      if (!engine && tested >= maxSeeds) resolve(result(false, best.seed, best.durationMs));
+      if (!engine && tested >= maxSeeds) settle();
       else schedule(run);
     };
     schedule(run);

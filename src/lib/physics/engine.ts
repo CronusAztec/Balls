@@ -2147,10 +2147,27 @@ export class PhysicsEngine {
       // --- uncap-all --- engaged by the config or by the run: rebounds a Bounciness grew past the old Bouncier's ×3 are
       // planned like every extreme run (sub-steps up to 64, time dilation beyond – the run slows down, never clamps)
       const limitsOn = this.limits.engage(this.bouncierEnabled && this.bounceSpeedMultiplier > BOUNCIER_CLASSIC_MAX);
+      // --- review fix (uncap-all) --- the obstacle editor caps no kick and no fling any more: from its first one past what it
+      // ever gave before (`ObstacleField.pastClassicLimit`; a run that never gets there replays exactly as before) every step
+      // of the run is planned, its next kick and the spinners' surface speed included – sub-steps up to 64, time dilation beyond
+      const editorFast = this.editorObstacles.pastClassicLimit && this.editorObstaclesLive();
+      // --- review fix (uncap-all) --- a mode that moves its balls itself past what it used to clamp them to reports how fast
+      // they may get this step (`GameMode.stepSpeedBound()`): the step is planned for it instead of the speed being clamped
+      const modeSpeedBound = this.currentMode?.stepSpeedBound?.(this.ctx, (this.FIXED_STEP_MS * clock) / 1000) ?? 0;
       beginPairStep(limitsOn ? PAIR_STEP_BUDGET : Infinity); // --- uncap-all --- (an extreme step's pair checks are budgeted; a normal one never meets it)
       if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
       if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
-      const plan = multActive || limitsOn ? mult.planStep(this.balls, (this.FIXED_STEP_MS * clock) / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
+      const plan =
+        multActive || limitsOn || editorFast || modeSpeedBound > 0
+          ? mult.planStep(
+              this.balls,
+              (this.FIXED_STEP_MS * clock) / 1000,
+              this.gravityAccel(audioIntensity),
+              modeSpeedBound > 0 ? Math.max(this.reboundSpeedBound(), modeSpeedBound) : this.reboundSpeedBound(),
+              editorFast ? this.editorObstacles.kickFactor(this.extras.wallBounciness) : 1,
+              editorFast ? 2 * this.editorObstacles.flingSpeed : 0,
+            )
+          : null;
       if (limitsOn && plan) this.limits.boundPlan(plan, this.balls.length, this.circularWalls.length); // --- unlimited --- (thousands of fast balls, a thousand rings: a bounded step)
       const stepMs = (plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS) * clock;
       if (plan && clock !== 1) mult.getView().dilation = plan.dilation * clock; // --- bounce-math --- (SLOW-MO only while the world really runs slow)

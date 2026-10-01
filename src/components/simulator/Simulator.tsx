@@ -88,6 +88,7 @@ import { useProjectFiles, type MediaUploadOptions, type ProjectUploads } from ".
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { raceCupStore } from "@/lib/raceCup";
 import { raceRoster } from "@/lib/raceRoster";
+import { resolveRaceTrackSettings } from "@/lib/physics/raceTrack"; // --- review fix (uncap-all) ---
 import { raceResultOf, runKey, type CanvasRaceOptions } from "./raceRenderer";
 import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSection";
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
@@ -2686,7 +2687,7 @@ export default function Simulator() {
   const raceRender = useMemo<CanvasRaceOptions | null>(() => {
     if (s.mode !== "race") return null;
     const ct = (key: string) => t(`Controls.${key}`);
-    const roster = raceRoster(s.teams, defaultRacerNames(ct));
+    const roster = raceRoster(s.teams, defaultRacerNames(ct), resolveRaceTrackSettings({ racers: s.rcRacers }).racers); // --- review fix (uncap-all) --- (a slot per racer of the grid)
     const fill = (key: string, vars: Record<string, string | number>) => {
       let text = t(key);
       for (const [k, v] of Object.entries(vars)) text = text.replace(`[${k}]`, () => String(v)); // a name may hold "$&"
@@ -2720,7 +2721,7 @@ export default function Simulator() {
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.mode, s.teams, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
+  }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
   const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)

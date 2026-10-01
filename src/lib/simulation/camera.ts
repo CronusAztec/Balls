@@ -235,9 +235,12 @@ export function shakeEnvelope(ageMs: number): number {
   return k * k;
 }
 
-/** Peak shake offset in screen px for a `screenShake` setting on a canvas whose shorter side is `minDim`. */
+/**
+ * Peak shake offset in screen px for a `screenShake` setting on a canvas whose shorter side is `minDim` (--- review fix
+ * (uncap-all) --- from 0, no maximum: a Screen Shake of 10 shakes ten times as hard as the slider's end).
+ */
 export function shakeAmplitude(screenShake: number, minDim: number): number {
-  const s = Number.isFinite(screenShake) ? Math.max(0, Math.min(1, screenShake)) : 0;
+  const s = Number.isFinite(screenShake) ? Math.max(0, screenShake) : 0;
   return s * MAX_SHAKE_FRACTION * Math.max(0, minDim);
 }
 
@@ -278,11 +281,12 @@ function rampIn(windowMs: number) {
 
 /**
  * Simulation-time factor `elapsedMs` into a slow-motion window of `windowMs` (real time): eases from 1
- * down to `factor`, holds it, and eases back to 1 at the end of the window; 1 outside the window.
+ * down to `factor`, holds it, and eases back to 1 at the end of the window; 1 outside the window. (--- review fix
+ * (uncap-all) --- from 0.05, no maximum: a factor past 1 turns the near miss into a burst of fast motion.)
  */
 export function slowMoTimeScale(elapsedMs: number, windowMs: number, factor: number): number {
   if (!(elapsedMs >= 0) || !(windowMs > 0) || elapsedMs >= windowMs) return 1;
-  const f = Number.isFinite(factor) ? Math.max(0.05, Math.min(1, factor)) : 1;
+  const f = Number.isFinite(factor) ? Math.max(0.05, factor) : 1;
   const inMs = rampIn(windowMs);
   const outMs = Math.min(SLOW_MO_RAMP_OUT_MS, windowMs / 3);
   let env = 1;

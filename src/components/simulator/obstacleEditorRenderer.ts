@@ -1,7 +1,6 @@
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import {
-  OBSTACLE_LIMITS,
   clientToCanvas,
   invertAffinePoint,
   pickObstacle,
@@ -263,8 +262,8 @@ export class ObstacleEditorLayer {
     const drag = this.drag;
     if (drag && drag.pointerId === e.pointerId && this.draft && drag.index < this.draft.length) {
       worldToArena(field.frame, this.pt.x + drag.offX, this.pt.y + drag.offY, this.rel);
-      const { min, max } = OBSTACLE_LIMITS.position;
-      const moved = sanitizeObstacle({ ...this.draft[drag.index], x: Math.max(min, Math.min(max, this.rel.x)), y: Math.max(min, Math.min(max, this.rel.y)) });
+      // --- review fix (uncap-all) --- wherever the pointer takes it (a position has no bound; the panel's x / y fields reach it too)
+      const moved = sanitizeObstacle({ ...this.draft[drag.index], x: this.rel.x, y: this.rel.y });
       if (!moved) return;
       const next = this.draft.slice();
       next[drag.index] = moved;

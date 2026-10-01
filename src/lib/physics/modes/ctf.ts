@@ -11,6 +11,7 @@ import {
   arenaWallNote,
   boxWallPass,
   buildArenaField,
+  maxSquareHalf,
   clashNote,
   createArenaView,
   ctfTimeLimitSec,
@@ -154,10 +155,23 @@ export function ctfBases(field: ArenaField): ArenaBase[] {
   ];
 }
 
-/** Half-size of the squares for a field and Ball Size. */
+/**
+ * Half-size of the squares for a field and Ball Size (from 0.5× the default; --- review fix (uncap-all) --- no maximum) as
+ * far as the field holds them: past `ctfSquaresFit()` they stop at the most that still moves (ARENA FULL).
+ */
 export function ctfSquareHalf(field: ArenaField, ballRadius: number): number {
-  const scale = Math.max(0.5, Math.min(2, (ballRadius || 8) / 8));
-  return Math.max(4, CTF_SQUARE * Math.min(field.halfW, field.halfH) * scale);
+  return Math.max(4, Math.min(ctfSquareWish(field, ballRadius), maxSquareHalf(field)));
+}
+
+/** --- review fix (uncap-all) --- The half-size the Ball Size asks of the squares, before the field's room. */
+function ctfSquareWish(field: ArenaField, ballRadius: number): number {
+  const scale = Math.max(0.5, (ballRadius || 8) / 8);
+  return CTF_SQUARE * Math.min(field.halfW, field.halfH) * scale;
+}
+
+/** --- review fix (uncap-all) --- Whether the squares the Ball Size asks for fit the field (else they are cut to fit: ARENA FULL). */
+export function ctfSquaresFit(field: ArenaField, ballRadius: number): boolean {
+  return ctfSquareWish(field, ballRadius) <= maxSquareHalf(field);
 }
 
 /* ------------------------------------------------------------------ the mode */
@@ -221,6 +235,7 @@ export class CtfMode implements GameMode {
     this.cooldownUntil = new Float64Array(n).fill(-Infinity);
     this.byIndex = new Array(n).fill(null);
     const half = ctfSquareHalf(field, this.lastBallRadius);
+    if (!ctfSquaresFit(field, this.lastBallRadius)) ctx.noteArenaFull?.(); // --- review fix (uncap-all) --- (cut to fit the field)
     const lane = (2 * field.halfH) / (per + 1);
     for (let k = 0; k < n; k++) {
       const team = k < per ? 0 : 1;

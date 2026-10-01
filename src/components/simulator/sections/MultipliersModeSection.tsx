@@ -1,10 +1,12 @@
 "use client";
 
 import Tooltip from "../Tooltip";
+import NumberField from "../NumberField"; // --- review fix (uncap-all) ---
 import { Searchable, Slider, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { MULTIPLIER_COLORS } from "@/lib/physics/multipliers";
-import { GATE_KINDS, sanitizeGateMix, type GateKind } from "@/lib/physics/modes/multipliers";
+import { GATE_KINDS, GATE_WEIGHT_RANGE, DEFAULT_GATE_MIX, formatGateMix, gateMixWeights, sanitizeGateMix, type GateKind } from "@/lib/physics/modes/multipliers";
+import { formatCompact } from "@/lib/uncap";
 
 export interface MultipliersModeSectionProps {
   t: Translate;
@@ -33,10 +35,13 @@ const GATE_OPTIONS: Record<GateKind, { labelKey: string; color: string }> = {
  * lib/physics/modes/multipliers.ts) and restarts the board when one of them changes (the target only matters to the finder).
  */
 export default function MultipliersModeSection({ t, search, matches, settings: s, update }: MultipliersModeSectionProps) {
-  const mix = sanitizeGateMix(s.mpGateMix);
+  // --- review fix (uncap-all) --- every weight is a number ≥ 0 with no maximum: the slider covers 0–9 (its comfort range,
+  // pinned at its end beyond it), the number field next to it takes any weight (0.5, 40, 1e6). The mix is stored
+  // comma-separated (URL mpgm=5,3,2,1,0,1); a mix without any weight falls back to the default, as before.
+  const weights = gateMixWeights(s.mpGateMix) ?? (gateMixWeights(DEFAULT_GATE_MIX) as number[]);
   const setWeight = (index: number, weight: number) => {
-    const next = mix.slice(0, index) + String(Math.max(0, Math.min(9, Math.round(weight)))) + mix.slice(index + 1);
-    update({ mpGateMix: sanitizeGateMix(next) });
+    const next = weights.map((w, i) => (i === index ? Math.max(0, weight) : w));
+    update({ mpGateMix: sanitizeGateMix(formatGateMix(next)) });
   };
   return (
     <div className="space-y-3 pt-2" data-testid="multipliers-board">
@@ -57,23 +62,27 @@ export default function MultipliersModeSection({ t, search, matches, settings: s
           </label>
           <div className="grid grid-cols-1 gap-y-1.5">
             {GATE_KINDS.map((kind, i) => {
-              const weight = Number(mix[i]);
+              const weight = weights[i];
+              const label = t(GATE_OPTIONS[kind].labelKey);
+              const beyond = weight > GATE_WEIGHT_RANGE.max;
               return (
-                <label key={kind} className="flex items-center gap-2 text-xs font-bold" style={{ color: GATE_OPTIONS[kind].color }}>
-                  <span className="w-20 shrink-0 truncate">{t(GATE_OPTIONS[kind].labelKey)}</span>
+                <div key={kind} className="flex items-center gap-2 text-xs font-bold" style={{ color: GATE_OPTIONS[kind].color }} data-gate-weight={kind}>
+                  <span className="w-20 shrink-0 truncate" title={beyond ? formatCompact(weight) : undefined}>
+                    {label}
+                  </span>
                   <input
                     type="range"
-                    min={0}
-                    max={9}
-                    step={1}
-                    value={weight}
+                    min={GATE_WEIGHT_RANGE.min}
+                    max={GATE_WEIGHT_RANGE.max}
+                    step={GATE_WEIGHT_RANGE.step}
+                    value={weight /* (past 9 the track pins at its end, like every slider's; the field shows the weight) */}
                     onChange={(e) => setWeight(i, Number(e.target.value))}
-                    aria-label={t(GATE_OPTIONS[kind].labelKey)}
-                    className="flex-1 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer"
-                    style={sliderStyle(weight, 0, 9)}
+                    aria-label={label}
+                    className={`flex-1 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer ${beyond ? "ring-1 ring-warn/40" : ""}`}
+                    style={sliderStyle(weight, GATE_WEIGHT_RANGE.min, GATE_WEIGHT_RANGE.max)}
                   />
-                  <span className="w-3 shrink-0 text-right text-ink-2 font-mono">{weight}</span>
-                </label>
+                  <NumberField value={weight} onCommit={(v) => setWeight(i, v)} label={label} range={GATE_WEIGHT_RANGE} rules={{ min: 0 }} settingKey={`mpGateMix:${kind}`} className="w-16 font-normal" />
+                </div>
               );
             })}
           </div>

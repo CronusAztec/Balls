@@ -161,6 +161,10 @@ describe("variants", () => {
     expect(snapToRange(0.123456, { min: 0, max: 0.05, step: 0.001 })).toBe(0.123); // --- uncap-all --- (on the step, never a maximum)
     expect(snapToRange(0.0234, { min: 0, max: 0.05, step: 0.001 })).toBe(0.023);
     expect(snapToRange(Number.NaN, { min: 4, max: 30, step: 1 })).toBe(4);
+    // --- review fix (uncap-all) --- a signed setting (the wind) sweeps below its slider's start too, as its field takes it
+    expect(sweepValues("windX", -2, 2, 3)).toEqual([-2, 0, 2]);
+    expect(parseBatchDefinition({ variant: "sweep", sweepKey: "windX", sweepFrom: -3, sweepTo: 7 })).toMatchObject({ sweepFrom: -3, sweepTo: 7 });
+    expect(snapToRange(-3.14159, { min: -0.5, max: 0.5, step: 0.01 }, true)).toBe(-3.14);
   });
 
   it("only sweeps numeric settings that have a range", () => {

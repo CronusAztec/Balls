@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, Toggle, offBtn, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
-import { BATCH_COUNT_RANGE, MAX_BATCH_JOBS, SWEEP_KEYS, SWEEP_STEPS_LIMIT, formatElapsed, isSweepKey, sweepDefaults, sweepRange, sweepValues, type BatchSource, type BatchVariantKind } from "@/lib/recording/batch";
+import { BATCH_COUNT_RANGE, MAX_BATCH_JOBS, SWEEP_KEYS, SWEEP_STEPS_LIMIT, SWEEP_STEPS_RANGE, formatElapsed, isSweepKey, sweepDefaults, sweepRange, sweepValues, type BatchSource, type BatchVariantKind } from "@/lib/recording/batch";
 import { MODE_CARD_ORDER } from "@/lib/modes";
 import type { ModeId } from "@/lib/physics/types";
 import type { BatchJobState, BatchPanelProps } from "../useBatchRender";
 import { IconDownload } from "@/components/ui/icons"; // --- site-redesign ---
-import UncapNumberField from "../NumberField"; // --- uncap-all --- (this section has its own NumberField for the sweep ends)
+import UncapNumberField, { type NumberFieldProps } from "../NumberField"; // --- uncap-all --- (--- review fix (uncap-all) --- the sweep's fields too)
+import { rulesForRange } from "../unlimitedSlider";
 
 export type { BatchPanelProps } from "../useBatchRender";
 
@@ -31,28 +31,15 @@ function modeLabel(t: Translate, mode: ModeId): string {
   return t.has(key) ? t(key) : mode;
 }
 
-/** A number box that lets the user type freely (a draft while focused) and hands on every value that parses. */
-function NumberField({ label, value, min, max, step, onCommit, disabled }: { label: string; value: number; min: number; max: number; step: number; onCommit: (v: number) => void; disabled?: boolean }) {
-  const [draft, setDraft] = useState<string | null>(null);
+/**
+ * --- review fix (uncap-all) --- A labelled number field of the sweep: the shared field (any value past the slider; ↑/↓ step
+ * on beyond it instead of stopping at the slider's end, as the browser's own number input did).
+ */
+function SweepField({ label, ...field }: { label: string } & Omit<NumberFieldProps, "label" | "className">) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-ink-2">
+    <label className="flex min-w-0 flex-col gap-1 text-xs text-ink-2">
       {label}
-      <input
-        type="number"
-        inputMode="decimal"
-        min={min}
-        max={max}
-        step={step}
-        value={draft ?? String(value)}
-        disabled={disabled}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          const n = Number(e.target.value);
-          if (e.target.value.trim() !== "" && Number.isFinite(n)) onCommit(n);
-        }}
-        onBlur={() => setDraft(null)}
-        className="w-full px-2 py-1.5 bg-surface-2 text-ink text-sm rounded-lg border border-line-strong focus:border-accent-dim tabular-nums"
-      />
+      <UncapNumberField {...field} label={label} className="w-full" />
     </label>
   );
 }
@@ -238,10 +225,10 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                   </select>
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {/* --- uncap-all --- the sweep's ends past the slider (no max), its steps up to the batch's clip ceiling */}
-                  <NumberField key={`from-${d.sweepKey}`} label={b("sweepFrom")} value={d.sweepFrom} min={sweep.min} max={Number.MAX_VALUE} step={sweep.step} onCommit={(v) => set({ sweepFrom: v })} />
-                  <NumberField key={`to-${d.sweepKey}`} label={b("sweepTo")} value={d.sweepTo} min={sweep.min} max={Number.MAX_VALUE} step={sweep.step} onCommit={(v) => set({ sweepTo: v })} />
-                  <NumberField label={b("sweepSteps")} value={d.sweepSteps} min={SWEEP_STEPS_LIMIT.min} max={SWEEP_STEPS_LIMIT.max} step={1} onCommit={(v) => set({ sweepSteps: Math.max(SWEEP_STEPS_LIMIT.min, Math.min(SWEEP_STEPS_LIMIT.max, Math.round(v))) })} />
+                  {/* --- uncap-all --- the sweep's ends past the slider (no max; a signed setting below its slider too), its steps up to the batch's clip ceiling */}
+                  <SweepField key={`from-${d.sweepKey}`} label={b("sweepFrom")} value={d.sweepFrom} range={sweep} rules={rulesForRange(sweep, d.sweepKey)} settingKey="batchSweepFrom" onCommit={(v) => set({ sweepFrom: v })} />
+                  <SweepField key={`to-${d.sweepKey}`} label={b("sweepTo")} value={d.sweepTo} range={sweep} rules={rulesForRange(sweep, d.sweepKey)} settingKey="batchSweepTo" onCommit={(v) => set({ sweepTo: v })} />
+                  <SweepField label={b("sweepSteps")} value={d.sweepSteps} range={SWEEP_STEPS_RANGE} rules={{ min: SWEEP_STEPS_LIMIT.min, integer: true }} settingKey="batchSweepSteps" onCommit={(v) => set({ sweepSteps: Math.min(SWEEP_STEPS_LIMIT.max, v) })} />
                 </div>
                 <p className="text-xs text-ink-3 tabular-nums" data-batch-sweep={values.join(",")}>
                   {b("sweepValues", { values: values.join(" · ") })}

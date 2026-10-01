@@ -36,7 +36,10 @@ export type GateKind = (typeof GATE_KINDS)[number];
 export interface MultipliersSettings {
   /** Rows of gates, 4–20. */
   rows: number;
-  /** Weights (one digit 0–9 each) of count, speed, size, damage, reverse and release gates, e.g. "421111". */
+  /**
+   * Weights of count, speed, size, damage, reverse and release gates, comma-separated, e.g. "4,2,1,1,1,1" – each any
+   * number ≥ 0, no maximum (--- review fix (uncap-all) --- the old six-digit form "421111" still reads, see sanitizeGateMix).
+   */
   gateMix: string;
   /** Balls released at the top, 1–10. */
   startBalls: number;
@@ -46,7 +49,7 @@ export interface MultipliersSettings {
   target: number;
 }
 
-export const DEFAULT_GATE_MIX = "421111";
+export const DEFAULT_GATE_MIX = "4,2,1,1,1,1";
 
 export const DEFAULT_MULTIPLIERS_SETTINGS: MultipliersSettings = {
   rows: 8,
@@ -78,18 +81,65 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
   return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
-/** Six weight digits (missing ones 0, extra characters dropped); a mix without any weight falls back to the default. */
+/** The comfort range of one gate weight (the slider of the Gate Mix block; the number field next to it has no maximum). */
+export const GATE_WEIGHT_RANGE = { min: 0, max: 9, step: 1 } as const;
+
+/**
+ * --- review fix (uncap-all) --- The six weights of a mix, in GATE_KINDS order. The mix is comma-separated numbers
+ * ("5,3,2,1,0,1"): each any finite number ≥ 0 – decimals and huge ones too, no 0–9 cap – a missing, negative or unreadable
+ * one 0, extra ones dropped. Text without a comma is the old six-digit form ("421111", one digit per kind: missing digits
+ * 0, other characters dropped), read digit by digit, so old links, presets and projects keep their board. Null when no
+ * weight is above 0 (the caller falls back to the default mix).
+ */
+export function gateMixWeights(value: unknown): number[] | null {
+  if (typeof value !== "string") return null;
+  let weights: number[];
+  if (!value.includes(",")) {
+    const digits = value.replace(/[^0-9]/g, "").slice(0, GATE_KINDS.length).padEnd(GATE_KINDS.length, "0");
+    weights = [...digits].map(Number);
+  } else {
+    const parts = value.split(",");
+    weights = GATE_KINDS.map((_, i) => {
+      const n = Number((parts[i] ?? "").trim());
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    });
+  }
+  return weights.some((w) => w > 0) ? weights : null;
+}
+
+/** The canonical comma-separated mix of six weights (each written so it reads back as the same number). */
+export function formatGateMix(weights: readonly number[]): string {
+  return GATE_KINDS.map((_, i) => String(weights[i] ?? 0)).join(",");
+}
+
+/** A mix in its canonical comma-separated form ("4,2,1,1,1,1"); a mix without any weight falls back to the default. */
 export function sanitizeGateMix(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_GATE_MIX;
-  const digits = value.replace(/[^0-9]/g, "").slice(0, GATE_KINDS.length).padEnd(GATE_KINDS.length, "0");
-  return /[1-9]/.test(digits) ? digits : DEFAULT_GATE_MIX;
+  const weights = gateMixWeights(value);
+  return weights ? formatGateMix(weights) : DEFAULT_GATE_MIX;
 }
 
 /** The weight of every gate kind in a (sanitized) mix. */
 export function parseGateMix(value: string): Record<GateKind, number> {
-  const mix = sanitizeGateMix(value);
+  const weights = gateMixWeights(value) ?? (gateMixWeights(DEFAULT_GATE_MIX) as number[]);
   const out = {} as Record<GateKind, number>;
-  GATE_KINDS.forEach((kind, i) => (out[kind] = Number(mix[i])));
+  GATE_KINDS.forEach((kind, i) => (out[kind] = weights[i]));
+  return out;
+}
+
+/**
+ * --- review fix (uncap-all) --- The weights the board draws with: as typed, unless together they overflow (two weights
+ * near 1e308 sum to Infinity, and every draw would land on the last kind) – then relative to the largest one, the same odds.
+ */
+export function gateOdds(weights: Record<GateKind, number>): Record<GateKind, number> {
+  let total = 0;
+  let largest = 0;
+  for (const k of GATE_KINDS) {
+    total += weights[k];
+    largest = Math.max(largest, weights[k]);
+  }
+  if (Number.isFinite(total)) return weights;
+  const out = {} as Record<GateKind, number>;
+  for (const k of GATE_KINDS) out[k] = weights[k] / largest;
   return out;
 }
 
@@ -190,7 +240,7 @@ export function gateFactor(kind: GateKind, u: number): number {
 
 /** Draws a board from the seeded generator: slots, gate kinds (weighted by the mix) and factors, blockers, bumpers, funnels. */
 export function generateBoardLayout(settings: MultipliersSettings, random: () => number): BoardLayout {
-  const weights = parseGateMix(settings.gateMix);
+  const weights = gateOdds(parseGateMix(settings.gateMix)); // --- review fix (uncap-all) --- (any weights, no overflow)
   const rows: RowSpec[] = [];
   for (let r = 0; r < settings.rows; r++) {
     const slots = 2 + Math.min(2, Math.floor(random() * 3));
