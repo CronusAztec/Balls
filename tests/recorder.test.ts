@@ -121,7 +121,10 @@ describe("Record Video's start (review fix: security-robustness)", () => {
   });
 
   it("starts the draw loop once the capture works", async () => {
-    const pending = stubDom(() => ({ getContext: () => ({}), captureStream: () => ({ getVideoTracks: () => [] }) }));
+    // A 2D context whose every method is a no-op (the first frame is drawn right away)
+    const noop = () => ({ width: 0 });
+    const ctx2d = new Proxy({}, { get: () => noop, set: () => true });
+    const pending = stubDom(() => ({ getContext: () => ctx2d, captureStream: () => ({ getVideoTracks: () => [] }) }));
     const recorder = new VideoRecorder(source);
     await expect(recorder.startRecording({ resolution: { width: 1080, height: 1920 } })).resolves.toBe(true);
     expect(pending.size).toBe(1);

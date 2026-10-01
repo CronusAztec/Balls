@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages"; // --- review fix (performance) ---
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import FeedbackForm from "@/components/site/FeedbackForm";
@@ -33,7 +35,10 @@ export default async function FeedbackPage({ params }: { params: Promise<{ local
           <p className="mt-3 text-zinc-400 max-w-lg mx-auto">{t("subtitle")}</p>
         </div>
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 sm:p-8">
-          <FeedbackForm />
+          {/* --- review fix (performance) --- the form's own messages (the layout passes only the shared ones) */}
+          <NextIntlClientProvider messages={pickMessages(await getMessages(), pageClientNamespaces("/feedback"))}>
+            <FeedbackForm />
+          </NextIntlClientProvider>
         </div>
       </main>
       <Footer />

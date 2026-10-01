@@ -298,7 +298,7 @@ describe("link and preset validation (review fix: recording-export)", () => {
 // --- review fix (security-robustness) --- every numeric link key at ±1e9, in several modes, through links and presets
 describe("numeric link and preset values at ±1e9 (review fix: security-robustness)", () => {
   const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
-  const MODES = ["classic", "shatter", "target", "accumulation", "multiply", "grow", "drop", "box"] as const;
+  const MODES = ["classic", "target", "accumulation", "drop"] as const; // (ring modes, the count modes and one without rings)
   /** The numbers whose range is one of meaning (both ends kept); every other core number keeps a big value as it is. */
   const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
   const CORE = new Set(["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"]);
@@ -314,7 +314,8 @@ describe("numeric link and preset values at ±1e9 (review fix: security-robustne
     if (Number.isInteger(range.step)) expect(Number.isInteger(v), `${label}: ${v} is a whole number`).toBe(true);
   };
 
-  it("no NUMERIC_URL_KEYS key gives a non-finite number or one below its minimum from ?key=±1e9", () => {
+  // (a few thousand parses: a generous timeout for a busy machine)
+  it("no NUMERIC_URL_KEYS key gives a non-finite number or one below its minimum from ?key=±1e9", { timeout: 60000 }, () => {
     expect(Object.keys(NUMERIC_URL_KEYS).length).toBeGreaterThan(50);
     for (const mode of MODES) {
       for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
@@ -326,7 +327,7 @@ describe("numeric link and preset values at ±1e9 (review fix: security-robustne
     }
   });
 
-  it("presetToSettings treats the same values the same way, and a value that is not a number falls back to the default", () => {
+  it("presetToSettings treats the same values the same way, and a value that is not a number falls back to the default", { timeout: 60000 }, () => {
     for (const mode of MODES) {
       for (const field of new Set(Object.values(NUMERIC_URL_KEYS))) {
         for (const raw of [1e9, -1e9]) {

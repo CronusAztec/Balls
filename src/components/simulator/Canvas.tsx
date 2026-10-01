@@ -16,6 +16,7 @@ import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, ty
 import { DEFAULT_MULTIPLIER_LABELS, MULTIPLIER_DATA_KEYS, drawMultiplierHud, drawMultipliersBalls, drawMultipliersBoard, drawPickupOrbs, writeMultiplierDataset, type MultiplierLabels, type MultiplierRenderOptions } from "./multiplierRenderer";
 import { formatMultiplier } from "@/lib/physics/multipliers";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
+import { FrameGate, GLOW_SPRITE_SIZE, PaintTrailLayer, bodySpriteRadius, cacheSprite, drawStringArt } from "./renderBudget"; // --- review fix (performance) ---
 // --- gerald-faces ---
 import { FaceLayer } from "./faceRenderer";
 import type { CharacterRenderOptions } from "@/lib/character/character";
@@ -193,6 +194,8 @@ export interface CanvasHandle {
    * any arena). A recording measures its clip on the run's pace: it is extended by what this grows while it records.
    */
   getSlowLagMs: () => number;
+  /** --- review fix (performance) --- Frames drawn so far (the recorder copies each drawn frame once, not every animation frame). */
+  framesDrawn: () => number;
 }
 
 export interface CanvasProps {
@@ -429,7 +432,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const sizeRef = useRef({ width: 800, height: 600 });
   const fpsRef = useRef(60);
   const lastFpsSampleRef = useRef(0);
-  const lastFrameRef = useRef(0);
+  /** --- review fix (performance) --- Frames the page's canvas has drawn (the recorder copies each one once, recorder.ts). */
+  const framesDrawnRef = useRef(0);
   const camXRef = useRef(0);
   const camYRef = useRef(0);
   const audioRef = useRef(audioIntensity);
@@ -616,6 +620,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       songProgressRef.current = v;
     },
     fpsRef,
+    framesDrawn: () => framesDrawnRef.current, // --- review fix (performance) ---
     noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- gerald-faces ---
     // --- themes
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
@@ -709,6 +714,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const alphaCache = new Map<string, string>();
     const ballSpriteCache = new Map<string, HTMLCanvasElement>();
     const glowSpriteCache = new Map<string, HTMLCanvasElement>();
+    // --- review fix (performance) --- ≤ 60 drawn frames a second on the rAF timestamps; classic Paint's incremental trail layer
+    const frameGate = new FrameGate();
+    const paintTrail = new PaintTrailLayer();
     let accumulator = 0;
     // Scratch space for the obstacle pass (Ball Drop): the age of the latest hit per obstacle and a bar's endpoints.
     let obstacleHitAges = new Float64Array(0);
@@ -903,19 +911,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       return out;
     };
 
-    const draw = () => {
-      const now = offline ? offline.now() : performance.now(); // --- fast-render --- (offline: the export's clock)
+    const draw = (ts?: number) => {
+      const now = offline ? offline.now() : (ts ?? performance.now()); // --- fast-render --- (offline: the export's clock) --- review fix (performance) --- (the rAF timestamp: vsync-aligned)
       // --- fast-render --- the page's canvas keeps its last frame while a fast export renders (the run is paused meanwhile)
       if (!offline && fastRenderRef.current?.getJob()) {
         lastTimeRef.current = now;
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
-      if (now - lastFrameRef.current < 15) {
-        if (!offline) rafRef.current = requestAnimationFrame(draw); // --- fast-render ---
-        return;
+      // --- review fix (performance) --- a 60 fps budget phase-locked to the display (75 / 90 / 144 Hz draw 60 fps, not 37–55, and a
+      // late 60 Hz callback is not dropped); the fast export draws every frame it asks for
+      if (!offline) {
+        if (!frameGate.due(now)) {
+          rafRef.current = requestAnimationFrame(draw);
+          return;
+        }
+        framesDrawnRef.current++;
       }
-      lastFrameRef.current = now;
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
       const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
@@ -1540,45 +1552,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.drawImage(layers.reveal, x0, y0, 2 * R, 2 * R);
           }
         } else if (points.length > 0) {
-          ctx.globalAlpha = 0.75;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.lineWidth = lineWidth;
-          const maxJump = 3 * lineWidth;
-          const maxJump2 = maxJump * maxJump;
-          let i = 0;
-          while (i < points.length) {
-            const start = points[i];
-            ctx.strokeStyle = start.color;
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            let j = i + 1;
-            while (j < points.length) {
-              const prev = points[j - 1];
-              const cur = points[j];
-              const dx = cur.x - prev.x;
-              const dy = cur.y - prev.y;
-              if (dx * dx + dy * dy > maxJump2) break;
-              if (cur.color !== prev.color) {
-                ctx.lineTo(cur.x, cur.y);
-                ctx.stroke();
-                ctx.strokeStyle = cur.color;
-                ctx.beginPath();
-                ctx.moveTo(cur.x, cur.y);
-              } else ctx.lineTo(cur.x, cur.y);
-              j++;
-            }
-            ctx.stroke();
-            i = j;
-          }
+          // --- review fix (performance) --- only the points since the last frame are stroked (into the trail layer), not the whole history
+          paintTrail.draw(ctx, points, paint.generation, cx, cy, R, lineWidth, dpr);
           const last = points[points.length - 1];
+          ctx.globalAlpha = 0.75;
           ctx.fillStyle = last.color;
           ctx.beginPath();
           ctx.arc(last.x, last.y, radius, 0, TWO_PI);
           ctx.fill();
           ctx.globalAlpha = 1;
         }
-      }
+        if (layers) paintTrail.release(); // --- review fix (performance) ---
+      } else paintTrail.release(); // --- review fix (performance) ---
 
       // Target segments
       if (engine.isCountdownMode()) {
@@ -1816,35 +1801,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Lines mode strings
-      const drawStrings = (points: { x: number; y: number }[]) => {
-        const balls = drawnBalls; // --- camera: the strings end at the ball where it is drawn (replayed or between steps)
-        const ball = balls.length > 0 ? balls[0] : null;
-        const colorAt = (i: number) => {
-          if (!p.rainbowLines) return p.lineColor;
-          const base = (0.03 * time) % 360;
-          const spread = points.length > 1 ? (i / points.length) * 360 : 0;
-          return `hsl(${(base + spread) % 360}, 100%, 60%)`;
-        };
-        for (let i = 0; i < points.length; i++) {
-          const pt = points[i];
-          const color = colorAt(i);
-          if (ball) {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            ctx.moveTo(pt.x, pt.y);
-            ctx.lineTo(ball.x, ball.y);
-            ctx.stroke();
-          }
-          ctx.fillStyle = color;
-          ctx.globalAlpha = 0.9;
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 2.5, 0, TWO_PI);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      };
+      // --- review fix (performance) --- one path per colour (per hue bucket with Rainbow Lines), not a stroke and a fill per point
+      // (camera: the strings end at the ball where it is drawn, replayed or between steps)
+      const drawStrings = (points: { x: number; y: number }[]) => drawStringArt(ctx, points, drawnBalls.length > 0 ? drawnBalls[0] : null, p.rainbowLines, p.lineColor, time);
       if (engine.isLinesMode()) drawStrings(engine.getBouncePoints());
 
       // Frozen balls (Accumulation)
@@ -1964,8 +1923,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const pulse = 1 + 0.15 * Math.sin(time * personality.glowPulseRate * 0.001 * TWO_PI) * personality.glowScale;
           const scale = personality.glowScale * pulse;
           const glowR = 2 * ball.radius * scale * beatEnvelope;
-          const r = Math.round(ball.radius);
-          const key = `${color}_${r}`;
           if (p.rainbowBall || isColorMatch) {
             const grad = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, glowR);
             grad.addColorStop(0, color);
@@ -1976,22 +1933,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.arc(ball.x, ball.y, glowR, 0, TWO_PI);
             ctx.fill();
           } else {
-            let sprite = glowSpriteCache.get(key);
+            // --- review fix (performance) --- one sprite per colour (the gradient scales smoothly), not one per integer radius
+            let sprite = glowSpriteCache.get(color);
             if (!sprite) {
+              const h = GLOW_SPRITE_SIZE / 2;
               sprite = document.createElement("canvas");
-              sprite.width = 4 * r;
-              sprite.height = 4 * r;
+              sprite.width = GLOW_SPRITE_SIZE;
+              sprite.height = GLOW_SPRITE_SIZE;
               const g = sprite.getContext("2d")!;
-              const grad = g.createRadialGradient(2 * r, 2 * r, 0, 2 * r, 2 * r, 2 * r);
+              const grad = g.createRadialGradient(h, h, 0, h, h, h);
               grad.addColorStop(0, color);
               grad.addColorStop(0.5, withAlpha(color, 0.27));
               grad.addColorStop(1, withAlpha(color, 0));
               g.fillStyle = grad;
               g.beginPath();
-              g.arc(2 * r, 2 * r, 2 * r, 0, TWO_PI);
+              g.arc(h, h, h, 0, TWO_PI);
               g.fill();
-              if (glowSpriteCache.size > 1000) glowSpriteCache.clear();
-              glowSpriteCache.set(key, sprite);
+              cacheSprite(glowSpriteCache, color, sprite);
             }
             ctx.drawImage(sprite, ball.x - glowR, ball.y - glowR, 2 * glowR, 2 * glowR);
           }
@@ -2038,9 +1996,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.drawImage(imageRef.current, -ball.radius, -ball.radius, 2 * ball.radius, 2 * ball.radius);
           ctx.restore();
         } else {
-          const r = Math.round(ball.radius);
-          const key = `${color}_${r}`;
-          if (p.rainbowBall || isColorMatch) {
+          // --- review fix (performance) --- sprites per colour and power-of-two device-px radius (at most five a colour, sharp on
+          // HiDPI); a ball bigger than the largest is drawn directly, like the rainbow / Color Match bodies
+          const r = bodySpriteRadius(ball.radius, dpr);
+          if (p.rainbowBall || isColorMatch || r === 0) {
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
@@ -2054,6 +2013,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
             ctx.fill();
           } else {
+            const key = `${color}_${r}`;
             let sprite = ballSpriteCache.get(key);
             if (!sprite) {
               sprite = document.createElement("canvas");
@@ -2072,8 +2032,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               g.beginPath();
               g.arc(r, r, r, 0, TWO_PI);
               g.fill();
-              if (ballSpriteCache.size > 1000) ballSpriteCache.clear();
-              ballSpriteCache.set(key, sprite);
+              cacheSprite(ballSpriteCache, key, sprite); // --- review fix (performance) --- (a small cap, the oldest first)
             }
             ctx.drawImage(sprite, ball.x - ball.radius, ball.y - ball.radius, 2 * ball.radius, 2 * ball.radius);
           }
@@ -3041,7 +3000,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- fast-render --- offline, the export draws every frame itself, on its clock from 0 (one frame per call), recording from the start
     if (offline) {
       lastTimeRef.current = -offline.frameMs;
-      lastFrameRef.current = -Infinity;
       elapsedRef.current = 0;
       recordingRef.current = true;
       clipStartRef.current = 0;
