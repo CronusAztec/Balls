@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLocale } from "next-intl";
 import { useParams } from "next/navigation";
 import { usePathname, useRouter } from "@/i18n/navigation";
@@ -13,6 +13,10 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
   const params = useParams();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // --- review fix (ui-i18n) --- a disclosure (button + list of buttons), not an ARIA menu: Escape closes it and returns
+  // focus to the trigger, and tabbing out of it closes it.
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listId = useId();
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -33,12 +37,28 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
   };
 
   return (
-    <div className={isMobileMenu ? "w-full" : "relative"} ref={ref}>
+    <div
+      className={isMobileMenu ? "w-full" : "relative"}
+      ref={ref}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+          triggerRef.current?.focus();
+        }
+      }}
+      onBlur={(e) => {
+        // Only a focus move to another element outside closes it (a click elsewhere is handled by the mousedown listener).
+        const next = e.relatedTarget as Node | null;
+        if (next && !ref.current?.contains(next)) setOpen(false);
+      }}
+    >
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
         className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 hover:border-zinc-600 transition-all group cursor-pointer ${isMobileMenu ? "w-full justify-between" : "min-w-[120px]"}`}
       >
         <div className="flex items-center gap-2">
@@ -53,27 +73,29 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
       </button>
       {open && (
         <div className={`mt-2 w-full bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[60] animate-fadeIn ${isMobileMenu ? "relative" : "absolute top-full right-0 min-w-[140px]"}`}>
-          <div className="py-1" role="menu">
+          <ul id={listId} className="py-1">
             {LOCALE_OPTIONS.map((opt) => (
-              <button
-                type="button"
-                key={opt.code}
-                role="menuitem"
-                onClick={() => switchTo(opt.code)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${locale === opt.code ? "bg-blue-500/10 text-blue-400 font-medium" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
-              >
-                <span className="text-lg" aria-hidden="true">
-                  {opt.flag}
-                </span>
-                <span>{opt.label}</span>
-                {locale === opt.code && (
-                  <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
+              <li key={opt.code}>
+                <button
+                  type="button"
+                  lang={opt.code}
+                  aria-current={locale === opt.code ? "true" : undefined}
+                  onClick={() => switchTo(opt.code)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${locale === opt.code ? "bg-blue-500/10 text-blue-400 font-medium" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
+                >
+                  <span className="text-lg" aria-hidden="true">
+                    {opt.flag}
+                  </span>
+                  <span>{opt.label}</span>
+                  {locale === opt.code && (
+                    <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </div>

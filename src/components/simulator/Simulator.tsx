@@ -115,6 +115,7 @@ import {
   type PresetStore,
   type SimulatorSettings,
 } from "@/lib/settings";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 const SPEEDS = [1, 2, 4, 8];
 /** --- gerald-multipliers --- who makes it home when the ball has no name. */
@@ -1300,7 +1301,7 @@ export default function Simulator() {
     const handler = (e: Event) => {
       const mode = (e as CustomEvent<ModeId>).detail;
       changeMode(mode);
-      document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
     };
     window.addEventListener("jumpingballslive:select-mode", handler);
     return () => window.removeEventListener("jumpingballslive:select-mode", handler);
@@ -2677,7 +2678,7 @@ export default function Simulator() {
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 animate-pulse hover:bg-red-500 transition-colors cursor-pointer"
+                  className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 motion-safe:animate-pulse hover:bg-red-500 transition-colors cursor-pointer"
                   aria-label={t("Simulator.stopRecordingTooltip")}
                 >
                   <div className="w-2 h-2 bg-white rounded-full" />
@@ -2726,7 +2727,7 @@ export default function Simulator() {
               {isSearching && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
                   <div className="text-center space-y-5 max-w-xs px-4">
-                    <div className="text-5xl animate-pulse">🔍</div>
+                    <div className="text-5xl motion-safe:animate-pulse">🔍</div>
                     <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-400">{t("Simulator.findingSimulation")}</p>
                     {searchProgress && (
                       <div className="space-y-3">
@@ -2913,7 +2914,7 @@ export default function Simulator() {
               >
                 {isSearching ? (
                   <>
-                    <span className="animate-pulse">🔍</span> {t("Controls.cancelSearch")}
+                    <span className="motion-safe:animate-pulse">🔍</span> {t("Controls.cancelSearch")}
                   </>
                 ) : (
                   <>🔍 {outcomeButtonText(t, finderOutcome, outcomeText) /* --- rigged --- */ ?? (mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration }))}</>
