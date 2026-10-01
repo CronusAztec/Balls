@@ -26,6 +26,9 @@ import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 const LOCALES = { en, pl, es } as const;
 type Messages = Record<string, unknown>;
 
+/** --- uncap-all --- next-intl's provider, typed for createElement() with its child as an argument. */
+const IntlProvider = NextIntlClientProvider as unknown as React.FC<{ locale: string; messages: Messages; timeZone: string; children?: React.ReactNode }>;
+
 /** A translator over the Controls namespace of `messages` (plain ICU formatting, like next-intl's). */
 function translator(messages: Messages, locale: string): Translate {
   const controls = messages.Controls as Record<string, string>;
@@ -61,7 +64,7 @@ describe("settings search: the escape modes' Mode-row controls", () => {
       const settings = { ...defaultSettings(mode), ...patch };
       const matches = (key: string) => (t as unknown as { has: (k: string) => boolean }).has(key) && (key.toLowerCase().includes(query.toLowerCase()) || t(key).toLowerCase().includes(query.toLowerCase()));
       // (--- uncap-all --- the sliders' number fields read their own Uncap strings through next-intl, as on the page)
-      return renderToStaticMarkup(createElement(NextIntlClientProvider, { locale: "en", messages: en, timeZone: "UTC" }, createElement(EscapeModeSection, { t, search: query, matches, settings, update: () => {} })));
+      return renderToStaticMarkup(createElement(IntlProvider, { locale: "en", messages: en, timeZone: "UTC" }, createElement(EscapeModeSection, { t, search: query, matches, settings, update: () => {} })));
     };
     const spikes = render("accumulation", "Spikes", { spikesEnabled: false });
     expect(spikes).toContain('role="switch"');
