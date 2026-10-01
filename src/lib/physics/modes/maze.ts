@@ -1,7 +1,7 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import { MAX_TEAMS } from "../ballStats";
 import { shiftedObstacleFrequency } from "../bounceMathRuntime";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all --- no maximum, the memory-safety ceilings only
 import type { Ball, GameMode, ModeContext } from "../types";
 import {
   MZ_BIT,
@@ -74,9 +74,9 @@ export function isMazeHand(value: unknown): value is MazeHand {
 }
 
 export interface MazeSettings {
-  /** Columns of the maze, 6–40 (the rows follow from the portrait field). */
+  /** Columns of the maze, 6–40 on the slider, any number from 6 typed (the rows follow from the portrait field). */
   cols: number;
-  /** Balls in the maze, 1–8. */
+  /** Balls in the maze, 1–8 on the slider, any number from 1 typed. */
   balls: number;
   brain: MazeBrain;
   /** The wall follower's hand: left, right, or alternating per ball. */
@@ -119,7 +119,11 @@ export const DEFAULT_MAZE_SETTINGS: MazeSettings = {
   hud: true,
 };
 
-/** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
+/**
+ * Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`: comfort ranges
+ * (uncap-all, lib/uncap.ts) – a value past a slider is kept as typed; the columns and the balls a run builds stop at their
+ * memory-safety ceilings (`MEMORY_CEILINGS`).
+ */
 export const MAZE_RANGES = {
   mzCols: { min: 6, max: 40, step: 1 },
   mzBalls: { min: 1, max: 8, step: 1 },
@@ -150,7 +154,7 @@ export interface MazeSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Snaps onto a slider step (and cleans the float noise). */
@@ -163,16 +167,17 @@ function isHexColor(value: unknown): value is string {
 }
 
 /**
- * Fills in the defaults and clamps every value onto its slider; unknown options, bad colours and non-boolean flags fall
- * back. --- unlimited --- With `unlimited` (No limits on) the columns, balls, pull, speed and clip limit run past their
- * sliders, up to their soft ceilings (`ENGINE_CEILINGS`); the trail and fog opacities keep their 0–1.
+ * Fills in the defaults and validates every value (counts whole, the rest on their slider steps; a value below its slider
+ * is lifted onto it, a value past it kept – uncap-all, no maximum); the columns and the balls stop at their memory-safety
+ * ceilings (`MEMORY_CEILINGS`, lib/uncap.ts: the most a run builds – the cells' arrays, a paint-mask bit per ball). A trail
+ * or fog past 1 draws fully opaque. Unknown options, bad colours and non-boolean flags fall back.
  */
-export function resolveMazeSettings(config: Partial<MazeSettings> | null | undefined, unlimited = false): MazeSettings {
+export function resolveMazeSettings(config: Partial<MazeSettings> | null | undefined): MazeSettings {
   const out = { ...DEFAULT_MAZE_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(MAZE_RANGES, unlimited);
-  if (config.cols !== undefined) out.cols = Math.round(clampNumber(config.cols, R.mzCols, out.cols));
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.mzBalls, out.balls));
+  const R = MAZE_RANGES;
+  if (config.cols !== undefined) out.cols = memoryCeiling("mzCols", Math.round(clampNumber(config.cols, R.mzCols, out.cols)));
+  if (config.balls !== undefined) out.balls = memoryCeiling("mzBalls", Math.round(clampNumber(config.balls, R.mzBalls, out.balls)));
   if (isMazeBrain(config.brain)) out.brain = config.brain;
   if (isMazeHand(config.hand)) out.hand = config.hand;
   if (config.gravity !== undefined) out.gravity = snap(clampNumber(config.gravity, R.mzGravity, out.gravity), R.mzGravity.step, R.mzGravity.min);
@@ -235,7 +240,7 @@ export function defaultMazeFields(): MazeSettingFields {
   return mazeSettingFields(DEFAULT_MAZE_SETTINGS);
 }
 
-/** Validates the feature's fields (URL parameters and presets alike): clamped numbers on their steps, known options, real colours and booleans. */
+/** Validates the feature's fields (URL parameters and presets alike): valid numbers on their steps (no maximum), known options, real colours and booleans. */
 export function resolveMazeFields(source: Partial<MazeSettingFields>): MazeSettingFields {
   return mazeSettingFields(
     resolveMazeSettings({
@@ -566,10 +571,10 @@ export class MazeMode implements GameMode {
 
   /**
    * Columns, balls, brain, hand and the clip limit apply on the next init; the pull, the speed and the drawing at once.
-   * --- unlimited --- With `unlimited` (No limits on) the numbers run past their sliders, up to their soft ceilings.
+   * (--- uncap-all --- past the sliders as typed; the columns and the balls up to their memory-safety ceilings.)
    */
-  setSettings(patch: Partial<MazeSettings>, unlimited = false) {
-    this.settings = resolveMazeSettings({ ...this.settings, ...patch }, unlimited);
+  setSettings(patch: Partial<MazeSettings>) {
+    this.settings = resolveMazeSettings({ ...this.settings, ...patch });
     const live = this.view.settings;
     live.gravity = this.settings.gravity;
     live.speed = this.settings.speed;
@@ -959,7 +964,7 @@ export class MazeMode implements GameMode {
 
   private paintStroke(slot: number, from: number, cell: number) {
     const v = this.view;
-    const bit = 1 << (slot & 31); // (the masks hold 32 balls: No limits' soft ceiling)
+    const bit = 1 << (slot & 31); // (the masks hold 32 balls: the balls' memory-safety ceiling, MEMORY_CEILINGS.mzBalls)
     let fresh = false;
     if (!(this.paintedCell[cell] & bit)) {
       this.paintedCell[cell] |= bit;

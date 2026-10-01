@@ -25,7 +25,7 @@ const BRAIN_OPTIONS: Record<MazeBrain, { icon: string; labelKey: string; hintKey
 
 const HAND_OPTIONS: Record<MazeHand, string> = { left: "mzHandLeft", right: "mzHandRight", alternate: "mzHandAlternate" };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /**
  * "Maze" controls (feature odd-maze), shown in the Mode row while the Maze is the mode (and in the Ball section while the
@@ -42,10 +42,10 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
   const rosterBalls = Math.min(s.teams.length, s.mzBalls, 6);
   return (
     <div className="space-y-3 pt-2" data-testid="maze-section">
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("mzDesc")}</p>}
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("mzDesc")}</p>}
       <Searchable search={search} matches={matches} labelKey="mzBrain">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("mzBrain")}
             <Tooltip text={t("mzBrainTip")} />
           </label>
@@ -57,7 +57,7 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
             ))}
           </div>
           {!search && (
-            <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="maze-brain-hint">
+            <p className="text-xs text-ink-3 leading-relaxed" data-testid="maze-brain-hint">
               {t(BRAIN_OPTIONS[s.mzBrain].hintKey)}
             </p>
           )}
@@ -66,7 +66,7 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
       {(s.mzBrain === "wallFollow" || all) && (
         <Searchable search={search} matches={matches} labelKey="mzHand">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-ink-2">
               {t("mzHand")}
               <Tooltip text={t("mzHandTip")} />
             </label>
@@ -80,16 +80,16 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
           </div>
         </Searchable>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="mzBalls" tipKey="mzBallsTip" value={s.mzBalls} range={RANGES.mzBalls} onChange={(v) => update({ mzBalls: v })} display={String(s.mzBalls)} left="🟢" right="🏁" />
+      <Slider t={t} search={search} matches={matches} labelKey="mzBalls" tipKey="mzBallsTip" value={s.mzBalls} range={RANGES.mzBalls} onChange={(v) => update({ mzBalls: v })} display={String(s.mzBalls)} />
       {!search && (
-        <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="maze-palette">
+        <p className="text-xs text-ink-3 leading-relaxed" data-testid="maze-palette">
           {rosterBalls > 0 ? t("mzRosterNote", { count: rosterBalls, balls: s.mzBalls }) : t("mzPaletteNote", { names: MZ_PALETTE.slice(0, s.mzBalls).map((p) => p.name).join(" · ") })}
         </p>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="mzCols" tipKey="mzColsTip" value={s.mzCols} range={RANGES.mzCols} onChange={(v) => update({ mzCols: v })} display={`${s.mzCols} × ${rows}`} left="▦" right="▩" />
-      <Slider t={t} search={search} matches={matches} labelKey="mzSpeed" tipKey="mzSpeedTip" value={s.mzSpeed} range={RANGES.mzSpeed} onChange={(v) => update({ mzSpeed: v })} display={`${s.mzSpeed.toFixed(2)}×`} left="🐢" right="🚀" />
-      <Slider t={t} search={search} matches={matches} labelKey="mzGravity" tipKey="mzGravityTip" value={s.mzGravity} range={RANGES.mzGravity} onChange={(v) => update({ mzGravity: v })} display={s.mzGravity === 0 ? t("mzGravityOff") : `${Math.round(100 * s.mzGravity)}%`} left="🎈" right="🪨" />
-      <Slider t={t} search={search} matches={matches} labelKey="mzTrail" tipKey="mzTrailTip" value={s.mzTrail} range={RANGES.mzTrail} onChange={(v) => update({ mzTrail: v })} display={s.mzTrail === 0 ? t("mzTrailOff") : `${Math.round(100 * s.mzTrail)}%`} left="◻️" right="🩸" />
+      <Slider t={t} search={search} matches={matches} labelKey="mzCols" tipKey="mzColsTip" value={s.mzCols} range={RANGES.mzCols} onChange={(v) => update({ mzCols: v })} display={`${s.mzCols} × ${rows}`} />
+      <Slider t={t} search={search} matches={matches} labelKey="mzSpeed" tipKey="mzSpeedTip" value={s.mzSpeed} range={RANGES.mzSpeed} onChange={(v) => update({ mzSpeed: v })} display={`${s.mzSpeed.toFixed(2)}×`} />
+      <Slider t={t} search={search} matches={matches} labelKey="mzGravity" tipKey="mzGravityTip" value={s.mzGravity} range={RANGES.mzGravity} onChange={(v) => update({ mzGravity: v })} display={s.mzGravity === 0 ? t("mzGravityOff") : `${Math.round(100 * s.mzGravity)}%`} />
+      <Slider t={t} search={search} matches={matches} labelKey="mzTrail" tipKey="mzTrailTip" value={s.mzTrail} range={RANGES.mzTrail} onChange={(v) => update({ mzTrail: v })} display={s.mzTrail === 0 ? t("mzTrailOff") : `${Math.round(100 * s.mzTrail)}%`} />
       {(s.mzTrail > 0 || all) && (
         <>
           <Searchable search={search} matches={matches} labelKey="mzTrailOwn">
@@ -98,7 +98,7 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
           {(!s.mzTrailOwn || all) && (
             <Searchable search={search} matches={matches} labelKey="mzTrailColor">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300">
+                <label className="text-sm font-medium text-ink-2">
                   {t("mzTrailColor")}
                   <Tooltip text={t("mzTrailColorTip")} />
                 </label>
@@ -108,16 +108,16 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
           )}
         </>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="mzFog" tipKey="mzFogTip" value={s.mzFog} range={RANGES.mzFog} onChange={(v) => update({ mzFog: v })} display={s.mzFog === 0 ? t("mzFogOff") : `${Math.round(100 * s.mzFog)}%`} left="☀️" right="🌫️" />
+      <Slider t={t} search={search} matches={matches} labelKey="mzFog" tipKey="mzFogTip" value={s.mzFog} range={RANGES.mzFog} onChange={(v) => update({ mzFog: v })} display={s.mzFog === 0 ? t("mzFogOff") : `${Math.round(100 * s.mzFog)}%`} />
       <Searchable search={search} matches={matches} labelKey="mzWallColor">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-ink-2">
               {t("mzWallColor")}
               <Tooltip text={t("mzWallColorTip")} />
             </label>
             {s.mzWallColor !== DEFAULT_MAZE_SETTINGS.wallColor && (
-              <button type="button" onClick={() => update({ mzWallColor: DEFAULT_MAZE_SETTINGS.wallColor })} className="text-xs text-zinc-500 hover:text-[#93d119] transition-colors cursor-pointer">
+              <button type="button" onClick={() => update({ mzWallColor: DEFAULT_MAZE_SETTINGS.wallColor })} className="text-xs text-ink-3 hover:text-accent transition-colors cursor-pointer">
                 {t("mzWallColorReset")}
               </button>
             )}
@@ -125,7 +125,7 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
           <ColorPicker value={s.mzWallColor} onChange={(v) => update({ mzWallColor: v })} label={t("mzWallColor")} />
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="mzDuration" tipKey="mzDurationTip" value={s.mzDuration} range={RANGES.mzDuration} onChange={(v) => update({ mzDuration: v })} display={`${s.mzDuration}s`} left="⏱️" right="⌛" />
+      <Slider t={t} search={search} matches={matches} labelKey="mzDuration" tipKey="mzDurationTip" value={s.mzDuration} range={RANGES.mzDuration} onChange={(v) => update({ mzDuration: v })} display={`${s.mzDuration}s`} />
       <Searchable search={search} matches={matches} labelKey="mzBadge">
         <Toggle t={t} labelKey="mzBadge" tipKey="mzBadgeTip" value={s.mzBadge} onChange={(v) => update({ mzBadge: v })} />
       </Searchable>
@@ -133,7 +133,7 @@ export default function MazeSection({ t, search, matches, settings: s, update }:
         <Toggle t={t} labelKey="mzHud" tipKey="mzHudTip" value={s.mzHud} onChange={(v) => update({ mzHud: v })} />
       </Searchable>
       {!search && (
-        <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="maze-run">
+        <p className="text-xs text-ink-3 leading-relaxed" data-testid="maze-run">
           {t("mzRunInfo", { cols: s.mzCols, rows, cells: s.mzCols * rows, seconds: s.mzDuration })}
         </p>
       )}

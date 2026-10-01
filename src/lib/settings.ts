@@ -703,29 +703,29 @@ export interface SimulatorSettings {
   bounciness: number;
   // --- end uncap-all ---
   // --- odd-maze --- Maze escape (lib/physics/modes/maze.ts, lib/physics/mazeGrid.ts): balls race through a seeded maze
-  /** Columns of the maze, 6–40; the rows follow the portrait field (URL `mzc`). */
+  /** Columns of the maze, 6–40 on the slider (any number from 6 typed; a run builds at most 200); the rows follow the portrait field (URL `mzc`). */
   mzCols: number;
-  /** Balls in the maze, 1–8 (URL `mzn`). */
+  /** Balls in the maze, 1–8 on the slider (any number from 1 typed; a run builds at most 32) (URL `mzn`). */
   mzBalls: number;
   /** bounce | wallFollow | explorer (URL `mzb`). */
   mzBrain: MazeBrain;
   /** The wall follower's hand: left | right | alternate (URL `mzh`). */
   mzHand: MazeHand;
-  /** 0–1: the downward pull (URL `mzg`). */
+  /** The downward pull, 0–1 on the slider, any number from 0 typed (URL `mzg`). */
   mzGravity: number;
-  /** 0.25–3: how fast the balls travel (URL `mzs`). */
+  /** How fast the balls travel, 0.25–3 on the slider, any number from 0.25 typed (URL `mzs`). */
   mzSpeed: number;
-  /** 0–1: opacity of the painted trail (URL `mzt`). */
+  /** Opacity of the painted trail, 0–1 (past 1 draws fully opaque) (URL `mzt`). */
   mzTrail: number;
   /** The trail's colour, blood red by default (URL `mztc`). */
   mzTrailColor: string;
   /** Every ball paints in its own colour (URL `mzto`). */
   mzTrailOwn: boolean;
-  /** 0–1: fog over the cells no ball has visited yet (URL `mzf`). */
+  /** Fog over the cells no ball has visited yet, 0–1 (past 1 draws fully opaque) (URL `mzf`). */
   mzFog: number;
   /** The glowing walls' colour (URL `mzwc`). */
   mzWallColor: string;
-  /** Seconds the run lasts at most (URL `mzd`). */
+  /** Seconds the run lasts at most, 10–180 on the slider, any number from 10 typed (URL `mzd`). */
   mzDuration: number;
   /** The "FLASHING LIGHTS" warning badge (URL `mzbg`). */
   mzBadge: boolean;
@@ -1329,7 +1329,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
-  readMazeParams(params, settings); // --- odd-maze --- (clamped onto the sliders; unknown options and bad colours fall back)
+  readMazeParams(params, settings); // --- odd-maze --- (valid numbers kept, no maximum; unknown options and bad colours fall back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1668,7 +1668,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans
-  Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- clamped numbers on their steps, known options, real colours and booleans
+  Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- valid numbers on their steps (no maximum), known options, real colours and booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

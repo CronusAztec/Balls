@@ -54,13 +54,13 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { ENGINE_CEILINGS, isBoundedKey } from "@/lib/unlimited"; // --- No limits ---
+import { MEMORY_CEILINGS } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Maze escape (lib/physics/mazeGrid.ts, lib/physics/modes/maze.ts; feature odd-maze): the seeded perfect maze (n − 1
@@ -453,15 +453,17 @@ describe("maze settings", () => {
     expect(mazeBallName(9)).toBe(MZ_PALETTE[1].name);
   });
 
-  it("resolve clamps onto the sliders and drops bad values", () => {
-    expect(resolveMazeSettings({ cols: 99, balls: 0, gravity: 1.7, speed: 0.01, trail: -1, fog: 2, duration: 1000 })).toMatchObject({ cols: 40, balls: 1, gravity: 1, speed: 0.25, trail: 0, fog: 1, duration: 180 });
+  it("resolve: the minimums, no maximum (the memory-safety ceilings for what a run builds), values on their steps, bad values dropped", () => {
+    expect(resolveMazeSettings({ cols: 99, balls: 0, gravity: 1.7, speed: 0.01, trail: -1, fog: 2, duration: 1000 })).toMatchObject({ cols: 99, balls: 1, gravity: 1.7, speed: 0.25, trail: 0, fog: 2, duration: 1000 });
+    expect(resolveMazeSettings({ cols: 1e9, balls: 1e9, gravity: 1e9, speed: 1e9, trail: 1e9, fog: 1e9, duration: 1e9 })).toMatchObject({ cols: MEMORY_CEILINGS.mzCols, balls: MEMORY_CEILINGS.mzBalls, gravity: 1e9, speed: 1e9, trail: 1e9, fog: 1e9, duration: 1e9 });
+    expect(resolveMazeSettings({ cols: Infinity, speed: Number.NaN, duration: -5 })).toMatchObject({ cols: DEFAULT_MAZE_SETTINGS.cols, speed: DEFAULT_MAZE_SETTINGS.speed, duration: 10 });
     expect(resolveMazeSettings({ cols: 12.6, gravity: 0.333, speed: 1.234, duration: 42 })).toMatchObject({ cols: 13, gravity: 0.35, speed: 1.25, duration: 40 });
     const junk = { brain: "genius", hand: "both", trailColor: "red", wallColor: "#12345", trailOwn: "yes", badge: 1, hud: null, cols: "many" } as unknown as Partial<MazeSettings>;
     expect(resolveMazeSettings(junk)).toEqual(DEFAULT_MAZE_SETTINGS);
     expect(resolveMazeSettings({ trailColor: "#ABCDEF" }).trailColor).toBe("#abcdef");
   });
 
-  it("round-trip through the URL and presets; bad values fall back", () => {
+  it("round-trip through the URL and presets; bad values fall back, big ones are kept", () => {
     const s = { ...defaultSettings("maze"), mzCols: 20, mzBalls: 6, mzBrain: "wallFollow" as const, mzHand: "right" as const, mzGravity: 0.6, mzSpeed: 1.5, mzTrail: 0.5, mzTrailColor: "#00ff88", mzTrailOwn: true, mzFog: 0.8, mzWallColor: "#ff00ff", mzDuration: 90, mzBadge: false, mzHud: false };
     const params = settingsToSearchParams(s);
     expect(params.get("mzc")).toBe("20");
@@ -472,14 +474,17 @@ describe("maze settings", () => {
     expect(params.get("mzhud")).toBe("0");
     expect(settingsFromSearchParams(params)).toEqual(s);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=maze&mzc=4&mzn=50&mzb=ai&mzh=x&mzg=9&mzs=-1&mzt=abc&mztc=red&mzwc=%23zzzzzz&mzd=5&mzbg=maybe"));
-    expect(mazeSettingsOf(bad)).toEqual({ ...DEFAULT_MAZE_SETTINGS, cols: 6, balls: 8, gravity: 1, speed: 0.25, duration: 10 });
+    expect(mazeSettingsOf(bad)).toEqual({ ...DEFAULT_MAZE_SETTINGS, cols: 6, balls: 50, gravity: 9, speed: 0.25, duration: 10 });
+    // (uncap-all: the link keeps the typed 50 balls; the run builds its memory-safety ceiling)
+    expect(resolveMazeSettings(mazeSettingsOf(bad)).balls).toBe(MEMORY_CEILINGS.mzBalls);
     const loaded = presetToSettings({ mode: "maze", mzCols: 100, mzBrain: "bounce", mzFog: "thick", mzTrailOwn: "on" } as unknown as Parameters<typeof presetToSettings>[0]);
-    expect(mazeSettingsOf(loaded)).toMatchObject({ cols: 40, brain: "bounce", fog: 0, trailOwn: false });
+    expect(mazeSettingsOf(loaded)).toMatchObject({ cols: 100, brain: "bounce", fog: 0, trailOwn: false });
   });
 
-  it("registers the mode: its id, its card after the String Battle, the battle family, the camera, the rig and the finder", () => {
+  it("registers the mode: its id, its card after the String Battle and Territory, the battle family, the camera, the rig and the finder", () => {
     expect(MODE_IDS).toContain("maze");
-    expect(MODE_CARD_ORDER.indexOf("maze")).toBe(MODE_CARD_ORDER.indexOf("stringBattle") + 1);
+    expect(MODE_CARD_ORDER.indexOf("maze")).toBe(MODE_CARD_ORDER.indexOf("territory") + 1); // (--- odd-territory --- Territory follows the String Battle)
+    expect(modesInCategory("battle").slice(0, 3)).toEqual(["stringBattle", "territory", "maze"]);
     expect(MODE_CATEGORIES.maze).toBe("battle");
     expect(modesInCategory("battle")).toContain("maze");
     expect(slowViewEligible("maze")).toBe(true);
@@ -624,27 +629,38 @@ describe("the maze in the engine", () => {
     for (const f of notes) expect(ladder.some((l) => Math.abs(2 * l - f) < 1e-6)).toBe(true);
   });
 
-  it("No limits: the numbers run past their sliders up to their soft ceilings, the trail and fog opacities keep their 0–1", { timeout: 30_000 }, () => {
-    expect(isBoundedKey("mzTrail")).toBe(true);
-    expect(isBoundedKey("mzFog")).toBe(true);
-    expect(isBoundedKey("mzCols")).toBe(false);
+  it("uncap-all: runs past its sliders as typed whatever the Wide sliders switch – the columns and the balls up to their memory-safety ceilings", { timeout: 60_000 }, () => {
     const big = { cols: 1e9, balls: 1e9, speed: 1e9, gravity: 1e9, duration: 1e12, trail: 5, fog: 5 };
-    // The switch off: the sliders; on: the soft ceilings (the opacities stay 0–1 either way).
-    expect(resolveMazeSettings(big)).toMatchObject({ cols: 40, balls: 8, speed: 3, gravity: 1, duration: 180, trail: 1, fog: 1 });
-    expect(resolveMazeSettings(big, true)).toMatchObject({ cols: ENGINE_CEILINGS.mzCols, balls: ENGINE_CEILINGS.mzBalls, speed: ENGINE_CEILINGS.mzSpeed, gravity: ENGINE_CEILINGS.mzGravity, duration: ENGINE_CEILINGS.mzDuration, trail: 1, fog: 1 });
-    expect(resolveMazeSettings({ cols: 43, balls: 11 }, true)).toMatchObject({ cols: 43, balls: 11 });
-    // A race of 32 explorers in a 120-column maze with the switch on: every ball paints (a bit each in the paint masks), each
+    expect(resolveMazeSettings(big)).toMatchObject({ cols: MEMORY_CEILINGS.mzCols, balls: MEMORY_CEILINGS.mzBalls, speed: 1e9, gravity: 1e9, duration: 1e12, trail: 5, fog: 5 });
+    expect(resolveMazeSettings({ cols: 43, balls: 11 })).toMatchObject({ cols: 43, balls: 11 });
+    // The page keeps the typed values (links and presets carry them exactly), whatever the switch; the run builds the ceilings.
+    const typed = { mzCols: 1e9, mzBalls: 1e9, mzSpeed: 1e9, mzGravity: 1e9, mzDuration: 1e9, mzTrail: 5, mzFog: 5 };
+    for (const unlimited of [false, true]) {
+      const s = presetToSettings({ ...defaultSettings("maze"), unlimited, ...typed });
+      expect([unlimited, s.unlimited]).toEqual([unlimited, unlimited]);
+      expect(s).toMatchObject(typed);
+      expect(pastAnyMemoryCeiling(s)).toBe(true);
+      expect(settingsFromSearchParams(settingsToSearchParams(s))).toMatchObject(typed);
+      expect(resolveMazeSettings(mazeSettingsOf(s))).toMatchObject({ cols: MEMORY_CEILINGS.mzCols, balls: MEMORY_CEILINGS.mzBalls, speed: 1e9, gravity: 1e9, duration: 1e9, trail: 5, fog: 5 });
+    }
+    expect(pastAnyMemoryCeiling(defaultSettings("maze"))).toBe(false);
+    // A race of 32 explorers in a maze of the columns' ceiling: every ball paints (a bit each in the paint masks), each
     // cell and passage at most once per ball, and nothing goes through a wall.
-    const engine = engineFor({ cols: 1e9, balls: 1e9, brain: "explorer" }, 3, { unlimited: true, width: 1080, height: 1920 });
+    const engine = engineFor({ cols: 1e9, balls: 1e9, brain: "explorer" }, 3, { width: 1080, height: 1920 });
     const view = engine.getMazeView();
-    expect(view.grid.cols).toBe(ENGINE_CEILINGS.mzCols);
-    expect(view.count).toBe(ENGINE_CEILINGS.mzBalls);
+    expect(view.grid.cols).toBe(MEMORY_CEILINGS.mzCols);
+    expect(view.count).toBe(MEMORY_CEILINGS.mzBalls);
     run(engine, 12_000); // (the last of the 32 drops in after 31 × MZ_RELEASE_MS)
     const painters = new Set<number>();
     for (let i = 0; i < view.paintCount; i++) painters.add(view.paint[3 * i + 2]);
-    expect(painters.size).toBe(ENGINE_CEILINGS.mzBalls);
-    expect(view.paintCount).toBeLessThanOrEqual(ENGINE_CEILINGS.mzBalls * 2 * view.grid.cells);
+    expect(painters.size).toBe(MEMORY_CEILINGS.mzBalls);
+    expect(view.paintCount).toBeLessThanOrEqual(MEMORY_CEILINGS.mzBalls * 2 * view.grid.cells);
     expect(view.leaks).toBe(0);
+    // An absurd pull and speed melt (the balls slow down in their cells) but never leave the maze.
+    const wild = engineFor({ speed: 1e9, gravity: 1e9, balls: 4, brain: "bounce" }, 5, { width: 1080, height: 1920 });
+    run(wild, 3_000);
+    expect(wild.getMazeView().leaks).toBe(0);
+    for (const b of wild.getBalls()) expect([b.x, b.y, b.vx, b.vy].every(Number.isFinite)).toBe(true);
   });
 
   it("the first ball out wins – an escape in the team stats, the wall-break sound – and the run finishes after the hold", { timeout: 30_000 }, () => {

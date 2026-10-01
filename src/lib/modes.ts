@@ -53,9 +53,10 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("stringBattle");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "territory");
 }
-// --- odd-maze --- Maze escape (oddplayground) joins the battle family right after the String Battle (a race to the exit)
+// --- odd-maze --- Maze escape (oddplayground) joins the battle family after the String Battle and Territory (a race to the exit)
 {
-  const at = MODE_CARD_ORDER.indexOf("stringBattle");
+  const after = MODE_CARD_ORDER.indexOf("territory");
+  const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("stringBattle");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "maze");
 }
 

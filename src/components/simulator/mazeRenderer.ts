@@ -481,7 +481,7 @@ export class MazeLayer {
     if (view.settings.trail > 0) {
       this.ensurePaint(view, o);
       if (this.paint) {
-        ctx.globalAlpha = view.settings.trail;
+        ctx.globalAlpha = Math.min(1, view.settings.trail); // (uncap-all: a trail past 1 is fully opaque – the canvas ignores an alpha past 1)
         ctx.drawImage(this.paint.canvas, this.box.x, this.box.y, this.box.w, this.box.h);
         ctx.globalAlpha = 1;
       }

@@ -126,6 +126,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   tyTeams: 4,
   tyBallsPerTeam: BOARD_BALL_CEILING / 4,
   // --- end odd-territory ---
+  // --- odd-maze --- Maze Escape: the maze's columns (the rows follow the portrait field – 200 columns are 286 rows, 57,200
+  // cells: about 23 bytes a cell and 6 more a ball for its visits and its path, ≈ 12 MB with 32 balls, plus a paint stroke
+  // the first time a ball paints a cell or a passage) and the balls (a bit each in the cells' 32-bit paint masks)
+  mzCols: 200,
+  mzBalls: 32,
+  // --- end odd-maze ---
 };
 
 /** The most a run builds of an allocating setting `key` (its memory-safety ceiling), the value itself otherwise. */
