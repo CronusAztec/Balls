@@ -6794,6 +6794,31 @@ const bdInstrument = () =>
     dt >= 3.5 && Math.abs(perSecond - 2) < 0.35 && Math.abs(Number(b1.bmFires) - expected) <= 1,
     `(${b0.bmFires} → ${b1.bmFires} fires over ${dt.toFixed(2)} s: ${perSecond.toFixed(2)}/s; at ${b1.bmTime} s expected ≈${expected})`,
   );
+
+  // A colour shift turns the default white ball (white has no hue of its own: it turns from a saturated colour).
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bmr=hue.bounce.1.add.30`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= 2, null, { timeout: 30000 }).catch(() => {});
+  const hue = await bmData();
+  const rgb = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hue.bmColor ?? "");
+  const channels = rgb ? rgb.slice(1).map((h) => parseInt(h, 16)) : [];
+  check("bounce math: a colour shift turns the default white ball", Number(hue.bmFires) >= 2 && channels.length === 3 && Math.max(...channels) - Math.min(...channels) > 80, `(fires ${hue.bmFires}, colour ${hue.bmColor})`);
+
+  // Every mode reports its bounces – the Collision Playground's container too – and the panel names a trigger the mode
+  // never sets off (no ring gaps to pass on the Ball Drop board) instead of silently never firing it.
+  await page.goto(`${BASE}/en/simulator/?mode=collide&bmr=hue.bounce.1.add.5;hue.collide.1.add.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.bmFires ?? "0,0").split(",").every((n) => Number(n) > 0), null, { timeout: 30000 }).catch(() => {});
+  const collideFires = (await bmData()).bmFires ?? "";
+  await page.goto(`${BASE}/en/simulator/?mode=drop&bmr=hue.pass.1.add.5;hue.bounce.1.add.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  await page.getByTestId("bm-rule").first().waitFor({ timeout: 10000 }).catch(() => {});
+  const marks = await page.getByTestId("bm-rule").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-trigger")}:${e.getAttribute("data-applies")}:${e.querySelector('[data-testid="bm-trigger-note"]') ? "note" : "-"}`));
+  check(
+    "bounce math: bounce and ball-hit rules fire in the Collision Playground; a trigger Ball Drop never sets off is marked",
+    collideFires.split(",").length === 2 && collideFires.split(",").every((n) => Number(n) > 0) && marks.join(" ") === "pass:0:note bounce:1:-",
+    `(collide fires ${collideFires}; drop rows ${JSON.stringify(marks)})`,
+  );
 }
 // --- end bounce-math ---
 // --- social-publish --- Publish (the block after the Viral video bot block of the Recording section): with nothing set up

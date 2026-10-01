@@ -2604,6 +2604,7 @@
     "scopeAll": "Wszystkie piłki",
     "scopeTip": "Ta piłka: tylko piłka, której dotyczy zdarzenie (obie piłki przy zderzeniu; przy rytmie, taktach i sekundach – piłka, która odbiła się ostatnia). Wszystkie piłki: każda piłka. Wartości świata (grawitacja, obrót, szczelina…) zawsze dotyczą całej sceny.",
     "notInMode": "Ten tryb nie używa tej wartości – reguła jest tu pomijana.",
+    "triggerNotInMode": "W tym trybie nic nie wywołuje tego wyzwalacza – reguła nigdy się tu nie uruchomi.",
     "formulaExample": "Przykład: v * (1 + 0.1 * sin(n / 3)) – v wartość, n liczba uruchomień, t sekundy, b uderzenia rytmu, r losowa 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Wpisz formułę, np. v * 1.05.",

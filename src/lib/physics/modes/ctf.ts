@@ -291,6 +291,7 @@ export class CtfMode implements GameMode {
     if (!boxWallPass(ball, f.cx, f.cy, f.halfW, f.halfH, ctx.getPhysicsExtras().wallBounciness, this.wall)) return;
     const w = this.wall;
     if (w.approach < 0.2 * this.ballSpeed) return;
+    ctx.noteBounce?.(ball); // --- bounce-math --- a real wall hit is a bounce
     v.wallHits++;
     v.wallHitMs[w.wall] = v.timeMs;
     this.budget.offer(w.approach * w.approach, arenaWallNote("box", w.wall), 0.3 * Math.min(1, w.approach / this.ballSpeed));
@@ -387,6 +388,7 @@ export class CtfMode implements GameMode {
     const c = this.contact;
     const rel = c.approach / Math.max(1, this.ballSpeed);
     if (rel < TACKLE_REL) return;
+    ctx.noteCollide?.(a, b); // --- bounce-math --- a clash is a ball hit
     v.hits++;
     this.budget.offer(10 * c.approach * c.approach, clashNote(v.team[i] === 0 ? 2 + (i % 4) : 10 + (i % 4)), 0.5 + 0.4 * Math.min(1, rel / 2), rel >= 1.6);
     if (v.finished || v.team[i] === v.team[j]) return;

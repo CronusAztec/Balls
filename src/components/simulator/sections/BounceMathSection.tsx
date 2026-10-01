@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import { Searchable, Toggle, onBtn, offBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { SimulatorSettings } from "@/lib/settings";
-import { bounceParamApplies, type BounceMathView } from "@/lib/physics/bounceMathRuntime";
+import { bounceParamApplies, bounceTriggerApplies, type BounceMathView } from "@/lib/physics/bounceMathRuntime";
 import {
   BOUNCE_MATH_PRESET_IDS,
   BOUNCE_OPS,
@@ -130,8 +130,9 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
   const comfort = amountComfortRange(rule.param, rule.op);
   const sliderValue = Math.max(comfort.min, Math.min(comfort.max, rule.amount));
   const applies = bounceParamApplies(rule.param, mode);
+  const triggered = bounceTriggerApplies(rule.trigger, mode);
   return (
-    <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 p-2 space-y-1.5" data-testid="bm-rule" data-param={rule.param} data-trigger={rule.trigger} data-op={rule.op}>
+    <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 p-2 space-y-1.5" data-testid="bm-rule" data-param={rule.param} data-trigger={rule.trigger} data-op={rule.op} data-applies={applies && triggered ? "1" : "0"}>
       <div className="flex items-center gap-1">
         <span className="shrink-0 w-5 text-[11px] font-bold text-[#93d119] tabular-nums">#{n}</span>
         <select value={rule.param} onChange={(e) => isBounceParam(e.target.value) && onChange({ param: e.target.value })} aria-label={b("paramOf", { n })} data-testid="bm-param" className={miniSelect}>
@@ -210,7 +211,7 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
           {b(rule.scope === "all" ? "scopeAll" : "scopeBall")}
         </button>
       </div>
-      {!applies && <p className="text-[10px] text-amber-400/90">{b("notInMode")}</p>}
+      {!applies ? <p className="text-[10px] text-amber-400/90">{b("notInMode")}</p> : !triggered && <p className="text-[10px] text-amber-400/90" data-testid="bm-trigger-note">{b("triggerNotInMode")}</p>}
     </div>
   );
 }

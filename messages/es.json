@@ -2604,6 +2604,7 @@
     "scopeAll": "Todas",
     "scopeTip": "Esta pelota: solo la pelota implicada (las dos en un choque; la que rebotó por última vez en pulsos, compases y segundos). Todas: cada pelota. Los valores del mundo (gravedad, giro, hueco…) siempre afectan a toda la escena.",
     "notInMode": "Este modo no usa este valor: aquí la regla se ignora.",
+    "triggerNotInMode": "En este modo nada activa este disparador: aquí la regla nunca se aplica.",
     "formulaExample": "Ejemplo: v * (1 + 0.1 * sin(n / 3)) – v valor, n veces activada, t segundos, b pulsos, r aleatorio 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Escribe una fórmula, p. ej. v * 1.05.",

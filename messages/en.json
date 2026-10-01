@@ -2827,6 +2827,7 @@
     "scopeAll": "All balls",
     "scopeTip": "This ball: only the ball involved (both balls of a collision; the ball that bounced last for beats, bars and seconds). All balls: every ball. World values (gravity, spin, gap…) always apply to the whole scene.",
     "notInMode": "This mode does not use this value – the rule is ignored here.",
+    "triggerNotInMode": "Nothing in this mode sets this trigger off – the rule never fires here.",
     "formulaExample": "Example: v * (1 + 0.1 * sin(n / 3)) – v value, n times fired, t seconds, b beats, r random 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Type a formula, e.g. v * 1.05.",

@@ -939,6 +939,11 @@ export class PowerLayersMode implements GameMode {
       v.lastBigSec = at;
     }
     this.spawnShatter(before, v.gone, at);
+    // --- bounce-math --- a hit on the stack is the ball's bounce
+    if (ctx.noteBounce) {
+      const ball = this.findBall(ctx);
+      if (ball) ctx.noteBounce(ball);
+    }
     // The seeded drift kick: never to a standstill while the drift is on.
     const drift = v.settings.drift * DRIFT_MAX;
     if (drift > 0) {
