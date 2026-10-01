@@ -6,6 +6,8 @@ import { selectClass, sliderStyle, type Translate } from "./ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
+import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory ---
+import { mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
@@ -33,8 +35,9 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   winner: "hintWinner",
 };
 
-/** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint). */
-function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined): string {
+/** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
+function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territory?: boolean): string {
+  if (territory && outcome === "winner") return "hintWinnerTerritory";
   return battle && outcome === "winner" ? "hintWinnerBattle" : OUTCOME_HINTS[outcome];
 }
 
@@ -42,10 +45,14 @@ function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined): strin
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number }, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */ }, name: (kind: "team" | "ball", n: number) => string): string[] {
   const count = effectiveBallCount(settings);
   // --- odd-string-battle --- the String Battle's balls go by the roster's names, then by their palette names (HOTPINK, AQUA…)
   if (settings.mode === "stringBattle") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : stringBattleBallName(i)));
+  // --- odd-territory --- Territory's teams go by the roster's names, then by their palette names (PINK, CYAN, LIME, GOLD)
+  if (settings.mode === "territory") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : TY_PALETTE[i % TY_PALETTE.length].name));
+  // --- odd-maze --- the Maze's balls go by the roster's names, then by their palette names (SNOW, AQUA…)
+  if (settings.mode === "maze") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : mazeBallName(i)));
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     if (settings.teams.length > 0) out.push(settings.teams[i]?.name || name("team", i + 1));
@@ -63,13 +70,15 @@ export interface FinderOutcomeSelectProps {
   disabled?: boolean;
   /** --- odd-string-battle --- a battle mode (`BATTLE_WINNER_MODES`): the winner is the last ball standing. */
   battle?: boolean;
+  /** --- odd-territory --- Territory: the winner is the team with the most tiles when the countdown runs out. */
+  territory?: boolean;
 }
 
 /**
  * The compact Outcome select in the Find Simulation panel's title row (so the classic panel keeps its height); nothing
  * when the run length is all the finder can search in this mode.
  */
-export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, battle }: FinderOutcomeSelectProps) {
+export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, battle, territory }: FinderOutcomeSelectProps) {
   const r = useTranslations("Rigged");
   if (outcomes.length === 0 || (outcomes.length === 1 && outcomes[0] === "duration")) return null;
   return (
@@ -82,7 +91,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, ba
         id="find-outcome"
         value={outcome}
         aria-label={r("outcome")}
-        title={r(hintKey(outcome, battle))}
+        title={r(hintKey(outcome, battle, territory))}
         disabled={disabled}
         onChange={(e) => onOutcome(e.target.value as FinderOutcomeKind)}
         className="h-8 min-w-0 max-w-[11rem] px-2 bg-surface-2 text-ink text-xs rounded-md border border-line-strong focus:border-accent-dim cursor-pointer disabled:opacity-50 [@media(pointer:coarse)]:min-h-11" /* --- review fix (site-redesign) --- a 32 px target (44 px on touch) */
@@ -110,16 +119,18 @@ export interface FinderOutcomeFieldsProps {
   disabled?: boolean;
   /** --- odd-string-battle --- a battle mode (`BATTLE_WINNER_MODES`): the winner is the last ball standing, the battle played to its end. */
   battle?: boolean;
+  /** --- odd-territory --- Territory: the winner is the team with the most tiles when the countdown runs out. */
+  territory?: boolean;
 }
 
 /** An outcome search's one-line explanation and its own field (the escape second, the team to win); nothing for the classic run-length search. */
-export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle }: FinderOutcomeFieldsProps) {
+export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory }: FinderOutcomeFieldsProps) {
   const r = useTranslations("Rigged");
   if (outcome === "duration") return null;
   const range = RANGES.findEscapeAt;
   return (
     <div className="space-y-3" data-testid="finder-outcome-fields">
-      <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle))}</p>
+      <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory))}</p>
       {outcome === "escapes-at" && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">

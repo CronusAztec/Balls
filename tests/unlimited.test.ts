@@ -31,6 +31,8 @@ import { paddleSettingFields } from "@/lib/physics/modes/paddle";
 import { vortexSettingFields } from "@/lib/physics/modes/vortex";
 import { journeySettingFields } from "@/lib/physics/modes/journey";
 import { bullseyeSettingFields, ringScore } from "@/lib/physics/modes/bullseye";
+import { territorySettingFields } from "@/lib/physics/modes/territory"; // --- odd-territory ---
+import { mazeSettingFields } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { fixedRunDurationSec } from "@/lib/simulation/finder";
 import { MAX_RACERS, RACE_SCREEN_CEILING, resolveRaceTrackSettings } from "@/lib/physics/raceTrack";
 import { resolveProjectSettings } from "@/lib/project";
@@ -597,6 +599,8 @@ describe("No limits: the engine", () => {
         ...vortexSettingFields(engine.getVortexSettings()),
         ...journeySettingFields(engine.getJourneySettings()),
         ...bullseyeSettingFields(engine.getBullseyeSettings()),
+        ...territorySettingFields(engine.getTerritorySettings()), // --- odd-territory ---
+        ...mazeSettingFields(engine.getMazeSettings()), // --- odd-maze ---
         rcRacers: race.racers,
         rcTrackLength: race.trackLength,
         rcLaps: race.laps,
@@ -668,7 +672,9 @@ describe("No limits: the engine", () => {
     }
     // Every ceiling lies past its slider – --- review fix (uncap-all) --- the race's racers too: its per-racer state and its
     // roster are sized for the grid at init, so a grid of 40 races 40, and one past RACER_CEILING builds that many (ARENA FULL).
-    for (const key of keys) expect([key, softCeiling(key, ranges[key]) > ranges[key].max]).toEqual([key, true]);
+    // --- odd-territory --- But Territory's teams: halves or quadrants, the per-team state sized for four.
+    const atSliderEnd = new Set(["tyTeams"]);
+    for (const key of keys) expect([key, softCeiling(key, ranges[key]) > ranges[key].max]).toEqual([key, !atSliderEnd.has(key)]);
     expect(RACER_CEILING).toBeGreaterThan(RANGES.rcRacers.max);
     expect([MEMORY_CEILINGS.rcRacers, RANGES.rcRacers.max]).toEqual([RACER_CEILING, MAX_RACERS]);
     const bigGrid = settingsFromSearchParams(new URLSearchParams("mode=race&rcn=40"));

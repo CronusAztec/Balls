@@ -196,6 +196,10 @@ interface BallCountFields {
   teams: readonly TeamEntry[];
   /** --- odd-string-battle --- The String Battle's own ball count (2–6): one team per ball, whatever the roster's size. */
   sbBalls?: number;
+  /** --- odd-territory --- Territory's own team count (2 or 4), whatever the roster's size. */
+  tyTeams?: number;
+  /** --- odd-maze --- The Maze's own ball count (1–8): its first six balls are teams, whatever the roster's size. */
+  mzBalls?: number;
 }
 
 /**
@@ -205,6 +209,10 @@ interface BallCountFields {
 export function effectiveBallCount(settings: BallCountFields): number {
   // --- odd-string-battle --- the String Battle plays its own number of balls (the roster colours and names the first ones)
   if (settings.mode === "stringBattle" && settings.sbBalls !== undefined && Number.isFinite(settings.sbBalls)) return Math.max(2, Math.min(MAX_TEAMS, Math.round(settings.sbBalls)));
+  // --- odd-territory --- Territory plays its own number of teams (the roster colours and names the first ones)
+  if (settings.mode === "territory" && settings.tyTeams !== undefined && Number.isFinite(settings.tyTeams)) return settings.tyTeams >= 3 ? 4 : 2;
+  // --- odd-maze --- the Maze plays its own number of balls too (the roster colours and names the first ones; six at most are teams)
+  if (settings.mode === "maze" && settings.mzBalls !== undefined && Number.isFinite(settings.mzBalls)) return Math.max(1, Math.min(MAX_TEAMS, Math.round(settings.mzBalls)));
   const n = settings.teams.length > 0 ? settings.teams.length : Math.max(settings.ballCount, settings.twoBalls ? 2 : 1);
   return Math.min(modeBallCap(settings.mode), clampBallCount(n));
 }

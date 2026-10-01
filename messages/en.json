@@ -1475,7 +1475,92 @@
     "publishTip": "Send the finished clip to your TikTok, Instagram and YouTube accounts – several per platform – in one click: YouTube straight from the browser, TikTok and Instagram through a small relay you host, or the no-setup share buttons.",
     "publishAccounts": "Accounts (TikTok, Instagram, YouTube)",
     "publishQuickShare": "Quick share",
-    "unlimited": "Wide sliders"
+    "unlimited": "Wide sliders",
+    "modeTerritory": "Territory",
+    "tyDesc": "oddplayground's pong-wars battle: 2 or 4 teams of bouncing balls paint a tile map. A ball passes through its own colour and bounces off any other, converting the tile it hits – so every bounce moves the border. When the countdown runs out, the team with the most tiles wins.",
+    "tyTeams": "Teams",
+    "tyTeamsTip": "2 teams split the board into top and bottom halves, 4 teams into quadrants. Every team starts with the same number of tiles.",
+    "tyTeams2": "2 teams",
+    "tyTeams4": "4 teams",
+    "tyRosterNote": "The first {count} of {teams} teams wear the Teams & Scoreboard roster; the rest use the neon palette.",
+    "tyPaletteNote": "Palette: {names} – or set a roster in Teams & Scoreboard.",
+    "tyTeamN": "Team {n}",
+    "tyBallsPerTeam": "Balls per Team",
+    "tyBallsPerTeamTip": "How many balls every team starts with inside its region (1–8). More balls, faster borders – 4 teams × 8 balls is 32 balls on the board.",
+    "tyPowers": "Powers",
+    "tyPowersTip": "One power per team. The HUD calls a team by its power (VORTEX 52% VS BOMBER 48%), or by its name without one.",
+    "tyPowerOf": "Power of {team}",
+    "tyPowerNone": "None",
+    "tyPowerVortex": "Vortex",
+    "tyPowerBomber": "Bomber",
+    "tyPowerPainter": "Painter",
+    "tyPowerGhost": "Ghost",
+    "tyHintNone": "None: classic pong wars – bounce off an enemy tile and convert the tile you hit.",
+    "tyHintVortex": "Vortex: the ball's path curves, and on every power tick it drags a whirl whose two spiral arms convert the enemy tiles within the reach.",
+    "tyHintBomber": "Bomber: on every power tick the ball arms and blows on its next bounce off an enemy tile – every tile within the reach turns its colour, nearby balls are blown away and the board shakes. One bounce can flip the board.",
+    "tyHintPainter": "Painter: on every power tick the ball dashes straight through enemy territory, painting a one-tile trail.",
+    "tyHintGhost": "Ghost: a fast, weightless ball that passes through enemy tiles without bouncing and converts the 3×3 block it is in on every wall bounce.",
+    "tyPowerEvery": "Power Every",
+    "tyPowerEveryTip": "Seconds between two ticks of a timed power (the vortex's whirl, the bomber's blast, the painter's dash). Every ball starts its timer at a seeded offset, so a team's balls do not fire together.",
+    "tyRadius": "Power Reach",
+    "tyRadiusTip": "How far the vortex's whirl and the bomber's blast reach, in tiles.",
+    "tyTiles": "{count, plural, one {# tile} other {# tiles}}",
+    "tyCols": "Board Columns",
+    "tyColsTip": "Tiles across the board (12–48); the rows follow the board's shape. More tiles, finer borders – the balls shrink with the tiles.",
+    "tyDuration": "Countdown",
+    "tyDurationTip": "When the countdown runs out the team with the most tiles wins (a level top is a draw). The recording length follows it, plus a few seconds for the verdict. The last 5 seconds get intense: the balls speed up.",
+    "tyPegs": "Dotted Grid",
+    "tyPegsTip": "The faint dotted grid of the reels: a dot every three tiles, and the dots deflect the balls.",
+    "tyBadge": "Warning Badge",
+    "tyBadgeTip": "The \"FLASHING LIGHTS – THE END GETS INTENSE\" badge in the top-left corner of the clip.",
+    "tyHud": "Percentage HUD",
+    "tyHudTip": "The band over the board: PICK A SIDE, the countdown, the VS line with every team's share and the live percentage bar. With a team roster it also stands in for the scoreboard.",
+    "modeMaze": "Maze Escape",
+    "mzDesc": "oddplayground's maze reels: a seeded perfect maze with a red entrance slot on top and an exit gap at the bottom. The balls drop in one after another, bounce their way through and paint every cell they pass – the first one out wins, and the notes climb as they near the exit.",
+    "mzBrain": "Brain",
+    "mzBrainTip": "How the balls find their way. Bounce: pure physics – they just ricochet through the corridors. Wall follower: one hand on the wall at every junction – it always finds the exit. Explorer: prefers the corridors it has not been down yet and backtracks from dead ends. The steering nudges a ball as it crosses the centre of a cell.",
+    "mzBrainBounce": "Bounce",
+    "mzBrainWallFollow": "Wall follower",
+    "mzBrainExplorer": "Explorer",
+    "mzHintBounce": "Pure physics: the balls ricochet through the corridors and may take a long time to find the exit.",
+    "mzHintWallFollow": "Keeps a hand on the wall at every junction – slow but sure: it always gets out.",
+    "mzHintExplorer": "Prefers the corridors it has not visited yet and backtracks from dead ends (a depth-first search).",
+    "mzHand": "Hand on the Wall",
+    "mzHandTip": "Which hand the wall follower keeps on the wall. Alternate gives the balls different hands, so a race takes different routes.",
+    "mzHandLeft": "Left",
+    "mzHandRight": "Right",
+    "mzHandAlternate": "Alternate",
+    "mzBalls": "Maze Balls",
+    "mzBallsTip": "How many balls race through the maze, 1–8. They drop in through the entrance a moment apart and fly through each other. A roster in Teams & Scoreboard gives the first ones (up to six) its colours and names.",
+    "mzRosterNote": "The first {count} of {balls} balls wear the Teams & Scoreboard roster; the rest use the neon palette.",
+    "mzPaletteNote": "Palette: {names} – or set a roster in Teams & Scoreboard.",
+    "mzCols": "Maze Size",
+    "mzColsTip": "Columns of the maze, 6–40; the rows follow from the portrait shape. A bigger maze has narrower corridors (the balls shrink to fit) and takes longer to solve.",
+    "mzSpeed": "Maze Speed",
+    "mzSpeedTip": "How fast the balls travel, relative to the maze's width (the Ball Speed slider does not apply here).",
+    "mzGravity": "Pull",
+    "mzGravityTip": "A downward pull, 0–1: the balls fall down the vertical corridors and have to climb back up (the steering gives a ball the speed to climb one cell).",
+    "mzGravityOff": "Off",
+    "mzTrail": "Trail",
+    "mzTrailTip": "Every cell a ball visits is painted, so the maze slowly fills with “blood”. This sets the paint's opacity; 0 turns it off.",
+    "mzTrailOff": "Off",
+    "mzTrailOwn": "Paint in Ball Colours",
+    "mzTrailOwnTip": "Each ball paints its corridors in its own colour instead of the trail colour.",
+    "mzTrailColor": "Trail Colour",
+    "mzTrailColorTip": "The colour of the painted corridors (blood red by default).",
+    "mzFog": "Fog",
+    "mzFogTip": "Hides the cells no ball has visited yet, except for a clear circle around every ball – for suspense. 0 turns it off.",
+    "mzFogOff": "Off",
+    "mzWallColor": "Maze Wall Colour",
+    "mzWallColorTip": "The colour of the glowing maze walls.",
+    "mzWallColorReset": "Reset",
+    "mzDuration": "Maze Clip Limit",
+    "mzDurationTip": "The run ends when every ball is out, or after this many seconds – if nobody got out by then, the ball nearest the exit wins.",
+    "mzBadge": "Maze Warning Badge",
+    "mzBadgeTip": "The “FLASHING LIGHTS – THE END GETS INTENSE” badge in the top-left corner of the clip.",
+    "mzHud": "Distance HUD",
+    "mzHudTip": "A row per ball in the top-right corner: its colour, its name and a bar that fills as it gets closer to the exit, with the passages left to go (or its place once it is out).",
+    "mzRunInfo": "A {cols} × {rows} maze ({cells} cells, a new one for every seed); the run ends when every ball is out, at {seconds}s at the latest."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -1598,6 +1683,14 @@
     "beatDrop": {
       "name": "Beat Drop",
       "description": "A ball drops onto planks, blocks, springs, wedges, spinning bars and drum pads that fly in from off-screen just before each beat – so every single landing hits exactly on the beat, with a kick, a snare or the next note of your song."
+    },
+    "territory": {
+      "name": "Territory",
+      "description": "Pong-wars style physics simulation: 2 or 4 teams of bouncing balls paint the tile map their colour, and the live percentage bar tracks who's winning. Vortex VS Bomber – one bounce can flip the board."
+    },
+    "maze": {
+      "name": "Maze Escape",
+      "description": "Who else thought that was blood? Balls drop through a red slot into a seeded, green-glowing maze and bounce their way to the exit, painting every corridor they pass red. Every wall hit is a note that climbs as a ball closes in on the way out – the first ball through the exit wins."
     }
   },
   "FAQ": {
@@ -1711,7 +1804,9 @@
     "modeVortex": "The geraldbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length.",
     "modeJourney": "The geraldbounces commute format – \"Gerald bounces through his commute\", \"let him out!\": a column of stages the ball clears one after another while the camera scrolls down. Rings is a compact Classic escape (3–9 rings with rotating gaps; the ball drops down a chute into the core), Glass a few Glass Smash panes that crack on every landing and shatter, Pegs a Ball Drop peg field whose rows play a rising scale, Multipliers two or three rows of gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) that power the ball up for the rest of the trip, Funnel a converging funnel, Bullseye a landing target that scores 10–100 before its trapdoor opens, and HOME the doorway with confetti and the total time. Every stage change shows a banner and plays a swoosh, a mini-map beside the column shows how far Gerald has come, and every note goes through your instrument, scale, beat lock, hit samples and melody. Build the route in the Journey block (sizes, order, add and remove) or let the seed draw a random one; every run is deterministic and always reaches HOME, so Find Simulation can pick a seed for your clip length.",
     "modeBullseye": "The geraldbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length.",
-    "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers."
+    "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers.",
+    "modeTerritory": "The oddplayground pong-wars battle: a tile map split into 2 or 4 team regions, every team's balls bouncing inside its own colour. A ball passes through tiles of its own colour and bounces off any other, converting the tile it hits – so every bounce pushes the border, and the live percentage bar under PICK A SIDE swings with it. Every team can have a power: the vortex curves its path and drags a whirl whose spiral arms convert enemy tiles, the bomber arms every few seconds and blows on its next bounce off an enemy tile, taking every tile within its reach (with a shock ring, debris and a jolt of the board), the painter dashes straight through enemy territory painting a trail, and the ghost passes through enemy tiles and converts a 3×3 block on every wall bounce. The balls collide with each other, the optional dotted grid deflects them, the last five seconds speed everything up, and when the countdown runs out the team with the most tiles wins – with slow motion when the lead flips in the finale and the camera's slow motion is on. Every seed replays exactly, Find Simulation searches for a run your chosen team wins, the Forced Winner rigs one, and a team roster lends the teams its colours and names.",
+    "modeMaze": "oddplayground's maze reels (“who else thought that was blood”): a seeded perfect maze with glowing green walls on near-black – a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls drop in one after another and work their way through physically (a downward pull, perfectly elastic walls), steered by a brain: pure bounce, a wall follower or an explorer that prefers the corridors it has not visited. Every cell a ball passes is painted red, every wall hit is a note that climbs as the ball nears the exit, and the first ball out wins – with a distance-to-exit bar per ball in the HUD and optional fog over the unvisited cells for suspense. Find Simulation times the run or picks the winner."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -2014,7 +2109,8 @@
     "teamN": "Team {n}",
     "ballN": "Ball {n}",
     "noteNeverEscape": "Rigged: no ball can escape",
-    "noteWinner": "Rigged: {name} wins"
+    "noteWinner": "Rigged: {name} wins",
+    "hintWinnerTerritory": "The chosen team owns the most tiles when the countdown runs out: every run is played to its end, and the recording covers the verdict and its banner."
   },
   "FastExport": {
     "button": "Fast export",
@@ -3181,6 +3277,22 @@
     "privacyTitle": "Privacy",
     "privacyBody": "Everything runs on your PC. The local AI works offline; a cloud key you enter is stored encrypted on your PC and only sent to the provider you chose. The app only goes online to download a model you asked for and to check GitHub for updates."
   },
+  "Territory": {
+    "canvasVs": "VS",
+    "canvasPickSide": "PICK A SIDE",
+    "canvasBadgeTop": "FLASHING LIGHTS",
+    "canvasBadgeBottom": "THE END GETS INTENSE",
+    "canvasPowerVortex": "VORTEX",
+    "canvasPowerBomber": "BOMBER",
+    "canvasPowerPainter": "PAINTER",
+    "canvasPowerGhost": "GHOST",
+    "canvasWins": "[name] WINS",
+    "canvasDraw": "DRAW",
+    "canvasShare": "[pct]% OF THE BOARD",
+    "canvasTiles": "Tiles",
+    "finderFixed": "A Territory battle always lasts exactly {duration}s – its countdown – whatever the seed: the seed decides who wins. Change the Countdown in the Territory block to hit the target, or search for a winner.",
+    "fixedRunLength": "Always {duration}s – the countdown; change the Countdown or search for a winner"
+  },
   "SiteRedesign": {
     "nav": {
       "studio": "Studio",
@@ -3253,5 +3365,16 @@
     "prose": {
       "onThisPage": "On this page"
     }
+  },
+  "Maze": {
+    "canvasTitle": "MAZE",
+    "canvasBadgeTop": "FLASHING LIGHTS",
+    "canvasBadgeBottom": "THE END GETS INTENSE",
+    "canvasOut": "#[place]",
+    "canvasWins": "[name] ESCAPED",
+    "canvasTime": "in [seconds]s",
+    "canvasTimeUp": "TIME'S UP",
+    "canvasClosest": "[name] got closest",
+    "canvasCaption": "who else thought that was blood"
   }
 }

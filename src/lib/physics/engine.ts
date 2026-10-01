@@ -52,12 +52,14 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
+import { TerritoryMode, type TerritorySettings, type TerritoryView } from "./modes/territory"; // --- odd-territory ---
 import { BM_BOUNCE, BM_COLLIDE, BounceMathRuntime, bounceHitEvent, shiftedObstacleFrequency, type BounceMathView } from "./bounceMathRuntime"; // --- bounce-math ---
 // --- unlimited --- No limits: soft ceilings, the crowd, finite numbers, the ate-the-arena finish
 import { UnlimitedRuntime, WALL_HITS_KEPT, type LimitsHost, type UnlimitedView } from "./limits";
 import type { Crowd } from "./crowd";
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { BOUNCIER_CLASSIC_MAX, bouncierIncrementOf } from "@/lib/uncap"; // --- uncap-all --- the uncapped Bouncier
+import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --- odd-maze ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -284,6 +286,10 @@ export class PhysicsEngine {
   readonly bullseyeMode = new BullseyeMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
+  // --- odd-territory --- Territory: pong-wars teams painting a tile map
+  readonly territoryMode = new TerritoryMode();
+  // --- odd-maze --- Maze escape (a seeded maze the balls race through, leaving a trail)
+  readonly mazeMode = new MazeMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -640,6 +646,14 @@ export class PhysicsEngine {
   initBeatDrop() {
     this.activateMode(this.beatDropMode, "none");
   }
+  // --- odd-territory --- the mode owns its tile map (no rings)
+  initTerritory() {
+    this.activateMode(this.territoryMode, "none");
+  }
+  // --- odd-maze --- the mode owns its maze (no rings)
+  initMaze() {
+    this.activateMode(this.mazeMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -719,6 +733,12 @@ export class PhysicsEngine {
       // --- beat-drop ---
       case "beatDrop":
         return this.initBeatDrop();
+      // --- odd-territory ---
+      case "territory":
+        return this.initTerritory();
+      // --- odd-maze ---
+      case "maze":
+        return this.initMaze();
     }
   }
 
@@ -1593,6 +1613,44 @@ export class PhysicsEngine {
     return this.beatDropMode.getProgress();
   }
   // --- end beat-drop ---
+  // --- odd-territory ---
+  isTerritoryMode() {
+    return this.currentMode === this.territoryMode;
+  }
+  getTerritorySettings(): TerritorySettings {
+    return this.territoryMode.getSettings();
+  }
+  /** The board, teams, balls, powers, interval, reach, countdown and pegs of Territory apply on the next `initTerritory()`; the badge and the HUD at once. */
+  setTerritorySettings(settings: Partial<TerritorySettings>) {
+    this.territoryMode.setSettings(settings);
+  }
+  /** Live Territory state (the tile map, counts, balls, flips, blasts, the verdict) for the canvas and the HUD; the same object every call. */
+  getTerritoryView(): TerritoryView {
+    return this.territoryMode.getView();
+  }
+  getTerritoryProgress() {
+    return this.territoryMode.getProgress();
+  }
+  // --- end odd-territory ---
+  // --- odd-maze ---
+  isMazeMode() {
+    return this.currentMode === this.mazeMode;
+  }
+  getMazeSettings(): MazeSettings {
+    return this.mazeMode.getSettings();
+  }
+  /** Columns, balls, brain, hand and clip limit of the Maze apply on the next `initMaze()`; the pull, the speed and the drawing at once. */
+  setMazeSettings(settings: Partial<MazeSettings>) {
+    this.mazeMode.setSettings(settings);
+  }
+  /** Live Maze state (grid, field, runners, paint, hits, verdict) for the canvas and the HUD; the same object every call. */
+  getMazeView(): MazeView {
+    return this.mazeMode.getView();
+  }
+  getMazeProgress() {
+    return this.mazeMode.getProgress();
+  }
+  // --- end odd-maze ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

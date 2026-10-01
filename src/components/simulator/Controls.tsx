@@ -65,6 +65,8 @@ import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- ge
 import JourneySection, { JOURNEY_KEYS } from "./sections/JourneySection"; // --- gerald-journey --- the Journey block of the Mode row
 import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // --- gerald-bullseye --- the Bullseye block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
+import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
+import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
 import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
@@ -238,6 +240,10 @@ SECTION_KEYS.ball.push(...JOURNEY_KEYS);
 SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
+// --- odd-territory --- the Territory block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...TERRITORY_KEYS);
+// --- odd-maze --- the Maze block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...MAZE_KEYS);
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -358,6 +364,10 @@ export default function Controls(props: ControlsProps) {
     bullseye: t("modeBullseye"),
     // --- beat-drop ---
     beatDrop: t("modeBeatDrop"),
+    // --- odd-territory ---
+    territory: t("modeTerritory"),
+    // --- odd-maze ---
+    maze: t("modeMaze"),
   };
 
   // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
@@ -449,6 +459,10 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "bullseye" && !!search && <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- beat-drop --- */}
       {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
+      {/* --- odd-territory --- */}
+      {s.mode === "territory" && !!search && <TerritorySection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- odd-maze --- */}
+      {s.mode === "maze" && !!search && <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
@@ -1275,6 +1289,12 @@ export default function Controls(props: ControlsProps) {
       // --- beat-drop ---
       case "beatDrop":
         return <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} /* --- video-beats --- */ />;
+      // --- odd-territory ---
+      case "territory":
+        return <TerritorySection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- odd-maze ---
+      case "maze":
+        return <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

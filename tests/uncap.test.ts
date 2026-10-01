@@ -751,6 +751,8 @@ describe("uncap-all: the guard", () => {
     // (--- review fix (uncap-all) --- the race's racers too: its per-racer state and roster are sized for the grid at init now.
     // The list settings – the editor's obstacles, the captions – lie far past their old design counts.)
     const oldListCounts: Record<string, number> = { obstacles: 24, captions: 8 };
+    // --- odd-territory --- but Territory's teams: halves or quadrants, the per-team state sized for four – a count past them plays four
+    const atSliderEnd = new Set(["tyTeams"]);
     for (const [key, ceiling] of Object.entries(MEMORY_CEILINGS)) {
       if (LIST_CEILING_KEYS.has(key)) {
         expect([key, ceiling >= 40 * oldListCounts[key]]).toEqual([key, true]);
@@ -758,7 +760,7 @@ describe("uncap-all: the guard", () => {
       }
       const range = ranges[key];
       expect([key, range !== undefined]).toEqual([key, true]);
-      expect([key, ceiling > range.max]).toEqual([key, true]);
+      expect([key, ceiling > range.max]).toEqual([key, !atSliderEnd.has(key)]);
     }
     expect(MEMORY_CEILINGS.ballCount).toBe(1_000_000);
   });
@@ -806,6 +808,7 @@ describe("uncap-all: the guard", () => {
     pdMisses: "misses allowed (the HUD draws at most ten hearts)",
     byPerfect: "a shot's index",
     beatDownbeat: "a beat's index",
+    tyRadius: "a reach in tiles (a blast visits at most the board's tiles, a whirl walks at most its diagonal: whirlReach())", // --- odd-territory ---
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

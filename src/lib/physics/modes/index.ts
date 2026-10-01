@@ -68,3 +68,9 @@ export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye"
 // --- beat-drop ---
 export { BeatDropMode } from "./beatDrop";
 export type { BeatDropSettings, BeatDropView, BeatDropField, BeatDropSound, BeatDropColorMode } from "./beatDrop";
+// --- odd-territory ---
+export { TerritoryMode } from "./territory";
+export type { TerritorySettings, TerritoryView, TerritoryField, TyBall, TyShock, TyPower } from "./territory";
+// --- odd-maze ---
+export { MazeMode } from "./maze";
+export type { MazeSettings, MazeView, MazeRunner, MazeHit, MazeBrain, MazeHand } from "./maze";
