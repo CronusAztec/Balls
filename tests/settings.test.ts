@@ -301,18 +301,17 @@ describe("link and preset validation (review fix: recording-export)", () => {
 describe("numeric link and preset values at ±1e9 (review fix: security-robustness)", () => {
   const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
   const MODES = ["classic", "target", "accumulation", "drop"] as const; // (ring modes, the count modes and one without rings)
-  /** The numbers whose range is one of meaning (both ends kept); every other core number keeps a big value as it is. */
-  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
   const CORE = new Set(["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"]);
   const checkValue = (field: string, value: unknown, label: string, high: boolean) => {
     expect(typeof value === "number" && Number.isFinite(value), `${label}: ${String(value)} is a finite number`).toBe(true);
     const range = rangeOf(field);
     if (!range) return;
     const v = value as number;
+    if (SIGNED_KEYS.has(field)) return; // --- uncap-all --- (signed settings go past both ends: wind the other way, a pendulum past half a turn)
     expect(v >= range.min, `${label}: ${v} >= ${range.min}`).toBe(true);
     if (!CORE.has(field)) return; // the feature groups keep their own rules (see the recording-export tests above)
-    if (BOUNDED.has(field)) expect(v <= range.max, `${label}: ${v} <= ${range.max}`).toBe(true);
-    else if (high) expect(v, `${label}: a big value is kept (extreme values are a feature)`).toBe(1e9);
+    // --- uncap-all --- every core number keeps a big value as it is (no range is one of meaning any more: nothing is capped)
+    if (high) expect(v, `${label}: a big value is kept (extreme values are a feature)`).toBe(1e9);
     if (Number.isInteger(range.step)) expect(Number.isInteger(v), `${label}: ${v} is a whole number`).toBe(true);
   };
 

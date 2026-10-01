@@ -1,23 +1,23 @@
 /**
  * --- review fix (security-robustness) --- Soft memory-safe ceilings of the counts the engine turns into objects.
  *
- * Links, share codes, presets and project files keep big numbers on purpose (extreme values are a feature; `clampToRange()`
+ * Links, share codes, presets and project files keep big numbers on purpose (extreme values are a feature; `floorToRange()`
  * in settings.ts only lifts invalid ones), but a count that becomes rings, target segments or spikes has to stop somewhere:
  * `?wc=1000000` took 1.3 s to build and 220 ms a frame, `?tc=1000000000` ran the tab out of memory. The engine therefore
- * builds at most these many – past every slider (20 / 25 / 20), past what a screen can show (a thousand rings already fill
- * the band at sub-pixel spacing, see ringLod.ts; a hundred numbered segments are 3.6° each) and the same soft ceilings the
- * No limits feature runs – while the settings keep the typed value and the page says so under the canvas
+ * builds at most these many – far past every slider (20 / 25 / 20) and past what a screen can show (rings closer than a pixel
+ * are drawn about one per pixel, see ringLod.ts) – --- uncap-all --- the memory-safety ceilings of lib/uncap.ts
+ * (`MEMORY_CEILINGS`: `RING_CEILING` rings, `ENTITY_CEILING` segments and spikes), the only ceilings left – while the settings keep the typed value and the page says so under the canvas
  * (`softCeilingNotes()`). They apply inside the engine, so the page, Find Simulation, the fast export, batch
  * renders and the bot all run the same, deterministic world for a seed. With No limits on, limits.ts applies the same
  * ceilings (`ENGINE_CEILINGS` in lib/unlimited.ts, the source of these numbers); these keep them with it off too.
  */
 import { ENGINE_CEILINGS, LIVE_WALL_LIMIT } from "@/lib/unlimited";
 
-/** The most rings the engine builds from the Wall Count (Classic, Shatter): No limits' `LIVE_WALL_LIMIT` (1,000). */
+/** The most rings the engine builds from the Wall Count (Classic, Shatter): `LIVE_WALL_LIMIT` (--- uncap-all --- `RING_CEILING`, 10,000). */
 export const LIVE_RING_LIMIT = LIVE_WALL_LIMIT;
-/** The most numbered segments Target mode lays out (Number of Targets, 100): the canvas labels every one, every frame. */
+/** The most numbered segments Target mode lays out (Number of Targets; --- uncap-all --- `ENTITY_CEILING`, 5,000). */
 export const LIVE_TARGET_LIMIT = ENGINE_CEILINGS.targetCount;
-/** The most spikes Accumulation puts on its wall (Spike Count, 360): one per degree. */
+/** The most spikes Accumulation puts on its wall (Spike Count; --- uncap-all --- `ENTITY_CEILING`, 5,000). */
 export const LIVE_SPIKE_LIMIT = ENGINE_CEILINGS.spikeCount;
 
 /** `value`, or `limit` when it is past it. */

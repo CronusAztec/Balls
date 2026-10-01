@@ -80,10 +80,13 @@ describe("soft memory-safe ceilings", () => {
     expect(softCeilingNotes({ ...base, wallCount: 1e6 })).toEqual([{ setting: "wallCount", asked: 1e6, running: LIVE_RING_LIMIT }]);
     expect(softCeilingNotes({ ...base, mode: "shatter", wallCount: LIVE_RING_LIMIT })).toEqual([]);
     expect(softCeilingNotes({ ...base, mode: "drop", wallCount: 1e6 })).toEqual([]); // no rings there
-    expect(softCeilingNotes({ ...base, mode: "target", targetCount: 5000 })).toEqual([{ setting: "targetCount", asked: 5000, running: LIVE_TARGET_LIMIT }]);
+    // (--- uncap-all --- the ceilings are the memory-safety ones of lib/uncap.ts: a count just past each is noted)
+    const pastTargets = LIVE_TARGET_LIMIT + 1;
+    const pastSpikes = LIVE_SPIKE_LIMIT + 1;
+    expect(softCeilingNotes({ ...base, mode: "target", targetCount: pastTargets })).toEqual([{ setting: "targetCount", asked: pastTargets, running: LIVE_TARGET_LIMIT }]);
     expect(softCeilingNotes({ ...base, mode: "target", targetCount: LIVE_TARGET_LIMIT })).toEqual([]);
-    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: 5000 })).toEqual([]); // spikes off
-    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: 5000, spikesEnabled: true })).toEqual([{ setting: "spikeCount", asked: 5000, running: LIVE_SPIKE_LIMIT }]);
+    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: pastSpikes })).toEqual([]); // spikes off
+    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: pastSpikes, spikesEnabled: true })).toEqual([{ setting: "spikeCount", asked: pastSpikes, running: LIVE_SPIKE_LIMIT }]);
   });
 
   it("the notice and the recording error are translated in every language", () => {
