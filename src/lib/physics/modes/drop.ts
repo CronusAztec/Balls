@@ -1,5 +1,6 @@
 import { circleObstacle, segmentBetween, segmentObstacle, type Obstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult } from "../types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Ball Drop ("symphony" mode): no rings. A tall board of pegs and short bars in a staggered pattern
@@ -65,14 +66,15 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value to its range (counts become whole numbers; bad input falls back to the default). */
-export function resolveDropSettings(config: Partial<DropSettings> | null | undefined): DropSettings {
+export function resolveDropSettings(config: Partial<DropSettings> | null | undefined, unlimited = false): DropSettings {
   const out = { ...DEFAULT_DROP_SETTINGS };
   if (!config) return out;
-  if (config.ballCount !== undefined) out.ballCount = Math.round(clampNumber(config.ballCount, DROP_RANGES.dropBallCount, out.ballCount));
-  if (config.sizeVariation !== undefined) out.sizeVariation = clampNumber(config.sizeVariation, DROP_RANGES.dropSizeVariation, out.sizeVariation);
-  if (config.gravityVariation !== undefined) out.gravityVariation = clampNumber(config.gravityVariation, DROP_RANGES.dropGravityVariation, out.gravityVariation);
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, DROP_RANGES.dropRows, out.rows));
-  if (config.spawnInterval !== undefined) out.spawnInterval = clampNumber(config.spawnInterval, DROP_RANGES.dropSpawnInterval, out.spawnInterval);
+  const R = rangesFor(DROP_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
+  if (config.ballCount !== undefined) out.ballCount = Math.round(clampNumber(config.ballCount, R.dropBallCount, out.ballCount));
+  if (config.sizeVariation !== undefined) out.sizeVariation = clampNumber(config.sizeVariation, R.dropSizeVariation, out.sizeVariation);
+  if (config.gravityVariation !== undefined) out.gravityVariation = clampNumber(config.gravityVariation, R.dropGravityVariation, out.gravityVariation);
+  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, R.dropRows, out.rows));
+  if (config.spawnInterval !== undefined) out.spawnInterval = clampNumber(config.spawnInterval, R.dropSpawnInterval, out.spawnInterval);
   if (typeof config.loop === "boolean") out.loop = config.loop;
   return out;
 }
@@ -226,6 +228,8 @@ export class DropMode implements GameMode {
   readonly name = "drop";
   readonly ballsMayRest = true;
   private settings: DropSettings = { ...DEFAULT_DROP_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private layout: DropLayout | null = null;
   private released = 0;
   /** Balls this run will release: the configured count, or the number that fit once the board proved full. */
@@ -242,8 +246,10 @@ export class DropMode implements GameMode {
     return this.settings;
   }
   /** Applied on the next init (the Simulator re-inits the mode when a Ball Drop setting changes). */
-  setSettings(patch: Partial<DropSettings>) {
-    this.settings = resolveDropSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<DropSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveDropSettings({ ...this.settings, ...patch }, unlimited);
   }
   getLayout() {
     return this.layout;

@@ -202,6 +202,8 @@ export class BattleMode implements GameMode {
   /** The mode resolves the square pairs itself (axis-aligned squares, not discs). */
   readonly ballsPassThrough = true;
   private settings: BattleSettings = { ...DEFAULT_BATTLE_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: ArenaView = createArenaView("battle");
   private fighters: Fighter[] = [];
   /** Tempo of each square (its cruising speed over the Ball Speed). */
@@ -222,8 +224,10 @@ export class BattleMode implements GameMode {
     return this.settings;
   }
   /** Applied on the next init (the Simulator re-inits the mode when a battle setting changes). */
-  setSettings(patch: Partial<BattleSettings>) {
-    this.settings = resolveBattleSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<BattleSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveBattleSettings({ ...this.settings, ...patch }, unlimited);
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): ArenaView {

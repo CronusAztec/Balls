@@ -2,6 +2,7 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { buildPendulumField, pendulumPitch, polygonRadius, type PendulumField } from "./pendulum";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Metronomes & Polyrhythms ("polyrhythm" mode, the project.jdm polyrhythm / tempo-phase-shift formats): no
@@ -160,10 +161,10 @@ export function customRatiosOf(text: string): number[] {
 }
 
 /** Fills in the defaults and clamps every value (counts and cycles whole, the cycle length on half seconds, the step on tenths of a BPM); unknown options fall back to the defaults. */
-export function resolvePolyrhythmSettings(config: Partial<PolyrhythmSettings> | null | undefined): PolyrhythmSettings {
+export function resolvePolyrhythmSettings(config: Partial<PolyrhythmSettings> | null | undefined, unlimited = false): PolyrhythmSettings {
   const out = { ...DEFAULT_POLYRHYTHM_SETTINGS };
   if (!config) return out;
-  const R = POLYRHYTHM_RANGES;
+  const R = rangesFor(POLYRHYTHM_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.prCount, out.count));
   if (isPolyLayout(config.layout)) out.layout = config.layout;
   if (isPolyArcStyle(config.arcStyle)) out.arcStyle = config.arcStyle;
@@ -300,13 +301,13 @@ export function buildTempoSeries(settings: Pick<PolyrhythmSettings, "tempos" | "
 }
 
 /** Length (seconds) of one cycle of these settings: the cycle length, or the alignment period of an arithmetic series. */
-export function polyrhythmCycleSeconds(settings: Partial<PolyrhythmSettings> | null | undefined): number {
-  return buildTempoSeries(resolvePolyrhythmSettings(settings)).cycleSec;
+export function polyrhythmCycleSeconds(settings: Partial<PolyrhythmSettings> | null | undefined, unlimited = false): number {
+  return buildTempoSeries(resolvePolyrhythmSettings(settings, unlimited)).cycleSec; // --- unlimited --- (as the mode resolves them)
 }
 
 /** Seconds between two moments at which every voice ticks together. */
-export function polyrhythmAlignSeconds(settings: Partial<PolyrhythmSettings> | null | undefined): number {
-  return buildTempoSeries(resolvePolyrhythmSettings(settings)).alignSec;
+export function polyrhythmAlignSeconds(settings: Partial<PolyrhythmSettings> | null | undefined, unlimited = false): number {
+  return buildTempoSeries(resolvePolyrhythmSettings(settings, unlimited)).alignSec; // --- unlimited --- (as the mode resolves them)
 }
 
 /** The ticks [first, end) of a voice ticking a / D times per second inside step `step` – [step / sps, (step + 1) / sps) seconds. */
@@ -648,6 +649,8 @@ export class PolyrhythmMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: PolyrhythmSettings = { ...DEFAULT_POLYRHYTHM_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: PolyrhythmView = {
     settings: { ...DEFAULT_POLYRHYTHM_SETTINGS },
     series: null,
@@ -696,8 +699,10 @@ export class PolyrhythmMode implements GameMode {
    * (the Simulator re-inits the mode when one of them changes). The layout, arc style, polygons, accents, pitch
    * mapping and numbers apply at once – positions are functions of the clock, so the rhythm carries on.
    */
-  setSettings(patch: Partial<PolyrhythmSettings>) {
-    this.settings = resolvePolyrhythmSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<PolyrhythmSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolvePolyrhythmSettings({ ...this.settings, ...patch }, unlimited);
     if (!this.initialized) return;
     const v = this.view;
     const s = this.settings;

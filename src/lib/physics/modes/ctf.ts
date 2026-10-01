@@ -167,6 +167,8 @@ export class CtfMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: CtfSettings = { ...DEFAULT_CTF_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private run: CtfSettings = { ...DEFAULT_CTF_SETTINGS };
   private readonly view: ArenaView = createArenaView("ctf");
   private tempo = new Float64Array(0);
@@ -185,8 +187,10 @@ export class CtfMode implements GameMode {
     return this.settings;
   }
   /** Team size, score to win and nudge apply on the next init; the clip length (the time limit) at once. */
-  setSettings(patch: Partial<CtfSettings>) {
-    this.settings = resolveCtfSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<CtfSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveCtfSettings({ ...this.settings, ...patch }, unlimited);
     this.run = { ...this.run, clipSeconds: this.settings.clipSeconds };
     if (this.view.field) this.view.timeLimitSec = ctfTimeLimitSec(this.run.clipSeconds);
   }

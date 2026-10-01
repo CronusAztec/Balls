@@ -3,13 +3,11 @@ import type { LibraryItem } from "./contract";
 /*
  * --- desktop-exe --- EXTENSION POINT for one-click publishing from the desktop Library.
  *
- * The Publish feature (direct YouTube upload, the relay, share – built on its own branch) plugs in here when it is merged:
- * it registers one target per path with `registerPublishTarget()`, and the Library shows a "Publish to …" button per
- * target for every clip (the button hands the target the clip's file, read through the app, and its post copy). Until a
- * target is registered, the Library offers "Copy post text" and "Show in folder" only.
- *
- *   // --- desktop-exe --- publish hook (in the Publish feature's page code):
- *   registerPublishTarget({ id: "youtube", label: "YouTube", publish: (clip) => uploadToYouTube(clip.file, clip.title, clip.caption) });
+ * A publishing path registers one target with `registerPublishTarget()`, and the Library shows a "Publish to …" button per
+ * target for every clip it is `available` for (the button hands the target the clip's file, read through the app, and its
+ * post copy). The Publish feature registers its paths through lib/publish/desktopTargets.ts – the accounts ticked in the
+ * Publish block (the relay) and the quick share – while the Desktop group is shown. Without a target, the Library offers
+ * "Copy post text" and "Show in folder" only.
  */
 
 export interface PublishClip {
@@ -24,7 +22,10 @@ export interface PublishTarget {
   id: string;
   /** The button's label (already localised by the feature). */
   label: string;
-  publish(clip: PublishClip): Promise<{ url?: string } | void>;
+  /** Whether the target offers this clip (every clip when absent). */
+  available?(item: LibraryItem): boolean;
+  /** Publishes the clip: the post's link and/or a line for the Library to show (localised), or nothing. */
+  publish(clip: PublishClip): Promise<{ url?: string; message?: string } | void>;
 }
 
 const targets = new Map<string, PublishTarget>();

@@ -3,6 +3,7 @@ import { BeatClock, DEFAULT_BEAT_CLOCK, freshBeatSample, isUsableGrid, type Beat
 import { beatTimeSec, firstBeatAtOrAfter, followsSongGrid, sameBeatSchedule, scheduleBpm, schedulePeriod } from "@/lib/simulation/beatSchedule";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep } from "./jdmRhythm";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Beat Runner ("runner" mode, feature jdm-rhythm-runner – the project.jdm "Added realistic gravity to Geometry Dash"
@@ -109,10 +110,10 @@ export interface RunnerFields {
 }
 
 /** Fills in the defaults and clamps every value to its range and step; unknown options fall back to the defaults. */
-export function resolveRunnerSettings(config: Partial<RunnerSettings> | null | undefined): RunnerSettings {
+export function resolveRunnerSettings(config: Partial<RunnerSettings> | null | undefined, unlimited = false): RunnerSettings {
   const out: RunnerSettings = { ...DEFAULT_RUNNER_SETTINGS };
   if (!config) return out;
-  const R = RUNNER_RANGES;
+  const R = rangesFor(RUNNER_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (typeof config.autoJump === "boolean") out.autoJump = config.autoJump;
   if (config.obstacles !== undefined) out.obstacles = Math.round(clampNumber(config.obstacles, R.runnerObstacles, out.obstacles));
   if (config.speed !== undefined) out.speed = toStep(clampNumber(config.speed, R.runnerSpeed, out.speed), R.runnerSpeed.step);
@@ -246,8 +247,8 @@ export interface RunnerPlan {
 }
 
 /** The plan of `settings` (resolved like the mode resolves them) under the Gravity setting `gravitySetting`. */
-export function runnerPlanOf(settings: Partial<RunnerSettings>, gravitySetting: number): RunnerPlan {
-  const s = resolveRunnerSettings(settings);
+export function runnerPlanOf(settings: Partial<RunnerSettings>, gravitySetting: number, unlimited = false): RunnerPlan {
+  const s = resolveRunnerSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
   return { autoJump: s.autoJump, obstacles: s.obstacles, speed: s.speed, jumpHeight: s.jumpHeight, density: s.density, mix: s.mix, beat: runnerBeatConfig(s), gravityFactor: runnerGravityFactor(gravitySetting) };
 }
 
@@ -482,8 +483,8 @@ function pickKind(mix: RunnerMix, level: number, u: number, up1: boolean): Runne
  * obstacle never shifts the next one's). Times are track seconds from the start, positions cube lengths from the start
  * (x = speed × time); every landing is a beat of the schedule.
  */
-export function buildRunnerCourse(input: Partial<RunnerSettings>, gravitySetting: number, random: () => number): RunnerCourse {
-  const settings = resolveRunnerSettings(input);
+export function buildRunnerCourse(input: Partial<RunnerSettings>, gravitySetting: number, random: () => number, unlimited = false): RunnerCourse {
+  const settings = resolveRunnerSettings(input, unlimited); // --- unlimited --- (as the mode resolves them)
   const phys = runnerPhysics(settings, gravitySetting);
   const beat = runnerBeatConfig(settings);
   const { speed: v, jumpSpeed: v0, gravity: g, flatFlight: Tf } = phys;
@@ -846,6 +847,8 @@ export class RunnerMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: RunnerSettings = { ...DEFAULT_RUNNER_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: RunnerView = createView();
   private readonly clock = new BeatClock();
   private readonly beatSample = freshBeatSample();
@@ -877,8 +880,10 @@ export class RunnerMode implements GameMode {
     return this.settings;
   }
   /** Everything applies on the next init (the course is planned for it) except the scale and the root (live). */
-  setSettings(patch: Partial<RunnerSettings>) {
-    this.settings = resolveRunnerSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<RunnerSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveRunnerSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.scale = this.settings.scale;
     this.view.settings.rootNote = this.settings.rootNote;
   }
@@ -919,7 +924,7 @@ export class RunnerMode implements GameMode {
     ctx.setBounceSpeedMultiplier(1);
     const s = this.settings;
     this.gravity = ctx.config.gravity;
-    const course = buildRunnerCourse(s, this.gravity, () => ctx.random());
+    const course = buildRunnerCourse(s, this.gravity, () => ctx.random(), this.unlimited);
     this.fx = mulberry32(Math.floor(ctx.random() * 0x7fffffff) + 1);
     this.clock.setConfig(runnerBeatConfig(s));
     this.clockMs = 0;

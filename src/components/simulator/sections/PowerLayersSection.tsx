@@ -3,7 +3,7 @@
 import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { PL_BADGES, PL_SEQUENCES, bouncePeriodSec, buildPowerPlan, runFinishSec, sequencePowers, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
+import { PL_BADGES, PL_SEQUENCES, bouncePeriodSec, buildPowerPlan, resolvePowerLayersSettings, runFinishSec, sequencePowers, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
 
 export interface PowerLayersSectionProps {
   t: Translate;
@@ -30,9 +30,11 @@ const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium tr
 
 /** The run in numbers for the summary line: hits and seconds (null for chaos, whose hit count the seed decides). */
 export function powerLayersRunInfo(s: SimulatorSettings): { hits: number; seconds: number; period: number } | null {
-  const period = bouncePeriodSec(s.plSpeed);
-  if (s.plSequence === "random") return null;
-  const hits = buildPowerPlan(s.plLayers, s.plSequence).powers.length;
+  // --- unlimited --- the run the engine plays: the layers and speed at most at their soft ceilings
+  const pl = resolvePowerLayersSettings({ layers: s.plLayers, speed: s.plSpeed, sequence: s.plSequence }, s.unlimited);
+  const period = bouncePeriodSec(pl.speed);
+  if (pl.sequence === "random") return null;
+  const hits = buildPowerPlan(pl.layers, pl.sequence).powers.length;
   return { hits, seconds: runFinishSec(hits, period), period };
 }
 

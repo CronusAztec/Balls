@@ -43,7 +43,7 @@ export default function BullseyeSection({ t, search, matches, settings: s, updat
       <Slider t={t} search={search} matches={matches} labelKey="byPerfect" tipKey="byPerfectTip" value={s.byPerfect} range={RANGES.byPerfect} onChange={(v) => update({ byPerfect: v })} display={s.byPerfect > 0 ? `#${s.byPerfect}` : t("byPerfectOff")} left="🎲" right="🎯" />
       {!search && (
         <p className="text-xs text-zinc-400 leading-relaxed tabular-nums" data-testid="bullseye-run">
-          {t("byRunInfo", { shots: s.byShots, seconds: bullseyeNominalRunSec(by).toFixed(1) })}
+          {t("byRunInfo", { shots: s.byShots, seconds: bullseyeNominalRunSec(by, s.unlimited).toFixed(1) })}
           {s.byPerfect > 0 && " " + (perfect >= 0 ? t("byPerfectInfo", { shot: perfect + 1 }) : t("byPerfectBeyond", { shots: s.byShots }))}
         </p>
       )}

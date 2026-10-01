@@ -1,5 +1,6 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, ModeId, SoundEvent } from "../types";
+import { liftedRanges, rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Power Layers ("powerLayers" mode, feature odd-power-layers – the oddplayground "It starts tiny and gets out of
@@ -100,10 +101,10 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value (layers whole, drift and speed on their 0.05 steps); unknown options fall back to the defaults. */
-export function resolvePowerLayersSettings(config: Partial<PowerLayersSettings> | null | undefined): PowerLayersSettings {
+export function resolvePowerLayersSettings(config: Partial<PowerLayersSettings> | null | undefined, unlimited = false): PowerLayersSettings {
   const out = { ...DEFAULT_POWER_LAYERS_SETTINGS };
   if (!config) return out;
-  const R = POWER_LAYERS_RANGES;
+  const R = rangesFor(POWER_LAYERS_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.layers !== undefined) out.layers = Math.round(clampNumber(config.layers, R.plLayers, out.layers));
   if (isPlSequence(config.sequence)) out.sequence = config.sequence;
   if (config.drift !== undefined) out.drift = Math.round(20 * clampNumber(config.drift, R.plDrift, out.drift)) / 20;
@@ -321,7 +322,8 @@ export const BIG_HIT_LAYERS = 10;
 
 /** Seconds from one hit to the next. */
 export function bouncePeriodSec(speed: number): number {
-  const s = Number.isFinite(speed) ? Math.max(POWER_LAYERS_RANGES.plSpeed.min, Math.min(POWER_LAYERS_RANGES.plSpeed.max, speed)) : 1;
+  const range = liftedRanges(POWER_LAYERS_RANGES).plSpeed; // --- unlimited --- (a resolved speed: up to its soft ceiling with No limits on)
+  const s = Number.isFinite(speed) ? Math.max(range.min, Math.min(range.max, speed)) : 1;
   return BASE_PERIOD_SEC / s;
 }
 
@@ -344,8 +346,8 @@ export function finishStepMs(finishSec: number, stepMs = 1000 / 60): number {
  * The run length (s) when the settings fix it whatever the seed – every sequence but chaos: the hit count of the plan
  * times the bounce period, plus the celebration – or null for chaos, whose hit count depends on the seed.
  */
-export function powerLayersFixedDurationSec(settings: Partial<PowerLayersSettings> | null | undefined): number | null {
-  const s = resolvePowerLayersSettings(settings);
+export function powerLayersFixedDurationSec(settings: Partial<PowerLayersSettings> | null | undefined, unlimited = false): number | null {
+  const s = resolvePowerLayersSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
   if (s.sequence === "random") return null;
   return runFinishSec(buildPowerPlan(s.layers, s.sequence).powers.length, bouncePeriodSec(s.speed));
 }
@@ -629,6 +631,8 @@ export class PowerLayersMode implements GameMode {
   /** One ball; nothing to collide with. */
   readonly ballsPassThrough = true;
   private settings: PowerLayersSettings = { ...DEFAULT_POWER_LAYERS_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: PowerLayersView = createView();
   private plan: PowerPlan = buildPowerPlan(DEFAULT_POWER_LAYERS_SETTINGS.layers, DEFAULT_POWER_LAYERS_SETTINGS.sequence);
   private ballId = -1;
@@ -659,8 +663,10 @@ export class PowerLayersMode implements GameMode {
     return this.settings;
   }
   /** The layers, sequence, drift and speed apply on the next init; the badge, the pills and the scale at once. */
-  setSettings(patch: Partial<PowerLayersSettings>) {
-    this.settings = resolvePowerLayersSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<PowerLayersSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolvePowerLayersSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.badge = this.settings.badge;
     live.pills = this.settings.pills;

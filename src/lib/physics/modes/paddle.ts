@@ -1,6 +1,7 @@
 import { isScaleId, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext } from "../types";
 import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep } from "./jdmRhythm";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Paddle Keep-Up ("paddle" mode, feature jdm-rhythm-runner – the project.jdm "Ball Bounce Game with Moving Platform").
@@ -78,10 +79,10 @@ export interface PaddleFields {
   pdSpeedUp: number;
 }
 
-export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | undefined): PaddleSettings {
+export function resolvePaddleSettings(config: Partial<PaddleSettings> | null | undefined, unlimited = false): PaddleSettings {
   const out: PaddleSettings = { ...DEFAULT_PADDLE_SETTINGS };
   if (!config) return out;
-  const R = PADDLE_RANGES;
+  const R = rangesFor(PADDLE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (typeof config.auto === "boolean") out.auto = config.auto;
   if (config.skill !== undefined) out.skill = toStep(clampNumber(config.skill, R.pdSkill, out.skill), R.pdSkill.step);
   if (config.misses !== undefined) out.misses = Math.round(clampNumber(config.misses, R.pdMisses, out.misses));
@@ -474,6 +475,8 @@ export class PaddleMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: PaddleSettings = { ...DEFAULT_PADDLE_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: PaddleView = createView();
   private ballId = -1;
   private clockMs = 0;
@@ -501,8 +504,10 @@ export class PaddleMode implements GameMode {
     return this.settings;
   }
   /** The game applies on the next init; the scale and the root at once. */
-  setSettings(patch: Partial<PaddleSettings>) {
-    this.settings = resolvePaddleSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<PaddleSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolvePaddleSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.scale = this.settings.scale;
     this.view.settings.rootNote = this.settings.rootNote;
   }

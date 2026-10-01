@@ -1,6 +1,7 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import { circleObstacle, resolveBallCircle, segmentBetween, type CircleObstacle, type Obstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Bullseye ("bullseye" mode, feature gerald-bullseye – the geraldbounces "bulleye!!" clips). No rings to escape: a portrait
@@ -97,10 +98,10 @@ function onStep(value: number, step: number) {
 }
 
 /** Fills in the defaults and clamps every value onto its slider (counts whole, the rest on their steps); bad values fall back to the defaults. */
-export function resolveBullseyeSettings(config: Partial<BullseyeSettings> | null | undefined): BullseyeSettings {
+export function resolveBullseyeSettings(config: Partial<BullseyeSettings> | null | undefined, unlimited = false): BullseyeSettings {
   const out = { ...DEFAULT_BULLSEYE_SETTINGS };
   if (!config) return out;
-  const R = BULLSEYE_RANGES;
+  const R = rangesFor(BULLSEYE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.shots !== undefined) out.shots = Math.round(clampNumber(config.shots, R.byShots, out.shots));
   if (config.interval !== undefined) out.interval = onStep(clampNumber(config.interval, R.byInterval, out.interval), R.byInterval.step);
   if (config.chaos !== undefined) out.chaos = onStep(clampNumber(config.chaos, R.byChaos, out.chaos), R.byChaos.step);
@@ -520,8 +521,8 @@ export const TYPICAL_FLIGHT_SEC = 1.6;
  * About how long a run lasts (s) at the default gravity on a desktop canvas: the last launch, a typical flight and the
  * final hold (the seed moves it by the last shot's flight and the bullseyes' slow motion).
  */
-export function bullseyeNominalRunSec(settings: Partial<BullseyeSettings> | null | undefined): number {
-  const s = resolveBullseyeSettings(settings);
+export function bullseyeNominalRunSec(settings: Partial<BullseyeSettings> | null | undefined, unlimited = false): number {
+  const s = resolveBullseyeSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
   return (s.shots - 1) * s.interval + TYPICAL_FLIGHT_SEC + FINAL_HOLD_MS / 1000;
 }
 
@@ -660,6 +661,8 @@ export class BullseyeMode implements GameMode {
   /** Flying balls pass through each other; the stuck ones are the mode's own obstacles. */
   readonly ballsPassThrough = true;
   private settings: BullseyeSettings = { ...DEFAULT_BULLSEYE_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: BullseyeView = createView();
   private layout: BullseyeLayout | null = null;
   /** The simulation clock (the sum of the fixed steps) and the world clock (slowed in slow motion), ms. */
@@ -669,19 +672,19 @@ export class BullseyeMode implements GameMode {
   /** The seed's draws: the deflector salt, the moving target's phase and per shot the launch jitter and aim (−1…1). */
   private salt = 0;
   private phase = 0;
-  private readonly jitter = new Float64Array(MAX_BULLSEYE_SHOTS);
-  private readonly aim = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private jitter = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private aim = new Float64Array(MAX_BULLSEYE_SHOTS);
   /** Per shot: its engine ball id, the world ms it has been at rest, whether it rides the target and where it sticks. */
-  private readonly ballId = new Int32Array(MAX_BULLSEYE_SHOTS).fill(-1);
+  private ballId = new Int32Array(MAX_BULLSEYE_SHOTS).fill(-1);
   private readonly slotOfId = new Map<number, number>();
-  private readonly restMs = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private restMs = new Float64Array(MAX_BULLSEYE_SHOTS);
   /** Per shot: the world ms it last touched a stuck ball, and how often it was nudged off a deflector it rested on. */
-  private readonly touchMs = new Float64Array(MAX_BULLSEYE_SHOTS);
-  private readonly perches = new Uint8Array(MAX_BULLSEYE_SHOTS);
-  private readonly onTarget = new Uint8Array(MAX_BULLSEYE_SHOTS);
+  private touchMs = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private perches = new Uint8Array(MAX_BULLSEYE_SHOTS);
+  private onTarget = new Uint8Array(MAX_BULLSEYE_SHOTS);
   /** A stuck ball's offset from the target's centre (on the target) or the field's middle (off it), and its height above the floor beyond its radius. */
-  private readonly stuckDx = new Float64Array(MAX_BULLSEYE_SHOTS);
-  private readonly stuckLift = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private stuckDx = new Float64Array(MAX_BULLSEYE_SHOTS);
+  private stuckLift = new Float64Array(MAX_BULLSEYE_SHOTS);
   /** The stuck balls as circle obstacles (the mode resolves the flying balls against them), in landing order. */
   private readonly stuck: CircleObstacle[] = [];
   private readonly stuckShot: number[] = [];
@@ -694,8 +697,10 @@ export class BullseyeMode implements GameMode {
     return this.settings;
   }
   /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next init; the scale and root at once. */
-  setSettings(patch: Partial<BullseyeSettings>) {
-    this.settings = resolveBullseyeSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<BullseyeSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveBullseyeSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.scale = this.settings.scale;
     this.view.settings.rootNote = this.settings.rootNote;
   }
@@ -769,6 +774,7 @@ export class BullseyeMode implements GameMode {
     v.lastRing = -1;
     v.notes = 0;
     v.thuds = 0;
+    this.ensureCapacity(s.shots, s.rings); // --- unlimited --- (more shots and rings than the slider's with No limits on)
     v.shotState.fill(SHOT_WAITING);
     v.shotLaunchMs.fill(-Infinity);
     v.shotLandMs.fill(-Infinity);
@@ -786,6 +792,35 @@ export class BullseyeMode implements GameMode {
     // The first shot leaves at once (the engine then adds no default ball).
     this.launch(ctx, 0);
     this.updateAim(ctx);
+  }
+
+  /**
+   * --- unlimited --- The per-shot and per-ring arrays hold `MAX_BULLSEYE_SHOTS` and `MAX_BULLSEYE_RINGS` (the sliders' ends);
+   * a run with more (No limits) grows them once – the mode's and the view's alike – before it starts. Grow-only.
+   */
+  private ensureCapacity(shots: number, rings: number) {
+    const v = this.view;
+    if (shots > this.jitter.length) {
+      const n = Math.ceil(shots);
+      this.jitter = new Float64Array(n);
+      this.aim = new Float64Array(n);
+      this.ballId = new Int32Array(n).fill(-1);
+      this.restMs = new Float64Array(n);
+      this.touchMs = new Float64Array(n);
+      this.perches = new Uint8Array(n);
+      this.onTarget = new Uint8Array(n);
+      this.stuckDx = new Float64Array(n);
+      this.stuckLift = new Float64Array(n);
+      v.shotState = new Uint8Array(n);
+      v.shotColor = new Array<string>(n).fill("#ffffff");
+      v.shotLaunchMs = new Float64Array(n).fill(-Infinity);
+      v.shotX = new Float64Array(n);
+      v.shotY = new Float64Array(n);
+      v.shotLandMs = new Float64Array(n).fill(-Infinity);
+      v.shotRing = new Int8Array(n).fill(-1);
+      v.shotScore = new Int8Array(n).fill(-1);
+    }
+    if (rings > v.ringHitMs.length) v.ringHitMs = new Float64Array(Math.ceil(rings)).fill(-Infinity);
   }
 
   private rebuild(ctx: ModeContext) {

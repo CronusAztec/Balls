@@ -45,7 +45,7 @@ const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium tr
 export function runnerRunInfo(s: SimulatorSettings, beat?: PaintBeatInfo | null): { obstacles: number; bpm: number; seconds: number } {
   const followsSong = s.runnerBeatSource === "song" && beat?.bpm;
   const bpm = followsSong ? beat!.bpm! : s.bpm;
-  const course = buildRunnerCourse({ ...runnerSettingsOf(s), bpm }, s.gravity, () => 0.5);
+  const course = buildRunnerCourse({ ...runnerSettingsOf(s), bpm }, s.gravity, () => 0.5, s.unlimited); // --- unlimited --- (the run the engine plays)
   return { obstacles: s.runnerObstacles, bpm: Math.round(bpm), seconds: course.endSec };
 }
 

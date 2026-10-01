@@ -143,6 +143,103 @@ export const ENGINE_CEILINGS: Readonly<Record<string, number>> = {
   splitMinRadius: 1e9,
   maxBalls: OBJECT_BALL_LIMIT,
   ballCount: CROWD_LIMIT,
+  // The modes' own settings (each mode's resolver lifts them to these with the switch on: `rangesFor()`). Counts of
+  // things a step or a frame visits are bounded by what a step and a frame can afford; times, rates, hit points and
+  // factors by float safety.
+  // Ball Drop
+  dropBallCount: OBJECT_BALL_LIMIT,
+  dropRows: 120,
+  dropSpawnInterval: 1e6,
+  // Bouncing Shapes
+  boxShapeCount: OBJECT_BALL_LIMIT,
+  boxGravity: 1e6,
+  boxCountdown: 1e9,
+  boxGrowPerHit: 1e9,
+  // Pendulum Wave
+  pwCount: OBJECT_BALL_LIMIT,
+  pwBaseOscillations: 1e6,
+  pwCycleSeconds: 1e9,
+  pwCycles: 1e9,
+  // Metronomes & Polyrhythms
+  prCount: OBJECT_BALL_LIMIT,
+  prCycleSeconds: 1e9,
+  prBaseBpm: 1e5,
+  prBpmStep: 1e4,
+  prAccentEvery: 1e9,
+  prCycles: 1e9,
+  // Collision Playground
+  cpCount: 5_000,
+  cpGravity: 1e6,
+  cpRestitution: 1e3,
+  cpAntiCollisionAt: 1e9,
+  // Glass Smash
+  glassRows: 500,
+  glassHp: 1e9,
+  glassStages: 50,
+  // Picture Paint
+  paintBrush: 1e6,
+  // Multipliers
+  mpCap: 1e9,
+  wallSmashThreshold: 1e9,
+  pickupRate: 60,
+  pickupLifetime: 1e6,
+  mpRows: 1_000,
+  mpStartBalls: OBJECT_BALL_LIMIT,
+  mpMaxBalls: OBJECT_BALL_LIMIT, // (the board's balls are full-physics balls: its slider already ends at the full-physics limit)
+  mpTarget: 1e9,
+  bumperBoost: 1e3,
+  // Double Pendulum
+  dpCount: 64,
+  dpMass1: 1e6,
+  dpMass2: 1e6,
+  dpMass3: 1e6,
+  dpGravity: 100, // (the integrator keeps every swing accurate: past ~100× the swings need more sub-steps than a frame affords)
+  dpTrailSeconds: 600,
+  dpStrings: 1_000,
+  // Circle Illusion
+  ilBalls: OBJECT_BALL_LIMIT,
+  ilRings: LIVE_WALL_LIMIT,
+  ilPainters: 100,
+  ilSpeed: 1e3,
+  ilCycles: 1e9,
+  // String Battle
+  sbBalls: 64,
+  sbLives: 1e9,
+  sbMaxStrings: 2_000,
+  sbDuration: 1e9,
+  sbFinaleSpeed: 1e3,
+  // Power Layers
+  plLayers: 100_000,
+  plSpeed: 1e3,
+  // Square Racing (the per-racer state is sized for 16 racers: they stay at the slider's 16)
+  rcRacers: 16,
+  rcTrackLength: 100,
+  rcLaps: 20,
+  // Battle Royale and Capture the Flag
+  btCount: 200,
+  btHp: 1e9,
+  btDamage: 1e9,
+  ctfPerTeam: 50,
+  ctfScoreToWin: 1e9,
+  // Beat Runner and Paddle Keep-Up
+  runnerObstacles: 10_000,
+  runnerSpeed: 1e3,
+  runnerJump: 1e3,
+  pdMisses: 1e9,
+  pdSpeedUp: 10,
+  // Sound Vortex
+  vxBalls: OBJECT_BALL_LIMIT,
+  vxStagger: 1e6,
+  vxRings: LIVE_WALL_LIMIT,
+  vxDuration: 1e6,
+  vxGravity: 1e3,
+  // Journey
+  journeyAutoStages: 1_000,
+  // Bullseye
+  byShots: OBJECT_BALL_LIMIT,
+  byInterval: 1e6,
+  byRings: 100,
+  byPerfect: OBJECT_BALL_LIMIT,
 };
 
 export function isBoundedKey(key: string): boolean {
@@ -199,6 +296,27 @@ export function softCeiling(key: string, range: NumericRange): number {
 export function visualValue(unlimited: boolean, key: string, value: number): number {
   const ceiling = ENGINE_CEILINGS[key];
   return unlimited && ceiling !== undefined && !(value <= ceiling) ? ceiling : value;
+}
+
+const liftedCache = new WeakMap<object, Readonly<Record<string, NumericRange>>>();
+
+/**
+ * A mode's slider ranges as its resolver uses them with the switch on: every unlimited key (see `isUnlimitedKey()`) has
+ * its maximum lifted to its soft ceiling (`softCeiling()`), bounded keys keep theirs. The same object for the same
+ * ranges (cached), so a resolver can call it on every `setSettings()`.
+ */
+export function liftedRanges<T extends Readonly<Record<string, NumericRange>>>(ranges: T): { readonly [K in keyof T]: NumericRange } {
+  const cached = liftedCache.get(ranges);
+  if (cached) return cached as { readonly [K in keyof T]: NumericRange };
+  const out: Record<string, NumericRange> = {};
+  for (const [key, range] of Object.entries(ranges)) out[key] = isUnlimitedKey(key, range) ? { min: range.min, max: Math.max(range.max, softCeiling(key, range)), step: range.step } : range;
+  liftedCache.set(ranges, out);
+  return out as { readonly [K in keyof T]: NumericRange };
+}
+
+/** The ranges a mode's resolver clamps to: its slider ranges, or – with the switch on – those lifted to their soft ceilings. */
+export function rangesFor<T extends Readonly<Record<string, NumericRange>>>(ranges: T, unlimited: boolean | undefined): { readonly [K in keyof T]: NumericRange } {
+  return unlimited === true ? liftedRanges(ranges) : ranges;
 }
 
 /** A value brought back into `range` (the switch was turned off). */

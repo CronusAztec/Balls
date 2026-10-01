@@ -4,6 +4,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
 import { TWO_PI, arenaRadius } from "../types";
 import { wobbleStrength } from "../wobble";
 import { teamResult } from "@/lib/teams";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * String Battle ("stringBattle" mode, battle family – feature odd-string-battle): the oddplayground "WEB DOMINION"
@@ -121,10 +122,10 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value (counts and the duration whole, the finale speed on its 0.1 steps); unknown options and non-boolean flags fall back to the defaults. */
-export function resolveStringBattleSettings(config: Partial<StringBattleSettings> | null | undefined): StringBattleSettings {
+export function resolveStringBattleSettings(config: Partial<StringBattleSettings> | null | undefined, unlimited = false): StringBattleSettings {
   const out = { ...DEFAULT_STRING_BATTLE_SETTINGS };
   if (!config) return out;
-  const R = STRING_BATTLE_RANGES;
+  const R = rangesFor(STRING_BATTLE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.sbBalls, out.balls));
   if (config.lives !== undefined) out.lives = Math.round(clampNumber(config.lives, R.sbLives, out.lives));
   if (config.maxStrings !== undefined) out.maxStrings = Math.round(clampNumber(config.maxStrings, R.sbMaxStrings, out.maxStrings));
@@ -629,6 +630,8 @@ export class StringBattleMode implements GameMode {
   /** The mode keeps each ball at its own cruising speed itself: no engine slow-ball boost toward one base speed. */
   readonly ballsMayRest = true;
   private settings: StringBattleSettings = { ...DEFAULT_STRING_BATTLE_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: StringBattleView = createView();
   /** The engine ball of each slot this sub-step (null once it is gone). */
   private readonly ballOf: (Ball | null)[] = new Array<Ball | null>(MAX_TEAMS).fill(null);
@@ -645,8 +648,10 @@ export class StringBattleMode implements GameMode {
   }
 
   /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. */
-  setSettings(patch: Partial<StringBattleSettings>) {
-    this.settings = resolveStringBattleSettings({ ...this.settings, ...patch });
+  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<StringBattleSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveStringBattleSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.style = this.settings.style;
     live.hud = this.settings.hud;
