@@ -598,6 +598,9 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
 }
 
 // --- rigged ---
+/** --- odd-territory --- How far past a fixed run length (ms) a battle's winner search follows a run (its verdict comes in the step that reaches the end). */
+export const FIXED_RUN_SLACK_MS = 1000;
+
 /**
  * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
  * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
@@ -606,7 +609,11 @@ function findByCount(request: FinderRequest, target: number, onProgress: (p: Fin
  */
 export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome: FinderOutcome): RunSummary {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
-  const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode);
+  // --- odd-territory --- a battle whose settings fix its length (Territory: the countdown – `fixedRunDurationSec()`) has
+  // its verdict only at that end, so the search follows every run there, past a shorter clip and horizon (the page's
+  // Find Duration + 30 s cut a 61–120 s countdown short: no seed could match, not even with the forced winner)
+  const fixedSec = winnerNeedsEnd(outcome, request.mode) ? fixedRunDurationSec(request.mode, request.modeSettings) : null;
+  const horizonMs = Math.max(outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode), fixedSec !== null ? 1000 * fixedSec + FIXED_RUN_SLACK_MS : 0);
   // --- odd-string-battle --- the chosen ball of a battle's winner search (−1: none to watch)
   const battleTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "stringBattle" ? (outcome.team ?? -1) : -1;
   const mazeTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "maze" ? (outcome.team ?? -1) : -1; // --- odd-maze ---

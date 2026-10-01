@@ -8594,7 +8594,7 @@ const bdInstrument = () =>
 // that paints the board – conversions, a bomber blast that jolts the board, a vortex whirl, flip notes on the pentatonic ladder
 // (OscillatorNode.start instrumented), the badge and the HUD, percentages adding up to 100, the offscreen board repainted
 // only where tiles flipped – and ends at its countdown with a verdict held before the end screen; a roster whose rigged
-// Blue wins under the teams banner; and Find Simulation's winner outcome.
+// Blue wins under the teams banner; and Find Simulation's winner outcome (also for a countdown past the search's horizon).
 {
   const res = await page.request.get(`${BASE}/modes/territory.webp`);
   check("asset /modes/territory.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -8733,6 +8733,18 @@ const bdInstrument = () =>
     data = await canvasData();
   }
   check("Find Simulation finds a territory battle the chosen team wins, and it plays out that way", labelled && /countdown/i.test(hint) && /Found! CYAN wins/.test(text) && data.tyWinner === "1", `("${text}", hint="${hint}", replay winner=${data.tyWinner})`);
+}
+{
+  // A countdown past the search's horizon (the page's Find Duration + 30 s = 60 s): the search follows each run to its
+  // verdict at 120 s, so PINK, the Forced Winner, wins the first seed (it stopped every run at 60 s and never found one).
+  await page.goto(`${BASE}/en/simulator/?mode=territory&fw=0&tyd=120`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("0");
+  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  await page.getByRole("button", { name: /Find a Run PINK Wins/ }).click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  check("Find Simulation follows a 120 s territory countdown past its 60 s horizon: the Forced Winner's run is found", /Rigged: PINK wins/.test(note) && /Found! PINK wins \(120\.0s\)/.test(text), `("${text}", note="${note}")`);
 }
 // --- end odd-territory ---
 
