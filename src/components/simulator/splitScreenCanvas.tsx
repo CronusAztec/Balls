@@ -13,6 +13,7 @@ import { BackgroundPainter, type BackgroundLook } from "./themeRenderer";
 import { DEFAULT_BACKGROUND_COLORS } from "@/lib/themes";
 import { ACCENT } from "@/lib/site";
 import { FrameGate } from "./renderBudget"; // --- review fix (performance) ---
+import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
 
 /*
  * --- split-screen --- The page's canvas during a split-screen race (lib/splitScreen.ts, lib/simulation/multi.ts). Every
@@ -160,16 +161,18 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   const race = props.race;
   const raceWithoutCup = useMemo(() => (race && race.cupEnabled ? { ...race, cupEnabled: false } : race), [race]);
   const count = split.engines.length;
-  const viewports = useMemo<ArenaViewport[]>(() => (size ? arenaViewports(size.width, size.height, count, split.layout) : []), [size, count, split.layout]);
+  // --- world --- the page's world (lib/simulation/world.ts): the arenas tile it in world px, and the stage draws it at its scale
+  const world = useMemo(() => (size ? liveWorldOf(size) : null), [size]);
+  const viewports = useMemo<ArenaViewport[]>(() => (world ? arenaViewports(world.width, world.height, count, split.layout) : []), [world, count, split.layout]);
   // Before the arenas draw (their effects are passive): the engines get their worlds (a run that has not started starts over in it).
   const runner = split.runner;
   useLayoutEffect(() => {
-    if (size) runner.setCanvasSize(size.width, size.height);
-  }, [runner, size, count, split.layout]);
+    if (world) runner.setCanvasSize(world.width, world.height);
+  }, [runner, world, count, split.layout]);
 
   // One driver per arena: its world, drawn at the viewport's scale in device px, on the stage clock from its first frame.
   const drivers = useMemo<OfflineCanvasDriver[]>(() => {
-    const dpr = size?.dpr ?? 1;
+    const dpr = (size?.dpr ?? 1) * (world?.scale ?? 1); // device px per world px
     return viewports.map((vp, i) => {
       const slot = (slotsRef.current[i] ??= { renderer: null, origin: NaN });
       return {
@@ -186,7 +189,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         },
       };
     });
-  }, [viewports, size?.dpr]);
+  }, [viewports, size?.dpr, world?.scale]);
 
   useImperativeHandle(handleRef, () => ({
     getCanvas: () => canvasRef.current,
@@ -217,14 +220,17 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   // The one loop: restarts caught, every arena stepped and drawn, the frame composed.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !size) return;
+    if (!canvas || !size || !world) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = size.dpr;
-    canvas.width = Math.round(size.width * dpr);
-    canvas.height = Math.round(size.height * dpr);
-    const W = size.width;
-    const H = size.height;
+    // --- world --- the stage is laid out in world px (the page's fixed world) and drawn at the canvas' scale
+    const k = world.scale;
+    const dpr = size.dpr * k;
+    canvas.width = Math.round(size.width * size.dpr);
+    canvas.height = Math.round(size.height * size.dpr);
+    const W = world.width;
+    const H = world.height;
+    if (canvas.dataset.world !== `${W}x${H}`) canvas.dataset.world = `${W}x${H}`;
     const side = Math.min(W, H);
     const ox = (W - side) / 2;
     const oy = (H - side) / 2;
@@ -327,7 +333,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         bannerText = next;
       }
       // Live, a canvas about as wide as it is tall has the page's buttons over its corners: the labels keep clear of them.
-      const live = !recordingRef.current && (W - side) / 2 < 170;
+      const live = !recordingRef.current && ((W - side) / 2) * k < 170;
       for (let i = 0; i < n; i++) {
         const vp = viewports[i];
         const fs = Math.max(10, Math.min(26, 0.07 * Math.min(vp.width, vp.height)));
@@ -428,7 +434,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       const captionOptions = p.captions ?? null;
       const playing = !p.isPaused && !!p.isStarted;
       if (captionOptions && sp.engines[0]) {
-        const live = !recordingRef.current && (W - side) / 2 < 170;
+        const live = !recordingRef.current && ((W - side) / 2) * k < 170;
         const exportSize = recordingRef.current ? exportSizeRef.current : null;
         if (exportSize && (hasTop || hasBottom)) {
           recordingTextLayout(exportSize.width, exportSize.height, p.textSize ?? 1, exportText);
@@ -472,7 +478,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [size, viewports]);
+  }, [size, world, viewports]);
 
   // The data attributes go with the race.
   useEffect(() => {

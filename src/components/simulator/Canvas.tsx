@@ -17,6 +17,7 @@ import { DEFAULT_MULTIPLIER_LABELS, MULTIPLIER_DATA_KEYS, drawMultiplierHud, dra
 import { formatMultiplier } from "@/lib/physics/multipliers";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
 import { FrameGate, GLOW_SPRITE_SIZE, PaintTrailLayer, bodySpriteRadius, cacheSprite, drawStringArt } from "./renderBudget"; // --- review fix (performance) ---
+import { liveWorldOf } from "@/lib/simulation/world"; // --- world --- (the fixed world the canvas scales)
 // --- gerald-faces ---
 import { FaceLayer } from "./faceRenderer";
 import type { CharacterRenderOptions } from "@/lib/character/character";
@@ -267,8 +268,9 @@ export interface CanvasProps {
   /** A drag (on release) or a delete on the canvas changed the obstacle list. */
   onObstaclesChange?: (obstacles: EditorObstacle[]) => void;
   /**
-   * --- review fix (modes-rhythm) --- The canvas' size changed after its first measurement (the engine already has the new
-   * size): a seed found at the old size may play out differently now, so the page drops it. Never called offline.
+   * --- review fix (modes-rhythm) --- The world changed after its first measurement (the engine already has the new one) –
+   * --- world --- the frame's shape changed (square ↔ 16:9), a window resize only rescales the drawing: a seed found in the
+   * old world may play out differently now, so the page drops it. Never called offline.
    */
   onSizeChange?: (width: number, height: number) => void;
   /** --- captions --- Animated captions drawn in the exported square on the simulation clock (null = none); see captionsRenderer.ts. */
@@ -707,19 +709,36 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     if (!ctx) return;
     const engine = physicsEngine;
     const dpr = offline ? offline.scale : Math.min(window.devicePixelRatio || 1, 2); // --- fast-render --- (offline: the export's scale)
+    // --- world --- device px per world px: the fixed world (lib/simulation/world.ts) drawn scaled to the canvas' CSS size –
+    // the sprites, paint layers and line widths below are rasterised at this scale (offline: the export's scale, as before)
+    let scale = dpr;
 
     const resize = () => {
-      const rect = offline ? { width: offline.worldWidth, height: offline.worldHeight } : canvas.getBoundingClientRect(); // --- fast-render --- (offline: the engine's world)
-      sizeRef.current = { width: rect.width, height: rect.height };
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!offline) engine.setConfig({ width: rect.width, height: rect.height }); // --- fast-render --- (the export's engine already has the page's size)
-      // --- review fix (modes-rhythm) --- a real size change after the first measurement invalidates a found seed
+      let world: { width: number; height: number };
+      if (offline) {
+        // --- fast-render --- (offline: the engine's world at the export's scale)
+        world = { width: offline.worldWidth, height: offline.worldHeight };
+        scale = offline.scale;
+        canvas.width = world.width * scale;
+        canvas.height = world.height * scale;
+      } else {
+        const rect = canvas.getBoundingClientRect();
+        const live = liveWorldOf(rect);
+        world = { width: live.width, height: live.height };
+        scale = dpr * live.scale;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+      }
+      sizeRef.current = world;
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
       if (!offline) {
+        engine.setConfig({ width: world.width, height: world.height }); // --- fast-render --- (the export's engine already has the page's world)
+        if (canvas.dataset.world !== `${world.width}x${world.height}`) canvas.dataset.world = `${world.width}x${world.height}`; // for tools and the smoke test
+        // --- review fix (modes-rhythm) --- a new world after the first measurement (the frame's shape changed – a window resize
+        // only rescales the drawing) invalidates a found seed
         const last = measuredSizeRef.current;
-        measuredSizeRef.current = { width: rect.width, height: rect.height };
-        if (last && (last.width !== rect.width || last.height !== rect.height)) onSizeChangeRef.current?.(rect.width, rect.height);
+        measuredSizeRef.current = world;
+        if (last && (Math.abs(last.width - world.width) > 0.5 || Math.abs(last.height - world.height) > 0.5)) onSizeChangeRef.current?.(world.width, world.height);
       }
     };
     resize();
@@ -784,16 +803,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- jdm-illusions --- the wobbly walls (contacts → displacement waves) and the Circle Illusion's layers, with their per-frame options
     const wobble = new WobbleLayer();
     const illusionLayer = new IllusionLayer();
-    const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr, nowMs: 0 };
+    const illusionRender: IllusionRenderOptions = { wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8, dpr: scale, nowMs: 0 };
     const illusionLabels: IllusionLabels = { revealed: DEFAULT_LABELS.illusionRevealed!, painted: DEFAULT_LABELS.painted };
     // --- odd-string-battle --- the String Battle's layer, its per-frame options and the simulation time of the last frame
     const sbLayer = new StringBattleLayer();
-    const sbRender: StringBattleRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: 0, simDtMs: 0, contacts: null, width: 0, height: 0 };
+    const sbRender: StringBattleRenderOptions = { dpr: scale, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: 0, simDtMs: 0, contacts: null, width: 0, height: 0 };
     let sbLastMs = 0;
     const sbBodyColor = (ball: Ball) => sbLayer.colorOf(ball.team ?? 0);
     // --- odd-power-layers --- the Power Layers layer (cached stack, halos, gradients) and its per-frame options
     const plLayer = new PowerLayersLayer();
-    const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr };
+    const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr: scale };
     // --- jdm-race --- the race's layer (row easing, sprite and text caches) and its per-frame options
     const raceLayer = new RaceLayer();
     const raceRender: RaceRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false, showTrails: true, trailThickness: 0.8 };
@@ -996,13 +1015,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         return alpha !== undefined ? `hsla(${hue}, 100%, 60%, ${alpha})` : `hsl(${hue}, 100%, 60%)`;
       };
 
+      // --- world --- the renderers' raster scale follows the window (resize() above)
+      illusionRender.dpr = scale;
+      sbRender.dpr = scale;
+      plRender.dpr = scale;
       // Background
       ctx.fillStyle = p.backgroundColor;
       ctx.fillRect(0, 0, Math.max(canvas.width, sizeRef.current.width), Math.max(canvas.height, sizeRef.current.height)); // --- split-screen --- (the whole world, also when it is drawn below 1 device px per px: a split-screen arena)
       const size = sizeRef.current;
       // --- themes: a gradient or picture background over the solid fill (the reactive flashes below still land on top)
       const themeLook = themeLookRef.current;
-      if (themeLook.backgroundType !== "solid") bgPainter().paint(ctx, size.width, size.height, backgroundLook(), dpr);
+      if (themeLook.backgroundType !== "solid") bgPainter().paint(ctx, size.width, size.height, backgroundLook(), scale);
       setCanvasData("background", themeLook.backgroundType === "image" && !bgImageRef.current ? "solid" : themeLook.backgroundType);
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
@@ -1546,7 +1569,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const picture = paint.picture ? paintImageRef.current : null;
         const baseRadii = engine.getWallBaseRadii();
         const R = baseRadii.length > 0 ? baseRadii[0] : walls.length > 0 ? walls[0].radius : arena;
-        const layers = picture ? ensurePaintLayers(picture, Math.max(2, Math.round(2 * R * dpr))) : null;
+        const layers = picture ? ensurePaintLayers(picture, Math.max(2, Math.round(2 * R * scale))) : null;
         if (layers) {
           if (layers.generation !== paint.generation) {
             layers.maskCtx.clearRect(0, 0, layers.size, layers.size);
@@ -1554,7 +1577,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             layers.dirty = true;
             layers.generation = paint.generation;
           }
-          stampPaintDabs(layers, points, cx - R, cy - R, dpr);
+          stampPaintDabs(layers, points, cx - R, cy - R, scale);
           if (layers.dirty) {
             const rc = layers.revealCtx;
             rc.globalCompositeOperation = "source-over";
@@ -1580,7 +1603,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           }
         } else if (points.length > 0) {
           // --- review fix (performance) --- only the points since the last frame are stroked (into the trail layer), not the whole history
-          paintTrail.draw(ctx, points, paint.generation, cx, cy, R, lineWidth, dpr);
+          paintTrail.draw(ctx, points, paint.generation, cx, cy, R, lineWidth, scale);
           const last = points[points.length - 1];
           ctx.globalAlpha = 0.75;
           ctx.fillStyle = last.color;
@@ -2034,7 +2057,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         } else {
           // --- review fix (performance) --- sprites per colour and power-of-two device-px radius (at most five a colour, sharp on
           // HiDPI); a ball bigger than the largest is drawn directly, like the rainbow / Color Match bodies
-          const r = bodySpriteRadius(ball.radius, dpr);
+          const r = bodySpriteRadius(ball.radius, scale);
           if (p.rainbowBall || isColorMatch || r === 0) {
             ctx.fillStyle = color;
             ctx.beginPath();
