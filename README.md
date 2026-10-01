@@ -99,7 +99,7 @@ keyboard hints and the uppercase `eyebrow` labels. The `num` utility gives tabul
 | ≥ 1536 px | rail with icons and labels (240 px) · stage · panel (380 px) | 1200 px container, reading column 680 px with a sticky table of contents on the legal pages |
 | 1280–1535 px | icon rail (64 px, labels as tooltips) · stage · panel | as above |
 | 768–1279 px | stage, then the rail as a sticky tab strip, then the panel | the reading column alone |
-| < 768 px | stage with the transport bar pinned to the bottom; the tab strip is the peek of a bottom sheet that opens to 70 % of the height | a menu sheet from the header |
+| < 768 px | stage with the transport bar pinned to the bottom; the tab strip is the peek of a bottom sheet that opens to 70 % of the height (a press on the open tab, or on the dimmed stage above it, puts it away and keeps its blocks) | a menu sheet from the header |
 
 The canvas frame is sized from the viewport only (the stage column's width and the screen height), so it changes size
 exactly when the window does – the moment the canvas re-measures itself. The world keeps its shapes (square below
@@ -114,13 +114,25 @@ pages use `src/components/site/ProseLayout.tsx`.
 
 **Motion and access**: 150–200 ms ease-out for panels, sheets and dialogs, nothing bouncy, and none of it with
 `prefers-reduced-motion` (the landing preview then shows a still picture). Every interactive element gets the accent
-focus ring; touch targets grow to 44 px on coarse pointers; the rail and the panel keep the names, `aria-pressed` /
-`aria-expanded` semantics and test ids of the old panel headers, and the panel's switches are `role="switch"` named by
-their labels.
+focus ring; hit targets are 32 px at least and grow to 44 px on coarse pointers (the kit's buttons, fields and segments
+carry the sizes, and `globals.css` gives every button of the panel the floor – the choice rows of the feature sections
+included); the icon rail's labels are drawn in a fixed layer beside the icon (the rail's scroll box would clip them) and
+every rail item has its label as a title; the rail and the panel keep the names, `aria-pressed` / `aria-expanded`
+semantics and test ids of the old panel headers, and the panel's switches are `role="switch"` named by their labels.
+A scroll to the studio (a mode picked, Play today's seed, a bot clip opened) stops below the sticky header
+(`scroll-mt-14` on `main#simulator`).
 
 **Adding to it**: a new control group goes into the `sections` list of `Controls.tsx` with an icon from `icons.tsx` – it
 appears on the rail, in the tab strip, in the command palette and in the search; a new reading page wraps its text in
 `ProseLayout` (an eyebrow, the title, an optional lede and table of contents).
+
+**The command palette** offers what the panel shows in the current mode (`paletteKeyGroups()` in `Controls.tsx`,
+`src/components/simulator/panelKeys.ts`): the mode's own block under the Mode group (`MODE_BLOCK_KEYS` – a new mode's
+block registers its search keys there), the other groups' controls without the other modes' blocks and without what the
+mode or a setting hides (`sectionKeyShown()`: Wall Count outside the ring modes, the arena editor with one arena, a
+caption's form without captions …), one entry per label in a group. Choosing a control opens its group and focuses it;
+one that its group does not show right now (an advanced option, the collapsed Project file block) is shown through the
+search box at once, and a press on the rail always wins over a jump still under way.
 
 ## Getting started
 
@@ -255,7 +267,7 @@ src/
 
 ### Add a game mode
 1. Create `src/lib/physics/modes/<name>.ts` implementing `GameMode` (see `types.ts`; `classic.ts` is the minimal example, `portal.ts` a complete one, `drop.ts` a mode without rings built out of obstacles, `box.ts` a mode that owns its playfield entirely and folds the balls back in `onBallStep()`, `pendulum.ts` one whose motion is analytic – it overwrites every ball's position from the simulation clock in `onBallStep()` and solves its sound events inside each step). Use `ctx.random()` for randomness so the seed finder stays deterministic. Optional flags: `ballsMayRest` (no slow-ball boost), `ballsPassThrough` (no ball-to-ball collisions).
-2. Register it: add the id to `MODE_IDS` in `types.ts`, export the class from `src/lib/physics/modes/index.ts`, instantiate it in `engine.ts` and add a case to `initMode()` (`activateMode()` takes the ring layout: `"classic"`, `"single-gap"`, `"solid"`, or `"none"` for a mode that builds its own playfield), add its name to `modeNames` in `Controls.tsx` and, if it has settings, its `set<Mode>Settings()` call to `initEngineForMode()` in `Simulator.tsx` (every mode init, the fast export and the batch render go through it).
+2. Register it: add the id to `MODE_IDS` in `types.ts`, export the class from `src/lib/physics/modes/index.ts`, instantiate it in `engine.ts` and add a case to `initMode()` (`activateMode()` takes the ring layout: `"classic"`, `"single-gap"`, `"solid"`, or `"none"` for a mode that builds its own playfield), add its name to `modeNames` in `Controls.tsx` (and its block of the Mode group to `modeSpecific()` there, with the block's search keys in `MODE_BLOCK_KEYS` of `src/components/simulator/panelKeys.ts`, so the command palette offers them in this mode only) and, if it has settings, its `set<Mode>Settings()` call to `initEngineForMode()` in `Simulator.tsx` (every mode init, the fast export and the batch render go through it).
 3. Draw anything mode-specific in `Canvas.tsx` (segments, overlays, HUD counters); obstacles are drawn for every mode. A mode that draws its own entities gets a small module next to the canvas (see `boxRenderer.ts`) and a branch in the ball pass.
 4. Add the card order and the family (`MODE_CARD_ORDER`, `MODE_CATEGORIES`: `escape`, `rhythm`, `battle` or `journey`; the mode cards are grouped under a heading per family) in `src/lib/modes.ts` – a new family also needs its id in `MODE_CATEGORY_IDS`, an entry in `CATEGORY_HEADINGS` in `src/components/site/ModesOverview.tsx` and a `Headings.modes<Family>` key in every `messages/*.json` –, names/descriptions in `messages/*.json` (`Modes`, `Controls.mode<Name>`, `Editorial.mode<Name>`), and a preview image in `public/modes/<name>.webp` (add the mode to `scripts/generate-mode-previews.mjs` and run `MODES=<name> npm run previews` against the served build).
 5. Mode settings that the finder needs go into `ModeSettings` in `src/lib/simulation/finder.ts` and `createEngineForSettings()`, and a fingerprint of the new mode's default run into `tests/extras.test.ts`, so the physics extras are proven not to disturb it. A mode whose run cannot finish with some settings says so in `runNeverFinishes()` (the page then hides the finder and `findSimulation()` resolves with `endless` instead of searching); a mode whose run length is fixed by its settings whatever the seed (Pendulum Wave: cycles × cycle length) reports it in `fixedRunDurationSec()`, so the finder resolves with `fixedDuration` and the page explains what to change instead of testing seeds.

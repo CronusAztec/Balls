@@ -85,7 +85,8 @@ export default function NumberField({ value, onCommit, label, range, rules, disa
         title={error ? (message ?? undefined) : beyondTip}
         data-number-field={settingKey ?? ""}
         data-beyond={display.beyond ? "1" : undefined}
-        className={`${className ?? "w-20"} px-1.5 py-0.5 text-right font-mono text-xs rounded-md border disabled:opacity-50 ${
+        /* --- review fix (site-redesign) --- a 32 px field (44 px on touch), the kit's control height */
+        className={`${className ?? "w-20"} h-8 px-2 text-right font-mono text-xs rounded-md border disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 ${
           error ? "border-danger bg-danger/8 text-danger" : display.beyond ? "border-warn/60 bg-warn/10 text-warn focus:border-warn" : "border-line-strong bg-surface-2 text-ink focus:border-accent-dim"
         }`}
       />

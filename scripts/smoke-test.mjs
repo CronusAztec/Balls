@@ -8849,6 +8849,206 @@ const bdInstrument = () =>
 }
 // --- end odd-maze ---
 
+// --- review fix (site-redesign) --- the studio's review fixes: the command palette reaches a control its group does not show
+// (Show Advanced Options off, the collapsed Project file block) and offers no other mode's controls, and a rail click right
+// after it shows that group; the icon rail's hover labels are drawn on top at 1280–1535 px; picking a mode keeps the stage
+// strip below the sticky header; on a phone the open tab puts the sheet away (and so does a tap on the scrim); the hit
+// targets are 32 px (44 px on touch); and the static 404 page ships none of the simulator's catalog.
+{
+  const srErrors = [];
+  const watchSr = (p) => {
+    p.on("pageerror", (e) => srErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && srErrors.push(`console: ${m.text()}`));
+  };
+  const SEARCH = 'input[placeholder="Search settings..."]';
+  const paletteBox = (p) => p.locator('dialog [role="combobox"]');
+  const railButton = (p, name) => p.getByRole("toolbar").getByRole("button", { name, exact: true });
+  /** The heights of the visible elements a selector finds (those reading `text` only, when given). */
+  const heights = (p, selector, text = null) =>
+    p.$$eval(selector, (els, text) => els.filter((el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden" && (text === null || (el.textContent ?? "").trim() === text)).map((el) => Math.round(el.getBoundingClientRect().height * 10) / 10), text);
+  /** The mode picker on another page than the suite's own (pickModeCard drives that one). */
+  const pickModeCardOn = async (p, name) => {
+    await p.getByTestId("stage-strip").getByRole("button").first().click();
+    await p.locator('dialog [role="button"]', { hasText: name }).first().click();
+  };
+  /** Where the page stands after the scroll a mode pick makes: the stage strip (and the panel's search) clear of the header. */
+  const stripClear = (p, withSearch = true) =>
+    p.evaluate((withSearch) => {
+      const hits = (el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+      };
+      const strip = document.querySelector('[data-testid="stage-strip"]');
+      return { scrollY: Math.round(window.scrollY), stripTop: Math.round(strip?.getBoundingClientRect().top ?? -1), stripHit: hits(strip?.querySelector("button")), searchHit: withSearch ? hits(document.querySelector('input[placeholder="Search settings..."]')) : true };
+    }, withSearch);
+  const desk = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    const p = await desk.newPage();
+    watchSr(p);
+    await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+
+    // 1. The palette in Classic with Show Advanced Options off: one Gravity is offered (not Bouncing Shapes' too), Ball Drop's
+    // Gravity Variation is not; Enter shows the slider (through the search box) with the focus on it; the next rail click
+    // shows its group, not the search results.
+    await p.keyboard.press("Control+k");
+    await paletteBox(p).fill("grav");
+    const gravOptions = (await p.locator('dialog [role="option"]').allInnerTexts()).map((s) => s.replace(/\s+/g, " ").trim());
+    await paletteBox(p).fill("gravity variation");
+    const variationOptions = await p.locator('dialog [role="option"]').count();
+    await paletteBox(p).fill("gravity");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Gravity", null, { timeout: 5000 }).catch(() => {});
+    const jumped = await p.evaluate((sel) => {
+      const slider = document.querySelector('#studio-panel-body input[aria-label="Gravity"]');
+      return { focused: document.activeElement === slider && !!slider, visible: !!slider?.getClientRects().length, search: document.querySelector(sel)?.value ?? null };
+    }, SEARCH);
+    await railButton(p, "Wall Settings").click();
+    await p.waitForTimeout(300);
+    const afterRail = await p.evaluate((sel) => ({
+      wall: !!document.getElementById("studio-block-wall"),
+      results: document.querySelectorAll('[id^="studio-results-"]').length,
+      search: document.querySelector(sel)?.value ?? null,
+      pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")),
+    }), SEARCH);
+    check(
+      "palette: Classic offers one Gravity and no other mode's; with advanced options off Enter shows the slider focused, and the next rail click shows Wall Settings",
+      gravOptions.filter((o) => /^Gravity Ball & Physics$/.test(o)).length === 1 && !gravOptions.some((o) => /Variation|Orb|Pendulum|Pull/.test(o)) && variationOptions === 0 && jumped.focused && jumped.visible && afterRail.wall && afterRail.results === 0 && afterRail.search === "" && afterRail.pressed.includes("wall"),
+      `(grav ${JSON.stringify(gravOptions)}, gravity variation ${variationOptions} options, jump ${JSON.stringify(jumped)}, rail ${JSON.stringify(afterRail)})`,
+    );
+
+    // 2. The collapsed Project file block's Export project, and Gravity in its group once advanced options are on.
+    await p.keyboard.press("Control+k");
+    await paletteBox(p).fill("export project");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => /Export project/.test(document.activeElement?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const exportFocus = await p.evaluate(() => ({ tag: document.activeElement?.tagName, text: (document.activeElement?.textContent ?? "").trim() }));
+    await p.locator(SEARCH).fill("");
+    await p.locator(".studio-panel-foot input.switch").check();
+    await p.keyboard.press("Control+k");
+    await paletteBox(p).fill("gravity");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Gravity", null, { timeout: 5000 }).catch(() => {});
+    const inGroup = await p.evaluate((sel) => ({ inBall: !!document.activeElement?.closest("#studio-block-ball"), name: document.activeElement?.getAttribute("aria-label"), search: document.querySelector(sel)?.value }), SEARCH);
+    await p.locator(".studio-panel-foot input.switch").uncheck();
+    check("palette: Export project focuses its button in the collapsed block; with advanced options on Gravity is focused in Ball & Physics", exportFocus.tag === "BUTTON" && exportFocus.text === "Export project" && inGroup.inBall && inGroup.name === "Gravity" && inGroup.search === "", `(export ${JSON.stringify(exportFocus)}, advanced ${JSON.stringify(inGroup)})`);
+
+    // 3. The icon rail (1280–1535 px): hovering an icon shows its label on top of the stage, not clipped by the rail; every
+    // item carries its label as a title too.
+    await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await railButton(p, "Visual Effects").hover();
+    await p.waitForTimeout(400);
+    const tip = await p.evaluate(() => {
+      const el = document.querySelector("[data-tab-tip]");
+      const rail = document.querySelector(".studio-rail")?.getBoundingClientRect();
+      if (!el || !rail) return null;
+      const b = el.getBoundingClientRect();
+      el.style.pointerEvents = "auto";
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      el.style.pointerEvents = "";
+      return { text: el.textContent, left: Math.round(b.left), railRight: Math.round(rail.right), width: Math.round(b.width), onTop: el.contains(hit), opacity: getComputedStyle(el).opacity };
+    });
+    const titles = await p.$$eval('[role="toolbar"] button', (bs) => bs.every((b) => !!b.title && b.title === (b.querySelector("span")?.textContent ?? "")));
+    await p.screenshot({ path: path.join(outDir, "rail-tooltip-1280.png"), clip: { x: 0, y: 0, width: 420, height: 520 } }).catch(() => {});
+    await p.mouse.move(700, 450);
+    await p.waitForTimeout(200);
+    const tipGone = (await p.locator("[data-tab-tip]").count()) === 0;
+    check("icon rail at 1280 px: the hover label shows beside the icon, on top and unclipped, and goes on leave; every item has a title", !!tip && tip.text === "Visual Effects" && tip.onTop && tip.left >= tip.railRight && tip.width > 40 && Number(tip.opacity) > 0.9 && titles && tipGone, `(${JSON.stringify(tip)}, titles ${titles}, gone ${tipGone})`);
+
+    // 4. Hit targets at 1280 px: the speeds (once started), the number fields, the Outcome picker, Change mode, the Face and
+    // Rainbow choices, Play today's seed – 32 px at least.
+    await p.locator(".studio-panel-foot input.switch").check();
+    await railButton(p, "Ball & Physics").click();
+    await p.getByRole("button", { name: /Start Simulator/ }).click();
+    await p.waitForTimeout(400);
+    const sizes = {
+      speeds: await heights(p, '[role="group"][aria-label="Playback speed"] button'),
+      numberFields: (await heights(p, "#studio-panel-body input[data-number-field]")).slice(0, 6),
+      outcome: await heights(p, "#find-outcome"),
+      changeMode: await heights(p, '#studio-block-mode button[aria-haspopup="dialog"]'),
+      face: await heights(p, `#studio-panel-body [role="group"][aria-label="Face"] button`),
+      rainbow: await heights(p, "#studio-block-ball button", "Rainbow"),
+      daily: await heights(p, '[data-testid="daily-bar"] button'),
+      panelButtons: Math.min(...(await heights(p, "#studio-panel-body button"))),
+    };
+    await p.locator(".studio-panel-foot input.switch").uncheck();
+    const all = [...sizes.speeds, ...sizes.numberFields, ...sizes.outcome, ...sizes.changeMode, ...sizes.face, ...sizes.rainbow, ...sizes.daily, sizes.panelButtons];
+    check("hit targets at 1280 px: speeds, number fields, Outcome, Change mode, Face, Rainbow, Play today's seed and every panel button are 32 px or more", sizes.speeds.length === 4 && sizes.numberFields.length > 0 && sizes.changeMode.length === 1 && sizes.face.length > 0 && sizes.rainbow.length > 0 && sizes.daily.length === 1 && all.every((h) => h >= 32), `(${JSON.stringify(sizes)})`);
+
+    // 5. Picking a mode in the picker keeps the stage strip (and the panel's search) below the sticky header.
+    await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await pickModeCardOn(p, "Portal");
+    await p.waitForTimeout(900);
+    const picked = await stripClear(p);
+    check("picking a mode at 1280 px leaves the stage strip and the panel's search below the header", picked.scrollY === 0 && picked.stripTop >= 56 && picked.stripHit && picked.searchHit, `(${JSON.stringify(picked)})`);
+  } catch (err) {
+    check("site-redesign review checks (desktop) ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await desk.close().catch(() => {});
+  }
+
+  // 6. A phone (390×844, touch): picking a mode keeps the strip below the header; the open tab puts the sheet away (the
+  // transport bar is reachable again) and brings it back; a tap on the scrim puts it away too; the touch targets are 44 px.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const p = await phone.newPage();
+    watchSr(p);
+    await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await pickModeCardOn(p, "Portal");
+    await p.waitForTimeout(900);
+    const picked = await stripClear(p, false);
+    const sheet = () =>
+      p.evaluate(() => {
+        const start = [...document.querySelectorAll("button")].find((b) => /Start Simulator/.test(b.textContent ?? ""));
+        const r = start?.getBoundingClientRect();
+        const hit = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+        return { open: document.getElementById("studio-panel")?.hidden === false, startReachable: !!start && start.contains(hit), pressed: [...document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]')].map((b) => b.getAttribute("data-section")) };
+      });
+    const tab = p.getByRole("toolbar").getByRole("button", { name: "Ball & Physics", exact: true });
+    await tab.tap();
+    await p.waitForTimeout(400);
+    const opened = await sheet();
+    const touch = { tabs: await heights(p, ".studio-rail-item"), panel: Math.min(...(await heights(p, "#studio-panel-body button"))), fields: Math.min(...(await heights(p, "#studio-panel-body input[data-number-field]"))) };
+    await tab.tap();
+    await p.waitForTimeout(400);
+    const closed = await sheet();
+    await tab.tap();
+    await p.waitForTimeout(400);
+    const reopened = await sheet();
+    await p.getByTestId("studio-scrim").tap({ position: { x: 195, y: 120 } });
+    await p.waitForTimeout(400);
+    const scrimmed = await sheet();
+    check("phone: picking a mode leaves the stage strip below the header", picked.scrollY === 0 && picked.stripTop >= 56 && picked.stripHit, `(${JSON.stringify(picked)})`);
+    check(
+      "phone: a tap on the open tab puts the sheet away (Start reachable), the next brings it back, a tap on the scrim puts it away",
+      opened.open && !opened.startReachable && opened.pressed.includes("ball") && !closed.open && closed.startReachable && reopened.open && reopened.pressed.includes("ball") && !scrimmed.open && scrimmed.startReachable,
+      `(opened ${JSON.stringify(opened)}, closed ${JSON.stringify(closed)}, reopened ${JSON.stringify(reopened)}, scrim ${JSON.stringify(scrimmed)})`,
+    );
+    check("phone (touch): the tab strip's items, the panel's buttons and number fields are 44 px or more", touch.tabs.length > 5 && touch.tabs.every((h) => h >= 44) && touch.panel >= 44 && touch.fields >= 44, `(${JSON.stringify(touch)})`);
+  } catch (err) {
+    check("site-redesign review checks (phone) ran to the end", false, `(${String(err).split("\n")[0].slice(0, 200)})`);
+  } finally {
+    await phone.close().catch(() => {});
+  }
+
+  // 7. The static 404 page: its scripts carry none of the simulator's catalog (all three catalogs were in its chunk).
+  {
+    const res = await page.request.get(`${BASE}/pl/no-such-page-for-chunks/`);
+    const html = await res.text();
+    const srcs = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]);
+    let leaks = 0;
+    let pageBytes = 0;
+    for (const src of srcs) {
+      const body = await (await page.request.get(new URL(src, `${ORIGIN}/`).href)).text();
+      if (/findSimulationTip|ballPhysicsTab|viralBot/i.test(body)) leaks++;
+      if (/\/404\/page-/.test(src)) pageBytes += body.length;
+    }
+    check("the static 404 page's scripts carry none of the simulator's messages, and its own chunk is small", srcs.length > 3 && leaks === 0 && pageBytes > 0 && pageBytes < 60_000, `(${srcs.length} scripts, ${leaks} with simulator keys, 404 chunk ${pageBytes} bytes)`);
+  }
+  check("site-redesign review checks: no page errors", srErrors.length === 0, srErrors.length ? `\n   ${srErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end review fix (site-redesign) ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

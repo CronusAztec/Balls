@@ -94,7 +94,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, ba
         title={r(hintKey(outcome, battle, territory))}
         disabled={disabled}
         onChange={(e) => onOutcome(e.target.value as FinderOutcomeKind)}
-        className="min-w-0 max-w-[11rem] px-2 py-1 bg-surface-2 text-ink text-xs rounded-lg border border-line-strong focus:border-accent-dim cursor-pointer disabled:opacity-50"
+        className="h-8 min-w-0 max-w-[11rem] px-2 bg-surface-2 text-ink text-xs rounded-md border border-line-strong focus:border-accent-dim cursor-pointer disabled:opacity-50 [@media(pointer:coarse)]:min-h-11" /* --- review fix (site-redesign) --- a 32 px target (44 px on touch) */
       >
         {outcomes.map((kind) => (
           <option key={kind} value={kind}>

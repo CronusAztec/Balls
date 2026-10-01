@@ -25,15 +25,19 @@ export const RIGGED_KEYS = ["riggedGroup", "neverEscape", "forcedWinner"];
  * warning that they are for storytelling. The values live in SimulatorSettings (URL `ne`, `fw`) and reach the engine
  * in the physics config, so the seed finder searches with them and a found seed replays exactly.
  */
-export default function RiggedSection({ t, search, matches, settings: s, update }: RiggedSectionProps) {
+export default function RiggedSection({ t, search, matches: matchesOwn, settings: s, update }: RiggedSectionProps) {
   const root = useTranslations();
+  // --- review fix (site-redesign) --- a search for the group's name ("Rigged outcomes", the command palette's entry) shows
+  // the group – its heading and both controls – instead of nothing
+  const group = !!search && matchesOwn("riggedGroup");
+  const matches: Matcher = group ? () => true : matchesOwn;
   const count = effectiveBallCount(s);
   const names = teamChoiceNames(s, (kind, n) => root(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
   const winnerPlays = (WINNER_MODES.includes(s.mode) || BATTLE_WINNER_MODES.includes(s.mode)) /* --- odd-string-battle --- */ && count >= 2;
   const winner = s.forcedWinner >= 0 && s.forcedWinner < count ? s.forcedWinner : -1;
   const body = (
     <>
-      {!search && (
+      {(!search || group) && (
         <div className="space-y-1">
           <label className="text-sm font-medium text-ink-2">
             {t("riggedGroup")}
