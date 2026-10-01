@@ -370,6 +370,8 @@ export class TeamLayer {
       const live = engine.getTeamStats();
       for (let i = 0; i < MAX_TEAMS; i++) Object.assign(this.frozen[i], live[i]);
       this.result = teamResult(this.frozen, this.count);
+      // --- odd-maze --- a maze race won by a ball past the six teams (its seventh or eighth ball) has no team winner: the maze's banner stays
+      if (engine.isMazeMode() && engine.getMazeView().winner >= this.count) this.result = { winner: -1, tie: false, leaders: [] };
       this.bannerMs = 0;
       this.makeBannerTexts();
       this.confettiPending = this.result.winner >= 0;

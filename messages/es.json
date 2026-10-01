@@ -3137,7 +3137,7 @@
     "canvasTitle": "LABERINTO",
     "canvasBadgeTop": "LUCES INTERMITENTES",
     "canvasBadgeBottom": "EL FINAL SE PONE INTENSO",
-    "canvasOut": "FUERA #[place]",
+    "canvasOut": "[place].º",
     "canvasWins": "[name] ESCAPÓ",
     "canvasTime": "en [seconds] s",
     "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!",

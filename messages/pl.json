@@ -3137,7 +3137,7 @@
     "canvasTitle": "LABIRYNT",
     "canvasBadgeTop": "MIGAJĄCE ŚWIATŁA",
     "canvasBadgeBottom": "KOŃCÓWKA BĘDZIE INTENSYWNA",
-    "canvasOut": "META #[place]",
+    "canvasOut": "[place].",
     "canvasWins": "[name] NA WOLNOŚCI",
     "canvasTime": "w [seconds] s",
     "canvasTimeUp": "KONIEC CZASU",

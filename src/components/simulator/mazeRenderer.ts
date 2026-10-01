@@ -27,7 +27,7 @@ export interface MazeLabels {
   title: string;
   badgeTop: string;
   badgeBottom: string;
-  /** "OUT #[place]". */
+  /** The finishing place in the HUD, short: "#[place]". */
   out: (place: number) => string;
   /** "[name] ESCAPED" – the first ball through the exit. */
   wins: (name: string) => string;
@@ -46,7 +46,7 @@ export const DEFAULT_MAZE_LABELS: MazeLabels = {
   title: "MAZE",
   badgeTop: "FLASHING LIGHTS",
   badgeBottom: "THE END GETS INTENSE",
-  out: (place) => `OUT #${place}`,
+  out: (place) => `#${place}`,
   wins: (name) => `${name} ESCAPED`,
   time: (seconds) => `in ${seconds}s`,
   timeUp: "TIME'S UP",
@@ -73,6 +73,8 @@ export interface MazeRenderOptions {
 }
 
 const TWO_PI = Math.PI * 2;
+/** The smallest font (CSS px) the badge and the HUD shrink to while they make room for the maze (a tiny canvas: the export scales it up). */
+const MIN_OVERLAY_FONT = 4;
 /** How long a wall flares after a hit (simulation ms). */
 const HIT_GLOW_MS = 320;
 /** The fog's clear circle around a ball, in cells. */
@@ -129,7 +131,7 @@ export class MazeLayer {
   private fogData: ImageData | null = null;
   /** The box (CSS px) the cached layers cover: the maze, the chute above it and a margin for the glow. */
   private readonly box = { x: 0, y: 0, w: 0, h: 0 };
-  /** The widest place tag of the HUD ("OUT #8"), for the labels it was made with. */
+  /** The widest place tag of the HUD ("#8"), for the labels it was made with. */
   private tagLabels: MazeLabels | null = null;
   private tagText = "";
   /** The widest palette name at the HUD's font size (the cap of the name column), for the size it was measured at. */
@@ -145,6 +147,8 @@ export class MazeLayer {
   // Mirrored onto the canvas as data-mz-* for tools and the smoke test.
   badgeDrawn = false;
   hudDrawn = false;
+  /** The badge and the HUD stayed off the maze and its entrance chute this frame. */
+  clear = true;
   bannerDrawn = false;
   fogDrawn = false;
   /** Paint strokes stamped into the trail layer this run, and wall flares drawn this frame. */
@@ -187,7 +191,7 @@ export class MazeLayer {
   }
 
   private font(px: number, weight = 800): string {
-    const size = Math.max(6, Math.round(px));
+    const size = Math.max(3, Math.round(px)); // (3 px: the corner items' smallest lines on a tiny canvas)
     const key = size * 1000 + weight;
     let f = this.fonts.get(key);
     if (!f) {
@@ -581,20 +585,43 @@ export class MazeLayer {
     const sx = (o.width - side) / 2;
     const sy = (o.height - side) / 2;
     const margin = Math.max(6, 0.018 * side);
+    // The maze and its entrance chute, with the walls' glow and a little air: the corner items never cover them (they
+    // shrink into the bands beside the maze column; the camera's zoom may still bring the maze under them).
+    const f = view.field;
+    const air = Math.max(4, 2 * f.wall) + Math.max(2, 0.006 * side);
+    const mazeLeft = f.left - air;
+    const mazeRight = f.left + f.width + air;
+    const chuteLeft = f.left + view.grid.entranceCol * f.cell - air;
+    const chuteRight = chuteLeft + f.cell + 2 * air;
+    const chuteTop = f.top - f.cell - air;
+    const top = sy + frame.inset + margin;
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     this.badgeDrawn = view.settings.badge;
     const badgeRight = !!frame.badgeRight;
-    if (view.settings.badge) this.drawBadge(ctx, badgeRight ? sx + side - margin : sx + margin, sy + frame.inset + margin, side, o.labels, badgeRight);
+    if (view.settings.badge) {
+      // Room beside the maze (the band) or, above the maze, beside the chute when the badge reaches down to it.
+      const room = (bottom: number) =>
+        badgeRight
+          ? sx + side - margin - (bottom > f.top - air ? mazeRight : bottom > chuteTop ? chuteRight : -Infinity)
+          : (bottom > f.top - air ? mazeLeft : bottom > chuteTop ? chuteLeft : Infinity) - (sx + margin);
+      this.drawBadge(ctx, badgeRight ? sx + side - margin : sx + margin, top, side, o.labels, badgeRight, room);
+    }
     this.hudDrawn = view.settings.hud;
-    if (view.settings.hud) this.drawHud(ctx, view, sx + side - margin, sy + frame.inset + margin, side, o.labels);
+    if (view.settings.hud) this.drawHud(ctx, view, sx + side - margin, top, side, o.labels, sx + side - margin - mazeRight);
+    // Whether they stayed off the maze and its chute (data-mz-clear; only a canvas too small for their smallest font fails).
+    const covers = (x: number, w: number, bottom: number) =>
+      (x < f.left + f.width && x + w > f.left && bottom > f.top && top < f.top + f.height) ||
+      (x < chuteLeft + f.cell + air && x + w > chuteLeft + air && bottom > f.top - f.cell && top < f.top);
+    this.clear = !(this.badgeDrawn && covers(this.badgeX, this.badgeW, this.badgeBottom)) && !(this.hudDrawn && covers(this.hudX, this.hudW, this.hudBottom));
     // The corner items the top captions have to start below.
     let topBottom = 0;
     if (this.badgeDrawn && inCaptionColumn(this.badgeX, this.badgeW, sx + side / 2, side)) topBottom = this.badgeBottom;
     if (this.hudDrawn && inCaptionColumn(this.hudX, this.hudW, sx + side / 2, side)) topBottom = Math.max(topBottom, this.hudBottom);
     this.bannerDrawn = false;
-    if (view.verdict !== "" && !(frame.teamBanner && view.finished) && o.nowMs - view.verdictMs >= BANNER_DELAY_MS) {
+    // (with a roster the teams banner announces a team's win once the run is over; a ball past the six teams keeps this one)
+    if (view.verdict !== "" && !(frame.teamBanner && view.finished && view.winner < view.teamCount) && o.nowMs - view.verdictMs >= BANNER_DELAY_MS) {
       this.drawBanner(ctx, view, sx + side / 2, sy + side * 0.46, side, o);
       this.bannerDrawn = true;
     }
@@ -602,18 +629,33 @@ export class MazeLayer {
     return topBottom;
   }
 
-  /** The warning badge with its top-left corner at (x, y) – or, `right`, its top-right corner. */
-  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: MazeLabels, right = false) {
-    const fs = Math.max(7, 0.016 * side);
-    const small = 0.78 * fs;
-    ctx.font = this.font(fs, 900);
-    const w1 = ctx.measureText(L.badgeTop).width;
-    ctx.font = this.font(small, 700);
-    const w2 = ctx.measureText(L.badgeBottom).width;
-    const icon = 1.9 * fs;
-    const pad = 0.55 * fs;
-    const w = pad * 3 + icon + Math.max(w1, w2);
-    const h = pad * 2 + fs + 1.15 * small;
+  /**
+   * The warning badge with its top-left corner at (x, y) – or, `right`, its top-right corner. `room(bottom)` is the width it
+   * may take when it reaches down to `bottom` (the band beside the maze, or beside the entrance chute): a wider badge shrinks.
+   */
+  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: MazeLabels, right: boolean, room: (bottom: number) => number) {
+    let fs = Math.max(7, 0.016 * side);
+    let small = 0;
+    let w1 = 0;
+    let w2 = 0;
+    let icon = 0;
+    let pad = 0;
+    let w = 0;
+    let h = 0;
+    for (let pass = 0; pass < 3; pass++) {
+      small = 0.78 * fs;
+      ctx.font = this.font(fs, 900);
+      w1 = ctx.measureText(L.badgeTop).width;
+      ctx.font = this.font(small, 700);
+      w2 = ctx.measureText(L.badgeBottom).width;
+      icon = 1.9 * fs;
+      pad = 0.55 * fs;
+      w = pad * 3 + icon + Math.max(w1, w2);
+      h = pad * 2 + fs + 1.15 * small;
+      const max = room(y + h);
+      if (pass === 2 || w <= max || fs <= MIN_OVERLAY_FONT) break;
+      fs = Math.max(MIN_OVERLAY_FONT, 0.97 * fs * (max / w)); // every width scales with the font (rounded: a pass more)
+    }
     if (right) x -= w;
     this.badgeX = x;
     this.badgeW = w;
@@ -660,28 +702,37 @@ export class MazeLayer {
     return this.paletteWidth;
   }
 
-  private drawHud(ctx: CanvasRenderingContext2D, view: MazeView, right: number, top: number, side: number, L: MazeLabels) {
-    // Narrow enough for the band beside the maze column (about a fifth of the square) with eight balls.
-    const fs = Math.max(7, 0.0145 * side);
-    const rowH = 1.45 * fs;
-    const pad = 0.55 * fs;
-    const barW = 2.8 * fs;
-    const barH = 0.42 * fs;
-    ctx.font = this.font(fs, 800);
-    let nameW = 0;
-    for (let i = 0; i < view.count; i++) nameW = Math.max(nameW, ctx.measureText(this.nameOf(i)).width);
-    nameW = Math.min(nameW, this.paletteNameWidth(ctx, fs)); // every palette name (HOTPINK…) fits; a longer roster name is clipped
+  /** The HUD with its top-right corner at (right, top), at most `maxW` wide (the band beside the maze: a wider HUD shrinks). */
+  private drawHud(ctx: CanvasRenderingContext2D, view: MazeView, right: number, top: number, side: number, L: MazeLabels, maxW: number) {
+    // Narrow enough for the band beside the maze column (about a fifth of the square) with eight balls – and made to fit it.
+    let fs = Math.max(7, 0.0145 * side);
     if (this.tagLabels !== L) {
       this.tagLabels = L;
       this.tagText = L.out(8);
     }
-    ctx.font = this.font(0.85 * fs, 800);
-    const tagW = Math.max(ctx.measureText(this.tagText).width, ctx.measureText("000").width);
-    const titleFs = 1.05 * fs;
-    ctx.font = this.font(titleFs, 900);
-    const titleW = ctx.measureText(L.title).width;
-    const rowW = 1.1 * fs + nameW + 0.5 * fs + barW + 0.5 * fs + tagW;
-    const w = pad * 2 + Math.max(rowW, titleW);
+    let nameW = 0;
+    let tagW = 0;
+    let titleFs = 0;
+    let w = 0;
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.font = this.font(fs, 800);
+      nameW = 0;
+      for (let i = 0; i < view.count; i++) nameW = Math.max(nameW, ctx.measureText(this.nameOf(i)).width);
+      nameW = Math.min(nameW, this.paletteNameWidth(ctx, fs)); // every palette name (HOTPINK…) fits; a longer roster name is clipped
+      ctx.font = this.font(0.85 * fs, 800);
+      tagW = Math.max(ctx.measureText(this.tagText).width, ctx.measureText("000").width);
+      titleFs = 1.05 * fs;
+      ctx.font = this.font(titleFs, 900);
+      const titleW = ctx.measureText(L.title).width;
+      const rowW = 1.1 * fs + nameW + 0.5 * fs + 2.4 * fs + 0.5 * fs + tagW;
+      w = 1.1 * fs + Math.max(rowW, titleW);
+      if (pass === 2 || w <= maxW || fs <= MIN_OVERLAY_FONT) break;
+      fs = Math.max(MIN_OVERLAY_FONT, 0.97 * fs * (Math.max(0, maxW) / w)); // every width scales with the font (rounded: a pass more)
+    }
+    const rowH = 1.45 * fs;
+    const pad = 0.55 * fs;
+    const barW = 2.4 * fs;
+    const barH = 0.42 * fs;
     const h = pad * 2 + 1.5 * titleFs + view.count * rowH;
     const x = right - w;
     this.hudX = x;
@@ -813,6 +864,7 @@ export const MAZE_DATA_KEYS = [
   "mzBadge",
   "mzHud",
   "mzBanner",
+  "mzClear",
   "mzGeneration",
 ];
 
@@ -850,5 +902,6 @@ export function writeMazeDataset(view: MazeView, layer: MazeLayer, set: (key: st
   set("mzBadge", layer.badgeDrawn ? "1" : "0");
   set("mzHud", layer.hudDrawn ? "1" : "0");
   set("mzBanner", layer.bannerDrawn ? "1" : "0");
+  set("mzClear", layer.clear ? "1" : "0");
   set("mzGeneration", String(view.generation));
 }

@@ -449,6 +449,24 @@ export function explorerChoice(grid: MazeGrid, cell: number, mask: number, visit
   return -1;
 }
 
+/**
+ * Whether the explorer's depth-first search has run out at `cell`: no exit in sight, no open passage to a cell it has not
+ * explored and no previous cell to go back to (`parentDir` −1 or closed) – it is back at the root of its search with
+ * everything it can reach explored. The caller then starts a fresh search from there (the rig's seal turned it back at
+ * the exit, or a cell counted as explored hid a corridor it never went down): `explorerChoice()` alone would shuttle
+ * between the root and its first neighbour for good.
+ */
+export function explorerExhausted(grid: MazeGrid, cell: number, mask: number, visited: Uint8Array, parentDir: number): boolean {
+  if (cell === grid.exitCell && mask & MZ_BIT[MZ_S]) return false;
+  if (parentDir >= 0 && mask & MZ_BIT[parentDir]) return false;
+  for (let d = 0; d < 4; d++) {
+    if (!(mask & MZ_BIT[d])) continue;
+    const nc = mazeNeighbour(grid.cols, grid.rows, cell, d);
+    if (nc >= 0 && !visited[nc]) return false;
+  }
+  return true;
+}
+
 /** The shortest way out (the rig's forced winner): the passage to a neighbour one step closer to the exit, or the exit itself. */
 export function shortestChoice(grid: MazeGrid, cell: number, mask: number): number {
   if (cell === grid.exitCell && mask & MZ_BIT[MZ_S]) return MZ_S;

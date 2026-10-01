@@ -17,6 +17,7 @@ import {
   clampIntoMazeCell,
   emptyMazeContact,
   explorerChoice,
+  explorerExhausted,
   generateMaze,
   mazeBallRadius,
   mazeDirection,
@@ -535,8 +536,13 @@ export class MazeMode implements GameMode {
   private readonly view: MazeView = createView();
   /** The engine ball id of the first runner (the runners' ids follow). */
   private firstId = 0;
-  /** Per runner: the cells it visited and its path from the entrance (the explorer's depth-first search). */
+  /** Per runner: the cells it entered (its `visited` count). */
   private visited: Uint8Array[] = [];
+  /**
+   * Per runner: the explorer's depth-first search – the cells it explored (decided in: it reached their centre line, so a
+   * cell it only bounced into and out of stays unexplored and is tried again) and its path from the root of the search.
+   */
+  private explored: Uint8Array[] = [];
   private path: Int32Array[] = [];
   private pathLen: number[] = [];
   /** Per cell: the slots that painted it, and the slots that painted its passage east / south. */
@@ -624,6 +630,7 @@ export class MazeMode implements GameMode {
     this.lastNoteMs = -Infinity;
     this.random = () => ctx.random();
     this.visited = [];
+    this.explored = [];
     this.path = [];
     this.pathLen = [];
     const f = v.field;
@@ -664,6 +671,7 @@ export class MazeMode implements GameMode {
         lastNoteMs: -Infinity,
       });
       this.visited.push(new Uint8Array(grid.cells));
+      this.explored.push(new Uint8Array(grid.cells));
       this.path.push(new Int32Array(grid.cells + 1));
       this.pathLen.push(0);
     }
@@ -887,8 +895,8 @@ export class MazeMode implements GameMode {
         r.dist = v.entranceDist + 1;
         r.decided = true;
       }
-      // The new cell's walls at once: the ball may already touch one of them.
-      resolveMazeCell(grid, f, r.col, r.row, ball, this.gapsOf(r));
+      // The new cell's walls at once: the ball may already touch one of them (a hit like any other – a note, a glow).
+      this.collide(ctx, r, ball, cruise);
     }
     if (!r.entered && r.row >= 0 && (r.row > 0 || ball.y - f.top >= r.radius + f.wall / 2)) r.entered = true;
     if (!r.decided && r.row >= 0) {
@@ -987,9 +995,21 @@ export class MazeMode implements GameMode {
     if (r.brain === "shortest") d = shortestChoice(grid, cell, mask);
     else if (r.brain === "wallFollow") d = wallFollowChoice(mask, r.heading, r.hand);
     else {
+      // The explorer: this cell is explored now (it reached its centre line); out of options at the root of its search –
+      // everything it can reach explored, the exit sealed by the rig or hidden behind a corridor it never went down – it
+      // starts a fresh depth-first search from here instead of shuttling between two cells.
+      const explored = this.explored[r.slot];
+      explored[cell] = 1;
       const len = this.pathLen[r.slot];
-      const parent = len >= 2 ? mazeDirection(grid.cols, cell, this.path[r.slot][len - 2]) : -1;
-      d = explorerChoice(grid, cell, mask, this.visited[r.slot], parent, this.random);
+      let parent = len >= 2 ? mazeDirection(grid.cols, cell, this.path[r.slot][len - 2]) : -1;
+      if (explorerExhausted(grid, cell, mask, explored, parent)) {
+        explored.fill(0);
+        explored[cell] = 1;
+        this.path[r.slot][0] = cell;
+        this.pathLen[r.slot] = 1;
+        parent = -1;
+      }
+      d = explorerChoice(grid, cell, mask, explored, parent, this.random);
     }
     if (d < 0) return;
     const g = this.gravity();
@@ -1033,13 +1053,18 @@ export class MazeMode implements GameMode {
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
-    // The clip limit: the run ends; with nobody out yet, the ball nearest the exit (the rig's pick among equals) wins.
+    // The clip limit: the run ends; with nobody out yet, the ball nearest the exit wins – the rig's forced winner whatever
+    // the distances (its shortest way may not fit into a short clip in a big, slow maze; the outcome is staged either way).
     if (v.endMs < 0 && now >= 1000 * v.settings.duration) {
       if (v.verdict === "") {
         let lead: MazeRunner | null = null;
         for (const r of v.runners) {
           if (r.exited) continue;
-          if (!lead || r.dist < lead.dist || (r.dist === lead.dist && r.slot === v.forcedWinner)) lead = r;
+          if (r.slot === v.forcedWinner) {
+            lead = r;
+            break;
+          }
+          if (!lead || r.dist < lead.dist) lead = r;
         }
         if (lead) {
           v.verdict = "time";

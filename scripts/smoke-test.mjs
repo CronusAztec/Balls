@@ -8421,9 +8421,9 @@ const bdInstrument = () =>
   await page.screenshot({ path: path.join(outDir, "sim-maze.png") });
   await timingCheck(
     "simulator mode=maze drops the balls into the maze, paints their trail and runs at 30+ fps",
-    early.mzBalls === "3" && early.mzCols === "12" && early.mzRows === "17" && Number(early.mzVisited) > 5 && Number(early.mzStamped) > 5 && Number(early.mzNotes) >= 3 && early.mzBadge === "1" && early.mzHud === "1" && early.mzLeaks === "0",
+    early.mzBalls === "3" && early.mzCols === "12" && early.mzRows === "17" && Number(early.mzVisited) > 5 && Number(early.mzStamped) > 5 && Number(early.mzNotes) >= 3 && early.mzBadge === "1" && early.mzHud === "1" && early.mzClear === "1" && early.mzLeaks === "0",
     fpsOk(fps, 8, 30),
-    `(${JSON.stringify({ visited: early.mzVisited, paint: early.mzPaint, notes: early.mzNotes, dist: early.mzDist, leaks: early.mzLeaks })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(${JSON.stringify({ visited: early.mzVisited, paint: early.mzPaint, notes: early.mzNotes, dist: early.mzDist, clear: early.mzClear, leaks: early.mzLeaks })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
   );
   await page.getByRole("button", { name: "4x", exact: true }).click();

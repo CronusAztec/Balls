@@ -3360,7 +3360,7 @@
     "canvasTitle": "MAZE",
     "canvasBadgeTop": "FLASHING LIGHTS",
     "canvasBadgeBottom": "THE END GETS INTENSE",
-    "canvasOut": "OUT #[place]",
+    "canvasOut": "#[place]",
     "canvasWins": "[name] ESCAPED",
     "canvasTime": "in [seconds]s",
     "canvasTimeUp": "TIME'S UP",

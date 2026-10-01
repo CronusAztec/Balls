@@ -13,6 +13,7 @@ import {
   carveMaze,
   emptyMazeContact,
   explorerChoice,
+  explorerExhausted,
   generateMaze,
   mazeBallRadius,
   mazeConnected,
@@ -384,6 +385,21 @@ describe("the brains", () => {
     expect(found).toBe(true);
   });
 
+  it("the explorer has run out only at the root of its search with every open neighbour explored and no exit in sight", () => {
+    const all = new Uint8Array(grid.cells).fill(1);
+    const none = new Uint8Array(grid.cells);
+    const c = grid.entranceCell;
+    const mask = mazeExitsOf(grid, c, true);
+    const open = [MZ_N, MZ_E, MZ_S, MZ_W].find((k) => mask & MZ_BIT[k])!;
+    expect(explorerExhausted(grid, c, mask, all, -1)).toBe(true); // the root, everything explored: start over
+    expect(explorerExhausted(grid, c, mask, all, open)).toBe(false); // a previous cell to go back to
+    expect(explorerExhausted(grid, c, mask, none, -1)).toBe(false); // something left to explore
+    // At the exit cell with the exit open it is never out of options; with the rig's seal it may be.
+    const exitMask = mazeExitsOf(grid, grid.exitCell, true);
+    expect(explorerExhausted(grid, grid.exitCell, exitMask, all, -1)).toBe(false);
+    expect(explorerExhausted(grid, grid.exitCell, mazeExitsOf(grid, grid.exitCell, false), all, -1)).toBe(true);
+  });
+
   it("the rig's shortest way follows the distance map down to the exit", () => {
     let cell = grid.entranceCell;
     for (let step = 0; step < grid.dist[grid.entranceCell]; step++) {
@@ -635,6 +651,48 @@ describe("the maze in the engine", () => {
     expect(view.runners.map((r) => r.place).sort()).toEqual([1, 2, 3]);
     expect(engine.getBalls()).toHaveLength(0);
     expect(view.slowMos).toBe(1);
+  });
+
+  it("explorers never get stuck: every one of them gets out (a fresh search when one has run out at its root)", { timeout: 60_000 }, () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      for (const gravity of [0, 0.35, 1]) {
+        const engine = engineFor({ balls: 3, brain: "explorer", gravity, duration: 180 }, seed);
+        const view = engine.getMazeView();
+        run(engine, 200_000);
+        expect(view.exited, `seed ${seed}, pull ${gravity}`).toBe(3);
+        expect(view.verdict).toBe("exit");
+        expect(view.endMs, `seed ${seed}, pull ${gravity}`).toBeLessThan(180_000);
+      }
+    }
+  });
+
+  it("the rig: at the clip limit the forced winner takes the verdict even when another ball is nearer the exit", () => {
+    for (const seed of [1, 2, 3]) {
+      const engine = engineFor({ balls: 3, brain: "bounce", cols: 40, speed: 0.25, gravity: 0, duration: 10 }, seed, { forcedWinner: 1 });
+      const view = engine.getMazeView();
+      run(engine, 30_000);
+      expect(view.verdict).toBe("time");
+      expect(view.winner).toBe(1);
+      expect(teamResult(engine.getTeamStats(), 3).winner).toBe(1);
+    }
+  });
+
+  it("a ball past the six teams can win the race – no team is credited with its escape", { timeout: 60_000 }, () => {
+    let found = false;
+    for (let seed = 1; seed <= 40 && !found; seed++) {
+      const engine = engineFor({ balls: 8, brain: "wallFollow", duration: 180 }, seed);
+      const view = engine.getMazeView();
+      run(engine, 200_000);
+      expect(view.verdict).toBe("exit");
+      const escapes = engine.getTeamStats().reduce((n, s) => n + s.escapes, 0);
+      if (view.winner >= 6) {
+        found = true;
+        expect(view.teamCount).toBe(6);
+        expect(escapes).toBe(0);
+        expect(view.runners[view.winner].team).toBe(-1);
+      } else expect(escapes).toBe(1);
+    }
+    expect(found).toBe(true);
   });
 
   it("at the clip limit with nobody out the ball nearest the exit wins", () => {
