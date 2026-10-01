@@ -1501,7 +1501,7 @@
     "mzBadgeTip": "Plakietka „MIGAJĄCE ŚWIATŁA – KOŃCÓWKA BĘDZIE INTENSYWNA” w lewym górnym rogu klipu.",
     "mzHud": "Tablica odległości",
     "mzHudTip": "Wiersz dla każdej kulki w prawym górnym rogu: jej kolor, nazwa i pasek, który wypełnia się, gdy zbliża się do wyjścia, z liczbą przejść do pokonania (albo miejscem, gdy już wyjdzie).",
-    "mzRunInfo": "Labirynt {cols} × {rows} ({cells} komórek, nowy dla każdego ziarna); przebieg kończy się, gdy wszystkie kulki wyjdą, najpóźniej po {seconds} s."
+    "mzRunInfo": "Labirynt {cols} × {rows} ({cells, plural, one {# komórka} few {# komórki} many {# komórek} other {# komórki}}, nowy dla każdego ziarna); przebieg kończy się, gdy wszystkie kulki wyjdą, najpóźniej po {seconds} s."
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },

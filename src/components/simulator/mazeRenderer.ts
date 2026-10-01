@@ -131,6 +131,9 @@ export class MazeLayer {
   /** The widest place tag of the HUD ("OUT #8"), for the labels it was made with. */
   private tagLabels: MazeLabels | null = null;
   private tagText = "";
+  /** The widest palette name at the HUD's font size (the cap of the name column), for the size it was measured at. */
+  private paletteWidth = 0;
+  private paletteWidthKey = -1;
   // Mirrored onto the canvas as data-mz-* for tools and the smoke test.
   badgeDrawn = false;
   hudDrawn = false;
@@ -624,17 +627,29 @@ export class MazeLayer {
     ctx.fillText(L.badgeBottom, tx + icon + pad, y + pad + 1.1 * fs);
   }
 
+  /** Width of the widest palette name at the HUD's font size `fs` (the font must be set), cached per size. */
+  private paletteNameWidth(ctx: CanvasRenderingContext2D, fs: number): number {
+    const key = Math.round(fs * 100);
+    if (this.paletteWidthKey !== key) {
+      let w = 0;
+      for (const p of MZ_PALETTE) w = Math.max(w, ctx.measureText(p.name).width);
+      this.paletteWidthKey = key;
+      this.paletteWidth = w;
+    }
+    return this.paletteWidth;
+  }
+
   private drawHud(ctx: CanvasRenderingContext2D, view: MazeView, right: number, top: number, side: number, L: MazeLabels) {
     // Narrow enough for the band beside the maze column (about a fifth of the square) with eight balls.
     const fs = Math.max(7, 0.0145 * side);
     const rowH = 1.45 * fs;
     const pad = 0.55 * fs;
-    const barW = 3.4 * fs;
+    const barW = 2.8 * fs;
     const barH = 0.42 * fs;
     ctx.font = this.font(fs, 800);
     let nameW = 0;
     for (let i = 0; i < view.count; i++) nameW = Math.max(nameW, ctx.measureText(this.nameOf(i)).width);
-    nameW = Math.min(nameW, 4.2 * fs);
+    nameW = Math.min(nameW, this.paletteNameWidth(ctx, fs)); // every palette name (HOTPINK…) fits; a longer roster name is clipped
     if (this.tagLabels !== L) {
       this.tagLabels = L;
       this.tagText = L.out(8);

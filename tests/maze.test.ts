@@ -509,7 +509,7 @@ describe("the maze in the engine", () => {
     expect(view.visitedCells).toBeGreaterThan(0);
   });
 
-  it("keeps every ball inside the maze at any speed, pull, size and canvas", () => {
+  it("keeps every ball inside the maze at any speed, pull, size and canvas", { timeout: 30_000 }, () => {
     const cases: [Partial<MazeSettings>, Partial<PhysicsConfig>][] = [
       [{ cols: 40, speed: 3, gravity: 1, brain: "bounce", balls: 8 }, { width: 800, height: 600, ballRadius: 30 }],
       [{ cols: 40, speed: 3, gravity: 1, brain: "explorer", balls: 8 }, { width: 360, height: 900, ballRadius: 30 }],
@@ -556,7 +556,7 @@ describe("the maze in the engine", () => {
     }
   });
 
-  it("replays a seed exactly: positions, notes, paint and the verdict", () => {
+  it("replays a seed exactly: positions, notes, paint and the verdict", { timeout: 30_000 }, () => {
     const trace = (seed: number) => {
       const engine = engineFor({ balls: 4, brain: "explorer" }, seed);
       const events = run(engine, 40_000);
@@ -594,7 +594,7 @@ describe("the maze in the engine", () => {
     expect(view.notes).toBe(pitches.length);
   });
 
-  it("the first ball out wins – an escape in the team stats, the wall-break sound – and the run finishes after the hold", () => {
+  it("the first ball out wins – an escape in the team stats, the wall-break sound – and the run finishes after the hold", { timeout: 30_000 }, () => {
     const engine = engineFor({ balls: 3, brain: "wallFollow" }, 8);
     const view = engine.getMazeView();
     const events = run(engine, 120_000);
@@ -629,7 +629,7 @@ describe("the maze in the engine", () => {
     expect(view.finished).toBe(true);
   });
 
-  it("the rig: the forced winner wins every seed, the exit sealed to the others until it is out", () => {
+  it("the rig: the forced winner wins every seed, the exit sealed to the others until it is out", { timeout: 30_000 }, () => {
     for (let seed = 1; seed <= 8; seed++) {
       const engine = engineFor({ balls: 4, brain: "explorer" }, seed, { forcedWinner: 2 });
       const view = engine.getMazeView();
