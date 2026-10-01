@@ -46,7 +46,7 @@ import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { EXPORT_BASE_NAME, VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
-import { findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
+import { FINDER_DEPTH_BUDGET_MS, findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- gerald-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces ---
 // --- teams ---
@@ -2404,6 +2404,7 @@ export default function Simulator() {
         targetDurationSec: findDuration,
         toleranceSec: findTolerance,
         maxSeeds: findMaxSeeds,
+        depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth --- (nothing in the first 1,000 seeds: on while the budget lasts, when seeds are cheap)
         maxSimTimeSec: findDuration + (settings.mode === "colorMatch" ? 90 : 30),
         physicsConfig: { ...engine.config },
         mode: settings.mode,
@@ -2969,7 +2970,7 @@ export default function Simulator() {
                     <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">
                       <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
                     </div>
-                    <p className="num text-xs text-ink-2">{t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
+                    <p className="num text-xs text-ink-2">{searchProgress.depthLeftMs !== undefined /* --- finder-depth --- (deeper: the seeds and the time left) */ ? t("Simulator.seedProgressDeeper", { tested: searchProgress.seedsTested, left: Math.ceil(searchProgress.depthLeftMs / 1000) }) : t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
                     {searchOutcome !== "duration" /* --- rigged --- */ ? <p className="text-xs text-ink-3">{outcomeProgressText(t, searchOutcome, searchProgress)}</p> : searchProgress.bestDuration > 0 && <p className="text-xs text-ink-3">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
                   </div>
                 )}
@@ -3105,7 +3106,7 @@ export default function Simulator() {
                 <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
               </div>
               <div className="flex items-center justify-between text-xs text-ink-3">
-                <span className="num">{t("Controls.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</span>
+                <span className="num">{searchProgress.depthLeftMs !== undefined /* --- finder-depth --- */ ? t("Controls.seedProgressDeeper", { tested: searchProgress.seedsTested, left: Math.ceil(searchProgress.depthLeftMs / 1000) }) : t("Controls.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</span>
                 {searchOutcome !== "duration" /* --- rigged --- */ ? <span>{outcomeProgressText(t, searchOutcome, searchProgress)}</span> : searchProgress.bestDuration > 0 && <span>{t("Controls.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</span>}
               </div>
             </div>

@@ -4,7 +4,7 @@ import type { BotWorld } from "@/lib/bot/finderRequest";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { hashString, localIsoDate, planClipSteps, planDaySteps, type ClipPlan } from "@/lib/bot/planner";
 import { recipeById } from "@/lib/bot/playbook";
-import { findSimulation } from "@/lib/simulation/finder";
+import { FINDER_DEPTH_BUDGET_MS, findSimulation, type FinderProgress } from "@/lib/simulation/finder";
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
 import type { FindAnswer, FindRequest, PlanClipsRequest, StudioPorts } from "@/lib/desktop/ai/studio";
 
@@ -28,6 +28,11 @@ async function sliced<Y, T>(steps: Generator<Y, T>, onStep: (step: Y) => void, s
     } while (performance.now() - t0 < SLICE_MS);
     await pause();
   }
+}
+
+/** --- finder-depth --- The find tool's progress line: seeds / max, or – going deeper – the seeds and the seconds left. */
+export function seedProgressLine(p: FinderProgress): string {
+  return p.depthLeftMs !== undefined ? `${p.seedsTested} (+${Math.ceil(p.depthLeftMs / 1000)} s)` : `${p.seedsTested}/${p.maxSeeds}`;
 }
 
 export interface StudioPortOptions {
@@ -61,7 +66,8 @@ export function studioPorts(options: StudioPortOptions): StudioPorts {
       // --- unlimited --- the page's search for a run past the sliders: time-sliced by whole steps, fewer seeds when heavy
       // (--- uncap-all --- engaged by the values, as the page's Find Simulation)
       const find = uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation;
-      const result = await find({ ...base, targetDurationSec: request.targetSec, toleranceSec: 0.5, maxSeeds: 300, ...(outcome ? { outcome } : {}) }, (p) => progress(`${p.seedsTested}/${p.maxSeeds}`), signal);
+      // --- finder-depth --- the page's budget: nothing in the first 300 seeds and seeds are cheap – on while it lasts
+      const result = await find({ ...base, targetDurationSec: request.targetSec, toleranceSec: 0.5, maxSeeds: 300, depthBudgetMs: FINDER_DEPTH_BUDGET_MS, ...(outcome ? { outcome } : {}) }, (p) => progress(seedProgressLine(p)), signal);
       if (signal?.aborted) throw new DOMException("cancelled", "AbortError");
       return { found: result.found, seed: result.seed, durationSec: result.duration, endless: result.endless };
     },
