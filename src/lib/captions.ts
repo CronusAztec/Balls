@@ -398,7 +398,7 @@ export function fillLabel(label: string, tokens: Record<string, string>, value: 
   if (!text) return value;
   let used = false;
   const filled = text.replace(/\[(\w+)\]/g, (whole, key: string) => {
-    if (!(key in tokens)) return whole;
+    if (!Object.prototype.hasOwnProperty.call(tokens, key)) return whole; // --- review fix (security-robustness) --- ([constructor] is no token)
     used = true;
     return tokens[key];
   });

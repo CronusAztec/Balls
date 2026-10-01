@@ -704,6 +704,255 @@ export function glassTempo(ball: Pick<Ball, "mult">): number {
   return ball.mult ? ball.mult.speed : 1;
 }
 
+/* ------------------------------------------------------------------ the rules (shared with the Journey's stages) */
+
+/*
+ * Glass Smash's rules as pure functions over a `GlassView` – the pane contact and the landing / shatter rule, the
+ * shards, the walk to the door and the celebration at HOME. `GlassMode` plays them on its level, and the Journey's
+ * glass and HOME stages (lib/physics/journey/glass.ts, home.ts) on theirs, so the two can never drift apart.
+ */
+
+/** How far beyond half a pane's thickness (px) the ball can touch it in a sub-step of `dtSec`: taken once per sub-step. */
+export function glassReach(ball: Pick<Ball, "radius" | "vy">, dtSec: number): number {
+  return ball.radius + Math.abs(ball.vy) * dtSec + 2;
+}
+
+/**
+ * The ball against one pane for a sub-step: the capsule maths of `resolveBallSegment()` on its unbroken glass within
+ * `reachY` (`glassReach()`), then the contact rule. A knock from below needs HIT_SPEED to count. A contact from above is
+ * always a landing, however slow – a graze on the end of a hole's glass, a sliding pane lifting the ball onto its top –
+ * so the ball never comes to rest on unbroken glass (the capsule maths alone would only damp its bounce there, and the
+ * run would never end). Returns the impact of a hit (at least HIT_SPEED) for `hitGlassPane()`, or −1.
+ */
+export function touchGlassPane(pane: GlassPane, ball: Ball, dtSec: number, reachY: number): number {
+  if (pane.shattered || Math.abs(ball.y - pane.y) > pane.thickness / 2 + reachY) return -1;
+  for (const seg of pane.segments) {
+    // --- bounce-math --- a knock from below rebounds with the ball's bounciness on top of the pane's (capped) restitution;
+    // a landing's hop takes it in hitGlassPane() (a landing sets the hop afresh, so nothing compounds)
+    const impact = resolveBallSegment(ball, seg, dtSec, 1, undefined, ball.restitution ?? 1);
+    if (impact < 0) continue;
+    return impact >= HIT_SPEED || ball.y < pane.y ? Math.max(impact, HIT_SPEED) : -1;
+  }
+  return -1;
+}
+
+/** What a pane hit needs from the mode (or stage) playing it; the caller may reuse one object for every hit. */
+export interface GlassHitOptions {
+  /** The run's seeded generator: the crack, the sideways kick, the shards. */
+  random: () => number;
+  /** Queues a sound event (`always`: even past the per-step limit). */
+  sound: (event: SoundEvent, always: boolean) => void;
+  /** Gravity on the ball (px/s², its speed multiplier included) – the hop after a landing is launched against it. */
+  gravity: number;
+  /** Hop height after a landing on this pane (px). */
+  bounceHeight: number;
+  /** Simulation time of the hit (ms). */
+  timeMs: number;
+  /** The Ball Speed setting (px/s): scales the sideways kick. */
+  ballSpeed: number;
+  /** --- bounce-math --- Reports the hit as a bounce of the ball (`ModeContext.noteBounce`). */
+  noteBounce?: (ball: Ball) => void;
+}
+
+/**
+ * A landing on (or a knock from below against) a pane: the damage (`hitDamage()`: a damage multiplier takes more off),
+ * a crack and a note – or, on its last hit point, the shatter: the shards, the accented note and the wall-break sound,
+ * and the ball crashes through keeping SHATTER_KEEP of its speed. A landing that does not shatter the pane hops the
+ * ball back up to `bounceHeight` with a small seeded sideways kick (faster with the speed multiplier). `impact` is what
+ * `touchGlassPane()` returned. The view's counters (`hits`, `shattered`, `cleared`) follow.
+ */
+export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impact: number, o: GlassHitOptions) {
+  const viewH = view.level!.field.height;
+  const fromAbove = ball.y < pane.y;
+  o.noteBounce?.(ball); // --- bounce-math --- a pane hit is a bounce
+  pane.hp = Math.max(0, pane.hp - hitDamage(ball)); // --- gerald-multipliers --- a damage multiplier takes more off
+  pane.hits++;
+  pane.lastHitMs = o.timeMs;
+  view.hits++;
+  const impactX = ball.x - pane.x;
+  pane.cracks.push(makeCrack(pane, impactX, fromAbove, paneDamage(pane), o.timeMs, o.random));
+  if (pane.cracks.length > MAX_PANE_CRACKS) pane.cracks.shift(); // --- unlimited --- (glass of a billion hit points keeps its newest cracks; visual only)
+  if (pane.hp <= 0) {
+    pane.shattered = true;
+    pane.shatteredAtMs = o.timeMs;
+    if (!pane.cleared) {
+      pane.cleared = true;
+      view.cleared++;
+    }
+    view.shattered++;
+    spawnGlassShards(view, pane, impactX, ball.vy, o.random);
+    // Crash through: the glass takes some of the speed, the ball carries on the way it was going.
+    ball.vy = (fromAbove ? 1 : -1) * impact * SHATTER_KEEP;
+    o.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch, accent: true }, true);
+    o.sound({ type: "gap", wallIndex: 0 }, true);
+    return;
+  }
+  if (fromAbove) {
+    // A landing: the ball hops back up to the stage's hop height with a small sideways kick.
+    ball.vy = -hopSpeed(o.gravity, o.bounceHeight) * (ball.restitution ?? 1); // --- bounce-math --- the ball's bounciness: a 2 hops twice as fast, four times as high
+    const speedScale = (o.ballSpeed || 400) / 400;
+    const k = glassTempo(ball); // --- gerald-multipliers --- the sideways drift speeds up with the hop
+    const drift = DRIFT * viewH * speedScale * k;
+    const cap = MAX_DRIFT * viewH * Math.max(0.5, speedScale) * k;
+    ball.vx = Math.max(-cap, Math.min(cap, 0.5 * ball.vx + (2 * o.random() - 1) * drift));
+  }
+  o.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch }, false);
+}
+
+/** Throws the shards of a shattered pane: 8–20 of them from around the impact, with the ball's momentum and a spin. */
+export function spawnGlassShards(view: GlassView, pane: GlassPane, impactX: number, ballVy: number, random: () => number) {
+  const level = view.level!;
+  const viewH = level.field.height;
+  const [lo, hi] = solidSpan(pane, impactX);
+  const n = shardCount((2 * pane.halfWidth) / level.field.width, pane.maxHp, random());
+  for (let i = 0; i < n; i++) {
+    let slot: number;
+    if (view.shardCount < MAX_SHARDS) slot = view.shardCount++;
+    else {
+      // The pool is full: replace the shard closest to the end of its life.
+      slot = 0;
+      for (let k = 1; k < MAX_SHARDS; k++) if (view.shardLife[k] < view.shardLife[slot]) slot = k;
+    }
+    const spread = (random() - 0.5) * 1.8 * (hi - lo);
+    const rx = Math.max(lo, Math.min(hi, impactX + 0.5 * spread));
+    view.shardX[slot] = pane.x + rx;
+    view.shardY[slot] = pane.y + (random() - 0.5) * pane.thickness;
+    view.shardVx[slot] = (rx - impactX) * 1.4 + (random() - 0.5) * 0.5 * viewH;
+    view.shardVy[slot] = 0.35 * ballVy + (random() - 0.65) * 0.7 * viewH;
+    view.shardRot[slot] = random() * 2 * Math.PI;
+    view.shardSpin[slot] = (random() - 0.5) * 16;
+    view.shardSize[slot] = pane.thickness * (0.7 + 1.5 * random());
+    const life = 1.1 + 0.6 * random();
+    view.shardLife[slot] = life;
+    view.shardMaxLife[slot] = life;
+    view.shardHue[slot] = pane.hue;
+    const o = 8 * slot;
+    for (let c = 0; c < 4; c++) {
+      const a = (c * Math.PI) / 2 + (random() - 0.5) * 1.1;
+      const rad = 0.45 + 0.55 * random();
+      view.shardShape[o + 2 * c] = Math.cos(a) * rad;
+      view.shardShape[o + 2 * c + 1] = Math.sin(a) * rad * 0.7;
+    }
+  }
+}
+
+function removeGlassShard(view: GlassView, i: number) {
+  const last = --view.shardCount;
+  if (i === last) return;
+  view.shardX[i] = view.shardX[last];
+  view.shardY[i] = view.shardY[last];
+  view.shardVx[i] = view.shardVx[last];
+  view.shardVy[i] = view.shardVy[last];
+  view.shardRot[i] = view.shardRot[last];
+  view.shardSpin[i] = view.shardSpin[last];
+  view.shardSize[i] = view.shardSize[last];
+  view.shardLife[i] = view.shardLife[last];
+  view.shardMaxLife[i] = view.shardMaxLife[last];
+  view.shardHue[i] = view.shardHue[last];
+  view.shardShape.copyWithin(8 * i, 8 * last, 8 * last + 8);
+}
+
+/** One step of the shards: they fly under gravity `g` (px/s²), bounce off the shaft between `left` and `right` and fade. */
+export function stepGlassShards(view: GlassView, dt: number, g: number, left: number, right: number) {
+  for (let i = view.shardCount - 1; i >= 0; i--) {
+    view.shardLife[i] -= dt;
+    if (view.shardLife[i] <= 0) {
+      removeGlassShard(view, i);
+      continue;
+    }
+    view.shardVy[i] += g * dt;
+    view.shardX[i] += view.shardVx[i] * dt;
+    view.shardY[i] += view.shardVy[i] * dt;
+    view.shardRot[i] += view.shardSpin[i] * dt;
+    const edge = 0.5 * view.shardSize[i];
+    if (view.shardX[i] < left + edge) {
+      view.shardX[i] = left + edge;
+      view.shardVx[i] = 0.4 * Math.abs(view.shardVx[i]);
+    } else if (view.shardX[i] > right - edge) {
+      view.shardX[i] = right - edge;
+      view.shardVx[i] = -0.4 * Math.abs(view.shardVx[i]);
+    }
+  }
+}
+
+/** Maps the live shards onto a resized canvas: positions through `x()` / `y()`, speeds and sizes × `k`. */
+export function mapGlassShards(view: GlassView, x: (value: number) => number, y: (value: number) => number, k: number) {
+  for (let i = 0; i < view.shardCount; i++) {
+    view.shardX[i] = x(view.shardX[i]);
+    view.shardY[i] = y(view.shardY[i]);
+    view.shardVx[i] *= k;
+    view.shardVy[i] *= k;
+    view.shardSize[i] *= k;
+  }
+}
+
+/** Maps a pane – its cracks and capsules too – onto a resized canvas: positions through `x()` / `y()`, lengths × `k`. */
+export function mapGlassPane(pane: GlassPane, x: (value: number) => number, y: (value: number) => number, k: number) {
+  pane.x = x(pane.x);
+  pane.baseX = x(pane.baseX);
+  pane.y = y(pane.y);
+  pane.halfWidth *= k;
+  pane.thickness *= k;
+  pane.moveAmp *= k;
+  pane.holeX *= k;
+  pane.holeHalf *= k;
+  for (const seg of pane.segments) seg.thickness = pane.thickness;
+  for (const crack of pane.cracks) {
+    crack.x *= k;
+    crack.y *= k;
+    crack.length *= k;
+    for (let i = 0; i < 5 * crack.count; i++) crack.segs[i] *= k;
+  }
+  updatePaneSegments(pane);
+}
+
+/** The ball is down on the HOME ground: from now on it walks to the door. */
+export function landedOnGround(home: GlassHome, ball: Pick<Ball, "y" | "radius">): boolean {
+  return ball.y > home.top && ball.y + ball.radius >= home.groundY - 1;
+}
+
+/** Gerald stands in his doorway: the ball held still on the ground in the middle of the door. */
+export function holdAtDoor(home: GlassHome, ball: Ball) {
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.x = home.doorX;
+  ball.y = home.groundY - ball.radius - 0.5;
+}
+
+/**
+ * On the ground: the ball rolls toward the door at WALK_SPEED view heights (`viewH` px) per second – faster with its
+ * speed multiplier – and stops on it. True once it is in the doorway (then `reachDoor()`).
+ */
+export function walkToDoor(home: GlassHome, ball: Ball, viewH: number, dtSec: number): boolean {
+  const dx = home.doorX - ball.x;
+  const walk = WALK_SPEED * viewH * glassTempo(ball);
+  ball.vx = Math.abs(dx) < walk * dtSec ? dx / dtSec : Math.sign(dx) * walk;
+  return Math.abs(dx) < 0.22 * home.doorWidth && ball.y + ball.radius > home.groundY - 0.5 * home.doorHeight;
+}
+
+/** The ball rolled into the doorway: Gerald is home – the view's HOME clock starts, the ball stands in the door, the HOME chord rings. */
+export function reachDoor(view: GlassView, home: GlassHome, ball: Ball, timeMs: number, sound: (event: SoundEvent, always: boolean) => void) {
+  view.homeReached = true;
+  view.homeAtMs = timeMs;
+  holdAtDoor(home, ball);
+  sound({ type: "hit", wallIndex: 0, frequency: HOME_CHORD[0], chord: [...HOME_CHORD], accent: true }, true);
+}
+
+/**
+ * One step of the celebration at HOME (once `view.homeReached`): three bursts of confetti from the doorway 400 ms
+ * apart, then, CELEBRATION_MS after Gerald got home, `view.finished`. `bursts` is how many went off so far; returns the
+ * new count (pass it back in next step).
+ */
+export function stepHomeCelebration(view: GlassView, home: GlassHome, timeMs: number, bursts: number, ctx: Pick<ModeContext, "spawnConfetti">): number {
+  const since = timeMs - view.homeAtMs;
+  while (bursts < 3 && since >= bursts * 400) {
+    ctx.spawnConfetti(home.doorX, home.groundY - home.doorHeight * (0.6 + 0.3 * bursts));
+    bursts++;
+  }
+  if (since >= CELEBRATION_MS) view.finished = true;
+  return bursts;
+}
+
 /** The stage a world y belongs to: 0 … stages − 1, or `stages` in the HOME area below the last one. */
 export function stageAt(level: GlassLevel, y: number): number {
   const stages = level.stages;
@@ -764,9 +1013,10 @@ export interface GlassView {
   shardShape: Float32Array;
 }
 
-function createView(): GlassView {
+/** A fresh view (the Journey's glass, gate and HOME stages each hold one around a level of their own). */
+export function createGlassView(level: GlassLevel | null = null): GlassView {
   return {
-    level: null,
+    level,
     settings: { ...DEFAULT_GLASS_SETTINGS },
     timeMs: 0,
     cameraY: 0,
@@ -776,7 +1026,7 @@ function createView(): GlassView {
     hits: 0,
     shattered: 0,
     cleared: 0,
-    panes: 0,
+    panes: level ? level.panes.length : 0,
     homeReached: false,
     homeAtMs: -Infinity,
     finished: false,
@@ -805,7 +1055,7 @@ export class GlassMode implements GameMode {
   private settings: GlassSettings = { ...DEFAULT_GLASS_SETTINGS };
   /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
   private unlimited = false;
-  private readonly view: GlassView = createView();
+  private readonly view: GlassView = createGlassView();
   private ground: SegmentObstacle | null = null;
   private ballId = -1;
   /** First pane the ball has not passed yet (panes are sorted top-down). */
@@ -816,6 +1066,18 @@ export class GlassMode implements GameMode {
   private landedHome = false;
   private confettiDone = 0;
   private soundsThisStep = 0;
+  /** The context of the current step, and the options every pane hit shares (one object, filled in per hit). */
+  private ctx: ModeContext | null = null;
+  private readonly sound = (event: SoundEvent, always: boolean) => this.queueSound(this.ctx!, event, always);
+  private readonly hitOptions: GlassHitOptions = {
+    random: () => this.ctx!.random(),
+    sound: this.sound,
+    gravity: 0,
+    bounceHeight: 0,
+    timeMs: 0,
+    ballSpeed: 400,
+    noteBounce: (ball) => this.ctx!.noteBounce?.(ball),
+  };
   /** Canvas size the level is laid out for (a resize rescales it). */
   private layoutW = 0;
   private layoutH = 0;
@@ -843,6 +1105,7 @@ export class GlassMode implements GameMode {
   }
 
   init(ctx: ModeContext) {
+    this.ctx = ctx;
     ctx.setDestructionMode(false);
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
@@ -899,6 +1162,7 @@ export class GlassMode implements GameMode {
   }
 
   onPreUpdate(ctx: ModeContext) {
+    this.ctx = ctx;
     this.soundsThisStep = 0;
     this.started = true;
     const v = this.view;
@@ -918,13 +1182,10 @@ export class GlassMode implements GameMode {
     const v = this.view;
     const level = v.level;
     if (!level || ball.id !== this.ballId) return;
+    this.ctx = ctx;
     const home = level.home;
     if (v.homeReached) {
-      // Gerald stands in his doorway.
-      ball.vx = 0;
-      ball.vy = 0;
-      ball.x = home.doorX;
-      ball.y = home.groundY - ball.radius - 0.5;
+      holdAtDoor(home, ball);
       return;
     }
     // --- gerald-multipliers --- a speed multiplier k runs the whole flight k× faster: the same hops under k² the gravity
@@ -932,128 +1193,27 @@ export class GlassMode implements GameMode {
     const g = glassGravity(ctx.config.gravity, level.field.height) * k * k;
     ball.vy += g * dtSec;
     if (this.landedHome) {
-      // On the ground: roll to the door.
-      const dx = home.doorX - ball.x;
-      const walk = WALK_SPEED * level.field.height * k;
-      ball.vx = Math.abs(dx) < walk * dtSec ? dx / dtSec : Math.sign(dx) * walk;
-      if (Math.abs(dx) < 0.22 * home.doorWidth && ball.y + ball.radius > home.groundY - 0.5 * home.doorHeight) this.reachHome(ctx, ball);
+      if (walkToDoor(home, ball, level.field.height, dtSec)) reachDoor(v, home, ball, v.timeMs, this.sound);
       return;
     }
-    const reachY = ball.radius + Math.abs(ball.vy) * dtSec + 2;
+    const reachY = glassReach(ball, dtSec);
     for (const pane of level.panes) {
-      if (pane.shattered || Math.abs(ball.y - pane.y) > pane.thickness / 2 + reachY) continue;
-      for (const seg of pane.segments) {
-        // --- bounce-math --- a knock from below rebounds with the ball's bounciness on top of the pane's (capped) restitution;
-        // a landing's hop takes it in hitPane() (a landing sets the hop afresh, so nothing compounds)
-        const impact = resolveBallSegment(ball, seg, dtSec, 1, undefined, ball.restitution ?? 1);
-        if (impact < 0) continue;
-        // A knock from below needs HIT_SPEED to count. A contact from above is always a landing, however slow – a graze
-        // on the end of a hole's glass, a sliding pane lifting the ball onto its top – so the ball never comes to rest on
-        // unbroken glass (the capsule maths alone would only damp its bounce there, and the run would never end).
-        if (impact >= HIT_SPEED || ball.y < pane.y) this.hitPane(ctx, ball, pane, Math.max(impact, HIT_SPEED), g);
-        break;
-      }
+      const impact = touchGlassPane(pane, ball, dtSec, reachY);
+      if (impact < 0) continue;
+      ctx.addWallHit(0, (pane.index * 0.9) % (2 * Math.PI), 0);
+      const o = this.hitOptions;
+      o.gravity = g;
+      o.bounceHeight = level.stages[pane.stage].bounceHeight;
+      o.timeMs = v.timeMs;
+      o.ballSpeed = ctx.config.ballSpeed || 400;
+      hitGlassPane(v, pane, ball, impact, o);
     }
-  }
-
-  /** A landing on (or a knock from below against) a pane: a crack and a note, or the shatter on its last hit point. */
-  private hitPane(ctx: ModeContext, ball: Ball, pane: GlassPane, impact: number, g: number) {
-    const v = this.view;
-    const level = v.level!;
-    const fromAbove = ball.y < pane.y;
-    ctx.noteBounce?.(ball); // --- bounce-math --- a pane hit is a bounce
-    pane.hp = Math.max(0, pane.hp - hitDamage(ball)); // --- gerald-multipliers --- a damage multiplier takes more off
-    pane.hits++;
-    pane.lastHitMs = v.timeMs;
-    v.hits++;
-    const impactX = ball.x - pane.x;
-    pane.cracks.push(makeCrack(pane, impactX, fromAbove, paneDamage(pane), v.timeMs, () => ctx.random()));
-    if (pane.cracks.length > MAX_PANE_CRACKS) pane.cracks.shift(); // --- unlimited --- (glass of a billion hit points keeps its newest cracks; visual only)
-    ctx.addWallHit(0, (pane.index * 0.9) % (2 * Math.PI), 0);
-    const viewH = level.field.height;
-    if (pane.hp <= 0) {
-      pane.shattered = true;
-      pane.shatteredAtMs = v.timeMs;
-      if (!pane.cleared) {
-        pane.cleared = true;
-        v.cleared++;
-      }
-      v.shattered++;
-      this.spawnShards(ctx, pane, impactX, ball.vy);
-      // Crash through: the glass takes some of the speed, the ball carries on the way it was going.
-      ball.vy = (fromAbove ? 1 : -1) * impact * SHATTER_KEEP;
-      this.queueSound(ctx, { type: "hit", wallIndex: 0, frequency: pane.pitch, accent: true }, true);
-      this.queueSound(ctx, { type: "gap", wallIndex: 0 }, true);
-      return;
-    }
-    if (fromAbove) {
-      // A landing: the ball hops back up to the stage's hop height with a small sideways kick.
-      const stage = level.stages[pane.stage];
-      ball.vy = -hopSpeed(g, stage.bounceHeight) * (ball.restitution ?? 1); // --- bounce-math --- the ball's bounciness: a 2 hops twice as fast, four times as high
-      const speedScale = (ctx.config.ballSpeed || 400) / 400;
-      const k = glassTempo(ball); // --- gerald-multipliers --- the sideways drift speeds up with the hop
-      const drift = DRIFT * viewH * speedScale * k;
-      const cap = MAX_DRIFT * viewH * Math.max(0.5, speedScale) * k;
-      ball.vx = Math.max(-cap, Math.min(cap, 0.5 * ball.vx + (2 * ctx.random() - 1) * drift));
-    }
-    this.queueSound(ctx, { type: "hit", wallIndex: 0, frequency: pane.pitch }, false);
   }
 
   private queueSound(ctx: ModeContext, event: SoundEvent, always: boolean) {
     if (!always && this.soundsThisStep >= MAX_GLASS_SOUNDS_PER_STEP) return;
     this.soundsThisStep++;
     ctx.addPendingSoundEvent(event);
-  }
-
-  /** Throws the shards of a shattered pane: 8–20 of them from around the impact, with the ball's momentum and a spin. */
-  private spawnShards(ctx: ModeContext, pane: GlassPane, impactX: number, ballVy: number) {
-    const v = this.view;
-    const level = v.level!;
-    const viewH = level.field.height;
-    const [lo, hi] = solidSpan(pane, impactX);
-    const n = shardCount((2 * pane.halfWidth) / level.field.width, pane.maxHp, ctx.random());
-    for (let i = 0; i < n; i++) {
-      let slot: number;
-      if (v.shardCount < MAX_SHARDS) slot = v.shardCount++;
-      else {
-        // The pool is full: replace the shard closest to the end of its life.
-        slot = 0;
-        for (let k = 1; k < MAX_SHARDS; k++) if (v.shardLife[k] < v.shardLife[slot]) slot = k;
-      }
-      const spread = (ctx.random() - 0.5) * 1.8 * (hi - lo);
-      const rx = Math.max(lo, Math.min(hi, impactX + 0.5 * spread));
-      v.shardX[slot] = pane.x + rx;
-      v.shardY[slot] = pane.y + (ctx.random() - 0.5) * pane.thickness;
-      v.shardVx[slot] = (rx - impactX) * 1.4 + (ctx.random() - 0.5) * 0.5 * viewH;
-      v.shardVy[slot] = 0.35 * ballVy + (ctx.random() - 0.65) * 0.7 * viewH;
-      v.shardRot[slot] = ctx.random() * 2 * Math.PI;
-      v.shardSpin[slot] = (ctx.random() - 0.5) * 16;
-      v.shardSize[slot] = pane.thickness * (0.7 + 1.5 * ctx.random());
-      const life = 1.1 + 0.6 * ctx.random();
-      v.shardLife[slot] = life;
-      v.shardMaxLife[slot] = life;
-      v.shardHue[slot] = pane.hue;
-      const o = 8 * slot;
-      for (let c = 0; c < 4; c++) {
-        const a = (c * Math.PI) / 2 + (ctx.random() - 0.5) * 1.1;
-        const rad = 0.45 + 0.55 * ctx.random();
-        v.shardShape[o + 2 * c] = Math.cos(a) * rad;
-        v.shardShape[o + 2 * c + 1] = Math.sin(a) * rad * 0.7;
-      }
-    }
-  }
-
-  /** The ball rolled into the doorway: the HOME chord, confetti and the celebration clock. */
-  private reachHome(ctx: ModeContext, ball: Ball) {
-    const v = this.view;
-    const home = v.level!.home;
-    v.homeReached = true;
-    v.homeAtMs = v.timeMs;
-    ball.vx = 0;
-    ball.vy = 0;
-    ball.x = home.doorX;
-    ball.y = home.groundY - ball.radius - 0.5;
-    this.queueSound(ctx, { type: "hit", wallIndex: 0, frequency: HOME_CHORD[0], chord: [...HOME_CHORD], accent: true }, true);
   }
 
   onPostSubStep(ctx: ModeContext) {
@@ -1076,7 +1236,7 @@ export class GlassMode implements GameMode {
       ball.y = groundY - ball.radius;
       if (ball.vy > 0) ball.vy = -ball.vy * GROUND_RESTITUTION;
     }
-    if (!this.landedHome && ball.y > level.home.top && ball.y + ball.radius >= groundY - 1) this.landedHome = true;
+    if (!this.landedHome && landedOnGround(level.home, ball)) this.landedHome = true;
     // Panes the ball has got below (through a hole, past a sliding pane, or through the shards) are cleared.
     const panes = level.panes;
     while (this.passCursor < panes.length) {
@@ -1152,57 +1312,9 @@ export class GlassMode implements GameMode {
       if (v.cameraY > hi) v.cameraY = hi;
     }
     // Shards fly under gravity, bounce off the shaft walls and fade.
-    if (v.shardCount > 0) {
-      const g = glassGravity(ctx.config.gravity, level.field.height);
-      const left = level.field.left;
-      const right = level.field.right;
-      for (let i = v.shardCount - 1; i >= 0; i--) {
-        v.shardLife[i] -= dt;
-        if (v.shardLife[i] <= 0) {
-          this.removeShard(i);
-          continue;
-        }
-        v.shardVy[i] += g * dt;
-        v.shardX[i] += v.shardVx[i] * dt;
-        v.shardY[i] += v.shardVy[i] * dt;
-        v.shardRot[i] += v.shardSpin[i] * dt;
-        const edge = 0.5 * v.shardSize[i];
-        if (v.shardX[i] < left + edge) {
-          v.shardX[i] = left + edge;
-          v.shardVx[i] = 0.4 * Math.abs(v.shardVx[i]);
-        } else if (v.shardX[i] > right - edge) {
-          v.shardX[i] = right - edge;
-          v.shardVx[i] = -0.4 * Math.abs(v.shardVx[i]);
-        }
-      }
-    }
-    if (v.homeReached) {
-      // Three bursts of confetti from the doorway, then the run is over.
-      const since = v.timeMs - v.homeAtMs;
-      const home = level.home;
-      while (this.confettiDone < 3 && since >= this.confettiDone * 400) {
-        ctx.spawnConfetti(home.doorX, home.groundY - home.doorHeight * (0.6 + 0.3 * this.confettiDone));
-        this.confettiDone++;
-      }
-      if (since >= CELEBRATION_MS) v.finished = true;
-    }
-  }
-
-  private removeShard(i: number) {
-    const v = this.view;
-    const last = --v.shardCount;
-    if (i === last) return;
-    v.shardX[i] = v.shardX[last];
-    v.shardY[i] = v.shardY[last];
-    v.shardVx[i] = v.shardVx[last];
-    v.shardVy[i] = v.shardVy[last];
-    v.shardRot[i] = v.shardRot[last];
-    v.shardSpin[i] = v.shardSpin[last];
-    v.shardSize[i] = v.shardSize[last];
-    v.shardLife[i] = v.shardLife[last];
-    v.shardMaxLife[i] = v.shardMaxLife[last];
-    v.shardHue[i] = v.shardHue[last];
-    v.shardShape.copyWithin(8 * i, 8 * last, 8 * last + 8);
+    if (v.shardCount > 0) stepGlassShards(v, dt, glassGravity(ctx.config.gravity, level.field.height), level.field.left, level.field.right);
+    // Three bursts of confetti from the doorway, then the run is over.
+    if (v.homeReached) this.confettiDone = stepHomeCelebration(v, level.home, v.timeMs, this.confettiDone, ctx);
   }
 
   private findBall(ctx: ModeContext): Ball | null {
@@ -1302,24 +1414,7 @@ export class GlassMode implements GameMode {
       st.spacing *= k;
       st.bounceHeight *= k;
     }
-    for (const pane of level.panes) {
-      pane.x = mx(pane.x);
-      pane.baseX = mx(pane.baseX);
-      pane.y = my(pane.y);
-      pane.halfWidth *= k;
-      pane.thickness *= k;
-      pane.moveAmp *= k;
-      pane.holeX *= k;
-      pane.holeHalf *= k;
-      for (const seg of pane.segments) seg.thickness = pane.thickness;
-      for (const crack of pane.cracks) {
-        crack.x *= k;
-        crack.y *= k;
-        crack.length *= k;
-        for (let i = 0; i < crack.count; i++) for (let c = 0; c < 5; c++) crack.segs[5 * i + c] *= k;
-      }
-      updatePaneSegments(pane);
-    }
+    for (const pane of level.panes) mapGlassPane(pane, mx, my, k);
     for (const row of level.gates) {
       row.y = my(row.y);
       for (const slot of row.slots) {
@@ -1337,13 +1432,7 @@ export class GlassMode implements GameMode {
     level.startX = mx(level.startX);
     level.startY = my(level.startY);
     level.startVx *= k;
-    for (let i = 0; i < v.shardCount; i++) {
-      v.shardX[i] = mx(v.shardX[i]);
-      v.shardY[i] = my(v.shardY[i]);
-      v.shardVx[i] *= k;
-      v.shardVy[i] *= k;
-      v.shardSize[i] *= k;
-    }
+    mapGlassShards(v, mx, my, k);
     // Camera offset: the world moved by (next.top − oy·k …); keep the same part of the level in view.
     v.cameraY = my(v.cameraY + old.top) - next.top;
     level.field = next;

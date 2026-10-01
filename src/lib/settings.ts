@@ -873,7 +873,8 @@ type StringKey = {
   [K in keyof SimulatorSettings]: SimulatorSettings[K] extends string ? K : never;
 }[keyof SimulatorSettings];
 
-const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
+/** The short link keys of the numeric settings (exported for the link-validation tests: --- review fix (security-robustness) ---). */
+export const NUMERIC_URL_KEYS: Readonly<Record<string, NumericKey>> = {
   g: "gravity",
   s: "ballSpeed",
   r: "ballRadius",
@@ -1456,10 +1457,21 @@ export function loadPresets(): PresetStore {
   try {
     migrateLegacyStorage();
     const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PresetStore) : {};
+    // --- review fix (security-robustness) --- only an object of objects is a preset store: a stored `null`, array or number
+    // (another page on the same origin can write the key) crashed the simulator on every visit
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!isPlainRecord(parsed)) return {};
+    const out: PresetStore = {};
+    for (const [name, preset] of Object.entries(parsed)) if (isPlainRecord(preset)) out[name] = preset as Partial<SimulatorSettings>;
+    return out;
   } catch {
     return {};
   }
+}
+
+/** --- review fix (security-robustness) --- A plain object (not null, not an array). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export function savePresets(store: PresetStore) {

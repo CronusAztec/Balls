@@ -171,6 +171,8 @@
     "shareCodeInvalid": "Nie udało się odczytać kodu udostępniania z tego linku, więc udostępnione ustawienia nie zostały zastosowane.",
     "shareCodeUnsupported": "Ta przeglądarka nie otwiera krótkich linków (?c=…). Otwórz link w aktualnym Chrome, Edge, Firefoksie lub Safari albo poproś o długi link.",
     "shareCodeDismiss": "Zamknij",
+    "softCeiling": "{setting}: {asked} – symulacja liczy {running}, żeby strona działała płynnie.",
+    "recordingStartError": "Nie udało się rozpocząć nagrywania. Wybierz inną rozdzielczość w sekcji Nagrywanie albo użyj aktualnego Chrome, Edge lub Firefoksa.",
     "canvasRaceGo": "START!",
     "canvasRaceStandings": "KLASYFIKACJA",
     "canvasRaceLeader": "LIDER",

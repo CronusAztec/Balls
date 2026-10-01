@@ -1152,6 +1152,98 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
   await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
 }
 
+// --- review fix (security-robustness) --- hostile input: huge counts in a link, a stored preset list that is not an object, and a
+// project file with a crafted MIDI file (a five-byte length that looped the parser for ever), damaged pictures, a damaged
+// wall-break sound and a resolution no browser can capture
+{
+  const errorsBefore = errors.length;
+  const framesIn2s = () =>
+    page.evaluate(() => new Promise((resolve) => {
+      let n = 0;
+      const s = performance.now();
+      const f = (t) => (++n, t - s < 2000 ? requestAnimationFrame(f) : resolve(n));
+      requestAnimationFrame(f);
+    }));
+  // 1. wc=1000000 / tc=1000000 (each blocked the main thread for more than 15 s) keep their value in the link, run at the soft
+  // ceiling – the notice under the canvas says so – and the page stays responsive.
+  for (const query of ["mode=classic&wc=1000000", "mode=target&tc=1000000"]) {
+    const t0 = Date.now();
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle", timeout: 60000 });
+    const loadMs = Date.now() - t0;
+    const started = await page.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 }).then(() => true).catch(() => false);
+    const frames = await framesIn2s();
+    const t1 = Date.now();
+    await page.evaluate(() => 1);
+    const roundTrip = Date.now() - t1;
+    const notice = await page.getByTestId("soft-ceiling-notice").innerText({ timeout: 5000 }).catch(() => "");
+    const [key, value] = query.split("&")[1].split("=");
+    check(
+      `a link with ${query} keeps its value, runs at the soft ceiling (said under the canvas) and the page stays responsive`,
+      new URL(page.url()).searchParams.get(key) === value && started && frames >= 4 && roundTrip < 2000 && /1,000,000.*\b(1,000|100)\b/.test(notice),
+      `(load ${loadMs} ms, ${frames} frames in 2 s, round trip ${roundTrip} ms, notice "${notice}")`,
+    );
+  }
+
+  // 2. A stored preset list of null (any page of the origin can write it) crashed the simulator on every visit.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  const storedLists = [];
+  for (const stored of ["null", "[]", '{"a":null,"Kept":{"mode":"shatter","gravity":700}}']) {
+    await page.evaluate((v) => localStorage.setItem("jumpingballslive_saved_settings", v), stored);
+    await page.reload({ waitUntil: "networkidle" });
+    const appError = await page.getByText(/Application error/).isVisible().catch(() => false);
+    const startShown = await page.getByRole("button", { name: /Start Simulator/ }).isVisible().catch(() => false);
+    storedLists.push({ stored, appError, startShown });
+  }
+  await page.getByRole("button", { name: /Saved Presets/ }).click().catch(() => {});
+  const keptRow = await page.locator("div", { hasText: /^Kept/ }).last().isVisible().catch(() => false);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_saved_settings"));
+  check("a stored preset list that is not an object of presets never crashes the simulator; the valid presets in it stay", storedLists.every((o) => !o.appError && o.startShown) && keptRow, `(${JSON.stringify(storedLists)}, kept row ${keptRow})`);
+
+  // 3. A project with the crafted 34-byte MIDI file, three pictures and a wall-break sound that are text, and a 30000×30000
+  // resolution: it opens at once, says that 5 media files were left out, and the resolution is the default one.
+  const crafted = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 1, 0, 0x60, 0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, 12, 0x00, 0xff, 0x01, 0x8f, 0xff, 0xff, 0xff, 0x78, 0x00, 0xff, 0x2f, 0x00];
+  const junk = Buffer.from("this is neither a picture nor a sound ".repeat(14));
+  const asset = (name, type, bytes) => ({ name, type, size: bytes.length, data: Buffer.from(bytes).toString("base64") });
+  const hostile = {
+    format: "jumpingballslive-project",
+    version: 1,
+    name: "hostile",
+    settings: { mode: "classic", recordingResolution: "30000x30000" },
+    assets: {
+      midi: asset("a.mid", "audio/midi", crafted),
+      wallBreakSound: asset("boom.mp3", "audio/mpeg", junk),
+      ballImage: asset("ball.png", "image/png", junk),
+      paintPicture: asset("paint.png", "image/png", junk),
+      backgroundImage: asset("bg.png", "image/png", junk),
+    },
+  };
+  const hostilePath = path.join(outDir, "hostile.jumpingballslive.json");
+  fs.writeFileSync(hostilePath, JSON.stringify(hostile));
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  if (!(await page.getByTestId("project-section").isVisible().catch(() => false))) await page.getByRole("button", { name: /Project file/ }).click();
+  await page.getByTestId("project-section").waitFor({ timeout: 5000 }).catch(() => {});
+  const importStart = Date.now();
+  await page.locator("#project-file-input").setInputFiles(hostilePath);
+  const hostileStatus = await page.getByTestId("project-status").waitFor({ timeout: 20000 }).then(() => page.getByTestId("project-status").innerText()).catch(() => "");
+  const importMs = Date.now() - importStart;
+  const t2 = Date.now();
+  await page.evaluate(() => 1);
+  const hostileRoundTrip = Date.now() - t2;
+  const hostileMedia = (await page.getByTestId("project-media").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const hostileParams = new URL(page.url()).searchParams;
+  check(
+    "a project with a crafted MIDI file, undecodable pictures and wall-break sound and a bogus resolution opens at once and counts the 5 left out",
+    /Opened .hostile., but 5 damaged media/.test(hostileStatus) && hostileRoundTrip < 2000 && !hostileParams.has("res") && !/ball\.png|paint\.png|bg\.png|a\.mid|boom\.mp3/.test(hostileMedia),
+    `(status "${hostileStatus}" after ${importMs} ms, round trip ${hostileRoundTrip} ms, media "${hostileMedia}", link ${hostileParams.toString()})`,
+  );
+
+  // The MIDI file's parse error is logged on purpose; anything else (a page error, a hang's aftermath) is not.
+  const fresh = errors.splice(errorsBefore);
+  const unexpected = fresh.filter((e) => !IGNORED_CONSOLE.test(e) && !/Failed to parse uploaded MIDI file/.test(e));
+  check("the hostile inputs cause no page errors", unexpected.length === 0, unexpected.length ? `\n   ${unexpected.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end review fix (security-robustness) ---
+
 // 6. Find Simulation
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
@@ -6174,6 +6266,12 @@ const jyFrameRates = async (ms) => {
 /** The stage rows of the Journey block as "kind-size". */
 const jyRows = () => page.getByTestId("journey-stages").locator("li").evaluateAll((els) => els.map((e) => `${e.dataset.stage}-${e.dataset.size}`));
 const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
+/**
+ * Seeds of "multipliers-l,multipliers-l,pegs,glass-s,home" whose grown ball wedged in the peg field before the bars
+ * counted, on the simulator canvas of this viewport (790×444): 12, 32 and 37 hopped 4 times and squeezed through, 14
+ * hopped once (in a corner at a wall).
+ */
+const JY_WEDGE_SEEDS = [12, 14, 32, 37];
 {
   await page.goto(`${BASE}/en/simulator/?mode=journey&js=rings-s,pegs-l,glass,home`, { waitUntil: "networkidle" });
   {
@@ -6250,6 +6348,27 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
     done && kinds.join(",") === "pegs,glass,home" && swooshes === 2 && data.journeySwooshes === "2" && data.journeyHome === "1" && data.journeyFinished === "1" && Number(data.journeyNotes) >= 3 && data.face === "cute",
     fpsOk(fps, 6, 30),
     `(finished=${done}, stages ${kinds.join(",")}, ${swooshes} swoosh tones, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("journey") && k !== "journeySequence")))}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+  );
+}
+{
+  // Size gates above a peg field (the review of gerald-journey): two large gate stages grow the ball only as far as the
+  // narrowest opening of the pegs below – two bar tips, not two pegs – and the outermost peg or bar of a full row sits
+  // on the wall, so the grown ball never wedges (no stuck hop, no squeeze); the glass after it breaks by Glass Smash's
+  // own rules and HOME celebrates. Seeds that wedged (at this canvas size) before the fix; at 8×.
+  const runs = [];
+  for (const seed of JY_WEDGE_SEEDS) {
+    await page.goto(`${BASE}/en/simulator/?mode=journey&js=multipliers-l,multipliers-l,pegs,glass-s,home&seed=${seed}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    const done = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.journeyFinished === "1", null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const data = await canvasData();
+    const rect = await page.locator("main canvas").first().evaluate((c) => `${Math.round(c.getBoundingClientRect().width)}x${Math.round(c.getBoundingClientRect().height)}`);
+    runs.push({ seed, run: data.seed, done, nudges: data.journeyNudges, swooshes: data.journeySwooshes, home: data.journeyHome, at: data.journeyFinishedMs, canvas: rect });
+  }
+  check(
+    "journey: size gates never grow the ball into a wedge in the peg field below – no stuck hop – and the run breaks the glass and reaches HOME",
+    runs.length > 0 && runs.every((r) => r.done && r.run === String(r.seed) && r.nudges === "0" && r.swooshes === "4" && r.home === "1"),
+    `(${JSON.stringify(runs)})`,
   );
 }
 {
