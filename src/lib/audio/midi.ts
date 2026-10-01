@@ -2,7 +2,9 @@
  * Minimal Standard MIDI File parser. It extracts the melody as a list of frequencies:
  * one note per distinct tick (highest pitch wins when several notes start together),
  * collapsing immediate repeats. That is exactly what the tone generator needs to play
- * "the next note of the song" on every wall hit.
+ * "the next note of the song" on every wall hit. General MIDI percussion (channel 10) is left
+ * out: its note numbers pick drums (kick 36, hi-hat 42…), not pitches – unless the file has
+ * nothing but drums, which then still gives a note list.
  */
 
 interface RawNote {
@@ -10,6 +12,8 @@ interface RawNote {
   frequency: number;
   velocity: number;
   tick: number;
+  /** --- review fix (audio) --- a note-on of MIDI channel 10 (status 0x99): a drum, not a pitch. */
+  drum: boolean;
 }
 
 function readVarLen(view: DataView, offset: number): [number, number] {
@@ -47,9 +51,9 @@ function parseTrack(buffer: ArrayBuffer, start: number, length: number): RawNote
       if (pos + 1 >= length) break;
       const pitch = view.getUint8(pos);
       const velocity = view.getUint8(pos + 1);
-      pos += 2;
+      pos += 2; // consumed whatever the channel, so running status and byte alignment stay right
       if (velocity > 0) {
-        notes.push({ pitch, frequency: 440 * Math.pow(2, (pitch - 69) / 12), velocity, tick });
+        notes.push({ pitch, frequency: 440 * Math.pow(2, (pitch - 69) / 12), velocity, tick, drum: (status & 0x0f) === 9 });
       }
     } else if (type === 0x80 || type === 0xa0 || type === 0xb0 || type === 0xe0) {
       pos += 2;
@@ -84,10 +88,13 @@ export function parseMidiToFrequencies(buffer: ArrayBuffer): number[] {
     if (chunkType === "MTrk") all.push(...parseTrack(buffer, pos, Math.min(chunkLen, buffer.byteLength - pos)));
     pos += chunkLen;
   }
-  all.sort((a, b) => a.tick - b.tick || b.pitch - a.pitch);
+  // --- review fix (audio) --- the drums of a GM drum track are not melody notes (a drum-only file keeps them all).
+  const pitched = all.filter((n) => !n.drum);
+  const notes = pitched.length > 0 ? pitched : all;
+  notes.sort((a, b) => a.tick - b.tick || b.pitch - a.pitch);
   const melody: RawNote[] = [];
   let lastTick = -1;
-  for (const n of all) {
+  for (const n of notes) {
     if (n.tick !== lastTick) {
       melody.push(n);
       lastTick = n.tick;

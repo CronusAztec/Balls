@@ -344,8 +344,8 @@ export class PowerLayersLayer {
     this.particlesDrawn = drawn;
   }
 
-  /** A rainbow pill centred at `cy` with `text`, shrunk to fit the playfield; `slot` keys its cached gradient. */
-  private pill(ctx: CanvasRenderingContext2D, view: PowerLayersView, text: string, cy: number, slot: number) {
+  /** A rainbow pill centred at `cy` with `text`, shrunk to fit the playfield; `slot` keys its cached gradient. Returns its bottom edge (screen y). */
+  private pill(ctx: CanvasRenderingContext2D, view: PowerLayersView, text: string, cy: number, slot: number): number {
     const f = view.field;
     let fs = Math.max(9, 0.027 * f.height);
     ctx.font = `700 ${fs}px sans-serif`;
@@ -378,10 +378,11 @@ export class PowerLayersLayer {
     ctx.stroke();
     ctx.fillStyle = "#ffffff";
     ctx.fillText(text, f.cx, cy + 0.05 * fs);
+    return y0 + h;
   }
 
-  /** "SOUND ON" with a little speaker, top-left (or top-right when the warning takes the left corner). */
-  private soundBadge(ctx: CanvasRenderingContext2D, view: PowerLayersView, text: string, right: boolean) {
+  /** "SOUND ON" with a little speaker, top-left (or top-right when the warning takes the left corner). Returns its bottom edge. */
+  private soundBadge(ctx: CanvasRenderingContext2D, view: PowerLayersView, text: string, right: boolean): number {
     const f = view.field;
     const fs = Math.max(8, 0.02 * f.height);
     ctx.font = `800 ${fs}px sans-serif`;
@@ -420,10 +421,11 @@ export class PowerLayersLayer {
     ctx.textAlign = "left";
     ctx.fillText(text, sx + icon + 0.35 * fs, sy + 0.05 * fs);
     ctx.textAlign = "center";
+    return y0 + h;
   }
 
-  /** The flashing-lights warning: a yellow triangle and two lines, top-left. */
-  private warningBadge(ctx: CanvasRenderingContext2D, view: PowerLayersView, top: string, bottom: string) {
+  /** The flashing-lights warning: a yellow triangle and two lines, top-left. Returns its bottom edge. */
+  private warningBadge(ctx: CanvasRenderingContext2D, view: PowerLayersView, top: string, bottom: string): number {
     const f = view.field;
     const fs = Math.max(7, 0.017 * f.height);
     ctx.font = `800 ${fs}px sans-serif`;
@@ -456,10 +458,14 @@ export class PowerLayersLayer {
     ctx.fillText(top, tx + icon + 0.45 * fs, ty - 0.62 * fs);
     ctx.fillText(bottom, tx + icon + 0.45 * fs, ty + 0.68 * fs);
     ctx.textAlign = "center";
+    return y0 + h;
   }
 
-  /** The badges, the rule pills and the layers left (screen space, inside the recorded square). */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: PowerLayersView, labels: PowerLayersLabels) {
+  /**
+   * The badges, the rule pills and the layers left (screen space, inside the recorded square). Returns the screen y of the
+   * lowest of the top items drawn – the second rule pill, else the corner badge – (0: none), which the top captions start below.
+   */
+  drawOverlay(ctx: CanvasRenderingContext2D, view: PowerLayersView, labels: PowerLayersLabels): number {
     const f = view.field;
     const s = view.settings;
     ctx.save();
@@ -467,11 +473,12 @@ export class PowerLayersLayer {
     ctx.globalCompositeOperation = "source-over";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    if (s.badge === "warning" || s.badge === "both") this.warningBadge(ctx, view, labels.warningTop, labels.warningBottom);
-    if (s.badge === "sound" || s.badge === "both") this.soundBadge(ctx, view, labels.soundOn, s.badge === "both");
+    let topBottom = 0; // --- review fix (modes-gerald-odd) --- the lowest top item, for the captions
+    if (s.badge === "warning" || s.badge === "both") topBottom = Math.max(topBottom, this.warningBadge(ctx, view, labels.warningTop, labels.warningBottom));
+    if (s.badge === "sound" || s.badge === "both") topBottom = Math.max(topBottom, this.soundBadge(ctx, view, labels.soundOn, s.badge === "both"));
     if (s.pills) {
-      this.pill(ctx, view, `${labels.rules[view.sequence]} · ${labels.power(formatPower(view.power))}`, f.top + 0.125 * f.height, 0);
-      this.pill(ctx, view, `${labels.level(view.level)} · ${labels.newSound}`, f.top + 0.195 * f.height, 1);
+      topBottom = Math.max(topBottom, this.pill(ctx, view, `${labels.rules[view.sequence]} · ${labels.power(formatPower(view.power))}`, f.top + 0.125 * f.height, 0));
+      topBottom = Math.max(topBottom, this.pill(ctx, view, `${labels.level(view.level)} · ${labels.newSound}`, f.top + 0.195 * f.height, 1));
     }
     if (!view.freed) {
       const fs = Math.max(8, 0.021 * f.height);
@@ -485,5 +492,6 @@ export class PowerLayersLayer {
       ctx.fillText(text, f.cx, y);
     }
     ctx.restore();
+    return topBottom;
   }
 }

@@ -1,3 +1,5 @@
+import { maxSlowLagMs } from "@/lib/simulation/camera";
+
 /**
  * Faster-than-realtime export ("Fast export") – the pure bookkeeping, free of the DOM and of WebCodecs so it is unit-tested
  * (tests/fastRender.test.ts): the frame / time arithmetic, the export layout, the codec strings and the order they are
@@ -96,7 +98,9 @@ export const NO_END_HOLDS: EndHolds = { preMs: 0, postMs: 0 };
  * The frame-by-frame end of a fast export, following the page exactly: the run's own finish, the page's holds (a finished
  * picture, the escape replay the canvas plays, the winner banner) – the moment the end screen would appear is `finishedAt`
  * –, then the recorder's 0.5 s, or the clip length; a run that is already over when the clip length runs out but still
- * holding (the replay, the banner) gets up to `END_HOLD_FALLBACK_MS` more, as on the page.
+ * holding (the replay, the banner) gets up to `END_HOLD_FALLBACK_MS` more, as on the page. The clip length is measured on the
+ * run's pace: the real time the camera's slow motion adds while the run goes on (`lagMs`, at most `maxLagMs`) extends it, as
+ * the page's recorder is extended.
  */
 export class ExportEndTracker {
   /** Export clock (ms) of the first frame whose run counted as finished, i.e. when the page shows its end screen (null: not yet). */
@@ -104,19 +108,24 @@ export class ExportEndTracker {
   private firstDoneAt: number | null = null;
   private holdStart: number | null = null;
   private finishedBeforeClipEnd = false;
+  /** --- review fix (modes-gerald-odd) --- the slow motion's lag credited to the clip (it stops growing once the run is over). */
+  private lagMs = 0;
 
   constructor(
     readonly clipMs: number,
     private readonly stopDelayMs = END_STOP_DELAY_MS,
     private readonly fallbackMs = END_HOLD_FALLBACK_MS,
+    private readonly maxLagMs = maxSlowLagMs(clipMs),
   ) {}
 
   /**
    * Feeds the frame drawn at `tMs`: `runFinished` is `engine.isSimulationFinished()`, `endScreenHeld` the canvas' own hold
-   * (the escape replay, a caption's answer) and `holds` the page's holds for this run.
+   * (the escape replay, a caption's answer), `holds` the page's holds for this run and `lagMs` the real time the camera's slow
+   * motion has added to the run so far.
    */
-  frame(tMs: number, runFinished: boolean, endScreenHeld: boolean, holds: EndHolds = NO_END_HOLDS): void {
-    if (tMs < this.clipMs) this.finishedBeforeClipEnd = runFinished;
+  frame(tMs: number, runFinished: boolean, endScreenHeld: boolean, holds: EndHolds = NO_END_HOLDS, lagMs = 0): void {
+    if (!runFinished && lagMs > this.lagMs) this.lagMs = Math.min(this.maxLagMs, lagMs);
+    if (tMs < this.clipMs + this.lagMs) this.finishedBeforeClipEnd = runFinished;
     if (this.finishedAt !== null) return;
     let done = runFinished;
     if (done && holds.preMs > 0) {
@@ -134,14 +143,18 @@ export class ExportEndTracker {
 
   /** Export clock (ms) the clip ends at: no frame at or after it is rendered. */
   get endMs(): number {
-    const clipEnd = this.finishedBeforeClipEnd ? this.clipMs + this.fallbackMs : this.clipMs;
+    const clip = this.clipMs + this.lagMs;
+    const clipEnd = this.finishedBeforeClipEnd ? clip + this.fallbackMs : clip;
     return this.finishedAt !== null ? Math.min(clipEnd, this.finishedAt + this.stopDelayMs) : clipEnd;
   }
 }
 
-/** The most simulation frames a clip of `clipSec` can take (the clip, the end-of-run hold fallback and the recorder's delay). */
-export function maxSimFrames(clipSec: number): number {
-  return Math.ceil((clipSec * 1000 + END_HOLD_FALLBACK_MS + END_STOP_DELAY_MS) / SIM_FRAME_MS) + 1;
+/**
+ * The most simulation frames a clip of `clipSec` can take (the clip, the end-of-run hold fallback and the recorder's delay);
+ * `stretch` is the most the camera's slow motion can stretch the clip (1 / its factor with slow motion on near misses).
+ */
+export function maxSimFrames(clipSec: number, stretch = 1): number {
+  return Math.ceil((clipSec * 1000 * Math.max(1, stretch) + END_HOLD_FALLBACK_MS + END_STOP_DELAY_MS) / SIM_FRAME_MS) + 1;
 }
 
 /* ------------------------------------------------------------------ layout */
@@ -307,9 +320,9 @@ export const AUDIO_CHUNK_FRAMES = 1024;
 /** Seconds rendered past the longest possible clip, so the offline mix is never shorter than the video. */
 export const AUDIO_TAIL_SEC = 1;
 
-/** Length (s) of the offline mix for a clip of `clipSec`: the longest the export can run, and a little more. */
-export function offlineAudioSeconds(clipSec: number): number {
-  return clipSec + (END_HOLD_FALLBACK_MS + END_STOP_DELAY_MS) / 1000 + AUDIO_TAIL_SEC;
+/** Length (s) of the offline mix for a clip of `clipSec` (stretched by the slow motion at most `stretch` ×): the longest the export can run, and a little more. */
+export function offlineAudioSeconds(clipSec: number, stretch = 1): number {
+  return clipSec * Math.max(1, stretch) + (END_HOLD_FALLBACK_MS + END_STOP_DELAY_MS) / 1000 + AUDIO_TAIL_SEC;
 }
 
 /** Sample frames of `seconds` of audio. */

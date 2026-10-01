@@ -6418,6 +6418,62 @@ const bdInstrument = () =>
 }
 // --- end beat-drop ---
 
+// --- review fix (modes-gerald-odd) ---
+// 1. The camera's slow motion stretches the real time a run takes (data-camera-slow-lag): a recording is extended by the lag it
+// adds, so it is still running when its length of wall time is up. 2. The top captions start below a mode's own top HUD
+// (data-caption-mode-hud) in Power Layers, Glass Smash, String Battle and on the multipliers board. 3. With a team roster and
+// the HUD off, the String Battle's warning badge takes the top-right corner (the scoreboard has the top-left one).
+{
+  // (a 10 s clip – the shortest Clip Length – at the slowest slow motion, whose windows last 1.5 s)
+  const CLIP_MS = 10000;
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&wc=20&slow=1&slowf=0.2&slowms=1500&res=500x500&dur=10`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const lagNow = () => page.evaluate(() => Number(document.querySelector("main canvas")?.dataset.cameraSlowLag ?? 0));
+  const downloadWait = page.waitForEvent("download", { timeout: 150000 }).catch(() => null);
+  const t0 = Date.now();
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  const lag0 = await lagNow();
+  await page.waitForTimeout(Math.max(0, CLIP_MS + 150 - (Date.now() - t0)));
+  const extra = (await lagNow()) - lag0;
+  const recording = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+  const download = await downloadWait;
+  const wallMs = Date.now() - t0;
+  check(
+    "a recording is extended by the real time the slow motion added, so the clip covers its length of the run",
+    !!download && (extra > 1000 ? recording && wallMs > CLIP_MS + 0.8 * extra : true),
+    `(slow motion added ${extra} ms by the clip length, recording then=${recording}, download after ${wallMs} ms${extra > 1000 ? "" : " – too little slow motion to tell"})`,
+  );
+}
+{
+  const cap = encodeURIComponent("cd*t*0*0*p*1.2*ffffff*000000,q*t*0*0*p*1.3*ffffff*000000*Who will win this battle?*ACID");
+  const rows = [];
+  for (const mode of ["powerLayers&plb=both", "glass", "stringBattle", "multipliers&mpsb=3"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}&cap=${cap}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(800);
+    const d = await canvasData();
+    const [stackTop] = (d.captionStack ?? "").split(",").map(Number);
+    const hud = Number(d.captionModeHud);
+    rows.push({ mode, stackTop, hud, ok: Number(d.captions) >= 1 && hud > 0 && stackTop > hud });
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-captions-below-mode-hud.png") });
+  check("the top captions start below the mode's own top HUD (Power Layers, Glass Smash, String Battle, multipliers)", rows.every((r) => r.ok), `(${JSON.stringify(rows)})`);
+}
+{
+  const corner = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=stringBattle&${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(500);
+    const d = await canvasData();
+    return { badge: d.sbBadge, right: d.sbBadgeRight, scoreboard: d.scoreboard ?? "" };
+  };
+  const roster = await corner(`sbh=0&teams=${encodeURIComponent("Red*ef4444*x,Blue*3b82f6*y")}`);
+  const plain = await corner("sbh=0");
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-badge-corner.png") });
+  check("the String Battle's warning badge moves to the top-right corner when the teams scoreboard takes the top-left one", roster.badge === "1" && roster.right === "1" && plain.badge === "1" && plain.right === "0", `(${JSON.stringify({ roster, plain })})`);
+}
+// --- end review fix (modes-gerald-odd) ---
+
 // --- daily-gallery --- the preset gallery (cards, preview images, Try it) and the daily challenge (the landing card, daily=
 // links, the Play today's seed button, the end-of-run panel that copies the challenge link, the streak)
 {
@@ -6782,6 +6838,61 @@ const bdInstrument = () =>
   check("no limits: a ball bigger than the arena eats it (the run ends with its banner)", ate && ateData.multOutgrew === "1", `(ate=${ate}, outgrew ${ateData.multOutgrew})`);
 }
 // --- end unlimited ---
+
+// --- review fix (audio) ---
+// Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its
+// AudioContext – the music bed and the keep-alive oscillator stop instead of playing on under the landing page with nothing
+// there to stop them – and coming back and starting again runs one new context, not a second one next to the first.
+{
+  const p = await ctx.newPage();
+  p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  p.on("console", (m) => {
+    if (m.type() === "error") errors.push(`console: ${m.text()}`);
+  });
+  await p.addInitScript(() => {
+    const Native = window.AudioContext;
+    const made = (window.__acMade = []);
+    window.__acClosed = 0;
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        made.push(this);
+      }
+      close() {
+        window.__acClosed++;
+        return super.close();
+      }
+    };
+  });
+  const contexts = () => p.evaluate(() => ({ made: window.__acMade.length, closed: window.__acClosed, states: window.__acMade.map((c) => c.state) }));
+  await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await p.getByRole("button", { name: /Custom Sound/ }).click();
+  await p.locator("#music-file-input").setInputFiles({ name: "smoke-bed.wav", mimeType: "audio/wav", buffer: makeWav(4) });
+  const listed = await p.getByTestId("music-track").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  await p.getByRole("button", { name: /Start Simulator/ }).click();
+  const bedOn = await p.getByTestId("music-playing").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+  await p.waitForTimeout(2000);
+  const running = await contexts();
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.locator("header a", { hasText: "Back" }).first().click();
+  await p.waitForURL(/\/en\/$/, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  const left = await contexts();
+  const leftTo = new URL(p.url()).pathname;
+  const sameDocument = await p.evaluate(() => Array.isArray(window.__acMade));
+  await p.goBack({ waitUntil: "networkidle" }).catch(() => null);
+  await p.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  const back = await contexts();
+  const backTo = new URL(p.url()).pathname;
+  check(
+    "leaving the simulator by an in-app link closes its AudioContext (the music bed stops) and coming back runs one new context",
+    listed && bedOn && running.states.includes("running") && sameDocument && /\/en\/$/.test(leftTo) && left.closed >= 1 && left.states.every((st) => st === "closed") && /\/simulator\/$/.test(backTo) && back.states.filter((st) => st !== "closed").length === 1,
+    `(bed ${listed ? "loaded" : "missing"}${bedOn ? ", playing" : ""}; running ${JSON.stringify(running)}; after Back to ${leftTo}: ${JSON.stringify(left)}; back to ${backTo} and started again: ${JSON.stringify(back)})`,
+  );
+  await p.close();
+}
+// --- end review fix (audio) ---
 
 // --- bounce-math ---
 // Bounce math: a rule from the link fills the "Bounce math" block of the Ball & Physics section; an edit in the panel (the
