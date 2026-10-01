@@ -105,7 +105,7 @@ describe("character settings", () => {
     expect(fromUrl.ballFace).toBe("none");
     expect(fromUrl.ballName.length).toBeLessThanOrEqual(MAX_NAME_LENGTH);
     expect(fromUrl.ballName.startsWith("Gerald the")).toBe(true);
-    expect(fromUrl.ballSquash).toBe(1);
+    expect(fromUrl.ballSquash).toBe(7); // --- uncap-all --- (sq=7 kept)
     expect(settingsFromSearchParams(new URLSearchParams("sq=-3")).ballSquash).toBe(0);
     const preset = presetToSettings({ mode: "classic", ballFace: "wink" as never, ballName: 42 as never, nameLabel: "yes" as never, ballSquash: Number.NaN, faceSounds: 1 as never });
     expect({ ballFace: preset.ballFace, ballName: preset.ballName, nameLabel: preset.nameLabel, ballSquash: preset.ballSquash, faceSounds: preset.faceSounds }).toEqual({ ballFace: "none", ballName: "", nameLabel: true, ballSquash: 0, faceSounds: false });

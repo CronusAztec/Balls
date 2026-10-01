@@ -17,6 +17,8 @@ import {
   type EditorObstacle,
   type ObstacleKind,
 } from "@/lib/physics/obstacleEditor";
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 export interface ObstaclesSectionProps {
   t: Translate;
@@ -61,6 +63,7 @@ function RowSlider({ label, value, range, display, onChange }: { label: string; 
         style={sliderStyle(value, range.min, range.max)}
       />
       <span className="w-14 shrink-0 text-right font-mono tabular-nums text-zinc-500">{display}</span>
+      <NumberField value={value} onCommit={onChange} label={label} range={range} rules={rulesForRange(range)} settingKey={`obstacle:${label}`} className="w-16" /* --- uncap-all --- */ />
     </label>
   );
 }

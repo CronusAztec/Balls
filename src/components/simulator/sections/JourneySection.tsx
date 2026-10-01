@@ -8,8 +8,8 @@ import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import {
   JOURNEY_SIZES,
   JOURNEY_TRAVEL_KINDS,
-  MAX_JOURNEY_STAGES,
   MAX_JOURNEY_TEXT,
+  JOURNEY_TEXT_CEILING, // --- uncap-all ---
   addJourneyStage,
   moveJourneyStage,
   parseJourneyStages,
@@ -19,6 +19,7 @@ import {
   type JourneyStageKind,
 } from "@/lib/physics/journey/sequence";
 import { STAGE_COLORS } from "@/lib/physics/journey/stage";
+import { JOURNEY_STAGE_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 
 export interface JourneySectionProps {
   t: Translate;
@@ -52,7 +53,7 @@ export default function JourneySection({ t, search, matches, settings: s, update
   const code = draft && draft.base === s.journeyStages ? draft.text : s.journeyStages;
   const setStages = (text: string) => update({ journeyStages: sanitizeJourneyStages(text) });
   const commitCode = () => {
-    const clean = sanitizeJourneyStages(code.slice(0, MAX_JOURNEY_TEXT));
+    const clean = sanitizeJourneyStages(code.slice(0, Math.max(MAX_JOURNEY_TEXT, JOURNEY_TEXT_CEILING))); // --- uncap-all ---
     setDraft(null);
     if (clean !== s.journeyStages) update({ journeyStages: clean });
   };
@@ -137,7 +138,7 @@ export default function JourneySection({ t, search, matches, settings: s, update
               </select>
               <button
                 type="button"
-                disabled={last >= MAX_JOURNEY_STAGES}
+                disabled={last >= JOURNEY_STAGE_CEILING /* --- uncap-all --- */}
                 onClick={() => setStages(addJourneyStage(s.journeyStages, addKind))}
                 className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${onBtn}`}
               >
@@ -158,7 +159,7 @@ export default function JourneySection({ t, search, matches, settings: s, update
               id="journey-code"
               type="text"
               value={code}
-              maxLength={MAX_JOURNEY_TEXT}
+              maxLength={Math.max(MAX_JOURNEY_TEXT, JOURNEY_TEXT_CEILING) /* --- uncap-all --- */}
               spellCheck={false}
               onChange={(e) => setDraft({ base: s.journeyStages, text: e.target.value })}
               onBlur={commitCode}

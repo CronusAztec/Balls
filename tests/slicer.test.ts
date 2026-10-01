@@ -235,7 +235,7 @@ describe("progress helpers", () => {
 describe("normalizeSliceOptions", () => {
   it("clamps out-of-range values and falls back to the base for invalid ones", () => {
     const base = opts;
-    expect(normalizeSliceOptions({ sliceSec: 0, fadeSec: 5 }, base)).toEqual({ sliceSec: 0.01, fadeSec: 1, loop: true });
+    expect(normalizeSliceOptions({ sliceSec: 0, fadeSec: 5 }, base)).toEqual({ sliceSec: 0.01, fadeSec: 5, loop: true }); // --- uncap-all --- (no maximum)
     expect(normalizeSliceOptions({ sliceSec: NaN, loop: false }, base)).toEqual({ sliceSec: 0.25, fadeSec: 0.008, loop: false });
     expect(normalizeSliceOptions({}, base)).toEqual(base);
   });

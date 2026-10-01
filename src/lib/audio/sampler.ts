@@ -132,7 +132,7 @@ export class HitSampler {
   }
 
   setVolume(volume: number) {
-    this.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
+    this.volume = Math.max(0, Number.isFinite(volume) ? volume : 1); // --- uncap-all --- past 1 amplifies the clip
   }
 
   /** Decode state of the clip from the last `load()` call; a failed decode is reported as "error", never silently. */

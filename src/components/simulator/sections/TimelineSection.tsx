@@ -25,6 +25,8 @@ import {
   type Keyframe,
   type TimelineKey,
 } from "@/lib/simulation/timeline";
+import UncapNumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control (this section has its own NumberField for the keyframe time)
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 export interface TimelineSectionProps {
   t: Translate;
@@ -118,18 +120,21 @@ function ValueControl({ t, settingKey, value, onChange }: { t: Translate; settin
         </span>
         <span className="text-zinc-300 tabular-nums">{formatTimelineValue(settingKey, value)}</span>
       </label>
-      <input
-        id="timeline-value-slider"
-        type="range"
-        min={range.min}
-        max={range.max}
-        step={range.step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        data-testid="timeline-value-slider"
-        className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-        style={sliderStyle(value, range.min, range.max)}
-      />
+      <div className="flex items-center gap-2">
+        <input
+          id="timeline-value-slider"
+          type="range"
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          data-testid="timeline-value-slider"
+          className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+          style={sliderStyle(value, range.min, range.max)}
+        />
+        <UncapNumberField value={value} onCommit={onChange} label={t("timelineValue")} range={range} rules={rulesForRange(range)} settingKey={`keyframe:${settingKey}`} /* --- uncap-all --- */ />
+      </div>
       {live !== null && (
         <p className="text-[11px] text-zinc-500 text-right">
           {t("timelineNow")} <TimelineSliderValue t={t} live={{ key: settingKey, value: live }} fallback={null} />
@@ -240,17 +245,21 @@ export function TimelineRangeInput({ labelKey, value, range, onChange, className
   const live = useTimelineSlider(labelKey);
   const shown = live ? live.value : value;
   return (
-    <input
-      type="range"
-      min={range.min}
-      max={range.max}
-      step={range.step}
-      value={shown}
-      disabled={!!live}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className={`${className} disabled:opacity-50 disabled:cursor-not-allowed`}
-      style={sliderStyle(shown, range.min, range.max)}
-      aria-label={ariaLabel}
-    />
+    <span className="flex w-full items-center gap-2">
+      <input
+        type="range"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={shown}
+        disabled={!!live}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`${className} disabled:opacity-50 disabled:cursor-not-allowed`}
+        style={sliderStyle(shown, range.min, range.max)}
+        aria-label={ariaLabel}
+      />
+      {/* --- uncap-all --- the number field (any value; the track pins at its end beyond it) */}
+      <UncapNumberField value={shown} onCommit={onChange} label={ariaLabel} range={range} rules={rulesForRange(range)} disabled={!!live} settingKey={labelKey} />
+    </span>
   );
 }

@@ -41,6 +41,27 @@ function pushPair(out: PairBuffer, i: number, j: number) {
 /** Most cells along one axis; a finer grid only costs memory without saving checks. */
 export const MAX_GRID_DIM = 1024;
 
+/**
+ * --- uncap-all --- The most candidate pairs one query looks at. Evenly spread discs – every run at the sliders' values –
+ * stay far below it (2,000 orbs: a few tens of thousands, a few hundred thousand packed tight); a pile-up of thousands of discs in one cell (giant balls,
+ * numbers that overflowed and were put back at the centre) would be n²/2 – 12 million pairs for 5,000 – and a step of
+ * seconds and hundreds of MB of pairs. Past the budget the rest of the query's pairs are skipped this time (those discs
+ * pass through each other for a sub-step): graceful degradation, deterministic – it depends on the positions only.
+ */
+export const PAIR_CANDIDATE_BUDGET = 1_000_000;
+/**
+ * --- uncap-all --- The candidate pairs all the queries of one engine step may look at while the extreme-values machinery
+ * is engaged (a planned step runs up to 64 sub-steps, each with several solver passes): the engine sets it at the start of
+ * every such step (`beginPairStep()`), Infinity otherwise – so a run at the sliders' values never meets it.
+ */
+export const PAIR_STEP_BUDGET = 4_000_000;
+let stepBudget = Infinity;
+
+/** The engine's step starts: the candidate pairs its queries may look at in all (Infinity = no step budget). */
+export function beginPairStep(budget: number) {
+  stepBudget = budget;
+}
+
 /** The four "forward" neighbours of a cell (dx, dy): together with the cell itself they cover every adjacent pair once. */
 const FORWARD: readonly (readonly [number, number])[] = [
   [1, 0],
@@ -129,12 +150,19 @@ export class SpatialHash {
    */
   forEachNearbyPair(visit: (i: number, j: number) => void) {
     const { cols, rows, cellStart: start, sorted } = this;
+    const allowed = stepBudget < PAIR_CANDIDATE_BUDGET ? stepBudget : PAIR_CANDIDATE_BUDGET; // --- uncap-all ---
+    let budget = allowed;
     for (let cy = 0; cy < rows; cy++) {
       for (let cx = 0; cx < cols; cx++) {
         const c = cy * cols + cx;
         const a0 = start[c];
         const a1 = start[c + 1];
         if (a0 === a1) continue;
+        if (budget <= 0) {
+          stepBudget -= allowed; // --- uncap-all --- (a pile-up past the budget: the rest waits for the next query)
+          return;
+        }
+        budget -= ((a1 - a0) * (a1 - a0 - 1)) / 2;
         for (let p = a0; p < a1; p++) for (let q = p + 1; q < a1; q++) visit(sorted[p], sorted[q]);
         for (let k = 0; k < FORWARD.length; k++) {
           const nx = cx + FORWARD[k][0];
@@ -143,10 +171,12 @@ export class SpatialHash {
           const d = ny * cols + nx;
           const b0 = start[d];
           const b1 = start[d + 1];
+          budget -= (a1 - a0) * (b1 - b0); // --- uncap-all ---
           for (let p = a0; p < a1; p++) for (let q = b0; q < b1; q++) visit(sorted[p], sorted[q]);
         }
       }
     }
+    stepBudget -= allowed - budget; // --- uncap-all ---
   }
 
   /**
@@ -157,6 +187,8 @@ export class SpatialHash {
   collectContacts(xs: ArrayLike<number>, ys: ArrayLike<number>, rs: ArrayLike<number>, margin: number, out: PairBuffer): number {
     out.count = 0;
     const { cols, rows, cellStart: start, sorted } = this;
+    const allowed = stepBudget < PAIR_CANDIDATE_BUDGET ? stepBudget : PAIR_CANDIDATE_BUDGET; // --- uncap-all --- (a pile-up past it: the rest of the pairs waits for the next query)
+    let budget = allowed;
     for (let cy = 0; cy < rows; cy++) {
       for (let cx = 0; cx < cols; cx++) {
         const c = cy * cols + cx;
@@ -164,6 +196,11 @@ export class SpatialHash {
         const a1 = start[c + 1];
         if (a0 === a1) continue;
         for (let p = a0; p < a1; p++) {
+          if (budget <= 0) {
+            stepBudget -= allowed; // --- uncap-all ---
+            return out.count;
+          }
+          budget -= a1 - p - 1;
           const i = sorted[p];
           const xi = xs[i];
           const yi = ys[i];
@@ -181,6 +218,7 @@ export class SpatialHash {
             if (nx < 0 || nx >= cols || ny >= rows) continue;
             const d = ny * cols + nx;
             const b1 = start[d + 1];
+            budget -= b1 - start[d]; // --- uncap-all ---
             for (let q = start[d]; q < b1; q++) {
               const j = sorted[q];
               const dx = xs[j] - xi;
@@ -192,6 +230,7 @@ export class SpatialHash {
         }
       }
     }
+    stepBudget -= allowed - budget; // --- uncap-all ---
     return out.count;
   }
 

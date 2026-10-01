@@ -1,4 +1,5 @@
 import { normalizeHexColor } from "@/lib/themes";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Animated captions – overlays beyond the plain top / bottom text, drawn on the canvas (so every recording has
@@ -124,7 +125,7 @@ export function sanitizeCaptionText(value: unknown, max = MAX_CAPTION_TEXT_LENGT
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number): number {
   const n = typeof value === "number" || (typeof value === "string" && value.trim() !== "") ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Rounds to the slider step (0.5 s, 0.1×) so values survive links and presets unchanged. */

@@ -2,6 +2,7 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { buildPendulumField, pendulumPitch, polygonRadius, type PendulumField } from "./pendulum";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Metronomes & Polyrhythms ("polyrhythm" mode, the project.jdm polyrhythm / tempo-phase-shift formats): no
@@ -132,7 +133,7 @@ export interface PolyrhythmSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Keeps only digits, dots and separators (commas, spaces, colons, semicolons, slashes) of a custom ratio list, at most MAX_CUSTOM_LENGTH characters; typing is never disturbed by it. */
@@ -164,7 +165,7 @@ export function resolvePolyrhythmSettings(config: Partial<PolyrhythmSettings> | 
   const out = { ...DEFAULT_POLYRHYTHM_SETTINGS };
   if (!config) return out;
   const R = POLYRHYTHM_RANGES;
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.prCount, out.count));
+  if (config.count !== undefined) out.count = memoryCeiling("prCount", Math.round(clampNumber(config.count, R.prCount, out.count)));
   if (isPolyLayout(config.layout)) out.layout = config.layout;
   if (isPolyArcStyle(config.arcStyle)) out.arcStyle = config.arcStyle;
   if (isPolyTempos(config.tempos)) out.tempos = config.tempos;

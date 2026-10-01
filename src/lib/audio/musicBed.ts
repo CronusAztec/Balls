@@ -106,7 +106,7 @@ export function playbackPosition(startPosition: number, elapsedSec: number, dura
 export function normalizeMusicOptions(patch: Partial<MusicBedOptions>, base: MusicBedOptions): MusicBedOptions {
   const num = (v: number | undefined, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
   return {
-    volume: clamp01(num(patch.volume, base.volume)),
+    volume: Math.max(0, num(patch.volume, base.volume)), // --- uncap-all --- past 1 amplifies the bed (it may clip)
     ducking: clamp01(num(patch.ducking, base.ducking)),
     releaseMs: Math.max(MIN_RELEASE_MS, num(patch.releaseMs, base.releaseMs)),
     loop: typeof patch.loop === "boolean" ? patch.loop : base.loop,

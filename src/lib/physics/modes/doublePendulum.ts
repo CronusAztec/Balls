@@ -2,6 +2,7 @@ import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type Sc
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { ChainStepper, PendulumChain, collideBobs, createContactScratch, type ContactScratch, type Vec2 } from "../pendulumChain";
+import { CHAIN_BOB_CEILING, atLeastMin, memoryCeiling, signedUncapped } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Double Pendulum ("doublePendulum" mode, the project.jdm "Double Pendulum HARP" and "2 Pendulums SPAR with Each
@@ -153,7 +154,7 @@ export interface DoublePendulumSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range (counts and angles become whole numbers, segments 2 or 3; unknown layouts, scales and non-boolean flags fall back to the defaults). */
@@ -161,8 +162,11 @@ export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSett
   const out = { ...DEFAULT_DOUBLE_PENDULUM_SETTINGS };
   if (!config) return out;
   const R = DOUBLE_PENDULUM_RANGES;
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.dpCount, out.count));
-  if (config.segments !== undefined) out.segments = Math.round(clampNumber(config.segments, R.dpSegments, out.segments));
+  // --- uncap-all --- no maximum; the chains and their links a run builds stop at their memory-safety ceilings
+  if (config.count !== undefined) out.count = memoryCeiling("dpCount", Math.round(clampNumber(config.count, R.dpCount, out.count)));
+  if (config.segments !== undefined) out.segments = memoryCeiling("dpSegments", Math.round(clampNumber(config.segments, R.dpSegments, out.segments)));
+  // (--- uncap-all --- the chains and their links together: at most CHAIN_BOB_CEILING bobs – memory-safety, ARENA FULL past it)
+  if (out.count * out.segments > CHAIN_BOB_CEILING) out.count = Math.max(1, Math.floor(CHAIN_BOB_CEILING / out.segments));
   if (config.length1 !== undefined) out.length1 = clampNumber(config.length1, R.dpLength1, out.length1);
   if (config.length2 !== undefined) out.length2 = clampNumber(config.length2, R.dpLength2, out.length2);
   if (config.length3 !== undefined) out.length3 = clampNumber(config.length3, R.dpLength3, out.length3);
@@ -170,13 +174,14 @@ export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSett
   if (config.mass2 !== undefined) out.mass2 = clampNumber(config.mass2, R.dpMass2, out.mass2);
   if (config.mass3 !== undefined) out.mass3 = clampNumber(config.mass3, R.dpMass3, out.mass3);
   if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, R.dpGravity, out.gravity);
-  if (config.angle1 !== undefined) out.angle1 = Math.round(clampNumber(config.angle1, R.dpAngle1, out.angle1));
-  if (config.angle2 !== undefined) out.angle2 = Math.round(clampNumber(config.angle2, R.dpAngle2, out.angle2));
-  if (config.angle3 !== undefined) out.angle3 = Math.round(clampNumber(config.angle3, R.dpAngle3, out.angle3));
+  // --- uncap-all --- an angle past ±180° is a start more than half a turn round: signed, any size
+  if (config.angle1 !== undefined) out.angle1 = Math.round(signedUncapped(config.angle1, out.angle1));
+  if (config.angle2 !== undefined) out.angle2 = Math.round(signedUncapped(config.angle2, out.angle2));
+  if (config.angle3 !== undefined) out.angle3 = Math.round(signedUncapped(config.angle3, out.angle3));
   if (typeof config.randomStart === "boolean") out.randomStart = config.randomStart;
   if (config.damping !== undefined) out.damping = clampNumber(config.damping, R.dpDamping, out.damping);
   if (config.trailSeconds !== undefined) out.trailSeconds = clampNumber(config.trailSeconds, R.dpTrailSeconds, out.trailSeconds);
-  if (config.strings !== undefined) out.strings = Math.round(clampNumber(config.strings, R.dpStrings, out.strings));
+  if (config.strings !== undefined) out.strings = memoryCeiling("dpStrings", Math.round(clampNumber(config.strings, R.dpStrings, out.strings)));
   if (isDpStringLayout(config.stringLayout)) out.stringLayout = config.stringLayout;
   if (config.octaves !== undefined) out.octaves = Math.round(clampNumber(config.octaves, R.dpOctaves, out.octaves));
   if (typeof config.spar === "boolean") out.spar = config.spar;
@@ -375,18 +380,25 @@ export function bobModelRadius(ballRadius: number, mass: number, maxFactor: numb
 
 /** Damping rate k (1/s) of a per-step velocity loss `d`: the angular velocities keep (1 − d) per 60 Hz step. */
 export function dampingRate(d: number, stepsPerSecond = 60): number {
-  return d > 0 ? -Math.log(1 - Math.min(0.5, d)) * stepsPerSecond : 0;
+  // --- uncap-all --- exact for any loss below 100 % a step; at 100 % or more the chain stops dead within the step (the decay
+  // cannot turn the motion round), which the rate of a loss down to the float's resolution gives
+  if (!(d > 0)) return 0;
+  return -Math.log(d < 1 ? 1 - d : Number.EPSILON) * stepsPerSecond;
 }
 
 /** Relative rod lengths of the settings, scaled so the chain is 1 unit long. */
 export function chainLengths(settings: Pick<DoublePendulumSettings, "segments" | "length1" | "length2" | "length3">): number[] {
+  // --- uncap-all --- links past the third repeat the third's length
   const raw = [settings.length1, settings.length2, settings.length3].slice(0, settings.segments);
+  while (raw.length < settings.segments) raw.push(settings.length3);
   const sum = raw.reduce((a, b) => a + b, 0) || 1;
   return raw.map((l) => l / sum);
 }
 
 export function chainMasses(settings: Pick<DoublePendulumSettings, "segments" | "mass1" | "mass2" | "mass3">): number[] {
-  return [settings.mass1, settings.mass2, settings.mass3].slice(0, settings.segments);
+  const out = [settings.mass1, settings.mass2, settings.mass3].slice(0, settings.segments);
+  while (out.length < settings.segments) out.push(settings.mass3); // --- uncap-all --- (links past the third weigh as the third)
+  return out;
 }
 
 /* ------------------------------------------------------------------ harp tuning */
@@ -409,10 +421,15 @@ export function harpLadder(octaves: number, scale: ScaleId, rootNote: number): n
 /** MIDI note of every string, low to high: the ladder sampled evenly, so the first string is the root and the last one the root `octaves` octaves up. */
 export function harpStringMidi(strings: number, octaves: number, scale: ScaleId, rootNote: number): number[] {
   if (strings <= 0) return [];
-  const ladder = harpLadder(octaves, scale, rootNote);
-  if (strings === 1) return [ladder[0]];
+  // --- uncap-all --- the ladder's notes are read by index (the same notes harpLadder() lists), so a billion octaves cost
+  // nothing more than the strings they are sampled for
+  const intervals = scale === "chromatic" ? SCALE_INTERVALS.major : SCALE_INTERVALS[scale];
+  const base = harpBaseMidi(octaves, rootNote);
+  const length = intervals.length * Math.max(0, octaves) + 1;
+  const at = (i: number) => (i >= length - 1 ? base + 12 * Math.max(0, octaves) : base + 12 * Math.floor(i / intervals.length) + intervals[i % intervals.length]);
+  if (strings === 1) return [at(0)];
   const out: number[] = [];
-  for (let k = 0; k < strings; k++) out.push(ladder[Math.round((k * (ladder.length - 1)) / (strings - 1))]);
+  for (let k = 0; k < strings; k++) out.push(at(Math.round((k * (length - 1)) / (strings - 1))));
   return out;
 }
 
@@ -919,7 +936,9 @@ export class DoublePendulumMode implements GameMode {
   private startAngles(ctx: ModeContext, lengths: readonly number[], spar: boolean): number[] {
     const s = this.settings;
     const n = s.segments;
-    const fixed = [s.angle1, s.angle2, s.angle3].slice(0, n).map((a) => (a * Math.PI) / 180);
+    const given = [s.angle1, s.angle2, s.angle3].slice(0, n);
+    while (given.length < n) given.push(s.angle3); // --- uncap-all --- (links past the third start at the third's angle)
+    const fixed = given.map((a) => (a * Math.PI) / 180);
     if (!s.randomStart) return fixed;
     // Four draws per try, whatever the rod count: the first rod 100°–170° to either side, the others anywhere.
     const draw = () => {
@@ -927,7 +946,9 @@ export class DoublePendulumMode implements GameMode {
       const a1 = side * (100 + 70 * ctx.random());
       const a2 = -180 + 360 * ctx.random();
       const a3 = -180 + 360 * ctx.random();
-      return [a1, a2, a3].slice(0, n).map((a) => (a * Math.PI) / 180);
+      const drawn = [a1, a2, a3].slice(0, n);
+      while (drawn.length < n) drawn.push(a3); // --- uncap-all --- (links past the third follow the third's draw: the same four draws per try)
+      return drawn.map((a) => (a * Math.PI) / 180);
     };
     let angles = draw();
     if (!spar) return angles;

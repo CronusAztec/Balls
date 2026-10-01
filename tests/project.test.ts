@@ -124,7 +124,7 @@ describe("project files", () => {
     const d = defaultSettings("shatter");
     expect(s.mode).toBe("shatter");
     expect(s.gravity).toBe(d.gravity);
-    expect(s.ballSpeed).toBe(800);
+    expect(s.ballSpeed).toBe(99999); // --- uncap-all --- (no maximum)
     expect(s.wallCount).toBe(1);
     expect(s.topText).toBe("");
     expect(s.bottomText).toHaveLength(500);

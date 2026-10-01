@@ -584,7 +584,7 @@ describe("Beat Runner settings", () => {
     const back = settingsFromSearchParams(params);
     expect(resolveRunnerFields(back)).toEqual(resolveRunnerFields(s));
     const junk = settingsFromSearchParams(new URLSearchParams("mode=runner&rra=yes&rrn=9999&rrsp=-4&rrj=abc&rrd=0.333&rrm=lava&rrbs=radio"));
-    expect(resolveRunnerFields(junk)).toEqual({ ...defaultRunnerFields(), runnerObstacles: 120, runnerSpeed: 6, runnerDensity: 0.35 });
+    expect(resolveRunnerFields(junk)).toEqual({ ...defaultRunnerFields(), runnerObstacles: 5000, runnerSpeed: 6, runnerDensity: 0.35 }); // --- uncap-all --- (rrn=9999 builds at most the memory-safety ceiling)
     const preset = presetToSettings({ mode: "runner", runnerObstacles: 2, runnerMix: "nope" as never, runnerAutoJump: "no" as never, runnerJump: 3.14159 });
     expect(resolveRunnerFields(preset)).toEqual({ ...defaultRunnerFields(), runnerObstacles: 4, runnerJump: 3.1 });
     expect(resolveRunnerSettings({ grid: { bpm: 0, beatTimes: [], duration: 0 } }).grid).toBeNull();

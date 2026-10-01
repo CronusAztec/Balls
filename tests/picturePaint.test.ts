@@ -192,13 +192,13 @@ describe("picture paint settings", () => {
 
   it("clamp numbers and reject unknown sources from URLs and presets", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mode=paint&pbr=9&pgh=-1&pbp=abc&pbs=drums"));
-    expect(s.paintBrush).toBe(PICTURE_PAINT_RANGES.paintBrush.max);
+    expect(s.paintBrush).toBe(9); // --- uncap-all --- (pbr=9 kept)
     expect(s.paintGhost).toBe(0);
     expect(s.paintBeatPulse).toBe(DEFAULT_PICTURE_PAINT.paintBeatPulse);
     expect(s.paintBeatSource).toBe("song");
     const p = presetToSettings({ mode: "paint", paintBrush: 0.1, paintGhost: 2, paintBeatSource: "bpm", paintGuided: "yes", paintPaceToSong: false } as unknown as Partial<SimulatorSettings>);
     expect(p.paintBrush).toBe(PICTURE_PAINT_RANGES.paintBrush.min);
-    expect(p.paintGhost).toBe(PICTURE_PAINT_RANGES.paintGhost.max);
+    expect(p.paintGhost).toBe(2); // --- uncap-all --- (kept)
     expect(p.paintBeatSource).toBe("bpm");
     expect(p.paintGuided).toBe(true);
     expect(p.paintPaceToSong).toBe(false);

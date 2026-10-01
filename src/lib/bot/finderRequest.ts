@@ -84,6 +84,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
   const markerBeat = markerBeatInputOf(s); // --- video-beats --- the beat the Beat Runner and Beat Drop follow: the hand-placed markers, else the BPM
   return {
     bouncierEnabled: s.bouncierEnabled,
+    bounciness: s.bounciness, // --- uncap-all ---
     countdownTotal: s.targetCount,
     countdownRandom: s.countdownRandom,
     colorMatchColorCount: s.colorMatchColorCount,

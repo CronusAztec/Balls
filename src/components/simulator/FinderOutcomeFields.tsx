@@ -8,6 +8,7 @@ import { effectiveBallCount } from "@/lib/teams";
 import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
+import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
 
 /*
  * --- rigged --- The "Outcome" part of the Find Simulation panel (Simulator.tsx): what the found run must do – last the
@@ -142,6 +143,7 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
             className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer disabled:opacity-50"
             style={sliderStyle(escapeAt, range.min, range.max)}
           />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
         </div>
       )}
       {outcome === "winner" && (

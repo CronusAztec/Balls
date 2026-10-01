@@ -1,6 +1,7 @@
 import type { CircularWall, ModeId, PhysicsConfig } from "@/lib/physics/types";
 import { passableGap } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
+import { KEYFRAME_CEILING, SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Timeline keyframes – numeric settings automated over the clip. A keyframe says "at `time` seconds of simulation time,
@@ -62,7 +63,7 @@ export function defaultTimelineSettings(): TimelineSettings {
 }
 
 /** The most keyframes a clip carries (all settings together). */
-export const MAX_KEYFRAMES = 40;
+export const MAX_KEYFRAMES = KEYFRAME_CEILING; // --- uncap-all --- (was 40: now the keyframes' memory-safety ceiling, lib/uncap.ts)
 
 /** Range of a keyframe's time, keyed like `RANGES` in settings.ts (which spreads it). */
 export const TIMELINE_RANGES = {
@@ -170,16 +171,22 @@ function decimalsOf(step: number): number {
   return dot < 0 ? 0 : text.length - dot - 1;
 }
 
-/** Clamps `value` into the range and snaps it to the range's step (without float noise: 0.35, not 0.35000000000000003). */
-export function snapToRange(value: number, range: NumericRange): number {
-  const clamped = Math.max(range.min, Math.min(range.max, value));
-  const snapped = Number((Math.round(clamped / range.step) * range.step).toFixed(decimalsOf(range.step)));
-  return Math.max(range.min, Math.min(range.max, snapped));
+/**
+ * Snaps `value` to the range's step (without float noise: 0.35, not 0.35000000000000003) – --- uncap-all --- inside the
+ * slider's comfort range; beyond its end a keyframe keeps its exact value (never a maximum), below the minimum it is
+ * lifted onto it (a signed setting keeps any value).
+ */
+export function snapToRange(value: number, range: NumericRange, signed = false): number {
+  if (value > range.max || (signed && value < range.min)) return value;
+  const floored = value < range.min ? range.min : value;
+  const snapped = Number((Math.round(floored / range.step) * range.step).toFixed(decimalsOf(range.step)));
+  return snapped < range.min ? range.min : snapped > range.max ? range.max : snapped;
 }
 
-/** A keyframe time as stored: clamped to 0–120 s and rounded to 0.1 s. */
+/** A keyframe time as stored: from 0 s (--- uncap-all --- past the slider's 120 s too), rounded to 0.1 s. */
 export function snapKeyframeTime(seconds: number): number {
-  return snapToRange(Number.isFinite(seconds) ? seconds : 0, TIMELINE_RANGES.keyframeTime);
+  const t = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  return t > TIMELINE_RANGES.keyframeTime.max ? Math.round(t * 10) / 10 : snapToRange(t, TIMELINE_RANGES.keyframeTime);
 }
 
 /** Up to three decimals, trailing zeros dropped ("0.25", "1500", "-0.05"). */
@@ -235,7 +242,7 @@ export function sanitizeKeyframe(value: unknown, ranges: TimelineRanges): Keyfra
   const time = toNumber(source.time);
   const v = toNumber(source.value);
   if (!Number.isFinite(time) || !Number.isFinite(v)) return null;
-  return { time: snapKeyframeTime(time), key, value: snapToRange(v, ranges[key]) };
+  return { time: snapKeyframeTime(time), key, value: snapToRange(v, ranges[key], SIGNED_KEYS.has(key)) }; // --- uncap-all --- (no maximum)
 }
 
 /** The canonical order of a keyframe list: by time, then by the setting's place in `TIMELINE_KEYS`. */

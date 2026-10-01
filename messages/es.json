@@ -220,8 +220,8 @@
     "twoBalls": "Dos pelotas",
     "twoBallsTip": "Añade una segunda pelota que se mueve en dirección opuesta para el doble de acción.",
     "ballColor2": "Color de la segunda pelota",
-    "bouncier": "Más rebote en cada golpe",
-    "bouncierTip": "La pelota se acelera con cada rebote en la pared, ganando impulso hasta que escapa.",
+    "bouncier": "Rebote",
+    "bouncierTip": "Cada rebote en la pared suma al rebote (Rebote − 1) × la velocidad de la bola, sin ningún techo: 1 = desactivado, 1,03 = el clásico «más rebote en cada golpe», 3 = +200 % por rebote, 1e6 = un millón de veces. La bola acelera hasta escapar… o romper la página.",
     "ballInteraction": "Interacción entre pelotas",
     "ballInteractionTip": "Qué hacen las pelotas entre sí: rebotan (por defecto), se fusionan en una pelota más grande al tocarse, se dividen en dos cada vez que una atraviesa una pared, o se atraviesan sin tocarse. Determinista: los enlaces compartidos, los ajustes guardados y Buscar simulación lo incluyen.",
     "interactionBounce": "Rebote",
@@ -1456,7 +1456,7 @@
     "byRunInfo": "{shots} tiros – unos {seconds}s con el cartel final. La semilla decide dónde cae cada bola (y cuánto rebota la última), así que Buscar simulación puede acertar la duración de tu clip.",
     "byPerfectInfo": "El tiro {shot} está amañado para dar en el centro.",
     "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado.",
-    "unlimited": "Sin límites"
+    "unlimited": "Deslizadores amplios"
   },
   "Modes": {
     "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez." },
@@ -2514,11 +2514,11 @@
     "offlineSimulator": "Abrir el simulador"
   },
   "Unlimited": {
-    "label": "Sin límites",
-    "tip": "Cada número más allá de su deslizador: escribe un millón de bolas, mil millones de velocidad o mil anillos. La simulación puede derretirse – se ralentiza y se dibuja más simple –, pero la pestaña sigue y la grabación continúa.",
+    "label": "Deslizadores amplios",
+    "tip": "Nada tiene tope, esté activado o no: cada deslizador tiene al lado un campo que acepta cualquier número. Activado, los deslizadores además se alargan más allá de su rango normal, en escala logarítmica, hasta mil millones.",
     "on": "SÍ",
     "off": "NO",
-    "warning": "Los valores extremos pueden ralentizar la simulación a paso de tortuga: de eso se trata. Puede derretirse, nunca colgarse.",
+    "warning": "Los valores extremos pueden ralentizar la simulación a paso de tortuga o derretir la imagen: de eso se trata. Puede derretirse, nunca colgarse.",
     "typeValue": "Escribe un valor para {label}",
     "invalidValue": "Valor no válido: un número finito de al menos {min}.",
     "softCeiling": "El motor ejecuta como máximo {value}; el enlace conserva tu número.",
@@ -2527,5 +2527,17 @@
     "canvasArenaFull": "ARENA LLENA",
     "canvasBalls": "[count] BOLAS",
     "canvasAteArena": "LA BOLA SE COMIÓ LA ARENA"
+  },
+  "Uncap": {
+    "fieldLabel": "{label}: escribe cualquier número",
+    "errEmpty": "Escribe un número.",
+    "errNotNumber": "«{text}» no es un número; se mantiene el valor anterior.",
+    "errNotFinite": "El infinito no se puede ejecutar: escribe un número finito (1e308 funciona).",
+    "errBelowMin": "Como mínimo {min}; se mantiene el valor anterior.",
+    "beyondTip": "Más allá del deslizador: {value} (el deslizador cubre {min}–{max}; el valor se usa tal cual)",
+    "memoryCeiling": "Techo de seguridad de memoria: la simulación crea como máximo {value} de estos (ARENA LLENA); el enlace conserva tu número.",
+    "canvasSpeed": "⚡ [speed] PX/S",
+    "canvasOverflow": "LOS NÚMEROS SE DESBORDARON ×[count]",
+    "finderEndless": "Con estos valores la simulación nunca termina, así que no hay nada que buscar: sigue y sigue (mejor grábala)."
   }
 }

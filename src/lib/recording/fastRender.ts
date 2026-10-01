@@ -18,6 +18,7 @@ import {
   audioTimestampUs,
   exportDurationSec,
   exportFrameIndex,
+  exportFrameRange, // --- uncap-all ---
   exportProgress,
   fnv1a,
   frameDurationUs,
@@ -34,6 +35,7 @@ import {
   type ExportFormat,
   type FastExportPhase,
 } from "./fastRenderPlan";
+import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -460,18 +462,23 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
           bedStopped = true;
         }
       });
-      const index = exportFrameIndex(simFrame, fps);
-      if (index < 0) continue;
+      // --- uncap-all --- the export frames of this simulation frame (one at 60 fps, none or one at 30, several past 60), and
+      // never more than the memory-safety ceiling of one export (the muxer holds the whole file)
+      const [firstIndex, endIndex] = exportFrameRange(simFrame, fps);
+      if (endIndex <= firstIndex) continue;
+      if (firstIndex >= EXPORT_FRAME_CEILING) break;
       drawRecordingFrame(frameCtx, frameRenderer.canvas, width, height, options.backgroundColor, composeOptions, textLayout);
-      const frame = new VideoFrame(frameCanvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
-      videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
-      frame.close();
-      if (index % DIGEST_EVERY === 0) {
-        thumbCtx.drawImage(frameCanvas, 0, 0, 16, 16);
-        digest = fnv1a(thumbCtx.getImageData(0, 0, 16, 16).data, digest);
+      for (let index = firstIndex; index < endIndex && index < EXPORT_FRAME_CEILING; index++) {
+        const frame = new VideoFrame(frameCanvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
+        videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
+        frame.close();
+        if (index % DIGEST_EVERY === 0) {
+          thumbCtx.drawImage(frameCanvas, 0, 0, 16, 16);
+          digest = fnv1a(thumbCtx.getImageData(0, 0, 16, 16).data, digest);
+        }
+        exported = index + 1;
+        await drainQueue(videoEncoder, 6);
       }
-      exported = index + 1;
-      await drainQueue(videoEncoder, 6);
       if (performance.now() - lastYield > yieldAfterMs) {
         report("frames", expectedFrames > 0 ? exported / expectedFrames : 1, exported, t / 1000);
         await yieldTask();

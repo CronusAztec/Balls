@@ -1,3 +1,4 @@
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 /**
  * Picture Paint: the settings and the pure maths behind "reveal any picture in Paint mode, on the
  * beat of a song". The Paint mode (modes/paint.ts) owns the run-time state; everything here is
@@ -58,7 +59,7 @@ export const PICTURE_PAINT_KEYS = Object.keys(DEFAULT_PICTURE_PAINT) as (keyof P
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range; unknown sources and non-boolean flags fall back. */

@@ -222,10 +222,10 @@ export function stepBetween(rng: () => number, min: number, max: number, step: n
   return roundTo(min + step * intBetween(rng, 0, n), step);
 }
 
-/** `value` on the grid min + k·step inside [min, max]. */
+/** `value` on the grid min + k·step from min up (--- uncap-all --- never a maximum: the recipes keep their own values inside the sliders). */
 export function snapStep(value: number, range: { min: number; max: number; step: number }): number {
-  const clamped = Math.max(range.min, Math.min(range.max, value));
-  return roundTo(range.min + Math.round((clamped - range.min) / range.step) * range.step, range.step);
+  const floored = value < range.min ? range.min : value;
+  return roundTo(range.min + Math.round((floored - range.min) / range.step) * range.step, range.step);
 }
 
 function roundTo(value: number, step: number): number {

@@ -1,5 +1,6 @@
 import type { Ball, BallInteractionConfig, NewBall } from "./types";
 import { isBallInteraction, TWO_PI } from "./types";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Ball interactions: what balls do to each other, and to themselves when they break a wall.
@@ -40,7 +41,7 @@ const RADIUS_EPSILON = 1e-6;
 
 function clampInt(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.round(Math.max(range.min, Math.min(range.max, n))) : fallback;
+  return Number.isFinite(n) ? Math.round(atLeastMin(n, range)) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps the split limits to whole numbers in their ranges (bad or unknown input falls back to the defaults). */

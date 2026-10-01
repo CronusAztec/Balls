@@ -6747,7 +6747,7 @@ const bdInstrument = () =>
   const worstClick = Math.max(...latencies);
   // The Ball & Physics section is open (odd number of clicks): the switch is on and the speed input holds the typed value.
   const toggleOn = (await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null)) === "true";
-  const speedInput = await page.locator('input[data-unlimited-input="ballSpeed"]').inputValue().catch(() => "");
+  const speedInput = await page.locator('input[data-number-field="ballSpeed"]').inputValue().catch(() => ""); // --- uncap-all --- the number field next to every slider
   check(
     "no limits: an extreme link (50,000 balls, huge speed) runs time-sliced with the real-time badge and stays responsive",
     spawned && Number(first.unlimitedBalls) >= 45000 && sliced && Number(data.unlimitedRealtime) < 0.9 && latencies.length === 3 && worstClick < 300 && toggleOn && speedInput === "1000000",
@@ -6782,6 +6782,112 @@ const bdInstrument = () =>
   check("no limits: a ball bigger than the arena eats it (the run ends with its banner)", ate && ateData.multOutgrew === "1", `(ate=${ate}, outgrew ${ateData.multOutgrew})`);
 }
 // --- end unlimited ---
+
+// --- uncap-all --- Uncapped everything: every slider has a number field next to it; a value typed past the slider goes
+// into the link exactly (and invalid text never does); a Bounciness of 3 grows the rebounds with no ceiling (the canvas
+// speed readout climbs); a Ball Count of a million runs to its memory-safety ceiling (ARENA FULL) without a crash.
+{
+  const panelSection = async (name) => {
+    const button = page.getByRole("button", { name, exact: false }).first();
+    if ((await button.getAttribute("aria-expanded").catch(() => null)) !== "true") await button.click();
+  };
+  const canvasData = () => page.evaluate(() => ({ ...(document.querySelector("main canvas")?.dataset ?? {}) }));
+  const typeInto = async (selector, text) => {
+    const field = page.locator(selector).first();
+    await field.fill(text);
+    await field.press("Enter");
+    await page.waitForTimeout(400);
+    return field;
+  };
+  const query = () => page.url().split("?")[1] || "";
+
+  // (A) 80,000 typed into the Ball Speed field: exact in the link, the field tinted "beyond the slider"; text is refused.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await panelSection(/Ball & Physics/);
+  const speedField = await typeInto('input[data-number-field="ballSpeed"]', "80000");
+  const typedQuery = query();
+  const beyond = await speedField.getAttribute("data-beyond").catch(() => null);
+  const typedValue = await speedField.inputValue();
+  const refused = await typeInto('input[data-number-field="ballSpeed"]', "fast");
+  const invalidShown = (await refused.getAttribute("aria-invalid").catch(() => null)) === "true";
+  const keptQuery = query();
+  await refused.press("Escape");
+  check(
+    "uncap: 80000 typed into the Ball Speed field goes into the link exactly; text is refused",
+    /(^|&)s=80000(&|$)/.test(typedQuery) && beyond === "1" && typedValue === "80000" && invalidShown && /(^|&)s=80000(&|$)/.test(keptQuery),
+    `(${typedQuery}, beyond=${beyond}, field "${typedValue}", invalid shown=${invalidShown})`,
+  );
+
+  // (B) Bounciness 3 (typed into its field; 1.03 is the old Bouncier switch): bnc=3 in the link and the ball keeps
+  // getting faster – the canvas speed readout passes 1300 px/s within 10 s (no gravity, so only the bounces speed it up).
+  await page.goto(`${BASE}/en/simulator/?mode=lines&g=0`, { waitUntil: "networkidle" });
+  await page.getByLabel("Show Advanced Options").check();
+  await panelSection(/Ball & Physics/);
+  await typeInto('input[data-number-field="bounciness"]', "3");
+  const bounceQuery = query();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const faster = await page
+    .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.uncapSpeed) > 1300, null, { timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  const bounceData = await canvasData();
+  check(
+    "uncap: Bounciness 3 travels as bnc=3 and the speed readout climbs past 1300 px/s within 10 s",
+    /(^|&)bnc=3(&|$)/.test(bounceQuery) && faster && bounceData.uncapShow === "1",
+    `(${bounceQuery}, speed ${bounceData.uncapSpeed} px/s, bounce x${bounceData.uncapBounce}, shown ${bounceData.uncapShow}${loadNote()})`,
+  );
+  await page.getByLabel("Show Advanced Options").uncheck();
+
+  // (C) A Ball Count of 1e6 typed into its field: the link keeps it, the run starts, the crowd fills to its
+  // memory-safety ceiling (ARENA FULL) and the page neither crashes nor stops answering.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  await panelSection(/Ball & Physics/);
+  await typeInto('input[data-number-field="ballCount"]', "1e6");
+  const crowdQuery = query();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const full = await page
+    .waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedFull === "1", null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  const crowdData = await canvasData();
+  const answers = await Promise.race([page.evaluate(() => document.querySelectorAll("main canvas").length), new Promise((r) => setTimeout(() => r(-1), 5000))]);
+  check(
+    "uncap: a Ball Count of 1e6 runs to the memory-safety ceiling (ARENA FULL) without a crash",
+    /(^|&)nb=1000000(&|$)/.test(crowdQuery) && full && answers >= 1,
+    `(${crowdQuery}, full=${crowdData.unlimitedFull}, balls ${crowdData.unlimitedBalls}, crowd ${crowdData.unlimitedCrowd}, page answers=${answers !== -1}${loadNote()})`,
+  );
+
+  // (D) Every slider of every panel section (advanced options on) has a number field next to it.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByLabel("Show Advanced Options").check();
+  const sectionNames = [/Ball & Physics/, /Wall Settings/, /Visual Effects/, /Custom Sound/, /Recording/, /Teams & Scoreboard/, /Obstacles/, /Captions/, /Timeline/, /Arenas & Split Screen/];
+  let sliders = 0;
+  const missing = [];
+  for (const name of sectionNames) {
+    const button = page.getByRole("button", { name }).first();
+    if (!(await button.isVisible().catch(() => false))) continue;
+    await panelSection(name);
+    await page.waitForTimeout(200);
+    const found = await page.evaluate(() => {
+      const out = { sliders: 0, missing: [] };
+      for (const range of document.querySelectorAll('input[type="range"]')) {
+        // Visible sliders only, and not the view controls (scrolling a waveform is not a setting)
+        if (!range.offsetParent || /^Scroll/.test(range.getAttribute("aria-label") || "")) continue;
+        out.sliders++;
+        let box = range.parentElement;
+        let has = false;
+        for (let up = 0; up < 4 && box && !has; up++, box = box.parentElement) has = !!box.querySelector("input[data-number-field]");
+        if (!has) out.missing.push(range.getAttribute("aria-label") || range.getAttribute("data-unlimited-slider") || "?");
+      }
+      return out;
+    });
+    sliders += found.sliders;
+    for (const label of found.missing) if (!missing.includes(label)) missing.push(label);
+  }
+  await page.getByLabel("Show Advanced Options").uncheck();
+  check("uncap: every slider of every panel section has a number field", sliders > 30 && missing.length === 0, `(${sliders} sliders seen, without a field: ${missing.slice(0, 12).join(", ") || "none"})`);
+}
+// --- end uncap-all ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

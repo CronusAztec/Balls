@@ -231,7 +231,7 @@ describe("string battle settings", () => {
     expect(resolveStringBattleSettings(null)).toEqual(DEFAULT_STRING_BATTLE_SETTINGS);
     expect(DEFAULT_STRING_BATTLE_SETTINGS).toMatchObject({ balls: 4, lives: 4, rule: "cut", style: "web", duration: 0, badge: true, hud: true });
     const r = resolveStringBattleSettings({ balls: 9, lives: 0, maxStrings: 99, duration: -5, finaleSpeed: 7, wobble: 2 });
-    expect(r).toMatchObject({ balls: 6, lives: 1, maxStrings: 40, duration: 0, finaleSpeed: 3, wobble: 1 });
+    expect(r).toMatchObject({ balls: 9, lives: 1, maxStrings: 99, duration: 0, finaleSpeed: 7, wobble: 2 }); // --- uncap-all --- (no maximum)
     expect(resolveStringBattleSettings({ balls: 3.6, lives: 2.2, finaleSpeed: 1.26 })).toMatchObject({ balls: 4, lives: 2, finaleSpeed: 1.3 });
     const junk = { rule: "slice", style: "retro", badge: "yes", hud: 1, balls: "x" } as unknown as Partial<StringBattleSettings>;
     expect(resolveStringBattleSettings(junk)).toEqual(DEFAULT_STRING_BATTLE_SETTINGS);
@@ -262,9 +262,9 @@ describe("string battle settings", () => {
     expect(params.get("sbb")).toBe("0");
     expect(settingsFromSearchParams(params)).toEqual(s);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sbn=40&sbl=-2&sbm=1&sbr=laser&sbst=x&sbd=900&sbf=0&sbw=5&sbb=maybe"));
-    expect(stringBattleSettingsOf(bad)).toEqual({ ...DEFAULT_STRING_BATTLE_SETTINGS, balls: 6, lives: 1, maxStrings: 3, duration: 180, finaleSpeed: 1, wobble: 1 });
+    expect(stringBattleSettingsOf(bad)).toEqual({ ...DEFAULT_STRING_BATTLE_SETTINGS, balls: 40, lives: 1, maxStrings: 3, duration: 900, finaleSpeed: 1, wobble: 5 }); // --- uncap-all --- (no maximum)
     const loaded = presetToSettings({ mode: "stringBattle", sbBalls: 1, sbLives: 12, sbRule: "nope", sbStyle: "neon", sbHud: "on" } as unknown as Parameters<typeof presetToSettings>[0]);
-    expect(stringBattleSettingsOf(loaded)).toMatchObject({ balls: 2, lives: 9, rule: "cut", style: "neon", hud: true });
+    expect(stringBattleSettingsOf(loaded)).toMatchObject({ balls: 2, lives: 12, rule: "cut", style: "neon", hud: true }); // --- uncap-all --- (sbLives 12 kept)
   });
 
   it("registers the mode: its id, its card and the battle family", () => {

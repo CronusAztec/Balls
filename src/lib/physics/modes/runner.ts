@@ -3,6 +3,7 @@ import { BeatClock, DEFAULT_BEAT_CLOCK, freshBeatSample, isUsableGrid, type Beat
 import { beatTimeSec, firstBeatAtOrAfter, followsSongGrid, sameBeatSchedule, scheduleBpm, schedulePeriod } from "@/lib/simulation/beatSchedule";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { clampNumber, formatNumber, mulberry32, rhythmChord, rhythmPitch, toStep } from "./jdmRhythm";
+import { memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Beat Runner ("runner" mode, feature jdm-rhythm-runner – the project.jdm "Added realistic gravity to Geometry Dash"
@@ -114,7 +115,7 @@ export function resolveRunnerSettings(config: Partial<RunnerSettings> | null | u
   if (!config) return out;
   const R = RUNNER_RANGES;
   if (typeof config.autoJump === "boolean") out.autoJump = config.autoJump;
-  if (config.obstacles !== undefined) out.obstacles = Math.round(clampNumber(config.obstacles, R.runnerObstacles, out.obstacles));
+  if (config.obstacles !== undefined) out.obstacles = memoryCeiling("runnerObstacles", Math.round(clampNumber(config.obstacles, R.runnerObstacles, out.obstacles)));
   if (config.speed !== undefined) out.speed = toStep(clampNumber(config.speed, R.runnerSpeed, out.speed), R.runnerSpeed.step);
   if (config.jumpHeight !== undefined) out.jumpHeight = toStep(clampNumber(config.jumpHeight, R.runnerJump, out.jumpHeight), R.runnerJump.step);
   if (config.density !== undefined) out.density = toStep(clampNumber(config.density, R.runnerDensity, out.density), R.runnerDensity.step);

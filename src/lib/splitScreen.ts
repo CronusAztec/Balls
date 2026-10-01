@@ -1,4 +1,5 @@
 import { isModeId, type ModeId } from "@/lib/physics/types";
+import { ARENA_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /*
  * --- split-screen --- Split-screen races: 2 or 4 arenas run at once on one canvas and one recording, each with its own
@@ -10,7 +11,8 @@ import { isModeId, type ModeId } from "@/lib/physics/types";
 
 /** Arenas on the canvas: 1 is the classic single view. */
 export const ARENA_COUNTS = [1, 2, 4] as const;
-export type ArenaCount = (typeof ARENA_COUNTS)[number];
+/** --- uncap-all --- Any whole number of arenas from 1 up (the panel's buttons offer 1, 2 and 4; the number field any other). */
+export type ArenaCount = number;
 /** "row": the arenas side by side; "grid": 2 × 2 (four arenas) or stacked (two). */
 export const ARENA_LAYOUTS = ["row", "grid"] as const;
 export type ArenaLayout = (typeof ARENA_LAYOUTS)[number];
@@ -18,7 +20,7 @@ export type ArenaLayout = (typeof ARENA_LAYOUTS)[number];
 export const SOUND_ARENAS = ["first", "all"] as const;
 export type SoundArena = (typeof SOUND_ARENAS)[number];
 
-export const MAX_ARENAS = 4;
+export const MAX_ARENAS = ARENA_CEILING; // --- uncap-all --- (was 4: every arena in play may carry its overrides)
 /** Longest arena label (characters). */
 export const MAX_ARENA_LABEL = 16;
 /** The labels of arenas without one of their own (language-neutral). */
@@ -68,7 +70,7 @@ export function defaultSplitScreenFields(): SplitScreenFields {
 }
 
 export function isArenaCount(value: unknown): value is ArenaCount {
-  return typeof value === "number" && (ARENA_COUNTS as readonly number[]).includes(value);
+  return typeof value === "number" && Number.isInteger(value) && value >= 1; // --- uncap-all --- (any whole number from 1 up)
 }
 export function isArenaLayout(value: unknown): value is ArenaLayout {
   return typeof value === "string" && (ARENA_LAYOUTS as readonly string[]).includes(value);
@@ -87,7 +89,7 @@ export function sanitizeArenaLabel(raw: unknown, trim = true): string {
   return Array.from(trim ? clean.trim() : clean.replace(/^\s+/, "")).slice(0, MAX_ARENA_LABEL).join("");
 }
 
-const clampTo = (value: number, range: { min: number; max: number }) => Math.max(range.min, Math.min(range.max, value));
+const clampTo = (value: number, range: { min: number; max: number }) => atLeastMin(value, range); // --- uncap-all --- (never a maximum)
 const HEX = /^#[0-9a-f]{6}$/i;
 
 /** Validates one override (from a URL, a preset or a project file); null for something that is not one. */
@@ -95,7 +97,7 @@ export function resolveArenaOverride(raw: unknown): ArenaOverride | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const src = raw as Record<string, unknown>;
   const out: ArenaOverride = { label: sanitizeArenaLabel(src.label) };
-  if (typeof src.seed === "number" && Number.isFinite(src.seed)) out.seed = Math.round(clampTo(src.seed, SPLIT_SCREEN_RANGES.arenaSeed)) | 0;
+  if (typeof src.seed === "number" && Number.isFinite(src.seed)) out.seed = Math.round(src.seed) | 0; // --- uncap-all --- (any whole number, as a 32-bit seed)
   if (typeof src.gravity === "number" && Number.isFinite(src.gravity)) out.gravity = clampTo(src.gravity, SPLIT_SCREEN_RANGES.arenaGravity);
   if (typeof src.ballSpeed === "number" && Number.isFinite(src.ballSpeed)) out.ballSpeed = clampTo(src.ballSpeed, SPLIT_SCREEN_RANGES.arenaBallSpeed);
   if (typeof src.ballColor === "string" && HEX.test(src.ballColor)) out.ballColor = src.ballColor.toLowerCase();
@@ -103,12 +105,10 @@ export function resolveArenaOverride(raw: unknown): ArenaOverride | null {
   return out;
 }
 
-/** The nearest allowed arena count (1, 2 or 4) of a number; 1 for anything else. */
+/** A whole arena count of a number (--- uncap-all --- any count from 1 up, as typed); 1 for anything else. */
 export function snapArenaCount(value: unknown): ArenaCount {
   const n = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 1;
-  if (n >= 4) return 4;
-  if (n >= 2) return 2;
-  return 1;
+  return n >= 1 ? n : 1;
 }
 
 /** Validates the feature's fields (URL parameters, presets and project files alike): a known count, layout and sound, clean overrides. */
@@ -138,7 +138,10 @@ export function splitScreenActive(settings: Pick<SplitScreenFields, "arenaCount"
  */
 export function resolvedArenas(settings: Pick<SplitScreenFields, "arenaCount" | "arenas">): ArenaOverride[] {
   const out: ArenaOverride[] = [];
-  for (let i = 0; i < settings.arenaCount; i++) {
+  // --- uncap-all --- the arenas a run builds: at most ARENA_CEILING (each is a whole engine and a part of the canvas – the
+  // memory-safety ceiling); the setting keeps the typed count
+  const n = memoryCeiling("arenaCount", settings.arenaCount);
+  for (let i = 0; i < n; i++) {
     const a = settings.arenas[i];
     const entry: ArenaOverride = { ...(a ?? {}), label: a?.label || DEFAULT_ARENA_LABELS[i] || String(i + 1) };
     if (i === 0) delete entry.mode;

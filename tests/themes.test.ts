@@ -168,7 +168,7 @@ describe("theme settings", () => {
     expect(s.themeId).toBe("");
     expect(s.backgroundType).toBe("solid");
     expect(s.backgroundColors).toEqual(["#0a0a0a", "#aabbcc"]); // short hex normalised, the bad one kept at its default
-    expect(s.backgroundDim).toBe(1);
+    expect(s.backgroundDim).toBe(7); // --- uncap-all --- (bgd=7 kept)
     expect(s.particleStyle).toBe("confetti");
     expect(s.trailColors).toEqual([]); // one colour is not a pair
   });

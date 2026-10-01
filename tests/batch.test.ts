@@ -58,12 +58,12 @@ describe("batch definition", () => {
     const d = def({ source: "list", count: 7, list: "1\n2", variant: "sweep", modes: ["portal", "classic"], sweepKey: "ballSpeed", sweepFrom: 200, sweepTo: 600, sweepSteps: 5, downloadEach: false });
     expect(parseBatchDefinition(JSON.parse(JSON.stringify({ v: 1, ...d })))).toEqual(d);
     const bad = parseBatchDefinition({ source: "web", count: 999, list: 42, variant: "all", modes: ["classic", "nope", "classic", 3], sweepKey: "bogus", sweepFrom: "x", sweepTo: 1e9, sweepSteps: 0, downloadEach: "yes" });
-    expect(bad).toEqual({ ...defaultBatchDefinition(), count: MAX_BATCH_JOBS, modes: ["classic"], sweepSteps: 2, sweepTo: RANGES.gravity.max });
+    expect(bad).toEqual({ ...defaultBatchDefinition(), count: MAX_BATCH_JOBS, modes: ["classic"], sweepSteps: 2, sweepTo: 1e9 }); // --- uncap-all --- (the clips stop at the memory ceiling, the sweep's end is kept)
     expect(parseBatchDefinition(null)).toEqual(defaultBatchDefinition());
     expect(parseBatchDefinition([1, 2])).toEqual(defaultBatchDefinition());
     expect(parseBatchDefinition({ list: "x".repeat(BATCH_LIST_MAX_CHARS + 50) }).list.length).toBe(BATCH_LIST_MAX_CHARS);
-    // The sweep's ends are clamped to the swept setting's range.
-    expect(parseBatchDefinition({ sweepKey: "gapSize", sweepFrom: -3, sweepTo: 9 })).toMatchObject({ sweepFrom: RANGES.gapSize.min, sweepTo: RANGES.gapSize.max });
+    // The sweep's ends start at the swept setting's minimum and have no maximum (--- uncap-all ---).
+    expect(parseBatchDefinition({ sweepKey: "gapSize", sweepFrom: -3, sweepTo: 9 })).toMatchObject({ sweepFrom: RANGES.gapSize.min, sweepTo: 9 });
   });
 
   describe("localStorage", () => {
@@ -155,9 +155,9 @@ describe("variants", () => {
     expect(sweepValues("gravity", 600, 0, 3)).toEqual([600, 300, 0]);
     expect(sweepValues("gapSize", 0.1, 0.4, 4)).toEqual([0.1, 0.2, 0.3, 0.4]);
     expect(sweepValues("wallCount", 3, 5, 12)).toEqual([3, 4, 5]);
-    expect(sweepValues("ballSpeed", -100, 5000, 2)).toEqual([RANGES.ballSpeed.min, RANGES.ballSpeed.max]);
+    expect(sweepValues("ballSpeed", -100, 5000, 2)).toEqual([RANGES.ballSpeed.min, 5000]); // --- uncap-all --- (a sweep past the slider runs as typed)
     expect(sweepValues("gravity", 100, 200, 1)).toEqual([100, 200]); // at least two steps
-    expect(snapToRange(0.123456, { min: 0, max: 0.05, step: 0.001 })).toBe(0.05);
+    expect(snapToRange(0.123456, { min: 0, max: 0.05, step: 0.001 })).toBe(0.123); // --- uncap-all --- (on the step, never a maximum)
     expect(snapToRange(0.0234, { min: 0, max: 0.05, step: 0.001 })).toBe(0.023);
     expect(snapToRange(Number.NaN, { min: 4, max: 30, step: 1 })).toBe(4);
   });

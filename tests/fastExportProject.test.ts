@@ -14,7 +14,7 @@ describe("fast export frame rate in project files and share codes", () => {
     expect(parsed.ok && parsed.project.settings.recordingResolution).toBe("1080x1920");
 
     const raw = JSON.parse(serializeProject(buildProject({ name: "odd", settings }))) as { settings: Record<string, unknown> };
-    for (const [value, expected] of [[24, 30], [50, 60], [120, 60], ["fast", DEFAULT_FAST_EXPORT_FPS]] as const) {
+    for (const [value, expected] of [[24, 30], [50, 50], [120, 120], ["fast", DEFAULT_FAST_EXPORT_FPS]] as const) { // --- uncap-all --- any frame rate from 30 up
       raw.settings.fastExportFps = value;
       const odd = parseProject(JSON.stringify(raw));
       expect(odd.ok && odd.project.settings.fastExportFps).toBe(expected);

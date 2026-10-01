@@ -55,10 +55,11 @@ import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld
 // --- unlimited --- No limits: soft ceilings, the crowd, finite numbers, the ate-the-arena finish
 import { UnlimitedRuntime, WALL_HITS_KEPT, type LimitsHost, type UnlimitedView } from "./limits";
 import type { Crowd } from "./crowd";
-import { MAX_EFFECTIVE_BOUNCE } from "./multipliers";
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
+import { BOUNCIER_CLASSIC_MAX, bouncierIncrementOf } from "@/lib/uncap"; // --- uncap-all --- the uncapped Bouncier
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
+import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -200,8 +201,8 @@ export class PhysicsEngine {
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
   private bounceSpeedMultiplier = 1;
-  private readonly bouncierIncrement = 0.03;
-  private readonly bouncierMaxMultiplier = 3;
+  // --- uncap-all --- the rebound gain per bounce is the Bounciness − 1 (0.03 = the old switch) and has no ceiling
+  private bouncierIncrement = 0.03;
   private cinematicDirector = new CinematicDirector();
   private _seed = 0;
   private _rngState = 0;
@@ -340,6 +341,7 @@ export class PhysicsEngine {
       reportWallBreak: (ball, wallIndex) => this.reportWallBreak(ball, wallIndex),
       creditWallBreak: (ball) => this.ballStats.wall(ball), // --- teams ---
       isBouncierEnabled: () => this.bouncierEnabled,
+      getBouncierIncrement: () => this.bouncierIncrement, // --- uncap-all ---
       getBounceSpeedMultiplier: () => this.bounceSpeedMultiplier,
       setBounceSpeedMultiplier: (value) => {
         this.bounceSpeedMultiplier = value;
@@ -733,6 +735,21 @@ export class PhysicsEngine {
     this.bouncierEnabled = enabled;
     if (!enabled) this.bounceSpeedMultiplier = 1;
   }
+  // --- uncap-all ---
+  /**
+   * The numeric Bounciness (the uncapped Bouncier): every wall bounce adds (value − 1) × the Ball Speed to the rebound
+   * multiplier – 1.03 is the old switch, 3 adds 200 % a bounce, 1e6 a million times – with no ceiling; 1 (or less) is off.
+   * The multiplier resets on a gap pass or a wall break, as it always did.
+   */
+  setBounciness(value: number) {
+    const increment = bouncierIncrementOf(value);
+    if (increment > 0) this.bouncierIncrement = increment;
+    this.setBouncier(increment > 0);
+  }
+  getBouncierIncrement() {
+    return this.bouncierIncrement;
+  }
+  // --- end uncap-all ---
   isBouncierEnabled() {
     return this.bouncierEnabled;
   }
@@ -874,7 +891,7 @@ export class PhysicsEngine {
     w.gDirY = gDirY;
     w.windX = this.extras.windX * base;
     w.windY = this.extras.windY * base;
-    w.dragKeep = this.extras.airDrag > 0 ? 1 - this.extras.airDrag : 1;
+    w.dragKeep = this.extras.airDrag > 0 ? Math.max(0, 1 - this.extras.airDrag) : 1; // --- uncap-all --- a drag of 1 or more stops the ball each step
     w.keepMoving = keepMoving;
     // Picture Paint's beat sync times the ball itself: On beat stands aside while it runs.
     const paint = this.currentMode === this.paintMode ? this.paintMode.getOptions() : null;
@@ -1730,7 +1747,7 @@ export class PhysicsEngine {
       this._config = this.limits.ceilPatch(this._config, this._config);
       this.limits.liftPhysics(this.extras, this.interaction, this._config);
       this.breathing = this.extras.breathingAmplitude > 0;
-      this.multipliers.setConfig({ ...this._config, mpUnlimited: true });
+      // (--- uncap-all --- the multipliers keep the creator's own cap choice: `mpUnlimited` is on by default, uncapped)
       // Rings built from a count past the ceiling before the switch arrived: rebuilt at the ceiling.
       if (this.circularWalls.length > LIVE_WALL_LIMIT) {
         this.restoreWallRadii();
@@ -1739,7 +1756,7 @@ export class PhysicsEngine {
         this.brokenWalls.clear();
       }
     }
-    this.multipliers.bounceCap = this.limits.on ? Infinity : MAX_EFFECTIVE_BOUNCE;
+    this.multipliers.bounceCap = Infinity; // --- uncap-all --- a bounce multiplier scales every rebound without a ceiling, whatever the switch
   }
   /** What the canvas shows of a No limits run: the crowd, ARENA FULL, the ate-the-arena finish. */
   getUnlimitedView(): UnlimitedView {
@@ -1960,7 +1977,9 @@ export class PhysicsEngine {
     const walls = this.circularWalls;
     if (this.wallBaseRadii.length !== walls.length) this.syncWallBaseRadii();
     const cycles = this.timeline.active ? this.timeline.integralAt("breathingSpeed", tMs / 1000) : NaN;
-    const scale = Number.isNaN(cycles) ? breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000) : breathingScaleAtPhase(amplitude, cycles);
+    const pulse = Number.isNaN(cycles) ? breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000) : breathingScaleAtPhase(amplitude, cycles);
+    // --- uncap-all --- breathing past ±100 % shrinks a ring to a point, never to a negative radius (a ring has none)
+    const scale = pulse > 0 ? pulse : 0;
     const prev = this.wallPrevRadii;
     for (let i = 0; i < walls.length; i++) {
       prev[i] = walls[i].radius;
@@ -2024,7 +2043,10 @@ export class PhysicsEngine {
       // Without multipliers `plan` is null and the step is exactly the fixed step, as before.
       const multActive = mult.isActive(modeName);
       // --- unlimited --- with No limits on every step is planned (bounded sub-steps, time dilation beyond) and a new run's crowd appears
-      const limitsOn = this.limits.on;
+      // --- uncap-all --- engaged by the config or by the run: rebounds a Bounciness grew past the old Bouncier's ×3 are
+      // planned like every extreme run (sub-steps up to 64, time dilation beyond – the run slows down, never clamps)
+      const limitsOn = this.limits.engage(this.bouncierEnabled && this.bounceSpeedMultiplier > BOUNCIER_CLASSIC_MAX);
+      beginPairStep(limitsOn ? PAIR_STEP_BUDGET : Infinity); // --- uncap-all --- (an extreme step's pair checks are budgeted; a normal one never meets it)
       if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
       if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
       const plan = multActive || limitsOn ? mult.planStep(this.balls, this.FIXED_STEP_MS / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
@@ -2065,7 +2087,7 @@ export class PhysicsEngine {
       // terms are constant within the step and applied per sub-step below. Each is skipped at
       // its default so a run without extras takes exactly the original code path.
       if (extras.airDrag > 0) {
-        const keep = 1 - extras.airDrag;
+        const keep = Math.max(0, 1 - extras.airDrag); // --- uncap-all --- a drag of 1 or more stops the balls each step (never reverses them)
         for (const ball of this.balls) {
           ball.vx *= keep;
           ball.vy *= keep;
@@ -2093,8 +2115,10 @@ export class PhysicsEngine {
         this.cinematicDirector.rig.markInside(this.balls); // the backstop below keeps these balls in
       }
 
-      let subSteps =
-        this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
+      // (--- uncap-all --- up to the old Bouncier's ×3 the sub-steps it always had – old runs replay exactly –; past it the
+      // planned step above takes over: `plan.subSteps` and the time dilation, never an unbounded sub-step count)
+      const bouncierSubMult = this.bounceSpeedMultiplier > BOUNCIER_CLASSIC_MAX ? BOUNCIER_CLASSIC_MAX : this.bounceSpeedMultiplier;
+      let subSteps = this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * bouncierSubMult) : 4;
       if (plan && plan.subSteps > subSteps) subSteps = plan.subSteps; // --- gerald-multipliers ---
       const subMs = stepMs / subSteps;
       const subSec = subMs / 1000;
@@ -2199,6 +2223,7 @@ export class PhysicsEngine {
       }
       if (mult.isOutgrown()) break; // --- gerald-multipliers --- the run just ended
     }
+    beginPairStep(Infinity); // --- uncap-all --- (queries outside a step – a mode's init – are never budgeted)
     if (this.finishedAtMs < 0 && this.isSimulationFinished()) this.finishedAtMs = this._elapsedMs; // --- split-screen --- (the race's finish time)
     this.updateParticles(frameMs / 1000);
   }
@@ -2212,7 +2237,8 @@ export class PhysicsEngine {
   /** The fastest rebound the rings may give a ×1 ball this step (0 in modes without the engine's ring rebounds). */
   private reboundSpeedBound() {
     if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return 0;
-    const bouncier = this.bouncierEnabled ? Math.min(this.bouncierMaxMultiplier, this.bounceSpeedMultiplier + 0.3) : 1;
+    // --- uncap-all --- no ceiling: the next few bounces' gain on top of the multiplier (0.3 for the old switch's 0.03 steps)
+    const bouncier = this.bouncierEnabled ? this.bounceSpeedMultiplier + Math.max(0.3, 2 * this.bouncierIncrement) : 1;
     return (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
   }
 
@@ -2437,7 +2463,7 @@ export class PhysicsEngine {
         this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
         this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
-          this.bounceSpeedMultiplier = Math.min(this.bounceSpeedMultiplier + this.bouncierIncrement, this.bouncierMaxMultiplier);
+          this.bounceSpeedMultiplier = this.bounceSpeedMultiplier + this.bouncierIncrement; // --- uncap-all --- (no ceiling: faster on every bounce, forever)
         }
         if (!result?.suppressBounce) {
           const baseSpeed = this._config.ballSpeed || 400;

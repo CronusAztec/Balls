@@ -1,4 +1,5 @@
 import type { ModeId } from "@/lib/physics/types";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Cinematic camera: the settings and the pure maths behind the camera zoom, the screen shake on wall
@@ -49,7 +50,7 @@ export const CAMERA_SETTING_KEYS = Object.keys(DEFAULT_CAMERA_SETTINGS) as (keyo
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every number to its range; a non-number falls back to the default, a non-boolean flag to "off". */
@@ -93,7 +94,7 @@ export const ZOOM_EASE = 0.05;
 
 /** View scale for a zoom setting: 1 at 0 (no zoom), `MAX_CAMERA_SCALE` at 1. */
 export function zoomScale(cameraZoom: number): number {
-  const z = Number.isFinite(cameraZoom) ? Math.max(0, Math.min(1, cameraZoom)) : 0;
+  const z = Number.isFinite(cameraZoom) ? Math.max(0, cameraZoom) : 0; // --- uncap-all --- past 1 zooms further in
   return 1 + z * (MAX_CAMERA_SCALE - 1);
 }
 

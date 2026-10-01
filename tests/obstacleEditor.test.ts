@@ -149,7 +149,7 @@ describe("obstacle URL form", () => {
 
     const bad = settingsFromSearchParams(new URLSearchParams("mode=classic&obs=z:1,2&obb=9"));
     expect(bad.obstacles).toEqual([]);
-    expect(bad.bumperBoost).toBe(2);
+    expect(bad.bumperBoost).toBe(9); // --- uncap-all --- (obb=9 kept)
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&obb=abc")).bumperBoost).toBe(DEFAULT_BUMPER_BOOST);
   });
 

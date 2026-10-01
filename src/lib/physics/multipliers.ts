@@ -1,4 +1,5 @@
 import type { Ball, CircularWall, ModeContext, ModeId, SoundEvent } from "./types";
+import { ENTITY_CEILING, uncapped } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Stat multipliers (the geraldbounces "multipliers" formats: "the ball gets faster to unlimited, and size and damage
@@ -48,12 +49,15 @@ export function copyMultipliers(mult: BallMultipliers | undefined): BallMultipli
 }
 
 /**
- * Keeps a stacked value a finite float: 1e15 is far beyond anything a run reaches (2⁵⁰), so it is not a gameplay cap
- * – it only stops a pathological stack from overflowing to Infinity.
+ * Keeps a stacked value a finite float – --- uncap-all --- the float range itself (the largest finite number), so a
+ * stack is never cut short; it only stops a pathological stack from overflowing to Infinity.
  */
-export const MULTIPLIER_CEILING = 1e15;
-/** The restitution factor a bounce multiplier may reach (the stat is uncapped, its effect is not – for stability). */
-export const MAX_EFFECTIVE_BOUNCE = 1.5;
+export const MULTIPLIER_CEILING = Number.MAX_VALUE;
+/**
+ * The restitution factor a bounce multiplier may reach – --- uncap-all --- none: the engine plans the sub-steps of every
+ * rebound it gives (time dilation beyond 64), so a bounce stat scales the rebounds as far as it goes.
+ */
+export const MAX_EFFECTIVE_BOUNCE = Infinity;
 
 /** The cap in effect: Infinity while unlimited (or with the cap at 0). */
 export function effectiveCap(config: Pick<MultiplierConfig, "mpUnlimited" | "mpCap">): number {
@@ -226,8 +230,7 @@ export const MULTIPLIER_RANGES = {
 } as const;
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return uncapped(value, range, fallback); // --- uncap-all --- (a finite number from the minimum up, never a maximum)
 }
 
 /** Keeps the known kinds of a comma-separated list, in canonical order, without duplicates ("" when none is left). */
@@ -407,6 +410,14 @@ export interface PickupOrb {
 
 /** Most orbs afloat at once. */
 export const MAX_ORBS = 5;
+/**
+ * --- uncap-all --- Orbs afloat at once for a pickup rate: `MAX_ORBS` up to the slider's 3 orbs per 10 s, then in
+ * proportion to the rate (300 a second → 500 at once), up to the entities' memory-safety ceiling.
+ */
+export function orbsAfloat(rate: number): number {
+  const scaled = rate > MULTIPLIER_RANGES.pickupRate.max ? Math.ceil((MAX_ORBS * rate) / MULTIPLIER_RANGES.pickupRate.max) : MAX_ORBS;
+  return scaled > ENTITY_CEILING ? ENTITY_CEILING : scaled;
+}
 /** Orb drift speed range, px/s. */
 export const ORB_DRIFT_MIN = 12;
 export const ORB_DRIFT_MAX = 30;
@@ -681,7 +692,7 @@ export class MultiplierRuntime {
     if (Number.isNaN(this.nextSpawnMs)) this.nextSpawnMs = now + 1000 * pickupInterval(this.config.pickupRate, ctx.random());
     if (now < this.nextSpawnMs) return;
     this.nextSpawnMs = now + 1000 * pickupInterval(this.config.pickupRate, ctx.random());
-    if (orbs.length >= MAX_ORBS) return;
+    if (orbs.length >= orbsAfloat(this.config.pickupRate)) return; // --- uncap-all --- (more orbs afloat at rates past the slider)
     const balls = ctx.getBalls();
     const ref = balls.find((b) => !b.frozen);
     if (!ref || walls.length === 0) return;

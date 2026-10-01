@@ -790,8 +790,8 @@ describe("Pendulum Wave settings", () => {
   it("resolve to the defaults, clamp the numbers, turn a 1–2 sided polygon into the circle and reject unknown options", () => {
     expect(resolvePendulumSettings(undefined)).toEqual(DEFAULT_PENDULUM_SETTINGS);
     const r = resolvePendulumSettings({ count: 99, baseOscillations: 1, cycleSeconds: 999, amplitude: 90, layout: "spiral" as PendulumSettings["layout"], polygon: 2, phasing: true, trails: 3, soundOn: "never" as PendulumSettings["soundOn"], pitchDirection: "sideways" as PendulumSettings["pitchDirection"], waveChord: false, cycles: 12.4 });
-    expect(r).toEqual({ count: 60, baseOscillations: 4, cycleSeconds: 180, amplitude: 60, layout: "row", polygon: 0, phasing: true, trails: 1, soundOn: "center", pitchDirection: "up", waveChord: false, cycles: 10 });
-    expect(resolvePendulumSettings({ polygon: 9 }).polygon).toBe(8);
+    expect(r).toEqual({ count: 99, baseOscillations: 4, cycleSeconds: 999, amplitude: 90, layout: "row", polygon: 0, phasing: true, trails: 3, soundOn: "center", pitchDirection: "up", waveChord: false, cycles: 12 }); // --- uncap-all --- (no maximum)
+    expect(resolvePendulumSettings({ polygon: 9 }).polygon).toBe(9);
     expect(resolvePendulumSettings({ polygon: 5.4 }).polygon).toBe(5);
     expect(resolvePendulumSettings({ count: Number.NaN }).count).toBe(DEFAULT_PENDULUM_SETTINGS.count);
     for (const key of Object.keys(PENDULUM_RANGES) as (keyof typeof PENDULUM_RANGES)[]) expect(RANGES[key]).toEqual(PENDULUM_RANGES[key]);
@@ -825,8 +825,8 @@ describe("Pendulum Wave settings", () => {
 
   it("fall back for bad URL values and presets", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=pendulum&pwn=500&pwk=abc&pwt=1&pwl=zigzag&pwp=1&pws=loud&pwpd=up&pwc=-4&pwtr=2"));
-    expect(pendulumSettingsOf(fromUrl)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, count: 60, cycleSeconds: 10, polygon: 0, cycles: 0, trails: 1 });
+    expect(pendulumSettingsOf(fromUrl)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, count: 500, cycleSeconds: 10, polygon: 0, cycles: 0, trails: 2 }); // --- uncap-all --- (pwn=500, pwtr=2 kept)
     const preset = presetToSettings({ mode: "pendulum", pwCount: 0, pwLayout: "sliding", pwSoundOn: "extremes", pwPolygon: 4, pwWaveChord: "yes", pwCycles: 99 } as unknown as Partial<SimulatorSettings>);
-    expect(pendulumSettingsOf(preset)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, count: 5, layout: "sliding", soundOn: "extremes", polygon: 4, cycles: 10 });
+    expect(pendulumSettingsOf(preset)).toEqual({ ...DEFAULT_PENDULUM_SETTINGS, count: 5, layout: "sliding", soundOn: "extremes", polygon: 4, cycles: 99 }); // --- uncap-all --- (pwCycles 99 kept)
   });
 });

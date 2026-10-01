@@ -98,7 +98,8 @@ describe("stat multipliers: the maths", () => {
     expect(stackMultiplier(3, 1.5)).toBe(4.5);
     // A division goes below ×1, and only a float-safety ceiling far beyond any run stops a pathological stack.
     expect(stackMultiplier(1, 0.5)).toBe(0.5);
-    expect(stackMultiplier(2 ** 49, 2 ** 20)).toBe(MULTIPLIER_CEILING);
+    expect(stackMultiplier(2 ** 49, 2 ** 20)).toBe(2 ** 69); // --- uncap-all --- the float-safety ceiling is the float range itself
+    expect(stackMultiplier(1e300, 1e300)).toBe(MULTIPLIER_CEILING);
     expect(clampMultiplier(Number.NaN)).toBe(1);
     expect(effectiveCap(DEFAULT_MULTIPLIER_CONFIG)).toBe(Infinity);
     expect(effectiveCap({ mpUnlimited: true, mpCap: 8 })).toBe(Infinity);
@@ -147,7 +148,8 @@ describe("stat multipliers: the maths", () => {
     const b = ball();
     for (let i = 0; i < 8; i++) applyMultiplier(b, "bounce", 2);
     expect(b.mult!.bounce).toBe(256);
-    expect(effectiveBounce(b)).toBe(MAX_EFFECTIVE_BOUNCE);
+    expect(effectiveBounce(b)).toBe(256); // --- uncap-all --- no cap on the effect (MAX_EFFECTIVE_BOUNCE is Infinity)
+    expect(MAX_EFFECTIVE_BOUNCE).toBe(Infinity);
   });
 
   it("formats factors for the HUD", () => {
@@ -723,9 +725,9 @@ describe("multiplier settings", () => {
 
   it("clamp URL parameters and presets, and keep only known pickup kinds", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mpc=99999&wst=0&mpr=9&mpl=-3&mpty=gravity,nope,SPEED,speed&mpu=maybe"));
-    expect(s.mpCap).toBe(1000);
+    expect(s.mpCap).toBe(99999); // --- uncap-all --- (no maximum)
     expect(s.wallSmashThreshold).toBe(2);
-    expect(s.pickupRate).toBe(3);
+    expect(s.pickupRate).toBe(9); // --- uncap-all --- (no maximum)
     expect(s.pickupLifetime).toBe(2);
     expect(s.pickupTypes).toBe("speed,gravity");
     expect(s.mpUnlimited).toBe(true);

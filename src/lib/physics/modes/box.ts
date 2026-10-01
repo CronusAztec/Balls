@@ -1,4 +1,5 @@
 import type { Ball, GameMode, ModeContext } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Bouncing Shapes ("box" mode, the project.jdm DVD / countdown formats): no rings. A rectangular box
@@ -89,14 +90,14 @@ export interface BoxSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range (counts become whole numbers; unknown shapes / ratios and bad numbers fall back to the defaults). */
 export function resolveBoxSettings(config: Partial<BoxSettings> | null | undefined): BoxSettings {
   const out = { ...DEFAULT_BOX_SETTINGS };
   if (!config) return out;
-  if (config.shapeCount !== undefined) out.shapeCount = Math.round(clampNumber(config.shapeCount, BOX_RANGES.boxShapeCount, out.shapeCount));
+  if (config.shapeCount !== undefined) out.shapeCount = memoryCeiling("boxShapeCount", Math.round(clampNumber(config.shapeCount, BOX_RANGES.boxShapeCount, out.shapeCount)));
   if (isBoxShape(config.shape)) out.shape = config.shape;
   if (config.aspect !== undefined) out.aspect = clampNumber(config.aspect, BOX_RANGES.boxAspect, out.aspect);
   if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, BOX_RANGES.boxGravity, out.gravity);

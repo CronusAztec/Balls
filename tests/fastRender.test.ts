@@ -286,7 +286,7 @@ describe("fast export: settings", () => {
   it("defaults to 60 fps, snaps anything else to 30 or 60 and travels in links (xfps) and presets", () => {
     expect(defaultSettings().fastExportFps).toBe(DEFAULT_FAST_EXPORT_FPS);
     expect(DEFAULT_FAST_EXPORT_FPS).toBe(60);
-    expect([30, 60, "30", 44, 45, 120, Number.NaN, undefined, "x"].map(resolveFastExportFps)).toEqual([30, 60, 30, 30, 60, 60, 60, 60, 60]);
+    expect([30, 60, "30", 44, 45, 120, Number.NaN, undefined, "x"].map(resolveFastExportFps)).toEqual([30, 60, 30, 44, 45, 120, 60, 60, 60]); // --- uncap-all --- any frame rate from 30 up
     const s = { ...defaultSettings("classic"), fastExportFps: 30 };
     const params = settingsToSearchParams(s);
     expect(params.get("xfps")).toBe("30");
@@ -294,7 +294,7 @@ describe("fast export: settings", () => {
     expect(settingsToSearchParams(defaultSettings("classic")).has("xfps")).toBe(false);
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&xfps=25")).fastExportFps).toBe(30);
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&xfps=abc")).fastExportFps).toBe(60);
-    expect(presetToSettings({ mode: "box", fastExportFps: 59 }).fastExportFps).toBe(60);
+    expect(presetToSettings({ mode: "box", fastExportFps: 59 }).fastExportFps).toBe(59); // --- uncap-all --- (kept)
     expect(presetToSettings({ mode: "box" }).fastExportFps).toBe(60);
   });
 });

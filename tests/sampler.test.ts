@@ -122,14 +122,14 @@ describe("hit sample settings", () => {
     const back = settingsFromSearchParams(new URLSearchParams("mode=classic&hsm=loud&hs=custom&hsv=7"));
     expect(back.hitSoundMode).toBe("tones");
     expect(back.hitSampleId).toBe(DEFAULT_HIT_SAMPLE_ID);
-    expect(back.hitSampleVolume).toBe(1);
+    expect(back.hitSampleVolume).toBe(7); // --- uncap-all --- (hsv=7 kept)
   });
 
   it("fall back to the default clip when a preset refers to an upload that is gone", () => {
     const s = presetToSettings({ mode: "classic", hitSoundMode: "sample", hitSampleId: CUSTOM_HIT_SAMPLE_ID, hitSampleVolume: 2 });
     expect(s.hitSoundMode).toBe("sample");
     expect(s.hitSampleId).toBe(DEFAULT_HIT_SAMPLE_ID);
-    expect(s.hitSampleVolume).toBe(1);
+    expect(s.hitSampleVolume).toBe(2); // --- uncap-all --- (kept)
     const old = presetToSettings({ mode: "grow", gravity: 50 });
     expect(old.hitSoundMode).toBe("tones");
     expect(old.hitSampleId).toBe(DEFAULT_HIT_SAMPLE_ID);

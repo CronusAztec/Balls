@@ -739,10 +739,10 @@ describe("Collision Playground settings", () => {
 
   it("clamp URL parameters and presets to their ranges", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=collide&cpn=99999&cpsz=-1&cpc=hexagon&cpg=7&cpe=0.2&cpac=12.6&cpsq=maybe"));
-    expect(fromUrl.cpCount).toBe(2000);
+    expect(fromUrl.cpCount).toBe(99999); // --- uncap-all --- (kept; the playground builds at most its memory-safety ceiling)
     expect(fromUrl.cpSizeSpread).toBe(0);
     expect(fromUrl.cpContainer).toBe("circle");
-    expect(fromUrl.cpGravity).toBe(1);
+    expect(fromUrl.cpGravity).toBe(7); // --- uncap-all --- (cpg=7 kept)
     expect(fromUrl.cpRestitution).toBe(0.7);
     expect(fromUrl.cpAntiCollisionAt).toBe(13);
     expect(fromUrl.cpSquishy).toBe(false);
