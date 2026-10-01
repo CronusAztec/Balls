@@ -7,9 +7,9 @@ import { startBallColor, startBallCount } from "./ballStats";
  * clock – the k-th one in the 60 Hz step whose end first reaches k × N seconds – into the innermost ring still standing,
  * falling at a share of the Ball Speed in a seeded direction within `RESPAWN_SPREAD` of straight down. The drop plays the
  * conveyor's click (`SoundEvent.conveyor`). It is a physics value: it travels in `PhysicsConfig.respawnEvery`, so the page's
- * config effects, the seed finder (which copies the page engine's config), the fast export and the batch render all run it,
- * and a seed replays exactly with it. Nothing changes while it is 0 – no random number is drawn – so every run without it
- * replays as before.
+ * config effects, the seed finder (which copies the page engine's config), the fast export, the batch render and the
+ * split-screen arenas (`arenaPhysicsConfig()` in lib/simulation/multi.ts) all run it, and a seed replays exactly with it.
+ * Nothing changes while it is 0 – no random number is drawn – so every run without it replays as before.
  *
  * Classic stops respawning once every ring is broken (there is nothing left to escape, and the run can end); Multiply's ring
  * is never broken for good, so it respawns as long as it runs. A run holds at most `RESPAWN_MAX_BALLS` balls (a soft,

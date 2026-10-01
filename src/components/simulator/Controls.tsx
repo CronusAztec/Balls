@@ -1740,6 +1740,7 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         ballCount: d.ballCount, // --- teams --- (a team roster keeps its balls: see the Teams section)
         ...multiplierConfigOf(d), // --- gerald-multipliers --- pickups, cap, smash threshold
         ...defaultBounceMathFields(), // --- bounce-math --- no rules, Show values on
+        respawnEvery: d.respawnEvery, // --- gerald-conveyor --- the respawn timer of Classic and Multiply (off)
       };
     case "wall":
       return {

@@ -4,6 +4,7 @@ import { ballInteractionOf } from "@/lib/physics/interactions";
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
+import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
@@ -72,6 +73,7 @@ export function arenaPhysicsConfig(s: SimulatorSettings, withTimeline = true): O
     ...multiplierConfigOf(s),
     ...obstacleConfigOf(s),
     ...exitSplatConfigOf(s), // --- gerald-exit-splat ---
+    ...respawnConfigOf(s), // --- gerald-conveyor --- the respawn timer of Classic and Multiply (arenas 2…n follow a new period, as the page does)
     ...riggedConfigOf(s),
     ...(withTimeline ? { timeline: engineTimelineOf(s) } : {}),
   };
