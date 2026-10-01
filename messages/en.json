@@ -1474,7 +1474,8 @@
     "publish": "Publish",
     "publishTip": "Send the finished clip to your TikTok, Instagram and YouTube accounts – several per platform – in one click: YouTube straight from the browser, TikTok and Instagram through a small relay you host, or the no-setup share buttons.",
     "publishAccounts": "Accounts (TikTok, Instagram, YouTube)",
-    "publishQuickShare": "Quick share"
+    "publishQuickShare": "Quick share",
+    "unlimited": "No limits"
   },
   "Modes": {
     "classic": {
@@ -3009,5 +3010,20 @@
         "badUrl": "The relay URL is not a valid http(s) address."
       }
     }
+  },
+  "Unlimited": {
+    "label": "No limits",
+    "tip": "Every number past its slider: type a million balls, a billion speed or a thousand rings. The run may melt – it slows down and draws cheaper – but the tab keeps going and the recording keeps rolling.",
+    "on": "ON",
+    "off": "OFF",
+    "warning": "Extreme values can slow the run to a crawl – that is the point. Allowed to melt, never to crash.",
+    "typeValue": "Type a value for {label}",
+    "invalidValue": "Not a valid value: a finite number of at least {min}.",
+    "softCeiling": "The engine runs at most {value} of this; the link keeps your number.",
+    "finderLimited": "No limits: a heavy run – only {count} seeds tested, a slice of every frame at a time.",
+    "canvasRealTime": "x[ratio] REAL TIME",
+    "canvasArenaFull": "ARENA FULL",
+    "canvasBalls": "[count] BALLS",
+    "canvasAteArena": "THE BALL ATE THE ARENA"
   }
 }

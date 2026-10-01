@@ -63,6 +63,8 @@ import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, reso
 import type { BeatSourceKind } from "@/lib/simulation/beatSource";
 // --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
 import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, resolveBounceMathFields, writeBounceMathParams, type BounceRule } from "@/lib/simulation/bounceMath";
+// --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
+import { UNLIMITED_URL_KEY, discoverUrlKeys, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -664,6 +666,10 @@ export interface SimulatorSettings {
   /** "Show values": the bounce-math HUD badge on the canvas while rules are in play (URL `bmh`). */
   bounceMathHud: boolean;
   // --- end bounce-math ---
+  // --- unlimited --- No limits (lib/unlimited.ts, lib/physics/limits.ts): every numeric setting past its slider range, extreme
+  // runs that melt but never crash; off by default (URL `inf`)
+  unlimited: boolean;
+  // --- end unlimited ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -782,6 +788,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...beatDropModeDefaults(mode),
     ...defaultVideoBeatsFields(), // --- video-beats ---
     ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
+    unlimited: false, // --- unlimited ---
   };
 }
 
@@ -1016,6 +1023,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
   ne: "neverEscape", // --- rigged ---
+  [UNLIMITED_URL_KEY]: "unlimited", // --- unlimited --- `inf=1`
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -1092,6 +1100,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
+  writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
 }
 
@@ -1213,6 +1222,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
+  readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   return settings;
 }
 
@@ -1299,6 +1309,52 @@ function clampMultiplierSettings(settings: SimulatorSettings) {
   Object.assign(settings, resolveMultiplierConfig(multiplierConfigOf(settings)));
   Object.assign(settings, multipliersSettingFields(resolveMultipliersSettings(multipliersSettingsOf(settings))));
 }
+
+// --- unlimited ---
+type UnlimitedRecord = Record<string, unknown>;
+/** `RANGES` as the plain record lib/unlimited.ts reads. */
+const UNLIMITED_RANGES = RANGES as unknown as Record<string, { min: number; max: number; step: number }>;
+/** The unlimited settings (numeric, with a range, not bounded; see lib/unlimited.ts), computed once. */
+let unlimitedKeyList: string[] | null = null;
+/** Their URL keys (the core map, the ball count's `nb`, and what the feature writers reveal), computed once. */
+let unlimitedUrlKeyMap: Map<string, string> | null = null;
+
+/** The settings that go past their slider range with the switch on. */
+export function unlimitedSettingKeys(): string[] {
+  unlimitedKeyList ??= unlimitedKeysOf(defaultSettings("classic") as unknown as UnlimitedRecord, UNLIMITED_RANGES);
+  return unlimitedKeyList;
+}
+
+function unlimitedUrlKeys(): Map<string, string> {
+  if (unlimitedUrlKeyMap) return unlimitedUrlKeyMap;
+  const explicit: Record<string, string> = { ballCount: "nb" };
+  for (const [param, field] of Object.entries(NUMERIC_URL_KEYS)) explicit[field] = param;
+  const base = { ...defaultSettings("classic"), unlimited: false } as unknown as UnlimitedRecord;
+  unlimitedUrlKeyMap = discoverUrlKeys(unlimitedSettingKeys(), explicit, base, (probe) => settingsToSearchParams(probe as unknown as SimulatorSettings));
+  return unlimitedUrlKeyMap;
+}
+
+/** The URL key of an unlimited setting (`infx` carries the ones without). */
+export function unlimitedUrlKeyOf(key: string): string | undefined {
+  return unlimitedUrlKeys().get(key);
+}
+
+function writeUnlimitedValues(settings: SimulatorSettings, params: URLSearchParams) {
+  if (!settings.unlimited) return;
+  writeUnlimitedParams(settings as unknown as UnlimitedRecord, params, unlimitedSettingKeys(), UNLIMITED_RANGES, unlimitedUrlKeys());
+}
+
+function readUnlimitedValues(params: URLSearchParams, settings: SimulatorSettings) {
+  if (!settings.unlimited) return;
+  readUnlimitedParams(params, settings as unknown as UnlimitedRecord, defaultSettings(settings.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES, unlimitedUrlKeys());
+  if (settings.teams.length === 0) settings.twoBalls = settings.ballCount >= 2;
+}
+
+function restoreUnlimitedPreset(preset: Partial<SimulatorSettings>, merged: SimulatorSettings) {
+  restoreUnlimitedValues(preset as unknown as UnlimitedRecord, merged as unknown as UnlimitedRecord, defaultSettings(merged.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES);
+  if (merged.unlimited && merged.teams.length === 0) merged.twoBalls = merged.ballCount >= 2;
+}
+// --- end unlimited ---
 
 /* ------------------------------------------------------------------ presets */
 
@@ -1411,6 +1467,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
+  restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   return merged;
 }
 

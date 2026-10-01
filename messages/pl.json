@@ -1465,7 +1465,8 @@
     "publish": "Publikuj",
     "publishTip": "Wyślij gotowy klip na swoje konta TikTok, Instagram i YouTube – po kilka na platformę – jednym kliknięciem: na YouTube prosto z przeglądarki, na TikToka i Instagrama przez mały relay, który hostujesz sam, albo przyciskami udostępniania bez konfiguracji.",
     "publishAccounts": "Konta (TikTok, Instagram, YouTube)",
-    "publishQuickShare": "Szybkie udostępnianie"
+    "publishQuickShare": "Szybkie udostępnianie",
+    "unlimited": "Bez limitów"
   },
   "Modes": {
     "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko." },
@@ -2786,5 +2787,20 @@
         "badUrl": "Adres relaya nie jest poprawnym adresem http(s)."
       }
     }
+  },
+  "Unlimited": {
+    "label": "Bez limitów",
+    "tip": "Każda liczba poza zakresem suwaka: wpisz milion kulek, miliard prędkości albo tysiąc pierścieni. Symulacja może się „roztopić” – zwalnia i rysuje się prościej – ale karta działa dalej, a nagrywanie trwa.",
+    "on": "WŁ.",
+    "off": "WYŁ.",
+    "warning": "Ekstremalne wartości mogą spowolnić symulację do żółwiego tempa – i o to chodzi. Wolno jej się roztopić, nigdy wysypać.",
+    "typeValue": "Wpisz wartość: {label}",
+    "invalidValue": "Nieprawidłowa wartość: skończona liczba nie mniejsza niż {min}.",
+    "softCeiling": "Silnik uruchamia najwyżej {value}; link zachowuje twoją liczbę.",
+    "finderLimited": "Bez limitów: ciężka symulacja – sprawdzono tylko {count, plural, one {# ziarno} few {# ziarna} many {# ziaren} other {# ziarna}}, po kawałku każdej klatki.",
+    "canvasRealTime": "x[ratio] CZASU RZECZYWISTEGO",
+    "canvasArenaFull": "ARENA PEŁNA",
+    "canvasBalls": "[count] KULEK",
+    "canvasAteArena": "KULKA ZJADŁA ARENĘ"
   }
 }

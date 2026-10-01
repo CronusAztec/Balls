@@ -47,6 +47,9 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
+import { unlimitedConfigOf } from "@/lib/physics/limits"; // --- unlimited ---
+import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
+import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
@@ -316,6 +319,7 @@ export default function Simulator() {
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
+      ...unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)), // --- unlimited --- (before the first run: its soft ceilings and crowd)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -361,6 +365,11 @@ export default function Simulator() {
 
   // Keep the engine in sync with the settings object.
   const s = settings;
+  // --- unlimited --- No limits travels in the physics config (the switch and the crowd: the Ball Count past the team balls).
+  // Declared first, so the engine knows the switch before the values past their ranges below reach it.
+  useEffect(() => {
+    engineRef.current?.setConfig(unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)));
+  }, [s.unlimited, s.ballCount, s.mode, s.teams, s.twoBalls]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setConfig({
       gravity: s.gravity,
@@ -1266,6 +1275,7 @@ export default function Simulator() {
       Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
       Object.assign(fresh, bounceMathCarryOver(themeLookRef.current)); // --- bounce-math --- the rules script the clip in every mode: they carry over
+      fresh.unlimited = themeLookRef.current.unlimited; // --- unlimited --- the switch carries over (the new mode starts from its defaults)
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1358,6 +1368,11 @@ export default function Simulator() {
           // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
           if (ev.bdDrum) {
             audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
+            continue;
+          }
+          // --- unlimited --- a ball ate the arena: the gulp
+          if (ev.ate) {
+            audio.playArenaEaten();
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
@@ -2191,7 +2206,7 @@ export default function Simulator() {
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
-      findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others')
+      settings.unlimited ? findSimulationBudgeted : findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       {
         targetDurationSec: findDuration,
         toleranceSec: findTolerance,
@@ -2470,6 +2485,13 @@ export default function Simulator() {
         gravity: t("BounceMath.hudGravity"),
         rule: (n, fires) => fill("BounceMath.hudRule", { n, fires }),
       },
+      // --- unlimited ---
+      unlimited: {
+        realTime: (ratio) => fill("Unlimited.canvasRealTime", { ratio }),
+        arenaFull: t("Unlimited.canvasArenaFull"),
+        balls: (count) => fill("Unlimited.canvasBalls", { count }),
+        ateArena: t("Unlimited.canvasAteArena"),
+      },
     };
   }, [t]);
 
@@ -2588,13 +2610,13 @@ export default function Simulator() {
                   physicsEngine={engineRef.current}
                   audioIntensity={0}
                   showTrails={s.showTrails}
-                  trailThickness={s.trailThickness}
+                  trailThickness={visualValue(s.unlimited, "trailThickness", s.trailThickness) /* --- unlimited --- (drawn at its ceiling) */}
                   showGlow={s.showGlow}
                   showWallGlow={s.showWallGlow}
                   isPaused={isPaused}
                   isStarted={isStarted}
                   circleColor={s.circleColor}
-                  wallThickness={s.wallThickness}
+                  wallThickness={visualValue(s.unlimited, "wallThickness", s.wallThickness) /* --- unlimited --- (drawn at its ceiling) */}
                   watermarkText={s.watermarkText}
                   rainbowWalls={s.rainbowWalls}
                   rainbowWallMode={s.rainbowWallMode}
@@ -2851,6 +2873,12 @@ export default function Simulator() {
                     ✕
                   </button>
                 </div>
+              )}
+              {/* --- unlimited --- a heavy No limits run: fewer seeds were tested, a slice of every frame at a time */}
+              {!isSearching && searchResult?.limitedSeeds !== undefined && (
+                <p className="px-3 text-[10px] text-amber-400" data-testid="finder-unlimited-note">
+                  ♾️ {t("Unlimited.finderLimited", { count: searchResult.limitedSeeds })}
+                </p>
               )}
               {!isSearching && searchResult && searchResult.found && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">
