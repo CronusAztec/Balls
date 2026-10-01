@@ -147,6 +147,8 @@ export interface ControlsProps {
   project?: ProjectPanelProps;
   /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
   batch?: BatchPanelProps;
+  /** --- review fix (recording-export) --- a batch is rendering: saved presets cannot be loaded (the batch would roll them back). */
+  batchRunning?: boolean;
   /** --- video-beats --- the "Beats from a video" block of the Sound section (left out without it). */
   videoBeats?: VideoBeatsPanelProps;
   /** --- viral-bot --- the Viral video bot block after it: plans, scores and renders clips (left out without it). */
@@ -1395,7 +1397,13 @@ export default function Controls(props: ControlsProps) {
                     {props.savedPresetNames.map((name) => (
                       <div key={name} className="flex items-center gap-2 px-3 py-2 bg-zinc-800/60 rounded-lg group">
                         <span className="flex-1 text-sm text-zinc-300 truncate">{name}</span>
-                        <button type="button" onClick={() => props.onLoadPreset(name)} className={`px-2 py-1 rounded text-xs font-medium bg-[#93d119]/80 text-slate-950 hover:bg-[#93d119] transition-all cursor-pointer`}>
+                        <button
+                          type="button"
+                          onClick={() => props.onLoadPreset(name)}
+                          disabled={props.batchRunning} // --- review fix (recording-export) ---
+                          title={props.batchRunning ? t("presetLoadLocked") : undefined}
+                          className={`px-2 py-1 rounded text-xs font-medium bg-[#93d119]/80 text-slate-950 hover:bg-[#93d119] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed`}
+                        >
                           {t("loadBtn")}
                         </button>
                         <button

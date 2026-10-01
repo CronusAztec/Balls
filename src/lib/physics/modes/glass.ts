@@ -930,7 +930,9 @@ export class GlassMode implements GameMode {
     for (const pane of level.panes) {
       if (pane.shattered || Math.abs(ball.y - pane.y) > pane.thickness / 2 + reachY) continue;
       for (const seg of pane.segments) {
-        const impact = resolveBallSegment(ball, seg, dtSec, ball.restitution ?? 1); // --- bounce-math --- (the ball's bounciness; 1 without a rule)
+        // --- bounce-math --- a knock from below rebounds with the ball's bounciness on top of the pane's (capped) restitution;
+        // a landing's hop takes it in hitPane() (a landing sets the hop afresh, so nothing compounds)
+        const impact = resolveBallSegment(ball, seg, dtSec, 1, undefined, ball.restitution ?? 1);
         if (impact < 0) continue;
         // A knock from below needs HIT_SPEED to count. A contact from above is always a landing, however slow – a graze
         // on the end of a hole's glass, a sliding pane lifting the ball onto its top – so the ball never comes to rest on
@@ -973,7 +975,7 @@ export class GlassMode implements GameMode {
     if (fromAbove) {
       // A landing: the ball hops back up to the stage's hop height with a small sideways kick.
       const stage = level.stages[pane.stage];
-      ball.vy = -hopSpeed(g, stage.bounceHeight);
+      ball.vy = -hopSpeed(g, stage.bounceHeight) * (ball.restitution ?? 1); // --- bounce-math --- the ball's bounciness: a 2 hops twice as fast, four times as high
       const speedScale = (ctx.config.ballSpeed || 400) / 400;
       const k = glassTempo(ball); // --- gerald-multipliers --- the sideways drift speeds up with the hop
       const drift = DRIFT * viewH * speedScale * k;

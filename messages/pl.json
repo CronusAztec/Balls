@@ -428,6 +428,7 @@
     "saveBtn": "Zapisz",
     "noSavedPresets": "Brak zapisanych presetów",
     "loadBtn": "Wczytaj",
+    "presetLoadLocked": "Dokończ lub zatrzymaj renderowanie partii, zanim wczytasz preset.",
     "deletePreset": "Usuń preset",
     "ballPhysicsTab": "Piłka i fizyka",
     "wallSettingsTab": "Ustawienia ścian",
@@ -1152,6 +1153,7 @@
     "projectImporting": "Otwieranie projektu…",
     "projectExported": "Zapisano {file} ({size}).",
     "projectImported": "Otwarto „{name}”.",
+    "projectImportLocked": "Trwa renderowanie – dokończ lub zatrzymaj partię (albo szybki eksport), zanim otworzysz projekt.",
     "projectImportedSkipped": "Otwarto „{name}”, ale pominięto uszkodzone pliki multimedialne (liczba: {count}).",
     "projectErrorNotJson": "To nie jest plik projektu (niepoprawny JSON).",
     "projectErrorNotProject": "Ten plik nie jest projektem JumpingBallsLive.",
@@ -2024,6 +2026,7 @@
       "recordingDuration": "Długość klipu (s)"
     },
     "summary": "{count, plural, =0 {Na razie nie ma czego renderować} one {# klip} few {# klipy} many {# klipów} other {# klipu}} · {resolution} · {fps} kl./s · do {seconds} s każdy",
+    "summaryPerJob": "{count, plural, =0 {Na razie nie ma czego renderować} one {# klip} few {# klipy} many {# klipów} other {# klipu}} · {resolution} · {fps} kl./s · każdy tak długi, jak mówi jego link",
     "truncated": "Renderowanych jest tylko pierwszych {max} klipów – seria mieści najwyżej {max}.",
     "start": "Renderuj serię",
     "unsupported": "Renderowanie seryjne korzysta z szybkiego eksportu, który wymaga WebCodecs – ta przeglądarka go nie ma.",
@@ -2052,6 +2055,7 @@
     "downloadAll": "Pobierz wszystko jako ZIP",
     "zipping": "Pakowanie ZIP-a…",
     "zipFailed": "Nie udało się utworzyć pliku ZIP (za duży dla tej przeglądarki?) – pobierz klipy pojedynczo przyciskiem ⬇.",
+    "settingsChanged": "Ustawienia zmieniły się w trakcie partii, więc zatrzymała się w tym miejscu i je zachowała.",
     "clear": "Wyczyść listę",
     "progressLabel": "Postęp klipu z serii"
   },
@@ -2614,6 +2618,7 @@
     "scopeAll": "Wszystkie piłki",
     "scopeTip": "Ta piłka: tylko piłka, której dotyczy zdarzenie (obie piłki przy zderzeniu; przy rytmie, taktach i sekundach – piłka, która odbiła się ostatnia). Wszystkie piłki: każda piłka. Wartości świata (grawitacja, obrót, szczelina…) zawsze dotyczą całej sceny.",
     "notInMode": "Ten tryb nie używa tej wartości – reguła jest tu pomijana.",
+    "triggerNotInMode": "W tym trybie nic nie wywołuje tego wyzwalacza – reguła nigdy się tu nie uruchomi.",
     "formulaExample": "Przykład: v * (1 + 0.1 * sin(n / 3)) – v wartość, n liczba uruchomień, t sekundy, b uderzenia rytmu, r losowa 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Wpisz formułę, np. v * 1.05.",
@@ -2766,6 +2771,8 @@
     "sendSelected": "Wyślij do zaznaczonych ({count})",
     "overLimit": "Za długie dla: {platforms} – skróć tekst (zobacz liczniki).",
     "instagramMp4": "Instagram przyjmuje MP4 (H.264 + AAC), a ten klip to WebM – wyeksportuj go w Chrome lub Safari albo przekonwertuj.",
+    "instagramPublicOnly": "Rolki na Instagramie są zawsze publiczne – wybierz „Publiczny” albo odznacz konta Instagrama.",
+    "tiktokUnlisted": "TikTok nie ma opcji „niepubliczny” – zamiast tego opublikuje klip dla wzajemnych obserwujących (Znajomi).",
     "sendNeedsClip": "Nagraj lub wybierz klip do wysłania.",
     "progress": "Postęp wysyłania",
     "relaySettings": "Relay",
@@ -2794,6 +2801,10 @@
         "server": "Relay zgłosił błąd – sprawdź jego log i spróbuj ponownie.",
         "timeout": "Relay wciąż publikuje – sprawdź ostatnie wysyłki później.",
         "badUrl": "Adres relaya nie jest poprawnym adresem http(s)."
+      },
+      "page": {
+        "clipGone": "Klipu z tej wysyłki nie ma już na liście – wybierz lub nagraj go ponownie i wyślij.",
+        "otherProfile": "To konto należy do innego profilu relaya – przełącz się z powrotem na ten relay, aby spróbować ponownie."
       }
     }
   }

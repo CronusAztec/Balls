@@ -131,7 +131,9 @@ export class GlassStage extends BaseStage {
     for (const pane of this.panes) {
       if (pane.shattered || Math.abs(ball.y - pane.y) > pane.thickness / 2 + reachY) continue;
       for (const seg of pane.segments) {
-        const impact = resolveBallSegment(ball, seg, dtSec, ball.restitution ?? 1); // --- bounce-math --- (the ball's bounciness; 1 without a rule)
+        // --- bounce-math --- a knock from below rebounds with the ball's bounciness on top of the pane's (capped) restitution;
+        // a landing's hop takes it in hitPane() (a landing sets the hop afresh, so nothing compounds)
+        const impact = resolveBallSegment(ball, seg, dtSec, 1, undefined, ball.restitution ?? 1);
         if (impact < 0) continue;
         // Glass Smash's rule: a contact from above is always a landing; a knock from below needs HIT_SPEED.
         if (impact >= HIT_SPEED || ball.y < pane.y) this.hitPane(env, ball, pane, Math.max(impact, HIT_SPEED));
@@ -166,7 +168,7 @@ export class GlassStage extends BaseStage {
     if (fromAbove) {
       const b = this.bounds;
       const k = glassTempo(ball);
-      ball.vy = -hopSpeed(env.gravity(ball), this.bounceHeight);
+      ball.vy = -hopSpeed(env.gravity(ball), this.bounceHeight) * (ball.restitution ?? 1); // --- bounce-math --- the ball's bounciness
       const speedScale = (ctx.config.ballSpeed || 400) / 400;
       const drift = DRIFT * b.viewH * speedScale * k;
       const cap = MAX_DRIFT * b.viewH * Math.max(0.5, speedScale) * k;

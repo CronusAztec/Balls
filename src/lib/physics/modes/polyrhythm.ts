@@ -885,6 +885,7 @@ export class PolyrhythmMode implements GameMode {
       if (i >= 0 && i < v.count) {
         ball.x = v.x[i];
         ball.y = v.y[i];
+        if (ticks > 0 && v.lastTickStep[i] === after) ctx.noteBounce?.(ball); // --- bounce-math --- a dot's tick (it turns at the end of its arc) is its bounce
       }
     }
   }

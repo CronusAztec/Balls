@@ -432,6 +432,8 @@ export interface ModeContext {
    * that rebound once; without it nothing else changes.
    */
   noteBounce?(ball: Ball, rebound?: boolean): void;
+  /** A mode that resolves its own ball-to-ball contacts reports a hit of `a` and `b` (bounce math's "ball hit" trigger). */
+  noteCollide?(a: Ball, b: Ball): void;
   // --- end bounce-math ---
 }
 

@@ -1,6 +1,6 @@
 import { composePost, emptyDraft, type ComposedPost, type PublishDraft } from "./caption";
 import { offerPublishClip, publishClips, removePublishClip, setClipDuration, subscribePublishClips, type PublishClip } from "./clips";
-import { PUBLISH_PLATFORMS, type PublishPlatform, type Visibility } from "./platforms";
+import { PUBLIC_ONLY_PLATFORMS, PUBLISH_PLATFORMS, type PublishPlatform, type Visibility } from "./platforms";
 import { RelayClient, RelayError, normalizeRelayUrl, xhrSendForm, type RelayAccount, type RelayInfo, type RelayJob, type RelayProfile } from "./relayClient";
 import { quickShare as runQuickShare, shareText, type ShareEnv } from "./share";
 import { addRecent, defaultPublishState, loadPublishState, newId, relayKey, savePublishState, youtubeKey, type PublishStoredState, type RecentSend, type StoredYouTubeAccount } from "./store";
@@ -122,17 +122,41 @@ export function accountViews(s: PublishSnapshot, now: number): AccountView[] {
   return out;
 }
 
-/** What "Send to selected" would do: the ticked accounts, and the platforms whose words are over a limit. */
-export function sendPlan(s: PublishSnapshot, now: number): { targets: AccountView[]; blocked: PublishPlatform[]; posts: Partial<Record<PublishPlatform, ComposedPost>>; instagramNeedsMp4: boolean } {
+/**
+ * What "Send to selected" would do: the ticked accounts, the platforms whose words are over a limit (`blocked`), the ticked
+ * platforms that only post publicly while another visibility is chosen (`publicOnly`: Instagram – the send waits until the
+ * visibility is Public or those accounts are unticked, rather than posting a public Reel the user asked to keep private) and
+ * whether a TikTok "unlisted" post goes to mutual friends (TikTok has no unlisted).
+ */
+export function sendPlan(
+  s: PublishSnapshot,
+  now: number,
+): { targets: AccountView[]; blocked: PublishPlatform[]; publicOnly: PublishPlatform[]; tiktokFriends: boolean; posts: Partial<Record<PublishPlatform, ComposedPost>>; instagramNeedsMp4: boolean } {
   const targets = accountViews(s, now).filter((a) => a.checked);
   const clip = s.clips.find((c) => c.id === s.clipId) ?? null;
   const draft = (clip && s.drafts[clip.id]) || emptyDraft();
   const posts: Partial<Record<PublishPlatform, ComposedPost>> = {};
   for (const p of PUBLISH_PLATFORMS) if (targets.some((t) => t.platform === p)) posts[p] = composePost(draft, p);
   const blocked = PUBLISH_PLATFORMS.filter((p) => posts[p] && !posts[p]!.ok);
+  const visibility = s.stored.visibility;
+  const publicOnly = visibility === "public" ? [] : PUBLIC_ONLY_PLATFORMS.filter((p) => !!posts[p]);
+  const tiktokFriends = visibility === "unlisted" && !!posts.tiktok;
   const instagramNeedsMp4 = !!clip && targets.some((t) => t.platform === "instagram") && !clip.type.includes("mp4");
-  return { targets, blocked, posts, instagramNeedsMp4 };
+  return { targets, blocked, publicOnly, tiktokFriends, posts, instagramNeedsMp4 };
 }
+
+/** What an account of a send was sent with, so "Try again" sends that again – not whatever clip is on show by then. */
+interface SentWith {
+  clip: PublishClip;
+  posts: Partial<Record<PublishPlatform, ComposedPost>>;
+  visibility: Visibility;
+  /** The relay profile of a relay account (null for a direct YouTube channel). */
+  profileId: string | null;
+}
+
+/** The page's own errors (the block translates them under `Publish.errors.page`). */
+const CLIP_GONE = "The clip of this send is no longer in the list – pick or record it again and send it.";
+const OTHER_PROFILE = "This account belongs to another relay profile – switch back to that relay to try again.";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 /** The error's code for the block's translations ("yt.quota", "relay.unauthorized"), null for other errors. */
@@ -148,8 +172,10 @@ export class PublishController {
   private readonly listeners = new Set<() => void>();
   private started = false;
   private gis: GisOauth2 | null = null;
-  /** What a "Sign in again" continues: the item's clip, post and visibility. */
+  /** What a "Sign in again" continues: the item's clip, post and visibility (only while its row still waits for it). */
   private readonly pendingAuth = new Map<string, { clip: PublishClip; post: ComposedPost; visibility: Visibility }>();
+  /** What each account of the last send was sent with ("Try again"). */
+  private readonly sentWith = new Map<string, SentWith>();
   private relayRefresh = 0;
   private connectCleanup: (() => void) | null = null;
   private focusCleanup: (() => void) | null = null;
@@ -222,6 +248,9 @@ export class PublishController {
     // Thumbnails of clips no longer listed are dropped; only the clip on show gets one (a batch of 50 clips decodes one).
     const listed = new Set(clips.map((c) => c.id));
     const thumbs = Object.fromEntries(Object.entries(this.snap.thumbs).filter(([id]) => listed.has(id)));
+    // A send can only be resumed or tried again with its own clip: a clip that left the list takes its sends' context along.
+    for (const [key, sent] of this.sentWith) if (!listed.has(sent.clip.id)) this.sentWith.delete(key);
+    for (const [key, pending] of this.pendingAuth) if (!listed.has(pending.clip.id)) this.pendingAuth.delete(key);
     this.set({ clips, clipId, thumbs });
     this.ensureThumb();
   }
@@ -367,10 +396,15 @@ export class PublishController {
         /* best effort */
       }
     }
+    this.pendingAuth.delete(youtubeKey(id));
     this.setStored({ youtubeAccounts: this.snap.stored.youtubeAccounts.filter((a) => a.id !== id), checked: this.snap.stored.checked.filter((k) => k !== youtubeKey(id)) });
   }
 
-  /** "Sign in again" for an account (a click): renews its token and carries on with an upload that waited for it. */
+  /**
+   * "Sign in again" for an account (a click): renews its token and carries on with the upload its send row waits for. Only a
+   * row still on show and still waiting resumes – a sign-in from the account list just to renew it never uploads a clip of an
+   * earlier, abandoned send.
+   */
   async reauthYouTube(key: string): Promise<void> {
     const account = this.snap.stored.youtubeAccounts.find((a) => youtubeKey(a.id) === key);
     try {
@@ -378,9 +412,14 @@ export class PublishController {
       const ch = await this.channelFor(token);
       this.upsertYouTube({ ...ch, accessToken: token.accessToken, expiresAt: token.expiresAt, addedAt: account?.addedAt ?? this.deps.now() });
       this.set({ youtube: { status: "idle", error: null, code: null } });
-      const pending = this.pendingAuth.get(key);
-      if (!pending) return;
+      const waiting = this.snap.sends.some((i) => i.key === key && i.status === "needsAuth");
+      const pending = waiting ? this.pendingAuth.get(key) : undefined;
       this.pendingAuth.delete(key);
+      if (!pending) {
+        // A row that waits for a clip which has left the list since cannot go on.
+        if (waiting) this.patchItem(key, { status: "failed", error: CLIP_GONE, code: "page.clipGone" });
+        return;
+      }
       if (account && ch.id !== account.id) {
         this.patchItem(key, { status: "failed", error: `Signed in as another channel (${ch.title}) – it was added to the list; tick it and send again.` });
         return;
@@ -641,16 +680,21 @@ export class PublishController {
     const clip = s.clips.find((c) => c.id === s.clipId);
     if (!clip) return;
     const plan = sendPlan(s, this.deps.now());
-    const targets = plan.targets.filter((t) => !plan.blocked.includes(t.platform));
+    // (the block disables the button for both; a Reel is never posted publicly when another visibility was chosen)
+    const targets = plan.targets.filter((t) => !plan.blocked.includes(t.platform) && !plan.publicOnly.includes(t.platform));
     if (targets.length === 0) return;
     const visibility = s.stored.visibility;
+    const profile = this.activeProfile();
+    // A new send replaces the list: the rows of the last one – a sign-in they waited for, what they were sent with – go.
+    this.pendingAuth.clear();
+    this.sentWith.clear();
+    for (const t of targets) this.sentWith.set(t.key, { clip, posts: plan.posts, visibility, profileId: t.via === "relay" ? (profile?.id ?? null) : null });
     this.set({
       sending: true,
       sends: targets.map((t) => ({ key: t.key, platform: t.platform, via: t.via, label: t.handle ? `${t.name} (${t.handle})` : t.name, status: "queued" as SendStatus, progress: 0, link: null, error: null, code: null, note: null })),
     });
     const jobs: Promise<void>[] = [];
     for (const t of targets.filter((x) => x.via === "youtube")) jobs.push(this.runYouTube(t.key, clip, plan.posts.youtube!, visibility));
-    const profile = this.activeProfile();
     const relayKeys = targets.filter((x) => x.via === "relay").map((x) => x.key);
     if (profile && relayKeys.length) jobs.push(this.runRelay(profile, relayKeys, clip, plan.posts, visibility));
     await Promise.all(jobs);
@@ -669,21 +713,29 @@ export class PublishController {
     this.set({ sending: this.snap.sends.some((i) => i.status === "uploading" || i.status === "processing" || i.status === "queued") });
   }
 
-  /** Sends one failed account again. */
+  /**
+   * Sends one failed account again – the clip, the words and the visibility it was sent with, whichever clip is on show now
+   * (a recording or a batch may have offered new ones since, or another may be picked). A clip that has left the list, or a
+   * relay account of another relay profile than the one in use, gets a message instead.
+   */
   async retry(key: string): Promise<void> {
     const item = this.snap.sends.find((i) => i.key === key);
-    const clip = this.snap.clips.find((c) => c.id === this.snap.clipId);
-    if (!item || !clip || item.status !== "failed") return;
-    const plan = sendPlan({ ...this.snap, stored: { ...this.snap.stored, checked: [key] } }, this.deps.now());
-    const post = plan.posts[item.platform];
-    if (!post || !post.ok) return;
-    this.set({ sending: true });
-    if (item.via === "youtube") await this.runYouTube(key, clip, post, this.snap.stored.visibility);
-    else {
-      const profile = this.activeProfile();
-      if (profile && key.startsWith(`relay:${profile.id}:`)) await this.runRelay(profile, [key], clip, plan.posts, this.snap.stored.visibility);
-      else this.patchItem(key, { status: "failed", error: "This account belongs to another relay profile." });
+    if (!item || item.status !== "failed") return;
+    const sent = this.sentWith.get(key);
+    if (!sent || !this.snap.clips.some((c) => c.id === sent.clip.id)) {
+      this.patchItem(key, { error: CLIP_GONE, code: "page.clipGone" });
+      return;
     }
+    const post = sent.posts[item.platform];
+    if (!post || !post.ok) return;
+    const profile = item.via === "relay" ? this.activeProfile() : null;
+    if (item.via === "relay" && !(profile && profile.id === sent.profileId && key.startsWith(`relay:${profile.id}:`))) {
+      this.patchItem(key, { error: OTHER_PROFILE, code: "page.otherProfile" });
+      return;
+    }
+    this.set({ sending: true });
+    if (item.via === "youtube") await this.runYouTube(key, sent.clip, post, sent.visibility);
+    else await this.runRelay(profile!, [key], sent.clip, sent.posts, sent.visibility);
     this.finishSend();
   }
 

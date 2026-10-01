@@ -45,7 +45,7 @@ const MAX_RULE_CHIPS = 6;
 /** How long a chip pops after its rule fired, simulation ms. */
 const POP_MS = 260;
 
-export const BOUNCE_MATH_DATA_KEYS = ["bmRules", "bmFires", "bmTotal", "bmBounce", "bmSpeed", "bmSize", "bmGravity", "bmBalls", "bmTimeScale", "bmTime", "bmHud"] as const;
+export const BOUNCE_MATH_DATA_KEYS = ["bmRules", "bmFires", "bmTotal", "bmBounce", "bmColor", "bmSpeed", "bmSize", "bmGravity", "bmBalls", "bmTimeScale", "bmTime", "bmHud"] as const;
 
 export class BounceMathLayer {
   private propsFrom: object | null = null;
@@ -202,6 +202,7 @@ export function writeBounceMathDataset(view: BounceMathView, layer: BounceMathLa
   set("bmFires", view.fires.join(","));
   set("bmTotal", String(view.totalFires));
   set("bmBounce", view.hasBall ? String(Math.round(view.bounciness * 1000) / 1000) : "");
+  set("bmColor", view.hasBall ? view.color : "");
   set("bmSpeed", view.hasBall ? String(Math.round(view.speed)) : "");
   set("bmSize", view.hasBall ? String(Math.round(view.size * 100) / 100) : "");
   set("bmGravity", String(Math.round(view.gravity * 100) / 100));

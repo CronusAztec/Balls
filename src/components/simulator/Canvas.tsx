@@ -71,6 +71,7 @@ import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LA
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
+import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (recording-export) --- rings past the slider drawn at about one per pixel
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -1124,7 +1125,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conicCache = { time, alpha, gradient: g };
         return g;
       };
+      // --- review fix (recording-export) --- thousands of rings (a link's wc=3000 stays 3000 in the physics): about one per pixel of
+      // the band is drawn (ringLod.ts) and, in one colour (the gradient or a solid colour), all of them as one path, one stroke
+      const ringStride = ringDrawStride(walls.length, arena);
+      const ringBatch = ringStride > 1 && !(p.rainbowWalls && p.rainbowWallMode !== "gradient") ? new Path2D() : null;
       const strokeArc = (index: number, radius: number, from: number, to: number, alpha?: number) => {
+        if (ringBatch && alpha === undefined && !wobble.active(index)) {
+          ringBatch.moveTo(cx + Math.cos(from) * radius, cy + Math.sin(from) * radius);
+          ringBatch.arc(cx, cy, radius, from, to);
+          return;
+        }
         ctx.strokeStyle = p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
         if (wobble.strokeArc(ctx, index, cx, cy, radius, from, to)) return; // --- jdm-illusions --- a wobbling wall follows its displacement wave
         ctx.beginPath();
@@ -1134,10 +1144,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       const isShatter = engine.isShatterMode();
       const shatterSegments = isShatter ? engine.getShatterSegments() : null;
+      const sectorBatch = ringBatch && isShatter ? new Path2D() : null; // --- review fix (recording-export) --- (Shatter's segments of thousands of rings: one fill)
 
       // Walls
       for (let i = 0; i < walls.length; i++) {
         if (broken.has(i)) continue;
+        if (ringStride > 1 && !ringDrawn(i, walls.length, ringStride)) continue; // --- review fix (recording-export) ---
         const wall = walls[i];
         const rot = rotations[i] || 0;
         if (isShatter && shatterSegments && shatterSegments[i]) {
@@ -1150,6 +1162,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             const mid = (a0 + a1) / 2;
             const rIn = wall.radius - thickness / 2;
             const rOut = wall.radius + thickness / 2;
+            if (sectorBatch && !wobble.active(i)) {
+              // --- review fix (recording-export) --- (the gradient's hue by angle, as the conic gradient of the fill below)
+              sectorBatch.moveTo(cx + Math.cos(a0) * rOut, cy + Math.sin(a0) * rOut);
+              sectorBatch.arc(cx, cy, rOut, a0, a1);
+              sectorBatch.lineTo(cx + Math.cos(a1) * rIn, cy + Math.sin(a1) * rIn);
+              sectorBatch.arc(cx, cy, rIn, a1, a0, true);
+              sectorBatch.closePath();
+              continue;
+            }
             ctx.globalAlpha = 0.85;
             ctx.fillStyle = wallColor(i, undefined, p.rainbowWalls && p.rainbowWallMode === "gradient" ? ((mid % TWO_PI) + TWO_PI) % TWO_PI : undefined);
             if (wobble.fillSector(ctx, i, cx, cy, rIn, rOut, a0, a1, wall.radius)) continue; // --- jdm-illusions ---
@@ -1171,6 +1192,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             cursor = gap.endAngle;
           }
           if (cursor < TWO_PI + c0) strokeArc(i, wall.radius, cursor + rot, TWO_PI + c0 + rot);
+        }
+      }
+      if (ringBatch) {
+        // --- review fix (recording-export) --- the batched rings (and Shatter's segments), in the walls' alpha and colour
+        ctx.strokeStyle = p.rainbowWalls ? conicGradient() : p.circleColor;
+        ctx.stroke(ringBatch);
+        if (sectorBatch) {
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = p.rainbowWalls ? conicGradient() : p.circleColor;
+          ctx.fill(sectorBatch);
         }
       }
       ctx.globalAlpha = 1;

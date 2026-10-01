@@ -697,7 +697,7 @@ export class BeatDropMode implements GameMode {
     this.place(ball, t);
     ball.radius = ctx.config.ballRadius || BEAT_DROP_BALL_RADIUS;
     ball.radiusScale = 1;
-    ball.color = ctx.config.ballColor || "#ffffff";
+    if (!ball.hueShift) ball.color = ctx.config.ballColor || "#ffffff"; // --- bounce-math --- (a colour shift keeps its colour)
     this.prevT = t;
     this.prevY = this.sample.y;
     this.prevVy = this.sample.vy;
@@ -716,6 +716,8 @@ export class BeatDropMode implements GameMode {
       const k = this.nextLanding++;
       if (v.finished || 1000 * plan.t[k] > v.lastLandingMs + 1e-6) continue;
       v.landed++;
+      // --- bounce-math --- a landing on an obstruction is the ball's bounce
+      if (ctx.noteBounce) for (const ball of ctx.getBalls()) if (ball.id === this.ballId) ctx.noteBounce(ball);
       v.lastLanding = k;
       const slot = v.logCount % LANDING_LOG;
       const measured = k < this.measuredMs.length ? this.measuredMs[k] : NaN;

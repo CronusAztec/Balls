@@ -675,6 +675,12 @@ export class DoublePendulumMode implements GameMode {
   private readonly stepPitches: number[] = [];
   private stepLevel = 0;
   private readonly stepHits: number[] = [];
+  /** --- bounce-math --- the step's plucks (the plucking bob's ball index: a bounce) and sparring hits (two ball indices: a ball hit). */
+  private readonly bmPlucks = new Int32Array(64);
+  private bmPluckCount = 0;
+  private readonly bmHitA = new Int32Array(32);
+  private readonly bmHitB = new Int32Array(32);
+  private bmHitCount = 0;
   private prevX = new Float64Array(0);
   private prevY = new Float64Array(0);
   /**
@@ -856,6 +862,8 @@ export class DoublePendulumMode implements GameMode {
     this.stepPitches.length = 0;
     this.stepHits.length = 0;
     this.stepLevel = 0;
+    this.bmPluckCount = 0;
+    this.bmHitCount = 0;
     const t0 = v.timeSec;
     let subSteps = 0;
     for (const { pens, chains, stepper } of this.groups) {
@@ -880,6 +888,7 @@ export class DoublePendulumMode implements GameMode {
     v.timeSec = v.step * stepSec;
     v.energy = this.totalEnergy();
     this.queueSounds(ctx);
+    if (this.bmPluckCount > 0 || this.bmHitCount > 0) this.reportBounceMath(ctx);
     if (v.timeSec >= finaleAt - 1e-9) this.startFinale(ctx);
     if (!s.endless && v.timeSec >= s.clipSeconds - 1e-9) v.finished = true;
     this.applyPositions(ctx);
@@ -1021,6 +1030,7 @@ export class DoublePendulumMode implements GameMode {
         str.plucks++;
         v.plucks++;
         pen.pluckTime[k] = t;
+        if (this.bmPluckCount < this.bmPlucks.length) this.bmPlucks[this.bmPluckCount++] = v.pendulums.indexOf(pen) * v.segments + k; // --- bounce-math ---
         if (!this.stepPitches.includes(str.pitch)) this.stepPitches.push(str.pitch);
         this.stepLevel = Math.max(this.stepLevel, pluckLevel(speed));
       }
@@ -1043,6 +1053,11 @@ export class DoublePendulumMode implements GameMode {
         const speed = collideBobs(a.chain, ka, b.chain, kb, dx / d, dy / d, 1, this.contact);
         if (speed < HIT_SOUND_SPEED) continue;
         const strength = Math.min(1, speed / HIT_FULL_SPEED);
+        if (this.bmHitCount < this.bmHitA.length) {
+          // --- bounce-math --- a sparring hit is a ball hit of the two bobs
+          this.bmHitA[this.bmHitCount] = ka;
+          this.bmHitB[this.bmHitCount++] = v.segments + kb;
+        }
         v.hitCount++;
         v.lastHitTime = t;
         v.lastHitStrength = strength;
@@ -1086,6 +1101,28 @@ export class DoublePendulumMode implements GameMode {
     v.finale = true;
     ctx.addPendingSoundEvent(closingChordEvent(v.settings));
     if (v.field) ctx.spawnConfetti(v.field.cx, v.field.cy);
+  }
+
+  /** --- bounce-math --- The step's plucks as bounces of the plucking bobs and its sparring hits as ball hits (allocation-free). */
+  private reportBounceMath(ctx: ModeContext) {
+    const balls = ctx.getBalls();
+    for (let i = 0; i < this.bmPluckCount; i++) {
+      const ball = this.ballAt(balls, this.bmPlucks[i]);
+      if (ball) ctx.noteBounce?.(ball);
+    }
+    for (let i = 0; i < this.bmHitCount; i++) {
+      const a = this.ballAt(balls, this.bmHitA[i]);
+      const b = this.ballAt(balls, this.bmHitB[i]);
+      if (a && b) ctx.noteCollide?.(a, b);
+    }
+    this.bmPluckCount = 0;
+    this.bmHitCount = 0;
+  }
+
+  /** The engine ball of bob `index` (pendulum × segments + segment), or null. */
+  private ballAt(balls: readonly Ball[], index: number): Ball | null {
+    for (let i = 0; i < balls.length; i++) if (balls[i].id - this.firstId === index) return balls[i];
+    return null;
   }
 
   /** Writes the bob positions into the engine balls. */
