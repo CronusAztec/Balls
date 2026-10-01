@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import DownloadAppButton from "./DownloadAppButton"; // --- desktop-exe ---
 
 export default function Hero() {
   const t = useTranslations("Hero");
@@ -38,6 +39,7 @@ export default function Hero() {
           >
             {t("exploreModes")}
           </a>
+          <DownloadAppButton /* --- desktop-exe --- */ />
         </div>
       </div>
     </section>

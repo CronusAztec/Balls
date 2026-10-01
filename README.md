@@ -66,6 +66,7 @@ static host – no server required.
 | **Bounce math** | Rules that change any value by a mathematical step every time something happens (feature bounce-math) – the "bouncier / faster / bigger on every bounce" edits, generalised: a **Bounce math** block in the Ball & Physics section lists rules of a **parameter** (bounciness, speed, size, gravity, ring spin, gap size, wall thickness, air drag, trail length, colour shift, pitch in semitones, time scale, wall wobble, balls), a **trigger** (every bounce, gap pass, ball-to-ball hit, wall break, **beat** of the song's grid – the loaded song, an imported video's beats or the hand-placed markers, else the BPM –, bar of four beats, second, the start), **every N**-th time, an **operation** (add, subtract, multiply, divide, power, root, modulo, set, seeded random, or a **formula** in v, n, t, b, r with + − * / ^, sin … clamp, compiled by a small parser – never eval), an amount (any value; the slider is a comfort range), optional min / max (no upper limit by default) and this ball / all balls. Six presets (Bouncier every bounce, Faster and faster, Growing ball, Beat pump, Gravity flips every bar, Chaos formula), a live readout and a **Show values** HUD badge; deterministic (the finder, split-screen arenas, the batch renderer and the fast export replay it), in every mode with bounces and ignored where a value does not apply; URL `bmr` (`param.trigger.every.op.amount[.min][.max][.scope]` joined by `;`) and `bmh` |
 | **Publish to TikTok, Instagram & YouTube** | A **Publish** block at the end of the Recording section (feature social-publish) sends the last recording, fast export, batch or viral-bot clip – or a picked video file – to **several accounts per platform in one click**: its words per platform (title, caption, hashtags from the viral bot's copy, editable per platform with live counters for each platform's limits: TikTok 2,200, Instagram 2,200 and 30 hashtags, YouTube a 100-character title, 5,000-byte description and 500 characters of tags, #Shorts first), the accounts grouped by platform with avatar and handle, tick boxes and **Send to selected** with per-account progress and result links, and a recent-sends log (the last 50). Three paths, all static-site friendly: **YouTube straight from the browser** (Google Identity Services + the resumable upload API; a client ID from `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` or the App setup panel; any number of channels), **a self-hostable relay** (`relay/server.mjs`, one Node 22 file) that holds the TikTok, Meta and Google app secrets, runs the OAuth sign-ins, keeps refresh tokens and posts – TikTok Content Posting API, Instagram Reels through the Graph API, YouTube – with **access keys** so a team or several creators share one relay, each seeing only their own accounts; and a **no-setup quick share** (the phone's share sheet with the file, or download + caption on the clipboard + the upload page on a computer). The bot CLI posts through the relay too (`--relay`) |
 | **No limits** | An **Unlimited** switch at the top of the Ball & Physics section (`unlimited`, URL `inf=1`, saved in presets, project files and share codes; off by default) for the clips that travel because they break things: every numeric setting – ball speed, size, gravity, the Ball Count, ring count, rotation, bounciness, wind, spin, spawn counts, multiplier stacks, mode counts – goes past its slider range (the slider turns logarithmic above its maximum up to **1B**, a number input takes any typed value; only invalid values – negative, NaN, ±Infinity, below the minimum – are rejected). The run is allowed to melt, never to crash: a Ball Count past the team balls becomes a **crowd** of up to **1,000,000** balls in typed arrays (bouncing in their ring lanes, pouring out through the gaps), Multiply's clone storms and x2 BALLS clones spill into it past 2,000 full-physics balls (fewer in a thousand rings), a frame budget of ~12 ms slices the run by whole steps (it plays in slow motion under load with an **x0.4 real time** badge; the physics of a seed never depends on it), steps stay bounded (planned sub-steps, time dilation), thousands of balls are drawn plain and a crowd as points, numbers stay finite, a full crowd shows **ARENA FULL** and a ball bigger than the arena ends the run with **THE BALL ATE THE ARENA** and a gulp. The fast export renders simulation time, and Find Simulation slices its search too (fewer seeds on a heavy run, and says so). See [No limits](#no-limits) |
+| **Windows app (desktop-exe)** | The whole simulator as a downloadable Windows EXE (`desktop/`, Electron): an installer (per user, no admin) and a portable EXE from [GitHub Releases](https://github.com/CronusAztec/Balls/releases/latest), linked from a **Download for Windows** button on the landing page and the `/download` page. Inside the app a **Desktop studio** group appears under the simulator: **GPU** (the graphics card and what Chromium accelerates, the fast export encoding on the GPU first – `hardwareAcceleration: "prefer-hardware"` with the software fallback kept – bundled ffmpeg with NVENC / AMF / Quick Sync picked automatically after a test encode, a benchmark), **Render queue** (seeds, share links or the viral bot's plan × resolutions × frame rates × H.264 / HEVC / AV1 × TikTok / Reels / Shorts / 4K 60 presets, rendered through the fast export and saved straight into a folder – progress, cancel, retry, and a crash-safe journal that resumes after a restart), **AI studio** (a local GGUF model through llama.cpp – downloaded once with its licence shown, resumable and checksummed, GPU offload via CUDA / Vulkan – or your own Anthropic / OpenAI-compatible key: it plans videos with the viral bot and Find Simulation as tools, writes hooks, captions and hashtags, changes settings on request with Undo and pitches ideas from the virality playbook; every reply is validated before it is applied) and **Library** (thumbnails, length, size, play, show in folder, re-render, delete, publish extension point). Native menu, tray, shortcuts, file dialogs, drag and drop, single instance and auto-update; the website itself is unchanged |
 
 ## Getting started
 
@@ -840,6 +841,174 @@ The philosophy: **allowed to melt, not allowed to crash**. With the switch on (`
 - **Find Simulation** (`src/lib/simulation/unlimitedFinder.ts`): with the switch on the run-length search runs whole steps of each candidate until 12 ms of a frame are spent, then yields; it measures the step cost on the first candidate and, when all seeds would take more than a minute, tests fewer (at least three) and says so (`FinderResult.limitedSeeds`). Other searches go to `findSimulation()` unchanged.
 - **Tests and smoke**: `tests/unlimited.test.ts` covers the parsing (1e7 balls, 1e6 speed, 1e5 walls accepted; −5, NaN, ±Infinity rejected; every unlimited setting round-trips through links, presets, project files and share codes), the slider maths, the soft ceilings, a 200,000-ball step inside the budget through time-slicing, determinism at any budget, multipliers stacked to 1e12 with finite state, the ate-the-arena finish, the NaN rescue, clone storms and x2 BALLS clones into the crowd and ARENA FULL, the crowd pouring in the same way for a seed, fewer full-physics balls in many rings, lanes without tunnelling, the bounded plan (also by rings), the sorted ring fit against the multipliers' own, a thousand rings eaten in one quick step, the effect render cap, the sound cap, every mode with absurd values (directly and through the page's own path: settings → config → engine), an unchanged run with the switch off and the budgeted finder. The smoke test opens an extreme link (50,000 balls, huge speed), sees the real-time badge, times real clicks (under 300 ms), records a clip and eats the arena.
 - **Add a setting to it**: nothing to do for a numeric setting with a range – it is unlimited unless you add it to `BOUNDED_KEYS`. If the engine can run it past its range, give it an `ENGINE_CEILINGS` entry and make sure the value reaches the engine unclamped (a mode's resolver clamps it otherwise); if it is purely visual, cap what the canvas draws (`visualValue()`).
+
+## Windows app
+
+Feature desktop-exe: the owner asked for "a EXE file that is downloadable and the exe is the project but i can use my gpu to
+create videos and use a AI build into the exe for video creation and other bits". `desktop/` is that app – an Electron shell
+around the site's own static export, with its own `package.json`, `tsconfig.json`, tests and electron-builder configuration.
+It is **not** a dependency of the site: `npm ci` / `npm run build` at the root and the GitHub Pages workflow never install or
+touch it (the root `tsconfig.json`, ESLint and Vitest ignore `desktop/`).
+
+### Architecture
+
+```
+desktop/
+  package.json                 its own dependencies: electron, electron-builder, electron-store, electron-updater,
+                               ffmpeg-static, node-llama-cpp, @anthropic-ai/sdk (+ esbuild, typescript, vitest)
+  electron-builder.config.cjs  NSIS installer (per user) + portable EXE, icons from public/icons/icon-512.png,
+                               the site export (../out → resources/site) and docs/virality-playbook.md
+  scripts/build-site.mjs       builds the site for the app: NEXT_PUBLIC_BASE_PATH="" (share links on the public site)
+  scripts/build.mjs            esbuild: src/main.ts → dist/main.js (ESM), src/preload.ts → dist/preload.cjs
+  src/main.ts                  app lifecycle, window (state remembered), menu, tray, single instance, IPC, smoke run
+  src/preload.ts               window.desktop – built from the contract's method table, exposed with contextBridge
+  src/protocol.ts              app:// – the export served like GitHub Pages (index.html, foo.html, 404.html)
+  src/gpu.ts                   GPU switches and the GPU panel's read-out (app.getGPUInfo / getGPUFeatureStatus)
+  src/ffmpeg/                  encoders.ts (probe + choice), args.ts (command lines per preset), run.ts (spawn, progress)
+  src/render.ts, library.ts    saving renders (+ ffmpeg pass), thumbnails, the Library index
+  src/journal.ts               crash-safe JSON files (temporary file + fsync + rename, .bak fallback)
+  src/models/                  catalog.ts (GGUF models, sizes, SHA-256, licences), manager.ts (resumable downloads)
+  src/ai/                      local.ts (node-llama-cpp), cloud.ts (Anthropic SDK / OpenAI-compatible SSE),
+                               gbnf.ts (reply schema → grammar), secrets.ts (safeStorage), service.ts (routing)
+  src/updater.ts, menu.ts, media.ts, prefs.ts, logger.ts, handlers.ts
+src/lib/desktop/               shared with the page (pure): contract.ts (every IPC channel, event and payload),
+                               bridge.ts, gpuEncode.ts, presets.ts, renderQueue.ts, queueSources.ts, publish.ts,
+                               release.ts, ai/ (agent loop, JSON schema checks, settings patches, studio tasks, playbook)
+src/components/simulator/sections/DesktopSection.tsx + desktop/*  the Desktop group (GPU, Render queue, AI, Library)
+src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, navbar and footer)
+```
+
+- **Renderer** – the page is the site's export for an empty base path, served by the privileged, secure `app://` scheme
+  (`app://jumpingballslive/<locale>/simulator/`), so WebCodecs, fetch, storage and every relative URL work as on GitHub
+  Pages. Context isolation on, Node integration off, the renderer sandboxed; navigation outside `app://` opens in the system
+  browser; the service worker is never registered in the app (`PwaRegister` checks `isDesktopApp()`, and `app://` does not
+  allow workers). The page detects `window.desktop` (`getDesktop()`, API version checked) and only then renders the Desktop
+  group – on the website nothing changes.
+- **IPC contract** – `src/lib/desktop/contract.ts` lists every channel (`IPC`), event (`DESKTOP_EVENTS`) and payload type and
+  the `window.desktop` method table (`BRIDGE_METHODS`); the preload builds the bridge from it, the main process registers a
+  handler for every channel (a `Record` over the channels, so a missing one does not compile) and `guarded()` refuses calls
+  that do not come from the app's page or whose arguments fail `checkIpcArgs()`.
+- **GPU video** – the app launches with `ignore-gpu-blocklist`, GPU rasterisation, zero-copy, the high-performance GPU,
+  WebGPU and hardware video features (`gpuSwitches()`; `--safe-mode` turns the GPU off for a broken driver). In the app the
+  fast export asks WebCodecs for the GPU first (`resolveVideoConfig()` in `gpuEncode.ts`: every probed and configured video
+  config carries `hardwareAcceleration: "prefer-hardware"`, the plain config is the fallback) – H.264, and HEVC / AV1 MP4
+  when the render queue asks for them (`pickDesktopFormat()`, mp4-muxer `hevc` / `av1` tracks), through Chromium's Media
+  Foundation encoders on Windows. ffmpeg (ffmpeg-static, unpacked from the asar; or a full build the user points to in the
+  GPU panel) does the rest: `ffmpeg -encoders` plus a one-second test encode per listed hardware encoder, then the running
+  GPU's encoder first – NVENC on NVIDIA, AMF on AMD, QSV on Intel – any other working hardware encoder, else libx264 /
+  libx265 / SVT-AV1 (`chooseEncoders()`). Transcodes (WebM → MP4, H.264 / HEVC / AV1), the platform presets (TikTok 1080×1920
+  60 fps 10 Mbit/s AAC 192k; Reels 30 fps 8 Mbit/s AAC 128k; Shorts 60 fps 12 Mbit/s AAC 384k) and the 4K 60 upscale
+  (2160×3840, Lanczos) are `buildTranscodeArgs()`; the benchmark encodes 5 s of a 1080×1920 60 fps pattern per encoder.
+- **Render queue** – `renderQueue.ts` is a pure state machine (queued → rendering → encoding → done / failed / cancelled,
+  retry, reorder, batch expansion over resolutions × fps × codecs × presets, journal (de)serialisation); the page
+  (`useRenderQueue.ts`) runs one job at a time through the batch renderer's `runJobs()` – the page's own fast export, so a
+  job renders exactly what the page would – and hands the bytes to the app, which writes them to the output folder (default
+  Videos\JumpingBallsLive) and runs ffmpeg when the preset or codec asks for it. The journal is written after every change
+  (`JsonFileStore`: temporary file, fsync, rename, `.bak`); after a crash or restart the interrupted job goes back to the
+  queue (a render cannot resume half-way – it starts over, at most `MAX_ATTEMPTS` times) and the panel offers **Resume**.
+- **AI studio** – one tool-call loop (`ai/agent.ts`) for every job: each model reply must be one JSON object – a tool call or
+  the final answer – and is validated (`jsonSchema.ts`: the envelope, the tool's argument schema and checks, the answer's
+  schema and the task's checks) before anything runs or is applied; invalid replies go back to the model with the errors,
+  at most three times in a row, then the run fails and nothing changes. **Make videos** gives the model the viral bot's
+  planner (`plan_clips`), Find Simulation (`find_simulation`) and checked settings changes (`set_clip_settings`) as tools; its
+  answer (clips with name, title, hook, caption and 5–15 hashtags per platform, only for plans it really made) goes into the
+  render queue with the platform's preset. **Captions & hashtags** writes per-platform copy for the Publish block (copy
+  buttons, "use hook as top text"). **Settings assistant** returns a patch checked by `validateSettingsPatch()` (known
+  settings, types, `RANGES`, options, colours, and the settings loader's final word) and applies it with **Undo**. **Ideas**
+  is grounded in `docs/virality-playbook.md` (bundled; `selectPlaybookContext()` picks the recipe section and the chunks
+  closest to the request). The model: node-llama-cpp in the main process (`getLlama({ gpu: "auto" })` – CUDA, Vulkan or the
+  CPU; `gpuLayers: "auto"`; every reply constrained by a grammar built from the reply's JSON schema, `toGrammarSchema()`), or
+  the cloud provider: Anthropic through the official SDK (streaming Messages API, `claude-opus-5-5` by default with the
+  server-side refusal fallback) or any OpenAI-compatible endpoint (also a local Ollama / LM Studio). The key is typed in
+  the AI panel, sealed with `safeStorage` (DPAPI) in the app's config, never returned to the page and never bundled.
+- **Models** – the model manager downloads into the data folder (`%APPDATA%\JumpingBallsLive\models`, next to the EXE for
+  the portable build) with an HTTP Range resume, progress events, and a size + SHA-256 check before the file is used; a
+  GGUF file you pick is used in place. The catalog (sizes and checksums are the files' published LFS ids):
+
+  | Model | Size | Licence |
+  | --- | --- | --- |
+  | Llama 3.2 3B Instruct Q4_K_M (default) | 2.0 GB | [Llama 3.2 Community License](https://www.llama.com/llama3_2/license/) – commercial use allowed under its terms ("Built with Llama") |
+  | Qwen3 4B Instruct 2507 Q4_K_M | 2.5 GB | Apache-2.0 |
+  | Qwen2.5 3B Instruct Q4_K_M | 2.1 GB | Qwen Research License – **non-commercial** |
+  | Qwen2.5 1.5B Instruct Q4_K_M (small PCs) | 1.1 GB | Apache-2.0 |
+
+  The packaged app carries llama.cpp's CPU and Vulkan builds (Vulkan runs on NVIDIA, AMD and Intel GPUs); the CUDA builds add
+  ~180 MB (+370 MB of CUDA runtime) and are packed only with `JBL_CUDA=1` (the workflow's `cuda` input).
+- **Other bits** – window size and position remembered (electron-store), a native menu in English / Polish / Spanish with
+  shortcuts (Ctrl+Enter start/pause, Ctrl+E fast export, Ctrl+1–4 the Desktop tabs, Ctrl+O / Ctrl+Shift+O open a song /
+  video, F11 full screen), a tray icon (closing the window keeps renders going), native dialogs for the output folder and
+  for songs / videos / projects, drag and drop of media anywhere on the window (a song becomes the music bed, a video the
+  "Beats from a video" source, a MIDI file the melody, a picture the ball, a project file is opened), a single instance
+  (a second start focuses the window and opens the files it was given), logs in the data folder (Help → Open logs), and
+  auto-update from GitHub Releases (electron-updater; installed builds only, never an error when offline).
+- **Publish** – `src/lib/desktop/publish.ts` is the extension point for the Publish feature: once it registers its targets
+  (`registerPublishTarget()` – direct YouTube upload, the relay, share) every Library clip gets a "Publish to …" button that
+  hands the target the clip's file and post copy. Until then the Library offers "Copy post text" and "Show in folder".
+
+### Build it locally
+
+```bash
+npm ci                               # the site
+cd desktop && npm ci                 # the app (Electron downloads on first run: npx install-electron)
+npm run site                         # the site's export for the app (NEXT_PUBLIC_BASE_PATH="") into ../out
+npm run typecheck && npm test        # desktop TypeScript + unit tests
+npm start                            # build and run the app from the checkout
+npm run smoke                        # electron . --smoke: load the simulator, check the bridge, print the GPU status, exit 0
+npm run pack                         # electron-builder --dir (unpacked app for this OS)
+npm run dist                         # on Windows: release/JumpingBallsLive-Setup-<version>.exe + JumpingBallsLive-<version>-portable.exe
+```
+
+Start the app with `--safe-mode` (or `JBL_SAFE_MODE=1`) to turn GPU acceleration off; `JBL_VERBOSE=1` mirrors the log
+to the console.
+
+### Release workflow
+
+`.github/workflows/desktop.yml` runs on `windows-latest` for pull requests that touch the app, for `desktop-v*` tags and by
+hand (inputs `version`, `publish`, `cuda`): it builds the site with an empty base path, installs the app, type-checks and
+tests it, packages the NSIS installer and the portable EXE, smoke-runs the packaged `JumpingBallsLive.exe --smoke`, uploads
+the EXEs (plus blockmaps, `latest.yml` and `SHA256SUMS.txt`) as a workflow artifact and – for a tag or a manual run with
+`publish` – creates the GitHub Release `desktop-v<version>` with them and fixed-name copies (`JumpingBallsLive-Setup.exe`,
+`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>`. To release: bump
+`desktop/package.json` (or pass `version`), push the tag `desktop-v1.2.3`. electron-updater reads the newest release's
+`latest.yml`, so keep app releases the repository's "latest" release.
+
+**Code signing**: the EXEs are unsigned until a certificate is configured – Windows SmartScreen then shows "Windows protected
+your PC" (**More info → Run anyway**), which the download page explains. To sign, add the repository secrets `WIN_CSC_LINK`
+(the .pfx certificate, base64-encoded, or an HTTPS URL to it) and `WIN_CSC_KEY_PASSWORD`; the workflow passes them to
+electron-builder, which signs both EXEs. Never commit certificates, keys, models or built binaries (`.gitignore` covers
+`desktop/node_modules`, `dist`, `release` and `*.gguf`).
+
+### Tests and what is verified where
+
+- `desktop/tests/` (Vitest, node environment, `npm test` in `desktop/`): encoder selection from a mocked `ffmpeg -encoders`
+  output and a scripted runner, the ffmpeg arguments per preset, the GPU switches and read-out, `app://` resolution, the
+  model manager against a fake download server (progress, Range resume, a server that ignores ranges, checksum mismatch,
+  cancel, picked GGUF files), the render queue with the crash-safe journal across a simulated restart, the AI loop through
+  the app's AI service with a mocked node-llama-cpp (plan validation, retries, settings patches, the reply grammar), the
+  Anthropic and OpenAI-compatible adapters and the sealed key, the IPC contract (the preload's bridge against a mocked
+  Electron, every channel registered, origin and argument checks), the updater (offline and failing checks never throw),
+  preferences, window state, menu, media and the render saver with a stand-in ffmpeg.
+- `tests/desktop*.test.ts` (the site's Vitest): the render queue state machine and journal, queue sources, the AI loop with a
+  scripted model, JSON-schema checks, settings patches, playbook grounding, prefer-hardware configs, HEVC / AV1 formats,
+  output presets and the IPC argument checks.
+- The site's smoke test checks the download page and its links, the navbar / footer / landing button, and the Desktop group
+  with a stand-in `window.desktop` (GPU panel, queue, AI panel, Library) – and that the group is absent on the website.
+- **Verified on Linux** (the development machine – no Windows, no GPU): `tsc` and the 47 app tests, the site's type check,
+  lint, unit tests and smoke test; `npm run pack` (electron-builder `--dir`, Linux x64) and `--smoke` under Xvfb both from the
+  checkout and from the packaged `release/linux-unpacked` app – the export loads over `app://` (a secure context,
+  WebCodecs present, missing paths answer 404, no service worker), `window.desktop` answers, the Desktop group renders
+  under the simulator, the GPU read-out and the bundled ffmpeg probe work (ffmpeg-static 7.0.2 unpacked from the asar:
+  libx264, libx265 and libaom-av1 pass the test encode; that static Linux build has no hardware encoders), the AI status
+  reports the default model and the updater stays off. Also run by hand: real ffmpeg transcodes for every preset (TikTok
+  1080×1920 + AAC, 4K 60 2160×3840, HEVC, thumbnails, the benchmark), a real resumable Hugging Face download through the
+  model manager with its SHA-256 check, and node-llama-cpp loading a small GGUF model (CPU backend) and answering through
+  the reply grammar – replies that failed the checks were retried and never applied.
+- **Not verifiable on Linux** – covered by the Windows workflow or to be checked on a Windows PC: building the NSIS installer
+  and the portable EXE (`npm run dist` needs Windows or Wine; the workflow builds and smoke-runs them on `windows-latest`);
+  installing per user and the shortcuts; NVENC / AMF / Quick Sync in ffmpeg and Chromium's Media Foundation encoders behind
+  `prefer-hardware` (need the GPU and its driver – on a PC without one the app falls back to software and says so in the GPU
+  panel); CUDA / Vulkan offload in llama.cpp; DPAPI behind `safeStorage` (on this Linux box without a keyring the app
+  correctly refuses to store a key); electron-updater against a real `desktop-v*` release; code signing and SmartScreen.
 
 ## Browser support
 

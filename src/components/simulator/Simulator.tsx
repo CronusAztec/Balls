@@ -82,6 +82,9 @@ import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSectio
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 import { useBatchRender, type BatchExportRequest } from "./useBatchRender"; // --- batch-render ---
+// --- desktop-exe --- the Windows app's Desktop group (GPU, Render queue, AI, Library): rendered only inside the app
+import DesktopSection from "./sections/DesktopSection";
+import type { DesktopPageHooks } from "./desktop/pageHooks";
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
 import { runnerPlanOf, runnerSettingsOf, sameRunnerPlan, type RunnerBeatInput, type RunnerPlan } from "@/lib/physics/modes/runner";
 import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
@@ -2598,6 +2601,34 @@ export default function Simulator() {
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
+  // --- desktop-exe --- what the Desktop group (sections/DesktopSection.tsx) may use of the page: it renders nothing on the website
+  const desktopPage: DesktopPageHooks = {
+    settings,
+    update,
+    applySettings: loadPresetSettings,
+    changeMode,
+    runJobs: batchRender.runJobs,
+    batchRun: batchRender.panel.run,
+    cancelExport: cancelFastExport,
+    fastExport,
+    busy: isRecording || isSearching || fastRunning || batchRender.running || !engineReady || projectFiles.panel.busy === "import",
+    selectMelody: onCustomSoundSelect,
+    currentMelody: customSoundId,
+    getWorld: () => splitRunnerRef.current?.canvasSize() ?? (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
+    pageSeed: () => engineRef.current?.getSeed() ?? 1,
+    copy: (botMessages.ViralBot ?? {}) as BotCopy,
+    locale: isBotLocale(botLocale) ? botLocale : "en",
+    actions: {
+      startPause: () => (isStarted ? setIsPaused((p) => !p) : void start()),
+      restart,
+      fastExport: () => void startFastExport(),
+      record: () => void toggleRecording(),
+      find: () => void (isSearching ? cancelFinder() : runFinder()),
+    },
+    media: { song: (f) => void onMusicUpload(f), video: (f) => videoBeats.panel.onImport(f), midi: (f) => void onCustomMidiUpload(f), image: onBallImageUpload, project: projectFiles.importFile },
+  };
+  // --- end desktop-exe ---
+
   return (
     <main id="simulator" ref={mainRef} className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -2976,6 +3007,7 @@ export default function Simulator() {
             bounceMath={bounceMathPanel} // --- bounce-math ---
           />
         </ProjectDropZone>
+        <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />
       </div>
     </main>
   );
