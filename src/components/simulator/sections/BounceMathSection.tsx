@@ -6,6 +6,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Toggle, onBtn, offBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { SimulatorSettings } from "@/lib/settings";
 import { bounceParamApplies, type BounceMathView } from "@/lib/physics/bounceMathRuntime";
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 import {
   BOUNCE_MATH_PRESET_IDS,
   BOUNCE_OPS,
@@ -45,9 +46,9 @@ export interface BounceMathPanelProps {
   getView: () => BounceMathView | null;
 }
 
-const smallBtn = "px-1.5 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
-const fieldClass = "px-1.5 py-1 bg-zinc-900 text-white text-xs tabular-nums rounded-md border border-zinc-700 focus:border-cyan-600 focus:outline-none";
-const miniSelect = "min-w-0 flex-1 px-1.5 py-1 bg-zinc-900 text-white text-xs rounded-md border border-zinc-700 focus:border-cyan-600 focus:outline-none";
+const smallBtn = "px-1.5 py-0.5 rounded-md text-xs font-medium transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed";
+const fieldClass = "px-1.5 py-1 bg-surface-1 text-ink text-xs tabular-nums rounded-md border border-line-strong focus:border-accent-dim";
+const miniSelect = "min-w-0 flex-1 px-1.5 py-1 bg-surface-1 text-ink text-xs rounded-md border border-line-strong focus:border-accent-dim";
 
 /**
  * A number field that keeps a draft while it has the focus and commits a finite value on Enter or when it loses the focus
@@ -111,14 +112,14 @@ function FormulaField({ value, n, onCommit, b }: { value: string; n: number; onC
         aria-label={b("formulaOf", { n })}
         aria-invalid={!!error}
         data-testid="bm-formula"
-        className={`${fieldClass} w-full font-mono ${error ? "border-red-500/70" : ""}`}
+        className={`${fieldClass} w-full font-mono ${error ? "border-danger/70" : ""}`}
       />
       {error ? (
-        <p className="text-[10px] text-red-400" data-testid="bm-formula-error" data-code={error.code}>
+        <p className="text-xs text-danger" data-testid="bm-formula-error" data-code={error.code}>
           {b(`formulaError.${error.code}`, { at: error.at + 1, name: error.name ?? "" })}
         </p>
       ) : (
-        <p className="text-[10px] text-zinc-500 leading-snug">{b("formulaExample")}</p>
+        <p className="text-xs text-ink-3 leading-snug">{b("formulaExample")}</p>
       )}
     </div>
   );
@@ -131,9 +132,9 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
   const sliderValue = Math.max(comfort.min, Math.min(comfort.max, rule.amount));
   const applies = bounceParamApplies(rule.param, mode);
   return (
-    <div className="rounded-lg border border-zinc-700/60 bg-zinc-800/40 p-2 space-y-1.5" data-testid="bm-rule" data-param={rule.param} data-trigger={rule.trigger} data-op={rule.op}>
+    <div className="rounded-lg border border-line-strong/60 bg-surface-2/40 p-2 space-y-1.5" data-testid="bm-rule" data-param={rule.param} data-trigger={rule.trigger} data-op={rule.op}>
       <div className="flex items-center gap-1">
-        <span className="shrink-0 w-5 text-[11px] font-bold text-[#93d119] tabular-nums">#{n}</span>
+        <span className="shrink-0 w-5 text-xs font-bold text-accent tabular-nums">#{n}</span>
         <select value={rule.param} onChange={(e) => isBounceParam(e.target.value) && onChange({ param: e.target.value })} aria-label={b("paramOf", { n })} data-testid="bm-param" className={miniSelect}>
           {BOUNCE_PARAMS.map((p) => (
             <option key={p} value={p}>
@@ -148,22 +149,22 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => onMove(-1)} disabled={index === 0} aria-label={b("moveUp", { n })} data-testid="bm-up" className={`${smallBtn} bg-zinc-800 text-zinc-300 hover:bg-zinc-700`}>
+        <button type="button" onClick={() => onMove(-1)} disabled={index === 0} aria-label={b("moveUp", { n })} data-testid="bm-up" className={`${smallBtn} bg-surface-2 text-ink-2 hover:bg-surface-3`}>
           ↑
         </button>
-        <button type="button" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={b("moveDown", { n })} data-testid="bm-down" className={`${smallBtn} bg-zinc-800 text-zinc-300 hover:bg-zinc-700`}>
+        <button type="button" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={b("moveDown", { n })} data-testid="bm-down" className={`${smallBtn} bg-surface-2 text-ink-2 hover:bg-surface-3`}>
           ↓
         </button>
-        <button type="button" onClick={onRemove} aria-label={b("remove", { n })} data-testid="bm-remove" className="shrink-0 px-1 py-0.5 text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer">
-          ✕
+        <button type="button" onClick={onRemove} aria-label={b("remove", { n })} data-testid="bm-remove" className="shrink-0 px-1 py-0.5 text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer">
+          <IconClose size={14} />
         </button>
       </div>
-      <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+      <div className="flex items-center gap-1.5 text-xs text-ink-2">
         <span>{b("every")}</span>
         <NumberField value={rule.every} ariaLabel={b("everyOf", { n })} onCommit={(v) => v !== undefined && onChange({ every: v })} className="w-12" testId="bm-every" />
         <span className="flex-1 truncate">{b(`everyUnit.${rule.trigger}`, { count: rule.every })}</span>
         {fires !== null && (
-          <span className="shrink-0 rounded-md bg-[#93d119]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#93d119] tabular-nums" data-testid="bm-fires">
+          <span className="shrink-0 rounded-md bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent tabular-nums" data-testid="bm-fires">
             {b("fired", { count: formatBounceValue(fires) })}
           </span>
         )}
@@ -190,11 +191,11 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
           onChange={(e) => onChange({ amount: Number(e.target.value) })}
           aria-label={b("amountSliderOf", { n })}
           data-testid="bm-amount-slider"
-          className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+          className="w-full h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer"
           style={sliderStyle(sliderValue, comfort.min, comfort.max)}
         />
       )}
-      <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+      <div className="flex items-center gap-1.5 text-xs text-ink-2">
         <span>{b("min")}</span>
         <NumberField value={rule.min} optional placeholder="–" ariaLabel={b("minOf", { n })} onCommit={(v) => onChange({ min: v })} className="w-14" testId="bm-min" />
         <span>{b("max")}</span>
@@ -210,7 +211,7 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
           {b(rule.scope === "all" ? "scopeAll" : "scopeBall")}
         </button>
       </div>
-      {!applies && <p className="text-[10px] text-amber-400/90">{b("notInMode")}</p>}
+      {!applies && <p className="text-xs text-warn/90">{b("notInMode")}</p>}
     </div>
   );
 }
@@ -245,19 +246,19 @@ export default function BounceMathSection({ t, search, matches, settings: s, upd
   const setRules = (next: BounceRule[]) => update({ bounceMath: next });
   const full = rules.length >= MAX_BOUNCE_RULES;
   return (
-    <div className="space-y-3 rounded-xl border border-[#93d119]/25 bg-zinc-900/40 p-3" data-testid="bm-section">
+    <div className="space-y-3 rounded-xl border border-accent/25 bg-surface-1/40 p-3" data-testid="bm-section">
       <Searchable search={search} matches={matches} labelKey="bounceMath">
         <div className="space-y-1">
-          <label className="text-sm font-semibold text-zinc-200 flex items-center gap-1">
-            🧮 {t("bounceMath")}
+          <label className="text-sm font-semibold text-ink flex items-center gap-1">
+            {t("bounceMath")}
             <Tooltip text={t("bounceMathTip")} />
           </label>
-          <p className="text-[11px] text-zinc-400 leading-relaxed">{b("desc")}</p>
+          <p className="text-xs text-ink-2 leading-relaxed">{b("desc")}</p>
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="bounceMathRules">
         <div className="space-y-2" data-testid="bm-rules" data-count={rules.length}>
-          {rules.length === 0 && <p className="text-[11px] text-zinc-500 italic">{b("empty")}</p>}
+          {rules.length === 0 && <p className="text-xs text-ink-3 italic">{b("empty")}</p>}
           {rules.map((rule, i) => (
             <RuleRow
               key={i}
@@ -278,11 +279,11 @@ export default function BounceMathSection({ t, search, matches, settings: s, upd
               onClick={() => setRules(addRule(rules))}
               disabled={full}
               data-testid="bm-add"
-              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-dashed border-[#93d119]/40 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface-2 text-accent border border-dashed border-accent/40 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ＋ {b("add")}
+              {b("add")}
             </button>
-            <button type="button" onClick={() => setRules([])} disabled={rules.length === 0} data-testid="bm-clear" className="px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed">
+            <button type="button" onClick={() => setRules([])} disabled={rules.length === 0} data-testid="bm-clear" className="px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed">
               {b("clear")}
             </button>
           </div>
@@ -290,7 +291,7 @@ export default function BounceMathSection({ t, search, matches, settings: s, upd
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="bounceMathPreset">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-400" htmlFor="bm-preset">
+          <label className="text-xs font-medium text-ink-2" htmlFor="bm-preset">
             {t("bounceMathPreset")}
             <Tooltip text={b("presetTip")} />
           </label>
@@ -319,21 +320,21 @@ export default function BounceMathSection({ t, search, matches, settings: s, upd
         <Toggle t={t} labelKey="bounceMathShowValues" tipKey="bounceMathShowValuesTip" value={s.bounceMathHud} onChange={(v) => update({ bounceMathHud: v })} caseStyle="title" />
       </Searchable>
       {readout && !search && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 rounded-lg bg-zinc-950/50 px-2.5 py-2 text-[11px] tabular-nums" data-testid="bm-readout">
-          <span className="col-span-2 text-[10px] uppercase tracking-wide text-zinc-500">{b("readout")}</span>
-          <span className="text-zinc-400">
-            {b("param.bounciness")}: <b className="text-amber-300" data-testid="bm-readout-bounce">{readout.hasBall ? formatBounceValue(readout.bounciness) : "–"}</b>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 rounded-lg bg-bg/50 px-2.5 py-2 text-xs tabular-nums" data-testid="bm-readout">
+          <span className="col-span-2 text-xs uppercase tracking-wide text-ink-3">{b("readout")}</span>
+          <span className="text-ink-2">
+            {b("param.bounciness")}: <b className="text-warn" data-testid="bm-readout-bounce">{readout.hasBall ? formatBounceValue(readout.bounciness) : "–"}</b>
           </span>
-          <span className="text-zinc-400">
-            {b("param.speed")}: <b className="text-cyan-300" data-testid="bm-readout-speed">{readout.hasBall ? formatBounceValue(readout.speed) : "–"}</b>
+          <span className="text-ink-2">
+            {b("param.speed")}: <b className="text-accent-strong" data-testid="bm-readout-speed">{readout.hasBall ? formatBounceValue(readout.speed) : "–"}</b>
           </span>
-          <span className="text-zinc-400">
-            {b("param.size")}: <b className="text-violet-300" data-testid="bm-readout-size">{readout.hasBall ? formatBounceValue(readout.size) : "–"}</b>
+          <span className="text-ink-2">
+            {b("param.size")}: <b className="text-accent-strong" data-testid="bm-readout-size">{readout.hasBall ? formatBounceValue(readout.size) : "–"}</b>
           </span>
-          <span className="text-zinc-400">
-            {b("param.gravity")}: <b className="text-sky-300" data-testid="bm-readout-gravity">{formatBounceValue(readout.gravity)}</b>
+          <span className="text-ink-2">
+            {b("param.gravity")}: <b className="text-accent-strong" data-testid="bm-readout-gravity">{formatBounceValue(readout.gravity)}</b>
           </span>
-          <span className="col-span-2 text-zinc-500">{b("readoutBalls", { count: readout.balls })}</span>
+          <span className="col-span-2 text-ink-3">{b("readoutBalls", { count: readout.balls })}</span>
         </div>
       )}
     </div>

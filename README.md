@@ -70,6 +70,55 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Wide sliders** (was No limits) | The **Wide sliders** switch at the top of the Ball & Physics section (`unlimited`, URL `inf=1` – the old No limits key, kept for old links – saved in presets, project files and share codes; off by default) stretches the slider of every uncapped setting past its comfort range on a logarithmic track up to **1B**. It no longer gates anything else: every value is uncapped whether it is on or off (see the Uncapped row), and turning it off changes no value – the track pins at its end. |
 | **Uncapped everything** | No parameter has a maximum any more (feature uncap-all, `src/lib/uncap.ts`): every slider in every section has a **number field** next to it (type any finite number – `1e9`, `2.5M`, `0.0001`, `1,5`; Enter, leaving the field or ↑/↓ commit it, invalid text keeps the old value and says why), and the other numeric controls got the same field (the BPM, the clip length, the text size, the rotation speed, timeline keyframes, the batch sweep, the bot, the export frame rate, arena overrides, obstacle rows, Find Simulation's times). A value past its slider pins the track at its end with a faint tint and a "beyond the slider" tooltip, the readout shows it short (1.2M), and links, presets, project files and share codes carry it exactly. The engine runs it as typed – no speed, size, gravity, rotation, restitution or multiplier ceiling – and engages its extreme-values machinery by itself (planned sub-steps and time dilation, time-slicing, the crowd, cheaper drawing) only when a value is past its slider, so at the defaults nothing changes. **Bouncier** is now a numeric **Bounciness** (`bnc`; the old `bounce=1` means 1.03, off = 1): every bounce adds (Bounciness − 1) × the Ball Speed to the rebound, forever – 3, 100, 1e6 – and the canvas shows the fastest ball's speed (**⚡ 12.3K PX/S**) climbing. The only ceilings left are memory-safety ceilings on what a value allocates (a million crowd balls, 10,000 rings, 5,000 entities of a mode…), past which the run says **ARENA FULL**; numbers that overflow the float range are put back at the centre with **NUMBERS OVERFLOWED**. |
 | **Windows app (desktop-exe)** | The whole simulator as a downloadable Windows EXE (`desktop/`, Electron): an installer (per user, no admin) and a portable EXE from [GitHub Releases](https://github.com/CronusAztec/Balls/releases/latest), linked from a **Download for Windows** button on the landing page and the `/download` page. Inside the app a **Desktop studio** group appears under the simulator: **GPU** (the graphics card and what Chromium accelerates, the fast export encoding on the GPU first – `hardwareAcceleration: "prefer-hardware"` with the software fallback kept – bundled ffmpeg with NVENC / AMF / Quick Sync picked automatically after a test encode, a benchmark), **Render queue** (seeds, share links or the viral bot's plan × resolutions × frame rates × H.264 / HEVC / AV1 × TikTok / Reels / Shorts / 4K 60 presets, rendered through the fast export and saved straight into a folder – progress, cancel, retry, and a crash-safe journal that resumes after a restart), **AI studio** (a local GGUF model through llama.cpp – downloaded once with its licence shown, resumable and checksummed, GPU offload via CUDA / Vulkan – or your own Anthropic / OpenAI-compatible key: it plans videos with the viral bot and Find Simulation as tools, writes hooks, captions and hashtags, changes settings on request with Undo and pitches ideas from the virality playbook; every reply is validated before it is applied) and **Library** (thumbnails, length, size, play, show in folder, re-render, delete, publish extension point). Native menu, tray, shortcuts, file dialogs, drag and drop, single instance and auto-update; the website itself is unchanged |
+| **Site design – the stage and the desk** | One calm, dark interface for the whole site (feature site-redesign, see [Design](#design)): semantic colour tokens with a single lime accent, three self-hosted type roles (display, interface, mono readouts), a small component kit in `src/components/ui/`, a landing page with a live 9:16 preview and a modes wall, and a studio in three zones – a rail of control groups, the stage with its readout strip and transport bar, and the panel – with a mode picker dialog and a command palette (Ctrl/Cmd+K). Reading pages share one 680 px column; the gallery is a wall of poster cards. Every setting, URL key, preset, share link and keyboard shortcut works as before |
+
+## Design
+
+The site is built as **the stage and the desk**: the simulation is the stage – the one bright, moving thing on the
+screen – and everything else is a quiet desk around it. Near-black surfaces, hairlines instead of boxes, one accent,
+no gradients or glows in the chrome, and emoji only where they are content (ball faces, the emoji picker, team emoji,
+caption text, the particle previews).
+
+**Tokens** (`src/app/globals.css`, `@theme`): `bg` and three surface steps (`surface-1/2/3`), two hairlines (`line`,
+`line-strong`), three inks (`ink`, `ink-2`, `ink-3`), the accent (`accent`, `accent-strong`, `accent-dim`, `accent-ink`
+for text on it) and three states (`ok`, `warn`, `danger`). Radii are 6 px for controls, 10 px for panels and 16 px for
+the stage frame only; elevation comes from the surface steps plus one soft shadow for dialogs and sheets. Components use
+these names (`bg-surface-2`, `text-ink-3`, `border-line`) – never the stock palette or hex values.
+
+**Type roles** (`src/app/fonts.ts`, `next/font/local`, self-hosted from `src/fonts/` with their OFL licences, each in a
+latin and a latin-ext subset so Polish and Spanish render in the same faces): **Space Grotesk** for display headings,
+**Hanken Grotesk** for the interface, **JetBrains Mono** for readouts – the stage strip, slider values, number fields,
+keyboard hints and the uppercase `eyebrow` labels. The `num` utility gives tabular, slashed-zero figures.
+
+**Layout zones and breakpoints**
+
+| Width | Studio | Site |
+| --- | --- | --- |
+| ≥ 1536 px | rail with icons and labels (240 px) · stage · panel (380 px) | 1200 px container, reading column 680 px with a sticky table of contents on the legal pages |
+| 1280–1535 px | icon rail (64 px, labels as tooltips) · stage · panel | as above |
+| 768–1279 px | stage, then the rail as a sticky tab strip, then the panel | the reading column alone |
+| < 768 px | stage with the transport bar pinned to the bottom; the tab strip is the peek of a bottom sheet that opens to 70 % of the height | a menu sheet from the header |
+
+The canvas frame is sized from the viewport only (the stage column's width and the screen height), so it changes size
+exactly when the window does – the moment the canvas re-measures itself. The world keeps its shapes (square below
+640 px, 16:9 above); the export format and its ratio (9:16 by default) are shown in the stage strip.
+
+**Components** (`src/components/ui/`): `Button` / `buttonClass` (primary, secondary, ghost, danger), `IconButton`,
+`Chip`, `Segmented`, `Field` with `inputClass` / `selectClass` / `textareaClass`, `Switch`, `Panel`, `Tooltip`, `Dialog`
+and `Sheet` (native `<dialog>`: focus stays inside, Esc and the scrim close, the focus returns to the opener), `TabStrip`
+(the rail: toggle buttons with roving focus), `Kbd` and the icon set (`icons.tsx`, 20 px grid, 1.5 px strokes). The
+studio's own pieces are in `src/components/simulator/studio/` (stage strip, mode picker, command palette); the reading
+pages use `src/components/site/ProseLayout.tsx`.
+
+**Motion and access**: 150–200 ms ease-out for panels, sheets and dialogs, nothing bouncy, and none of it with
+`prefers-reduced-motion` (the landing preview then shows a still picture). Every interactive element gets the accent
+focus ring; touch targets grow to 44 px on coarse pointers; the rail and the panel keep the names, `aria-pressed` /
+`aria-expanded` semantics and test ids of the old panel headers, and the panel's switches are `role="switch"` named by
+their labels.
+
+**Adding to it**: a new control group goes into the `sections` list of `Controls.tsx` with an icon from `icons.tsx` – it
+appears on the rail, in the tab strip, in the command palette and in the search; a new reading page wraps its text in
+`ProseLayout` (an eyebrow, the title, an optional lede and table of contents).
 
 ## Getting started
 
@@ -168,7 +217,8 @@ src/
   app/[locale]/         pages (landing, simulator, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
   app/(static)/         locale-less pages of the static export: "/" (language redirect) and "/404"
   app/sitemap.ts, robots.ts
-  components/site/      navbar, footer, language switcher, landing sections, forms
+  components/site/      navbar, footer, language switcher, landing sections (hero with the live preview, modes wall), ProseLayout, forms
+  components/ui/        the design kit: buttons, chips, fields, switches, dialogs and sheets, the rail tab strip, icons (see Design)
   components/simulator/ Simulator.tsx (page state) · Canvas.tsx (renderer) · boxRenderer.ts (Bouncing Shapes drawing) · pendulumRenderer.ts (Pendulum Wave drawing) · Controls.tsx (panel) · ControlPrimitives.tsx (Slider/Toggle/… helpers) · sections/*.tsx (feature blocks of the panel, e.g. BallDropSection.tsx, BoxArenaSection.tsx, PendulumWaveSection.tsx)
   i18n/                 next-intl routing + request config
   lib/physics/          engine.ts · director.ts · rigged.ts (the director's hard constraints: never escape, forced winner) · types.ts · extras.ts (drag, wind, spin, bounciness, breathing walls, rotating gravity) · interactions.ts (merge / split / pass) · obstacles.ts (pegs, bars, straight walls) · picturePaint.ts (Picture Paint settings, coverage and pacing maths) · modes/*.ts (drop.ts is the Ball Drop board, box.ts the Bouncing Shapes box, pendulum.ts the Pendulum Wave rig, paint.ts the Paint / Picture Paint mode)

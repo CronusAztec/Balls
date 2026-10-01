@@ -100,7 +100,7 @@ function TimelineBar({ keyframes, clipSec, getEngine }: TimelineBarProps) {
           const color = TIMELINE_KEY_COLORS[track.key];
           const { points, ys } = lanePoints(track, span, laneHeight, pad);
           return (
-            <div key={track.key} className="relative rounded-sm bg-zinc-800/50" style={{ height: laneHeight }} data-testid="timeline-lane" data-key={track.key}>
+            <div key={track.key} className="relative rounded-sm bg-surface-2/50" style={{ height: laneHeight }} data-testid="timeline-lane" data-key={track.key}>
               <svg className="absolute inset-0 w-full h-full overflow-visible" viewBox={`0 0 ${VIEW_W} ${laneHeight}`} preserveAspectRatio="none" aria-hidden="true">
                 <polyline points={points} fill="none" stroke={color} strokeOpacity={0.6} strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
               </svg>
@@ -119,7 +119,7 @@ function TimelineBar({ keyframes, clipSec, getEngine }: TimelineBarProps) {
         })}
         <div ref={headRef} data-testid="timeline-playhead" className="absolute -top-0.5 -bottom-0.5 w-0.5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_6px_rgba(147,209,25,0.9)] pointer-events-none" style={{ left: "0%" }} />
       </div>
-      <div className="mx-1.5 mt-1 flex items-start justify-between gap-2 text-[10px] leading-tight text-zinc-500 tabular-nums">
+      <div className="mx-1.5 mt-1 flex items-start justify-between gap-2 text-xs leading-tight text-ink-3 tabular-nums">
         <span>0s</span>
         <span className="flex flex-wrap justify-center gap-x-2.5 gap-y-0.5">
           {tracks.map((track) => (

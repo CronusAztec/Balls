@@ -109,40 +109,6 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
   }
-
-  /* --- legacy palette aliases: the components still select colours through cyan/blue/indigo/purple/slate/zinc until
-     the colour sweep (stage 5 of site-redesign) moves them onto the semantic tokens above; then this block goes. --- */
-  --color-cyan-300: #d8ff7a;
-  --color-cyan-400: #c6ff3d;
-  --color-cyan-500: #b0f02a;
-  --color-cyan-600: #93d119;
-  --color-blue-300: #d8ff7a;
-  --color-blue-400: #c6ff3d;
-  --color-blue-500: #b0f02a;
-  --color-blue-600: #93d119;
-  --color-blue-800: #2e3a0e;
-  --color-blue-900: #1e260a;
-  --color-indigo-500: #b0f02a;
-  --color-purple-300: #d8ff7a;
-  --color-purple-500: #b0f02a;
-  --color-purple-600: #93d119;
-  --color-slate-50: #f2f2ed;
-  --color-slate-300: #bfbfc6;
-  --color-slate-400: #a8a8b0;
-  --color-slate-500: #8e8e97;
-  --color-slate-700: #2f2f34;
-  --color-slate-800: #202025;
-  --color-slate-900: #121215;
-  --color-slate-950: #0b0b0d;
-  --color-zinc-200: #dddde0;
-  --color-zinc-300: #bfbfc6;
-  --color-zinc-400: #a8a8b0;
-  --color-zinc-500: #8e8e97;
-  --color-zinc-600: #45454b;
-  --color-zinc-700: #2f2f34;
-  --color-zinc-800: #202025;
-  --color-zinc-900: #121215;
-  --color-zinc-950: #0b0b0d;
 }
 
 /* Mono readouts with tabular figures (seeds, timers, slider values, number fields, keyboard hints). */

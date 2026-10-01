@@ -30,17 +30,17 @@ export interface PolyrhythmSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const POLYRHYTHM_KEYS = ["prLayout", "prArcStyle", "prPolygon", "prTempos", "prCount", "prCycleSeconds", "prBaseBpm", "prBpmStep", "prCustom", "prAccentEvery", "prPitchBy", "prNumbers", "prCycles"];
 
-const LAYOUT_OPTIONS: Record<PolyLayout, { icon: string; labelKey: string }> = {
-  rings: { icon: "⭕", labelKey: "prLayoutRings" },
-  arcs: { icon: "🌈", labelKey: "prLayoutArcs" },
-  metronomes: { icon: "⏱️", labelKey: "prLayoutMetronomes" },
-  spiral: { icon: "🌀", labelKey: "prLayoutSpiral" },
+const LAYOUT_OPTIONS: Record<PolyLayout, { labelKey: string }> = {
+  rings: { labelKey: "prLayoutRings" },
+  arcs: { labelKey: "prLayoutArcs" },
+  metronomes: { labelKey: "prLayoutMetronomes" },
+  spiral: { labelKey: "prLayoutSpiral" },
 };
 const ARC_STYLE_LABELS: Record<PolyArcStyle, string> = { chords: "prArcChords", semicircles: "prArcSemicircles" };
 const TEMPO_LABELS: Record<PolyTempos, string> = { harmonic: "prTemposHarmonic", arithmetic: "prTemposArithmetic", custom: "prTemposCustom" };
 const PITCH_LABELS: Record<PolyPitchBy, string> = { index: "prPitchIndex", ratio: "prPitchRatio" };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /** Seconds for the readout: whole seconds as they are, otherwise one decimal. */
 function formatSeconds(sec: number) {
@@ -52,7 +52,7 @@ function Choice<T extends string>({ t, labelKey, tipKey, options, labels, value,
   const wrap = cols === "wrap"; // --- review fix (ui-i18n) ---
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-zinc-300">
+      <label className="text-sm font-medium text-ink-2">
         {t(labelKey)}
         <Tooltip text={t(tipKey)} />
       </label>
@@ -81,17 +81,17 @@ export default function PolyrhythmSection({ t, search, matches, settings: s, upd
   const customCount = parseCustomRatios(s.prCustom).length;
   return (
     <div className="space-y-3 pt-2">
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("prDesc")}</p>}
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("prDesc")}</p>}
       <Searchable search={search} matches={matches} labelKey="prLayout">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("prLayout")}
             <Tooltip text={t("prLayoutTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("prLayout")}>
             {POLY_LAYOUTS.map((layout) => (
               <button type="button" key={layout} onClick={() => update({ prLayout: layout })} aria-pressed={s.prLayout === layout} className={pick(s.prLayout === layout)}>
-                <span aria-hidden="true">{LAYOUT_OPTIONS[layout].icon}</span> {t(LAYOUT_OPTIONS[layout].labelKey)}
+                {t(LAYOUT_OPTIONS[layout].labelKey)}
               </button>
             ))}
           </div>
@@ -111,26 +111,26 @@ export default function PolyrhythmSection({ t, search, matches, settings: s, upd
         <Choice t={t} labelKey="prTempos" tipKey="prTemposTip" options={POLY_TEMPOS} labels={TEMPO_LABELS} value={s.prTempos} onChange={(v) => update({ prTempos: v })} cols="wrap" /* --- review fix (ui-i18n) --- es "Personalizados" fits */ />
       </Searchable>
       {(s.prTempos !== "custom" || all) && (
-        <Slider t={t} search={search} matches={matches} labelKey="prCount" tipKey="prCountTip" value={s.prCount} range={RANGES.prCount} onChange={(v) => update({ prCount: v })} display={String(s.prCount)} left="▪" right="▪▪▪" />
+        <Slider t={t} search={search} matches={matches} labelKey="prCount" tipKey="prCountTip" value={s.prCount} range={RANGES.prCount} onChange={(v) => update({ prCount: v })} display={String(s.prCount)} />
       )}
       {(s.prTempos !== "arithmetic" || all) && (
-        <Slider t={t} search={search} matches={matches} labelKey="prCycleSeconds" tipKey="prCycleSecondsTip" value={s.prCycleSeconds} range={RANGES.prCycleSeconds} onChange={(v) => update({ prCycleSeconds: v })} display={`${formatSeconds(s.prCycleSeconds)}s`} left="⏱️" right="⏳" />
+        <Slider t={t} search={search} matches={matches} labelKey="prCycleSeconds" tipKey="prCycleSecondsTip" value={s.prCycleSeconds} range={RANGES.prCycleSeconds} onChange={(v) => update({ prCycleSeconds: v })} display={`${formatSeconds(s.prCycleSeconds)}s`} />
       )}
       {(s.prTempos === "arithmetic" || all) && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="prBaseBpm" tipKey="prBaseBpmTip" value={s.prBaseBpm} range={RANGES.prBaseBpm} onChange={(v) => update({ prBaseBpm: v })} display={`${s.prBaseBpm} BPM`} left="🐢" right="🐇" />
-          <Slider t={t} search={search} matches={matches} labelKey="prBpmStep" tipKey="prBpmStepTip" value={s.prBpmStep} range={RANGES.prBpmStep} onChange={(v) => update({ prBpmStep: v })} display={`+${s.prBpmStep.toFixed(1)} BPM`} left="·" right="⋯" />
+          <Slider t={t} search={search} matches={matches} labelKey="prBaseBpm" tipKey="prBaseBpmTip" value={s.prBaseBpm} range={RANGES.prBaseBpm} onChange={(v) => update({ prBaseBpm: v })} display={`${s.prBaseBpm} BPM`} />
+          <Slider t={t} search={search} matches={matches} labelKey="prBpmStep" tipKey="prBpmStepTip" value={s.prBpmStep} range={RANGES.prBpmStep} onChange={(v) => update({ prBpmStep: v })} display={`+${s.prBpmStep.toFixed(1)} BPM`} />
         </>
       )}
       {(s.prTempos === "custom" || all) && (
         <Searchable search={search} matches={matches} labelKey="prCustom">
           <div className="space-y-2">
-            <label htmlFor="poly-custom-ratios" className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+            <label htmlFor="poly-custom-ratios" className="text-sm font-medium text-ink-2 flex items-center justify-between">
               <span>
                 {t("prCustom")}
                 <Tooltip text={t("prCustomTip")} />
               </span>
-              <span className="text-zinc-500">{t("prCustomVoices", { count: customCount })}</span>
+              <span className="text-ink-3">{t("prCustomVoices", { count: customCount })}</span>
             </label>
             <input
               id="poly-custom-ratios"
@@ -139,20 +139,20 @@ export default function PolyrhythmSection({ t, search, matches, settings: s, upd
               value={s.prCustom}
               placeholder="3,4,5,7"
               onChange={(e) => update({ prCustom: sanitizeCustomRatios(e.target.value) })}
-              className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm tabular-nums"
+              className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm tabular-nums"
             />
           </div>
         </Searchable>
       )}
-      {!search && <p className="text-xs text-zinc-400 tabular-nums" data-testid="poly-realign">{t("prRealign", { seconds: formatSeconds(Math.round(10 * series.alignSec) / 10) })}</p>}
-      <Slider t={t} search={search} matches={matches} labelKey="prAccentEvery" tipKey="prAccentEveryTip" value={s.prAccentEvery} range={RANGES.prAccentEvery} onChange={(v) => update({ prAccentEvery: v })} display={s.prAccentEvery === 0 ? t("prOff") : String(s.prAccentEvery)} left="·" right="!" />
+      {!search && <p className="text-xs text-ink-2 tabular-nums" data-testid="poly-realign">{t("prRealign", { seconds: formatSeconds(Math.round(10 * series.alignSec) / 10) })}</p>}
+      <Slider t={t} search={search} matches={matches} labelKey="prAccentEvery" tipKey="prAccentEveryTip" value={s.prAccentEvery} range={RANGES.prAccentEvery} onChange={(v) => update({ prAccentEvery: v })} display={s.prAccentEvery === 0 ? t("prOff") : String(s.prAccentEvery)} />
       <Searchable search={search} matches={matches} labelKey="prPitchBy">
         <Choice t={t} labelKey="prPitchBy" tipKey="prPitchByTip" options={POLY_PITCH_BY} labels={PITCH_LABELS} value={s.prPitchBy} onChange={(v) => update({ prPitchBy: v })} cols="grid-cols-2" />
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="prNumbers">
         <Toggle t={t} labelKey="prNumbers" tipKey="prNumbersTip" value={s.prNumbers} onChange={(v) => update({ prNumbers: v })} />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="prCycles" tipKey="prCyclesTip" value={s.prCycles} range={RANGES.prCycles} onChange={(v) => update({ prCycles: v })} display={s.prCycles === 0 ? t("prCyclesNever") : String(s.prCycles)} left="∞" right="20" />
+      <Slider t={t} search={search} matches={matches} labelKey="prCycles" tipKey="prCyclesTip" value={s.prCycles} range={RANGES.prCycles} onChange={(v) => update({ prCycles: v })} display={s.prCycles === 0 ? t("prCyclesNever") : String(s.prCycles)} />
     </div>
   );
 }

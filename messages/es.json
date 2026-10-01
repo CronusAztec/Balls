@@ -10,17 +10,9 @@
   },
   "Navbar": {
     "simulator": "Simulador",
-    "modes": "Modos",
-    "features": "Funciones",
-    "faq": "FAQ",
     "goHome": "Ir al inicio",
     "openMenu": "Abrir menú",
-    "closeMenu": "Cerrar menú",
-    "back": "← Volver",
-    "backToSimulator": "← Volver al simulador"
-  },
-  "Hero": {
-    "mobileNotice": "Para la mejor experiencia usa un navegador de escritorio o portátil. Los controles están optimizados para pantallas grandes."
+    "closeMenu": "Cerrar menú"
   },
   "SimulatorPage": {
     "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",

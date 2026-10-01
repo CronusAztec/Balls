@@ -21,6 +21,7 @@ import AiPanel from "../desktop/AiPanel";
 import LibraryPanel from "../desktop/LibraryPanel";
 import { errorText } from "../desktop/ui";
 
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 /*
  * --- desktop-exe --- The Desktop group of the simulator: shown only inside the Windows app (where the preload script put
  * `window.desktop`), under the simulator – GPU, Render queue, AI studio and Library. It also answers the app's menu, tray and
@@ -191,10 +192,10 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
 
   if (!prefs) return null;
   return (
-    <section ref={rootRef} className="lg:col-span-3 bg-zinc-950/70 border border-zinc-800 rounded-xl p-3 sm:p-4 space-y-4 scroll-mt-4" data-desktop-group="" data-desktop-tab={tab} aria-label={t("groupTitle")}>
+    <section ref={rootRef} className="lg:col-span-3 bg-bg/70 border border-line rounded-xl p-3 sm:p-4 space-y-4 scroll-mt-4" data-desktop-group="" data-desktop-tab={tab} aria-label={t("groupTitle")}>
       <div className="flex items-center gap-3 flex-wrap">
-        <h2 className="text-base font-extrabold text-white flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#93d119] shadow-[0_0_10px_#93d119]" />
+        <h2 className="text-base font-extrabold text-ink flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-accent shadow-[0_0_10px_#93d119]" />
           {t("groupTitle")}
         </h2>
         <nav className="flex gap-1.5 flex-wrap" role="tablist" aria-label={t("groupTitle")}>
@@ -206,27 +207,27 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
               aria-selected={tab === id}
               onClick={() => setTab(id)}
               data-testid={`desktop-tab-${id}`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${tab === id ? "bg-[#93d119]/15 border-[#93d119]/70 text-[#b0f02a]" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200"}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${tab === id ? "bg-accent/15 border-accent/70 text-accent" : "bg-surface-1 border-line text-ink-2 hover:text-ink"}`}
             >
               <span className="mr-1">{TAB_ICONS[id]}</span>
               {t(`tab.${id}`)}
-              {id === "queue" && queue.state.jobs.some((j) => j.status === "queued" || j.status === "rendering" || j.status === "encoding") && <span className="ml-1.5 text-[10px] text-cyan-300">●</span>}
+              {id === "queue" && queue.state.jobs.some((j) => j.status === "queued" || j.status === "rendering" || j.status === "encoding") && <span className="ml-1.5 text-xs text-accent-strong">●</span>}
             </button>
           ))}
         </nav>
         <div className="ml-auto flex gap-1.5">
           {(["song", "video", "project"] as const).map((kind) => (
-            <button key={kind} type="button" onClick={() => pick(kind)} className="px-2.5 py-1 rounded-lg text-[11px] bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 cursor-pointer">
+            <button key={kind} type="button" onClick={() => pick(kind)} className="px-2.5 py-1 rounded-lg text-xs bg-surface-1 border border-line text-ink-2 hover:text-ink cursor-pointer">
               {t(`open.${kind}`)}
             </button>
           ))}
         </div>
       </div>
       {notice && (
-        <div className="flex items-center gap-2 text-xs text-zinc-300 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2" data-testid="desktop-notice">
+        <div className="flex items-center gap-2 text-xs text-ink-2 bg-surface-1 border border-line rounded-lg px-3 py-2" data-testid="desktop-notice">
           <span className="flex-1">{notice}</span>
-          <button type="button" className="text-zinc-500 hover:text-zinc-300 cursor-pointer" onClick={() => setNotice(null)} aria-label={t("dismiss")}>
-            ✕
+          <button type="button" className="text-ink-3 hover:text-ink-2 cursor-pointer" onClick={() => setNotice(null)} aria-label={t("dismiss")}>
+            <IconClose size={14} />
           </button>
         </div>
       )}

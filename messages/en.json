@@ -10,17 +10,9 @@
   },
   "Navbar": {
     "simulator": "Simulator",
-    "modes": "Modes",
-    "features": "Features",
-    "faq": "FAQ",
     "goHome": "Go to Home",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu",
-    "back": "← Back",
-    "backToSimulator": "← Back to simulator"
-  },
-  "Hero": {
-    "mobileNotice": "For the best experience, use a desktop or laptop browser. Controls are optimised for larger screens."
+    "closeMenu": "Close menu"
   },
   "SimulatorPage": {
     "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",

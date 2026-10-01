@@ -5,6 +5,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 import {
   MAX_OBSTACLES,
   OBSTACLE_KINDS,
@@ -49,7 +50,7 @@ function coordinate(v: number): string {
 /** A compact slider for one number of one obstacle (`ariaLabel` names it when the visible label is a short symbol). */
 function RowSlider({ label, ariaLabel, value, range, display, onChange }: { label: string; ariaLabel?: string; value: number; range: { min: number; max: number; step: number }; display: string; onChange: (v: number) => void }) {
   return (
-    <label className="flex items-center gap-2 text-[11px] text-zinc-400">
+    <label className="flex items-center gap-2 text-xs text-ink-2">
       <span className="w-14 shrink-0 truncate">{label}</span>
       <input
         type="range"
@@ -59,10 +60,10 @@ function RowSlider({ label, ariaLabel, value, range, display, onChange }: { labe
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         aria-label={ariaLabel ?? label}
-        className="flex-1 min-w-0 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+        className="flex-1 min-w-0 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer"
         style={sliderStyle(value, range.min, range.max)}
       />
-      <span className="w-14 shrink-0 text-right font-mono tabular-nums text-zinc-500">{display}</span>
+      <span className="w-14 shrink-0 text-right font-mono tabular-nums text-ink-3">{display}</span>
       <NumberField value={value} onCommit={onChange} label={label} range={range} rules={rulesForRange(range)} settingKey={`obstacle:${label}`} className="w-16" /* --- uncap-all --- */ />
     </label>
   );
@@ -74,19 +75,19 @@ function ObstacleRow({ t, obstacle: o, index, onChange, onRemove }: { t: Transla
   const { icon, labelKey } = OBSTACLE_KIND_LABELS[o.kind];
   const circle = isCircleKind(o.kind);
   return (
-    <div className="rounded-lg bg-zinc-800/60 border border-zinc-700/60 px-2.5 py-2 space-y-1.5" data-testid="obstacle-row" data-kind={o.kind}>
+    <div className="rounded-lg bg-surface-2/60 border border-line-strong/60 px-2.5 py-2 space-y-1.5" data-testid="obstacle-row" data-kind={o.kind}>
       <div className="flex items-center gap-2 text-xs">
-        <span aria-hidden="true" className="text-[#93d119] w-3 text-center">
+        <span aria-hidden="true" className="text-accent w-3 text-center">
           {icon}
         </span>
-        <span className="font-semibold text-zinc-200">
+        <span className="font-semibold text-ink">
           {t(labelKey)} {n}
         </span>
-        <span className="text-zinc-500 font-mono tabular-nums truncate" data-testid="obstacle-position">
+        <span className="text-ink-3 font-mono tabular-nums truncate" data-testid="obstacle-position">
           {t("obstaclePosition", { x: coordinate(o.x), y: coordinate(o.y) })}
         </span>
-        <button type="button" onClick={onRemove} aria-label={t("obstacleRemove", { n })} className="ml-auto shrink-0 px-1.5 text-zinc-500 hover:text-red-400 transition-colors cursor-pointer">
-          ✕
+        <button type="button" onClick={onRemove} aria-label={t("obstacleRemove", { n })} className="ml-auto shrink-0 px-1.5 text-ink-3 hover:text-danger transition-colors cursor-pointer">
+          <IconClose size={14} />
         </button>
       </div>
       {/* --- review fix (ui-i18n) --- the position can be set without dragging on the canvas (keyboard, switch access) */}
@@ -119,10 +120,10 @@ export default function ObstaclesSection({ t, search, matches, settings: s, upda
   const setList = (obstacles: EditorObstacle[]) => update({ obstacles });
   return (
     <div className="space-y-4" data-testid="obstacles-section">
-      {!plays && <p className="text-xs text-amber-500/90 leading-relaxed">{t("obstaclesModeNote")}</p>}
+      {!plays && <p className="text-xs text-warn/90 leading-relaxed">{t("obstaclesModeNote")}</p>}
       <Searchable search={search} matches={matches} labelKey="obstacleAdd">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="obstacle-kind-select">
+          <label className="text-sm font-medium text-ink-2" htmlFor="obstacle-kind-select">
             {t("obstacles")}
             <Tooltip text={t("obstaclesTip")} />
           </label>
@@ -138,18 +139,18 @@ export default function ObstaclesSection({ t, search, matches, settings: s, upda
               type="button"
               onClick={() => setList(addObstacle(s.obstacles, kind))}
               disabled={full}
-              className="shrink-0 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-dashed border-[#93d119]/40 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="shrink-0 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface-2 text-accent border border-dashed border-accent/40 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ＋ {t("obstacleAdd")}
+              {t("obstacleAdd")}
             </button>
           </div>
-          {full && <p className="text-xs text-amber-500/90">{t("obstaclesMax", { max: MAX_OBSTACLES })}</p>}
+          {full && <p className="text-xs text-warn/90">{t("obstaclesMax", { max: MAX_OBSTACLES })}</p>}
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="obstacles">
         <div className="space-y-2">
           {s.obstacles.length === 0 ? (
-            <p className="text-xs text-zinc-500">{t("obstaclesEmpty")}</p>
+            <p className="text-xs text-ink-3">{t("obstaclesEmpty")}</p>
           ) : (
             <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1 custom-scrollbar" data-testid="obstacle-list">
               {s.obstacles.map((o, i) => (
@@ -157,8 +158,8 @@ export default function ObstaclesSection({ t, search, matches, settings: s, upda
               ))}
             </div>
           )}
-          <p className="text-xs text-zinc-500 leading-relaxed" data-testid="obstacle-hint">
-            💡 {t("obstacleHint")}
+          <p className="text-xs text-ink-3 leading-relaxed" data-testid="obstacle-hint">
+            {t("obstacleHint")}
           </p>
         </div>
       </Searchable>
@@ -167,12 +168,12 @@ export default function ObstaclesSection({ t, search, matches, settings: s, upda
           type="button"
           onClick={() => setList([])}
           disabled={s.obstacles.length === 0}
-          className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          🗑 {t("obstacleClear")}
+          {t("obstacleClear")}
         </button>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="bumperBoost" tipKey="bumperBoostTip" value={s.bumperBoost} range={RANGES.bumperBoost} onChange={(v) => update({ bumperBoost: v })} display={`×${s.bumperBoost.toFixed(2)}`} left="◎" right="💥" />
+      <Slider t={t} search={search} matches={matches} labelKey="bumperBoost" tipKey="bumperBoostTip" value={s.bumperBoost} range={RANGES.bumperBoost} onChange={(v) => update({ bumperBoost: v })} display={`×${s.bumperBoost.toFixed(2)}`} />
     </div>
   );
 }

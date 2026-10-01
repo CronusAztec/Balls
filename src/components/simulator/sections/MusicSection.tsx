@@ -6,6 +6,7 @@ import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../Con
 import { formatSongTime } from "@/lib/audio/slicer";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 
+import { IconClose, IconUpload, IconWave } from "@/components/ui/icons"; // --- site-redesign ---
 /** The track decoded in this session, as the panel shows it. */
 export interface MusicTrackInfo {
   name: string;
@@ -57,8 +58,8 @@ function DuckMeter({ playing, getDuckGain, label }: { playing: boolean; getDuckG
     return () => cancelAnimationFrame(raf);
   }, [playing, getDuckGain]);
   return (
-    <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden" role="img" aria-label={label} data-testid="music-duck-meter">
-      <div ref={barRef} className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-[#93d119]" style={{ width: "0%" }} />
+    <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden" role="img" aria-label={label} data-testid="music-duck-meter">
+      <div ref={barRef} className="h-full rounded-full bg-accent" style={{ width: "0%" }} />
     </div>
   );
 }
@@ -80,33 +81,31 @@ export default function MusicSection({ t, search, matches, showAdvanced, setting
   return (
     <>
       <Searchable search={search} matches={matches} labelKey="musicBed">
-        <div className="space-y-3 border-t border-zinc-800 pt-3">
-          <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+        <div className="space-y-3 border-t border-line pt-3">
+          <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
             <span>
-              🎼 {t("musicBed")}
+              {t("musicBed")}
               <Tooltip text={t("musicBedTip")} />
             </span>
             {track && playing && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#93d119] animate-pulse" data-testid="music-playing">
-                ♪ {t("musicPlaying")}
+              <span className="text-xs font-bold uppercase tracking-wider text-accent animate-pulse" data-testid="music-playing">
+                {t("musicPlaying")}
               </span>
             )}
           </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("musicBedDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("musicBedDesc")}</p>
           {track ? (
-            <div className="space-y-2 px-3 py-2 bg-zinc-800/60 rounded-lg border border-zinc-700/60" data-testid="music-track">
+            <div className="space-y-2 px-3 py-2 bg-surface-2/60 rounded-lg border border-line-strong/60" data-testid="music-track">
               <div className="flex items-center gap-2">
-                <span className="text-lg" aria-hidden="true">
-                  🎼
-                </span>
+                <IconWave size={18} className="text-ink-3" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-200 truncate" title={track.name}>
+                  <p className="text-sm text-ink truncate" title={track.name}>
                     {track.name}
                   </p>
-                  <p className="text-[11px] text-zinc-500 font-mono">{formatSongTime(track.duration)}</p>
+                  <p className="text-xs text-ink-3 font-mono">{formatSongTime(track.duration)}</p>
                 </div>
-                <button type="button" onClick={onRemove} aria-label={t("musicRemove")} title={t("musicRemove")} className="text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer px-1">
-                  ✕
+                <button type="button" onClick={onRemove} aria-label={t("musicRemove")} title={t("musicRemove")} className="text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer px-1">
+                  <IconClose size={14} />
                 </button>
               </div>
               <DuckMeter playing={playing} getDuckGain={getDuckGain} label={t("musicDuckMeter")} />
@@ -125,10 +124,10 @@ export default function MusicSection({ t, search, matches, showAdvanced, setting
                 if (file) onUpload(file);
               }}
               className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                drag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                drag ? `bg-accent/10 border-accent text-accent scale-[1.02]` : "bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3"
               } ${loading ? "opacity-60 pointer-events-none" : ""}`}
             >
-              <span className="text-lg">{drag ? "📥" : "📁"}</span>
+              <IconUpload size={20} className={drag ? "text-accent" : "text-ink-3"} />
               <span className="font-semibold">{drag ? t("dropMusicHere") : t("chooseMusicFile")}</span>
               <input
                 id="music-file-input"
@@ -147,8 +146,8 @@ export default function MusicSection({ t, search, matches, showAdvanced, setting
             </label>
           )}
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-zinc-400" role="status">
-              <div className="w-4 h-4 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center gap-2 text-sm text-ink-2" role="status">
+              <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               {t("musicLoading")}
             </div>
           )}
@@ -156,10 +155,10 @@ export default function MusicSection({ t, search, matches, showAdvanced, setting
       </Searchable>
       {showMix && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="musicVolume" tipKey="musicVolumeTip" value={s.musicVolume} range={RANGES.musicVolume} onChange={(v) => update({ musicVolume: v })} display={pct(s.musicVolume)} left="🔈" right="🔊" />
-          <Slider t={t} search={search} matches={matches} labelKey="musicDucking" tipKey="musicDuckingTip" value={s.musicDucking} range={RANGES.musicDucking} onChange={(v) => update({ musicDucking: v })} display={pct(s.musicDucking)} left="〰️" right="📉" />
+          <Slider t={t} search={search} matches={matches} labelKey="musicVolume" tipKey="musicVolumeTip" value={s.musicVolume} range={RANGES.musicVolume} onChange={(v) => update({ musicVolume: v })} display={pct(s.musicVolume)} />
+          <Slider t={t} search={search} matches={matches} labelKey="musicDucking" tipKey="musicDuckingTip" value={s.musicDucking} range={RANGES.musicDucking} onChange={(v) => update({ musicDucking: v })} display={pct(s.musicDucking)} />
           {showAdvanced && (
-            <Slider t={t} search={search} matches={matches} labelKey="musicDuckRelease" tipKey="musicDuckReleaseTip" value={s.musicDuckRelease} range={RANGES.musicDuckRelease} onChange={(v) => update({ musicDuckRelease: v })} display={`${s.musicDuckRelease} ms`} left="⚡" right="🐢" />
+            <Slider t={t} search={search} matches={matches} labelKey="musicDuckRelease" tipKey="musicDuckReleaseTip" value={s.musicDuckRelease} range={RANGES.musicDuckRelease} onChange={(v) => update({ musicDuckRelease: v })} display={`${s.musicDuckRelease} ms`} />
           )}
           <Searchable search={search} matches={matches} labelKey="musicLoop">
             <Toggle t={t} labelKey="musicLoop" tipKey="musicLoopTip" value={s.musicLoop} onChange={(v) => update({ musicLoop: v })} caseStyle="title" />
@@ -175,8 +174,6 @@ export default function MusicSection({ t, search, matches, showAdvanced, setting
               range={offsetRange}
               onChange={(v) => update({ musicStartOffset: v })}
               display={`${s.musicStartOffset}s`}
-              left="⏮️"
-              right="⏭️"
             />
           )}
         </>

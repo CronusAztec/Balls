@@ -8,6 +8,7 @@ import { BATCH_COUNT_RANGE, MAX_BATCH_JOBS, SWEEP_KEYS, SWEEP_STEPS_LIMIT, forma
 import { MODE_CARD_ORDER } from "@/lib/modes";
 import type { ModeId } from "@/lib/physics/types";
 import type { BatchJobState, BatchPanelProps } from "../useBatchRender";
+import { IconDownload } from "@/components/ui/icons"; // --- site-redesign ---
 import UncapNumberField from "../NumberField"; // --- uncap-all --- (this section has its own NumberField for the sweep ends)
 
 export type { BatchPanelProps } from "../useBatchRender";
@@ -34,7 +35,7 @@ function modeLabel(t: Translate, mode: ModeId): string {
 function NumberField({ label, value, min, max, step, onCommit, disabled }: { label: string; value: number; min: number; max: number; step: number; onCommit: (v: number) => void; disabled?: boolean }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
-    <label className="flex flex-col gap-1 text-[11px] text-zinc-400">
+    <label className="flex flex-col gap-1 text-xs text-ink-2">
       {label}
       <input
         type="number"
@@ -50,7 +51,7 @@ function NumberField({ label, value, min, max, step, onCommit, disabled }: { lab
           if (e.target.value.trim() !== "" && Number.isFinite(n)) onCommit(n);
         }}
         onBlur={() => setDraft(null)}
-        className="w-full px-2 py-1.5 bg-zinc-800 text-white text-sm rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none tabular-nums"
+        className="w-full px-2 py-1.5 bg-surface-2 text-ink text-sm rounded-lg border border-line-strong focus:border-accent-dim tabular-nums"
       />
     </label>
   );
@@ -70,39 +71,39 @@ function Choice<T extends string>({ value, options, onChange, label }: { value: 
 
 function JobRow({ job, index, current, progress, t, b, onDownload }: { job: BatchJobState; index: number; current: boolean; progress: number | null; t: Translate; b: Translate; onDownload: (id: number) => void }) {
   const mode = job.mode ?? (job.variant.kind === "mode" ? job.variant.mode : null);
-  const parts = [mode ? modeLabel(t, mode) : null, b("jobSeed", { seed: job.seed }), job.variant.kind === "sweep" ? `${b(`sweep.${job.variant.key}`)} ${job.variant.value}` : null, job.link ? `🔗 ${b("jobLink")}` : null].filter(Boolean);
+  const parts = [mode ? modeLabel(t, mode) : null, b("jobSeed", { seed: job.seed }), job.variant.kind === "sweep" ? `${b(`sweep.${job.variant.key}`)} ${job.variant.value}` : null, job.link ? `${b("jobLink")}` : null].filter(Boolean);
   const pct = current && progress !== null ? Math.round(100 * progress) : null;
   let status: string;
-  let tone = "text-zinc-500";
+  let tone = "text-ink-3";
   if (job.status === "done") {
-    status = `✓ ${b("done", { seconds: one(job.durationSec ?? 0), time: formatElapsed(job.wallMs ?? 0) })}`;
-    tone = "text-[#93d119]";
+    status = `${b("done", { seconds: one(job.durationSec ?? 0), time: formatElapsed(job.wallMs ?? 0) })}`;
+    tone = "text-accent";
   } else if (job.status === "rendering") {
     status = pct !== null ? `${pct}%` : b("preparing");
-    tone = "text-zinc-200";
+    tone = "text-ink";
   } else if (job.status === "failed") {
     const e = job.error;
     const reason = e === "link" ? b("errorLink") : e === "code" ? b("errorCode") : e === "busy" ? b("errorBusy") : e === "unsupported" ? b("errorUnsupported") : e === "handPlay" ? b("errorHandPlay") /* --- jdm-rhythm-runner --- */ : e ? b("errorOther", { message: e.message }) : "";
-    status = `✕ ${b("failed")}${reason ? ` – ${reason}` : ""}`;
-    tone = "text-red-400";
+    status = `${b("failed")}${reason ? ` – ${reason}` : ""}`;
+    tone = "text-danger";
   } else status = b(job.status);
   return (
-    <li className={`rounded-lg px-2.5 py-2 text-xs ${current ? "bg-zinc-800 border border-[#93d119]/40" : "bg-zinc-800/50 border border-transparent"}`} data-batch-job={job.status} data-batch-file={job.fileName ?? undefined} data-batch-seed={job.seed}>
+    <li className={`rounded-lg px-2.5 py-2 text-xs ${current ? "bg-surface-2 border border-accent/40" : "bg-surface-2/50 border border-transparent"}`} data-batch-job={job.status} data-batch-file={job.fileName ?? undefined} data-batch-seed={job.seed}>
       <div className="flex items-center gap-2">
-        <span className="text-zinc-500 tabular-nums w-5 shrink-0">{index + 1}.</span>
-        <span className="flex-1 min-w-0 truncate text-zinc-200" title={job.link ?? undefined}>
+        <span className="text-ink-3 tabular-nums w-5 shrink-0">{index + 1}.</span>
+        <span className="flex-1 min-w-0 truncate text-ink" title={job.link ?? undefined}>
           {parts.join(" · ")}
         </span>
         {job.status === "done" && (
-          <button type="button" onClick={() => onDownload(job.id)} aria-label={b("downloadJob", { name: job.fileName ?? "" })} title={job.fileName ?? undefined} className="shrink-0 px-1.5 py-0.5 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-700 cursor-pointer">
-            ⬇
+          <button type="button" onClick={() => onDownload(job.id)} aria-label={b("downloadJob", { name: job.fileName ?? "" })} title={job.fileName ?? undefined} className="shrink-0 px-1.5 py-0.5 rounded-md text-ink-2 hover:text-ink hover:bg-surface-3 cursor-pointer">
+            <IconDownload size={14} />
           </button>
         )}
       </div>
       <div className={`mt-1 pl-7 tabular-nums ${tone}`}>{status}</div>
       {pct !== null && (
-        <div className="mt-1.5 ml-7 h-1.5 rounded-full bg-zinc-900 overflow-hidden" role="progressbar" aria-label={b("progressLabel")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-          <div className="h-full rounded-full bg-[#93d119] transition-[width] duration-150" style={{ width: `${pct}%` }} />
+        <div className="mt-1.5 ml-7 h-1.5 rounded-full bg-surface-1 overflow-hidden" role="progressbar" aria-label={b("progressLabel")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+          <div className="h-full rounded-full bg-accent transition-[width] duration-150" style={{ width: `${pct}%` }} />
         </div>
       )}
     </li>
@@ -123,11 +124,8 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
 
   return (
     <Searchable search={search} matches={matches} labelKey="batchRender">
-      <div className="space-y-3 border-t border-zinc-800 pt-3" data-batch={run.status} data-batch-done={done} data-batch-total={run.jobs.length}>
-        <span className="text-sm font-medium text-zinc-300 flex items-center">
-          <span aria-hidden="true" className="mr-1.5">
-            📦
-          </span>
+      <div className="space-y-3 border-t border-line pt-3" data-batch={run.status} data-batch-done={done} data-batch-total={run.jobs.length}>
+        <span className="text-sm font-medium text-ink-2 flex items-center">
           {t("batchRender")}
           <Tooltip text={t("batchRenderTip")} />
         </span>
@@ -145,9 +143,9 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
             />
             {d.source === "random" ? (
               <div className="space-y-1.5">
-                <label className="text-xs text-zinc-400 flex items-center justify-between" htmlFor="batch-count">
+                <label className="text-xs text-ink-2 flex items-center justify-between" htmlFor="batch-count">
                   <span>{b("count")}</span>
-                  <span className="text-zinc-500 tabular-nums">{b("countValue", { count: d.count })}</span>
+                  <span className="text-ink-3 tabular-nums">{b("countValue", { count: d.count })}</span>
                 </label>
                 <input
                   id="batch-count"
@@ -157,7 +155,7 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                   step={BATCH_COUNT_RANGE.step}
                   value={d.count}
                   onChange={(e) => set({ count: Number(e.target.value) })}
-                  className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                  className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
                   style={sliderStyle(d.count, BATCH_COUNT_RANGE.min, BATCH_COUNT_RANGE.max)}
                   aria-label={b("count")}
                 />
@@ -165,7 +163,7 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
               </div>
             ) : (
               <div className="space-y-1.5">
-                <label className="text-xs text-zinc-400 flex items-center" htmlFor="batch-list">
+                <label className="text-xs text-ink-2 flex items-center" htmlFor="batch-list">
                   {b("listLabel")}
                   <Tooltip text={b("listHint")} />
                 </label>
@@ -176,11 +174,11 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                   placeholder={b("listPlaceholder")}
                   rows={4}
                   spellCheck={false}
-                  className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-600 text-xs font-mono leading-relaxed resize-y"
+                  className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-xs font-mono leading-relaxed resize-y"
                 />
-                <p className="text-[11px] text-zinc-500 leading-snug" data-batch-list={list.entries.length}>
+                <p className="text-xs text-ink-3 leading-snug" data-batch-list={list.entries.length}>
                   {b("listRead", { count: list.entries.length })}
-                  {list.invalidLines.length > 0 && <span className="text-amber-300"> · {b("listSkipped", { count: list.invalidLines.length, lines: list.invalidLines.slice(0, 8).join(", ") + (list.invalidLines.length > 8 ? "…" : "") })}</span>}
+                  {list.invalidLines.length > 0 && <span className="text-warn"> · {b("listSkipped", { count: list.invalidLines.length, lines: list.invalidLines.slice(0, 8).join(", ") + (list.invalidLines.length > 8 ? "…" : "") })}</span>}
                 </p>
               </div>
             )}
@@ -197,13 +195,13 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
             />
             {d.variant === "modes" && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                <div className="flex items-center justify-between text-xs text-ink-3">
                   <span>{b("modesPicked", { count: picked.length, total: MODE_CARD_ORDER.length })}</span>
                   <span className="flex gap-1">
-                    <button type="button" onClick={() => set({ modes: [...MODE_CARD_ORDER] })} className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 cursor-pointer">
+                    <button type="button" onClick={() => set({ modes: [...MODE_CARD_ORDER] })} className="px-2 py-0.5 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 cursor-pointer">
                       {b("modesAll")}
                     </button>
-                    <button type="button" onClick={() => set({ modes: [] })} className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 cursor-pointer">
+                    <button type="button" onClick={() => set({ modes: [] })} className="px-2 py-0.5 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 cursor-pointer">
                       {b("modesClear")}
                     </button>
                   </span>
@@ -217,19 +215,19 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                         type="button"
                         aria-pressed={on}
                         onClick={() => set({ modes: on ? d.modes.filter((m) => m !== mode) : [...d.modes, mode] })}
-                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${on ? onBtn : offBtn}`}
+                        className={`px-2 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${on ? onBtn : offBtn}`}
                       >
                         {modeLabel(t, mode)}
                       </button>
                     );
                   })}
                 </div>
-                {picked.length === 0 && <p className="text-[11px] text-amber-300">{b("modesEmpty")}</p>}
+                {picked.length === 0 && <p className="text-xs text-warn">{b("modesEmpty")}</p>}
               </div>
             )}
             {d.variant === "sweep" && (
               <div className="space-y-2">
-                <label className="text-[11px] text-zinc-400 flex flex-col gap-1" htmlFor="batch-sweep-key">
+                <label className="text-xs text-ink-2 flex flex-col gap-1" htmlFor="batch-sweep-key">
                   {b("sweepSetting")}
                   <select id="batch-sweep-key" value={d.sweepKey} onChange={(e) => isSweepKey(e.target.value) && set({ sweepKey: e.target.value, ...sweepDefaults(e.target.value) })} className={`${selectClass} text-sm`}>
                     {SWEEP_KEYS.map((key) => (
@@ -245,7 +243,7 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                   <NumberField key={`to-${d.sweepKey}`} label={b("sweepTo")} value={d.sweepTo} min={sweep.min} max={Number.MAX_VALUE} step={sweep.step} onCommit={(v) => set({ sweepTo: v })} />
                   <NumberField label={b("sweepSteps")} value={d.sweepSteps} min={SWEEP_STEPS_LIMIT.min} max={SWEEP_STEPS_LIMIT.max} step={1} onCommit={(v) => set({ sweepSteps: Math.max(SWEEP_STEPS_LIMIT.min, Math.min(SWEEP_STEPS_LIMIT.max, Math.round(v))) })} />
                 </div>
-                <p className="text-[11px] text-zinc-500 tabular-nums" data-batch-sweep={values.join(",")}>
+                <p className="text-xs text-ink-3 tabular-nums" data-batch-sweep={values.join(",")}>
                   {b("sweepValues", { values: values.join(" · ") })}
                 </p>
               </div>
@@ -253,26 +251,26 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
 
             <Toggle t={t} labelKey="batchDownloadEach" tipKey="batchDownloadEachTip" value={d.downloadEach} onChange={(downloadEach) => set({ downloadEach })} caseStyle="title" />
 
-            <p className="text-[11px] text-zinc-400 leading-snug">
+            <p className="text-xs text-ink-2 leading-snug">
               {b("summary", { count: batch.jobCount, resolution: batch.exportFormat.resolution.replace("x", "×"), fps: batch.exportFormat.fps, seconds: batch.exportFormat.durationSec })}
             </p>
-            {batch.truncated && <p className="text-[11px] text-amber-300 leading-snug">{b("truncated", { max: MAX_BATCH_JOBS })}</p>}
+            {batch.truncated && <p className="text-xs text-warn leading-snug">{b("truncated", { max: MAX_BATCH_JOBS })}</p>}
             <button
               type="button"
               onClick={batch.onStart}
               disabled={!canStart}
-              className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#93d119]/60 text-[#93d119] bg-zinc-900/40 hover:bg-[#93d119]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-accent/60 text-accent bg-surface-1/40 hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span aria-hidden="true">📦</span> {b("start")}
+              {b("start")}
             </button>
-            {batch.supported === false && <p className="text-[11px] text-amber-300 leading-snug">{b("unsupported")}</p>}
+            {batch.supported === false && <p className="text-xs text-warn leading-snug">{b("unsupported")}</p>}
           </div>
         )}
 
         {run.jobs.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2 text-xs" role="status">
-              <span className={run.status === "finished" ? "text-[#93d119]" : run.status === "stopped" ? "text-amber-300" : "text-zinc-300"}>
+              <span className={run.status === "finished" ? "text-accent" : run.status === "stopped" ? "text-warn" : "text-ink-2"}>
                 {run.status === "running"
                   ? b("statusRunning", { current: Math.max(1, currentIndex + 1), total: run.jobs.length })
                   : run.status === "stopping"
@@ -283,7 +281,7 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
               </span>
               {run.status === "running" && (
                 <span className="flex items-center shrink-0">
-                  <button type="button" onClick={batch.onStop} className="px-2.5 py-1 rounded-md bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-xs font-medium cursor-pointer">
+                  <button type="button" onClick={batch.onStop} className="px-2.5 py-1 rounded-md bg-surface-3 text-ink hover:bg-surface-3 text-xs font-medium cursor-pointer">
                     {b("stop")}
                   </button>
                   <Tooltip text={b("stopTip")} />
@@ -302,17 +300,17 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
                     type="button"
                     onClick={batch.onDownloadAll}
                     disabled={batch.zipping}
-                    className="flex-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-[#93d119] text-slate-950 hover:bg-[#a4e02a] disabled:opacity-50 disabled:cursor-wait"
+                    className="flex-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-accent text-accent-ink hover:bg-accent-strong disabled:opacity-50 disabled:cursor-wait"
                   >
-                    {batch.zipping ? b("zipping") : `⬇ ${b("downloadAll")}`}
+                    {batch.zipping ? b("zipping") : `${b("downloadAll")}`}
                   </button>
                 )}
-                <button type="button" onClick={batch.onClear} className="px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                <button type="button" onClick={batch.onClear} className="px-3 py-2 rounded-lg text-xs font-medium cursor-pointer bg-surface-2 text-ink-2 hover:bg-surface-3">
                   {b("clear")}
                 </button>
               </div>
             )}
-            {batch.zipFailed && <p className="text-[11px] text-red-400 leading-snug">{b("zipFailed")}</p>}
+            {batch.zipFailed && <p className="text-xs text-danger leading-snug">{b("zipFailed")}</p>}
           </div>
         )}
       </div>

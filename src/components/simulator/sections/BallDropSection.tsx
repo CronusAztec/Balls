@@ -25,16 +25,16 @@ const pct = (v: number) => `${Math.round(100 * v)}%`;
 export default function BallDropSection({ t, search, matches, settings: s, update }: BallDropSectionProps) {
   return (
     <div className="space-y-3 pt-2">
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("dropDesc")}</p>}
-      <Slider t={t} search={search} matches={matches} labelKey="dropBallCount" tipKey="dropBallCountTip" value={s.dropBallCount} range={RANGES.dropBallCount} onChange={(v) => update({ dropBallCount: v })} display={String(s.dropBallCount)} left="⚪" right="🎱" />
-      <Slider t={t} search={search} matches={matches} labelKey="dropSizeVariation" tipKey="dropSizeVariationTip" value={s.dropSizeVariation} range={RANGES.dropSizeVariation} onChange={(v) => update({ dropSizeVariation: v })} display={pct(s.dropSizeVariation)} left="🔘" right="🎯" />
-      <Slider t={t} search={search} matches={matches} labelKey="dropGravityVariation" tipKey="dropGravityVariationTip" value={s.dropGravityVariation} range={RANGES.dropGravityVariation} onChange={(v) => update({ dropGravityVariation: v })} display={pct(s.dropGravityVariation)} left="🪶" right="🪨" />
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("dropDesc")}</p>}
+      <Slider t={t} search={search} matches={matches} labelKey="dropBallCount" tipKey="dropBallCountTip" value={s.dropBallCount} range={RANGES.dropBallCount} onChange={(v) => update({ dropBallCount: v })} display={String(s.dropBallCount)} />
+      <Slider t={t} search={search} matches={matches} labelKey="dropSizeVariation" tipKey="dropSizeVariationTip" value={s.dropSizeVariation} range={RANGES.dropSizeVariation} onChange={(v) => update({ dropSizeVariation: v })} display={pct(s.dropSizeVariation)} />
+      <Slider t={t} search={search} matches={matches} labelKey="dropGravityVariation" tipKey="dropGravityVariationTip" value={s.dropGravityVariation} range={RANGES.dropGravityVariation} onChange={(v) => update({ dropGravityVariation: v })} display={pct(s.dropGravityVariation)} />
       <Slider t={t} search={search} matches={matches} labelKey="dropRows" tipKey="dropRowsTip" value={s.dropRows} range={RANGES.dropRows} onChange={(v) => update({ dropRows: v })} display={String(s.dropRows)} />
-      <Slider t={t} search={search} matches={matches} labelKey="dropSpawnInterval" tipKey="dropSpawnIntervalTip" value={s.dropSpawnInterval} range={RANGES.dropSpawnInterval} onChange={(v) => update({ dropSpawnInterval: v })} display={`${s.dropSpawnInterval.toFixed(1)} s`} left="⚡" right="⏳" />
+      <Slider t={t} search={search} matches={matches} labelKey="dropSpawnInterval" tipKey="dropSpawnIntervalTip" value={s.dropSpawnInterval} range={RANGES.dropSpawnInterval} onChange={(v) => update({ dropSpawnInterval: v })} display={`${s.dropSpawnInterval.toFixed(1)} s`} />
       <Searchable search={search} matches={matches} labelKey="dropLoop">
         <div className="space-y-1">
           <Toggle t={t} labelKey="dropLoop" tipKey="dropLoopTip" value={s.dropLoop} onChange={(v) => update({ dropLoop: v })} />
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("dropLoopDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("dropLoopDesc")}</p>
         </div>
       </Searchable>
     </div>

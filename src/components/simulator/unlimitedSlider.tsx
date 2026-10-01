@@ -74,7 +74,7 @@ export function WideTrack({ settingKey, label, value, range, onChange, disabled 
       value={pos}
       disabled={disabled}
       onChange={(e) => onChange(sliderValue(settingKey, Number(e.target.value), range))}
-      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+      className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
       style={trackStyle(pos)}
       aria-label={label}
       data-unlimited-slider={settingKey}

@@ -8,7 +8,6 @@ import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimit
 // --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
 import NumberField from "./NumberField";
 import { beyondSlider, formatCompact, memoryCeiling } from "@/lib/uncap";
-import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
 
 /*
  * Building blocks of the controls panel, shared by Controls.tsx and the feature sections in
@@ -19,26 +18,31 @@ import { ACCENT, ACCENT_LIGHT } from "@/lib/site";
 export type Translate = ReturnType<typeof useTranslations>;
 export type Matcher = (key: string) => boolean;
 
+/** The track of a range input: the accent fill up to the value, then the empty track (globals.css sizes it to 4 px). */
 export function sliderStyle(value: number, min: number, max: number) {
   const raw = ((value - min) / (max - min)) * 100;
   const pct = raw > 100 ? 100 : raw < 0 || !(raw === raw) ? 0 : raw; // --- uncap-all --- (the fill pins at the track's end for a value beyond it)
   return {
-    background: `linear-gradient(to right, ${ACCENT_LIGHT} 0%, ${ACCENT} ${pct}%, #27272a ${pct}%, #27272a 100%)`,
-    accentColor: ACCENT,
+    background: `linear-gradient(to right, var(--color-accent) 0%, var(--color-accent) ${pct}%, var(--color-surface-3) ${pct}%, var(--color-surface-3) 100%)`,
+    accentColor: "var(--color-accent)",
   };
 }
 
-export const onBtn = `bg-[#93d119] text-slate-950`;
-export const offBtn = "bg-zinc-800 text-zinc-300 hover:bg-zinc-700";
-export const rainbowBtn = "bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 text-white";
+/*
+ * --- site-redesign --- the panel's choice buttons on the tokens: the chosen one in the accent, the others quiet surfaces;
+ * the rainbow choice is the one place a spectrum shows in the chrome, as a thin underline rather than a fill.
+ */
+export const onBtn = "bg-accent text-accent-ink";
+export const offBtn = "bg-surface-2 text-ink-2 hover:bg-surface-3 hover:text-ink";
+export const rainbowBtn = "bg-surface-3 text-ink bg-[linear-gradient(90deg,var(--color-danger),var(--color-warn),var(--color-accent),#5ac8f0,#a78bfa)] bg-[length:100%_2px] bg-bottom bg-no-repeat";
 /** Styling of the <select> pickers in the panel. */
-export const selectClass = "w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none";
+export { selectClass } from "@/components/ui/Field";
 
 /** Wraps a control so the search box can show it on its own (or hide it) by its label key. */
 export function Searchable({ search, matches, labelKey, children }: { search: string; matches: Matcher; labelKey: string; children: ReactNode }) {
   if (!search) return <>{children}</>;
   if (!matches(labelKey)) return null;
-  return <div className="p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/50 shadow-sm">{children}</div>;
+  return <div className="rounded-lg border border-line bg-surface-2/60 p-3">{children}</div>;
 }
 
 export function Slider({
@@ -51,8 +55,6 @@ export function Slider({
   range,
   onChange,
   display,
-  left,
-  right,
   disabled,
 }: {
   t: Translate;
@@ -64,8 +66,6 @@ export function Slider({
   range: { min: number; max: number; step: number };
   onChange: (v: number) => void;
   display?: string;
-  left?: string;
-  right?: string;
   disabled?: boolean;
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
@@ -82,19 +82,18 @@ export function Slider({
   return (
     <Searchable search={search} matches={matches} labelKey={labelKey}>
       <div className="space-y-2" data-uncap-slider={settingKey ?? labelKey}>
-        <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
-          <span>
+        <label className="flex items-center justify-between gap-3 text-sm font-medium text-ink-2">
+          <span className="flex min-w-0 items-center">
             {label}
             {tipKey && <Tooltip text={t(tipKey)} />}
           </span>
-          <span className={beyond ? "text-amber-400 font-semibold" : "text-zinc-500"}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? formatCompact(value) : (display ?? value)}</span>
+          <span className={`num shrink-0 text-xs ${beyond ? "font-medium text-warn" : "text-ink-3"}`}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? formatCompact(value) : (display ?? value)}</span>
         </label>
-        <div className="flex items-center gap-2">
-          {left && <span className="text-sm">{left}</span>}
+        <div className="flex items-center gap-3">
           {wideKey && !live ? (
             <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} />
           ) : (
-            <span className={`relative flex w-full items-center ${beyond ? "rounded-lg ring-1 ring-amber-500/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
+            <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
               <input
                 type="range"
                 min={range.min}
@@ -103,16 +102,15 @@ export function Slider({
                 value={shown}
                 disabled={disabled || !!live}
                 onChange={(e) => onChange(Number(e.target.value))}
-                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
+                className="w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                 style={sliderStyle(shown, range.min, range.max)}
                 aria-label={label}
               />
             </span>
           )}
-          {right && <span className="text-sm">{right}</span>}
           <NumberField value={shown} onCommit={onChange} label={label} range={range} rules={rulesForRange(range, settingKey)} disabled={disabled || !!live} settingKey={settingKey ?? labelKey} />
         </div>
-        {ceiling < value && <p className="text-xs text-amber-400/90">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
+        {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
       </div>
     </Searchable>
   );
@@ -138,20 +136,27 @@ export function Toggle({
   // --- review fix (ui-i18n) --- a switch named by its label (not "ON"/"OFF"); the tooltip stays outside the name
   const labelId = useId();
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm font-medium text-zinc-300">
+    <div className="flex items-center justify-between gap-3">
+      <span className="flex min-w-0 items-center text-sm font-medium text-ink-2">
         <span id={labelId}>{t(labelKey)}</span>
         {tipKey && <Tooltip text={t(tipKey)} />}
       </span>
+      {/* --- site-redesign --- a track-and-knob switch; the ON / OFF word stays beside it for the eye (hidden from the name) */}
       <button
         type="button"
         role="switch"
         onClick={() => onChange(!value)}
         aria-checked={value}
         aria-labelledby={labelId}
-        className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${value ? onClass : offBtn}`}
+        data-on={value ? "" : undefined}
+        className="group/sw inline-flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-0.5 cursor-pointer [@media(pointer:coarse)]:min-h-11"
       >
-        <span aria-hidden="true">{value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}</span>
+        <span className={`num text-xs tracking-[0.08em] ${value ? "text-ink" : "text-ink-3"}`}>
+          <span aria-hidden="true">{value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}</span>
+        </span>
+        <span aria-hidden="true" className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 ${value ? onClass : "bg-surface-3 group-hover/sw:bg-[rgb(242_242_237/0.16)]"}`}>
+          <span className={`absolute left-0.5 h-4 w-4 rounded-full shadow-sm transition-transform duration-150 ${value ? "translate-x-4 bg-accent-ink" : "bg-ink-2"}`} />
+        </span>
       </button>
     </div>
   );
@@ -164,7 +169,7 @@ export function ColorPicker({ value, onChange, label }: { value: string; onChang
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className="w-full h-10 bg-zinc-800 rounded-lg cursor-pointer border border-zinc-700"
+      className="h-9 w-full cursor-pointer rounded-md border border-line bg-surface-2 p-1 transition-colors duration-150 hover:border-line-strong"
     />
   );
 }

@@ -56,8 +56,8 @@ export default function ProjectDropZone({ className, label, onFile, children }: 
     >
       {children}
       {active && (
-        <div className="pointer-events-none absolute inset-0 z-30 rounded-lg border-2 border-dashed border-[#93d119] bg-[#93d119]/5 flex items-start justify-center pt-24" aria-hidden="true">
-          <span className="px-3 py-1.5 rounded-lg bg-zinc-950/90 text-[#93d119] text-xs font-semibold shadow-lg">📥 {label}</span>
+        <div className="pointer-events-none absolute inset-0 z-30 rounded-lg border-2 border-dashed border-accent bg-accent/5 flex items-start justify-center pt-24" aria-hidden="true">
+          <span className="px-3 py-1.5 rounded-lg bg-bg/90 text-accent text-xs font-semibold">{label}</span>
         </div>
       )}
     </div>

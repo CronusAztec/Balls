@@ -123,7 +123,7 @@ export function FastExportFpsControl({ t, search, matches, settings: s, update, 
   return (
     <Searchable search={search} matches={matches} labelKey="fastExportFps">
       <div className="space-y-2">
-        <span className="text-sm font-medium text-zinc-300 flex items-center">
+        <span className="text-sm font-medium text-ink-2 flex items-center">
           {t("fastExportFps")}
           <Tooltip text={t("fastExportFpsTip")} />
         </span>

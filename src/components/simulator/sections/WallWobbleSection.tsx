@@ -31,8 +31,6 @@ export default function WallWobbleSection({ t, search, matches, settings: s, upd
       range={RANGES.wallWobble}
       onChange={(v) => update({ wallWobble: v })}
       display={s.wallWobble === 0 ? t("wallWobbleOff") : `${Math.round(100 * s.wallWobble)}%`}
-      left="⭕"
-      right="🫧"
     />
   );
 }

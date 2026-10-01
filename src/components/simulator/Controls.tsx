@@ -97,7 +97,7 @@ import Kbd from "@/components/ui/Kbd";
 import { cx } from "@/components/ui/cx";
 import { useModifierKey } from "@/components/ui/useModifierKey";
 import { useMediaQuery } from "@/components/ui/useMediaQuery";
-import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
+import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
 import type { PaletteEntry } from "@/lib/siteDesign";
 
@@ -368,16 +368,16 @@ export default function Controls(props: ControlsProps) {
       <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
       <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
-      <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} left="🐢" right="🚀" />
-      <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} left="🌑" right="🌕" />
+      <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} />
+      <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} />
       {showAdvanced && (
-        <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} left="🎈" right="🪨" />
+        <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} />
       )}
       {!props.ballImage && !props.ballEmoji && (
         <Searchable search={search} matches={matches} labelKey="ballColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-300">{t("ballColor")}</span>
+              <span className="text-sm font-medium text-ink-2">{t("ballColor")}</span>
               <button
                 type="button"
                 onClick={() => update({ rainbowBall: !s.rainbowBall })}
@@ -432,13 +432,13 @@ export default function Controls(props: ControlsProps) {
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
-        <Slider t={t} search={search} matches={matches} labelKey="bouncier" tipKey="bouncierTip" value={s.bounciness} range={RANGES.bounciness} onChange={(v) => update(bouncinessPatch(v))} left="🏀" right="⚡" />
+        <Slider t={t} search={search} matches={matches} labelKey="bouncier" tipKey="bouncierTip" value={s.bounciness} range={RANGES.bounciness} onChange={(v) => update(bouncinessPatch(v))} />
       )}
       {/* --- bounce-math --- the rule list, presets, Show values and the live readout (every mode; a parameter a mode ignores is marked) */}
       <BounceMathSection t={t} search={search} matches={matches} settings={s} update={update} panel={props.bounceMath} />
       <Searchable search={search} matches={matches} labelKey="ballEmoji">
         <div className="space-y-3">
-          <label className="text-sm font-medium text-zinc-300">{t("ballEmoji")}</label>
+          <label className="text-sm font-medium text-ink-2">{t("ballEmoji")}</label>
           <div className="grid grid-cols-6 gap-1.5">
             {EMOJIS.map((emoji) => (
               <button
@@ -448,8 +448,8 @@ export default function Controls(props: ControlsProps) {
                 aria-label={emoji}
                 className={`flex items-center justify-center w-full aspect-square rounded-lg text-xl transition-all cursor-pointer ${
                   props.ballEmoji === emoji
-                    ? `bg-[#93d119]/30 border-2 border-[#93d119] shadow-lg shadow-[#93d119]/20 scale-110`
-                    : "bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 hover:scale-105"
+                    ? `bg-accent/30 border-2 border-accent scale-110`
+                    : "bg-surface-2 border border-line-strong hover:bg-surface-3 hover:border-ink-3"
                 }`}
               >
                 {emoji}
@@ -457,8 +457,8 @@ export default function Controls(props: ControlsProps) {
             ))}
           </div>
           {props.ballEmoji && (
-            <button type="button" onClick={() => props.onBallEmojiChange(null)} className="text-xs text-zinc-500 hover:text-red-400 transition-colors cursor-pointer">
-              ✕ {t("removeEmoji")}
+            <button type="button" onClick={() => props.onBallEmojiChange(null)} className="text-xs text-ink-3 hover:text-danger transition-colors cursor-pointer">
+              {t("removeEmoji")}
             </button>
           )}
         </div>
@@ -466,7 +466,7 @@ export default function Controls(props: ControlsProps) {
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="customBallImage">
           <div className="space-y-3">
-            <label className="text-sm font-medium text-zinc-300">{t("customBallImage")}</label>
+            <label className="text-sm font-medium text-ink-2">{t("customBallImage")}</label>
             {props.ballImage ? (
               <div className="flex items-center justify-between mt-1">
                 <div
@@ -480,13 +480,13 @@ export default function Controls(props: ControlsProps) {
                     boxShadow: "0 0 8px rgba(6, 182, 212, 0.3), inset 0 -2px 4px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.15)",
                   }}
                 />
-                <button type="button" onClick={props.onBallImageClear} className="text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer" title={t("removeCustomImage")}>
-                  ✕
+                <button type="button" onClick={props.onBallImageClear} className="text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer" title={t("removeCustomImage")}>
+                  <IconClose size={14} />
                 </button>
               </div>
             ) : (
-              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-sm cursor-pointer border border-dashed bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500">
-                <span>📁 {t("chooseImageFile")}</span>
+              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-sm cursor-pointer border border-dashed bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3">
+                <span>{t("chooseImageFile")}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -522,19 +522,19 @@ export default function Controls(props: ControlsProps) {
           <Slider t={t} search={search} matches={matches} labelKey="wallCount" tipKey="wallCountTip" value={s.wallCount} range={RANGES.wallCount} onChange={(v) => update({ wallCount: v })} />
         )}
         {hasThickness && showAdvanced && (
-          <Slider t={t} search={search} matches={matches} labelKey="wallThickness" tipKey="wallThicknessTip" value={s.wallThickness} range={RANGES.wallThickness} onChange={(v) => update({ wallThickness: v })} display={`${s.wallThickness}px`} left="−" right="+" />
+          <Slider t={t} search={search} matches={matches} labelKey="wallThickness" tipKey="wallThicknessTip" value={s.wallThickness} range={RANGES.wallThickness} onChange={(v) => update({ wallThickness: v })} display={`${s.wallThickness}px`} />
         )}
         {hasGapControls && (
           <>
             {hasGapSize && showAdvanced && (
-              <Slider t={t} search={search} matches={matches} labelKey="gapSize" tipKey="gapSizeTip" value={s.gapSize} range={RANGES.gapSize} onChange={(v) => update({ gapSize: v })} display={s.gapSize.toFixed(2)} left="🤏" right="👐" />
+              <Slider t={t} search={search} matches={matches} labelKey="gapSize" tipKey="gapSizeTip" value={s.gapSize} range={RANGES.gapSize} onChange={(v) => update({ gapSize: v })} display={s.gapSize.toFixed(2)} />
             )}
             <Searchable search={search} matches={matches} labelKey="rotation">
               <div className="space-y-2">
                 <Toggle t={t} labelKey="rotation" tipKey="rotationTip" value={s.rotationEnabled} onChange={(v) => update({ rotationEnabled: v })} />
                 {s.rotationEnabled && (
                   <>
-                    <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
+                    <label className="text-sm font-medium text-ink-2 flex items-center justify-between mt-2">
                       <span>{t("rotationSpeed")}</span>
                       {/* --- timeline --- the live value with the AUTO badge while keyframes drive the rotation speed */}
                       <TimelineValueText t={t} labelKey="rotationSpeed" fallback={s.rotationSpeed.toFixed(1)} />
@@ -544,7 +544,7 @@ export default function Controls(props: ControlsProps) {
                       value={s.rotationSpeed}
                       range={RANGES.rotationSpeed}
                       onChange={(v) => update({ rotationSpeed: v })}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
                       ariaLabel={t("rotationSpeed")}
                     />
                   </>
@@ -556,7 +556,7 @@ export default function Controls(props: ControlsProps) {
         <Searchable search={search} matches={matches} labelKey="wallColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-zinc-300">{t("wallColor")}</span>
+              <span className="text-sm font-medium text-ink-2">{t("wallColor")}</span>
               <button
                 type="button"
                 onClick={() => update({ rainbowWalls: !s.rainbowWalls })}
@@ -572,7 +572,7 @@ export default function Controls(props: ControlsProps) {
                     type="button"
                     key={mode}
                     onClick={() => update({ rainbowWallMode: mode })}
-                    className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowWallMode === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                    className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.rainbowWallMode === mode ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                   >
                     {t(mode)}
                   </button>
@@ -643,7 +643,7 @@ export default function Controls(props: ControlsProps) {
           aria-pressed={s.cameraFollow}
           className={`w-full px-4 py-2 rounded-lg font-medium transition-all text-xs cursor-pointer ${s.cameraFollow ? onBtn : offBtn}`}
         >
-          📷 {t("cameraFollow")}
+          {t("cameraFollow")}
           <Tooltip text={t("cameraFollowTip")} />
         </button>
       </Searchable>
@@ -665,7 +665,7 @@ export default function Controls(props: ControlsProps) {
       )}
       <Searchable search={search} matches={matches} labelKey="wallBreakEffect">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("wallBreakEffect")}
             <Tooltip text={t("wallBreakEffectTip")} />
           </label>
@@ -683,7 +683,7 @@ export default function Controls(props: ControlsProps) {
                 type="button"
                 key={value}
                 onClick={() => update({ wallBreakStyle: value })}
-                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.wallBreakStyle === value ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.wallBreakStyle === value ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
               >
                 {t(key)}
               </button>
@@ -703,7 +703,7 @@ export default function Controls(props: ControlsProps) {
       <div className="space-y-4">
         <Searchable search={search} matches={matches} labelKey="hitSoundMode">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-ink-2">
               {t("hitSoundMode")}
               <Tooltip text={t("hitSoundModeTip")} />
             </label>
@@ -714,9 +714,9 @@ export default function Controls(props: ControlsProps) {
                   key={mode}
                   onClick={() => update({ hitSoundMode: mode })}
                   aria-pressed={s.hitSoundMode === mode}
-                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.hitSoundMode === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.hitSoundMode === mode ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                 >
-                  {mode === "tones" ? `🎹 ${t("hitSoundModeTones")}` : `🎧 ${t("hitSoundModeSample")}`}
+                  {mode === "tones" ? `${t("hitSoundModeTones")}` : `${t("hitSoundModeSample")}`}
                 </button>
               ))}
             </div>
@@ -725,10 +725,10 @@ export default function Controls(props: ControlsProps) {
         {showToneControls && (
           <Searchable search={search} matches={matches} labelKey="instrument">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300" htmlFor="instrument-select">
+              <label className="text-sm font-medium text-ink-2" htmlFor="instrument-select">
                 {t("instrument")}
               </label>
-              <p className="text-xs text-zinc-500 leading-relaxed">{t("instrumentDesc")}</p>
+              <p className="text-xs text-ink-3 leading-relaxed">{t("instrumentDesc")}</p>
               <select id="instrument-select" value={s.instrument} onChange={(e) => update({ instrument: e.target.value as InstrumentId })} className={selectClass}>
                 {INSTRUMENT_IDS.map((id) => (
                   <option key={id} value={id}>
@@ -746,10 +746,10 @@ export default function Controls(props: ControlsProps) {
           <>
             <Searchable search={search} matches={matches} labelKey="song">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300" htmlFor="song-select">
+                <label className="text-sm font-medium text-ink-2" htmlFor="song-select">
                   {t("song")}
                 </label>
-                <p className="text-xs text-zinc-500 leading-relaxed">{t("customSoundDesc")}</p>
+                <p className="text-xs text-ink-3 leading-relaxed">{t("customSoundDesc")}</p>
                 <select
                   id="song-select"
                   value={props.customSoundId || ""}
@@ -774,10 +774,10 @@ export default function Controls(props: ControlsProps) {
             {(props.customSoundId || search) && (
               <Searchable search={search} matches={matches} labelKey="melodyInstrument">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-300" htmlFor="melody-instrument-select">
+                  <label className="text-sm font-medium text-ink-2" htmlFor="melody-instrument-select">
                     {t("melodyInstrument")}
                   </label>
-                  <p className="text-xs text-zinc-500 leading-relaxed">{t("melodyInstrumentDesc")}</p>
+                  <p className="text-xs text-ink-3 leading-relaxed">{t("melodyInstrumentDesc")}</p>
                   <select id="melody-instrument-select" value={s.melodyInstrument} onChange={(e) => update({ melodyInstrument: e.target.value as InstrumentId })} className={selectClass}>
                     {INSTRUMENT_IDS.map((id) => (
                       <option key={id} value={id}>
@@ -791,7 +791,7 @@ export default function Controls(props: ControlsProps) {
             {showAdvanced && (
               <Searchable search={search} matches={matches} labelKey="importMidi">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-300">{t("importMidi")}</label>
+                  <label className="text-sm font-medium text-ink-2">{t("importMidi")}</label>
                   <label
                     onDragOver={(e) => {
                       e.preventDefault();
@@ -805,10 +805,10 @@ export default function Controls(props: ControlsProps) {
                       if (file) props.onCustomMidiUpload(file);
                     }}
                     className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                      midiDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                      midiDrag ? `bg-accent/10 border-accent text-accent scale-[1.02]` : "bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3"
                     }`}
                   >
-                    <span className="text-lg">{midiDrag ? "📥" : "📁"}</span>
+                    <IconUpload size={20} className={midiDrag ? "text-accent" : "text-ink-3"} />
                     <span className="font-semibold">{midiDrag ? t("dropMidiHere") : t("chooseMidiFile")}</span>
                     <input
                       type="file"
@@ -823,11 +823,11 @@ export default function Controls(props: ControlsProps) {
                       }}
                     />
                   </label>
-                  <p className="text-[11px] text-zinc-500 mt-1 flex items-start gap-1">
-                    <span className="leading-none mt-0.5">💡</span>
+                  <p className="text-xs text-ink-3 mt-1 flex items-start gap-1">
+                    <IconInfo size={14} className="mt-0.5 shrink-0" />
                     <span>
                       {t("midiSourceText")}{" "}
-                      <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className={`text-[#93d119] hover:text-[#7fb315] underline font-medium`}>
+                      <a href="https://bitmidi.com" target="_blank" rel="noopener noreferrer" className={`text-accent hover:text-accent-strong underline font-medium`}>
                         bitmidi.com ↗
                       </a>
                     </span>
@@ -836,8 +836,8 @@ export default function Controls(props: ControlsProps) {
               </Searchable>
             )}
             {props.customSoundLoading && (
-              <div className="flex items-center gap-2 text-sm text-zinc-400">
-                <div className={`w-4 h-4 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin`} />
+              <div className="flex items-center gap-2 text-sm text-ink-2">
+                <div className={`w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin`} />
                 {t("loadingMidi")}
               </div>
             )}
@@ -845,10 +845,10 @@ export default function Controls(props: ControlsProps) {
         )}
         <Searchable search={search} matches={matches} labelKey="scale">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300" htmlFor="scale-select">
+            <label className="text-sm font-medium text-ink-2" htmlFor="scale-select">
               {t("scale")}
             </label>
-            <p className="text-xs text-zinc-500 leading-relaxed">{t("scaleDesc")}</p>
+            <p className="text-xs text-ink-3 leading-relaxed">{t("scaleDesc")}</p>
             <select id="scale-select" value={s.scale} onChange={(e) => update({ scale: e.target.value as ScaleId })} className={selectClass}>
               {SCALE_IDS.map((id) => (
                 <option key={id} value={id}>
@@ -861,7 +861,7 @@ export default function Controls(props: ControlsProps) {
         {(s.scale !== "chromatic" || search) && (
           <Searchable search={search} matches={matches} labelKey="rootNote">
             <div className="space-y-2">
-              <span id="root-note-label" className="text-sm font-medium text-zinc-300">
+              <span id="root-note-label" className="text-sm font-medium text-ink-2">
                 {t("rootNote")}
               </span>
               <div className="grid grid-cols-6 gap-1" role="group" aria-labelledby="root-note-label">
@@ -871,7 +871,7 @@ export default function Controls(props: ControlsProps) {
                     key={name}
                     onClick={() => update({ rootNote: index })}
                     aria-pressed={s.rootNote === index}
-                    className={`px-1 py-1 rounded-md text-xs font-mono font-medium transition-all cursor-pointer ${s.rootNote === index ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                    className={`px-1 py-1 rounded-md text-xs font-mono font-medium transition-all cursor-pointer ${s.rootNote === index ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                   >
                     {name}
                   </button>
@@ -883,12 +883,12 @@ export default function Controls(props: ControlsProps) {
         <Searchable search={search} matches={matches} labelKey="beatLock">
           <div className="space-y-2">
             <Toggle t={t} labelKey="beatLock" tipKey="beatLockTip" value={s.quantizeToBeat} onChange={(v) => update({ quantizeToBeat: v })} />
-            <p className="text-xs text-zinc-500 leading-relaxed">{t("beatLockDesc")}</p>
+            <p className="text-xs text-ink-3 leading-relaxed">{t("beatLockDesc")}</p>
             {s.quantizeToBeat && (
               <>
-                <label className="text-sm font-medium text-zinc-300 flex items-center justify-between mt-2">
+                <label className="text-sm font-medium text-ink-2 flex items-center justify-between mt-2">
                   <span>{t("bpm")}</span>
-                  <span className="text-zinc-500">{s.bpm}</span>
+                  <span className="text-ink-3">{s.bpm}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -898,7 +898,7 @@ export default function Controls(props: ControlsProps) {
                     step={RANGES.bpm.step}
                     value={s.bpm}
                     onChange={(e) => update({ bpm: Number(e.target.value) })}
-                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                    className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
                     style={sliderStyle(s.bpm, RANGES.bpm.min, RANGES.bpm.max)}
                     aria-label={t("bpm")}
                   />
@@ -911,7 +911,7 @@ export default function Controls(props: ControlsProps) {
         {(s.quantizeToBeat || search) && (
           <Searchable search={search} matches={matches} labelKey="quantizeGrid">
             <div className="flex items-center justify-between gap-2">
-              <span id="quantize-grid-label" className="text-sm font-medium text-zinc-300">
+              <span id="quantize-grid-label" className="text-sm font-medium text-ink-2">
                 {t("quantizeGrid")}
               </span>
               <div className="flex gap-1" role="group" aria-labelledby="quantize-grid-label">
@@ -921,7 +921,7 @@ export default function Controls(props: ControlsProps) {
                     key={grid}
                     onClick={() => update({ quantizeGrid: grid })}
                     aria-pressed={s.quantizeGrid === grid}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer ${s.quantizeGrid === grid ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer ${s.quantizeGrid === grid ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                   >
                     {grid}
                   </button>
@@ -961,10 +961,10 @@ export default function Controls(props: ControlsProps) {
         {props.videoBeats && <VideoBeatsSection t={t} search={search} matches={matches} showAdvanced={showAdvanced} settings={s} update={update} panel={props.videoBeats} />}
         <Searchable search={search} matches={matches} labelKey="wallBreakSound">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300" htmlFor="wallbreak-select">
+            <label className="text-sm font-medium text-ink-2" htmlFor="wallbreak-select">
               {t("wallBreakSound")}
             </label>
-            <p className="text-xs text-zinc-500 leading-relaxed">{t("wallBreakSoundDesc")}</p>
+            <p className="text-xs text-ink-3 leading-relaxed">{t("wallBreakSoundDesc")}</p>
             <select id="wallbreak-select" value={s.wallBreakSound || ""} onChange={(e) => update({ wallBreakSound: e.target.value || null })} className={selectClass}>
               {/* --- gerald-glass --- a mode with its own default clip (Glass Smash) names it */}
               <option value="">{MODE_WALL_BREAK_SOUNDS[s.mode] ? t("wallBreakSoundModeDefault", { name: WALL_BREAK_SOUNDS.find((snd) => snd.id === MODE_WALL_BREAK_SOUNDS[s.mode])?.name ?? "" }) : t("wallBreakSoundDefault")}</option>
@@ -980,7 +980,7 @@ export default function Controls(props: ControlsProps) {
         {showAdvanced && (
           <Searchable search={search} matches={matches} labelKey="importWallBreak">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">{t("importWallBreak")}</label>
+              <label className="text-sm font-medium text-ink-2">{t("importWallBreak")}</label>
               <label
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -994,10 +994,10 @@ export default function Controls(props: ControlsProps) {
                   if (file) props.onWallBreakSoundUpload(file);
                 }}
                 className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                  wallBreakDrag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                  wallBreakDrag ? `bg-accent/10 border-accent text-accent scale-[1.02]` : "bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3"
                 }`}
               >
-                <span className="text-lg">📁</span>
+                <IconUpload size={20} className={wallBreakDrag ? "text-accent" : "text-ink-3"} />
                 <span className="font-semibold">{wallBreakDrag ? t("dropWallBreakHere") : t("chooseWallBreakFile")}</span>
                 <input
                   type="file"
@@ -1023,7 +1023,7 @@ export default function Controls(props: ControlsProps) {
     <div className="space-y-3">
       <Searchable search={search} matches={matches} labelKey="videoResolution">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="resolution-select">
+          <label className="text-sm font-medium text-ink-2" htmlFor="resolution-select">
             {t("resolutionTitle")}
           </label>
           <select
@@ -1031,7 +1031,7 @@ export default function Controls(props: ControlsProps) {
             value={s.recordingResolution}
             onChange={(e) => update({ recordingResolution: e.target.value })}
             disabled={props.isRecording}
-            className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {RESOLUTIONS.map((r) => (
               <option key={r} value={r}>
@@ -1044,15 +1044,14 @@ export default function Controls(props: ControlsProps) {
       {!props.simulationFound && (
         <Searchable search={search} matches={matches} labelKey="videoDuration">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+            <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
               <span>
                 {t("durationSpan")}
                 <Tooltip text={t("durationTip")} />
               </span>
-              <span className="text-zinc-500">{s.recordingDuration}s</span>
+              <span className="text-ink-3">{s.recordingDuration}s</span>
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-sm">⏱️</span>
               <input
                 type="range"
                 min={RANGES.recordingDuration.min}
@@ -1061,14 +1060,13 @@ export default function Controls(props: ControlsProps) {
                 value={s.recordingDuration}
                 onChange={(e) => update({ recordingDuration: Number(e.target.value) })}
                 disabled={props.isRecording}
-                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 style={sliderStyle(s.recordingDuration, RANGES.recordingDuration.min, RANGES.recordingDuration.max)}
                 aria-label={t("durationSpan")}
               />
-              <span className="text-sm">⏳</span>
               <NumberField value={s.recordingDuration} onCommit={(v) => update({ recordingDuration: v })} label={t("durationSpan")} range={RANGES.recordingDuration} rules={rulesForRange(RANGES.recordingDuration)} disabled={props.isRecording} settingKey="recordingDuration" /* --- uncap-all --- */ />
             </div>
-            <div className="flex justify-between text-xs text-zinc-500">
+            <div className="flex justify-between text-xs text-ink-3">
               <span>{t("minDuration")}</span>
               <span>{t("maxDuration")}</span>
             </div>
@@ -1077,13 +1075,13 @@ export default function Controls(props: ControlsProps) {
       )}
       {showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="customWatermark">
-          <div className="space-y-2 border-t border-zinc-800 pt-3">
-            <label className="text-sm font-medium text-zinc-300 flex items-center justify-between" htmlFor="watermark-input">
+          <div className="space-y-2 border-t border-line pt-3">
+            <label className="text-sm font-medium text-ink-2 flex items-center justify-between" htmlFor="watermark-input">
               <span>
                 {t("customWatermark")}
                 <Tooltip text={t("watermarkTip")} />
               </span>
-              {s.watermarkText && <span className="text-zinc-500 text-xs truncate max-w-[120px]">{s.watermarkText}</span>}
+              {s.watermarkText && <span className="text-ink-3 text-xs truncate max-w-[120px]">{s.watermarkText}</span>}
             </label>
             <input
               id="watermark-input"
@@ -1092,7 +1090,7 @@ export default function Controls(props: ControlsProps) {
               onChange={(e) => update({ watermarkText: e.target.value })}
               placeholder={t("enterWatermark")}
               maxLength={50}
-              className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+              className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
             />
           </div>
         </Searchable>
@@ -1106,12 +1104,12 @@ export default function Controls(props: ControlsProps) {
         ).map(([key, tip, placeholder, value, set]) => (
           <Searchable key={key} search={search} matches={matches} labelKey={key}>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300 flex items-center justify-between" htmlFor={`${key}-input`}>
+              <label className="text-sm font-medium text-ink-2 flex items-center justify-between" htmlFor={`${key}-input`}>
                 <span>
                   {t(key)}
                   <Tooltip text={t(tip)} />
                 </span>
-                {value && <span className="text-zinc-500 text-xs truncate max-w-[120px]">{value}</span>}
+                {value && <span className="text-ink-3 text-xs truncate max-w-[120px]">{value}</span>}
               </label>
               <input
                 id={`${key}-input`}
@@ -1120,7 +1118,7 @@ export default function Controls(props: ControlsProps) {
                 onChange={(e) => set(e.target.value)}
                 placeholder={t(placeholder)}
                 maxLength={60}
-                className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+                className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
               />
             </div>
           </Searchable>
@@ -1128,12 +1126,12 @@ export default function Controls(props: ControlsProps) {
       {(s.topText || s.bottomText) && showAdvanced && (
         <Searchable search={search} matches={matches} labelKey="textSize">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+            <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
               <span>
                 {t("textSize")}
                 <Tooltip text={t("textSizeTip")} />
               </span>
-              <span className="text-zinc-500">{s.textSize.toFixed(1)}×</span>
+              <span className="text-ink-3">{s.textSize.toFixed(1)}×</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -1143,13 +1141,13 @@ export default function Controls(props: ControlsProps) {
                 step={RANGES.textSize.step}
                 value={s.textSize}
                 onChange={(e) => update({ textSize: Number(e.target.value) })}
-                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
                 style={sliderStyle(s.textSize, RANGES.textSize.min, RANGES.textSize.max)}
                 aria-label={t("textSize")}
               />
               <NumberField value={s.textSize} onCommit={(v) => update({ textSize: v })} label={t("textSize")} range={RANGES.textSize} rules={rulesForRange(RANGES.textSize)} settingKey="textSize" /* --- uncap-all --- */ />
             </div>
-            <div className="flex justify-between text-xs text-zinc-500">
+            <div className="flex justify-between text-xs text-ink-3">
               <span>{t("minSize")}</span>
               <span>{t("maxSize")}</span>
             </div>

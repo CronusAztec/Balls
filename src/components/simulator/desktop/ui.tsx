@@ -5,16 +5,16 @@ import type { ReactNode } from "react";
 /* --- desktop-exe --- Small building blocks of the Desktop group (dark theme, lime accent like the rest of the panel). */
 
 export const btn = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
-export const primaryBtn = `${btn} bg-[#93d119] text-slate-950 hover:bg-[#7fb315]`;
-export const ghostBtn = `${btn} bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700`;
-export const dangerBtn = `${btn} bg-red-600/80 text-white hover:bg-red-600`;
-export const inputClass = "px-2.5 py-1.5 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none text-xs";
+export const primaryBtn = `${btn} bg-accent text-accent-ink hover:bg-accent-strong`;
+export const ghostBtn = `${btn} bg-surface-2 text-ink hover:bg-surface-3 border border-line-strong`;
+export const dangerBtn = `${btn} bg-danger/80 text-ink hover:bg-danger`;
+export const inputClass = "px-2.5 py-1.5 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim text-xs";
 
 export function Card({ title, children, actions, testId }: { title: string; children: ReactNode; actions?: ReactNode; testId?: string }) {
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 space-y-3" data-testid={testId}>
+    <div className="bg-surface-1/60 border border-line rounded-xl p-4 space-y-3" data-testid={testId}>
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-sm font-bold text-white">{title}</h3>
+        <h3 className="text-sm font-bold text-ink">{title}</h3>
         {actions && <div className="flex gap-2 flex-wrap">{actions}</div>}
       </div>
       {children}
@@ -23,9 +23,9 @@ export function Card({ title, children, actions, testId }: { title: string; chil
 }
 
 export function Bar({ value, tone = "lime" }: { value: number; tone?: "lime" | "cyan" | "red" }) {
-  const color = tone === "red" ? "bg-red-500" : tone === "cyan" ? "bg-cyan-500" : "bg-[#93d119]";
+  const color = tone === "red" ? "bg-danger" : tone === "cyan" ? "bg-accent" : "bg-accent";
   return (
-    <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+    <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
       <div className={`h-full ${color} transition-[width] duration-200`} style={{ width: `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%` }} />
     </div>
   );
@@ -33,7 +33,7 @@ export function Bar({ value, tone = "lime" }: { value: number; tone?: "lime" | "
 
 export function Chip({ on, onClick, children, testId }: { on: boolean; onClick: () => void; children: ReactNode; testId?: string }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on} data-testid={testId} className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${on ? "bg-[#93d119]/20 border-[#93d119] text-[#b0f02a]" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}>
+    <button type="button" onClick={onClick} aria-pressed={on} data-testid={testId} className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer ${on ? "bg-accent/20 border-accent text-accent" : "bg-surface-2 border-line-strong text-ink-2 hover:text-ink"}`}>
       {children}
     </button>
   );

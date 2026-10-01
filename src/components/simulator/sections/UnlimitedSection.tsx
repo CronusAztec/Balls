@@ -28,10 +28,10 @@ export default function UnlimitedSection({ search, matches, settings: s, update 
   const toggle = () => update({ unlimited: !on }); // --- uncap-all --- (the track only: no value is touched)
   return (
     <Searchable search={search} matches={matches} labelKey="unlimited">
-      <div className={`space-y-2 rounded-xl border p-3 ${on ? "border-amber-500/60 bg-amber-500/10" : "border-zinc-700/60 bg-zinc-900/40"}`} data-testid="unlimited-section">
+      <div className={`space-y-2 rounded-xl border p-3 ${on ? "border-warn/60 bg-warn/10" : "border-line-strong/60 bg-surface-1/40"}`} data-testid="unlimited-section">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-semibold text-zinc-200">
-            ♾️ {u("label")}
+          <label className="text-sm font-semibold text-ink">
+            {u("label")}
             <Tooltip text={u("tip")} />
           </label>
           <button
@@ -39,12 +39,12 @@ export default function UnlimitedSection({ search, matches, settings: s, update 
             onClick={toggle}
             aria-pressed={on}
             data-testid="unlimited-toggle"
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${on ? "bg-amber-400 text-slate-950" : offBtn}`}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${on ? "bg-warn text-accent-ink" : offBtn}`}
           >
             {on ? u("on") : u("off")}
           </button>
         </div>
-        <p className={`text-xs ${on ? "text-amber-300" : "text-zinc-400"}`}>⚠️ {u("warning")}</p>
+        <p className={`text-xs ${on ? "text-warn" : "text-ink-2"}`}>{u("warning")}</p>
       </div>
     </Searchable>
   );

@@ -37,12 +37,12 @@ export const DOUBLE_PENDULUM_KEYS = [
   "dpEndless",
 ];
 
-const LAYOUT_OPTIONS: Record<DpStringLayout, { icon: string; labelKey: string }> = {
-  vertical: { icon: "🎼", labelKey: "dpStringLayoutVertical" },
-  radial: { icon: "✳️", labelKey: "dpStringLayoutRadial" },
+const LAYOUT_OPTIONS: Record<DpStringLayout, { labelKey: string }> = {
+  vertical: { labelKey: "dpStringLayoutVertical" },
+  radial: { labelKey: "dpStringLayoutRadial" },
 };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /** Percent of its speed the pendulum keeps losing per second for a per-step velocity loss `d` (60 steps a second). */
 export function dampingPerSecond(d: number): number {
@@ -50,7 +50,7 @@ export function dampingPerSecond(d: number): number {
 }
 
 function GroupTitle({ children }: { children: string }) {
-  return <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{children}</p>;
+  return <p className="pt-1 text-xs font-bold uppercase tracking-[0.16em] text-ink-3">{children}</p>;
 }
 
 /**
@@ -69,11 +69,11 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
   const damping = s.dpDamping > 0 ? `${Math.max(1, Math.round(100 * dampingPerSecond(s.dpDamping)))}%/s` : t("dpOff");
   return (
     <div className="space-y-3 pt-2" data-testid="double-pendulum">
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("dpDesc")}</p>}
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("dpDesc")}</p>}
       {!search && <GroupTitle>{t("dpGroupRig")}</GroupTitle>}
       <Searchable search={search} matches={matches} labelKey="dpSegments">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("dpSegments")}
             <Tooltip text={t("dpSegmentsTip")} />
           </label>
@@ -86,7 +86,7 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
           </div>
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="dpCount" tipKey="dpCountTip" value={s.dpSpar ? 2 : s.dpCount} range={RANGES.dpCount} onChange={(v) => update({ dpCount: v })} display={s.dpSpar ? t("dpSparCount") : String(s.dpCount)} left="1" right="4" disabled={s.dpSpar} />
+      <Slider t={t} search={search} matches={matches} labelKey="dpCount" tipKey="dpCountTip" value={s.dpSpar ? 2 : s.dpCount} range={RANGES.dpCount} onChange={(v) => update({ dpCount: v })} display={s.dpSpar ? t("dpSparCount") : String(s.dpCount)} disabled={s.dpSpar} />
       <Searchable search={search} matches={matches} labelKey="dpSpar">
         <Toggle t={t} labelKey="dpSpar" tipKey="dpSparTip" value={s.dpSpar} onChange={(v) => update({ dpSpar: v })} />
       </Searchable>
@@ -96,48 +96,48 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
       </Searchable>
       {showAngles && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="dpAngle1" tipKey="dpAngleTip" value={s.dpAngle1} range={RANGES.dpAngle1} onChange={(v) => update({ dpAngle1: v })} display={deg(s.dpAngle1)} left="↺" right="↻" />
-          <Slider t={t} search={search} matches={matches} labelKey="dpAngle2" tipKey="dpAngleTip" value={s.dpAngle2} range={RANGES.dpAngle2} onChange={(v) => update({ dpAngle2: v })} display={deg(s.dpAngle2)} left="↺" right="↻" />
-          {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpAngle3" tipKey="dpAngleTip" value={s.dpAngle3} range={RANGES.dpAngle3} onChange={(v) => update({ dpAngle3: v })} display={deg(s.dpAngle3)} left="↺" right="↻" />}
+          <Slider t={t} search={search} matches={matches} labelKey="dpAngle1" tipKey="dpAngleTip" value={s.dpAngle1} range={RANGES.dpAngle1} onChange={(v) => update({ dpAngle1: v })} display={deg(s.dpAngle1)} />
+          <Slider t={t} search={search} matches={matches} labelKey="dpAngle2" tipKey="dpAngleTip" value={s.dpAngle2} range={RANGES.dpAngle2} onChange={(v) => update({ dpAngle2: v })} display={deg(s.dpAngle2)} />
+          {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpAngle3" tipKey="dpAngleTip" value={s.dpAngle3} range={RANGES.dpAngle3} onChange={(v) => update({ dpAngle3: v })} display={deg(s.dpAngle3)} />}
         </>
       )}
       {!search && <GroupTitle>{t("dpGroupPhysics")}</GroupTitle>}
-      <Slider t={t} search={search} matches={matches} labelKey="dpLength1" tipKey="dpLengthTip" value={s.dpLength1} range={RANGES.dpLength1} onChange={(v) => update({ dpLength1: v })} display={pct(s.dpLength1)} left="—" right="———" />
-      <Slider t={t} search={search} matches={matches} labelKey="dpLength2" tipKey="dpLengthTip" value={s.dpLength2} range={RANGES.dpLength2} onChange={(v) => update({ dpLength2: v })} display={pct(s.dpLength2)} left="—" right="———" />
-      {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpLength3" tipKey="dpLengthTip" value={s.dpLength3} range={RANGES.dpLength3} onChange={(v) => update({ dpLength3: v })} display={pct(s.dpLength3)} left="—" right="———" />}
-      <Slider t={t} search={search} matches={matches} labelKey="dpMass1" tipKey="dpMassTip" value={s.dpMass1} range={RANGES.dpMass1} onChange={(v) => update({ dpMass1: v })} display={s.dpMass1.toFixed(1)} left="🪶" right="🪨" />
-      <Slider t={t} search={search} matches={matches} labelKey="dpMass2" tipKey="dpMassTip" value={s.dpMass2} range={RANGES.dpMass2} onChange={(v) => update({ dpMass2: v })} display={s.dpMass2.toFixed(1)} left="🪶" right="🪨" />
-      {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpMass3" tipKey="dpMassTip" value={s.dpMass3} range={RANGES.dpMass3} onChange={(v) => update({ dpMass3: v })} display={s.dpMass3.toFixed(1)} left="🪶" right="🪨" />}
-      <Slider t={t} search={search} matches={matches} labelKey="dpGravity" tipKey="dpGravityTip" value={s.dpGravity} range={RANGES.dpGravity} onChange={(v) => update({ dpGravity: v })} display={`×${s.dpGravity.toFixed(2)}`} left="🎈" right="🪨" />
-      <Slider t={t} search={search} matches={matches} labelKey="dpDamping" tipKey="dpDampingTip" value={s.dpDamping} range={RANGES.dpDamping} onChange={(v) => update({ dpDamping: v })} display={damping} left="∞" right="🛑" />
+      <Slider t={t} search={search} matches={matches} labelKey="dpLength1" tipKey="dpLengthTip" value={s.dpLength1} range={RANGES.dpLength1} onChange={(v) => update({ dpLength1: v })} display={pct(s.dpLength1)} />
+      <Slider t={t} search={search} matches={matches} labelKey="dpLength2" tipKey="dpLengthTip" value={s.dpLength2} range={RANGES.dpLength2} onChange={(v) => update({ dpLength2: v })} display={pct(s.dpLength2)} />
+      {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpLength3" tipKey="dpLengthTip" value={s.dpLength3} range={RANGES.dpLength3} onChange={(v) => update({ dpLength3: v })} display={pct(s.dpLength3)} />}
+      <Slider t={t} search={search} matches={matches} labelKey="dpMass1" tipKey="dpMassTip" value={s.dpMass1} range={RANGES.dpMass1} onChange={(v) => update({ dpMass1: v })} display={s.dpMass1.toFixed(1)} />
+      <Slider t={t} search={search} matches={matches} labelKey="dpMass2" tipKey="dpMassTip" value={s.dpMass2} range={RANGES.dpMass2} onChange={(v) => update({ dpMass2: v })} display={s.dpMass2.toFixed(1)} />
+      {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpMass3" tipKey="dpMassTip" value={s.dpMass3} range={RANGES.dpMass3} onChange={(v) => update({ dpMass3: v })} display={s.dpMass3.toFixed(1)} />}
+      <Slider t={t} search={search} matches={matches} labelKey="dpGravity" tipKey="dpGravityTip" value={s.dpGravity} range={RANGES.dpGravity} onChange={(v) => update({ dpGravity: v })} display={`×${s.dpGravity.toFixed(2)}`} />
+      <Slider t={t} search={search} matches={matches} labelKey="dpDamping" tipKey="dpDampingTip" value={s.dpDamping} range={RANGES.dpDamping} onChange={(v) => update({ dpDamping: v })} display={damping} />
       {!search && <GroupTitle>{t("dpGroupHarp")}</GroupTitle>}
-      <Slider t={t} search={search} matches={matches} labelKey="dpTrailSeconds" tipKey="dpTrailSecondsTip" value={s.dpTrailSeconds} range={RANGES.dpTrailSeconds} onChange={(v) => update({ dpTrailSeconds: v })} display={s.dpTrailSeconds > 0 ? `${s.dpTrailSeconds}s` : t("dpOff")} left="•" right="〰️" />
-      <Slider t={t} search={search} matches={matches} labelKey="dpStrings" tipKey="dpStringsTip" value={s.dpStrings} range={RANGES.dpStrings} onChange={(v) => update({ dpStrings: v })} display={s.dpStrings > 0 ? String(s.dpStrings) : t("dpOff")} left="🔇" right="🎼" />
+      <Slider t={t} search={search} matches={matches} labelKey="dpTrailSeconds" tipKey="dpTrailSecondsTip" value={s.dpTrailSeconds} range={RANGES.dpTrailSeconds} onChange={(v) => update({ dpTrailSeconds: v })} display={s.dpTrailSeconds > 0 ? `${s.dpTrailSeconds}s` : t("dpOff")} />
+      <Slider t={t} search={search} matches={matches} labelKey="dpStrings" tipKey="dpStringsTip" value={s.dpStrings} range={RANGES.dpStrings} onChange={(v) => update({ dpStrings: v })} display={s.dpStrings > 0 ? String(s.dpStrings) : t("dpOff")} />
       {(s.dpStrings > 0 || !!search) && (
         <>
           <Searchable search={search} matches={matches} labelKey="dpStringLayout">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">
+              <label className="text-sm font-medium text-ink-2">
                 {t("dpStringLayout")}
                 <Tooltip text={t("dpStringLayoutTip")} />
               </label>
               <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("dpStringLayout")}>
                 {DP_STRING_LAYOUTS.map((layout) => (
                   <button type="button" key={layout} onClick={() => update({ dpStringLayout: layout })} aria-pressed={s.dpStringLayout === layout} className={pick(s.dpStringLayout === layout)}>
-                    <span aria-hidden="true">{LAYOUT_OPTIONS[layout].icon}</span> {t(LAYOUT_OPTIONS[layout].labelKey)}
+                    {t(LAYOUT_OPTIONS[layout].labelKey)}
                   </button>
                 ))}
               </div>
             </div>
           </Searchable>
-          <Slider t={t} search={search} matches={matches} labelKey="dpOctaves" tipKey="dpOctavesTip" value={s.dpOctaves} range={RANGES.dpOctaves} onChange={(v) => update({ dpOctaves: v })} display={String(s.dpOctaves)} left="🎵" right="🎶" />
+          <Slider t={t} search={search} matches={matches} labelKey="dpOctaves" tipKey="dpOctavesTip" value={s.dpOctaves} range={RANGES.dpOctaves} onChange={(v) => update({ dpOctaves: v })} display={String(s.dpOctaves)} />
         </>
       )}
       {!search && <GroupTitle>{t("dpGroupRun")}</GroupTitle>}
       <Searchable search={search} matches={matches} labelKey="dpEndless">
         <div className="space-y-1">
           <Toggle t={t} labelKey="dpEndless" tipKey="dpEndlessTip" value={s.dpEndless} onChange={(v) => update({ dpEndless: v })} />
-          <p className="text-[11px] text-zinc-500" data-testid="dp-run-length">
+          <p className="text-xs text-ink-3" data-testid="dp-run-length">
             {s.dpEndless ? t("dpRunEndless") : t("dpRunLength", { duration: s.recordingDuration })}
           </p>
         </div>

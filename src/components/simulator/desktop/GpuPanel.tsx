@@ -47,35 +47,35 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
         {gpu ? (
           <>
             <ul className="space-y-1 text-xs" data-gpu-devices={gpu.devices.length}>
-              {gpu.devices.length === 0 && <li className="text-zinc-500">{t("gpuNoDevices")}</li>}
+              {gpu.devices.length === 0 && <li className="text-ink-3">{t("gpuNoDevices")}</li>}
               {gpu.devices.map((d) => (
                 <li key={`${d.vendorId}-${d.deviceId}`} className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${d.active ? "bg-[#93d119]" : "bg-zinc-600"}`} />
-                  <span className="text-zinc-200 font-medium">{d.name}</span>
-                  <span className="text-zinc-500">{d.driver}</span>
-                  {d.active && <span className="text-[10px] text-[#93d119]">{t("gpuActive")}</span>}
+                  <span className={`w-2 h-2 rounded-full ${d.active ? "bg-accent" : "bg-surface-3"}`} />
+                  <span className="text-ink font-medium">{d.name}</span>
+                  <span className="text-ink-3">{d.driver}</span>
+                  {d.active && <span className="text-xs text-accent">{t("gpuActive")}</span>}
                 </li>
               ))}
             </ul>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-              <dt className="text-zinc-500">{t("gpuVideoEncode")}</dt>
-              <dd className={gpu.hardwareVideoEncode ? "text-[#93d119]" : "text-zinc-400"} data-testid="gpu-video-encode">{yes(gpu.hardwareVideoEncode)}</dd>
-              <dt className="text-zinc-500">{t("gpuVideoDecode")}</dt>
-              <dd className={gpu.hardwareVideoDecode ? "text-[#93d119]" : "text-zinc-400"}>{yes(gpu.hardwareVideoDecode)}</dd>
-              <dt className="text-zinc-500">WebGPU</dt>
-              <dd className={gpu.webgpu ? "text-[#93d119]" : "text-zinc-400"}>{yes(gpu.webgpu)}</dd>
+              <dt className="text-ink-3">{t("gpuVideoEncode")}</dt>
+              <dd className={gpu.hardwareVideoEncode ? "text-accent" : "text-ink-2"} data-testid="gpu-video-encode">{yes(gpu.hardwareVideoEncode)}</dd>
+              <dt className="text-ink-3">{t("gpuVideoDecode")}</dt>
+              <dd className={gpu.hardwareVideoDecode ? "text-accent" : "text-ink-2"}>{yes(gpu.hardwareVideoDecode)}</dd>
+              <dt className="text-ink-3">WebGPU</dt>
+              <dd className={gpu.webgpu ? "text-accent" : "text-ink-2"}>{yes(gpu.webgpu)}</dd>
             </dl>
-            {gpu.disabled && <p className="text-xs text-amber-400">{t("gpuSafeMode")}</p>}
-            <details className="text-[10px] text-zinc-500">
+            {gpu.disabled && <p className="text-xs text-warn">{t("gpuSafeMode")}</p>}
+            <details className="text-xs text-ink-3">
               <summary className="cursor-pointer">{t("gpuSwitches")}</summary>
               <p className="mt-1 font-mono break-all">{gpu.switches.join(" ")}</p>
               <p className="mt-1 font-mono break-all">{Object.entries(gpu.features).map(([k, v]) => `${k}: ${v}`).join(" · ")}</p>
             </details>
           </>
         ) : (
-          <p className="text-xs text-zinc-500">…</p>
+          <p className="text-xs text-ink-3">…</p>
         )}
-        <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-ink-2 cursor-pointer">
           <input
             type="checkbox"
             checked={prefs.preferHardware}
@@ -89,7 +89,7 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
           />
           {t("gpuPreferHardware")}
         </label>
-        <p className="text-[11px] text-zinc-500">{last ? t("gpuLastExport", { codec: last.codec, mode: last.acceleration === "prefer-hardware" ? t("gpuModeHardware") : t("gpuModeAuto") }) : t("gpuNoExportYet")}</p>
+        <p className="text-xs text-ink-3">{last ? t("gpuLastExport", { codec: last.codec, mode: last.acceleration === "prefer-hardware" ? t("gpuModeHardware") : t("gpuModeAuto") }) : t("gpuNoExportYet")}</p>
       </Card>
 
       <Card
@@ -119,34 +119,34 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
         }
       >
         {probe?.ffmpeg ? (
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-ink-2">
             ffmpeg {probe.ffmpeg.version} · {probe.ffmpeg.bundled ? t("ffmpegBundled") : t("ffmpegCustom")}
           </p>
         ) : (
-          <p className="text-xs text-amber-400">{probe?.error ? `${t("ffmpegMissing")} (${probe.error})` : probing ? t("ffmpegProbing") : t("ffmpegMissing")}</p>
+          <p className="text-xs text-warn">{probe?.error ? `${t("ffmpegMissing")} (${probe.error})` : probing ? t("ffmpegProbing") : t("ffmpegMissing")}</p>
         )}
         {probe && (
           <div className="grid grid-cols-3 gap-2 text-xs" data-testid="gpu-chosen">
             {(["h264", "hevc", "av1"] as const).map((codec) => (
-              <div key={codec} className="bg-zinc-800/60 rounded-lg px-2 py-1.5">
-                <div className="text-zinc-500 uppercase text-[10px]">{codec}</div>
-                <div className={probe.chosen[codec] ? "text-[#93d119] font-mono" : "text-zinc-500"} data-encoder={codec}>{probe.chosen[codec] ?? t("ffmpegNone")}</div>
+              <div key={codec} className="bg-surface-2/60 rounded-lg px-2 py-1.5">
+                <div className="text-ink-3 uppercase text-xs">{codec}</div>
+                <div className={probe.chosen[codec] ? "text-accent font-mono" : "text-ink-3"} data-encoder={codec}>{probe.chosen[codec] ?? t("ffmpegNone")}</div>
               </div>
             ))}
           </div>
         )}
         {probe && probe.encoders.some((e) => e.listed) && (
           <details className="text-xs">
-            <summary className="cursor-pointer text-zinc-400">{t("ffmpegEncoders")}</summary>
-            <table className="mt-2 w-full text-[11px]">
+            <summary className="cursor-pointer text-ink-2">{t("ffmpegEncoders")}</summary>
+            <table className="mt-2 w-full text-xs">
               <tbody>
                 {probe.encoders
                   .filter((e) => e.listed)
                   .map((e) => (
-                    <tr key={e.id} className="border-t border-zinc-800">
-                      <td className="py-1 font-mono text-zinc-300">{e.id}</td>
-                      <td className="text-zinc-500">{e.kind}</td>
-                      <td className={e.works ? "text-[#93d119]" : e.works === false ? "text-red-400" : "text-zinc-500"}>{e.works ? t("encoderWorks") : e.works === false ? t("encoderFails") : "–"}</td>
+                    <tr key={e.id} className="border-t border-line">
+                      <td className="py-1 font-mono text-ink-2">{e.id}</td>
+                      <td className="text-ink-3">{e.kind}</td>
+                      <td className={e.works ? "text-accent" : e.works === false ? "text-danger" : "text-ink-3"}>{e.works ? t("encoderWorks") : e.works === false ? t("encoderFails") : "–"}</td>
                     </tr>
                   ))}
               </tbody>
@@ -164,7 +164,7 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
                 </option>
               ))}
           </select>
-          <span className="text-[11px] text-zinc-500">{t("encoderOverride")}</span>
+          <span className="text-xs text-ink-3">{t("encoderOverride")}</span>
         </div>
         <div className="flex gap-2">
           <input className={`${inputClass} flex-1`} value={ffmpegPath} placeholder={t("ffmpegPathPlaceholder")} onChange={(e) => setFfmpegPath(e.target.value)} aria-label={t("ffmpegPath")} />
@@ -172,11 +172,11 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
             {t("save")}
           </button>
         </div>
-        <p className="text-[11px] text-zinc-500">{t("ffmpegFullBuildHint")}</p>
+        <p className="text-xs text-ink-3">{t("ffmpegFullBuildHint")}</p>
         {bench && (
           <table className="w-full text-xs" data-testid="gpu-bench">
             <thead>
-              <tr className="text-zinc-500 text-left">
+              <tr className="text-ink-3 text-left">
                 <th className="font-medium">{t("benchEncoder")}</th>
                 <th className="font-medium">fps</th>
                 <th className="font-medium">{t("benchRealtime")}</th>
@@ -184,26 +184,26 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
             </thead>
             <tbody>
               {bench.map((b) => (
-                <tr key={b.encoder} className="border-t border-zinc-800">
-                  <td className="py-1 font-mono text-zinc-300">{b.encoder}</td>
-                  <td className="text-zinc-200">{b.ok ? b.fps : "–"}</td>
-                  <td className={b.ok ? "text-[#93d119]" : "text-red-400"}>{b.ok ? `${b.realtime}×` : t("encoderFails")}</td>
+                <tr key={b.encoder} className="border-t border-line">
+                  <td className="py-1 font-mono text-ink-2">{b.encoder}</td>
+                  <td className="text-ink">{b.ok ? b.fps : "–"}</td>
+                  <td className={b.ok ? "text-accent" : "text-danger"}>{b.ok ? `${b.realtime}×` : t("encoderFails")}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
       </Card>
 
       <Card title={t("appTitle")}>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <dt className="text-zinc-500">{t("appVersion")}</dt>
-          <dd className="text-zinc-200" data-testid="desktop-version">{info ? `${info.version} (Electron ${info.electron})` : "…"}</dd>
-          <dt className="text-zinc-500">{t("appData")}</dt>
-          <dd className="text-zinc-400 break-all">{info?.dataDir ?? "…"}</dd>
-          <dt className="text-zinc-500">{t("appUpdate")}</dt>
-          <dd className="text-zinc-300" data-testid="desktop-update">{update ? t(`update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
+          <dt className="text-ink-3">{t("appVersion")}</dt>
+          <dd className="text-ink" data-testid="desktop-version">{info ? `${info.version} (Electron ${info.electron})` : "…"}</dd>
+          <dt className="text-ink-3">{t("appData")}</dt>
+          <dd className="text-ink-2 break-all">{info?.dataDir ?? "…"}</dd>
+          <dt className="text-ink-3">{t("appUpdate")}</dt>
+          <dd className="text-ink-2" data-testid="desktop-update">{update ? t(`update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
         </dl>
         <div className="flex gap-2 flex-wrap">
           <button type="button" className={ghostBtn} onClick={() => void bridge.update.check()}>
@@ -218,11 +218,11 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
             {t("appOpenLogs")}
           </button>
         </div>
-        <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-ink-2 cursor-pointer">
           <input type="checkbox" checked={prefs.autoUpdate} onChange={(e) => onPrefs({ autoUpdate: e.target.checked })} className="w-4 h-4" style={{ accentColor: "#93d119" }} />
           {t("appAutoUpdate")}
         </label>
-        <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+        <label className="flex items-center gap-2 text-xs text-ink-2 cursor-pointer">
           <input type="checkbox" checked={prefs.closeToTray} onChange={(e) => onPrefs({ closeToTray: e.target.checked })} className="w-4 h-4" style={{ accentColor: "#93d119" }} />
           {t("appCloseToTray")}
         </label>

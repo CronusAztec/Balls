@@ -10,17 +10,9 @@
   },
   "Navbar": {
     "simulator": "Symulator",
-    "modes": "Tryby",
-    "features": "Funkcje",
-    "faq": "FAQ",
     "goHome": "Strona główna",
     "openMenu": "Otwórz menu",
-    "closeMenu": "Zamknij menu",
-    "back": "← Wróć",
-    "backToSimulator": "← Wróć do symulatora"
-  },
-  "Hero": {
-    "mobileNotice": "Najlepiej korzystać z przeglądarki na komputerze lub laptopie. Sterowanie jest zoptymalizowane pod większe ekrany."
+    "closeMenu": "Zamknij menu"
   },
   "SimulatorPage": {
     "metaTitle": "Symulator fizyki piłki – darmowe narzędzie online na TikToka i Reels – {siteName}",

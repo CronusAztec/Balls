@@ -19,6 +19,7 @@ import {
   type JourneyStageKind,
 } from "@/lib/physics/journey/sequence";
 import { STAGE_COLORS } from "@/lib/physics/journey/stage";
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 import { JOURNEY_STAGE_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 
 export interface JourneySectionProps {
@@ -33,7 +34,7 @@ export interface JourneySectionProps {
 export const JOURNEY_KEYS = ["journeyStages", "journeyStagesCode", "journeyAutoStages"];
 
 const SIZE_KEYS = { s: "journeySizeSmall", m: "journeySizeMedium", l: "journeySizeLarge" } as const;
-const iconBtn = "w-7 h-7 rounded-md text-xs font-bold transition-colors cursor-pointer bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed";
+const iconBtn = "w-7 h-7 rounded-md text-xs font-bold transition-colors cursor-pointer bg-surface-2 text-ink-2 hover:bg-surface-3 disabled:opacity-30 disabled:cursor-not-allowed";
 
 /**
  * "Journey" controls (feature gerald-journey), shown in the Mode row while the Journey is the mode (and in the Ball
@@ -62,8 +63,8 @@ export default function JourneySection({ t, search, matches, settings: s, update
     <div className="space-y-3 pt-2" data-testid="journey">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("journeyTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("journeyDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("journeyTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("journeyDesc")}</p>
         </div>
       )}
       <Slider
@@ -76,13 +77,11 @@ export default function JourneySection({ t, search, matches, settings: s, update
         range={RANGES.journeyAutoStages}
         onChange={(v) => update({ journeyAutoStages: v })}
         display={auto ? String(s.journeyAutoStages) : t("journeyAutoOff")}
-        left="📋"
-        right="🎲"
       />
       {!auto && (
         <Searchable search={search} matches={matches} labelKey="journeyStages">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-ink-2">
               {t("journeyStages")}
               <Tooltip text={t("journeyStagesTip")} />
             </label>
@@ -90,10 +89,10 @@ export default function JourneySection({ t, search, matches, settings: s, update
               {stages.map((stage, i) => {
                 const home = i === last;
                 return (
-                  <li key={`${i}-${stage.kind}`} className="flex items-center gap-1.5 bg-zinc-800/50 rounded-lg px-2 py-1.5" data-stage={stage.kind} data-size={stage.size}>
-                    <span className="text-[11px] tabular-nums text-zinc-500 w-4 text-right">{i + 1}</span>
+                  <li key={`${i}-${stage.kind}`} className="flex items-center gap-1.5 bg-surface-2/50 rounded-lg px-2 py-1.5" data-stage={stage.kind} data-size={stage.size}>
+                    <span className="text-xs tabular-nums text-ink-3 w-4 text-right">{i + 1}</span>
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: STAGE_COLORS[stage.kind] }} aria-hidden="true" />
-                    <span className="text-xs font-semibold text-zinc-200 flex-1 truncate">{names(`stage_${stage.kind}`)}</span>
+                    <span className="text-xs font-semibold text-ink flex-1 truncate">{names(`stage_${stage.kind}`)}</span>
                     <span className="flex gap-0.5" role="group" aria-label={t("journeySize")}>
                       {JOURNEY_SIZES.map((size) => (
                         <button
@@ -103,7 +102,7 @@ export default function JourneySection({ t, search, matches, settings: s, update
                           aria-label={`${names(`stage_${stage.kind}`)} ${i + 1}: ${t(SIZE_KEYS[size])}`}
                           aria-pressed={stage.size === size}
                           onClick={() => setStages(resizeJourneyStage(s.journeyStages, i, size))}
-                          className={`w-6 h-6 rounded text-[10px] font-bold uppercase transition-colors cursor-pointer ${stage.size === size ? onBtn : offBtn}`}
+                          className={`w-6 h-6 rounded text-xs font-bold uppercase transition-colors cursor-pointer ${stage.size === size ? onBtn : offBtn}`}
                         >
                           {size}
                         </button>
@@ -118,11 +117,11 @@ export default function JourneySection({ t, search, matches, settings: s, update
                           ↓
                         </button>
                         <button type="button" className={iconBtn} aria-label={`${t("journeyRemove")} ${i + 1}`} title={t("journeyRemove")} onClick={() => setStages(removeJourneyStage(s.journeyStages, i))}>
-                          ✕
+                          <IconClose size={14} />
                         </button>
                       </>
                     ) : (
-                      <span className="w-[5.6rem] text-[10px] text-zinc-500 text-center">{t("journeyHomeLast")}</span>
+                      <span className="w-[5.6rem] text-xs text-ink-3 text-center">{t("journeyHomeLast")}</span>
                     )}
                   </li>
                 );
@@ -151,7 +150,7 @@ export default function JourneySection({ t, search, matches, settings: s, update
       {!auto && (
         <Searchable search={search} matches={matches} labelKey="journeyStagesCode">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-zinc-300" htmlFor="journey-code">
+            <label className="text-sm font-medium text-ink-2" htmlFor="journey-code">
               {t("journeyStagesCode")}
               <Tooltip text={t("journeyStagesCodeTip")} />
             </label>
@@ -167,13 +166,13 @@ export default function JourneySection({ t, search, matches, settings: s, update
                 if (e.key === "Enter") commitCode();
               }}
               aria-label={t("journeyStagesCode")}
-              className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none font-mono text-xs"
+              className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim font-mono text-xs"
             />
           </div>
         </Searchable>
       )}
       {!search && (
-        <p className="text-xs text-zinc-400 leading-relaxed" data-testid="journey-run">
+        <p className="text-xs text-ink-2 leading-relaxed" data-testid="journey-run">
           {auto ? t("journeyRunAuto", { count: s.journeyAutoStages }) : t("journeyRunInfo", { count: last })}
         </p>
       )}

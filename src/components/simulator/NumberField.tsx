@@ -85,12 +85,12 @@ export default function NumberField({ value, onCommit, label, range, rules, disa
         title={error ? (message ?? undefined) : beyondTip}
         data-number-field={settingKey ?? ""}
         data-beyond={display.beyond ? "1" : undefined}
-        className={`${className ?? "w-20"} px-1.5 py-0.5 text-right font-mono text-xs rounded-md border focus:outline-none disabled:opacity-50 ${
-          error ? "border-rose-500 bg-rose-950/30 text-rose-100" : display.beyond ? "border-amber-500/60 bg-amber-500/10 text-amber-200 focus:border-amber-400" : "border-zinc-700 bg-zinc-800 text-white focus:border-cyan-600"
+        className={`${className ?? "w-20"} px-1.5 py-0.5 text-right font-mono text-xs rounded-md border disabled:opacity-50 ${
+          error ? "border-danger bg-danger/8 text-danger" : display.beyond ? "border-warn/60 bg-warn/10 text-warn focus:border-warn" : "border-line-strong bg-surface-2 text-ink focus:border-accent-dim"
         }`}
       />
       {message && (
-        <span id={errorId} role="alert" className="absolute right-0 top-full z-20 mt-0.5 w-44 rounded-md border border-rose-700/60 bg-zinc-900 px-1.5 py-0.5 text-right text-[10px] leading-tight text-rose-300 shadow">
+        <span id={errorId} role="alert" className="absolute right-0 top-full z-20 mt-0.5 w-44 rounded-md border border-danger/36 bg-surface-1 px-1.5 py-0.5 text-right text-xs leading-tight text-danger shadow">
           {message}
         </span>
       )}
