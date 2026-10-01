@@ -1596,7 +1596,7 @@ export class PhysicsEngine {
   }
   /** Columns, balls, brain, hand and clip limit of the Maze apply on the next `initMaze()`; the pull, the speed and the drawing at once. */
   setMazeSettings(settings: Partial<MazeSettings>) {
-    this.mazeMode.setSettings(settings);
+    this.mazeMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Maze state (grid, field, runners, paint, hits, verdict) for the canvas and the HUD; the same object every call. */
   getMazeView(): MazeView {

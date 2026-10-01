@@ -60,7 +60,7 @@ import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { isBoundedKey } from "@/lib/unlimited"; // --- No limits ---
+import { ENGINE_CEILINGS, isBoundedKey } from "@/lib/unlimited"; // --- No limits ---
 
 /**
  * Maze escape (lib/physics/mazeGrid.ts, lib/physics/modes/maze.ts; feature odd-maze): the seeded perfect maze (n − 1
@@ -624,11 +624,27 @@ describe("the maze in the engine", () => {
     for (const f of notes) expect(ladder.some((l) => Math.abs(2 * l - f) < 1e-6)).toBe(true);
   });
 
-  it("No limits keeps the trail and fog opacities on their 0–1 range (the other maze numbers run at the maze's maximum)", () => {
+  it("No limits: the numbers run past their sliders up to their soft ceilings, the trail and fog opacities keep their 0–1", { timeout: 30_000 }, () => {
     expect(isBoundedKey("mzTrail")).toBe(true);
     expect(isBoundedKey("mzFog")).toBe(true);
     expect(isBoundedKey("mzCols")).toBe(false);
-    expect(resolveMazeSettings({ cols: 1e9, balls: 1e9, speed: 1e9, gravity: 1e9 })).toMatchObject({ cols: 40, balls: 8, speed: 3, gravity: 1 });
+    const big = { cols: 1e9, balls: 1e9, speed: 1e9, gravity: 1e9, duration: 1e12, trail: 5, fog: 5 };
+    // The switch off: the sliders; on: the soft ceilings (the opacities stay 0–1 either way).
+    expect(resolveMazeSettings(big)).toMatchObject({ cols: 40, balls: 8, speed: 3, gravity: 1, duration: 180, trail: 1, fog: 1 });
+    expect(resolveMazeSettings(big, true)).toMatchObject({ cols: ENGINE_CEILINGS.mzCols, balls: ENGINE_CEILINGS.mzBalls, speed: ENGINE_CEILINGS.mzSpeed, gravity: ENGINE_CEILINGS.mzGravity, duration: ENGINE_CEILINGS.mzDuration, trail: 1, fog: 1 });
+    expect(resolveMazeSettings({ cols: 43, balls: 11 }, true)).toMatchObject({ cols: 43, balls: 11 });
+    // A race of 32 explorers in a 120-column maze with the switch on: every ball paints (a bit each in the paint masks), each
+    // cell and passage at most once per ball, and nothing goes through a wall.
+    const engine = engineFor({ cols: 1e9, balls: 1e9, brain: "explorer" }, 3, { unlimited: true, width: 1080, height: 1920 });
+    const view = engine.getMazeView();
+    expect(view.grid.cols).toBe(ENGINE_CEILINGS.mzCols);
+    expect(view.count).toBe(ENGINE_CEILINGS.mzBalls);
+    run(engine, 12_000); // (the last of the 32 drops in after 31 × MZ_RELEASE_MS)
+    const painters = new Set<number>();
+    for (let i = 0; i < view.paintCount; i++) painters.add(view.paint[3 * i + 2]);
+    expect(painters.size).toBe(ENGINE_CEILINGS.mzBalls);
+    expect(view.paintCount).toBeLessThanOrEqual(ENGINE_CEILINGS.mzBalls * 2 * view.grid.cells);
+    expect(view.leaks).toBe(0);
   });
 
   it("the first ball out wins – an escape in the team stats, the wall-break sound – and the run finishes after the hold", { timeout: 30_000 }, () => {

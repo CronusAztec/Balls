@@ -243,6 +243,13 @@ export const ENGINE_CEILINGS: Readonly<Record<string, number>> = {
   byInterval: 1e6,
   byRings: 100,
   byPerfect: OBJECT_BALL_LIMIT,
+  // --- odd-maze --- Maze Escape: the cells a frame draws and fogs (120 columns: 171 rows), the balls its paint masks hold (a
+  // bit each), the pull and the speed its micro-steps keep inside the walls, the clip limit
+  mzCols: 120,
+  mzBalls: 32,
+  mzGravity: 100,
+  mzSpeed: 1e3,
+  mzDuration: 1e9,
 };
 
 export function isBoundedKey(key: string): boolean {

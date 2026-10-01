@@ -29,6 +29,7 @@ import { paddleSettingFields } from "@/lib/physics/modes/paddle";
 import { vortexSettingFields } from "@/lib/physics/modes/vortex";
 import { journeySettingFields } from "@/lib/physics/modes/journey";
 import { bullseyeSettingFields } from "@/lib/physics/modes/bullseye";
+import { mazeSettingFields } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { fixedRunDurationSec } from "@/lib/simulation/finder";
 import { ENGINE_CEILINGS, liftedRanges } from "@/lib/unlimited";
 import { resolveProjectSettings } from "@/lib/project";
@@ -579,6 +580,7 @@ describe("No limits: the engine", () => {
         ...vortexSettingFields(engine.getVortexSettings()),
         ...journeySettingFields(engine.getJourneySettings()),
         ...bullseyeSettingFields(engine.getBullseyeSettings()),
+        ...mazeSettingFields(engine.getMazeSettings()), // --- odd-maze ---
         rcRacers: race.racers,
         rcTrackLength: race.trackLength,
         rcLaps: race.laps,

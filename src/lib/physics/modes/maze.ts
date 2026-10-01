@@ -1,6 +1,7 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import { MAX_TEAMS } from "../ballStats";
 import { shiftedObstacleFrequency } from "../bounceMathRuntime";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 import type { Ball, GameMode, ModeContext } from "../types";
 import {
   MZ_BIT,
@@ -161,11 +162,15 @@ function isHexColor(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }
 
-/** Fills in the defaults and clamps every value onto its slider; unknown options, bad colours and non-boolean flags fall back. */
-export function resolveMazeSettings(config: Partial<MazeSettings> | null | undefined): MazeSettings {
+/**
+ * Fills in the defaults and clamps every value onto its slider; unknown options, bad colours and non-boolean flags fall
+ * back. --- unlimited --- With `unlimited` (No limits on) the columns, balls, pull, speed and clip limit run past their
+ * sliders, up to their soft ceilings (`ENGINE_CEILINGS`); the trail and fog opacities keep their 0–1.
+ */
+export function resolveMazeSettings(config: Partial<MazeSettings> | null | undefined, unlimited = false): MazeSettings {
   const out = { ...DEFAULT_MAZE_SETTINGS };
   if (!config) return out;
-  const R = MAZE_RANGES;
+  const R = rangesFor(MAZE_RANGES, unlimited);
   if (config.cols !== undefined) out.cols = Math.round(clampNumber(config.cols, R.mzCols, out.cols));
   if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.mzBalls, out.balls));
   if (isMazeBrain(config.brain)) out.brain = config.brain;
@@ -545,10 +550,10 @@ export class MazeMode implements GameMode {
   private explored: Uint8Array[] = [];
   private path: Int32Array[] = [];
   private pathLen: number[] = [];
-  /** Per cell: the slots that painted it, and the slots that painted its passage east / south. */
-  private paintedCell = new Uint8Array(0);
-  private paintedEast = new Uint8Array(0);
-  private paintedSouth = new Uint8Array(0);
+  /** Per cell: the slots that painted it, and the slots that painted its passage east / south (a bit per ball: 32 at most). */
+  private paintedCell = new Uint32Array(0);
+  private paintedEast = new Uint32Array(0);
+  private paintedSouth = new Uint32Array(0);
   private paintedChute = 0;
   private lastNoteMs = -Infinity;
   private readonly contact = emptyMazeContact();
@@ -559,9 +564,12 @@ export class MazeMode implements GameMode {
     return { ...this.settings };
   }
 
-  /** Columns, balls, brain, hand and the clip limit apply on the next init; the pull, the speed and the drawing at once. */
-  setSettings(patch: Partial<MazeSettings>) {
-    this.settings = resolveMazeSettings({ ...this.settings, ...patch });
+  /**
+   * Columns, balls, brain, hand and the clip limit apply on the next init; the pull, the speed and the drawing at once.
+   * --- unlimited --- With `unlimited` (No limits on) the numbers run past their sliders, up to their soft ceilings.
+   */
+  setSettings(patch: Partial<MazeSettings>, unlimited = false) {
+    this.settings = resolveMazeSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.gravity = this.settings.gravity;
     live.speed = this.settings.speed;
@@ -623,9 +631,9 @@ export class MazeMode implements GameMode {
     v.slowMos = 0;
     v.impacts = 0;
     v.leaks = 0;
-    this.paintedCell = new Uint8Array(grid.cells);
-    this.paintedEast = new Uint8Array(grid.cells);
-    this.paintedSouth = new Uint8Array(grid.cells);
+    this.paintedCell = new Uint32Array(grid.cells);
+    this.paintedEast = new Uint32Array(grid.cells);
+    this.paintedSouth = new Uint32Array(grid.cells);
     this.paintedChute = 0;
     this.lastNoteMs = -Infinity;
     this.random = () => ctx.random();
@@ -951,7 +959,7 @@ export class MazeMode implements GameMode {
 
   private paintStroke(slot: number, from: number, cell: number) {
     const v = this.view;
-    const bit = 1 << slot;
+    const bit = 1 << (slot & 31); // (the masks hold 32 balls: No limits' soft ceiling)
     let fresh = false;
     if (!(this.paintedCell[cell] & bit)) {
       this.paintedCell[cell] |= bit;
