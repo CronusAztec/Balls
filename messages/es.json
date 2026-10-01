@@ -29,6 +29,7 @@
     "mobileNotice": "Para la mejor experiencia usa un navegador de escritorio o portátil. Los controles están optimizados para pantallas grandes."
   },
   "SimulatorPage": {
+    "heading": "Simulador de física de pelotas",
     "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",
     "metaDescription": "Simulador de física de pelotas gratuito en el navegador con {count} modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
   },
@@ -1809,9 +1810,9 @@
       "item3": "Subir contenido ilegal, dañino o que infrinja derechos de propiedad intelectual de terceros.",
       "item4": "Presentar el Servicio como producto propio."
     },
-    "intellectual": { "title": "5. Propiedad intelectual", "content": "El Servicio, incluidos su código, diseño y marca, pertenece a {siteDomain}. Los vídeos e imágenes que crees con él son tuyos." },
+    "intellectual": { "title": "5. Propiedad intelectual", "content": "El Servicio, incluidos su código, diseño y marca, pertenece al operador de {siteName}. Los vídeos e imágenes que crees con él son tuyos." },
     "warranties": { "title": "6. Exclusión de garantías", "content": "El Servicio se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo, expresas o implícitas, incluidas la fiabilidad, la exactitud o la idoneidad para un fin concreto. No garantizamos que el Servicio sea ininterrumpido ni esté libre de errores." },
-    "liability": { "title": "7. Limitación de responsabilidad", "content": "En la máxima medida permitida por la ley, {siteDomain} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios." },
+    "liability": { "title": "7. Limitación de responsabilidad", "content": "En la máxima medida permitida por la ley, el operador de {siteName} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios." },
     "changes": { "title": "8. Cambios en estos términos", "content": "Podemos actualizar estos términos en cualquier momento. Los cambios se publican en esta página con una nueva fecha, y seguir usando el Servicio tras un cambio implica aceptar los términos revisados." },
     "contact": { "title": "9. Contacto", "content": "¿Preguntas sobre estos términos? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" }
   },

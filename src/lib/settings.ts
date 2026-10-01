@@ -16,7 +16,6 @@ import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collide
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
-import { SITE_DOMAIN } from "@/lib/site";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- gerald-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
@@ -738,7 +737,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- gerald-glass ---
     ...glassSettingFields(DEFAULT_GLASS_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
-    watermarkText: SITE_DOMAIN,
+    watermarkText: "", // --- review fix (site-static) --- no mark burned into the clips unless the user adds one (the TikTok page's promise)
     topText: "",
     bottomText: "",
     textSize: 1,
@@ -1467,7 +1466,7 @@ export const ADVANCED_STORAGE_KEY = "jumpingballslive_advanced_options";
  * --- review fix (recording-export) --- The default watermark before the rename (the old SITE_DOMAIN): presets and project
  * files saved back then store it, and loading one puts today's default watermark in its place (a custom one stays).
  */
-const LEGACY_DEFAULT_WATERMARKS: readonly string[] = ["viralballs.com"];
+const LEGACY_DEFAULT_WATERMARKS: readonly string[] = ["viralballs.com", "jumpingballslive.com" /* --- review fix (site-static) --- the post-rename default, a domain nobody serves */];
 
 /** Browser-storage keys written before the rename to JumpingBallsLive, and the keys that replaced them. */
 const LEGACY_STORAGE_KEYS: Record<string, string> = {

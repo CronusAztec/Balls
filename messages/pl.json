@@ -29,6 +29,7 @@
     "mobileNotice": "Najlepiej korzystać z przeglądarki na komputerze lub laptopie. Sterowanie jest zoptymalizowane pod większe ekrany."
   },
   "SimulatorPage": {
+    "heading": "Symulator fizyki piłki",
     "metaTitle": "Symulator fizyki piłki – darmowe narzędzie online na TikToka i Reels – {siteName}",
     "metaDescription": "Darmowy przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką, tęczowymi efektami i eksportem MP4 w pionowym formacie TikTok. Bez rejestracji i instalacji."
   },
@@ -1809,9 +1810,9 @@
       "item3": "Wgrywać treści nielegalnych, szkodliwych lub naruszających prawa własności intelektualnej innych osób.",
       "item4": "Przedstawiać Serwisu jako własnego produktu."
     },
-    "intellectual": { "title": "5. Własność intelektualna", "content": "Serwis, w tym jego kod, projekt i branding, należy do {siteDomain}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie." },
+    "intellectual": { "title": "5. Własność intelektualna", "content": "Serwis, w tym jego kod, projekt i branding, należy do operatora serwisu {siteName}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie." },
     "warranties": { "title": "6. Wyłączenie gwarancji", "content": "Serwis jest udostępniany „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji, wyraźnych lub dorozumianych, w tym dotyczących niezawodności, dokładności lub przydatności do określonego celu. Nie gwarantujemy, że Serwis będzie działał nieprzerwanie ani bezbłędnie." },
-    "liability": { "title": "7. Ograniczenie odpowiedzialności", "content": "W najszerszym zakresie dozwolonym przez prawo {siteDomain} nie ponosi odpowiedzialności za jakiekolwiek pośrednie, przypadkowe, szczególne lub wynikowe szkody wynikające z korzystania z Serwisu, w tym utratę danych, przychodów lub zysków." },
+    "liability": { "title": "7. Ograniczenie odpowiedzialności", "content": "W najszerszym zakresie dozwolonym przez prawo operator serwisu {siteName} nie ponosi odpowiedzialności za jakiekolwiek pośrednie, przypadkowe, szczególne lub wynikowe szkody wynikające z korzystania z Serwisu, w tym utratę danych, przychodów lub zysków." },
     "changes": { "title": "8. Zmiany regulaminu", "content": "Możemy aktualizować regulamin w dowolnym momencie. Zmiany są publikowane na tej stronie z nową datą, a dalsze korzystanie z Serwisu po zmianie oznacza akceptację zmienionego regulaminu." },
     "contact": { "title": "9. Kontakt", "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" }
   },

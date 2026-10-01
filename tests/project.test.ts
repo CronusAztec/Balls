@@ -28,7 +28,6 @@ import {
 import { bytesToBase64 } from "@/lib/base64";
 import { WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { defaultSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { SITE_DOMAIN } from "@/lib/site";
 
 function bytesOf(length: number, seed = 7): Uint8Array {
   const out = new Uint8Array(length);
@@ -238,7 +237,10 @@ describe("project files from before the checks (review fix: recording-export)", 
 
   it("the old default watermark (viralballs.com) opens as today's default; a custom one stays", () => {
     const old = parseProject(legacy({ watermarkText: "viralballs.com" }));
-    expect(old.ok && old.project.settings.watermarkText).toBe(SITE_DOMAIN);
+    expect(old.ok && old.project.settings.watermarkText).toBe("");
+    // --- review fix (site-static) --- so does the post-rename default (jumpingballslive.com, a domain nobody serves)
+    const renamed = parseProject(legacy({ watermarkText: "jumpingballslive.com" }));
+    expect(renamed.ok && renamed.project.settings.watermarkText).toBe("");
     const own = parseProject(legacy({ watermarkText: "@me" }));
     expect(own.ok && own.project.settings.watermarkText).toBe("@me");
   });

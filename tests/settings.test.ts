@@ -3,7 +3,6 @@ import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
 import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/interactions";
 import { MODE_IDS } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { SITE_DOMAIN } from "@/lib/site";
 import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
 
 describe("settings serialisation", () => {
@@ -273,14 +272,27 @@ describe("link and preset validation (review fix: recording-export)", () => {
 
   it("a pre-rename preset's default watermark (viralballs.com) becomes today's default; a custom one stays", () => {
     const p = presetToSettings({ mode: "shatter", gravity: 700, watermarkText: "viralballs.com" });
-    expect(p.watermarkText).toBe(SITE_DOMAIN);
+    expect(p.watermarkText).toBe(defaultSettings("shatter").watermarkText);
     expect(settingsToSearchParams(p).has("wm")).toBe(false);
     expect(settingsToSearchParams(p).get("g")).toBe("700");
-    expect(presetToSettings({ mode: "shatter", watermarkText: " ViralBalls.com " }).watermarkText).toBe(SITE_DOMAIN);
+    expect(presetToSettings({ mode: "shatter", watermarkText: " ViralBalls.com " }).watermarkText).toBe("");
     expect(presetToSettings({ mode: "shatter", watermarkText: "@me" }).watermarkText).toBe("@me");
     expect(presetToSettings({ mode: "shatter", watermarkText: "" }).watermarkText).toBe("");
-    expect(presetToSettings({ mode: "shatter", watermarkText: 42 } as unknown as Partial<SimulatorSettings>).watermarkText).toBe(SITE_DOMAIN);
+    expect(presetToSettings({ mode: "shatter", watermarkText: 42 } as unknown as Partial<SimulatorSettings>).watermarkText).toBe("");
     // A link keeps what it says (links never carried the old default).
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wm=viralballs.com")).watermarkText).toBe("viralballs.com");
+  });
+
+  // --- review fix (site-static) --- no domain is burned into the clips by default (jumpingballslive.com does not resolve)
+  it("clips carry no watermark by default, and a preset saved with the post-rename default (jumpingballslive.com) loads without it", () => {
+    for (const mode of ["classic", "shatter", "drop"] as const) expect(defaultSettings(mode).watermarkText).toBe("");
+    expect(settingsToSearchParams(defaultSettings("classic")).has("wm")).toBe(false);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic")).watermarkText).toBe("");
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wm=%40me")).watermarkText).toBe("@me");
+    const p = presetToSettings({ mode: "classic", watermarkText: "JumpingBallsLive.com" });
+    expect(p.watermarkText).toBe("");
+    expect(settingsToSearchParams(p).has("wm")).toBe(false);
+    const custom = { ...defaultSettings("classic"), watermarkText: "@me" };
+    expect(settingsToSearchParams(custom).get("wm")).toBe("@me");
   });
 });
