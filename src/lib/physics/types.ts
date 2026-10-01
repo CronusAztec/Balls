@@ -5,6 +5,7 @@ import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import type { BounceMathConfig } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 import type { UnlimitedConfig } from "./limits"; // --- unlimited ---
+import type { ExitBehavior } from "./exitSplat"; // --- gerald-exit-splat ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -218,6 +219,22 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
    */
   bounceMath?: BounceMathConfig;
   // --- end bounce-math ---
+  // --- gerald-exit-splat --- moving exits and splat barriers of the ring modes (exitSplat.ts, movingExits.ts, splats.ts); off by default
+  /** How the rings' exits move: "rotate" (with their rings, as always), "jump", "flee" or "shrink" (the rings then hold still). */
+  exitBehavior?: ExitBehavior;
+  /** Jump: seconds between two jumps; shrink: seconds an exit takes to close. */
+  exitJumpSeconds?: number;
+  /** Degrees round the ring a ball may come to an exit before it jumps away or runs (0 = never). */
+  exitSense?: number;
+  /** Flee: the exit's top speed along its ring, degrees a second. */
+  exitFleeSpeed?: number;
+  /** Wall hits leave solid splats of paint (the ball builds its own barrier). */
+  splatBarrier?: boolean;
+  /** A splat's radius as a multiple of the ball's. */
+  splatSize?: number;
+  /** The most splats at once; past it the oldest fade out. */
+  splatMax?: number;
+  // --- end gerald-exit-splat ---
 }
 
 export interface SoundEvent {
@@ -280,6 +297,13 @@ export interface SoundEvent {
   // --- unlimited ---
   /** A ball ate the arena (No limits): the page plays the gulp (`ToneGenerator.playArenaEaten()`) instead of a wall break. */
   ate?: boolean;
+  // --- gerald-exit-splat ---
+  /**
+   * A splat of the splat barrier landed (splats.ts): the page plays the wet splat (`ToneGenerator.playSplat()`) at `level`
+   * instead of a bounce – the hit itself sounds as its own event. Sent with `melody: false`, so a page that does not know it
+   * plays an accompaniment hit, never a melody note.
+   */
+  splat?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

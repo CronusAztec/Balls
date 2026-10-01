@@ -155,6 +155,7 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   mzCols: 200,
   mzBalls: 32,
   // --- end odd-maze ---
+  splatMax: ENTITY_CEILING, // --- gerald-exit-splat --- the splats standing at once (each a pooled circle every ball near it is tested against)
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

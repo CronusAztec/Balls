@@ -1560,37 +1560,62 @@
     "mzBadgeTip": "The “FLASHING LIGHTS – THE END GETS INTENSE” badge in the top-left corner of the clip.",
     "mzHud": "Distance HUD",
     "mzHudTip": "A row per ball in the top-right corner: its colour, its name and a bar that fills as it gets closer to the exit, with the passages left to go (or its place once it is out).",
-    "mzRunInfo": "A {cols} × {rows} maze ({cells} cells, a new one for every seed); the run ends when every ball is out, at {seconds}s at the latest."
+    "mzRunInfo": "A {cols} × {rows} maze ({cells} cells, a new one for every seed); the run ends when every ball is out, at {seconds}s at the latest.",
+    "exitBehavior": "Exit Behaviour",
+    "exitBehaviorTip": "How every ring’s exit moves. Rotate: it turns with its ring, as always. Jump: it teleports to another spot of the ring every few seconds, or as soon as the ball gets close. Flee: it runs away from the ball along the ring. Shrink: it narrows until it shuts, then opens again somewhere else. Deterministic: seeds, links and Find Simulation include it.",
+    "exitRotate": "Rotate",
+    "exitJump": "Jump",
+    "exitFlee": "Flee",
+    "exitShrink": "Shrink",
+    "exitRotateDesc": "The exits turn with their rings, as always.",
+    "exitJumpDesc": "Every exit teleports to a new spot of its ring on a timer – and jumps away when the ball comes within its sense. A flash marks where it was and where it lands.",
+    "exitFleeDesc": "The exit runs away from the ball along its ring while the ball is within its sense. To get out, the ball has to out-run it.",
+    "exitShrinkDesc": "The exit narrows over the exit timer until it shuts, then opens again somewhere else.",
+    "exitHoldNote": "The rings hold still: the exits move by themselves.",
+    "exitJumpSeconds": "Exit Timer",
+    "exitJumpSecondsTip": "Jump: seconds between two jumps. Shrink: seconds an exit takes to close (1–10 on the slider; type any longer time).",
+    "exitSense": "Exit Sense",
+    "exitSenseTip": "How close the ball may come to an exit – in degrees round the ring – before it reacts: a jumping exit flickers and jumps away (a ball that gets there first escapes), a fleeing one starts to run. 0 = it never reacts.",
+    "exitSenseOff": "Never",
+    "exitFleeSpeed": "Flee Speed",
+    "exitFleeSpeedTip": "Top speed of a fleeing exit along its ring, in degrees a second. The ball has to move round the ring faster than that to catch it.",
+    "splatBarrier": "Splat Barrier",
+    "splatBarrierTip": "Every wall hit leaves a splat of paint in the ball’s colour on the inside of the wall – and the splats are solid, so the ball slowly builds its own barrier. Past Most Splats the oldest fade out; a splat drips off when an exit moves over it or its ring breaks. Deterministic: seeds, links and Find Simulation include it.",
+    "splatSize": "Splat Size",
+    "splatSizeTip": "A splat’s size as a multiple of the ball’s (0.5–2 on the slider).",
+    "splatMax": "Most Splats",
+    "splatMaxTip": "How many splats stand at once; past it the oldest fade out (10–300 on the slider).",
+    "splatGrowNote": "In Grow the splats only paint the ring – the ball grows to fill it."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
     "classic": {
       "name": "Classic",
-      "description": "A ball bounces inside concentric rings that each have a single gap. Every wall it slips through breaks with a satisfying effect. Simple, hypnotic and endlessly rewatchable."
+      "description": "A ball bounces inside concentric rings that each have a single gap. Every wall it slips through breaks with a satisfying effect. Simple, hypnotic and endlessly rewatchable. Make the exits jump, flee or shrink (Exit Behaviour), or let every hit leave a solid splat of paint (Splat Barrier)."
     },
     "accumulation": {
       "name": "Accumulation",
-      "description": "The ball has a few seconds to escape before it freezes where it is. Every frozen ball becomes an obstacle for the next one. Will the last ball make it out?"
+      "description": "The ball has a few seconds to escape before it freezes where it is. Every frozen ball becomes an obstacle for the next one. Will the last ball make it out? Make the exits jump, flee or shrink (Exit Behaviour), or let every hit leave a solid splat of paint (Splat Barrier)."
     },
     "multiply": {
       "name": "Multiply",
-      "description": "Each time a ball escapes the ring it spawns extra balls. The arena fills with bouncing chaos within seconds, which makes for explosive, shareable clips."
+      "description": "Each time a ball escapes the ring it spawns extra balls. The arena fills with bouncing chaos within seconds, which makes for explosive, shareable clips. Make the exits jump, flee or shrink (Exit Behaviour), or let every hit leave a solid splat of paint (Splat Barrier)."
     },
     "lines": {
       "name": "Lines",
-      "description": "Every bounce point is connected to the ball by a line, so the run slowly draws intricate string art as the ball ricochets around the circle."
+      "description": "Every bounce point is connected to the ball by a line, so the run slowly draws intricate string art as the ball ricochets around the circle. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
     },
     "paint": {
       "name": "Paint",
-      "description": "The ball paints a rainbow trail wherever it goes, gradually colouring the whole circle while a live percentage counter tracks the coverage."
+      "description": "The ball paints a rainbow trail wherever it goes, gradually colouring the whole circle while a live percentage counter tracks the coverage. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
     },
     "target": {
       "name": "Target",
-      "description": "Numbered segments line the wall and must be hit in order. Every correct hit triggers a wall-break effect; wrong hits flash red."
+      "description": "Numbered segments line the wall and must be hit in order. Every correct hit triggers a wall-break effect; wrong hits flash red. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
     },
     "grow": {
       "name": "Grow",
-      "description": "The ball is sealed inside one large ring and grows a little with every bounce, filling more and more of the space until there is nowhere left to go."
+      "description": "The ball is sealed inside one large ring and grows a little with every bounce, filling more and more of the space until there is nowhere left to go. With the Splat Barrier on, every bounce leaves a splat of paint on the ring."
     },
     "shatter": {
       "name": "Shatter",
@@ -1602,7 +1627,7 @@
     },
     "portal": {
       "name": "Portal",
-      "description": "Colour-matched portal pairs sit on the wall. Touch one and the ball teleports to its twin. After enough uses the portals burn out and become exits."
+      "description": "Colour-matched portal pairs sit on the wall. Touch one and the ball teleports to its twin. After enough uses the portals burn out and become exits. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
     },
     "drop": {
       "name": "Ball Drop",

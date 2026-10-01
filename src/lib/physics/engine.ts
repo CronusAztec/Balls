@@ -70,6 +70,8 @@ import { BallStatsBook, ESCAPE_MARGIN, MULTI_BALL_MODES, startBallAngle, startBa
 import type { BeatClockConfig } from "@/lib/simulation/beatClock";
 import type { RigView } from "./rigged"; // --- rigged ---
 import { TimelineRuntime, resizeGaps, type TimelineKey } from "@/lib/simulation/timeline"; // --- timeline ---
+import { ExitController, type ExitView } from "./movingExits"; // --- gerald-exit-splat ---
+import { SplatField } from "./splats"; // --- gerald-exit-splat ---
 import type {
   Ball,
   BallInteractionConfig,
@@ -316,6 +318,16 @@ export class PhysicsEngine {
     },
   };
   // --- end unlimited ---
+  // --- gerald-exit-splat --- moving exits (movingExits.ts) and splat barriers (splats.ts) of the ring modes
+  private readonly exits = new ExitController();
+  private readonly splats = new SplatField();
+  /** The exits move by themselves this step: the rings hold still (`wallRotationRate()` is 0). */
+  private exitsHoldRings = false;
+  /** Wall hits leave splats this step (the splat barrier is on in a ring mode). */
+  private splatsLive = false;
+  /** The balls the rings do not resolve (Multiply's escaped ones): the exits and the splats leave them alone. */
+  private readonly ringSkips = (ball: Ball) => this.currentMode?.shouldSkipWallCollision(ball) ?? false;
+  // --- end gerald-exit-splat ---
 
   readonly ctx: ModeContext;
 
@@ -330,6 +342,9 @@ export class PhysicsEngine {
     this.timeline.prepare({ timeline: config.timeline }, config); // --- timeline --- (the config's values become the automated settings' bases)
     this.bounceMath.configure(config.bounceMath, 0); // --- bounce-math ---
     this.applyLimits(); // --- unlimited --- (the switch, the soft ceilings, the extras past their ranges)
+    // --- gerald-exit-splat --- the exit behaviour and the splat barrier
+    this.exits.configure(this._config);
+    this.splats.configure(this._config);
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -1763,6 +1778,41 @@ export class PhysicsEngine {
     }
   }
   // --- end obstacle-editor ---
+  // --- gerald-exit-splat ---
+  /** The moving exits as the canvas draws them (flashes, closing, fleeing; the same object every call). */
+  getExitView(): ExitView {
+    return this.exits.getView();
+  }
+  /** The splat barrier: its splats (oldest first) and counters, for the canvas and tests. */
+  getSplats(): SplatField {
+    return this.splats;
+  }
+  /** A wall hit of `ball` on ring `w` at world angle `angle` leaves a splat (Grow's in the Ball Size: its ball grows to fill the ring). */
+  private addSplat(ball: Ball, w: number, angle: number, wall: CircularWall, rotation: number, approach: number) {
+    const size = this.currentMode === this.growMode ? this._config.ballRadius || 8 : ball.radius;
+    this.splats.add(w, angle, wall.radius, rotation, size, ball.color, approach / (this._config.ballSpeed || 400), this._elapsedMs, wall.gaps, this.pendingSoundEvents);
+  }
+  /**
+   * Resolves `ball` against the standing splats beside it (splats.ts), like the editor's obstacles: the restitution scale,
+   * the ball's bounciness, a hit's sound (its ring's tone) and bounce math's bounce; a push that carried the ball's centre
+   * across an intact ring is undone (`keepRingSide()`).
+   */
+  private handleSplats(ball: Ball, dtSec: number) {
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness;
+    const bounciness = ball.restitution ?? 1;
+    const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
+    // A ball pressed onto a splat by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
+    const resting = (3 * this._config.gravity * (this._config.ballSpeed || 400) * dtSec * (ball.gravityScale ?? 1)) / 300;
+    const cx = this._config.width / 2;
+    const cy = this._config.height / 2;
+    const before = Math.hypot(ball.x - cx, ball.y - cy);
+    const hitsBefore = this.splats.hits;
+    const ring = this.splats.collide(ball, dtSec, cx, cy, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, this._elapsedMs, bounciness, lift);
+    if (ring >= 0) this.pendingSoundEvents.push(bounceHitEvent(ring, ball));
+    if (this.bounceMath.on && this.splats.hits > hitsBefore) this.bounceMath.note(BM_BOUNCE, ball);
+    if (this.circularWalls.length > 0) this.keepRingSide(ball, before, cx, cy);
+  }
+  // --- end gerald-exit-splat ---
   getElapsedMs() {
     return this._elapsedMs;
   }
@@ -1906,6 +1956,9 @@ export class PhysicsEngine {
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
     this.onBeat.reset(); // --- video-beats --- a new run: no flight plans, fresh hit statistics
     this.limits.reset(); // --- unlimited --- a new run: its crowd appears at the first step
+    // --- gerald-exit-splat --- a new run: no moves, no flashes, no splats
+    this.exits.reset();
+    this.splats.reset();
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1938,6 +1991,9 @@ export class PhysicsEngine {
     this.multipliers.setConfig(this._config); // --- gerald-multipliers ---
     this.editorObstacles.configure(this._config); // --- obstacle-editor --- (rebuilt only when the list or the canvas size changed)
     this.applyLimits(); // --- unlimited ---
+    // --- gerald-exit-splat --- the exit behaviour and the splat barrier (a new world size scales the splats with the rings)
+    this.exits.configure(this._config);
+    this.splats.configure(this._config);
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
@@ -2157,6 +2213,7 @@ export class PhysicsEngine {
 
   /** Angular speed of wall `index` in rad/s (even walls turn one way, odd walls the other). */
   private wallRotationRate(index: number) {
+    if (this.exitsHoldRings) return 0; // --- gerald-exit-splat --- moving exits hold their rings still (the exits move by themselves)
     const speed = (this._config.rotationSpeed ?? 1) * 0.8;
     return index % 2 === 0 ? speed : -speed;
   }
@@ -2232,6 +2289,11 @@ export class PhysicsEngine {
       this._elapsedMs += stepMs;
       const orbsLive = multActive && mult.pickupsLive(modeName);
       // --- end gerald-multipliers ---
+      // --- gerald-exit-splat --- moving exits hold the rings still (they move by themselves, every sub-step below); splats this step
+      const exitsLive = this.exits.beginStep(this.ctx, modeName);
+      this.exitsHoldRings = exitsLive;
+      this.splatsLive = this.splats.beginStep(modeName);
+      // --- end gerald-exit-splat ---
       while (this.wallRotations.length < this.circularWalls.length) this.wallRotations.push(0);
       const stepSec = stepMs / 1000;
       for (let i = 0; i < this.circularWalls.length; i++) {
@@ -2320,6 +2382,11 @@ export class PhysicsEngine {
         if (this.sweepWalls) this.applyBreathing(s === subSteps - 1 ? this._elapsedMs : stepStartMs + (s + 1) * subMs);
         if (this.obstaclesSpin) advanceObstacles(this.obstacles, subSec);
         if (editorLive) this.editorObstacles.advance(subSec); // --- obstacle-editor ---
+        // --- gerald-exit-splat --- the exits move before the balls (a gap pass is judged where the exit is now); the standing
+        // splats follow their rings (turned, breathing)
+        if (exitsLive) this.exits.advance(this.ctx, subSec, this.ringSkips);
+        const splatsSolid = this.splatsLive && this.splats.prepare(this.circularWalls, this.wallRotations, ringCx, ringCy);
+        // --- end gerald-exit-splat ---
         for (let i = this.balls.length - 1; i >= 0; i--) {
           const ball = this.balls[i];
           const baseSpeed = this._config.ballSpeed || 400;
@@ -2371,6 +2438,7 @@ export class PhysicsEngine {
           }
           if (hasObstacles) this.handleObstacleCollisions(ball, subSec);
           if (editorLive) this.handleEditorObstacles(ball, subSec); // --- obstacle-editor ---
+          if (splatsSolid && !this.ringSkips(ball)) this.handleSplats(ball, subSec); // --- gerald-exit-splat ---
           if (!this.currentMode?.shouldSkipWallCollision(ball)) this.handleCircularWallCollisions(ball, beforeSq);
         }
         // The pair pass and the mode's pushes (Accumulation's frozen balls) ignore the rings: a push that carries a ball's
@@ -2382,6 +2450,7 @@ export class PhysicsEngine {
       }
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
+      if (this.splatsLive) this.splats.endStep(this.circularWalls, this.brokenWalls, this._elapsedMs); // --- gerald-exit-splat --- (fades, falls, the leak, the cap)
       if (this.onBeat.wants()) this.stepOnBeat(stepMs, subSteps, audioIntensity, gDirX, gDirY, keepMoving); // --- video-beats ---
       const bmFired = bmOn && this.bounceMath.endStep(this._elapsedMs); // --- bounce-math --- the step's triggers, every rule in list order
       if (multActive || (bmFired && mult.isActive(modeName))) mult.endStep(this.ctx, this.limits.cloneLimit(this.interaction.maxBalls), this.circularWalls.length > 0); // --- gerald-multipliers --- orbs taken, grown balls refitted, HUD (--- bounce-math --- also right after a rule grew or sped a ball; --- unlimited --- x2 BALLS clones past the split limit)
@@ -2645,7 +2714,10 @@ export class PhysicsEngine {
         }
         // --- jdm-illusions --- the contact for the canvas' wobbly walls (render-only): a ball inside pushes the wall out, one outside in
         this.wallContacts.record(w, angle, (inside ? 1 : -1) * wobbleStrength(ball.vx * nx + ball.vy * ny, this._config.ballSpeed || 400), this._elapsedMs);
+        const splatApproach = this.splatsLive && inside ? ball.vx * nx + ball.vy * ny : 0; // --- gerald-exit-splat --- (how hard it lands, before the mode handles the hit)
         const result = this.currentMode?.onWallHit(this.ctx, ball, w, angle);
+        // --- gerald-exit-splat --- the hit leaves a splat on the inside of the wall (not a portal's teleport, not a refused pass)
+        if (this.splatsLive && inside && !sealedGap && !(result?.suppressBounce && this.currentMode === this.portalMode)) this.addSplat(ball, w, angle, wall, rotation, splatApproach);
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
         // --- rigged --- a bounce off a closed wall right beside its gap: a near miss (the camera's slow motion follows it)
         if (this.rigOn && inside && this.cinematicDirector.rig.nearMissAt(ball, w, angle, wall.radius, rotation)) this.cinematicDirector.noteRigNearMiss();

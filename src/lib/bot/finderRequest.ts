@@ -23,6 +23,7 @@ import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
+import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { defaultSettings, pastAnyMemoryCeiling, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
@@ -71,6 +72,7 @@ export function physicsConfigOfSettings(s: SimulatorSettings, world: BotWorld = 
     ...ballInteractionOf(s),
     ...multiplierConfigOf(s),
     ...obstacleConfigOf(s),
+    ...exitSplatConfigOf(s), // --- gerald-exit-splat ---
     timeline: engineTimelineOf(s),
     ...riggedConfigOf(s),
     ...(s.bounceMath.length > 0 ? { bounceMath: bounceMathConfigOf(s, markerBeatInputOf(s)) } : {}), // --- bounce-math --- (the hand-placed markers, else the BPM: a page's song is not there)

@@ -25,6 +25,8 @@ import { DEFAULT_MULTIPLIER_CONFIG, MULTIPLIER_RANGES, multiplierConfigOf, resol
 import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFields, multipliersSettingsOf, resolveMultipliersSettings, sanitizeGateMix } from "@/lib/physics/modes/multipliers";
 // --- obstacle-editor ---
 import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, obstacleBeyondSliders, readObstacleParams, resolveObstacleSettings, supportsObstacles, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
+// --- gerald-exit-splat --- moving exits and splat barriers of the ring modes
+import { EXIT_ENGINE_KEYS, EXIT_SPLAT_RANGES, MOVING_EXIT_MODES, SPLAT_ENGINE_KEYS, SPLAT_MODES, defaultExitSplatFields, readExitSplatParams, resolveExitSplatFields, writeExitSplatParams, type ExitBehavior } from "@/lib/physics/exitSplat";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
 import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
@@ -402,6 +404,22 @@ export interface SimulatorSettings {
   /** Speed factor a bumper gives a ball on a hard hit, 1–2 (URL `obb`). */
   bumperBoost: number;
   // --- end obstacle-editor ---
+  // --- gerald-exit-splat --- moving exits and splat barriers of the ring modes (lib/physics/exitSplat.ts, movingExits.ts, splats.ts)
+  /** How the rings' exits move: rotate (with their rings, as always) | jump | flee | shrink (URL `exit`). */
+  exitBehavior: ExitBehavior;
+  /** Jump: seconds between two jumps; shrink: seconds an exit takes to close, 1–10 (URL `exj`). */
+  exitJumpSeconds: number;
+  /** Degrees round the ring a ball may come to an exit before it jumps away or runs, 0–90; 0 = never (URL `exs`). */
+  exitSense: number;
+  /** Flee: the exit's top speed along its ring, 10–360 degrees a second (URL `exf`). */
+  exitFleeSpeed: number;
+  /** Every wall hit leaves a solid splat of paint – the ball builds its own barrier (URL `splat`). */
+  splatBarrier: boolean;
+  /** A splat's radius as a multiple of the ball's, 0.5–2 (URL `sps`). */
+  splatSize: number;
+  /** The most splats at once, 10–300; past it the oldest fade out (URL `spm`). */
+  splatMax: number;
+  // --- end gerald-exit-splat ---
   // --- captions --- animated captions (lib/captions.ts): overlays drawn on the canvas – render-only, none by default
   /** Countdown, wall counter, progress bar, question and text overlays, each with its timing, animation and style (URL `cap`). */
   captions: Caption[];
@@ -828,6 +846,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...DEFAULT_MULTIPLIER_CONFIG,
     ...multipliersSettingFields(DEFAULT_MULTIPLIERS_SETTINGS),
     ...defaultObstacleSettings(), // --- obstacle-editor ---
+    ...defaultExitSplatFields(), // --- gerald-exit-splat --- (exits turn with their rings, no splats)
     ...defaultCaptionSettings(), // --- captions ---
     ...DEFAULT_RIGGED, // --- rigged ---
     ...defaultTimelineSettings(), // --- timeline ---
@@ -906,6 +925,7 @@ export const RANGES = {
   ...MULTIPLIER_RANGES,
   ...MULTIPLIERS_RANGES,
   ...OBSTACLE_EDITOR_RANGES, // --- obstacle-editor ---
+  ...EXIT_SPLAT_RANGES, // --- gerald-exit-splat ---
   ...CAPTION_RANGES, // --- captions ---
   ...RIGGED_RANGES, // --- rigged ---
   ...TIMELINE_RANGES, // --- timeline ---
@@ -1156,6 +1176,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   if (settings.pickupTypes !== base.pickupTypes) params.set("mpty", settings.pickupTypes);
   if (settings.mpGateMix !== base.mpGateMix) params.set("mpgm", settings.mpGateMix);
   writeObstacleParams(settings, base, params); // --- obstacle-editor ---: obs, obb
+  writeExitSplatParams(settings, base, params); // --- gerald-exit-splat ---: exit, exj, exs, exf, splat, sps, spm
   writeCaptionParams(settings, params); // --- captions ---: cap
   writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
@@ -1311,6 +1332,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   if (mpgm !== null) settings.mpGateMix = sanitizeGateMix(mpgm);
   clampMultiplierSettings(settings);
   readObstacleParams(params, settings); // --- obstacle-editor ---
+  readExitSplatParams(params, settings); // --- gerald-exit-splat --- (a known behaviour, numbers from their minimum up)
   readCaptionParams(params, settings); // --- captions ---
   Object.assign(settings, resolveRiggedConfig(settings)); // --- rigged --- a bad team slot is off
   readTimelineParams(params, settings, RANGES); // --- timeline ---
@@ -1544,6 +1566,10 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
   maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
 };
+// --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
+// barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
+for (const mode of MOVING_EXIT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...EXIT_ENGINE_KEYS);
+for (const mode of SPLAT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...SPLAT_ENGINE_KEYS);
 
 const engineKeyCache = new Map<ModeId, readonly string[]>();
 
@@ -1721,6 +1747,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   clampCameraSettings(merged); // --- camera ---
   clampMultiplierSettings(merged); // --- gerald-multipliers ---
   Object.assign(merged, resolveObstacleSettings(merged)); // --- obstacle-editor --- invalid obstacles dropped, numbers clamped
+  Object.assign(merged, resolveExitSplatFields(merged)); // --- gerald-exit-splat --- a known behaviour, a real boolean, numbers from their minimum up
   Object.assign(merged, resolveCaptionSettings(merged)); // --- captions --- unknown types dropped, bad fields fall back
   Object.assign(merged, resolveRiggedConfig(merged)); // --- rigged --- a non-boolean flag is off, a bad team slot too
   Object.assign(merged, resolveTimelineSettings(merged, RANGES)); // --- timeline --- unknown settings dropped, values clamped to their ranges

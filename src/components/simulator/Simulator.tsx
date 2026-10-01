@@ -62,6 +62,7 @@ import NumberField from "./NumberField"; // --- uncap-all --- (the Find Simulati
 import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
 import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
+import { exitSplatCarryOver, exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
@@ -670,6 +671,16 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.obstacles, s.bumperBoost]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end obstacle-editor ---
+  // --- gerald-exit-splat --- the exit behaviour and the splat barrier travel in the physics config (the seed finder, the fast
+  // export, the arenas and the bot copy it); a change drops a found seed and its promise, like a new obstacle layout
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig(exitSplatConfigOf(s));
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [s.exitBehavior, s.exitJumpSeconds, s.exitSense, s.exitFleeSpeed, s.splatBarrier, s.splatSize, s.splatMax]); // eslint-disable-line react-hooks/exhaustive-deps
+  // --- end gerald-exit-splat ---
   // --- timeline --- the keyframes travel in the physics config: the engine plays them on the simulation clock and the seed finder
   // copies them (the rotation speed's only while the rotation is on). New keyframes drop a found seed with its promise, like a new
   // obstacle layout. The live values of the automated settings are published for the panel (sliders, Timeline section).
@@ -1387,6 +1398,7 @@ export default function Simulator() {
       Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
+      Object.assign(fresh, exitSplatCarryOver(themeLookRef.current)); // --- gerald-exit-splat --- the exit behaviour and the splat barrier carry over (ring modes)
       Object.assign(fresh, captionCarryOver(themeLookRef.current)); // --- captions --- the captions are overlays: they carry over
       Object.assign(fresh, riggedConfigOf(themeLookRef.current)); // --- rigged --- the story carries over (never escape, the forced winner with its roster)
       Object.assign(fresh, timelineCarryOver(themeLookRef.current)); // --- timeline --- the keyframes script the clip: they carry over
@@ -1493,6 +1505,11 @@ export default function Simulator() {
           // --- unlimited --- a ball ate the arena: the gulp
           if (ev.ate) {
             audio.playArenaEaten();
+            continue;
+          }
+          // --- gerald-exit-splat --- a splat of the splat barrier landed: the wet splat (the wall hit sounds as its own event)
+          if (ev.splat) {
+            audio.playSplat(ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks

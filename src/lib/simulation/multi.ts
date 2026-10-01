@@ -3,6 +3,7 @@ import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
+import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { SimulatorSettings } from "@/lib/settings";
@@ -70,6 +71,7 @@ export function arenaPhysicsConfig(s: SimulatorSettings, withTimeline = true): O
     ...ballInteractionOf(s),
     ...multiplierConfigOf(s),
     ...obstacleConfigOf(s),
+    ...exitSplatConfigOf(s), // --- gerald-exit-splat ---
     ...riggedConfigOf(s),
     ...(withTimeline ? { timeline: engineTimelineOf(s) } : {}),
   };
@@ -109,6 +111,8 @@ export interface ArenaSoundSink {
   playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent?: boolean, level?: number): void;
   /** --- unlimited --- a ball ate the arena (No limits). */
   playArenaEaten?(): void;
+  /** --- gerald-exit-splat --- a splat of the splat barrier landed. */
+  playSplat?(level?: number): void;
 }
 
 /**
@@ -124,6 +128,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.swoosh) return sink.playSwoosh(); // --- gerald-journey --- (a stage transition's whoosh, not a wall hit)
   if (ev.bdDrum) return sink.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- beat-drop --- (a drum, not a wall hit)
   if (ev.ate) return sink.playArenaEaten?.(); // --- unlimited --- (the gulp, not a wall break)
+  if (ev.splat) return sink.playSplat?.((ev.level ?? 0.6) * EXTRA_ARENA_LEVEL); // --- gerald-exit-splat --- (the wet splat, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);
