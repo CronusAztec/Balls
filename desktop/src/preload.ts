@@ -7,6 +7,11 @@ import { BRIDGE_METHODS, DESKTOP_API_VERSION, EVENT_CHANNELS, IPC, type DesktopA
  * ipcRenderer or Node. Context isolation is on, Node integration off, the renderer sandboxed.
  */
 
+/** --- review fix (desktop-exe) --- Whether a page gets `window.desktop`: only the app's own `app:` pages. */
+export function servesBridge(protocol: string | undefined): boolean {
+  return protocol === "app:";
+}
+
 export function buildBridge(invoke: (channel: string, ...args: unknown[]) => Promise<unknown>, send: (channel: string, ...args: unknown[]) => void, subscribe: (channel: string, listener: (payload: unknown) => void) => () => void): DesktopApi {
   const api: Record<string, unknown> = { apiVersion: DESKTOP_API_VERSION };
   for (const [path, channel] of Object.entries(BRIDGE_METHODS)) {
@@ -34,4 +39,6 @@ const bridge = buildBridge(
   },
 );
 
-contextBridge.exposeInMainWorld("desktop", bridge);
+// --- review fix (desktop-exe) --- only the app's own pages get the bridge: a sign-in popup the page opened (a blank window that
+// goes on to the relay's or Google's site, which may inherit this preload) never sees `window.desktop`.
+if (servesBridge(typeof location === "undefined" ? undefined : location.protocol)) contextBridge.exposeInMainWorld("desktop", bridge);

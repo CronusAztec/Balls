@@ -1,5 +1,6 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import { circleObstacle, resolveBallCircle } from "../obstacles";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited --- (No limits: the settings past their sliders)
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 
@@ -138,11 +139,15 @@ export function serializeTyPowers(powers: readonly TyPower[]): string {
   return parseTyPowers(powers).join(",");
 }
 
-/** Fills in the defaults and clamps every value (counts and the duration whole, the interval on its 0.5 s steps); unknown powers and non-boolean flags fall back to the defaults. */
-export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings, "teams" | "powers">> & { teams?: unknown; powers?: unknown } | null | undefined): TerritorySettings {
+/**
+ * Fills in the defaults and clamps every value (counts and the duration whole, the interval on its 0.5 s steps); unknown
+ * powers and non-boolean flags fall back to the defaults. With `unlimited` (No limits on) the numbers go past their sliders,
+ * up to their soft ceilings (`rangesFor()`, lib/unlimited.ts); the teams stay 2 or 4.
+ */
+export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings, "teams" | "powers">> & { teams?: unknown; powers?: unknown } | null | undefined, unlimited = false): TerritorySettings {
   const out: TerritorySettings = { ...DEFAULT_TERRITORY_SETTINGS, powers: [...DEFAULT_TY_POWERS] };
   if (!config) return out;
-  const R = TERRITORY_RANGES;
+  const R = rangesFor(TERRITORY_RANGES, unlimited);
   if (config.cols !== undefined) out.cols = Math.round(clampNumber(config.cols, R.tyCols, out.cols));
   if (config.teams !== undefined) {
     const n = Number(config.teams);
@@ -159,8 +164,8 @@ export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings,
   return out;
 }
 
-/** Picks the Territory settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setTerritorySettings()`. */
-export function territorySettingsOf(source: TerritorySettingFields): TerritorySettings {
+/** Picks the Territory settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setTerritorySettings()` – past the sliders when it has No limits on. */
+export function territorySettingsOf(source: TerritorySettingFields & { unlimited?: boolean }): TerritorySettings {
   return resolveTerritorySettings({
     cols: source.tyCols,
     teams: source.tyTeams,
@@ -172,7 +177,7 @@ export function territorySettingsOf(source: TerritorySettingFields): TerritorySe
     pegs: source.tyPegs,
     badge: source.tyBadge,
     hud: source.tyHud,
-  });
+  }, source.unlimited === true);
 }
 
 /** Writes resolved settings back into the SimulatorSettings field names. */
@@ -683,9 +688,12 @@ export class TerritoryMode implements GameMode {
     return { ...this.settings, powers: [...this.settings.powers] };
   }
 
-  /** The board, the teams, the balls, the powers, the interval, the reach, the countdown and the pegs apply on the next init; the badge and the HUD at once. */
-  setSettings(patch: Partial<TerritorySettings>) {
-    this.settings = resolveTerritorySettings({ ...this.settings, ...patch });
+  /**
+   * The board, the teams, the balls, the powers, the interval, the reach, the countdown and the pegs apply on the next init;
+   * the badge and the HUD at once. With `unlimited` (No limits on) the numbers run past their sliders, up to their soft ceilings.
+   */
+  setSettings(patch: Partial<TerritorySettings>, unlimited = false) {
+    this.settings = resolveTerritorySettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.badge = this.settings.badge;
     this.view.settings.hud = this.settings.hud;
   }

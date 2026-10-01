@@ -97,3 +97,39 @@ export function isExternalWebUrl(url: string): boolean {
     return false;
   }
 }
+
+// --- review fix (desktop-exe) --- window.open from the page: the Publish feature's sign-in popups open as child windows
+/** The window name of the Publish block's relay sign-in popup (lib/publish/controller.ts `connectRelay()`). */
+export const RELAY_POPUP_FRAME = "jbl-relay-connect";
+/** Sign-in pages that open as a child window of the app when the page asks for a popup (Google's account picker). */
+export const SIGN_IN_POPUP_HOSTS: readonly string[] = ["accounts.google.com"];
+
+/**
+ * What the app does with a `window.open()` of the page: "popup" – a child window the page keeps a handle on (the relay
+ * sign-in, which the page opens blank and then sends to the relay's one-time link, and which reports back with
+ * postMessage; Google's sign-in page); "external" – any other web link opens in the system browser; "deny" – nothing else.
+ */
+export function windowOpenAction(url: string, frameName: string): "popup" | "external" | "deny" {
+  if (frameName === RELAY_POPUP_FRAME && (url === "" || url === "about:blank" || isWebUrl(url))) return "popup";
+  try {
+    const u = new URL(url);
+    if (u.protocol === "https:" && SIGN_IN_POPUP_HOSTS.includes(u.hostname)) return "popup";
+  } catch {
+    /* not a URL */
+  }
+  return isExternalWebUrl(url) ? "external" : "deny";
+}
+
+/** Whether a sign-in popup may load `url`: web pages (http: for a relay on localhost) and its first blank page – never the app. */
+export function popupMayNavigate(url: string): boolean {
+  return url === "about:blank" || isWebUrl(url);
+}
+
+function isWebUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    return false;
+  }
+}

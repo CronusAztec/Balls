@@ -1,5 +1,5 @@
 import { RANGES, RESOLUTIONS, defaultSettings, presetToSettings, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
-import { parseUnlimitedValue, unlimitedBounds } from "@/lib/unlimited"; // --- unlimited ---
+import { clampUnlimitedPatch, parseUnlimitedValue, unlimitedBounds } from "@/lib/unlimited"; // --- unlimited ---
 import { BALL_INTERACTIONS, MODE_IDS, WALL_BREAK_STYLES, isModeId } from "@/lib/physics/types";
 import { PARTICLE_STYLES } from "@/lib/physics/particleStyles";
 import { THEME_IDS } from "@/lib/themes";
@@ -314,6 +314,12 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
     errors.push(`"${key}" cannot be changed here`);
   }
   if (errors.length) return { ok: false, errors };
+  // --- unlimited --- turning No limits off brings every value past its range back into it (as the panel's switch does),
+  // unless the patch sets that value itself: nothing extreme lingers without the switch's guards
+  if ((raw as Settings).unlimited === false) {
+    const clamped = clampUnlimitedPatch({ ...(current as unknown as Settings), ...patch }, unlimitedSettingKeys(), ranges);
+    for (const [key, value] of Object.entries(clamped)) if (!(key in patch)) patch[key] = value;
+  }
   // The settings loader has the last word: a value it does not keep is not a valid value.
   const resolved = presetToSettings({ ...current, ...patch } as Partial<SimulatorSettings>) as unknown as Settings;
   for (const [key, value] of Object.entries(patch)) {

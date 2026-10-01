@@ -62,7 +62,16 @@ export class RenderSaver {
         this.deps.emit({ jobId: request.jobId, phase: "encoding", progress: 0 });
         const args = buildTranscodeArgs(tempPath, finalPath, request.transcode, encoder);
         this.deps.log(`transcode ${request.jobId}: ffmpeg ${args.join(" ")}`);
-        const result = await this.deps.run(ffmpeg, args, { signal: controller.signal, onProgress: (us) => this.deps.emit({ jobId: request.jobId, phase: "encoding", progress: Math.min(1, us / durationUs) }) });
+        // A transcode that does not finish – ffmpeg failed, was cancelled (Cancel / Cancel all abort the run), timed out or
+        // could not start – leaves no half-written clip behind: it would look like a finished one, and a retry would save
+        // next to it as <name>-2.mp4.
+        let result: Awaited<ReturnType<RenderDeps["run"]>>;
+        try {
+          result = await this.deps.run(ffmpeg, args, { signal: controller.signal, onProgress: (us) => this.deps.emit({ jobId: request.jobId, phase: "encoding", progress: Math.min(1, us / durationUs) }) });
+        } catch (err) {
+          await fs.rm(finalPath, { force: true }).catch(() => {});
+          throw err;
+        }
         if (result.code !== 0) {
           await fs.rm(finalPath, { force: true });
           throw new Error(`ffmpeg failed (${result.code}): ${result.stderr.split(/\r?\n/).filter(Boolean).slice(-3).join(" ").slice(0, 400)}`);

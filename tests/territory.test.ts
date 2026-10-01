@@ -54,6 +54,8 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import { bounceTriggerApplies } from "@/lib/physics/bounceMathRuntime";
 import { bounceMathBeatConfig, type BounceRule } from "@/lib/simulation/bounceMath";
 import { assistantSettings, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
+import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { BOUNDED_KEYS, ENGINE_CEILINGS } from "@/lib/unlimited";
 
 /**
  * Territory (lib/physics/modes/territory.ts, feature odd-territory): the settings (resolve, URL, presets), the board
@@ -976,6 +978,30 @@ describe("Territory with the other features", () => {
     const plain = territory(settings, 9);
     for (let i = 0; i < 600; i++) plain.update(STEP, 0);
     expect(Array.from(plain.getTerritoryView().counts)).toEqual(Array.from(engine.getTerritoryView().counts));
+  });
+
+  it("runs past its sliders with No limits on, up to its soft ceilings – the teams stay 2 or 4 – and on them with it off", () => {
+    const typed = { tyCols: 64, tyBallsPerTeam: 12, tyPowerEvery: 20, tyRadius: 12, tyDuration: 300, tyTeams: 9 };
+    const on = presetToSettings({ ...defaultSettings("territory"), unlimited: true, ...typed });
+    const lifted = { cols: 64, ballsPerTeam: 12, powerEvery: 20, radius: 12, duration: 300, teams: 4 };
+    expect(territorySettingsOf(on)).toMatchObject(lifted);
+    const engine = createEngineForSettings(physicsConfigOfSettings(on), "territory", modeSettingsOfSettings(on), 3);
+    expect(engine.getTerritorySettings()).toMatchObject(lifted);
+    expect(engine.getTerritoryView().cols).toBe(64);
+    expect(engine.getBalls()).toHaveLength(4 * 12);
+    for (let i = 0; i < 120; i++) engine.update(STEP, 0);
+    expect(accounted(engine).ok).toBe(true);
+    expect(fixedRunDurationSec("territory", modeSettingsOfSettings(on), true)).toBe(300);
+    // Far past: the soft ceilings (the page keeps the typed values).
+    const far = presetToSettings({ ...defaultSettings("territory"), unlimited: true, tyCols: 1e9, tyBallsPerTeam: 1e9, tyRadius: 1e9, tyDuration: 1e9 });
+    expect(far.tyCols).toBe(1e9);
+    expect(territorySettingsOf(far)).toMatchObject({ cols: ENGINE_CEILINGS.tyCols, ballsPerTeam: ENGINE_CEILINGS.tyBallsPerTeam, radius: ENGINE_CEILINGS.tyRadius, duration: ENGINE_CEILINGS.tyDuration });
+    expect(BOUNDED_KEYS.has("tyTeams")).toBe(true);
+    // Off: the sliders' ends.
+    const off = presetToSettings({ ...defaultSettings("territory"), unlimited: false, ...typed });
+    expect(off.unlimited).toBe(false);
+    expect(territorySettingsOf(off)).toMatchObject({ cols: 48, ballsPerTeam: 8, powerEvery: 10, radius: 8, duration: 120, teams: 4 });
+    expect(fixedRunDurationSec("territory", modeSettingsOfSettings(off), false)).toBe(120);
   });
 
   it("lets the AI assistant tune its settings", () => {
