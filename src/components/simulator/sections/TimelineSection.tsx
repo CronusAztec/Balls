@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Tooltip from "../Tooltip";
-import { ResetButton, Searchable, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { TimelineSliderValue, timelineLive, useTimelineSlider, useTimelineTime, useTimelineValue } from "../timelineLive";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
@@ -150,7 +150,7 @@ function ValueControl({ t, settingKey, value, onChange }: { t: Translate; settin
  * (lib/simulation/timeline.ts); the panel's sliders of automated settings show the live value with an AUTO badge and the
  * bar under the canvas (TimelineBar.tsx) shows the keyframes and the playhead.
  */
-export default function TimelineSection({ t, search, matches, settings: s, update, onReset }: TimelineSectionProps) {
+export default function TimelineSection({ t, search, matches, settings: s, update }: TimelineSectionProps) {
   const obstacles = supportsObstacles(s.mode);
   const offered = TIMELINE_KEYS.filter((key) => timelineKeyShown(key, s.mode, obstacles));
   const [picked, setPicked] = useState<TimelineKey>("gravity");
@@ -168,7 +168,6 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
   };
   return (
     <div className="space-y-4" data-testid="timeline-section">
-      <ResetButton search={search} t={t} section="timeline" onReset={onReset} />
       <p className="text-xs text-zinc-400 leading-relaxed">
         {t("timelineDesc")}
         <Tooltip text={t("timelineTip")} />

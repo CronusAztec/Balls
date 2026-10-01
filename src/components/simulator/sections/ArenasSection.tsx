@@ -1,7 +1,7 @@
 "use client";
 
 import Tooltip from "../Tooltip";
-import { ResetButton, Searchable, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import type { SimulatorSettings } from "@/lib/settings";
 import { MODE_IDS, isModeId, type ModeId } from "@/lib/physics/types";
@@ -115,13 +115,12 @@ function OverrideSlider({
  * colour and (from the second arena on) mode. The values live in SimulatorSettings (`arenaCount`, `arenaLayout`,
  * `soundArena`, `arenas`); Simulator.tsx hands them to the runner (lib/simulation/multi.ts) and the canvas.
  */
-export default function ArenasSection({ t, search, matches, settings: s, update, onReset, modeNames }: ArenasSectionProps) {
+export default function ArenasSection({ t, search, matches, settings: s, update, modeNames }: ArenasSectionProps) {
   const arenas = resolvedArenas(s);
   const setArena = (index: number, patch: Partial<ArenaOverride>) => update({ arenas: patchArena(s.arenas, index, patch) });
   const showEditor = s.arenaCount > 1 && (!search || EDITOR_KEYS.some(matches));
   return (
     <div className="space-y-4" data-testid="split-screen-section">
-      <ResetButton search={search} t={t} section="arenas" onReset={onReset} />
       {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("splitIntro")}</p>}
       <Searchable search={search} matches={matches} labelKey="splitArenaCount">
         <div className="space-y-2">

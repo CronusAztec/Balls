@@ -3,7 +3,6 @@
 import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
-import type { ControlSection } from "./Controls";
 import { TimelineSliderValue, useTimelineSlider } from "./timelineLive"; // --- timeline ---
 import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimitedSlider"; // --- unlimited --- (--- uncap-all --- the Wide sliders track)
 // --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
@@ -40,21 +39,6 @@ export function Searchable({ search, matches, labelKey, children }: { search: st
   if (!search) return <>{children}</>;
   if (!matches(labelKey)) return null;
   return <div className="p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/50 shadow-sm">{children}</div>;
-}
-
-export function ResetButton({ search, t, section, onReset }: { search: string; t: Translate; section: ControlSection; onReset: (section: ControlSection) => void }) {
-  if (search) return null;
-  return (
-    <div className="flex justify-center border-b border-zinc-800/60 pb-2 mb-2">
-      <button
-        type="button"
-        onClick={() => onReset(section)}
-        className="text-xs text-[#93d119] hover:text-[#7fb315] transition-colors font-medium flex items-center gap-1 cursor-pointer bg-zinc-800/40 hover:bg-zinc-800/80 px-2 py-1 rounded-md"
-      >
-        🔄 {t("resetSection")}
-      </button>
-    </div>
-  );
 }
 
 export function Slider({

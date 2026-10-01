@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
-import { ColorPicker, ResetButton, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
+import { ColorPicker, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
 import BallDropSection, { BALL_DROP_KEYS } from "./sections/BallDropSection";
 import EscapeModeSection, { ESCAPE_MODE_KEYS_BY_MODE } from "./sections/EscapeModeSection"; // --- review fix (ui-i18n) ---
 import BallInteractionSection, { BALL_INTERACTION_KEYS } from "./sections/BallInteractionSection";
@@ -45,7 +45,7 @@ import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
 import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
 import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
-import { FAST_EXPORT_KEYS, FastExportButton, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
+import { FAST_EXPORT_KEYS, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
 import BotSection, { BOT_KEYS, type BotPanelProps } from "./sections/BotSection"; // --- viral-bot ---
 import PublishSection, { PUBLISH_KEYS } from "./sections/PublishSection"; // --- social-publish ---
@@ -79,19 +79,30 @@ import { characterOf } from "@/lib/character/character"; // --- gerald-faces ---
 import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
 import { TWO_BALL_MODES } from "@/lib/physics/engine";
 import type { ModeId, WallBreakStyle } from "@/lib/physics/types";
-import { ACCENT } from "@/lib/site";
 // --- unlimited --- the No limits switch and the unlimited sliders of the whole panel
 import UnlimitedSection, { UNLIMITED_KEYS } from "./sections/UnlimitedSection";
 import { UnlimitedProvider } from "./unlimitedSlider";
 import { bouncinessPatch } from "@/lib/settings"; // --- uncap-all --- the numeric Bounciness
 import BounceMathSection, { BOUNCE_MATH_KEYS, type BounceMathPanelProps } from "./sections/BounceMathSection"; // --- bounce-math ---
 import { defaultBounceMathFields } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
-import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 // The Slider / Toggle / Searchable building blocks live in ControlPrimitives.tsx so feature sections can share them.
 export { sliderStyle };
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
 import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
+// --- site-redesign --- the studio's rail, panel and command palette
+import TabStrip, { type TabStripItem } from "@/components/ui/Tabs";
+import Button from "@/components/ui/Button";
+import Kbd from "@/components/ui/Kbd";
+import { cx } from "@/components/ui/cx";
+import { useModifierKey } from "@/components/ui/useModifierKey";
+import { useMediaQuery } from "@/components/ui/useMediaQuery";
+import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
+import CommandPalette from "./studio/CommandPalette";
+import type { PaletteEntry } from "@/lib/siteDesign";
+
+/** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
+export type StudioSection = "mode" | ControlSection | "presets";
 
 export type ControlSection = "ball" | "wall" | "visual" | "sound" | "recording" | "teams" | "obstacles" | "captions" | "timeline" | "arenas"; // --- teams --- ("teams") --- obstacle-editor --- ("obstacles") --- captions --- ("captions") --- timeline --- ("timeline") --- split-screen --- ("arenas")
 
@@ -159,6 +170,10 @@ export interface ControlsProps {
   bot?: BotPanelProps;
   /** --- bounce-math --- the engine's readout for the Bounce math block (its live values; the block works without it). */
   bounceMath?: BounceMathPanelProps;
+  /** --- site-redesign --- the stage (strip, canvas, transport), laid out between the rail and the panel. */
+  stage?: ReactNode;
+  /** --- site-redesign --- opens the mode picker (the page owns the dialog). */
+  onOpenModePicker?: () => void;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -231,9 +246,16 @@ SECTION_KEYS.recording.push(...PUBLISH_KEYS);
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
   const t = useTranslations("Controls");
-  const [openSection, setOpenSection] = useState<ControlSection | null>(null);
-  const [modeOpen, setModeOpen] = useState(true);
-  const [presetsOpen, setPresetsOpen] = useState(false);
+  // --- site-redesign --- the rail: one group open at a time – the Mode group first, as the old Mode row was open – and a press
+  // on the open one closes it (the old section headers toggled the same way). On phones the panel is a bottom sheet.
+  const [active, setActive] = useState<StudioSection | null>("mode");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const pendingFocus = useRef<{ label: string; tries: StudioSection[] } | null>(null);
+  const [focusTick, setFocusTick] = useState(0);
+  const phone = useMediaQuery("(max-width: 767.98px)");
+  const mod = useModifierKey();
+  const site = useTranslations("SiteRedesign");
   const [presetName, setPresetName] = useState("");
   const [midiDrag, setMidiDrag] = useState(false);
   const [wallBreakDrag, setWallBreakDrag] = useState(false);
@@ -314,19 +336,20 @@ export default function Controls(props: ControlsProps) {
     beatDrop: t("modeBeatDrop"),
   };
 
-  const sections: { id: ControlSection; icon: string; label: string }[] = [
-    { id: "ball", icon: "🎱", label: t("ballPhysicsTab") },
-    { id: "wall", icon: "🔵", label: t("wallSettingsTab") },
-    { id: "visual", icon: "✨", label: t("visualEffectsTab") },
-    { id: "sound", icon: "🔊", label: t("customSoundTab") },
-    { id: "recording", icon: "🎬", label: t("recordingTab") },
-    { id: "teams", icon: "🏆", label: t("teamsTab") }, // --- teams ---
+  // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
+  const sections: { id: ControlSection; icon: ReactNode; label: string }[] = [
+    { id: "ball", icon: <IconBall />, label: t("ballPhysicsTab") },
+    { id: "wall", icon: <IconRings />, label: t("wallSettingsTab") },
+    { id: "visual", icon: <IconSparkle />, label: t("visualEffectsTab") },
+    { id: "sound", icon: <IconWave />, label: t("customSoundTab") },
+    { id: "teams", icon: <IconUsers />, label: t("teamsTab") }, // --- teams ---
   ];
   // --- obstacle-editor --- the Obstacles section, in the ring modes (the layout is kept, unused, in the others)
-  if (supportsObstacles(s.mode)) sections.push({ id: "obstacles", icon: "🚧", label: t("obstaclesTab") });
-  sections.push({ id: "captions", icon: "💬", label: t("captionsTab") }); // --- captions --- (every mode, after the playfield sections)
-  sections.push({ id: "timeline", icon: "⏱️", label: t("timelineTab") }); // --- timeline --- (every mode)
-  sections.push({ id: "arenas", icon: "🏁", label: t("splitTab") }); // --- split-screen --- (every mode)
+  if (supportsObstacles(s.mode)) sections.push({ id: "obstacles", icon: <IconObstacle />, label: t("obstaclesTab") });
+  sections.push({ id: "captions", icon: <IconCaptions />, label: t("captionsTab") }); // --- captions --- (every mode, after the playfield sections)
+  sections.push({ id: "timeline", icon: <IconKeyframes />, label: t("timelineTab") }); // --- timeline --- (every mode)
+  sections.push({ id: "arenas", icon: <IconSplit />, label: t("splitTab") }); // --- split-screen --- (every mode)
+  sections.push({ id: "recording", icon: <IconVideo />, label: t("recordingTab") });
 
   /* ------------------------------------------------------------ sections */
 
@@ -337,7 +360,6 @@ export default function Controls(props: ControlsProps) {
 
   const ballSection = () => (
     <div className="space-y-4">
-      <ResetButton search={search} t={t} section="ball" onReset={props.onResetSection} />
       {/* --- unlimited --- the No limits switch (every numeric setting past its slider range) */}
       <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
@@ -492,7 +514,6 @@ export default function Controls(props: ControlsProps) {
     const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex" || s.mode === "bullseye" || s.mode === "beatDrop"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- gerald-vortex --- (the sound rings) --- gerald-bullseye --- (the walls, the landing line, the target's rim) --- beat-drop --- (the obstructions' outlines)
     return (
       <div className="space-y-4">
-        <ResetButton search={search} t={t} section="wall" onReset={props.onResetSection} />
         {hasWallCount && (
           <Slider t={t} search={search} matches={matches} labelKey="wallCount" tipKey="wallCountTip" value={s.wallCount} range={RANGES.wallCount} onChange={(v) => update({ wallCount: v })} />
         )}
@@ -565,7 +586,6 @@ export default function Controls(props: ControlsProps) {
 
   const visualSection = () => (
     <div className="space-y-4">
-      <ResetButton search={search} t={t} section="visual" onReset={props.onResetSection} />
       {/* --- themes: theme cards, background, particle style and trail colours at the top of the Visual section */}
       <ThemeSection t={t} search={search} matches={matches} settings={s} update={update} image={props.themeImage} />
       <Searchable search={search} matches={matches} labelKey="trails">
@@ -677,7 +697,6 @@ export default function Controls(props: ControlsProps) {
     const showSampleControls = s.hitSoundMode === "sample" || !!search;
     return (
       <div className="space-y-4">
-        <ResetButton search={search} t={t} section="sound" onReset={props.onResetSection} />
         <Searchable search={search} matches={matches} labelKey="hitSoundMode">
           <div className="space-y-2">
             <label className="text-sm font-medium text-zinc-300">
@@ -998,7 +1017,6 @@ export default function Controls(props: ControlsProps) {
 
   const recordingSection = () => (
     <div className="space-y-3">
-      <ResetButton search={search} t={t} section="recording" onReset={props.onResetSection} />
       <Searchable search={search} matches={matches} labelKey="videoResolution">
         <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-300" htmlFor="resolution-select">
@@ -1249,206 +1267,274 @@ export default function Controls(props: ControlsProps) {
   const keysOf = (id: ControlSection) => (id === "ball" ? ballKeys : SECTION_KEYS[id]);
   const anyResults = (Object.keys(SECTION_KEYS) as ControlSection[]).some((id) => sectionMatches(keysOf(id))) || (!!props.project && PROJECT_KEYS.some(matches)); // --- project-files ---
 
-  return (
-    <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
-    <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg p-4 space-y-2 border border-zinc-800">
-      <h2 className="text-lg font-bold text-white mb-2">{t("controlsTitle")}</h2>
-      <button
-        type="button"
-        onClick={props.onRecordToggle}
-        disabled={!props.recordingSupported}
-        className={`w-full px-4 py-3.5 my-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-          props.isRecording
-            ? "bg-red-600 text-white/90 motion-safe:animate-pulse hover:bg-red-700 shadow-red-600/20"
-            : "bg-gradient-to-r from-cyan-600 to-cyan-500 text-slate-950 hover:from-cyan-500 hover:to-cyan-400 shadow-cyan-600/20"
-        }`}
-      >
-        {props.isRecording ? (
-          <>
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
-              <rect x="6" y="6" width="12" height="12" rx="2" />
-            </svg>{" "}
-            {t("stopExport")}
-          </>
-        ) : (
-          <>
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
-              <rect x="2" y="6" width="14" height="12" rx="2" />
-            </svg>{" "}
-            {t("recordVideo")}
-          </>
-        )}
-      </button>
-      {props.fastExport && <FastExportButton {...props.fastExport} /> /* --- fast-render --- */}
+  // --- site-redesign --- the studio: the rail (a tab strip below 1280 px), the stage the page hands in, and the panel with
+  // the open group – today's renderSection() output – under a pinned search field, its Reset and Show Advanced Options below.
+  const railItems: (TabStripItem & { id: StudioSection })[] = [
+    { id: "mode", label: t("modeSpan"), icon: <IconGrid /> },
+    ...sections,
+    { id: "presets", label: t("savedPresetsSpan"), icon: <IconBookmark /> },
+  ];
+  const activeItem = railItems.find((item) => item.id === active) ?? null;
+  const resettable = activeItem && activeItem.id !== "mode" && activeItem.id !== "presets" ? (activeItem.id as ControlSection) : null;
+  const panelOpen = !phone || sheetOpen;
+  const select = (id: string) => {
+    setSearch("");
+    if (active === id && panelOpen) {
+      setActive(null);
+      setSheetOpen(false);
+      return;
+    }
+    setActive(id as StudioSection);
+    setSheetOpen(true);
+  };
 
-      <div className="relative mb-1">
+  // The command palette: every group, and every searchable control of the groups on the rail.
+  const paletteEntries = useMemo<PaletteEntry[]>(() => {
+    const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
+    const seen = new Set<string>();
+    for (const item of sections) {
+      for (const key of keysOf(item.id)) {
+        if (seen.has(key) || !t.has(key)) continue;
+        seen.add(key);
+        out.push({ kind: "control", section: item.id, key, label: t(key), sectionLabel: item.label });
+      }
+    }
+    if (props.project) for (const key of PROJECT_KEYS) if (!seen.has(key) && t.has(key)) out.push({ kind: "control", section: "presets", key, label: t(key), sectionLabel: t("savedPresetsSpan") });
+    return out;
+    // The labels follow the language and the rail follows the mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, s.mode, sections.length, !!props.project]);
+  const railIcons = Object.fromEntries(railItems.map((item) => [item.id, item.icon])) as Record<string, ReactNode>;
+
+  const choosePalette = (entry: PaletteEntry) => {
+    setPaletteOpen(false);
+    setSearch("");
+    setActive(entry.section as StudioSection);
+    setSheetOpen(true);
+    // A control: focus it once its group has rendered – in its group, else in the Mode group (a mode's own block), else
+    // the search box shows it (an advanced option, a control of another mode).
+    pendingFocus.current = entry.kind === "control" ? { label: entry.label, tries: [entry.section as StudioSection, "mode"] } : null;
+    setFocusTick((n) => n + 1);
+  };
+  useEffect(() => {
+    const pending = pendingFocus.current;
+    if (!pending) return;
+    const panel = document.getElementById("studio-panel-body");
+    const target = panel ? findControl(panel, pending.label) : null;
+    if (target) {
+      pendingFocus.current = null;
+      target.scrollIntoView({ block: "center" });
+      target.focus({ preventScroll: true });
+      const row = target.closest<HTMLElement>("[data-uncap-slider], .space-y-2, .space-y-3") ?? target;
+      row.setAttribute("data-palette-hit", "");
+      window.setTimeout(() => row.removeAttribute("data-palette-hit"), 1600);
+      return;
+    }
+    const [, ...rest] = pending.tries;
+    if (rest.length) {
+      pendingFocus.current = { label: pending.label, tries: rest };
+      setActive(rest[0]);
+    } else {
+      pendingFocus.current = null;
+      setSearch(pending.label);
+    }
+  }, [active, focusTick]);
+
+  // Cmd/Ctrl+K opens the palette from anywhere in the studio.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const presetsPanel = () => (
+    <div className="space-y-4">
+      <div className="flex gap-2">
         <input
           type="text"
-          placeholder={t("searchSettings")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label={t("searchSettings")}
-          className="w-full pl-9 pr-8 py-2 bg-zinc-800/60 text-sm text-white rounded-lg border border-zinc-700/80 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 transition-all cursor-text focus:bg-zinc-800 focus:shadow-[0_0_12px_rgba(147,209,25,0.15)]"
+          value={presetName}
+          onChange={(e) => setPresetName(e.target.value)}
+          placeholder={t("presetPlaceholder")}
+          maxLength={30}
+          aria-label={t("presetPlaceholder")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && presetName.trim()) {
+              props.onSavePreset(presetName.trim());
+              setPresetName("");
+            }
+          }}
+          className="h-9 min-w-0 flex-1 rounded-md border border-line bg-surface-1 px-3 text-md text-ink placeholder:text-ink-3 hover:border-line-strong focus:border-accent-dim"
         />
-        <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">🔍</span>
-        {search && (
-          <button type="button" onClick={() => setSearch("")} className="absolute right-3 top-2.5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors cursor-pointer" aria-label={t("clearSearch")}>
-            ✕
-          </button>
-        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-9"
+          onClick={() => {
+            if (presetName.trim()) {
+              props.onSavePreset(presetName.trim());
+              setPresetName("");
+            }
+          }}
+          disabled={!presetName.trim()}
+        >
+          {t("saveBtn")}
+        </Button>
       </div>
-
-      {search ? (
-        <div className="space-y-4 pt-2 border-t border-zinc-800/80 animate-fadeIn">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t("searchResults")}</span>
-            <button type="button" onClick={() => setSearch("")} className={`text-xs text-[#93d119] hover:text-[#7fb315] font-medium cursor-pointer`}>
-              ✕ {t("clearSearch")}
-            </button>
-          </div>
-          <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
-            {!anyResults && <p className="text-xs text-zinc-500 text-center py-4">{t("noSearchResults")}</p>}
-            {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(keysOf(id)) && <div key={id}>{renderSection(id)}</div>)}
-            {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
-          </div>
-        </div>
+      {props.savedPresetNames.length === 0 ? (
+        <p className="py-2 text-center text-sm text-ink-3">{t("noSavedPresets")}</p>
       ) : (
-        <>
-          <div>
-            <button
-              type="button"
-              onClick={() => setModeOpen((v) => !v)}
-              aria-expanded={modeOpen}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
-            >
-              <span>🎮</span>
-              <span>{t("modeSpan")}</span>
-              <span className="text-zinc-500 ml-auto">{modeOpen ? "−" : "+"}</span>
-            </button>
-            {modeOpen && (
-              <div className="px-4 pt-2 pb-3">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700">
-                    <span className="text-white font-medium text-sm">{modeNames[s.mode]}</span>
-                    <a
-                      href="#modes"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        document.getElementById("modes")?.scrollIntoView({ behavior: scrollBehavior() });
-                      }}
-                      className={`text-xs text-[#93d119] hover:text-[#7fb315] transition-colors`}
-                    >
-                      {t("modeDisplay")}
-                    </a>
-                  </div>
-                  {modeSpecific()}
-                </div>
-              </div>
-            )}
-          </div>
-          {sections.map((section) => (
-            <div key={section.id}>
+        <ul className="divide-y divide-line rounded-lg border border-line">
+          {props.savedPresetNames.map((name) => (
+            <li key={name} className="group flex items-center gap-2 px-3 py-2">
+              <span className="min-w-0 flex-1 truncate text-sm text-ink">{name}</span>
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => props.onLoadPreset(name)}>
+                {t("loadBtn")}
+              </Button>
               <button
                 type="button"
-                onClick={() => setOpenSection(openSection === section.id ? null : section.id)}
-                aria-expanded={openSection === section.id}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
+                onClick={() => props.onDeletePreset(name)}
+                aria-label={t("deletePreset")}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-surface-3 hover:text-danger focus:opacity-100 group-hover:opacity-100 cursor-pointer [@media(pointer:coarse)]:opacity-100"
               >
-                <span>{section.icon}</span>
-                <span>{section.label}</span>
-                <span className="text-zinc-500 ml-auto">{openSection === section.id ? "−" : "+"}</span>
+                <IconClose size={16} />
               </button>
-              {openSection === section.id && <div className="px-4 pt-2 pb-3">{renderSection(section.id)}</div>}
-            </div>
+            </li>
           ))}
-          <div>
-            <button
-              type="button"
-              onClick={() => setPresetsOpen((v) => !v)}
-              aria-expanded={presetsOpen}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
-            >
-              <span>💾</span>
-              <span>{t("savedPresetsSpan")}</span>
-              <span className="text-zinc-500 ml-auto">{presetsOpen ? "−" : "+"}</span>
+        </ul>
+      )}
+      {props.project && <ProjectSection t={t} search="" matches={matches} project={props.project} /> /* --- project-files --- */}
+    </div>
+  );
+
+  const modePanel = () => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
+        <span className="min-w-0 truncate text-md font-medium text-ink">{modeNames[s.mode]}</span>
+        <button type="button" onClick={props.onOpenModePicker} aria-haspopup="dialog" className="shrink-0 rounded-sm text-sm font-medium text-accent hover:text-accent-strong cursor-pointer">
+          {t("modeDisplay")}
+        </button>
+      </div>
+      {modeSpecific()}
+    </div>
+  );
+
+  const panelBody = () => {
+    if (search)
+      return (
+        <div className="space-y-4 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <span className="eyebrow text-ink-3">{t("searchResults")}</span>
+            <button type="button" onClick={() => setSearch("")} className="rounded-sm text-sm font-medium text-accent hover:text-accent-strong cursor-pointer">
+              {t("clearSearch")}
             </button>
-            {presetsOpen && (
-              <div className="px-4 pt-2 pb-3 space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={presetName}
-                    onChange={(e) => setPresetName(e.target.value)}
-                    placeholder={t("presetPlaceholder")}
-                    maxLength={30}
-                    aria-label={t("presetPlaceholder")}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && presetName.trim()) {
-                        props.onSavePreset(presetName.trim());
-                        setPresetName("");
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (presetName.trim()) {
-                        props.onSavePreset(presetName.trim());
-                        setPresetName("");
-                      }
-                    }}
-                    disabled={!presetName.trim()}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all bg-[#93d119] text-slate-950 hover:bg-[#7fb315] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer`}
-                  >
-                    {t("saveBtn")}
+          </div>
+          {!anyResults && <p className="py-4 text-center text-sm text-ink-3">{t("noSearchResults")}</p>}
+          {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(keysOf(id)) && <div key={id}>{renderSection(id)}</div>)}
+          {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
+        </div>
+      );
+    if (!activeItem) return <p className="py-8 text-center text-sm text-ink-3">{site("studio.panelEmpty")}</p>;
+    return (
+      <div key={activeItem.id} className="animate-fadeIn">
+        <h2 className="eyebrow mb-4 text-ink-3">{activeItem.label}</h2>
+        {activeItem.id === "mode" ? modePanel() : activeItem.id === "presets" ? presetsPanel() : renderSection(activeItem.id as ControlSection)}
+      </div>
+    );
+  };
+
+  return (
+    <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
+      <div className="studio" data-studio-active={active ?? ""}>
+        <div className="studio-stage">{props.stage}</div>
+        <div className={cx("studio-desk", sheetOpen && "studio-desk-open")}>
+          <div className="studio-rail">
+            <button type="button" onClick={() => setPaletteOpen(true)} className="studio-rail-item studio-rail-search" aria-label={site("studio.search")} title={`${site("studio.search")} (${mod} K)`}>
+              <IconSearch />
+              <span className="studio-rail-label" aria-hidden="true">{site("studio.search")}</span>
+              <Kbd className="ml-auto max-2xl:hidden">{mod} K</Kbd>
+            </button>
+            <TabStrip
+              items={railItems}
+              active={panelOpen ? active : null}
+              onSelect={select}
+              label={site("studio.rail")}
+              controls="studio-panel"
+              className="studio-rail-items"
+              itemClassName="studio-rail-item"
+              labelClassName="studio-rail-label"
+              tooltipClassName="studio-rail-tip"
+            />
+          </div>
+          <aside id="studio-panel" className="studio-panel" aria-label={activeItem?.label ?? t("controlsTitle")} hidden={phone && !sheetOpen}>
+            <div className="studio-panel-search">
+              <div className="relative min-w-0 flex-1">
+                <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+                <input
+                  type="text"
+                  placeholder={t("searchSettings")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label={t("searchSettings")}
+                  className="h-9 w-full rounded-md border border-line bg-surface-2 pl-9 pr-10 text-md text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent-dim cursor-text"
+                />
+                {search && (
+                  <button type="button" onClick={() => setSearch("")} aria-label={t("clearSearch")} className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer">
+                    <IconClose size={16} />
                   </button>
-                </div>
-                {props.savedPresetNames.length === 0 ? (
-                  <p className="text-xs text-zinc-500 text-center py-2">{t("noSavedPresets")}</p>
-                ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {props.savedPresetNames.map((name) => (
-                      <div key={name} className="flex items-center gap-2 px-3 py-2 bg-zinc-800/60 rounded-lg group">
-                        <span className="flex-1 text-sm text-zinc-300 truncate">{name}</span>
-                        <button type="button" onClick={() => props.onLoadPreset(name)} className={`px-2 py-1 rounded text-xs font-medium bg-[#93d119]/80 text-slate-950 hover:bg-[#93d119] transition-all cursor-pointer`}>
-                          {t("loadBtn")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => props.onDeletePreset(name)}
-                          aria-label={t("deletePreset")}
-                          className="px-2 py-1 rounded text-xs font-medium bg-red-600/80 text-white hover:bg-red-600 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
-            )}
-          </div>
-          {props.project && <ProjectSection t={t} search="" matches={matches} project={props.project} /> /* --- project-files --- */}
-        </>
-      )}
-
-      <div className="pt-4 mt-2 border-t border-zinc-800/80">
-        <label className="flex items-center gap-2 cursor-pointer group px-2 w-fit">
-          <input
-            type="checkbox"
-            checked={advanced}
-            onChange={(e) => setAdvancedPersist(e.target.checked)}
-            className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 cursor-pointer"
-            style={{ accentColor: ACCENT }}
-          />
-          <span className="text-sm font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors cursor-pointer">{t("showAdvancedOptions")}</span>
-        </label>
+              {phone && (
+                <button type="button" onClick={() => setSheetOpen(false)} aria-label={site("studio.closeSettings")} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11">
+                  <IconClose />
+                </button>
+              )}
+            </div>
+            <div id="studio-panel-body" className="studio-panel-body">
+              {panelBody()}
+            </div>
+            <div className="studio-panel-foot">
+              {resettable && !search ? (
+                <Button variant="ghost" size="sm" className="-ml-2" icon={<IconReset size={16} />} onClick={() => props.onResetSection(resettable)}>
+                  {t("resetSection")}
+                </Button>
+              ) : (
+                <span />
+              )}
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2 hover:text-ink">
+                <input type="checkbox" className="switch" checked={advanced} onChange={(e) => setAdvancedPersist(e.target.checked)} />
+                <span>{t("showAdvancedOptions")}</span>
+              </label>
+            </div>
+          </aside>
+        </div>
       </div>
-    </div>
+      {paletteOpen && <CommandPalette entries={paletteEntries} icons={railIcons} onChoose={choosePalette} onClose={() => setPaletteOpen(false)} />}
     </UnlimitedProvider>
   );
+}
+
+/**
+ * --- site-redesign --- The control a palette entry names, inside the open panel: the element labelled with it (a slider,
+ * a switch, a picker) or the first control next to its label.
+ */
+function findControl(panel: HTMLElement, label: string): HTMLElement | null {
+  const named = [...panel.querySelectorAll<HTMLElement>("[aria-label], [aria-labelledby]")].find((el) => {
+    const own = el.getAttribute("aria-label");
+    if (own) return own === label;
+    const ids = (el.getAttribute("aria-labelledby") ?? "").split(/\s+/).filter(Boolean);
+    return ids.some((id) => (document.getElementById(id)?.textContent ?? "").trim() === label);
+  });
+  if (named) return named;
+  const text = [...panel.querySelectorAll<HTMLElement>("label, span, p, h3, h4, legend")].find((el) => (el.firstChild?.textContent ?? el.textContent ?? "").trim() === label);
+  if (!text) return null;
+  if (text instanceof HTMLLabelElement && text.htmlFor) return document.getElementById(text.htmlFor);
+  const scope = text.parentElement ?? text;
+  return scope.querySelector<HTMLElement>("input, select, textarea, button, [tabindex]") ?? text;
 }
 
 /** Settings that the "Reset Category" buttons restore, per section. */

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Tooltip from "../Tooltip";
-import { ResetButton, Searchable, Slider, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, Slider, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import {
@@ -112,14 +112,13 @@ function ObstacleRow({ t, obstacle: o, index, onChange, onRemove }: { t: Transla
  * set with each row's x / y sliders or on the canvas – before the start or while paused an obstacle can be dragged there,
  * and Backspace deletes the selected one. The obstacles play in the ring modes; in the others the section says so and keeps the layout.
  */
-export default function ObstaclesSection({ t, search, matches, settings: s, update, onReset }: ObstaclesSectionProps) {
+export default function ObstaclesSection({ t, search, matches, settings: s, update }: ObstaclesSectionProps) {
   const [kind, setKind] = useState<ObstacleKind>("peg");
   const plays = supportsObstacles(s.mode);
   const full = s.obstacles.length >= MAX_OBSTACLES;
   const setList = (obstacles: EditorObstacle[]) => update({ obstacles });
   return (
     <div className="space-y-4" data-testid="obstacles-section">
-      <ResetButton search={search} t={t} section="obstacles" onReset={onReset} />
       {!plays && <p className="text-xs text-amber-500/90 leading-relaxed">{t("obstaclesModeNote")}</p>}
       <Searchable search={search} matches={matches} labelKey="obstacleAdd">
         <div className="space-y-2">

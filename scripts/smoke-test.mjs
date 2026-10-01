@@ -104,6 +104,15 @@ const loadNote = () => {
 /** --- review fix (ui-i18n) --- the panel's ON/OFF toggles are switches named by their label: a name that starts with `label`. */
 const switchName = (label) => new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
 
+/**
+ * --- site-redesign --- the mode cards live in the studio's mode picker: open it from the stage strip's mode button, then
+ * click the card (the picker closes on a pick).
+ */
+const pickModeCard = async (name) => {
+  await page.getByTestId("stage-strip").getByRole("button").first().click();
+  await page.locator('dialog [role="button"]', { hasText: name }).first().click();
+};
+
 /** Sets a React-controlled range input the way a user drag would (runs in the page). */
 const setRangeValue = (el, value) => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -883,7 +892,7 @@ check("language switch to Spanish", page.url().includes("/es/simulator/"), `(${p
 
 // 8. Mode card on the simulator page switches the mode in place
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
-await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+await pickModeCard("Portal");
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
 
@@ -2046,7 +2055,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const targetTexts = (await canvasData()).captionTexts ?? "";
   check("a question answered at the finish holds the end screen until the answer is seen", answered && heldAtReveal && endScreen && targetTexts.includes("Done? → YES!"), `(revealed=${answered}, held=${heldAtReveal}, end screen=${endScreen}, "${targetTexts}")`);
   await page.goto(`${BASE}/en/simulator/?mode=classic&cap=${encodeURIComponent(cap)}`, { waitUntil: "networkidle" });
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   const after = new URL(page.url()).searchParams;
   check("captions carry over a mode change", after.get("mode") === "portal" && after.get("cap") === cap, `(mode=${after.get("mode")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
@@ -2139,7 +2148,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const at = (ax, ay) => ({ x: box.x + box.width / 2 + ax * R, y: box.y + box.height / 2 + ay * R });
   /** Lets the page commit a change (React state → URL) and the canvas draw a frame or two. */
   const settle = () => page.waitForTimeout(250);
-  const sectionButtonsClassic = await page.getByRole("button", { name: /^🚧/ }).count();
+  const sectionButtonsClassic = await page.getByRole("button", { name: "Obstacles", exact: true }).count();
   await page.getByRole("button", { name: /Obstacles/ }).first().click();
   const rows = await page.getByTestId("obstacle-row").count();
   const boost = await sliderValue("Bumper Boost");
@@ -2254,7 +2263,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   // Outside the ring modes the section is not offered and nothing is drawn (the layout stays in the link).
   await page.goto(`${BASE}/en/simulator/?mode=drop&obs=${encodeURIComponent(layout)}`, { waitUntil: "networkidle" });
   await settle();
-  const offered = await page.getByRole("button", { name: /^🚧/ }).count();
+  const offered = await page.getByRole("button", { name: "Obstacles", exact: true }).count();
   check(
     "no Obstacles section and no obstacles outside the ring modes (the layout stays in the link)",
     sectionButtonsClassic === 1 && offered === 0 && (await canvasData()).obstacles === undefined && obsParam() === layout,
@@ -2395,7 +2404,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   );
   await page.screenshot({ path: path.join(outDir, "sim-obstacles-captions.png") });
   await page.goto(link, { waitUntil: "networkidle" });
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   const after = new URL(page.url()).searchParams;
   check("obstacles and captions both carry over a mode change", after.get("mode") === "portal" && after.get("obs") === layout && after.get("cap") === cap, `(mode=${after.get("mode")}, obs=${after.get("obs")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
@@ -2871,7 +2880,7 @@ const instrumentOscillators = () =>
     check("a Forced Winner race is won by the chosen team", won && data.teamWinner === "Green" && data.rigWinner === "2" && /Green wins/.test(winnerNote), `(winner=${data.teamWinner}, rig winner=${data.rigWinner}, stats=${data.teamStats}, note="${winnerNote}")`);
   }
   // The story carries over a mode change, with the roster it belongs to.
-  await page.locator('[role="button"]', { hasText: "Shatter" }).first().click();
+  await pickModeCard("Shatter");
   await page.waitForTimeout(500);
   {
     const after = rigQuery();
@@ -2915,7 +2924,7 @@ const instrumentOscillators = () =>
     await page.getByRole("button", { name: /Start Simulator/ }).click();
     await page.waitForTimeout(800);
     const data = await canvasData();
-    await page.locator('[role="button"]', { hasText: "Classic" }).first().click();
+    await pickModeCard("Classic");
     await page.waitForTimeout(500);
     const classicNote = await page.getByTestId("rigged-note").innerText().catch(() => "");
     const whyInClassic = await page.getByTestId("forced-winner-never-escape").isVisible().catch(() => false);
@@ -3044,7 +3053,7 @@ const instrumentOscillators = () =>
   await page.getByPlaceholder("Search settings...").fill("");
   check("the search box finds the Timeline section", found, `(visible=${found})`);
   await page.goto(`${BASE}/en/simulator/?mode=classic&kf=${kf}`, { waitUntil: "networkidle" });
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   const after = new URL(page.url()).searchParams;
   const markersAfter = await page.getByTestId("timeline-marker").count();
@@ -4245,7 +4254,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
   const data = await canvasData();
   check("the Teams roster names the squares (colour names for the rest)", finished && ["Alpha", "Beta", "Green"].includes(data.arenaWinner), `(winner=${data.arenaWinner})`);
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   check("the arena data leaves with the mode", (await canvasData()).arenaGame === undefined);
 }
@@ -5221,7 +5230,7 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     `(reached arena B=${cancelled.reached}, idle=${idle}, found shown=${/Found!/.test(cancelText)}, ar=${cancelAr}, modes ${cancelData.splitModes})`,
   );
   const switched = await searchSecondArena();
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.getByRole("button", { name: /Find 30s Simulation/ }).waitFor({ timeout: 30000 }).catch(() => {});
   // the aborted search ends within a batch or two (before the fix, its "found" result then put arena A back into Classic)
   await page.waitForTimeout(Math.min(20000, 2 * switched.batchMs + 1500));

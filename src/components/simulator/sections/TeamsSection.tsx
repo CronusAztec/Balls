@@ -1,7 +1,7 @@
 "use client";
 
 import Tooltip from "../Tooltip";
-import { ColorPicker, ResetButton, Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import { ColorPicker, Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap } from "@/lib/physics/ballStats";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
@@ -116,7 +116,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
  * scoreboard corner. Only the canvas reads the roster; the engine only learns the ball count, like "two balls"
  * before it, so a roster change restarts nothing but the balls it adds or removes.
  */
-export default function TeamsSection({ t, search, matches, settings: s, update, onReset }: TeamsSectionProps) {
+export default function TeamsSection({ t, search, matches, settings: s, update }: TeamsSectionProps) {
   const names = defaultTeamNames(t);
   const on = s.teams.length > 0;
   const plays = MULTI_BALL_MODES.includes(s.mode) || s.mode === "stringBattle"; // --- odd-string-battle --- (its balls wear the roster)
@@ -127,7 +127,6 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
   const editTeam = (index: number, patch: Partial<TeamEntry>) => update({ teams: s.teams.map((team, i) => (i === index ? { ...team, ...patch } : team)) });
   return (
     <div className="space-y-4">
-      <ResetButton search={search} t={t} section="teams" onReset={onReset} />
       <Searchable search={search} matches={matches} labelKey="teams">
         <div className="space-y-2">
           <Toggle t={t} labelKey="teams" tipKey="teamsTip" value={on} onChange={(v) => setRoster(v ? resizeRoster([], Math.max(2, effectiveBallCount(s)), names) : [])} caseStyle="title" />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Tooltip from "../Tooltip";
-import { ResetButton, Searchable, Slider, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, Slider, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import {
@@ -192,7 +192,7 @@ function CaptionForm({ t, caption, index, onChange }: { t: Translate; caption: C
  * it) and one "Add" button per caption type. The captions are drawn by the canvas only (captionsRenderer.ts), so
  * editing them never touches the run.
  */
-export default function CaptionsSection({ t, search, matches, settings: s, update, onReset }: CaptionsSectionProps) {
+export default function CaptionsSection({ t, search, matches, settings: s, update }: CaptionsSectionProps) {
   const [open, setOpen] = useState(0);
   const captions = s.captions;
   const searching = !!search;
@@ -211,7 +211,6 @@ export default function CaptionsSection({ t, search, matches, settings: s, updat
   if (!listShown) return null;
   return (
     <div className="space-y-4" data-testid="captions-section">
-      <ResetButton search={search} t={t} section="captions" onReset={onReset} />
       <p className="text-xs text-zinc-400 leading-relaxed">
         {t("captionsDesc")}
         <Tooltip text={t("captionsTip")} />
