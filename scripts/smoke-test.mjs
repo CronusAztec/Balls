@@ -225,10 +225,13 @@ const recordingRetry = (minWindows, floor) => async () => {
   await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
     (async () => {
-      await page.getByRole("button", { name: /Record Video/ }).click();
+      // (a page that cannot record again right now costs 10 s, not the default 30; a run that finishes meanwhile ends – and
+      // downloads – the recording by itself)
+      await page.getByRole("button", { name: /Record Video/ }).click({ timeout: 10000 });
       await page.waitForTimeout(300);
       f = await pageFrameRates(3500);
-      await page.getByRole("button", { name: /Stop & Export/ }).click();
+      const stop = page.getByRole("button", { name: /Stop & Export/ });
+      if (await stop.isVisible().catch(() => false)) await stop.click({ timeout: 10000 });
     })(),
   ]);
   return { timingOk: fpsOk(f, minWindows, floor), extra: `(recorded again: ${fpsNote(f)})` };
@@ -3831,8 +3834,9 @@ const plFrameRates = async (ms) => {
   const gaps = first.slice(1).map((o, i) => Math.round(o.t - first[i].t));
   await timingCheck(
     "power layers: a hit every bounce period, each level the next note of the scale, at 30+ fps",
-    Number(mid.plHits) >= 5 && midis.join(",") === "60,62,64,65" && gaps.every((g) => g > 800 && g < 1200),
-    fpsOk(fps, 8, 30),
+    // (the note gaps are wall-clock times of the oscillator starts: timing, like the frame rate)
+    Number(mid.plHits) >= 5 && midis.join(",") === "60,62,64,65",
+    gaps.every((g) => g > 800 && g < 1200) && fpsOk(fps, 8, 30),
     `(hits ${mid.plHits}/${mid.plTotalHits}, first notes MIDI ${midis.join("/")} ${gaps.join("/")} ms apart, ${tones.length} tones, ${fpsNote(fps)}, floor 30${loadNote()})`,
   );
   check(
