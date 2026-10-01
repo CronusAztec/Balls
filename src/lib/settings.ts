@@ -62,7 +62,7 @@ import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
 import type { BeatSourceKind } from "@/lib/simulation/beatSource";
 // --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
-import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
+import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, isIntegerRange, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 // --- uncap-all --- Uncapped everything: the numeric Bounciness (the uncapped Bouncier) and the memory-safety ceilings
 import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastMin, bouncinessOf, pastMemoryCeiling } from "@/lib/uncap";
 // --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
@@ -1122,37 +1122,31 @@ function formatNumber(n: number) {
 /** The most characters of the Top / Bottom Text and the watermark a link keeps (and so a preset or a project file too). */
 const MAX_URL_TEXT = 60;
 /**
- * Numbers whose slider range is a range of meaning, kept inside it at both ends: the gap is a fraction of the ring,
- * Color Match has seven colours, the text has to fit the frame, the slicer's lengths are audio grains. Every other
- * number only has a floor: a value past its slider's maximum is kept as it is – extreme values are a feature, and the
- * page degrades gracefully under them – while one below its minimum (a negative ball size, no rings at all) is invalid.
- */
-const RANGE_BOUNDED_FIELDS: ReadonlySet<string> = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
-/**
  * The core numbers of `NUMERIC_URL_KEYS`: no feature's own resolver checks them again (the music bed, the physics extras,
- * the modes' and features' numbers keep their own rules), so `clampToRange()` is their check.
+ * the modes' and features' numbers keep their own rules), so `floorToRange()` is their check.
  */
 const CORE_NUMERIC_FIELDS: readonly NumericKey[] = ["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"];
 const CORE_NUMERIC_FIELD_SET: ReadonlySet<string> = new Set(CORE_NUMERIC_FIELDS);
 
 /**
  * A number for `field` from a link or a stored preset: not a finite number → `fallback`; below the field's slider
- * minimum → that minimum; above its maximum → kept (clamped only for `RANGE_BOUNDED_FIELDS`); whole numbers for a
- * whole-number slider step (counts). A field without a range is taken as it is.
+ * minimum → that minimum (a negative ball size or no rings at all is invalid); above its maximum → kept exactly
+ * (--- uncap-all --- no field has a maximum: the gap, Color Match's colours, the text size and the slicer included);
+ * whole numbers for a count (a slider stepping by one, `isIntegerRange()` – a speed stepping by ten keeps its
+ * decimals). A field without a range is taken as it is. (--- uncap-all --- named for what it does: a floor, never a ceiling.)
  */
-export function clampToRange(field: string, value: number, fallback: number): number {
+export function floorToRange(field: string, value: number, fallback: number): number {
   const range = (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
   if (!Number.isFinite(value)) return fallback;
   if (!range) return value;
-  let v = Math.max(range.min, value);
-  if (RANGE_BOUNDED_FIELDS.has(field)) v = Math.min(range.max, v);
-  return Number.isInteger(range.step) ? Math.round(v) : v;
+  const v = Math.max(range.min, value);
+  return isIntegerRange(range) ? Math.round(v) : v; // --- uncap-all --- (the same whole-number rule as the uncapped readers)
 }
 // --- end review fix (recording-export) ---
 
 /**
  * Reads settings from a URL; unknown or invalid values fall back to the defaults, and a number below its slider's minimum
- * is lifted onto it (`clampToRange()`: a link with `r=-5` or `wc=0` cannot crash the page; big values stay big).
+ * is lifted onto it (`floorToRange()`: a link with `r=-5` or `wc=0` cannot crash the page; big values stay big, exactly).
  */
 export function settingsFromSearchParams(params: URLSearchParams): SimulatorSettings {
   const modeParam = params.get("mode");
@@ -1161,8 +1155,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
     const raw = params.get(key);
     if (raw === null) continue;
-    // --- review fix (recording-export) --- a core number through clampToRange(); the others as before (their features check them)
-    if (CORE_NUMERIC_FIELD_SET.has(field)) (settings as unknown as Record<string, number>)[field] = clampToRange(field, raw.trim() === "" ? NaN : Number(raw), settings[field]);
+    // --- review fix (recording-export) --- a core number through floorToRange(); the others as before (their features check them)
+    if (CORE_NUMERIC_FIELD_SET.has(field)) (settings as unknown as Record<string, number>)[field] = floorToRange(field, raw.trim() === "" ? NaN : Number(raw), settings[field]);
     else {
       const value = Number(raw);
       if (Number.isFinite(value)) (settings as unknown as Record<string, number>)[field] = value;
@@ -1531,11 +1525,11 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
   const defaults = defaultSettings(mode);
   const merged = { ...defaults, ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
-  // --- review fix (recording-export) --- the core numbers like a link's (`clampToRange()`), the enumerations the URL reader
+  // --- review fix (recording-export) --- the core numbers like a link's (`floorToRange()`), the enumerations the URL reader
   // checks too, the texts at a link's length (a share link made after loading keeps them whole) and no pre-rename watermark
   for (const field of CORE_NUMERIC_FIELDS) {
     const value = merged[field] as unknown;
-    (merged as unknown as Record<string, number>)[field] = clampToRange(field, typeof value === "number" ? value : NaN, defaults[field]);
+    (merged as unknown as Record<string, number>)[field] = floorToRange(field, typeof value === "number" ? value : NaN, defaults[field]);
   }
   merged.recordingResolution = (RESOLUTIONS as readonly string[]).includes(preset.recordingResolution as string) ? (preset.recordingResolution as string) : defaults.recordingResolution;
   merged.wallBreakStyle = (WALL_BREAK_STYLES as readonly string[]).includes(preset.wallBreakStyle as string) ? (preset.wallBreakStyle as WallBreakStyle) : defaults.wallBreakStyle;

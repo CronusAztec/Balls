@@ -4,6 +4,7 @@ import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/inter
 import { MODE_IDS } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { SITE_DOMAIN } from "@/lib/site";
+import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
 
 describe("settings serialisation", () => {
   it("round-trips through URL parameters", () => {
@@ -176,7 +177,6 @@ describe("ball interaction settings", () => {
 // --- review fix (recording-export) --- numbers, enumerations and texts from links, share codes, batch lists, presets and project files
 describe("link and preset validation (review fix: recording-export)", () => {
   const CORE: Record<string, keyof SimulatorSettings> = { g: "gravity", s: "ballSpeed", r: "ballRadius", wc: "wallCount", wt: "wallThickness", gap: "gapSize", rs: "rotationSpeed", tt: "trailThickness", at: "accumulationTime", sc: "spikeCount", msc: "multiplySpawnCount", tc: "targetCount", cmc: "colorMatchColorCount", gr: "growRate", ts: "textSize", slms: "sliceMs", slfade: "sliceFadeMs" };
-  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
   const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
 
   it("lifts a number below its slider's minimum onto it and keeps a big one (no crash on r=-5, no cap on wc)", () => {
@@ -196,7 +196,7 @@ describe("link and preset validation (review fix: recording-export)", () => {
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&gap=0.37")).gapSize).toBeCloseTo(0.37);
   });
 
-  it("keeps every core number at or above its minimum; bounded ones (gap, colours, text size, slicer) at or below their maximum", () => {
+  it("keeps every core number at or above its minimum and never caps it (--- uncap-all --- the gap, colours, text size and slicer too)", () => {
     for (const [key, field] of Object.entries(CORE)) {
       const range = rangeOf(field)!;
       expect(range, field).toBeDefined();
@@ -204,22 +204,21 @@ describe("link and preset validation (review fix: recording-export)", () => {
       expect(low, `${key}=min-1e6`).toBe(range.min);
       const high = settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.max + 1e6}`))[field] as number;
       expect(Number.isFinite(high), `${key}=max+1e6`).toBe(true);
-      if (BOUNDED.has(field)) expect(high, `${key}=max+1e6`).toBe(range.max);
-      else expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
+      expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
     }
   });
 
-  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept unless bounded)", () => {
+  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept: --- uncap-all --- no maximum)", () => {
     for (const field of Object.values(CORE)) {
       const range = rangeOf(field)!;
       const low = presetToSettings({ mode: "classic", [field]: range.min - 1e6 } as Partial<SimulatorSettings>);
       expect(low[field], `preset ${field}=min-1e6`).toBe(range.min);
       const high = presetToSettings({ mode: "classic", [field]: range.max + 1e6 } as Partial<SimulatorSettings>);
-      expect(high[field], `preset ${field}=max+1e6`).toBe(BOUNDED.has(field) ? range.max : range.max + 1e6);
+      expect(high[field], `preset ${field}=max+1e6`).toBe(range.max + 1e6);
     }
   });
 
-  it("no numeric link key with a slider range comes back below its minimum (the features' own checks included)", () => {
+  it("no numeric link key with a slider range comes back below its minimum (the features' own checks included; --- uncap-all --- signed settings go past both ends)", () => {
     // Every numeric key the writer emits: each numeric field of the defaults nudged off its default and written out.
     const base = defaultSettings("classic");
     const numeric = Object.keys(base).filter((k) => typeof (base as unknown as Record<string, unknown>)[k] === "number" && rangeOf(k));
@@ -232,6 +231,7 @@ describe("link and preset validation (review fix: recording-export)", () => {
     }
     for (const field of Object.values(CORE)) expect(keyOf.get(field), field).toBeDefined();
     for (const [field, key] of keyOf) {
+      if (SIGNED_KEYS.has(field)) continue; // --- uncap-all --- (wind the other way, a pendulum started past half a turn, any seed)
       const range = rangeOf(field)!;
       const value = (settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.min - 1e6}`)) as unknown as Record<string, number>)[field];
       expect(Number.isFinite(value) && value >= range.min, `${key} (${field}) = ${value}`).toBe(true);

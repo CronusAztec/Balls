@@ -203,13 +203,16 @@ describe("uncap-all: every value past its slider travels exactly", () => {
     expect([back.ballSpeed, back.gravity, back.windX]).toEqual([1234.56789, 0.000123, -7.25]);
   });
 
-  it("rejects only invalid values: NaN, ±Infinity, below the minimum – back to the default", () => {
+  it("rejects only invalid values: NaN, ±Infinity, text – back to the default; below the minimum – lifted onto it", () => {
     const d = defaultSettings("classic");
     for (const bad of ["NaN", "Infinity", "-Infinity", "abc", "-5", "1e999"]) {
       const s = settingsFromSearchParams(new URLSearchParams(`mode=classic&s=${bad}&r=${bad}&wc=${bad}&g=${bad}`));
-      expect([s.ballSpeed, s.ballRadius, s.wallCount]).toEqual([d.ballSpeed, d.ballRadius, d.wallCount]);
+      // (a finite number below the minimum is lifted onto it – the link check of the recording-export review fix, as every
+      // feature's own reader does – so a link with r=-5 or wc=0 cannot crash the page; anything else is the default)
+      const want = bad === "-5" ? [ranges.ballSpeed.min, ranges.ballRadius.min, ranges.wallCount.min] : [d.ballSpeed, d.ballRadius, d.wallCount];
+      expect([bad, s.ballSpeed, s.ballRadius, s.wallCount]).toEqual([bad, ...want]);
     }
-    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&g=-1")).gravity).toBe(d.gravity);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&g=-1")).gravity).toBe(ranges.gravity.min);
     // Signed settings go past both ends.
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wx=-1000")).windX).toBe(-1000);
   });
@@ -383,9 +386,15 @@ describe("uncap-all: Find Simulation says when a run never ends", () => {
       expect(plain).toMatchObject({ found: false, neverEnded: true, seedsTested: 4 });
       const sliced = await findSimulationBudgeted(request(0.5, { ballSpeed: 1e6, bounciness: 3, bouncierEnabled: true }), () => {}, undefined, () => performance.now(), (fn) => setTimeout(fn, 0));
       expect(sliced).toMatchObject({ found: false, neverEnded: true });
-      // A search that sees runs end does not say so.
-      const normal = await findSimulation({ ...request(120), maxSeeds: 2 }, () => {});
-      expect(normal.neverEnded).toBeUndefined();
+      // A search that sees runs end does not say so. (The finder seeds from the clock, and about a quarter of default
+      // Classic runs outlast 120 s: a fixed clock makes the two seeds ones that end, so the check cannot flake.)
+      const clock = vi.spyOn(Date, "now").mockReturnValue(12_345);
+      try {
+        const normal = await findSimulation({ ...request(120), maxSeeds: 2 }, () => {});
+        expect(normal.neverEnded).toBeUndefined();
+      } finally {
+        clock.mockRestore();
+      }
     } finally {
       vi.unstubAllGlobals();
     }

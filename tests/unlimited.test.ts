@@ -81,12 +81,14 @@ describe("No limits: parsing", () => {
     const d = defaultSettings("classic");
     for (const bad of ["-5", "NaN", "Infinity", "-Infinity", "abc", ""]) {
       const s = settingsFromSearchParams(new URLSearchParams(`mode=classic&inf=1&s=${bad}&r=${bad}&nb=${bad}&wc=${bad}&cpn=${bad}`));
-      expect(s.ballSpeed).toBe(d.ballSpeed);
-      expect(s.ballRadius).toBe(d.ballRadius);
+      // --- uncap-all --- the switch no longer gates parsing: a finite number below the minimum is lifted to it, as a link
+      // always did (the core numbers too, since the recording-export review fix: r=-5 or wc=0 cannot crash the page)
+      const lifted = bad === "-5";
+      expect(s.ballSpeed).toBe(lifted ? ranges.ballSpeed.min : d.ballSpeed);
+      expect(s.ballRadius).toBe(lifted ? ranges.ballRadius.min : d.ballRadius);
       expect(s.ballCount).toBe(d.ballCount);
-      expect(s.wallCount).toBe(d.wallCount);
-      // --- uncap-all --- the switch no longer gates parsing: a finite count below the minimum is lifted to it, as a link always did
-      expect(s.cpCount).toBe(bad === "-5" ? ranges.cpCount.min : d.cpCount);
+      expect(s.wallCount).toBe(lifted ? ranges.wallCount.min : d.wallCount);
+      expect(s.cpCount).toBe(lifted ? ranges.cpCount.min : d.cpCount);
     }
     expect(parseUnlimitedValue("ballSpeed", -5, ranges.ballSpeed)).toBeNull();
     expect(parseUnlimitedValue("ballSpeed", Number.NaN, ranges.ballSpeed)).toBeNull();
@@ -140,7 +142,7 @@ describe("No limits: parsing", () => {
     const loaded = presetToSettings(preset);
     expect(loaded.unlimited).toBe(true);
     expect([loaded.ballSpeed, loaded.wallCount, loaded.ballCount, loaded.cpCount]).toEqual([1e6, 1e5, 1e7, 50_000]);
-    expect(loaded.ballRadius).toBe(defaultSettings("classic").ballRadius);
+    expect(loaded.ballRadius).toBe(ranges.ballRadius.min); // (lifted onto the minimum, like a link's: the recording-export review fix)
     expect(loaded.gravity).toBe(defaultSettings("classic").gravity);
     // --- uncap-all --- without the switch the preset keeps its values too.
     const off = presetToSettings({ ...preset, unlimited: false });
