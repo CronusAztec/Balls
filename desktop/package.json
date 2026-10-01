@@ -1,7 +1,7 @@
 {
   "name": "jumpingballslive-desktop",
   "productName": "JumpingBallsLive",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "JumpingBallsLive for Windows: the whole simulator in a desktop app, with GPU video rendering and a built-in AI studio",
   "author": "JumpingBallsLive",
