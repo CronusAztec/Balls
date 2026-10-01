@@ -154,6 +154,12 @@ describe("split-screen arenas", () => {
     const plan = { arenas: [{ label: "A" }, { label: "B" }], worlds: [], shared: { gravity: on.gravity, ballSpeed: on.ballSpeed, ballColor: on.ballColor } };
     const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 5, maxSeeds: 1, maxSimTimeSec: 60, physicsConfig: { ...page.config }, mode: "classic", modeSettings };
     expect(arenaFinderRequest(request, plan, 1).physicsConfig.respawnEvery).toBe(1);
+    // A longer period set during the race: every arena goes on at its next multiple (6 s, 9 s), none waits for 3 s × 4.
+    const longer: SimulatorSettings = { ...on, respawnEvery: 3 };
+    page.setConfig(respawnConfigOf(longer));
+    runner.sync(page, longer, HOOKS);
+    for (let i = 0; i < 60 * 6; i++) for (const e of runner.getEngines()) e.update(STEP, 0);
+    expect(runner.getEngines().map((e) => e.getRespawnCount())).toEqual([5, 5]);
   });
 });
 

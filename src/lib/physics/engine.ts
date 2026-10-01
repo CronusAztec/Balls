@@ -1327,8 +1327,12 @@ export class PhysicsEngine {
     for (let i = 0; i < walls.length; i++) if (walls[i].radius > outer) outer = walls[i].radius;
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
+    // --- gerald-conveyor --- the Conveyor Belt's rings arena: a ball at the hatch, on the belt or in the loading tube is
+    // outside the rings without having escaped them – only the balls launched into the rings count (`inRings()`)
+    const conveyor = this.currentMode === this.conveyorMode;
     for (let i = 0; i < this.balls.length; i++) {
       const ball = this.balls[i];
+      if (conveyor && !this.conveyorMode.inRings(ball)) continue;
       const limit = outer + ball.radius + ESCAPE_MARGIN;
       const dx = ball.x - cx;
       const dy = ball.y - cy;

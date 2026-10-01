@@ -44,14 +44,15 @@ import {
   type ConveyorSettings,
   type GapSteer,
 } from "@/lib/physics/modes/conveyor";
-import { RESPAWN_MAX_BALLS, RESPAWN_MODES, RESPAWN_RANGES, RESPAWN_SPREAD, respawnApplies, respawnConfigOf, respawnDue, respawnSchedule, resolveRespawnEvery } from "@/lib/physics/respawn";
+import { RESPAWN_MAX_BALLS, RESPAWN_MODES, RESPAWN_RANGES, RESPAWN_SPREAD, RespawnTimer, respawnApplies, respawnConfigOf, respawnDue, respawnSchedule, resolveRespawnEvery } from "@/lib/physics/respawn";
 import { CLICK_TONE, DEFAULT_HUM_FREQUENCY, HUM_TONE, MAX_HUM_SEC, MIN_HUM_SEC, conveyorLevel, humLength, scheduleConveyorClick, scheduleConveyorHum } from "@/lib/audio/conveyorTones";
-import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
+import { MODE_IDS, type Ball, type ModeContext, type ModeId, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
-import { RANGES, defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
-import { playArenaSound, type ArenaSoundSink } from "@/lib/simulation/multi";
+import { MultiArenaRunner, arenaPhysicsConfig, playArenaSound, type ArenaHooks, type ArenaSoundSink } from "@/lib/simulation/multi";
+import { CaptionTracker } from "@/lib/captions";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { CONVEYOR_DATA_KEYS, ConveyorDataset, DEFAULT_CONVEYOR_LABELS, conveyorBanner, conveyorCounter } from "@/components/simulator/conveyorRenderer";
@@ -513,6 +514,81 @@ describe("a run", () => {
     expect(engine.consumeSoundEvents().filter((ev) => ev.conveyor)).toEqual([]);
   });
 
+  it("rings: a ball counts as escaped once it is out of the rings – not while it waits, rides the belt or slides down the tube", () => {
+    const engine = conveyorEngine({}, 11);
+    const v = engine.getConveyorView();
+    const gerald = engine.getBalls()[0];
+    engine.update(STEP, 0);
+    engine.consumeSoundEvents();
+    // On the belt, outside the rings from its first step – yet nothing has escaped (the first escape captions, split-screen
+    // races and Find Simulation read).
+    expect(engine.getFirstEscapeMs()).toBe(-1);
+    expect(engine.hasBallEscaped(gerald.id)).toBe(false);
+    // A question caption keeps its answer until the first ball is out of the rings.
+    const captions = new CaptionTracker();
+    while (v.escaped === 0 && engine.getElapsedMs() < 60_000) {
+      expect(captions.update(engine).revealAtSec).toBe(-1);
+      expect(engine.getFirstEscapeMs()).toBe(-1);
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+    }
+    expect(v.escaped).toBe(1);
+    expect(v.lastEscapeMs).toBeGreaterThan(conveyorDropMs(0, 3, conveyorRideSec(v.layout!)));
+    // The engine's books note it within a step or two (their escape margin is a few px wider than the counter's).
+    while (engine.getFirstEscapeMs() < 0 && engine.getElapsedMs() < v.lastEscapeMs + 200) {
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+    }
+    expect(engine.getFirstEscapeMs()).toBeGreaterThanOrEqual(v.lastEscapeMs);
+    expect(engine.getFirstEscapeMs() - v.lastEscapeMs).toBeLessThanOrEqual(3 * STEP);
+    expect(captions.update(engine).revealAtSec).toBeCloseTo(engine.getElapsedMs() / 1000, 9);
+  });
+
+  it("rings in a split-screen race: each arena's mark is its first ball out of the rings, not its first step on the belt", () => {
+    const s: SimulatorSettings = { ...defaultSettings("conveyor"), arenaCount: 2, arenas: [{ label: "A", seed: 11 }, { label: "B", seed: 12 }] };
+    const hooks: ArenaHooks = {
+      create: (page) => new PhysicsEngine({ ...page.config }),
+      init: (engine, arena, seed, world) => {
+        engine.setConfig({ ...arenaPhysicsConfig(arena), width: world.width, height: world.height });
+        engine.setSeed(seed);
+        engine.initMode(arena.mode);
+      },
+      initPage: (page) => page.initMode(page.getCurrentModeName()),
+      live: () => {},
+    };
+    const page = new PhysicsEngine({ ...arenaPhysicsConfig(s), width: 800, height: 450 });
+    page.setSeed(11);
+    page.initMode("conveyor");
+    const runner = new MultiArenaRunner();
+    runner.sync(page, s, hooks);
+    const engines = runner.getEngines();
+    expect(engines).toHaveLength(2);
+    const firstOut = [-1, -1];
+    for (let i = 0; i < 60 * 60 && runner.marksOf().some((m) => m.escapeMs < 0); i++) {
+      for (const e of engines) {
+        e.update(STEP, 0);
+        e.consumeSoundEvents();
+      }
+      runner.afterFrame(i * STEP);
+      engines.forEach((e, k) => {
+        if (firstOut[k] < 0 && e.getConveyorView().escaped > 0) firstOut[k] = e.getConveyorView().lastEscapeMs;
+      });
+      // Every arena's first ball rides the belt from the first step: no mark for it.
+      if (i < 60) expect(runner.marksOf().map((m) => m.escapeMs), `step ${i}`).toEqual([-1, -1]);
+    }
+    const marks = runner.marksOf().map((m) => m.escapeMs);
+    marks.forEach((ms, k) => {
+      expect(firstOut[k], `arena ${k}`).toBeGreaterThan(1000);
+      expect(ms, `arena ${k}`).toBeGreaterThanOrEqual(firstOut[k]);
+      expect(ms - firstOut[k], `arena ${k}`).toBeLessThanOrEqual(3 * STEP);
+    });
+    // The race goes to the arena whose first ball got out first – no tie at the belt's first step.
+    const standings = runner.standings();
+    expect(standings.kind).toBe("escaped");
+    expect(standings.winners).toEqual([marks[0] < marks[1] ? 0 : 1]);
+    expect(standings.timeMs).toBe(Math.min(...marks));
+  });
+
   it("the schedule runs on the simulation clock: the same drops at any frame rate", () => {
     const drops: string[] = [];
     for (const frame of [STEP, STEP / 3, 7, 50]) {
@@ -838,6 +914,62 @@ describe("the respawn timer of Classic and Multiply", () => {
     engine.setConfig(respawnConfigOf({ respawnEvery: 0 }));
     for (let i = 0; i < 180; i++) engine.update(STEP, 0);
     expect(engine.getRespawnCount()).toBe(2);
+  });
+
+  /** The simulation seconds of the respawns of a timer driven at 60 Hz for `sec` seconds, `periodAt(t)` its period at t s. */
+  function respawnTimes(sec: number, periodAt: (t: number) => number, mode: ModeId = "classic"): number[] {
+    const balls: Ball[] = [];
+    const ctx = {
+      config: { ...config, respawnEvery: periodAt(0) },
+      getCircularWalls: () => [{ radius: 150, gaps: [{ startAngle: 0, endAngle: 0.4 }] }],
+      getBrokenWalls: () => new Set<number>(),
+      getBalls: () => balls,
+      random: () => 0.5,
+      addBall: () => balls.push({ id: balls.length } as Ball),
+      getNextId: () => balls.length,
+      getLastWallLayer: () => new Map<number, number>(),
+      addPendingSoundEvent: () => undefined,
+    } as unknown as ModeContext;
+    const timer = new RespawnTimer();
+    const out: number[] = [];
+    for (let i = 1; i <= Math.round(sec * 60); i++) {
+      const t = (i * STEP) / 1000;
+      ctx.config.respawnEvery = periodAt(t - STEP / 1000);
+      timer.step(ctx, mode, i * STEP);
+      if (timer.count > out.length) out.push(Math.round(t * 100) / 100);
+    }
+    return out;
+  }
+
+  it("a longer period set mid-run goes on at its next multiple; a shorter one drops one ball at once, never a backlog", () => {
+    const upTo = (n: number) => Array.from({ length: n }, (_, k) => k + 1);
+    // 1 s → 3 s at 10 s: 12, 15, 18 s (the count moves onto the new schedule – it used to wait for 3 s × 11 = 33 s).
+    expect(respawnTimes(19, (t) => (t < 10 ? 1 : 3))).toEqual([...upTo(10), 12, 15, 18]);
+    // 1 s → 2.5 s at 7.2 s: the next multiple of 2.5 s is 7.5 s.
+    expect(respawnTimes(13, (t) => (t < 7.2 ? 1 : 2.5))).toEqual([...upTo(7), 7.5, 10, 12.5]);
+    // 3 s → 1 s at 10 s: one ball at once (the step after the change), then every second – no backlog of 7.
+    expect(respawnTimes(14, (t) => (t < 10 ? 3 : 1))).toEqual([3, 6, 9, 10.02, 11, 12, 13, 14]);
+    // Off for a while and back on with the same period: one ball at once, then its schedule, as before.
+    expect(respawnTimes(9, (t) => (t >= 3.5 && t < 6.2 ? 0 : 2))).toEqual([2, 6.22, 8]);
+    // An unchanged period draws exactly its k × N schedule.
+    expect(respawnTimes(12, () => 3)).toEqual([3, 6, 9, 12]);
+  });
+
+  it("a longer period set from the page mid-run (Multiply, 1 s → 3 s at 10 s) keeps respawning at 12, 15 and 18 s", () => {
+    const engine = createEngineForSettings({ ...config, respawnEvery: 1 }, "multiply", modeSettings, 5);
+    const times: number[] = [];
+    let seen = 0;
+    for (let i = 0; i < 60 * 19; i++) {
+      if (i === 60 * 10) engine.setConfig(respawnConfigOf({ respawnEvery: 3 }));
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+      if (engine.getRespawnCount() > seen) {
+        seen = engine.getRespawnCount();
+        times.push(engine.getElapsedMs() / 1000);
+      }
+    }
+    expect(times).toHaveLength(13);
+    times.forEach((t, k) => expect(t, `respawn ${k + 1}`).toBeCloseTo([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 18][k], 1));
   });
 });
 

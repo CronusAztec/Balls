@@ -9574,6 +9574,69 @@ const bdInstrument = () =>
     `(slider=${value}, search found it=${found}, respawns=${data.respawns}, balls=${data.respawnBalls}, after off: ${query.toString()}, multiply shows it=${multiplyShown}, shatter hides it=${shatterHidden})`,
   );
 }
+{
+  // --- review fix (gerald-conveyor) --- a longer period set mid-run takes over at its next multiple: Multiply respawning every
+  // second, the slider moved to 3 s after a few respawns – the next ones come 3 s apart (they used to stop until the new
+  // schedule caught up with the old count: 3 s × the respawns so far).
+  await page.goto(`${BASE}/en/simulator/?mode=multiply&rse=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const slider = page.getByTestId("respawn-every").locator('input[aria-label="Respawn Every"]');
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.respawns) >= 4, null, { timeout: 15000 }).catch(() => {});
+  if (!(await slider.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  await slider.evaluate(setRangeValue, "3");
+  const atChange = Number((await canvasData()).respawns);
+  const more = await page.waitForFunction((n) => Number(document.querySelector("main canvas")?.dataset.respawns) >= n + 2, atChange, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "Respawn Every lengthened mid-run (1 s → 3 s) goes on respawning at the new period",
+    atChange >= 4 && more && query.get("rse") === "3",
+    `(respawns at the change ${atChange}, now ${data.respawns}, rse=${query.get("rse")})`,
+  );
+}
+{
+  // --- review fix (gerald-conveyor) --- the balls at the hatch, on the belt and in the loading tube are outside the rings
+  // without having escaped them: a question caption keeps its answer until the first ball is out of the rings (captions
+  // carry over a mode change, so a Classic set-up was spoiled as well) ...
+  const cap = "q*c*0*0*p*1.3*ffffff*000000*Will Gerald escape?*YES!";
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&cap=${encodeURIComponent(cap)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const out = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.cvEscaped) >= 1, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const revealed = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.captionReveal === "1", null, { timeout: 5000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(800); // (the answer pops in)
+  const late = await canvasData();
+  check(
+    "conveyor: a question caption keeps its answer while the first ball rides the belt, and reveals it once a ball is out of the rings",
+    early.captionReveal === "0" && early.cvEscaped === "0" && (early.captionTexts ?? "").includes("Will Gerald escape?") && !(early.captionTexts ?? "").includes("YES!") && out && revealed && (late.captionTexts ?? "").includes("Will Gerald escape? → YES!"),
+    `(at 1.5 s: reveal=${early.captionReveal}, escaped=${early.cvEscaped}, "${early.captionTexts}"; then: out=${out}, revealed=${revealed}, escaped=${late.cvEscaped}, "${late.captionTexts}")`,
+  );
+}
+{
+  // ... and a split-screen race goes to the arena whose first ball got out of the rings first, not to a tie at the first step.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&ac=2&al=grid&ar=${encodeURIComponent("A~s11|B~s12")}`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitDrawn === "2", null, { timeout: 15000 }).catch(() => {});
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const marked = await page
+    .waitForFunction(() => (document.querySelector("main canvas")?.dataset.splitMarks ?? "").split(",").every((m) => m.startsWith("e")), null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  const race = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-conveyor-split.png") });
+  const marks = (race.splitMarks || "").split(",").map((m) => (m.startsWith("e") ? Number(m.slice(1)) : NaN));
+  const best = Math.min(...marks);
+  check(
+    "conveyor split screen: no escape mark while the balls ride the belt; the race goes to the arena whose first ball got out of the rings first",
+    early.split === "2" && early.splitMarks === "-,-" && marked && marks.length === 2 && marks.every((ms) => ms > 3000) && marks[0] !== marks[1] && race.splitKind === "escaped" && race.splitWinner === (marks[0] < marks[1] ? "A" : "B") && Number(race.splitWinnerMs) === best,
+    `(at 1.5 s: ${early.splitMarks} of ${early.split} arenas; then marks ${race.splitMarks}, winner ${race.splitWinner} at ${race.splitWinnerMs} ms, kind ${race.splitKind})`,
+  );
+}
 // --- end gerald-conveyor ---
 
 // --- gerald-exit-splat --- Moving exits and splat barriers of the ring modes: URL → the Exit Behaviour buttons (Wall

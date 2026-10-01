@@ -13,8 +13,10 @@ import { startBallColor, startBallCount } from "./ballStats";
  *
  * Classic stops respawning once every ring is broken (there is nothing left to escape, and the run can end); Multiply's ring
  * is never broken for good, so it respawns as long as it runs. A run holds at most `RESPAWN_MAX_BALLS` balls (a soft,
- * memory-safe ceiling like Multiply's own): a respawn due past it is skipped. A shorter period chosen mid-run never drops a
- * backlog – one ball per step at most, and the count moves on to the schedule.
+ * memory-safe ceiling like Multiply's own): a respawn due past it is skipped. A new period chosen mid-run takes over at
+ * once: a shorter one drops one ball at once and never a backlog (one ball per step at most, and the count moves on to its
+ * schedule), a longer one goes on at its next k × N seconds (the count is rebased onto the new schedule, so it never waits
+ * for the old period's count to come round again).
  */
 
 /** The modes the respawn timer applies to (its slider shows in their Ball section). */
@@ -68,14 +70,17 @@ export function respawnConfigOf(source: { respawnEvery?: number }): Pick<Physics
 
 /** The respawn timer of one engine: counts the run's respawns (reset with every run) and drops the due ones in. */
 export class RespawnTimer {
-  /** Respawns due so far this run (made or skipped). */
+  /** Respawns due so far this run (made or skipped), counted on the schedule of `every`. */
   private done = 0;
   /** Balls dropped in so far this run. */
   private made = 0;
+  /** The period (seconds) `done` is counted on; 0 before the run's first respawning step. */
+  private every = 0;
 
   reset() {
     this.done = 0;
     this.made = 0;
+    this.every = 0;
   }
 
   /** Balls dropped in so far this run. */
@@ -91,6 +96,12 @@ export class RespawnTimer {
     const every = ctx.config.respawnEvery;
     if (!respawnApplies(mode, every)) return;
     const due = respawnDue(elapsedMs, every!);
+    if (every !== this.every) {
+      // A new period mid-run: the count so far moves onto its schedule (a longer period's count is lower – without this
+      // the respawns would wait until the new schedule caught up with the old count); a shorter one keeps it (one ball now).
+      if (this.every > 0) this.done = Math.min(this.done, due);
+      this.every = every!;
+    }
     if (due <= this.done) return;
     this.done = due; // (one ball a step: a backlog from a period shortened mid-run is skipped)
     const walls = ctx.getCircularWalls();

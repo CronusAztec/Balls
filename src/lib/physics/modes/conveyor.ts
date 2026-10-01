@@ -1129,6 +1129,18 @@ export class ConveyorMode implements GameMode {
     return k === undefined ? -1 : k;
   }
 
+  /**
+   * Rings: the ball has been launched into the rings – it is in them, or out of them (escaped, maybe already on the
+   * bottom belt). A ball still at the hatch, riding the belt or sliding down the loading tube is outside the rings from its
+   * first step without having escaped anything: the engine's escape scan (`scanEscapes()`, the first escape that captions,
+   * split-screen races and Find Simulation read) skips it.
+   */
+  inRings(ball: Ball): boolean {
+    const k = this.slotOf(ball);
+    const st = k >= 0 ? this.view.slotState[k] : -1;
+    return st === CV_FREE || st === CV_ESCAPED || st === CV_CARRIED;
+  }
+
   /** Rings: ball `k` has been inside longer than its patience (`PATIENCE_SEC` + its share of `PATIENCE_SPREAD_SEC`): the director helps it. */
   private helped(k: number): boolean {
     return this.subMs - this.insideMs[k] >= (PATIENCE_SEC + this.uPatience[k] * PATIENCE_SPREAD_SEC) * 1000;
