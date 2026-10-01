@@ -170,16 +170,17 @@ describe("settings assistant", () => {
     const unlimited = { ...current, unlimited: true };
     const r = validateSettingsPatch(unlimited, { ballSpeed: 5000, ballCount: 1e6, windX: -40 });
     expect(r).toEqual({ ok: true, patch: { ballSpeed: 5000, ballCount: 1e6, windX: -40 } });
-    const bad = validateSettingsPatch(unlimited, { ballSpeed: -5, airDrag: 3, recordingDuration: 5000 });
+    const bad = validateSettingsPatch(unlimited, { ballSpeed: -5, airDrag: -1 });
     expect(bad.ok).toBe(false);
     const text = bad.ok ? "" : bad.errors.join("\n");
     expect(text).toMatch(/"ballSpeed" must be a number from 50, no upper limit/);
-    expect(text).toMatch(/"airDrag" must be a number from 0 up to 1/);
-    expect(text).toMatch(/"recordingDuration" must be between/); // a bounded setting keeps its range
+    expect(text).toMatch(/"airDrag" must be a number from 0, no upper limit/);
+    // --- uncap-all --- no semantic or recording maximum is left (a drag of 1 or more stops the balls, a long clip is just long)
+    expect(validateSettingsPatch(unlimited, { airDrag: 3, recordingDuration: 5000 })).toEqual({ ok: true, patch: { airDrag: 3, recordingDuration: 5000 } });
     // a patch may turn the switch on itself; without it the ranges apply
     expect(validateSettingsPatch(current, { unlimited: true, ballSpeed: 5000 })).toEqual({ ok: true, patch: { unlimited: true, ballSpeed: 5000 } });
     expect(validateSettingsPatch(current, { ballSpeed: 5000 }).ok).toBe(false);
-    expect(settingsCatalog(unlimited)).toContain("ballSpeed (number from 50, no upper limit (No limits is on), slider 50–800, step 10) = 400");
+    expect(settingsCatalog(unlimited)).toContain("ballSpeed (number from 50, no upper limit (Wide sliders is on), slider 50–800, step 10) = 400");
     const schema = changesSchema(unlimited);
     expect(validateJson(schema, [{ setting: "ballSpeed", value: 1e9 }])).toEqual([]);
     expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);

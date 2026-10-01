@@ -203,13 +203,16 @@ describe("uncap-all: every value past its slider travels exactly", () => {
     expect([back.ballSpeed, back.gravity, back.windX]).toEqual([1234.56789, 0.000123, -7.25]);
   });
 
-  it("rejects only invalid values: NaN, ±Infinity, below the minimum – back to the default", () => {
+  it("rejects only invalid values: NaN, ±Infinity, text – back to the default; a number below the minimum is lifted onto it", () => {
     const d = defaultSettings("classic");
-    for (const bad of ["NaN", "Infinity", "-Infinity", "abc", "-5", "1e999"]) {
+    for (const bad of ["NaN", "Infinity", "-Infinity", "abc", "1e999"]) {
       const s = settingsFromSearchParams(new URLSearchParams(`mode=classic&s=${bad}&r=${bad}&wc=${bad}&g=${bad}`));
       expect([s.ballSpeed, s.ballRadius, s.wallCount]).toEqual([d.ballSpeed, d.ballRadius, d.wallCount]);
     }
-    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&g=-1")).gravity).toBe(d.gravity);
+    // --- uncap-all x review fix (recording-export) --- a finite number below the minimum is lifted onto it by the setting's
+    // own reader – the core numbers' coreNumber() as every feature's – never a maximum
+    const low = settingsFromSearchParams(new URLSearchParams("mode=classic&s=-5&r=-5&wc=-5&g=-1"));
+    expect([low.ballSpeed, low.ballRadius, low.wallCount, low.gravity]).toEqual([RANGES.ballSpeed.min, RANGES.ballRadius.min, RANGES.wallCount.min, RANGES.gravity.min]);
     // Signed settings go past both ends.
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wx=-1000")).windX).toBe(-1000);
   });

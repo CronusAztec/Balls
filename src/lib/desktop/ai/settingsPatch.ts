@@ -134,11 +134,14 @@ export function describeSetting(key: string, current: SimulatorSettings, descrip
   return `${key} (${type}) = ${JSON.stringify(value)}${description ? ` — ${description}` : ""}`;
 }
 
-/** --- unlimited --- The bounds of a setting with No limits on, for the prompt: `from 50, no upper limit`, `any value`. */
+/**
+ * --- unlimited --- The bounds of a setting with the switch on, for the prompt: `from 50, no upper limit`, `any value`.
+ * (--- uncap-all --- the switch is now called Wide sliders; nothing but a list index has an upper bound any more.)
+ */
 function describeUnlimited(key: string, range: { min: number; max: number; step: number }): string {
   const { min, max } = unlimitedBounds(key, range);
   const from = Number.isFinite(min) ? `from ${min}` : "any value";
-  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit (No limits is on)`;
+  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit (Wide sliders is on)`;
 }
 
 /** The prefix of the settings that belong to a mode (its block of the panel), so the assistant can tune the mode on the page. */

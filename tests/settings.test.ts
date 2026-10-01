@@ -3,6 +3,7 @@ import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
 import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/interactions";
 import { MODE_IDS } from "@/lib/physics/types";
 import { RANGES, defaultSettings, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
 
 describe("settings serialisation", () => {
   it("round-trips through URL parameters", () => {
@@ -175,7 +176,6 @@ describe("ball interaction settings", () => {
 // --- review fix (recording-export) --- numbers, enumerations and texts from links, share codes, batch lists, presets and project files
 describe("link and preset validation (review fix: recording-export)", () => {
   const CORE: Record<string, keyof SimulatorSettings> = { g: "gravity", s: "ballSpeed", r: "ballRadius", wc: "wallCount", wt: "wallThickness", gap: "gapSize", rs: "rotationSpeed", tt: "trailThickness", at: "accumulationTime", sc: "spikeCount", msc: "multiplySpawnCount", tc: "targetCount", cmc: "colorMatchColorCount", gr: "growRate", ts: "textSize", slms: "sliceMs", slfade: "sliceFadeMs" };
-  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
   const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
 
   it("lifts a number below its slider's minimum onto it and keeps a big one (no crash on r=-5, no cap on wc)", () => {
@@ -195,7 +195,8 @@ describe("link and preset validation (review fix: recording-export)", () => {
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&gap=0.37")).gapSize).toBeCloseTo(0.37);
   });
 
-  it("keeps every core number at or above its minimum; bounded ones (gap, colours, text size, slicer) at or below their maximum", () => {
+  // (--- uncap-all --- no core number has a maximum: the gap, Color Match's colours, the text size and the slicer included)
+  it("keeps every core number at or above its minimum and never caps one", () => {
     for (const [key, field] of Object.entries(CORE)) {
       const range = rangeOf(field)!;
       expect(range, field).toBeDefined();
@@ -203,18 +204,17 @@ describe("link and preset validation (review fix: recording-export)", () => {
       expect(low, `${key}=min-1e6`).toBe(range.min);
       const high = settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.max + 1e6}`))[field] as number;
       expect(Number.isFinite(high), `${key}=max+1e6`).toBe(true);
-      if (BOUNDED.has(field)) expect(high, `${key}=max+1e6`).toBe(range.max);
-      else expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
+      expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
     }
   });
 
-  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept unless bounded)", () => {
+  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept)", () => {
     for (const field of Object.values(CORE)) {
       const range = rangeOf(field)!;
       const low = presetToSettings({ mode: "classic", [field]: range.min - 1e6 } as Partial<SimulatorSettings>);
       expect(low[field], `preset ${field}=min-1e6`).toBe(range.min);
       const high = presetToSettings({ mode: "classic", [field]: range.max + 1e6 } as Partial<SimulatorSettings>);
-      expect(high[field], `preset ${field}=max+1e6`).toBe(BOUNDED.has(field) ? range.max : range.max + 1e6);
+      expect(high[field], `preset ${field}=max+1e6`).toBe(range.max + 1e6);
     }
   });
 
@@ -233,7 +233,9 @@ describe("link and preset validation (review fix: recording-export)", () => {
     for (const [field, key] of keyOf) {
       const range = rangeOf(field)!;
       const value = (settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.min - 1e6}`)) as unknown as Record<string, number>)[field];
-      expect(Number.isFinite(value) && value >= range.min, `${key} (${field}) = ${value}`).toBe(true);
+      // --- uncap-all --- the signed settings (the winds, the pendulum's start angles, arena seeds) take any sign: finite is enough
+      if (SIGNED_KEYS.has(field)) expect(Number.isFinite(value), `${key} (${field}) = ${value}`).toBe(true);
+      else expect(Number.isFinite(value) && value >= range.min, `${key} (${field}) = ${value}`).toBe(true);
     }
   });
 
