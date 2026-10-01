@@ -850,6 +850,7 @@ export class PhysicsEngine {
   }
   /** Picture Paint: brush, beat sync, guidance and pacing of the Paint mode (see physics/picturePaint.ts). */
   setPaintOptions(patch: Partial<PaintModeOptions>) {
+    if (patch.brush !== undefined && this.limits.on) patch = { ...patch, brush: this.limits.ceilValue("paintBrush", patch.brush) }; // --- unlimited --- (past the slider, up to its soft ceiling)
     this.paintMode.setOptions(patch);
   }
   getPaintOptions(): PaintModeOptions {
@@ -1064,7 +1065,7 @@ export class PhysicsEngine {
   }
   /** Ball count, size / gravity spread, rows, release interval and rain; applied by the next `initDrop()`. */
   setDropSettings(settings: Partial<DropSettings>) {
-    this.dropMode.setSettings(settings);
+    this.dropMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   getDropProgress() {
     return this.dropMode.getProgress();
@@ -1080,7 +1081,7 @@ export class PhysicsEngine {
   }
   /** Shape count / kind, box aspect, gravity, countdown, growth and speed ratio; applied by the next `initBox()`. */
   setBoxSettings(settings: Partial<BoxSettings>) {
-    this.boxMode.setSettings(settings);
+    this.boxMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Bouncing Shapes state (box, shapes, recent hits) for the canvas and the HUD; the same object every call. */
   getBoxView(): BoxView {
@@ -1097,7 +1098,7 @@ export class PhysicsEngine {
   }
   /** Count, tuning, amplitude, layout, polygon, phasing, trails, sound and cycles of the Pendulum Wave; applied by the next `initPendulum()`. */
   setPendulumSettings(settings: Partial<PendulumSettings>) {
-    this.pendulumMode.setSettings(settings);
+    this.pendulumMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Pendulum Wave state (rig, bobs, clock, counters) for the canvas and the HUD; the same object every call. */
   getPendulumView(): PendulumView {
@@ -1119,7 +1120,7 @@ export class PhysicsEngine {
   }
   /** Voices, tempo series, cycle and cycles of Metronomes & Polyrhythms apply on the next `initPolyrhythm()`; layout, polygons, accents, pitch mapping and numbers at once. */
   setPolyrhythmSettings(settings: Partial<PolyrhythmSettings>) {
-    this.polyrhythmMode.setSettings(settings);
+    this.polyrhythmMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Metronomes & Polyrhythms state (geometry, voices, clock, counters) for the canvas and the HUD; the same object every call. */
   getPolyrhythmView(): PolyrhythmView {
@@ -1142,7 +1143,7 @@ export class PhysicsEngine {
   }
   /** Count, sizes, container, gravity, restitution, squishy, sync start, anti-collision and ring of the Collision Playground; applied by the next `initCollide()`. */
   setCollideSettings(settings: Partial<CollideSettings>) {
-    this.collideMode.setSettings(settings);
+    this.collideMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Collision Playground state (container, colours, impacts, counters) for the canvas; the same object every call. */
   getCollideView(): CollideView {
@@ -1161,7 +1162,7 @@ export class PhysicsEngine {
   }
   /** Rows, gate mix, start balls, ball cap and count target of the multipliers board; applied by the next `initMultipliers()`. */
   setMultipliersSettings(settings: Partial<MultipliersSettings>) {
-    this.multipliersMode.setSettings(settings);
+    this.multipliersMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live multipliers-board state (board, camera, counters) for the canvas and the HUD; the same object every call. */
   getMultipliersView(): MultipliersView {
@@ -1276,7 +1277,7 @@ export class PhysicsEngine {
   }
   /** Rows, hit points, stages, sliding panes and holes of Glass Smash; applied by the next `initGlass()`. */
   setGlassSettings(settings: Partial<GlassSettings>) {
-    this.glassMode.setSettings(settings);
+    this.glassMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Glass Smash state (level, panes, cracks, shards, camera, stage, HOME) for the canvas and the HUD; the same object every call. */
   getGlassView(): GlassView {
@@ -1295,7 +1296,7 @@ export class PhysicsEngine {
   }
   /** Rig (count, rods, lengths, masses, gravity, start, damping, sparring) applied by the next `initDoublePendulum()`; trails, strings, tuning and the end at once. */
   setDoublePendulumSettings(settings: Partial<DoublePendulumSettings>) {
-    this.doublePendulumMode.setSettings(settings);
+    this.doublePendulumMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Double Pendulum state (field, chains, trails, strings, hits, clock, counters) for the canvas and the HUD; the same object every call. */
   getDoublePendulumView(): DoublePendulumView {
@@ -1318,7 +1319,7 @@ export class PhysicsEngine {
   }
   /** Type, counts, pattern, speed and cycles of the Circle Illusion apply on the next `initIllusion()`; the tracks and the reveal at once. */
   setIllusionSettings(settings: Partial<IllusionSettings>) {
-    this.illusionMode.setSettings(settings);
+    this.illusionMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Circle Illusion state (bodies, circles, rings, layers, paint, counters) for the canvas and the HUD; the same object every call. */
   getIllusionView(): IllusionView {
@@ -1341,7 +1342,7 @@ export class PhysicsEngine {
   }
   /** Balls, lives, threads, rule, clip limit and finale speed of the String Battle apply on the next `initStringBattle()`; the style, HUD, badge and wobble at once. */
   setStringBattleSettings(settings: Partial<StringBattleSettings>) {
-    this.stringBattleMode.setSettings(settings);
+    this.stringBattleMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live String Battle state (ring, fighters, threads, effects, finale, verdict) for the canvas and the HUD; the same object every call. */
   getStringBattleView(): StringBattleView {
@@ -1360,7 +1361,7 @@ export class PhysicsEngine {
   }
   /** Layers, sequence, drift and bounce speed of Power Layers apply on the next `initPowerLayers()`; the badges and the scale at once. */
   setPowerLayersSettings(settings: Partial<PowerLayersSettings>) {
-    this.powerLayersMode.setSettings(settings);
+    this.powerLayersMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Power Layers state (field, stack, power, level, particles, freedom) for the canvas and the HUD; the same object every call. */
   getPowerLayersView(): PowerLayersView {
@@ -1377,7 +1378,7 @@ export class PhysicsEngine {
   }
   /** The runner's course is planned at init: every setting (and the beat grid) applies on the next `initRunner()`; the scale and root at once. */
   setRunnerSettings(settings: Partial<RunnerSettings>) {
-    this.runnerMode.setSettings(settings);
+    this.runnerMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   getRunnerSettings(): RunnerSettings {
     return this.runnerMode.getSettings();
@@ -1398,7 +1399,7 @@ export class PhysicsEngine {
   }
   /** The game applies on the next `initPaddle()`; the scale and root at once. */
   setPaddleSettings(settings: Partial<PaddleSettings>) {
-    this.paddleMode.setSettings(settings);
+    this.paddleMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   getPaddleSettings(): PaddleSettings {
     return this.paddleMode.getSettings();
@@ -1427,7 +1428,7 @@ export class PhysicsEngine {
   }
   /** Racers, track length, laps, obstacle mix, the favourite and the cup apply on the next `initRace()`; the camera and the shape at once. */
   setRaceSettings(settings: Partial<RaceSettings>) {
-    this.raceMode.setSettings(settings);
+    this.raceMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live race state (track, standings, gaps, callouts, camera, podium) for the canvas and the HUD; the same object every call. */
   getRaceView(): RaceView {
@@ -1446,7 +1447,7 @@ export class PhysicsEngine {
   }
   /** Squares, hit points, damage, arena, shrinking zone, power-ups and nudge of the battle; applied by the next `initBattle()`. */
   setBattleSettings(settings: Partial<BattleSettings>) {
-    this.battleMode.setSettings(settings);
+    this.battleMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   getBattleProgress() {
     return this.battleMode.getProgress();
@@ -1459,7 +1460,7 @@ export class PhysicsEngine {
   }
   /** Team size, score to win and nudge of Capture the Flag apply on the next `initCtf()`; the clip length (its time limit) at once. */
   setCtfSettings(settings: Partial<CtfSettings>) {
-    this.ctfMode.setSettings(settings);
+    this.ctfMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   getCtfProgress() {
     return this.ctfMode.getProgress();
@@ -1480,7 +1481,7 @@ export class PhysicsEngine {
   }
   /** Balls, stagger, rings, duration, pull and loop of the Sound Vortex apply on the next `initVortex()`; the depth cue, scale and root at once. */
   setVortexSettings(settings: Partial<VortexSettings>) {
-    this.vortexMode.setSettings(settings);
+    this.vortexMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Sound Vortex state (funnel, rings, balls, splashes, counters) for the canvas and the HUD; the same object every call. */
   getVortexView(): VortexView {
@@ -1499,7 +1500,7 @@ export class PhysicsEngine {
   }
   /** The stage list and the auto count apply on the next `initJourney()`. */
   setJourneySettings(settings: Partial<JourneySettings>) {
-    this.journeyMode.setSettings(settings);
+    this.journeyMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Journey state (stages, active stage, camera, banner, progress, score, HOME) for the canvas and the HUD; the same object every call. */
   getJourneyView(): JourneyView {
@@ -1544,7 +1545,7 @@ export class PhysicsEngine {
   }
   /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next `initBullseye()`; the scale and root at once. */
   setBullseyeSettings(settings: Partial<BullseyeSettings>) {
-    this.bullseyeMode.setSettings(settings);
+    this.bullseyeMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
   }
   /** Live Bullseye state (field, target, shots, scores, slow motion) for the canvas and the HUD; the same object every call. */
   getBullseyeView(): BullseyeView {

@@ -77,7 +77,7 @@ function Choice<T extends string>({ t, labelKey, tipKey, options, labels, value,
  */
 export default function PolyrhythmSection({ t, search, matches, settings: s, update }: PolyrhythmSectionProps) {
   const all = !!search;
-  const series = buildTempoSeries(resolvePolyrhythmSettings(polyrhythmSettingsOf(s)));
+  const series = buildTempoSeries(resolvePolyrhythmSettings(polyrhythmSettingsOf(s), s.unlimited)); // --- unlimited --- (the run the engine plays)
   const customCount = parseCustomRatios(s.prCustom).length;
   return (
     <div className="space-y-3 pt-2">

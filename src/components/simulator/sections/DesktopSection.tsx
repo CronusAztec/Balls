@@ -20,6 +20,8 @@ import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
 import LibraryPanel from "../desktop/LibraryPanel";
 import { errorText } from "../desktop/ui";
+import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
+import type { PublishPlatform } from "@/lib/publish/platforms";
 
 /*
  * --- desktop-exe --- The Desktop group of the simulator: shown only inside the Windows app (where the preload script put
@@ -31,6 +33,8 @@ import { errorText } from "../desktop/ui";
 export const DESKTOP_TABS = ["gpu", "queue", "ai", "library"] as const;
 export type DesktopTab = (typeof DESKTOP_TABS)[number];
 const TAB_ICONS: Record<DesktopTab, string> = { gpu: "🖥️", queue: "🎞️", ai: "🤖", library: "📚" };
+/** --- desktop-exe --- The Publish platforms by their own names (the same in every language). */
+const PLATFORM_NAMES: Record<PublishPlatform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
 
 export default function DesktopSection({ page }: { page: DesktopPageHooks }) {
   const [bridge, setBridge] = useState<DesktopApi | null>(null);
@@ -96,6 +100,28 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
     bridge.prefs.get().then(setPrefs).catch(() => {});
   }, [bridge]);
   const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs);
+
+  // --- desktop-exe --- the Publish feature's paths as the Library's one-click targets (lib/publish/desktopTargets.ts):
+  // the accounts ticked in the Publish block, and the quick share of the clip's platform
+  useEffect(
+    () =>
+      registerDesktopPublishTargets(
+        {
+          accounts: t("libTargetAccounts"),
+          share: (platform) => t("libTargetShare", { platform: PLATFORM_NAMES[platform] }),
+          noAccounts: t("libPublishNoAccounts"),
+          someFailed: (failed, total) => t("libPublishSomeFailed", { failed, total }),
+          shared: (platform, copied) => t(copied ? "libShared" : "libSharedNoCopy", { platform: PLATFORM_NAMES[platform] }),
+        },
+        {
+          showPublish: () => document.querySelector("[data-publish]")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+          reveal: (item) => void bridge.library.reveal(item.id).catch(() => {}),
+          navigator: typeof navigator !== "undefined" ? navigator : null,
+          openUrl: (url) => void window.open(url, "_blank"),
+        },
+      ),
+    [bridge, t],
+  );
 
   const show = useCallback((next: DesktopTab) => {
     setTab(next);

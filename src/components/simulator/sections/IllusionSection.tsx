@@ -53,7 +53,7 @@ function formatSeconds(sec: number) {
 export default function IllusionSection({ t, search, matches, settings: s, update }: IllusionSectionProps) {
   const all = !!search;
   const type = s.ilType;
-  const cycleSec = illusionCycleSeconds(illusionSettingsOf(s));
+  const cycleSec = illusionCycleSeconds(illusionSettingsOf(s), s.unlimited); // --- unlimited --- (the run the engine plays)
   const hasCycles = type === "lines" || type === "rings";
   return (
     <div className="space-y-3 pt-2" data-testid="illusion-section">

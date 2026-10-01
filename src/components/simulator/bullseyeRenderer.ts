@@ -1,4 +1,4 @@
-import { KIND_BUMPER, MAX_BULLSEYE_RINGS, SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye";
+import { KIND_BUMPER, SHOT_LANDED, type BullseyeView } from "@/lib/physics/modes/bullseye";
 
 /**
  * Canvas drawing of Bullseye (feature gerald-bullseye, lib/physics/modes/bullseye.ts). The canvas calls, per frame:
@@ -107,7 +107,7 @@ export class BullseyeLayer {
     ctx.stroke();
 
     // The target: a shadow, then the rings from the outside in, a lit ring over them and the rim.
-    const n = Math.max(1, Math.min(MAX_BULLSEYE_RINGS, view.settings.rings));
+    const n = Math.max(1, Math.min(view.ringHitMs.length, view.settings.rings)); // (MAX_BULLSEYE_RINGS on the slider; --- unlimited --- more past it)
     const R = L.targetRadius;
     const D = L.targetDepth;
     const tx = view.targetX;
@@ -118,7 +118,7 @@ export class BullseyeLayer {
     ctx.fill();
     for (let i = n - 1; i >= 0; i--) {
       const k = (i + 1) / n;
-      ctx.fillStyle = RING_COLORS[i];
+      ctx.fillStyle = RING_COLORS[i % RING_COLORS.length];
       ctx.beginPath();
       ctx.ellipse(tx, ty, k * R, k * D, 0, 0, TWO_PI);
       ctx.fill();
