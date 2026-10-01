@@ -3402,18 +3402,20 @@ const instrumentOscillators = () =>
     const ready = await page.getByText(/Ready to start simulation for 30\.0s/).first().isVisible().catch(() => false);
     check("Find Simulation finds a run without an escape", options.join(",") === "duration,never-escapes,escapes-at" && labelled && /Found! No escape in 30\.0s/.test(text) && ready, `(options=${options.join(",")}, "${text}", ready=${ready})`);
   }
-  // Multiply never ends, so it had no finder; its outcomes give it one: the first escape at a chosen second.
+  // Multiply never ends, so it had no finder; its outcomes give it one: the first escape at a chosen second. (2 s, not 4 s:
+  // about one default seed in twenty gets out within ±0.5 s of 2 s, but only one in two hundred of 4 s – the ring's gap is
+  // half a turn from where it started then – so a search of 1,000 random seeds missed 4 s about one time in a hundred.)
   await page.goto(`${BASE}/en/simulator/?mode=multiply`, { waitUntil: "networkidle" });
   {
     const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
     await page.locator("#find-outcome").selectOption("escapes-at");
-    await page.locator("#find-escape-at").evaluate(setRangeValue, "4");
-    const button = page.getByRole("button", { name: /Find a Run That Escapes at 4\.0s/ });
+    await page.locator("#find-escape-at").evaluate(setRangeValue, "2");
+    const button = page.getByRole("button", { name: /Find a Run That Escapes at 2\.0s/ });
     const labelled = await button.isVisible();
     await button.click();
     const text = await finderResult();
     const at = Number((/First escape at ([\d.]+)s/.exec(text) || [])[1]);
-    check("Find Simulation finds a first escape at a chosen second in Multiply", options.join(",") === "never-escapes,escapes-at" && labelled && Math.abs(at - 4) <= 0.52, `(options=${options.join(",")}, "${text}")`);
+    check("Find Simulation finds a first escape at a chosen second in Multiply", options.join(",") === "never-escapes,escapes-at" && labelled && Math.abs(at - 2) <= 0.52, `(options=${options.join(",")}, "${text}")`);
   }
   // A won race, searched for: Blue wins.
   await page.goto(`${BASE}/en/simulator/?mode=classic&teams=${encodeURIComponent(roster)}&wc=3&gap=0.8&s=700`, { waitUntil: "networkidle" });
