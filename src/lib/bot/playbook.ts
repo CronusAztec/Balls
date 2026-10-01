@@ -242,9 +242,9 @@ const byBucket = <T,>(ctx: RecipeContext, values: Record<LengthBucket, T>): T =>
 
 /* Power Layers: the payoff (the ball falls free) comes a fixed time into the run, set by the layers, the sequence and the speed. */
 
-/** The moment (s) a Power Layers run breaks free: the fixed run length less the celebration. */
-export function powerLayersPayoffSec(layers: number, sequence: PlSequence, speed: number): number | null {
-  const total = powerLayersFixedDurationSec({ layers, sequence, speed });
+/** The moment (s) a Power Layers run breaks free: the fixed run length less the celebration (--- unlimited --- `unlimited`: resolved past the sliders, as the engine does). */
+export function powerLayersPayoffSec(layers: number, sequence: PlSequence, speed: number, unlimited = false): number | null {
+  const total = powerLayersFixedDurationSec({ layers, sequence, speed }, unlimited);
   return total === null ? null : total - FREEDOM_HOLD_SEC;
 }
 

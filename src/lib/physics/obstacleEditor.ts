@@ -1,5 +1,6 @@
 import { circleObstacle, resolveBallCircle, resolveBallSegment, segmentObstacle, type Obstacle, type SegmentObstacle } from "./obstacles";
 import type { Ball, ModeId, PhysicsConfig, SoundEvent } from "./types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Obstacle editor: pegs, bumpers, blockers and spinners that a creator places inside any ring ("circular arena")
@@ -195,10 +196,10 @@ export function resolveObstacles(value: unknown): EditorObstacle[] {
   return out;
 }
 
-export function resolveBumperBoost(value: unknown): number {
+export function resolveBumperBoost(value: unknown, unlimited = false): number {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return DEFAULT_BUMPER_BOOST;
-  const r = OBSTACLE_EDITOR_RANGES.bumperBoost;
+  const r = rangesFor(OBSTACLE_EDITOR_RANGES, unlimited).bumperBoost; // --- unlimited --- (up to its soft ceiling with No limits on)
   return round(clamp(n, r.min, r.max), 2);
 }
 
@@ -470,8 +471,8 @@ export class ObstacleField {
   private soundsThisStep = 0;
 
   /** Rebuilds the pixel obstacles when the list or the canvas size changed (a spinner whose settings stayed keeps its current angle). Returns true when it rebuilt. */
-  configure(config: Pick<PhysicsConfig, "width" | "height" | "editorObstacles" | "bumperBoost">): boolean {
-    this.boost = resolveBumperBoost(config.bumperBoost ?? DEFAULT_BUMPER_BOOST);
+  configure(config: Pick<PhysicsConfig, "width" | "height" | "editorObstacles" | "bumperBoost" | "unlimited">): boolean {
+    this.boost = resolveBumperBoost(config.bumperBoost ?? DEFAULT_BUMPER_BOOST, config.unlimited === true); // --- unlimited ---
     const defs = config.editorObstacles ?? [];
     if (defs === this.defs && config.width === this.width && config.height === this.height) return false;
     const previous = this.defs;

@@ -4,6 +4,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
 import { TWO_PI, arenaRadius } from "../types";
 import { wobbleStrength } from "../wobble";
 import { teamResult } from "@/lib/teams";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * String Battle ("stringBattle" mode, battle family – feature odd-string-battle): the oddplayground "WEB DOMINION"
@@ -121,10 +122,10 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value (counts and the duration whole, the finale speed on its 0.1 steps); unknown options and non-boolean flags fall back to the defaults. */
-export function resolveStringBattleSettings(config: Partial<StringBattleSettings> | null | undefined): StringBattleSettings {
+export function resolveStringBattleSettings(config: Partial<StringBattleSettings> | null | undefined, unlimited = false): StringBattleSettings {
   const out = { ...DEFAULT_STRING_BATTLE_SETTINGS };
   if (!config) return out;
-  const R = STRING_BATTLE_RANGES;
+  const R = rangesFor(STRING_BATTLE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.sbBalls, out.balls));
   if (config.lives !== undefined) out.lives = Math.round(clampNumber(config.lives, R.sbLives, out.lives));
   if (config.maxStrings !== undefined) out.maxStrings = Math.round(clampNumber(config.maxStrings, R.sbMaxStrings, out.maxStrings));
@@ -634,7 +635,7 @@ export class StringBattleMode implements GameMode {
   private readonly ballOf: (Ball | null)[] = new Array<Ball | null>(MAX_TEAMS).fill(null);
   /** Slots that reached 0 lives this sub-step, and who took their last life (−1: nobody). */
   private readonly pending: number[] = [];
-  private readonly killerOf = new Int32Array(MAX_TEAMS).fill(-1);
+  private killerOf = new Int32Array(MAX_TEAMS).fill(-1); // (--- unlimited --- grown at init for more balls than the slider's MAX_TEAMS)
   private readonly spareStrings: SbString[] = [];
   private readonly spareGhosts: SbGhost[] = [];
   private readonly scratch = { x: 0, y: 0, angle: 0 };
@@ -644,9 +645,9 @@ export class StringBattleMode implements GameMode {
     return { ...this.settings };
   }
 
-  /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. */
-  setSettings(patch: Partial<StringBattleSettings>) {
-    this.settings = resolveStringBattleSettings({ ...this.settings, ...patch });
+  /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<StringBattleSettings>, unlimited = false) {
+    this.settings = resolveStringBattleSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.style = this.settings.style;
     live.hud = this.settings.hud;
@@ -704,6 +705,7 @@ export class StringBattleMode implements GameMode {
     v.tie = false;
     this.pending.length = 0;
     this.ballOf.fill(null);
+    if (this.killerOf.length < s.balls) this.killerOf = new Int32Array(s.balls).fill(-1); // --- unlimited --- (No limits: more balls than MAX_TEAMS; a typed array never grows by itself)
     this.plucksThisStep = 0;
     const base = (cfg.ballSpeed || 400) * SB_SPEED_SCALE;
     const radius = (cfg.ballRadius || 8) * SB_BALL_SCALE;

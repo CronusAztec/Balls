@@ -7,7 +7,7 @@ import { BOT_PLATFORMS, type BotPlatform } from "@/lib/bot/playbook";
 import { AI_TASKS, type DesktopAiApi } from "./useDesktopAi";
 import type { DesktopPageHooks } from "./pageHooks";
 import { Bar, Card, Chip, formatBytes, ghostBtn, inputClass, primaryBtn } from "./ui";
-import { publishTargets } from "@/lib/desktop/publish";
+import { applyCopyToPublish } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the copy goes into the Publish block's draft
 
 /*
  * --- desktop-exe --- The AI studio panel: which model answers (a local GGUF – downloaded here with its licence shown, or a
@@ -26,6 +26,8 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
   const [model, setModel] = useState(CLOUD_DEFAULTS.anthropic.model);
   const [apiKey, setApiKey] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  /** --- desktop-exe --- What "Use in Publish" did: written into the draft of the Publish block's clip, or no clip there yet. */
+  const [usedInPublish, setUsedInPublish] = useState<"done" | "noClip" | null>(null);
   const status = ai.status;
   useEffect(() => {
     if (!status) return;
@@ -257,8 +259,13 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                 </div>
               );
             })}
-            {/* --- desktop-exe --- publish hook: the Publish feature's targets take this copy when they are registered (lib/desktop/publish.ts) */}
-            {publishTargets().length === 0 && <p className="text-[11px] text-zinc-500">{t("aiPublishHint")}</p>}
+            {/* --- desktop-exe --- the copy into the Publish block: the draft of its clip on show, per platform (lib/publish/desktopTargets.ts) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className={`${primaryBtn} !py-0.5`} data-testid="ai-use-in-publish" onClick={() => setUsedInPublish(applyCopyToPublish(ai.result?.kind === "copy" ? ai.result.result.items : []) ? "done" : "noClip")}>
+                {t("aiUseInPublish")}
+              </button>
+              <p className={`text-[11px] ${usedInPublish === "noClip" ? "text-amber-300" : "text-zinc-500"}`}>{usedInPublish === "done" ? t("aiUsedInPublish") : usedInPublish === "noClip" ? t("aiPublishNoClip") : t("aiPublishHint")}</p>
+            </div>
           </Card>
         )}
 

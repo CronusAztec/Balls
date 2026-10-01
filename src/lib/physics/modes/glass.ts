@@ -1,6 +1,7 @@
 import { resolveBallSegment, segmentBetween, segmentObstacle, type Obstacle, type SegmentObstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent } from "../types";
 import { applyMultiplier, hitDamage } from "../multipliers"; // --- gerald-multipliers ---
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Glass Smash ("glass" mode, the geraldbounces "Gerald is determined to smash all of the glass" format): no rings. A
@@ -84,12 +85,13 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value to its range as a whole number (non-boolean flags and bad numbers fall back to the defaults). */
-export function resolveGlassSettings(config: Partial<GlassSettings> | null | undefined): GlassSettings {
+export function resolveGlassSettings(config: Partial<GlassSettings> | null | undefined, unlimited = false): GlassSettings {
   const out = { ...DEFAULT_GLASS_SETTINGS };
   if (!config) return out;
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, GLASS_RANGES.glassRows, out.rows));
-  if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, GLASS_RANGES.glassHp, out.hp));
-  if (config.stages !== undefined) out.stages = Math.round(clampNumber(config.stages, GLASS_RANGES.glassStages, out.stages));
+  const R = rangesFor(GLASS_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
+  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, R.glassRows, out.rows));
+  if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, R.glassHp, out.hp));
+  if (config.stages !== undefined) out.stages = Math.round(clampNumber(config.stages, R.glassStages, out.stages));
   if (typeof config.moving === "boolean") out.moving = config.moving;
   if (typeof config.holes === "boolean") out.holes = config.holes;
   if (typeof config.gates === "boolean") out.gates = config.gates;
@@ -113,14 +115,19 @@ export const MAX_STAGE_ROWS = 30;
 /** No pane takes more hits than this (the thickest glass). */
 export const MAX_PANE_HP = 7;
 
-/** Panes in stage `stage` (0-based): the setting, plus a third of it per stage after the first, up to MAX_STAGE_ROWS. */
+/**
+ * Panes in stage `stage` (0-based): the setting, plus a third of it per stage after the first, up to MAX_STAGE_ROWS –
+ * --- unlimited --- or up to the setting itself when No limits takes it past MAX_STAGE_ROWS (every stage that many panes).
+ */
 export function stageRows(rows: number, stage: number): number {
-  return Math.min(MAX_STAGE_ROWS, Math.round(rows) + Math.ceil((stage * Math.round(rows)) / 3));
+  const n = Math.round(rows);
+  return Math.min(Math.max(MAX_STAGE_ROWS, n), n + Math.ceil((stage * n) / 3));
 }
 
-/** Hit points of the panes in stage `stage`: the setting, one more every other stage (at most two more). */
+/** Hit points of the panes in stage `stage`: the setting, one more every other stage (at most two more; MAX_PANE_HP on the slider). */
 export function stageHp(hp: number, stage: number): number {
-  return Math.min(MAX_PANE_HP, Math.round(hp) + Math.min(2, Math.floor(stage / 2)));
+  const n = Math.round(hp);
+  return Math.min(Math.max(MAX_PANE_HP, n), n + Math.min(2, Math.floor(stage / 2))); // --- unlimited --- (past the slider: the setting's own)
 }
 
 /** Chance that a pane of stage `stage` has a hole (from the second stage on, more from the fifth). */
@@ -408,7 +415,7 @@ export function stageHue(stage: number): number {
 
 /** Thickness (px) of a pane with `hp` hit points in a view `viewH` px tall. */
 export function paneThickness(hp: number, viewH: number): number {
-  return PANE_THICKNESS * viewH * (1 + 0.28 * (hp - 1));
+  return PANE_THICKNESS * viewH * (1 + 0.28 * (Math.min(MAX_PANE_HP, hp) - 1)); // --- unlimited --- (a billion hit points look like the thickest glass)
 }
 
 /** Rebuilds the collision capsules of a pane from its current geometry (a sliding pane moves them every step). */
@@ -446,8 +453,8 @@ export const GROUND_RESTITUTION = 0.45;
  * where its hole sits or how it slides) – always three, so one pane's kind never shifts the next pane's numbers –
  * and last, with `settings.gates`, the order of every gate row's slots.
  */
-export function buildGlassLevel(width: number, height: number, settingsIn: Partial<GlassSettings>, ballRadius: number, random: () => number): GlassLevel {
-  const settings = resolveGlassSettings(settingsIn);
+export function buildGlassLevel(width: number, height: number, settingsIn: Partial<GlassSettings>, ballRadius: number, random: () => number, unlimited = false): GlassLevel {
+  const settings = resolveGlassSettings(settingsIn, unlimited); // --- unlimited --- (as the mode resolved them)
   const field = buildGlassField(width, height);
   const viewH = field.height;
   const r = Math.max(2, ballRadius);
@@ -575,6 +582,8 @@ export function paneDamage(pane: Pick<GlassPane, "hp" | "maxHp">): number {
 export const CRACK_GROW_MS = 160;
 /** Most segments one crack holds (5 rays of 4 segments plus branches). */
 const MAX_CRACK_SEGMENTS = 32;
+/** --- unlimited --- Cracks a pane keeps (the newest): more than the thickest glass of the slider ever takes (MAX_PANE_HP hits). */
+export const MAX_PANE_CRACKS = 16;
 
 /**
  * A procedural crack from a hit at `impactX` (relative to the pane's centre) on the top face (`fromAbove`) or the
@@ -762,6 +771,7 @@ export function hitGlassPane(view: GlassView, pane: GlassPane, ball: Ball, impac
   view.hits++;
   const impactX = ball.x - pane.x;
   pane.cracks.push(makeCrack(pane, impactX, fromAbove, paneDamage(pane), o.timeMs, o.random));
+  if (pane.cracks.length > MAX_PANE_CRACKS) pane.cracks.shift(); // --- unlimited --- (glass of a billion hit points keeps its newest cracks; visual only)
   if (pane.hp <= 0) {
     pane.shattered = true;
     pane.shatteredAtMs = o.timeMs;
@@ -1043,6 +1053,8 @@ export class GlassMode implements GameMode {
   /** One ball; nothing to collide with. */
   readonly ballsPassThrough = true;
   private settings: GlassSettings = { ...DEFAULT_GLASS_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: GlassView = createGlassView();
   private ground: SegmentObstacle | null = null;
   private ballId = -1;
@@ -1077,9 +1089,10 @@ export class GlassMode implements GameMode {
   getSettings(): GlassSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Glass Smash setting changes). */
-  setSettings(patch: Partial<GlassSettings>) {
-    this.settings = resolveGlassSettings({ ...this.settings, ...patch });
+  /** Applied on the next init (the Simulator re-inits the mode when a Glass Smash setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<GlassSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveGlassSettings({ ...this.settings, ...patch }, unlimited);
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): GlassView {
@@ -1102,7 +1115,7 @@ export class GlassMode implements GameMode {
       const u = ctx.random();
       tape.push(u);
       return u;
-    });
+    }, this.unlimited);
     this.tape = tape;
     this.started = false;
     this.layoutW = cfg.width;
@@ -1337,7 +1350,7 @@ export class GlassMode implements GameMode {
     const v = this.view;
     const cfg = ctx.config;
     let i = 0;
-    const level = buildGlassLevel(cfg.width, cfg.height, v.settings, cfg.ballRadius || 8, () => (i < this.tape.length ? this.tape[i++] : 0.5));
+    const level = buildGlassLevel(cfg.width, cfg.height, v.settings, cfg.ballRadius || 8, () => (i < this.tape.length ? this.tape[i++] : 0.5), this.unlimited);
     v.level = level;
     v.panes = level.panes.length;
     v.cameraY = 0;

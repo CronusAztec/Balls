@@ -29,6 +29,8 @@ import { engineTimelineOf } from "@/lib/simulation/timeline";
 import { effectiveBallCount } from "@/lib/teams";
 import { markerBeatInputOf, onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
 import { bounceMathConfigOf } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
+import { unlimitedConfigOf } from "@/lib/physics/limits"; // --- unlimited ---
+import { MULTI_BALL_MODES } from "@/lib/physics/ballStats"; // --- unlimited ---
 
 /*
  * --- viral-bot --- The seed finder's view of a settings object, without a page: the physics config and the mode settings the
@@ -70,6 +72,8 @@ export function physicsConfigOfSettings(s: SimulatorSettings, world: BotWorld = 
     timeline: engineTimelineOf(s),
     ...riggedConfigOf(s),
     ...(s.bounceMath.length > 0 ? { bounceMath: bounceMathConfigOf(s, markerBeatInputOf(s)) } : {}), // --- bounce-math --- (the hand-placed markers, else the BPM: a page's song is not there)
+    // --- unlimited --- No limits as the page's engine gets it (the switch and the crowd: its soft ceilings, planned steps and crowd)
+    ...(s.unlimited ? unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)) : {}),
   };
 }
 

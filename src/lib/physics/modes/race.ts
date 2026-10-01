@@ -14,6 +14,7 @@ import {
 } from "../raceTrack";
 import { LeaderClock, rankRacers } from "../raceStandings";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Square Racing Grand Prix ("race" mode, the project.jdm marble-race format with cups): 2–16 racers – squares or
@@ -100,10 +101,10 @@ function clampInt(value: unknown, range: { min: number; max: number }, fallback:
 }
 
 /** Fills in the defaults and clamps every value (whole numbers in range, known options, real booleans). */
-export function resolveRaceSettings(config: Partial<RaceSettings> | null | undefined): RaceSettings {
+export function resolveRaceSettings(config: Partial<RaceSettings> | null | undefined, unlimited = false): RaceSettings {
   const out = { ...DEFAULT_RACE_SETTINGS };
   if (!config) return out;
-  const R = RACE_RANGES;
+  const R = rangesFor(RACE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.racers !== undefined) out.racers = clampInt(config.racers, R.rcRacers, out.racers);
   if (isRaceShape(config.shape)) out.shape = config.shape;
   if (config.trackLength !== undefined) out.trackLength = clampInt(config.trackLength, R.rcTrackLength, out.trackLength);
@@ -441,6 +442,8 @@ export class RaceMode implements GameMode {
   /** Racer contacts are the mode's own (onPostSubStep), whatever the ball interaction says. */
   readonly ballsPassThrough = true;
   private settings: RaceSettings = { ...DEFAULT_RACE_SETTINGS };
+  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
+  private unlimited = false;
   private readonly view: RaceView = createView();
   private readonly clock = new LeaderClock(1024);
   /** The racers' balls by racer index (refreshed every step). */
@@ -476,9 +479,10 @@ export class RaceMode implements GameMode {
   getSettings(): RaceSettings {
     return this.settings;
   }
-  /** The track settings (racers, length, laps, mix, favourite, cup) apply on the next init; the camera and the shape at once. */
-  setSettings(patch: Partial<RaceSettings>) {
-    this.settings = resolveRaceSettings({ ...this.settings, ...patch });
+  /** The track settings (racers, length, laps, mix, favourite, cup) apply on the next init; the camera and the shape at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<RaceSettings>, unlimited = false) {
+    this.unlimited = unlimited; // --- unlimited ---
+    this.settings = resolveRaceSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.camera = this.settings.camera;
     this.view.settings.shape = this.settings.shape;
   }
@@ -502,7 +506,7 @@ export class RaceMode implements GameMode {
       const u = ctx.random();
       tape.push(u);
       return u;
-    });
+    }, this.unlimited);
     this.tape = tape;
     this.layoutW = cfg.width;
     this.layoutH = cfg.height;
@@ -1145,7 +1149,7 @@ export class RaceMode implements GameMode {
   private relayout(ctx: ModeContext) {
     const cfg = ctx.config;
     let k = 0;
-    const track = buildRaceTrack(cfg.width, cfg.height, this.settings, cfg.ballRadius || 8, () => (k < this.tape.length ? this.tape[k++] : 0.5));
+    const track = buildRaceTrack(cfg.width, cfg.height, this.settings, cfg.ballRadius || 8, () => (k < this.tape.length ? this.tape[k++] : 0.5), this.unlimited);
     this.layoutW = cfg.width;
     this.layoutH = cfg.height;
     const v = this.view;

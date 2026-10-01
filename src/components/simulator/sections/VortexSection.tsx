@@ -25,8 +25,8 @@ export const VORTEX_KEYS = ["vxBalls", "vxStagger", "vxRings", "vxDuration", "vx
  */
 export default function VortexSection({ t, search, matches, settings: s, update }: VortexSectionProps) {
   const vx = vortexSettingsOf(s);
-  const nominal = vortexNominalRunSec(vx);
-  const range = vortexRunRangeSec(vx);
+  const nominal = vortexNominalRunSec(vx, s.unlimited); // --- unlimited --- (the run the engine plays)
+  const range = vortexRunRangeSec(vx, s.unlimited);
   return (
     <div className="space-y-3 pt-2" data-testid="sound-vortex">
       {!search && (

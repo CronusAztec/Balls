@@ -2,6 +2,7 @@ import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type Sc
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { ChainStepper, PendulumChain, collideBobs, createContactScratch, type ContactScratch, type Vec2 } from "../pendulumChain";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Double Pendulum ("doublePendulum" mode, the project.jdm "Double Pendulum HARP" and "2 Pendulums SPAR with Each
@@ -157,10 +158,10 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value to its range (counts and angles become whole numbers, segments 2 or 3; unknown layouts, scales and non-boolean flags fall back to the defaults). */
-export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSettings> | null | undefined): DoublePendulumSettings {
+export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSettings> | null | undefined, unlimited = false): DoublePendulumSettings {
   const out = { ...DEFAULT_DOUBLE_PENDULUM_SETTINGS };
   if (!config) return out;
-  const R = DOUBLE_PENDULUM_RANGES;
+  const R = rangesFor(DOUBLE_PENDULUM_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.dpCount, out.count));
   if (config.segments !== undefined) out.segments = Math.round(clampNumber(config.segments, R.dpSegments, out.segments));
   if (config.length1 !== undefined) out.length1 = clampNumber(config.length1, R.dpLength1, out.length1);
@@ -702,9 +703,10 @@ export class DoublePendulumMode implements GameMode {
    * The rig (count, rods, lengths, masses, gravity, start, damping, sparring) is applied by the next init – the
    * Simulator re-inits the mode when one of them changes. The trail length, the strings (count, layout, octaves,
    * tuning), the end (endless, clip length) apply at once: they change what is drawn and heard, not the swing.
+   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  setSettings(patch: Partial<DoublePendulumSettings>) {
-    this.settings = resolveDoublePendulumSettings({ ...this.settings, ...patch });
+  setSettings(patch: Partial<DoublePendulumSettings>, unlimited = false) {
+    this.settings = resolveDoublePendulumSettings({ ...this.settings, ...patch }, unlimited);
     const s = this.settings;
     const live = this.view.settings;
     const harpChanged = live.strings !== s.strings || live.stringLayout !== s.stringLayout || live.octaves !== s.octaves || live.scale !== s.scale || live.rootNote !== s.rootNote;

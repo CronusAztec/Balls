@@ -14,6 +14,7 @@ import { RingsStage } from "../journey/rings";
 import { HomeStage } from "../journey/home";
 import { segmentBetween, type Obstacle, type SegmentObstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult, SoundEvent, WallHitResult } from "../types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Journey ("journey" mode, feature gerald-journey – the geraldbounces "Gerald bounces through his commute", "The last stage
@@ -72,13 +73,14 @@ export interface JourneyFields {
 }
 
 /** Fills in the defaults, normalises the stage list and clamps the auto count; bad values fall back to the defaults. */
-export function resolveJourneySettings(config: Partial<JourneySettings> | null | undefined): JourneySettings {
+export function resolveJourneySettings(config: Partial<JourneySettings> | null | undefined, unlimited = false): JourneySettings {
   const out = { ...DEFAULT_JOURNEY_SETTINGS };
   if (!config) return out;
+  const R = rangesFor(JOURNEY_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (typeof config.stages === "string") out.stages = sanitizeJourneyStages(config.stages);
   if (config.auto !== undefined) {
     const n = typeof config.auto === "number" || typeof config.auto === "string" ? Number(config.auto) : NaN;
-    if (Number.isFinite(n)) out.auto = Math.round(Math.max(JOURNEY_RANGES.journeyAutoStages.min, Math.min(JOURNEY_RANGES.journeyAutoStages.max, n)));
+    if (Number.isFinite(n)) out.auto = Math.round(Math.max(R.journeyAutoStages.min, Math.min(R.journeyAutoStages.max, n)));
   }
   return out;
 }
@@ -252,9 +254,9 @@ export class JourneyMode implements GameMode {
   getSettings(): JourneySettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Journey setting changes). */
-  setSettings(patch: Partial<JourneySettings>) {
-    this.settings = resolveJourneySettings({ ...this.settings, ...patch });
+  /** Applied on the next init (the Simulator re-inits the mode when a Journey setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<JourneySettings>, unlimited = false) {
+    this.settings = resolveJourneySettings({ ...this.settings, ...patch }, unlimited);
   }
   getView(): JourneyView {
     return this.view;

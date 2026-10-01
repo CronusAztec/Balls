@@ -153,8 +153,10 @@ export class SpatialHash {
    * Collects into `out` (reset first) every pair of discs whose centres are closer than the sum of their radii
    * plus `margin` – the candidates a solver then resolves – and returns how many there are. Discs further apart
    * than one cell can only be found when the cell is at least as wide as the largest contact distance.
+   * --- unlimited --- `maxPairs` stops the search once that many pairs are found (in the hash's fixed order, so a seed
+   * replays it): a pile crushed together by absurd forces would otherwise hold millions of pairs a sub-step.
    */
-  collectContacts(xs: ArrayLike<number>, ys: ArrayLike<number>, rs: ArrayLike<number>, margin: number, out: PairBuffer): number {
+  collectContacts(xs: ArrayLike<number>, ys: ArrayLike<number>, rs: ArrayLike<number>, margin: number, out: PairBuffer, maxPairs = Infinity): number {
     out.count = 0;
     const { cols, rows, cellStart: start, sorted } = this;
     for (let cy = 0; cy < rows; cy++) {
@@ -173,7 +175,10 @@ export class SpatialHash {
             const dx = xs[j] - xi;
             const dy = ys[j] - yi;
             const reach = ri + rs[j];
-            if (dx * dx + dy * dy < reach * reach) pushPair(out, i, j);
+            if (dx * dx + dy * dy < reach * reach) {
+              pushPair(out, i, j);
+              if (out.count >= maxPairs) return out.count;
+            }
           }
           for (let k = 0; k < FORWARD.length; k++) {
             const nx = cx + FORWARD[k][0];
@@ -186,7 +191,10 @@ export class SpatialHash {
               const dx = xs[j] - xi;
               const dy = ys[j] - yi;
               const reach = ri + rs[j];
-              if (dx * dx + dy * dy < reach * reach) pushPair(out, i, j);
+              if (dx * dx + dy * dy < reach * reach) {
+                pushPair(out, i, j);
+                if (out.count >= maxPairs) return out.count;
+              }
             }
           }
         }

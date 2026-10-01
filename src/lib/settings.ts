@@ -63,7 +63,7 @@ import type { BeatSourceKind } from "@/lib/simulation/beatSource";
 // --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
 import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, resolveBounceMathFields, writeBounceMathParams, type BounceRule } from "@/lib/simulation/bounceMath";
 // --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
-import { UNLIMITED_URL_KEY, discoverUrlKeys, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
+import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1263,6 +1263,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
+  liftSwitchForBigValues(settings); // --- unlimited --- (a big core value without `inf=1` turns the switch on: its guards run it)
   return settings;
 }
 
@@ -1393,6 +1394,25 @@ function readUnlimitedValues(params: URLSearchParams, settings: SimulatorSetting
 function restoreUnlimitedPreset(preset: Partial<SimulatorSettings>, merged: SimulatorSettings) {
   restoreUnlimitedValues(preset as unknown as UnlimitedRecord, merged as unknown as UnlimitedRecord, defaultSettings(merged.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES);
   if (merged.unlimited && merged.teams.length === 0) merged.twoBalls = merged.ballCount >= 2;
+}
+
+/**
+ * Settings that still hold a value past its range with the switch off – the core numbers of a link or preset keep big
+ * values whatever the switch says (`clampToRange()`: `wc=100000` stays 100,000) – get the switch on: No limits' guards
+ * (the engine's soft ceilings, the crowd, the bounded steps, the frame budget, the badges) only run with it, and without
+ * them a hundred thousand rings or a billion px/s would hang the tab. Big values stay big; nothing else changes.
+ */
+function liftSwitchForBigValues(settings: SimulatorSettings) {
+  if (settings.unlimited) return;
+  const record = settings as unknown as UnlimitedRecord;
+  for (const key of unlimitedSettingKeys()) {
+    const value = record[key];
+    const range = UNLIMITED_RANGES[key];
+    if (typeof value === "number" && range && beyondRange(key, value, range)) {
+      settings.unlimited = true;
+      return;
+    }
+  }
 }
 // --- end unlimited ---
 
@@ -1540,6 +1560,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
+  liftSwitchForBigValues(merged); // --- unlimited --- (a big core value with the switch off turns it on: its guards run it)
   return merged;
 }
 
