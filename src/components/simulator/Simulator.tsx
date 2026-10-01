@@ -326,6 +326,11 @@ export default function Simulator() {
     setEngineReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // --- review fix (audio) --- leaving the page (an in-app link, a language switch) closes the AudioContext: the music bed,
+  // the keep-alive oscillator, the hit samples and the slicer stop with it. The generator itself is kept – stop() can be
+  // restarted (start() rebuilds the context and re-attaches the bed with its track) – so StrictMode's simulated unmount
+  // and remount keep the settings already pushed to it.
+  useEffect(() => () => audioRef.current?.stop(), []);
 
   /**
    * Restarts the current mode from scratch: the run and everything that plays along with it – the melody from its first
@@ -1731,7 +1736,16 @@ export default function Simulator() {
   }, []);
 
   const onWallBreakSoundUpload = useCallback(
-    (file: File) => {
+    async (file: File) => {
+      // --- review fix (audio) --- a clip the browser cannot decode is refused here (like the song and the music track)
+      // instead of silently leaving every wall break on the default sound
+      try {
+        await audioRef.current?.decodeAudio(await file.arrayBuffer());
+      } catch (err) {
+        console.warn("Failed to decode the wall-break sound:", err);
+        alert(t("Controls.wallBreakDecodeError"));
+        return;
+      }
       if (wallBreakObjectUrlRef.current) URL.revokeObjectURL(wallBreakObjectUrlRef.current);
       const url = URL.createObjectURL(file);
       wallBreakObjectUrlRef.current = url;
@@ -1739,7 +1753,7 @@ export default function Simulator() {
       projectUploadsRef.current.wallBreakSound = file; // --- project-files ---
       update({ wallBreakSound: url });
     },
-    [update],
+    [t, update],
   );
 
   const onHitSampleUpload = useCallback(

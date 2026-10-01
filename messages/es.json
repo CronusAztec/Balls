@@ -359,6 +359,7 @@
     "musicRemove": "Quitar música",
     "musicPlaying": "Sonando",
     "musicDecodeError": "No se pudo decodificar este archivo de audio. Prueba con un MP3, OGG, WAV o M4A.",
+    "wallBreakDecodeError": "No se pudo decodificar este archivo de audio: las roturas de pared conservan su sonido predeterminado. Prueba con un MP3, OGG, WAV o M4A.",
     "musicDuckMeter": "Nivel de la música (baja en cada rebote)",
     "musicVolume": "Volumen de la música",
     "musicVolumeTip": "Cuánto suena la música bajo los sonidos de rebote, en los altavoces y en el vídeo exportado.",
