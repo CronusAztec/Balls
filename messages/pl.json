@@ -23,7 +23,7 @@
   "Hero": {
     "title1": "Satysfakcjonująca fizyka piłki",
     "title2": "na TikToka i Reels",
-    "subtitle": "Twórz hipnotyzujące symulacje odbijającej się piłki w przeglądarce: dostrój fizykę, nałóż tęczowe efekty, wybierz jeden z {modeCount} trybów i wyeksportuj pionowe MP4 gotowe do publikacji. Za darmo, bez konta, bez instalacji.",
+    "subtitle": "Twórz hipnotyzujące symulacje odbijającej się piłki w przeglądarce: dostrój fizykę, nałóż tęczowe efekty, wybierz jeden z {count} trybów i wyeksportuj pionowe MP4 gotowe do publikacji. Za darmo, bez konta, bez instalacji.",
     "startCreating": "Zacznij tworzyć",
     "exploreModes": "Odkryj tryby",
     "mobileNotice": "Najlepiej korzystać z przeglądarki na komputerze lub laptopie. Sterowanie jest zoptymalizowane pod większe ekrany."
@@ -31,13 +31,13 @@
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
     "metaTitle": "Symulator fizyki piłki – darmowe narzędzie online na TikToka i Reels – {siteName}",
-    "metaDescription": "Darmowy przeglądarkowy symulator fizyki piłki z {modeCount} trybami, konfigurowalną fizyką, tęczowymi efektami i eksportem MP4 w pionowym formacie TikTok. Bez rejestracji i instalacji."
+    "metaDescription": "Darmowy przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką, tęczowymi efektami i eksportem MP4 w pionowym formacie TikTok. Bez rejestracji i instalacji."
   },
   "Layout": {
     "metaTitle": "Darmowy satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
-    "metaDescription": "Darmowy symulator fizyki piłki działający w przeglądarce. Twórz hipnotyzujące symulacje z konfigurowalną fizyką, tęczowymi efektami i {modeCount} unikalnymi trybami, a potem eksportuj filmy MP4 na TikToka, Reels i Shorts. Bez rejestracji i instalacji.",
+    "metaDescription": "Darmowy symulator fizyki piłki działający w przeglądarce. Twórz hipnotyzujące symulacje z konfigurowalną fizyką, tęczowymi efektami i {count} unikalnymi trybami, a potem eksportuj filmy MP4 na TikToka, Reels i Shorts. Bez rejestracji i instalacji.",
     "browserRequirements": "Wymaga nowoczesnej przeglądarki z włączonym JavaScriptem",
-    "featureModes": "{modeCount, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
+    "featuresModes": "{count, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
     "features": [
       "Konfigurowalna fizyka i wygląd",
       "Tęczowe efekty ścian",
@@ -192,7 +192,7 @@
     "canvasRacePoints": "pkt"
   },
   "HowItWorks": {
-    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z {modeCount} trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
+    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z {count} trybów symulacji: klasyczne pierścienie, ślady farby, rozbicie, dopasowanie kolorów, rośnięcie, spadające piłki i inne." },
     "step2": { "title": "Dostosuj wszystko", "description": "Zmieniaj fizykę, kolory, efekty, nakładki tekstowe i wygląd piłki, aż klip będzie wyglądał tak, jak chcesz." },
     "step3": { "title": "Eksportuj i udostępniaj", "description": "Nagraj symulację jako MP4 w dowolnej rozdzielczości, w tym w pionowym formacie TikTok, i opublikuj, gdzie chcesz." }
   },
@@ -301,6 +301,7 @@
     "wallBreakSound": "Dźwięk przebicia ściany",
     "wallBreakSoundDesc": "Odtwórz własny klip audio zamiast domyślnych tonów, gdy piłka przebija ścianę.",
     "wallBreakSoundDefault": "Domyślne tony",
+    "customWallBreak": "Własny",
     "importWallBreak": "Importuj własny dźwięk przebicia",
     "chooseWallBreakFile": "Wybierz plik audio",
     "dropWallBreakHere": "Upuść plik audio tutaj!",
@@ -328,6 +329,7 @@
     "defaultSong": "Domyślne tony",
     "loadingSong": "Ładowanie piosenki...",
     "notesLoaded": "nut załadowano",
+    "uploadedMidi": "Wczytany plik MIDI",
     "importMidi": "Importuj własny plik MIDI",
     "chooseMidiFile": "Wybierz plik .mid",
     "dropMidiHere": "Upuść plik MIDI tutaj!",
@@ -857,6 +859,8 @@
     "obstaclesMax": "Osiągnięto limit {max} przeszkód.",
     "obstaclePosition": "x {x} · y {y}",
     "obstacleRemove": "Usuń przeszkodę {n}",
+    "obstacleXOf": "Położenie przeszkody {n} w poziomie",
+    "obstacleYOf": "Położenie przeszkody {n} w pionie",
     "obstacleSize": "Rozmiar",
     "obstacleLength": "Długość",
     "obstacleAngle": "Kąt",
@@ -1597,8 +1601,8 @@
     "title": "Czym właściwie jest {siteName}",
     "p1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień, naciśnij nagrywanie i pobierz klip. Nie ma konta, instalacji ani edytora wideo; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
     "p2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje: ściana się rozpada, piłka się mnoży, kolor zalewa ekran, cel zostaje trafiony. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej. Ta mała pętla napięcia i ulgi napędza wyświetlenia, a tutaj kontrolujesz każdy jej element, zamiast publikować cudzy klip.",
-    "h3_1": "Każdy tryb, jedno płótno",
-    "p3": "Każdy z {modeCount} trybów opowiada inną historię. Klasyczny to ten, który większość ludzi sobie wyobraża: piłka przebijająca się przez pierścienie. Mnożenie zamienia jedną piłkę w rój. Akumulacja zamraża piłki w miejscu, aż ostatnia musi przejść przez labirynt poprzedniczek. Malowanie, Cel, Rośnij, Rozbicie, Dopasowanie kolorów, Linie, Portal i Spadające piłki zmieniają zasady na swój sposób. Przełączanie zajmuje jedno kliknięcie, a płótno aktualizuje się natychmiast.",
+    "h3_1": "Wiele trybów, jedno płótno",
+    "p3": "Każdy tryb opowiada inną historię. Klasyczny to ten, który większość ludzi sobie wyobraża: piłka przebijająca się przez pierścienie. Mnożenie zamienia jedną piłkę w rój. Akumulacja zamraża piłki w miejscu, aż ostatnia musi przejść przez labirynt poprzedniczek. Malowanie, Cel, Rośnij, Rozbicie, Dopasowanie kolorów, Linie, Portal, Spadające piłki i pozostałe zmieniają zasady na swój sposób. Przełączanie zajmuje jedno kliknięcie, a płótno aktualizuje się natychmiast.",
     "h3_2": "Stworzony do majstrowania",
     "p4": "Wygląd należy do Ciebie. Dodaj pierścienie dla dłuższego budowania napięcia lub usuń je dla szybkiego finału. Włącz tęczowe ściany, przełączaj efekt przebicia między konfetti, rozbiciem i falą uderzeniową albo połącz wszystkie trzy. Dodaj kolce dla zagrożenia, poświatę dla szlifu i kolorowy ślad, aby szybki ruch wyglądał celowo. Umieść własny obrazek na piłce, napisz haczyk w stylu „czy ucieknie?” u góry i wgraj melodię, aby odbicia trafiały w rytm. Małe zmiany mają znaczenie: jeden dodatkowy pierścień może zdecydować o tym, czy klip zostanie przewinięty, czy obejrzany dwa razy.",
     "h3_3": "Nagraj, wyeksportuj, opublikuj",
@@ -1629,7 +1633,7 @@
     "whatEachControlDoes": "Co robi każda kontrolka",
     "tryItYourself": "Wypróbuj sam",
     "labels": { "mode": "Tryb", "ballPhysics": "Fizyka piłki", "wallSettings": "Ustawienia ścian", "visualEffects": "Efekty wizualne", "customSound": "Własny dźwięk", "recording": "Nagrywanie", "savedPresets": "Zapisane presety" },
-    "step1": { "title": "Wybierz tryb", "body": "Otwórz wiersz Tryb w panelu sterowania i wybierz jeden z {modeCount} trybów. Tryb ustala zasady, więc zdecyduj o nim najpierw." },
+    "step1": { "title": "Wybierz tryb", "body": "Otwórz wiersz Tryb w panelu sterowania i wybierz tryb. Tryb ustala zasady, więc zdecyduj o nim najpierw." },
     "step2": { "title": "Otwórz sekcję i dostosuj", "body": "Piłka, Ściany, Efekty i Dźwięk rozwijają się po kliknięciu. Zmień liczbę ścian, efekt przebicia, kolory lub ślad. Śpieszysz się? Wpisz nazwę ustawienia w pole wyszukiwania u góry." },
     "step3": { "title": "Naciśnij Start", "body": "Kliknij Uruchom symulator na płótnie. Domyślne ustawienia już dobrze wyglądają, więc zacznij od razu i dostosuj, gdy zobaczysz ruch." },
     "step4": { "title": "Dopracuj symulację", "body": "Podczas odtwarzania użyj Uruchom ponownie, aby wylosować od nowa, Pauzy, aby zatrzymać klatkę, i przycisków prędkości (1x do 8x), aby przewinąć. Spacja pauzuje, R restartuje. Resetuj, aż moment będzie idealny." },
@@ -1721,6 +1725,7 @@
     "modeBeatDrop": "Tryb rytmiczny bez pierścieni, stworzony do edycji pod muzykę: pionowa scena na ciemnym gradiencie, w której jedna kulka spada i odbija się od przeszkody do przeszkody, a każda przeszkoda wlatuje zza ekranu – z lewej, z prawej, z góry albo z dołu, nigdy od strony, z której nadlatuje kulka – z płynnym wyhamowaniem i zatrzymuje się tuż przed swoim bitem, więc kulka ląduje na niej dokładnie w bit. Bieg jest zaplanowany z góry na podstawie bitu, za którym podąża (wykrytego bitu wczytanej piosenki albo ustawienia BPM): prędkość wybicia każdego lotu jest wyliczana tak, by lot trwał dokładnie tyle, ile odstęp między dwoma bitami – przy każdym tempie i na nieregularnej siatce – więc każde lądowanie mieści się w ułamku milisekundy od swojego bitu. Sześć rodzajów przeszkód – deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny – ugina się przy uderzeniu, świeci w rytm i odjeżdża z zanikaniem, gdy kulka już ją opuści; kulka spłaszcza się i rozciąga, zostawia smugę ruchu, a każde lądowanie wywołuje falę i obłok cząsteczek. Lądowania grają syntezowaną perkusję – stopę na 1 i 3, werbel na 2 i 4, hi-hat między bitami i własny akcent każdej przeszkody – kolejną nutę melodii albo jedno i drugie. Przewijanie bez końca jedzie za kulką w dół w nieskończoność; arena trzyma ją w kadrze. Ten tryb nigdy nie chybia bitu, więc Znajdź symulację po prostu wybiera ziarno i dopasowuje klip do bitów, które obejmuje."
   },
   "Footer": {
+    "navLabel": "Stopka",
     "about": "O nas",
     "tiktok": "Filmy na TikToka",
     "disclaimer": "Zastrzeżenia",
@@ -1861,7 +1866,7 @@
   },
   "TikTokBallVideos": {
     "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – darmowe narzędzie – {siteName}",
-    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: darmowe narzędzie przeglądarkowe z {modeCount} trybami, własną fizyką i pionowym eksportem 1080×1920. Bez rejestracji.",
+    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: darmowe narzędzie przeglądarkowe z {count} trybami, własną fizyką i pionowym eksportem 1080×1920. Bez rejestracji.",
     "badge": "Treści na TikToka",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",
@@ -1875,7 +1880,7 @@
     "p6": "Możesz też eksportować 500×500 (kwadrat), 1280×720 (HD) lub 1920×1080 (Full HD) na Reels, YouTube Shorts i inne platformy. Nagrywanie odbywa się w całości w przeglądarce; nic nie jest wgrywane i nie dodajemy znaku wodnego, chyba że sam go dodasz.",
     "h2_3": "Zacznij od sprawdzonego formatu",
     "p7": "Najlepsze filmy z piłką na TikToku mają prosty przepis: wyraźny wizualny haczyk w pierwszej sekundzie, widoczny wskaźnik postępu, np. liczba pozostałych ścian, i satysfakcjonujący finał, gdy piłka w końcu ucieka. Funkcja Znajdź symulację wyszukuje seed dający symulację o docelowej długości, więc możesz zaplanować klip zamiast zgadywać.",
-    "p8": "Każdy z {modeCount} trybów ma swój rytm, a tryby tworzą rodziny: tryby ucieczki, jak Klasyczny, Rozbicie i Portal, tryby rytmiczne, jak Spadające piłki, Fala wahadeł i Bieg w rytmie, tryby bitewne, jak Bitwa na nici, oraz wieloetapowa Podróż. Możesz więc urozmaicać treści bez zaczynania od zera. Zapisz ulubione konfiguracje jako presety i publikuj nowy film codziennie jednym kliknięciem.",
+    "p8": "Każdy tryb, od Klasycznego i Mnożenia po Spadające piłki, Wyścig kwadratów i Rozbijanie szkła, ma inny rytm, więc możesz urozmaicać treści bez zaczynania od zera. Zapisz ulubione konfiguracje jako presety i publikuj nowy film codziennie jednym kliknięciem.",
     "cta": "Nagraj swój pierwszy film z piłką na TikToka"
   },
   "About": {
@@ -2614,6 +2619,7 @@
     "scopeAll": "Wszystkie piłki",
     "scopeTip": "Ta piłka: tylko piłka, której dotyczy zdarzenie (obie piłki przy zderzeniu; przy rytmie, taktach i sekundach – piłka, która odbiła się ostatnia). Wszystkie piłki: każda piłka. Wartości świata (grawitacja, obrót, szczelina…) zawsze dotyczą całej sceny.",
     "notInMode": "Ten tryb nie używa tej wartości – reguła jest tu pomijana.",
+    "triggerNotInMode": "W tym trybie nic nie wywołuje tego wyzwalacza – reguła nigdy się tu nie uruchomi.",
     "formulaExample": "Przykład: v * (1 + 0.1 * sin(n / 3)) – v wartość, n liczba uruchomień, t sekundy, b uderzenia rytmu, r losowa 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Wpisz formułę, np. v * 1.05.",
@@ -2766,6 +2772,8 @@
     "sendSelected": "Wyślij do zaznaczonych ({count})",
     "overLimit": "Za długie dla: {platforms} – skróć tekst (zobacz liczniki).",
     "instagramMp4": "Instagram przyjmuje MP4 (H.264 + AAC), a ten klip to WebM – wyeksportuj go w Chrome lub Safari albo przekonwertuj.",
+    "instagramPublicOnly": "Rolki na Instagramie są zawsze publiczne – wybierz „Publiczny” albo odznacz konta Instagrama.",
+    "tiktokUnlisted": "TikTok nie ma opcji „niepubliczny” – zamiast tego opublikuje klip dla wzajemnych obserwujących (Znajomi).",
     "sendNeedsClip": "Nagraj lub wybierz klip do wysłania.",
     "progress": "Postęp wysyłania",
     "relaySettings": "Relay",
@@ -2794,6 +2802,10 @@
         "server": "Relay zgłosił błąd – sprawdź jego log i spróbuj ponownie.",
         "timeout": "Relay wciąż publikuje – sprawdź ostatnie wysyłki później.",
         "badUrl": "Adres relaya nie jest poprawnym adresem http(s)."
+      },
+      "page": {
+        "clipGone": "Klipu z tej wysyłki nie ma już na liście – wybierz lub nagraj go ponownie i wyślij.",
+        "otherProfile": "To konto należy do innego profilu relaya – przełącz się z powrotem na ten relay, aby spróbować ponownie."
       }
     }
   }

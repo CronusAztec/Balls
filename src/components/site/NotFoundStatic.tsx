@@ -38,10 +38,11 @@ export default function NotFoundStatic() {
     const detected = localeFromLocation();
     setLocale(detected);
     document.documentElement.lang = detected;
-    document.title = `${MESSAGES[detected].NotFound.title} – ${SITE_NAME}`;
   }, []);
   return (
     <NextIntlClientProvider key={locale} locale={locale} messages={MESSAGES[locale]} timeZone="UTC">
+      {/* --- review fix (ui-i18n) --- React owns the page's single <title> (hoisted into <head>), in the detected language */}
+      <title>{`${MESSAGES[locale].NotFound.title} – ${SITE_NAME}`}</title>
       <NotFoundContent />
     </NextIntlClientProvider>
   );

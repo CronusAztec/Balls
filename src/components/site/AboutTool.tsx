@@ -2,11 +2,10 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { SITE_NAME } from "@/lib/site";
 import SectionHeading from "./SectionHeading";
-import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
 
 export default function AboutTool() {
   const t = useTranslations("AboutTool");
-  const v = { siteName: SITE_NAME, modeCount: MODE_COUNT };
+  const v = { siteName: SITE_NAME };
   const sections: [string, string][] = [
     ["h3_1", "p3"],
     ["h3_2", "p4"],

@@ -470,7 +470,7 @@ describe("Send to selected (the controller)", () => {
         relayProfiles: [{ id: "p1", url: "https://relay.example", key: "jbl_team", label: "Team" }],
         activeRelay: "p1",
         checked: ["yt:UC1", "yt:UC2", "relay:p1:a_tt", "relay:p1:a_ig"],
-        visibility: "private",
+        visibility: "public", // (Instagram Reels are always public: another visibility would hold the Instagram accounts back)
       }),
     );
     let jobPolls = 0;
@@ -518,7 +518,7 @@ describe("Send to selected (the controller)", () => {
     // The YouTube upload went out with the YouTube words and the chosen visibility; the relay got one upload for both accounts.
     const ytStart = calls.find((x) => x.url.startsWith("https://www.googleapis.com/upload/"))!;
     expect(ytStart.headers.Authorization).toBe("Bearer ya29.main");
-    expect(JSON.parse(String(ytStart.body))).toMatchObject({ snippet: { title: "Can it escape?", description: "Ring escape\n\n#Shorts #ball", tags: ["Shorts", "ball"] }, status: { privacyStatus: "private" } });
+    expect(JSON.parse(String(ytStart.body))).toMatchObject({ snippet: { title: "Can it escape?", description: "Ring escape\n\n#Shorts #ball", tags: ["Shorts", "ball"] }, status: { privacyStatus: "public" } });
     const publishes = calls.filter((x) => x.url.endsWith("/api/publish"));
     expect(publishes).toHaveLength(1);
     const form = publishes[0].body as FormData;
@@ -535,6 +535,158 @@ describe("Send to selected (the controller)", () => {
       ["youtube", "published"],
     ]);
     expect(JSON.stringify(stored.recent)).not.toContain("jbl_team");
+  });
+
+  it("tries a failed account again with the clip, words and visibility it was sent with – not the clip on show now", async () => {
+    const mem = new Map<string, string>([
+      [PUBLISH_STORAGE_KEY, JSON.stringify({ relayProfiles: [{ id: "p1", url: "https://relay.example", key: "jbl_team", label: "Team" }], activeRelay: "p1", checked: ["relay:p1:a_tt"], visibility: "private" })],
+    ]);
+    let publishes = 0;
+    let secondFails = true;
+    const { fetchImpl, calls } = mockFetch([
+      { url: "https://relay.example/api/me", reply: () => json({ key: { id: "k1", label: "Team" }, platforms: { tiktok: true, instagram: true, youtube: true } }) },
+      { url: "https://relay.example/api/accounts", reply: () => json({ accounts: [{ id: "a_tt", platform: "tiktok", name: "Tok", handle: "@tok" }] }) },
+      { method: "POST", url: "https://relay.example/api/publish", reply: () => json({ jobId: `j${++publishes}` }, { status: 202 }) },
+      { url: "https://relay.example/api/jobs/j1", reply: () => json({ id: "j1", status: "failed", items: [{ accountId: "a_tt", platform: "tiktok", status: "failed", error: "TikTok is down" }] }) },
+      {
+        url: /^https:\/\/relay\.example\/api\/jobs\/j[2-9]$/,
+        reply: (call) =>
+          secondFails
+            ? json({ id: call.url.slice(-2), status: "failed", items: [{ accountId: "a_tt", platform: "tiktok", status: "failed", error: "TikTok is down again" }] })
+            : json({ id: call.url.slice(-2), status: "done", items: [{ accountId: "a_tt", platform: "tiktok", status: "published", link: "https://www.tiktok.com/@tok" }] }),
+      },
+    ]);
+    const c = new PublishController({ fetch: () => fetchImpl, window: () => null, storage: () => ({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v) }), now: () => Date.now(), envClientId: "", envRelayUrl: "" });
+    c.start();
+    await vi.waitFor(() => expect(c.getSnapshot().relay.status).toBe("ok"));
+    const a = offerPublishClip({ blob: new Blob([new Uint8Array(2048)], { type: "video/mp4" }), name: "clip-A", source: "recording" });
+    c.ensureDraft(a.id, () => ({ ...emptyDraft(), caption: "Words of A" }));
+    await c.sendSelected();
+    expect(c.getSnapshot().sends.map((i) => [i.key, i.status])).toEqual([["relay:p1:a_tt", "failed"]]);
+    // A new recording arrives (and becomes the clip on show), with other words; the visibility changes too.
+    const b = offerPublishClip({ blob: new Blob([new Uint8Array(4096)], { type: "video/mp4" }), name: "clip-B", source: "recording" });
+    c.ensureDraft(b.id, () => ({ ...emptyDraft(), caption: "Words of B" }));
+    c.setVisibility("public");
+    expect(c.getSnapshot().clipId).toBe(b.id);
+    secondFails = false;
+    await c.retry("relay:p1:a_tt");
+    const forms = calls.filter((x) => x.url.endsWith("/api/publish")).map((x) => x.body as FormData);
+    expect(forms).toHaveLength(2);
+    expect((forms[1].get("file") as File).size).toBe(2048);
+    expect((forms[1].get("file") as File).name).toBe(a.name);
+    expect(JSON.parse(String(forms[1].get("posts"))).tiktok.text).toContain("Words of A");
+    expect(forms[1].get("visibility")).toBe("private");
+    expect(c.getSnapshot().sends[0]).toMatchObject({ key: "relay:p1:a_tt", status: "published" });
+
+    // Failed again; the relay profile in use is another one now: the row says so instead of doing nothing.
+    secondFails = true;
+    await c.sendSelected(); // clip B this time (the clip on show)
+    expect(c.getSnapshot().sends[0].status).toBe("failed");
+    c.saveProfile({ url: "https://other.example", key: "jbl_other", label: "Other" });
+    await c.retry("relay:p1:a_tt");
+    expect(c.getSnapshot().sends[0]).toMatchObject({ status: "failed", code: "page.otherProfile" });
+    expect(calls.filter((x) => x.url.endsWith("/api/publish"))).toHaveLength(3);
+    // Back on the first relay, but the clip has left the list: the row says that.
+    c.selectProfile("p1");
+    c.removeClip(b.id);
+    await c.retry("relay:p1:a_tt");
+    expect(c.getSnapshot().sends[0]).toMatchObject({ status: "failed", code: "page.clipGone" });
+    expect(calls.filter((x) => x.url.endsWith("/api/publish"))).toHaveLength(3);
+    for (const locale of [en, pl, es]) expect(locale.Publish.errors.page.clipGone.length).toBeGreaterThan(10);
+  });
+
+  /** A window whose Google sign-in answers at once with a fresh token, and a document whose videos fail to load (no thumbnails). */
+  function googleWindow(token: string) {
+    const doc = {
+      createElement: () => {
+        const video: Record<string, unknown> = { removeAttribute: () => {}, load: () => {} };
+        Object.defineProperty(video, "src", { set: () => setTimeout(() => (video.onerror as (() => void) | null)?.(), 0) });
+        return video;
+      },
+    };
+    const oauth2 = { initTokenClient: (cfg: { callback: (r: { access_token: string; expires_in: number }) => void }) => ({ requestAccessToken: () => cfg.callback({ access_token: token, expires_in: 3600 }) }) };
+    return { document: doc, google: { accounts: { oauth2 } } } as unknown as Window & typeof globalThis;
+  }
+
+  it("resumes an upload that waited for a sign-in from its send row – and never one of an earlier send from the account row", async () => {
+    const now = 1_700_000_000_000;
+    const state = () =>
+      JSON.stringify({
+        youtubeAccounts: [
+          { id: "UC1", title: "Main channel", accessToken: "ya29.main", expiresAt: now + 3600e3, addedAt: 1 },
+          { id: "UC2", title: "Old channel", accessToken: "ya29.old", expiresAt: now - 1000, addedAt: 1 },
+        ],
+        checked: ["yt:UC2"],
+        visibility: "unlisted",
+      });
+    const google = () =>
+      mockFetch([
+        { url: "https://www.googleapis.com/youtube/v3/channels", reply: () => json({ items: [{ id: "UC2", snippet: { title: "Old channel" } }] }) },
+        { method: "POST", url: "https://www.googleapis.com/upload/youtube/v3/videos", reply: (call) => new Response(null, { status: 200, headers: { Location: `https://upload.example/yt-${String((call.headers as Record<string, string>).Authorization).slice(-4)}` } }) },
+        { method: "PUT", url: "https://upload.example/", reply: () => json({ id: "short9" }) },
+      ]);
+    const puts = (calls: { method: string; body: unknown }[]) => calls.filter((x) => x.method === "PUT").map((x) => (x.body as Blob).size);
+
+    // The send row waits for the sign-in: "Sign in again" there carries on with that upload.
+    {
+      const mem = new Map<string, string>([[PUBLISH_STORAGE_KEY, state()]]);
+      const { fetchImpl, calls } = google();
+      const c = new PublishController({ fetch: () => fetchImpl, window: () => googleWindow("ya29.fresh"), storage: () => ({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v) }), now: () => now, envClientId: "cid", envRelayUrl: "" });
+      c.start();
+      const a = offerPublishClip({ blob: new Blob([new Uint8Array(3000)], { type: "video/mp4" }), name: "clip-A", source: "recording" });
+      c.ensureDraft(a.id, () => draft());
+      await c.sendSelected();
+      expect(c.getSnapshot().sends.map((i) => [i.key, i.status])).toEqual([["yt:UC2", "needsAuth"]]);
+      await c.reauthYouTube("yt:UC2");
+      expect(puts(calls)).toEqual([3000]);
+      expect(c.getSnapshot().sends[0]).toMatchObject({ key: "yt:UC2", status: "published" });
+      resetPublishClips();
+    }
+
+    // Clip A waits for UC2's sign-in; then UC2 is unticked and clip B goes to UC1 (the send list is replaced). A later
+    // "Sign in again" on UC2's account row only renews the sign-in: clip A is not uploaded behind the user's back.
+    {
+      const mem = new Map<string, string>([[PUBLISH_STORAGE_KEY, state()]]);
+      const { fetchImpl, calls } = google();
+      const c = new PublishController({ fetch: () => fetchImpl, window: () => googleWindow("ya29.renewed"), storage: () => ({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v) }), now: () => now, envClientId: "cid", envRelayUrl: "" });
+      c.start();
+      const a = offerPublishClip({ blob: new Blob([new Uint8Array(3000)], { type: "video/mp4" }), name: "clip-A", source: "recording" });
+      c.ensureDraft(a.id, () => draft());
+      await c.sendSelected();
+      expect(c.getSnapshot().sends[0].status).toBe("needsAuth");
+      c.toggleAccount("yt:UC2", false);
+      c.toggleAccount("yt:UC1", true);
+      const b = offerPublishClip({ blob: new Blob([new Uint8Array(1000)], { type: "video/mp4" }), name: "clip-B", source: "recording" });
+      c.ensureDraft(b.id, () => draft());
+      await c.sendSelected();
+      expect(c.getSnapshot().sends.map((i) => [i.key, i.status])).toEqual([["yt:UC1", "published"]]);
+      expect(puts(calls)).toEqual([1000]);
+      await c.reauthYouTube("yt:UC2");
+      expect(puts(calls)).toEqual([1000]); // no 3000-byte upload of clip A
+      expect(c.getSnapshot().stored.youtubeAccounts.find((x) => x.id === "UC2")?.accessToken).toBe("ya29.renewed");
+      expect(c.getSnapshot().sends.map((i) => [i.key, i.status])).toEqual([["yt:UC1", "published"]]);
+      expect(c.getSnapshot().stored.recent.map((r) => r.account)).toEqual(["Main channel"]);
+    }
+  });
+
+  it("refuses to post a Reel publicly when another visibility is chosen, and says TikTok's unlisted is Friends", () => {
+    const c = new PublishController({ fetch: () => vi.fn() as unknown as FetchLike, window: () => null, storage: () => null, now: () => 0, envClientId: "", envRelayUrl: "" });
+    const clip = offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "c", source: "file" });
+    c.start();
+    c.ensureDraft(clip.id, () => ({ ...emptyDraft(), caption: "c" }));
+    const accounts = [
+      { id: "a_ig", platform: "instagram" as const, name: "IG", handle: null, avatar: null, connectedAt: null, status: "ok" as const, note: null },
+      { id: "a_tt", platform: "tiktok" as const, name: "Tok", handle: null, avatar: null, connectedAt: null, status: "ok" as const, note: null },
+    ];
+    const snap = (visibility: "public" | "unlisted" | "private", checked: string[]) => ({ ...c.getSnapshot(), relay: { ...c.getSnapshot().relay, profileId: "p1", accounts }, stored: { ...c.getSnapshot().stored, visibility, checked } });
+    expect(sendPlan(snap("private", ["relay:p1:a_ig", "relay:p1:a_tt"]), 0)).toMatchObject({ publicOnly: ["instagram"], tiktokFriends: false, blocked: [] });
+    expect(sendPlan(snap("unlisted", ["relay:p1:a_ig", "relay:p1:a_tt"]), 0)).toMatchObject({ publicOnly: ["instagram"], tiktokFriends: true });
+    expect(sendPlan(snap("public", ["relay:p1:a_ig", "relay:p1:a_tt"]), 0)).toMatchObject({ publicOnly: [], tiktokFriends: false });
+    expect(sendPlan(snap("private", ["relay:p1:a_tt"]), 0)).toMatchObject({ publicOnly: [], tiktokFriends: false });
+    for (const locale of [en, pl, es]) {
+      expect(locale.Publish.instagramPublicOnly.length).toBeGreaterThan(10);
+      expect(locale.Publish.tiktokUnlisted.length).toBeGreaterThan(10);
+    }
   });
 
   it("does not send words over a platform's limit", () => {

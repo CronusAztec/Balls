@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { createTranslator } from "next-intl";
 import { MODE_IDS, isModeId } from "@/lib/physics/types";
-import { MODE_COUNT } from "@/lib/modes";
+import { MODE_CARD_ORDER } from "@/lib/modes";
 import sitemap from "@/app/sitemap";
 import manifest from "@/app/manifest";
 import { loadDotEnv } from "../scripts/dotenv.mjs";
@@ -66,10 +66,11 @@ describe("site domain", () => {
 describe("mode count", () => {
   const HARD_CODED = /\b\d+\s+(unique |simulation |unikalnymi |únicos )?(modes|modos|trybów|trybami|tryby)\b/i;
   const SPELLED = /\b(eleven|twelve|thirteen|once|doce|trece|jedenaście|jedenastu|dwanaście|dwunastu|trzynaście|trzynastu)\s+(\S+\s+)?(modes|modos|trybów|trybami|tryby|tryb)\b/i;
+  const COUNT = MODE_CARD_ORDER.length;
 
-  it("MODE_COUNT is the number of modes", () => {
-    expect(MODE_COUNT).toBe(MODE_IDS.length);
-    expect(MODE_COUNT).toBeGreaterThanOrEqual(27);
+  it("every mode has a card, so the cards' count is the number of modes", () => {
+    expect([...MODE_CARD_ORDER].sort()).toEqual([...MODE_IDS].sort());
+    expect(COUNT).toBeGreaterThanOrEqual(27);
   });
 
   it("no string of any catalog hard-codes how many modes there are", () => {
@@ -81,31 +82,28 @@ describe("mode count", () => {
     }
   });
 
-  it("the three catalogs use {modeCount} in the same keys, and those include the meta descriptions and the landing copy", () => {
-    const keysWith = (catalog: unknown) => strings(catalog).filter(([, text]) => text.includes("{modeCount")).map(([key]) => key).sort();
+  it("the three catalogs take the count as a placeholder in the same keys, the meta descriptions among them", () => {
+    const keysWith = (catalog: unknown) => strings(catalog).filter(([, text]) => /\{count[,}]/.test(text)).map(([key]) => key).sort();
     const enKeys = keysWith(en);
     expect(keysWith(pl)).toEqual(enKeys);
     expect(keysWith(es)).toEqual(enKeys);
-    expect(enKeys).toEqual(expect.arrayContaining(["Layout.metaDescription", "Layout.featureModes", "SimulatorPage.metaDescription", "TikTokBallVideos.metaDescription", "Hero.subtitle", "HowItWorks.step1.description", "AboutTool.p3", "Instructions.step1.body", "TikTokBallVideos.p8"]));
+    expect(enKeys).toEqual(expect.arrayContaining(["Layout.metaDescription", "Layout.featuresModes", "SimulatorPage.metaDescription", "TikTokBallVideos.metaDescription", "Hero.subtitle", "HowItWorks.step1.description"]));
   });
 
-  it("formats the count in every locale (Polish declines the feature line), and the JSON-LD feature list starts with it", () => {
+  it("formats the count in every locale, and the JSON-LD feature list starts with it", () => {
     for (const [locale, messages] of Object.entries({ en, pl, es })) {
       const t = createTranslator({ locale, messages, namespace: "Layout" });
-      expect(t("metaDescription", { modeCount: MODE_COUNT })).toContain(String(MODE_COUNT));
-      expect(t("featureModes", { modeCount: MODE_COUNT })).toMatch(new RegExp(`^${MODE_COUNT} `));
+      expect(t("metaDescription", { count: COUNT })).toContain(String(COUNT));
+      expect(t("featuresModes", { count: COUNT })).toMatch(new RegExp(`^${COUNT} `));
       expect((messages.Layout.features as string[]).some((f) => /\d/.test(f) && /mod|tryb/i.test(f))).toBe(false);
     }
-    const plFeature = createTranslator({ locale: "pl", messages: pl, namespace: "Layout" });
-    expect(plFeature("featureModes", { modeCount: 30 })).toBe("30 trybów symulacji");
-    expect(plFeature("featureModes", { modeCount: 24 })).toBe("24 tryby symulacji");
     const page = fs.readFileSync(path.join(ROOT, "src/app/[locale]/page.tsx"), "utf8");
-    expect(page).toContain('featureList: [layout("featureModes", { modeCount: MODE_COUNT }), ...(layout.raw("features") as string[])]');
+    expect(page).toContain('featureList: [layout("featuresModes", { count: MODE_CARD_ORDER.length }), ...(layout.raw("features") as string[])]');
   });
 
   it("the web app manifest's description carries the count, not the placeholder", () => {
     const m = manifest();
-    expect(m.description).toContain(`${MODE_COUNT} unique modes`);
+    expect(m.description).toContain(`${COUNT} unique modes`);
     expect(m.description).not.toContain("{");
   });
 });

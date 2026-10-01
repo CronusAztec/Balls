@@ -13,7 +13,7 @@ import { FAQ_KEYS } from "@/lib/faq";
 import JsonLd from "@/components/site/JsonLd";
 import DailyChallengeCard from "@/components/site/DailyChallengeCard"; // --- daily-gallery ---
 import { SITE_NAME, SITE_URL, pageUrl } from "@/lib/site";
-import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -36,13 +36,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     "@type": "WebApplication",
     name: SITE_NAME,
     url: pageUrl(locale),
-    description: layout("metaDescription", { modeCount: MODE_COUNT }),
+    description: layout("metaDescription", { count: MODE_CARD_ORDER.length }),
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any",
     browserRequirements: layout("browserRequirements"),
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    // --- review fix (site-static) --- raw() formats no placeholders, so the mode count is its own key
-    featureList: [layout("featureModes", { modeCount: MODE_COUNT }), ...(layout.raw("features") as string[])],
+    featureList: [layout("featuresModes", { count: MODE_CARD_ORDER.length }), ...(layout.raw("features") as string[])],
   };
 
   return (

@@ -11,6 +11,7 @@ import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPla
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 /*
  * --- viral-bot --- The page's side of the viral video bot (the Bot block of the Recording section, sections/BotSection.tsx):
@@ -244,7 +245,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       await l.selectMelody(clip.melodyId);
       await nextCommit();
       latest.current.pinSeed(clip.seed);
-      document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     },
     [nextCommit],
   );

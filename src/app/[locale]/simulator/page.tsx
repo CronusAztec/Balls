@@ -9,13 +9,13 @@ import Simulator from "@/components/simulator/Simulator";
 import EditorialSections from "@/components/site/EditorialSections";
 import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
-import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "SimulatorPage" });
   const title = t("metaTitle", { siteName: SITE_NAME });
-  const description = t("metaDescription", { modeCount: MODE_COUNT });
+  const description = t("metaDescription", { count: MODE_CARD_ORDER.length });
   return {
     title,
     description,

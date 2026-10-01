@@ -7,8 +7,8 @@ import { assetPath } from "@/lib/site";
 // --- end pwa ---
 import "../globals.css";
 
-// --- review fix (site-static) --- no `title` here: a metadata <title> hydrates after NotFoundStatic's effect and writes
-// "JumpingBallsLive" back over the localised 404 title; the root redirect page sets its own (page.tsx).
+// --- review fix (ui-i18n) --- no title here: the language redirect ("/", page.tsx) sets its own and the 404 page renders
+// its localised <title> itself (a layout title would be re-applied by Next over it after hydration)
 export const metadata: Metadata = {
   robots: { index: false },
   // --- pwa --- the same manifest, icons and iOS home-screen title as the localised pages

@@ -1,5 +1,4 @@
 import { useTranslations } from "next-intl";
-import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
 import { Link } from "@/i18n/navigation";
 import SectionHeading from "./SectionHeading";
 
@@ -94,7 +93,7 @@ export default function Instructions() {
               <span className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-slate-950 text-sm font-extrabold">{n}</span>
               <div>
                 <h3 className="text-lg font-bold text-slate-50 leading-tight">{t(`step${n}.title`)}</h3>
-                <p className="mt-1 text-sm text-slate-400 leading-relaxed">{t(`step${n}.body`, { modeCount: MODE_COUNT })}</p>
+                <p className="mt-1 text-sm text-slate-400 leading-relaxed">{t(`step${n}.body`)}</p>
               </div>
             </li>
           ))}
