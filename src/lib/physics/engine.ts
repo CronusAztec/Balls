@@ -52,6 +52,12 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
+import { BM_BOUNCE, BM_COLLIDE, BounceMathRuntime, bounceHitEvent, shiftedObstacleFrequency, type BounceMathView } from "./bounceMathRuntime"; // --- bounce-math ---
+// --- unlimited --- No limits: soft ceilings, the crowd, finite numbers, the ate-the-arena finish
+import { UnlimitedRuntime, WALL_HITS_KEPT, type LimitsHost, type UnlimitedView } from "./limits";
+import type { Crowd } from "./crowd";
+import { MAX_EFFECTIVE_BOUNCE } from "./multipliers";
+import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --- odd-maze ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
@@ -81,6 +87,8 @@ import type {
   WallHit,
 } from "./types";
 import { TWO_PI, passableGap } from "./types";
+// --- review fix (security-robustness) --- soft memory-safe ceilings of the rings, Target segments and spikes
+import { LIVE_SPIKE_LIMIT, LIVE_TARGET_LIMIT, liveCount, withLiveRingCount } from "./softCeilings";
 
 /**
  * Approach speed (px/s) from which an obstacle contact counts as a hit (sound + glow); resting contacts stay
@@ -237,6 +245,7 @@ export class PhysicsEngine {
       if (parent.team !== undefined) clone.team = parent.team;
       this.ballStats.inheritEscape(parent.id, clone.id);
       this.currentMode?.onBallSplit?.(this.ctx, parent, clone);
+      this.bounceMath.inherit(parent, clone); // --- bounce-math --- (a clone keeps its parent's bounciness, hue and pitch)
     },
   });
 
@@ -281,10 +290,33 @@ export class PhysicsEngine {
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
   // --- end video-beats ---
+  // --- bounce-math --- rules that change a parameter on every bounce, pass, collision, break, beat, bar or second (bounceMathRuntime.ts)
+  private readonly bounceMath = new BounceMathRuntime({
+    ctx: () => this.ctx,
+    mode: () => this.currentMode?.name,
+    multipliers: () => this.multipliers,
+    setWorld: (key, value) => this.setBounceMathWorld(key, value),
+    airDrag: () => this.extras.airDrag,
+    soundEvents: () => this.pendingSoundEvents,
+  });
+  // --- end bounce-math ---
+  // --- unlimited --- No limits (limits.ts): soft ceilings, the crowd, finite numbers, the ate-the-arena finish
+  private readonly limits = new UnlimitedRuntime();
+  private readonly limitsHost: LimitsHost = {
+    breakWall: (ball, wallIndex, quiet) => {
+      // A burst past the step's first few: the smash without its particles and shockwave (visual only, no seeded draws).
+      const style = this.wallBreakStyle;
+      if (quiet) this.wallBreakStyle = "none";
+      this.smashWall(ball, wallIndex);
+      this.wallBreakStyle = style;
+    },
+  };
+  // --- end unlimited ---
 
   readonly ctx: ModeContext;
 
   constructor(config: PhysicsConfig) {
+    config = withLiveRingCount(config); // --- review fix (security-robustness) --- (a link's wc=1000000 builds LIVE_RING_LIMIT rings)
     this._config = config;
     this.extras = resolvePhysicsExtras(config);
     this.breathing = this.extras.breathingAmplitude > 0;
@@ -292,6 +324,8 @@ export class PhysicsEngine {
     this.multipliers.setConfig(config); // --- gerald-multipliers ---
     this.editorObstacles.configure(config); // --- obstacle-editor ---
     this.timeline.prepare({ timeline: config.timeline }, config); // --- timeline --- (the config's values become the automated settings' bases)
+    this.bounceMath.configure(config.bounceMath, 0); // --- bounce-math ---
+    this.applyLimits(); // --- unlimited --- (the switch, the soft ceilings, the extras past their ranges)
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
     this.ctx = {
@@ -355,7 +389,34 @@ export class PhysicsEngine {
       },
       // --- end odd-string-battle ---
       shiftWorld: (dx, dy) => this.shiftWorld(dx, dy), // --- gerald-journey ---
+      // --- unlimited --- spawns past the full-physics balls join the crowd
+      unlimitedRoom: () => (this.limits.on ? this.limits.objectRoom(this.balls.length) : null),
+      spawnCrowd: (count, x, y, speed, radius, angle, slot) => this.limits.overflow(count, x, y, speed, radius, angle, slot),
+      noteArenaFull: () => this.limits.noteFull(),
     };
+    // --- bounce-math --- a mode's own bounces (String Battle's credits, the `noteBounce()` of the modes that resolve their own
+    // walls, pegs and arcs), its own ball-to-ball hits (`noteCollide()`) and the wall breaks it credits are bounce-math triggers too
+    const creditBounce = this.ctx.creditBounce;
+    const creditWallBreak = this.ctx.creditWallBreak;
+    Object.assign(this.ctx, {
+      creditBounce: (ball: Pick<Ball, "id" | "team">) => {
+        creditBounce?.(ball);
+        if (this.bounceMath.on) this.bounceMath.note(BM_BOUNCE, ball as Ball);
+      },
+      creditWallBreak: (ball: Ball) => {
+        creditWallBreak?.(ball);
+        if (this.bounceMath.on) this.bounceMath.noteBreakBall(ball);
+      },
+      noteBounce: (ball: Ball, rebound?: boolean) => {
+        if (!this.bounceMath.on) return;
+        if (rebound && ball.restitution !== undefined) this.scaleModeRebound(ball);
+        this.bounceMath.note(BM_BOUNCE, ball);
+      },
+      noteCollide: (a: Ball, b: Ball) => {
+        if (this.bounceMath.on) this.bounceMath.note(BM_COLLIDE, a, b);
+      },
+    });
+    // --- end bounce-math ---
     this._seed = Math.floor(0x7fffffff * Math.random());
     this._rngState = this._seed;
     this.cinematicDirector.setRandom(() => this.random());
@@ -394,7 +455,7 @@ export class PhysicsEngine {
   }
 
   get config() {
-    return this._config;
+    return this.bounceMath.publicConfig(this._config); // --- bounce-math --- (the page's gravity, spin and gap while a rule holds them)
   }
 
   // ---------------------------------------------------------------- mode activation
@@ -774,7 +835,7 @@ export class PhysicsEngine {
     this.accumulationMode.setSpikesEnabled(enabled, this.ctx);
   }
   setSpikeCount(count: number) {
-    this.accumulationMode.setSpikeCount(count, this.ctx);
+    this.accumulationMode.setSpikeCount(this.limits.ceilValue("spikeCount", liveCount(count, LIVE_SPIKE_LIMIT)), this.ctx); // --- unlimited --- (its soft ceiling) --- review fix (security-robustness) --- (also with No limits off)
   }
   isMultiplyModeActive() {
     return this.currentMode === this.multiplyMode;
@@ -895,7 +956,7 @@ export class PhysicsEngine {
     return this.targetMode.getSegmentMap();
   }
   setCountdownTotal(n: number) {
-    this.targetMode.setTotal(n);
+    this.targetMode.setTotal(this.limits.ceilValue("targetCount", liveCount(n, LIVE_TARGET_LIMIT))); // --- unlimited --- (its soft ceiling) --- review fix (security-robustness) --- (also with No limits off)
   }
   setCountdownRandomOrder(v: boolean) {
     this.targetMode.setRandomOrder(v);
@@ -1567,14 +1628,18 @@ export class PhysicsEngine {
    * big Grow ball pressed onto a spinner). `keepRingSide()` moves such a ball back to the side it was on.
    */
   private handleEditorObstacles(ball: Ball, dtSec: number) {
-    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness;
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- unlimited --- (no cap with No limits on)
+    const bounciness = ball.restitution ?? 1; // --- bounce-math --- the ball's bounciness (see handleObstacleCollisions())
+    const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
+    const hitsBefore = this.editorObstacles.hitCount; // --- bounce-math ---
     const baseSpeed = this._config.ballSpeed || 400;
     // A ball pressed onto a bar by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
     const resting = (3 * this._config.gravity * baseSpeed * dtSec * (ball.gravityScale ?? 1)) / 300;
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     const before = Math.hypot(ball.x - cx, ball.y - cy);
-    this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents);
+    this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents, bounciness, lift);
+    if (this.bounceMath.on && this.editorObstacles.hitCount > hitsBefore) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
     if (this.circularWalls.length > 0) this.keepRingSide(ball, before, cx, cy);
   }
 
@@ -1677,7 +1742,7 @@ export class PhysicsEngine {
     this.currentMode?.flushPendingSounds?.(this.ctx);
     const events = this.pendingSoundEvents;
     this.pendingSoundEvents = [];
-    return events;
+    return this.limits.on ? this.limits.thinSounds(events) : events; // --- unlimited --- (at most MAX_SOUNDS_PER_FRAME a frame)
   }
   // --- camera ---
   /** Wall breaks so far (every "gap" event; never reset): the cinematic camera shakes when it grows. Reading it changes nothing. */
@@ -1726,6 +1791,38 @@ export class PhysicsEngine {
     return this.interaction;
   }
 
+  // --- unlimited ---
+  /**
+   * Reads the No limits switch from the config: with it on the core values run at their soft ceilings, the physics
+   * extras and split limits go past their ranges, the multiplier cap is off and a bounce multiplier scales without a cap.
+   */
+  private applyLimits() {
+    this.limits.configure(this._config);
+    if (this.limits.on) {
+      this._config = this.limits.ceilPatch(this._config, this._config);
+      this.limits.liftPhysics(this.extras, this.interaction, this._config);
+      this.breathing = this.extras.breathingAmplitude > 0;
+      this.multipliers.setConfig({ ...this._config, mpUnlimited: true });
+      // Rings built from a count past the ceiling before the switch arrived: rebuilt at the ceiling.
+      if (this.circularWalls.length > LIVE_WALL_LIMIT) {
+        this.restoreWallRadii();
+        if (!this.currentMode?.onConfigChange(this.ctx, false, true, false)) this.initializeCircularWalls();
+        this.syncWallBaseRadii();
+        this.brokenWalls.clear();
+      }
+    }
+    this.multipliers.bounceCap = this.limits.on ? Infinity : MAX_EFFECTIVE_BOUNCE;
+  }
+  /** What the canvas shows of a No limits run: the crowd, ARENA FULL, the ate-the-arena finish. */
+  getUnlimitedView(): UnlimitedView {
+    return this.limits.getView(this.balls.length);
+  }
+  /** The crowd's typed arrays (read-only for the renderer). */
+  getCrowd(): Readonly<Crowd> {
+    return this.limits.crowd;
+  }
+  // --- end unlimited ---
+
   // ---------------------------------------------------------------- balls
 
   addBall(ball: NewBall) {
@@ -1753,6 +1850,7 @@ export class PhysicsEngine {
     this.multipliers.reset(); // --- gerald-multipliers ---
     this.ballStats.reset(); // --- teams ---
     this.editorObstacles.reset(); // --- obstacle-editor --- spinners back to their start angle
+    this.resetBounceMath(); // --- bounce-math --- the page's gravity, spin and gap back; the rules count from zero
     // --- timeline --- every run starts from the keyframes' values at 0 s (before its rings and balls are built). The clock
     // goes back to 0 first: a keyframed value that differs at 0 s goes through setConfig(), whose breathing pulse is taken
     // at the current time – at the old run's clock it would leave a stale pulse scale that the new rings' base radii are
@@ -1761,6 +1859,7 @@ export class PhysicsEngine {
     this.applyTimeline(0);
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
     this.onBeat.reset(); // --- video-beats --- a new run: no flight plans, fresh hit statistics
+    this.limits.reset(); // --- unlimited --- a new run: its crowd appears at the first step
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -1770,19 +1869,29 @@ export class PhysicsEngine {
   }
 
   setConfig(patch: Partial<PhysicsConfig>) {
+    patch = withLiveRingCount(patch); // --- review fix (security-robustness) --- (soft ring ceiling, softCeilings.ts)
+    // --- bounce-math --- the page re-sending its own value of a world setting a rule holds (another setting of the same effect
+    // changed) leaves the rule's value; a new value from the page replaces it
+    if (!this.timelineApplying && this.bounceMath.worldTouched()) patch = this.bounceMath.filterPatch(patch);
     // --- timeline --- keyframed settings keep following their keyframes; the rest of the patch applies as always
     if (!this.timelineApplying && (patch.timeline !== undefined || this.timeline.active)) return this.setConfigWithTimeline(patch);
+    patch = this.limits.ceilPatch(patch, this._config); // --- unlimited --- (the values the engine runs: soft ceilings with No limits on)
     const oldPass = this.ringPassRadius();
     const oldW = this._config.width;
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
     const oldGap = this._config.gapSize;
     this._config = { ...this._config, ...patch };
+    // --- bounce-math --- new rules or a new beat grid; a value the patch sets for a world setting a rule holds becomes its page value
+    if (patch.bounceMath !== undefined) this.bounceMath.configure(this._config.bounceMath, this._elapsedMs);
+    this.bounceMath.notePatch(patch);
+    // --- end bounce-math ---
     this.extras = resolvePhysicsExtras(this._config);
     this.breathing = this.extras.breathingAmplitude > 0;
     this.interaction = resolveBallInteraction(this._config);
     this.multipliers.setConfig(this._config); // --- gerald-multipliers ---
     this.editorObstacles.configure(this._config); // --- obstacle-editor --- (rebuilt only when the list or the canvas size changed)
+    this.applyLimits(); // --- unlimited ---
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
@@ -1903,6 +2012,52 @@ export class PhysicsEngine {
   }
   // --- end timeline ---
 
+  // --- bounce-math ---
+  /** A rule's gravity or ring spin speed goes into the config; a gap size resizes the rings' gaps in place (like a keyframed gap). */
+  private setBounceMathWorld(key: "gravity" | "rotationSpeed" | "gapSize", value: number) {
+    if (key === "gapSize") this.setTimelineGap(value);
+    else this._config = { ...this._config, [key]: value };
+  }
+
+  /** A new run: the page's values of the world settings the rules changed come back, and the rules start counting again. */
+  private resetBounceMath() {
+    const base = this.bounceMath.takeWorldBase();
+    if (base) this._config = { ...this._config, ...base };
+    this.bounceMath.reset();
+  }
+
+  /** What bounce math shows: the values of the ball that bounced last, the gravity, each rule's fire count (the same object every call). */
+  getBounceMathView(): BounceMathView {
+    return this.bounceMath.getView();
+  }
+
+  getBounceMathRuntime(): BounceMathRuntime {
+    return this.bounceMath;
+  }
+
+  /**
+   * The ball's bounciness on a mirror reflection a mode without rings made itself, keeping the speed (Bouncing Shapes'
+   * walls: every shape at its own speed): the speed takes the change of the bounciness since the ball's last such rebound,
+   * so it carries the bounciness exactly once – its own speed × the bounciness, like the engine's ring rebounds – and never
+   * compounds.
+   */
+  private scaleModeRebound(ball: Ball) {
+    const k = this.bounceMath.modeReboundFactor(ball);
+    if (k === 1 || !Number.isFinite(k)) return;
+    ball.vx *= k;
+    ball.vy *= k;
+  }
+
+  /**
+   * The most a bounciness above 1 may lift an obstacle rebound to (obstacles.ts `rebound()`): the ball's cruising speed ×
+   * the restitution scale × the bounciness – what a ring rebound sets – so a ball bouncing between pegs settles there
+   * instead of gaining speed hit after hit (`reboundSpeedBound()` plans the sub-steps for it).
+   */
+  private obstacleLiftSpeed(ball: Ball, scale: number, bounciness: number): number {
+    return cruiseSpeed(ball, this._config.ballSpeed || 400) * scale * bounciness;
+  }
+  // --- end bounce-math ---
+
   /** Direction (radians, screen coordinates: π/2 = straight down) of the gravity in the last step – rotating gravity turns it. */
   getGravityAngle(): number {
     return this.gravityAngleRad;
@@ -1978,6 +2133,7 @@ export class PhysicsEngine {
     // --- end gerald-multipliers ---
     this.timeAccumulator += dt;
     let extras = this.extras; // --- timeline --- (re-read below after keyframes move an extra)
+    const bmOn = this.bounceMath.on; // --- bounce-math ---
     while (this.timeAccumulator >= this.FIXED_STEP_MS) {
       this.timeAccumulator -= this.FIXED_STEP_MS;
       // --- timeline --- the keyframed settings at the start of this step, on the simulation clock (so the frame rate never
@@ -1991,12 +2147,20 @@ export class PhysicsEngine {
         }
         extras = this.extras;
       }
+      if (bmOn) this.bounceMath.beginStep(this._elapsedMs, this.pendingSoundEvents.length); // --- bounce-math --- ("start" fires at a run's first step)
       // --- gerald-multipliers --- with multipliers in play the step is planned so no ball moves more than half its
       // radius (≤ 4 px) per sub-step; past 64 sub-steps the step itself shrinks (time dilation, SLOW-MO in the HUD).
       // Without multipliers `plan` is null and the step is exactly the fixed step, as before.
       const multActive = mult.isActive(modeName);
-      const plan = multActive ? mult.planStep(this.balls, this.FIXED_STEP_MS / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
-      const stepMs = plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS;
+      const clock = this.bounceMath.clockScale(modeName); // --- bounce-math --- the "timeScale" parameter: simulated time per step (1 without one)
+      // --- unlimited --- with No limits on every step is planned (bounded sub-steps, time dilation beyond) and a new run's crowd appears
+      const limitsOn = this.limits.on;
+      if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
+      if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
+      const plan = multActive || limitsOn ? mult.planStep(this.balls, (this.FIXED_STEP_MS * clock) / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
+      if (limitsOn && plan) this.limits.boundPlan(plan, this.balls.length, this.circularWalls.length); // --- unlimited --- (thousands of fast balls, a thousand rings: a bounded step)
+      const stepMs = (plan ? this.FIXED_STEP_MS * plan.dilation : this.FIXED_STEP_MS) * clock;
+      if (plan && clock !== 1) mult.getView().dilation = plan.dilation * clock; // --- bounce-math --- (SLOW-MO only while the world really runs slow)
       this._elapsedMs += stepMs;
       const orbsLive = multActive && mult.pickupsLive(modeName);
       // --- end gerald-multipliers ---
@@ -2031,8 +2195,9 @@ export class PhysicsEngine {
       // Physics extras: air drag acts once per 60 Hz step; the gravity direction, wind and spin
       // terms are constant within the step and applied per sub-step below. Each is skipped at
       // its default so a run without extras takes exactly the original code path.
-      if (extras.airDrag > 0) {
-        const keep = 1 - extras.airDrag;
+      const airDrag = bmOn ? this.bounceMath.airDrag(extras.airDrag) : extras.airDrag; // --- bounce-math --- (the "damping" parameter)
+      if (airDrag > 0) {
+        const keep = 1 - airDrag;
         for (const ball of this.balls) {
           ball.vx *= keep;
           ball.vy *= keep;
@@ -2141,22 +2306,29 @@ export class PhysicsEngine {
         // The pair pass and the mode's pushes (Accumulation's frozen balls) ignore the rings: a push that carries a ball's
         // centre across an intact ring is undone radially (restoreRingSides()), so the next wall pass resolves it from its side.
         const sides = this.circularWalls.length > 0 && (this.balls.length > 1 || this.currentMode === this.accumulationMode) ? this.recordRingSides(ringCx, ringCy) : 0;
-        this.handleBallCollisions(multActive);
+        if (this.limits.pairsAllowed(this.balls.length)) this.handleBallCollisions(multActive || limitsOn); // --- unlimited --- (every pair through the spatial hash; a clone storm passes through itself)
         this.currentMode?.onPostSubStep(this.ctx);
         if (sides > 0) this.restoreRingSides(sides, ringCx, ringCy);
       }
       if (this.rigOn) this.cinematicDirector.rig.holdInside(this.circularWalls, this.wallRotations); // --- rigged --- a closed way out is never left
       this.currentMode?.onPostUpdate(this.ctx, stepMs);
       if (this.onBeat.wants()) this.stepOnBeat(stepMs, subSteps, audioIntensity, gDirX, gDirY, keepMoving); // --- video-beats ---
-      if (multActive) mult.endStep(this.ctx, this.interaction.maxBalls, this.circularWalls.length > 0); // --- gerald-multipliers --- orbs taken, grown balls refitted, HUD
+      const bmFired = bmOn && this.bounceMath.endStep(this._elapsedMs); // --- bounce-math --- the step's triggers, every rule in list order
+      if (multActive || (bmFired && mult.isActive(modeName))) mult.endStep(this.ctx, this.limits.cloneLimit(this.interaction.maxBalls), this.circularWalls.length > 0); // --- gerald-multipliers --- orbs taken, grown balls refitted, HUD (--- bounce-math --- also right after a rule grew or sped a ball; --- unlimited --- x2 BALLS clones past the split limit)
+      // --- unlimited --- the crowd moves, non-finite balls are rescued, big balls burst their rings or eat the arena
+      if (limitsOn) {
+        const g = this.gravityAccel(audioIntensity);
+        this.limits.endStep(this.ctx, mult, this.limitsHost, stepSec, g * gDirX, g * gDirY);
+      }
       if (this.circularWalls.length > 0) this.scanEscapes(); // --- teams ---
       if (this.pendingSplits.length > 0) this.flushSplits();
+      const trailCap = this.bounceMath.trailCap(); // --- bounce-math --- the "trail" parameter (20 points without one)
       for (const ball of this.balls) {
-        if (ball.trail.length < 20) ball.trail.push({ x: ball.x, y: ball.y });
-        else {
+        if (ball.trail.length < trailCap) ball.trail.push({ x: ball.x, y: ball.y });
+        else if (trailCap > 0) {
           ball.trail[ball.trailIndex].x = ball.x;
           ball.trail[ball.trailIndex].y = ball.y;
-          ball.trailIndex = (ball.trailIndex + 1) % 20;
+          ball.trailIndex = (ball.trailIndex + 1) % trailCap;
         }
       }
       if (mult.isOutgrown()) break; // --- gerald-multipliers --- the run just ended
@@ -2173,9 +2345,12 @@ export class PhysicsEngine {
 
   /** The fastest rebound the rings may give a ×1 ball this step (0 in modes without the engine's ring rebounds). */
   private reboundSpeedBound() {
-    if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return 0;
+    // --- bounce-math --- an obstacle rebound may lift a bouncy ball to its cruising speed × its bounciness (planStep() multiplies them in)
+    const lift = this.bounceMath.on && (this.obstacles.length > 0 || this.editorObstaclesLive()) ? (this._config.ballSpeed || 400) * this.extras.wallBounciness : 0;
+    if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return lift;
     const bouncier = this.bouncierEnabled ? Math.min(this.bouncierMaxMultiplier, this.bounceSpeedMultiplier + 0.3) : 1;
-    return (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
+    const ring = (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
+    return ring > lift ? ring : lift;
   }
 
   /** A ring breaks for good under a ball (a smash from damage, or a grown ball bursting it): effect, sound, split, director. */
@@ -2199,17 +2374,22 @@ export class PhysicsEngine {
    */
   private handleObstacleCollisions(ball: Ball, dtSec: number) {
     const obstacles = this.obstacles;
-    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball) : this.extras.wallBounciness; // --- gerald-multipliers --- bounce multiplier
+    const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- gerald-multipliers --- bounce multiplier (--- unlimited --- no cap with No limits on)
+    // --- bounce-math --- the ball's bounciness multiplies the capped restitution (no upper limit), lifting at most to the cruising speed × it
+    const bounciness = ball.restitution ?? 1;
+    const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
     // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
     const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
     const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
     for (let i = 0; i < obstacles.length; i++) {
-      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, scale);
+      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, scale, undefined, bounciness, lift);
       if (impact < hitSpeed) continue; // no contact (−1) or a soft, resting one
+      if (this.bounceMath.on) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
       const result = this.currentMode?.onObstacleHit?.(this.ctx, ball, obstacles[i], i, impact);
       if (!result?.suppressGlow) this.addObstacleHit(i, ball.x, ball.y);
       if (result?.suppressSound) continue;
-      if (result?.frequency !== undefined) this.pendingSoundEvents.push({ type: "hit", wallIndex: 0, frequency: result.frequency });
+      const frequency = shiftedObstacleFrequency(result?.frequency, ball); // --- bounce-math --- (the ball's pitch shift)
+      if (frequency !== undefined) this.pendingSoundEvents.push({ type: "hit", wallIndex: 0, frequency });
       else this.pendingSoundEvents.push({ type: "hit", wallIndex: 0 });
     }
   }
@@ -2356,6 +2536,7 @@ export class PhysicsEngine {
           this.cinematicDirector.onGapPass();
           if (this.bouncierEnabled) this.bounceSpeedMultiplier = 1;
           if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, false); // --- video-beats --- the next flight is planned
+          if (this.bounceMath.on) this.bounceMath.notePass(ball, w, this._elapsedMs); // --- bounce-math --- (once per pass)
           const handled = this.currentMode?.onGapPass(this.ctx, ball, w);
           // --- rigged --- (a wall the rig keeps closed to this ball never breaks under it, whichever side it came from)
           if (!handled && !(this.rigOn && this.cinematicDirector.rig.closes(ball, w))) {
@@ -2396,7 +2577,7 @@ export class PhysicsEngine {
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
         // --- rigged --- a bounce off a closed wall right beside its gap: a near miss (the camera's slow motion follows it)
         if (this.rigOn && inside && this.cinematicDirector.rig.nearMissAt(ball, w, angle, wall.radius, rotation)) this.cinematicDirector.noteRigNearMiss();
-        this.pendingSoundEvents.push({ type: "hit", wallIndex: w });
+        this.pendingSoundEvents.push(bounceHitEvent(w, ball)); // --- bounce-math --- (with the ball's pitch shift, when it has one)
         this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
           this.bounceSpeedMultiplier = Math.min(this.bounceSpeedMultiplier + this.bouncierIncrement, this.bouncierMaxMultiplier);
@@ -2405,7 +2586,8 @@ export class PhysicsEngine {
           const baseSpeed = this._config.ballSpeed || 400;
           // Wall bounciness (restitution) scales the rebound speed; it is 1 by default (an exact no-op).
           let speed = baseSpeed * this.bounceSpeedMultiplier * this.cinematicDirector.getSpeedMultiplier() * this.extras.wallBounciness;
-          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball); // --- gerald-multipliers --- speed and bounce multipliers
+          if (ball.mult) speed *= ball.mult.speed * effectiveBounce(ball, this.multipliers.bounceCap); // --- gerald-multipliers --- speed and bounce multipliers (--- unlimited --- uncapped with No limits on)
+          if (ball.restitution !== undefined) speed *= ball.restitution; // --- bounce-math --- the ball's bounciness
           const scatter = Math.PI / 3;
           let outAngle = (inside ? Math.atan2(-ny, -nx) : Math.atan2(ny, nx)) + (2 * this.random() - 1) * scatter;
           outAngle = this.cinematicDirector.adjustRebound(ball, outAngle, wall.radius, rotation, wall.gaps);
@@ -2424,11 +2606,22 @@ export class PhysicsEngine {
           ball.vx *= this.extras.wallBounciness;
           ball.vy *= this.extras.wallBounciness;
         }
+        // --- bounce-math --- the ball's bounciness applies to a rebound the mode set itself too – at most once: a mode that keeps
+        // the incoming speed would otherwise compound it hit after hit, so above 1 it lifts the speed up to the cruising speed ×
+        // the bounciness (never slowing a ball that is already faster); below 1 the rebound loses that share of the speed
+        if (result?.suppressBounce && ball.restitution !== undefined) {
+          const r = ball.restitution;
+          const k = r < 1 ? r : Math.max(1, Math.min(r, (cruiseSpeed(ball, this._config.ballSpeed || 400) * r) / Math.max(1e-9, Math.hypot(ball.vx, ball.vy))));
+          ball.vx *= k;
+          ball.vy *= k;
+        }
         if (this.onBeat.wants()) this.onBeat.noteContact(ball, this._elapsedMs / 1000, !result?.suppressBounce); // --- video-beats --- a fresh rebound is at its natural speed
+        if (this.bounceMath.on) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
         collided = true;
         // The rings after this one were tested against where the move left the ball, not where it is now: the next pass
         // resolves them from its new place.
         if (crossedRing) return true;
+        if (this.limits.onePerPass) return true; // --- unlimited --- (packed rings: one rebound a pass, the next pass resolves the rest)
       }
     }
     return collided;
@@ -2499,6 +2692,7 @@ export class PhysicsEngine {
     a.vy += ny * impulse;
     b.vx -= nx * impulse;
     b.vy -= ny * impulse;
+    if (this.bounceMath.on) this.bounceMath.note(BM_COLLIDE, a, b); // --- bounce-math ---
     this.currentMode?.onBallCollision?.(this.ctx, a, b);
   }
 
@@ -2601,10 +2795,24 @@ export class PhysicsEngine {
       a.team = b.team;
       a.color = b.color;
     }
+    // --- review fix (modes-gerald-odd) --- the String Battle knows a fighter by its ball's id and has no rings (the rig above is off
+    // there): a merge that would absorb the forced winner's own ball gives the merged ball that identity instead, so the chosen
+    // fighter plays on with it and the other one is the fighter that is out
+    let goneId = b.id;
+    if (this.currentMode === this.stringBattleMode && b.team !== undefined && a.team !== b.team) {
+      const battle = this.stringBattleMode.getView();
+      if (b.team === battle.forcedWinner && battle.fighters[b.team]?.id === b.id) {
+        goneId = a.id;
+        a.id = b.id;
+        a.team = b.team;
+        a.color = b.color;
+      }
+    }
     this.balls.splice(ib, 1);
-    this.lastWallLayer.delete(b.id);
+    this.lastWallLayer.delete(goneId);
     this.pendingSoundEvents.push({ type: "merge", wallIndex: 0 });
     this.spawnMergeBurst(a.x, a.y, a.color, a.radius);
+    if (this.bounceMath.on) this.bounceMath.note(BM_COLLIDE, a, null); // --- bounce-math --- (a merge is a collision too)
     return true;
   }
 
@@ -2616,6 +2824,7 @@ export class PhysicsEngine {
    */
   private reportWallBreak(ball: Ball, wallIndex: number) {
     this.ballStats.wall(ball); // --- teams ---
+    if (this.bounceMath.on) this.bounceMath.noteBreakBall(ball); // --- bounce-math --- (the ball behind the step's next "gap" event)
     if (this.interaction.ballInteraction !== "split") return;
     for (const pending of this.pendingSplits) if (pending.ball === ball) return;
     this.pendingSplits.push({ ball, wallIndex });
@@ -2644,6 +2853,7 @@ export class PhysicsEngine {
       this.addBall({ ...second, color: ball.color, lifetime: ball.lifetime, gravityScale: ball.gravityScale, radiusScale: second.radius / (this._config.ballRadius || 8) });
       const half = this.balls[this.balls.length - 1];
       if (ball.mult) half.mult = copyMultipliers(ball.mult); // --- gerald-multipliers --- the halves keep the multipliers
+      this.bounceMath.inherit(ball, half); // --- bounce-math --- (and the bounciness, hue and pitch)
       half.spin = ball.spin;
       half.angle = ball.angle;
       // --- teams --- the half plays for its parent's team, and the half of an escaped ball does not escape again
@@ -2657,6 +2867,7 @@ export class PhysicsEngine {
   }
 
   private addWallHit(wallIndex: number, angle: number, radius: number) {
+    if (this.limits.on && this.wallHits.length >= WALL_HITS_KEPT) this.wallHits.splice(0, this.wallHits.length >> 1); // --- unlimited --- (thousands of hits a second: the newest few hundred light the walls; the glow is visual only)
     this.wallHits.push({ wallIndex, angle, radius, timestamp: Date.now() });
     const cutoff = Date.now() - 1000;
     let drop = 0;

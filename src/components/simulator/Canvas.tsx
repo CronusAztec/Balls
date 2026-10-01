@@ -16,6 +16,7 @@ import { applyGlassCamera, drawGlassOverlay, drawGlassShards, drawGlassWorld, ty
 import { DEFAULT_MULTIPLIER_LABELS, MULTIPLIER_DATA_KEYS, drawMultiplierHud, drawMultipliersBalls, drawMultipliersBoard, drawPickupOrbs, writeMultiplierDataset, type MultiplierLabels, type MultiplierRenderOptions } from "./multiplierRenderer";
 import { formatMultiplier } from "@/lib/physics/multipliers";
 import { COVERAGE_DONE } from "@/lib/physics/picturePaint";
+import { FrameGate, GLOW_SPRITE_SIZE, PaintTrailLayer, bodySpriteRadius, cacheSprite, drawStringArt } from "./renderBudget"; // --- review fix (performance) ---
 // --- gerald-faces ---
 import { FaceLayer } from "./faceRenderer";
 import type { CharacterRenderOptions } from "@/lib/character/character";
@@ -43,7 +44,7 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
-import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
+import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 import type { Ball } from "@/lib/physics/types";
 import { gapWrap } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
@@ -69,7 +70,13 @@ import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDa
 import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
+import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
+// --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
+import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
+import { FrameBudget } from "@/lib/simulation/frameBudget";
+import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
+import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (recording-export) --- rings past the slider drawn at about one per pixel
 // --- odd-maze --- the Maze: the field, the painted trail, the glowing walls, the fog, the halos, the badge, the HUD and the banner
 import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type MazeLabels, type MazeRenderOptions } from "./mazeRenderer";
 
@@ -128,6 +135,8 @@ export interface CanvasLabels {
   /** The multipliers board is done: "N Gerald made it home", with the clones made along the way. */
   madeItHome?: (n: number) => string;
   madeItHomeSub?: (clones: number) => string;
+  /** --- review fix (modes-gerald-odd) --- "N lost" after the clones when balls got stuck for good (they are not hidden). */
+  madeItHomeLost?: (lost: number) => string;
   // --- jdm-double-pendulum ---
   /** Double Pendulum: the banner at the end of the clip, with the plucks, the sparring hits or the seconds of chaos. */
   dpDone?: string;
@@ -162,6 +171,12 @@ export interface CanvasLabels {
   // --- beat-drop ---
   /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
   beatDrop?: BeatDropLabels;
+  // --- bounce-math ---
+  /** Bounce math: the words of the "Show values" badge (bounciness, speed, size, gravity, a rule's fire count). */
+  bounceMath?: BounceMathHudLabels;
+  // --- unlimited ---
+  /** No limits: the ball count, "x0.4 real time" and ARENA FULL badges. */
+  unlimited?: UnlimitedLabels;
   // --- odd-maze ---
   /** Maze: the HUD title, the badge, the distances, the places and the verdict banner with its caption. */
   maze?: MazeLabels;
@@ -186,6 +201,13 @@ export interface CanvasHandle {
   // --- end themes
   /** --- camera --- True while the escape replay is about to play or playing: the page holds the end screen (and a recording) back. */
   holdsEndScreen: () => boolean;
+  /**
+   * --- review fix (modes-gerald-odd) --- Real ms the camera's slow motion has added to the run so far (the split screen: the most of
+   * any arena). A recording measures its clip on the run's pace: it is extended by what this grows while it records.
+   */
+  getSlowLagMs: () => number;
+  /** --- review fix (performance) --- Frames drawn so far (the recorder copies each drawn frame once, not every animation frame). */
+  framesDrawn: () => number;
 }
 
 export interface CanvasProps {
@@ -315,6 +337,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   outgrewSub: (size) => `SIZE ${size}`,
   madeItHome: (n) => `${n} Gerald made it home`,
   madeItHomeSub: (clones) => `${clones} clones along the way`,
+  madeItHomeLost: (lost) => `${lost} lost`,
   // --- jdm-double-pendulum ---
   dpDone: "TIME!",
   dpPlucks: (n) => `${n} strings plucked`,
@@ -328,6 +351,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   journey: DEFAULT_JOURNEY_LABELS, // --- gerald-journey ---
   bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
+  unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
   maze: DEFAULT_MAZE_LABELS, // --- odd-maze ---
 };
 
@@ -415,12 +439,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const recordingRef = useRef(false);
   /** --- captions --- performance.now() when the current recording started, and the export frame it records into. */
   const clipStartRef = useRef(0);
+  /** --- review fix (modes-gerald-odd) --- the camera's slow-motion lag when the recording started (the clip clock subtracts what it adds since). */
+  const clipLag0Ref = useRef(0);
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
   const sizeRef = useRef({ width: 800, height: 600 });
   const fpsRef = useRef(60);
   const lastFpsSampleRef = useRef(0);
-  const lastFrameRef = useRef(0);
+  /** --- review fix (performance) --- Frames the page's canvas has drawn (the recorder copies each one once, recorder.ts). */
+  const framesDrawnRef = useRef(0);
   const camXRef = useRef(0);
   const camYRef = useRef(0);
   const audioRef = useRef(audioIntensity);
@@ -593,7 +620,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   useImperativeHandle(ref, () => ({
     getCanvas: () => canvasRef.current,
     setRecording: (v: boolean, exportSize?: { width: number; height: number }) => {
-      if (v && !recordingRef.current) clipStartRef.current = performance.now(); // --- captions --- the clip's clock starts
+      if (v && !recordingRef.current) {
+        clipStartRef.current = performance.now(); // --- captions --- the clip's clock starts
+        clipLag0Ref.current = cinematicRef.current?.getSlowLagMs() ?? 0; // --- review fix (modes-gerald-odd) --- (and the slow motion's lag it leaves out)
+      }
       recordingRef.current = v;
       exportSizeRef.current = v ? (exportSize ?? null) : null;
     },
@@ -604,6 +634,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       songProgressRef.current = v;
     },
     fpsRef,
+    framesDrawn: () => framesDrawnRef.current, // --- review fix (performance) ---
     noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- gerald-faces ---
     // --- themes
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
@@ -611,6 +642,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     },
     // --- end themes
     holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
+    getSlowLagMs: () => cinematicRef.current?.getSlowLagMs() ?? 0, // --- review fix (modes-gerald-odd) ---
   }));
 
   useEffect(() => {
@@ -696,6 +728,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const alphaCache = new Map<string, string>();
     const ballSpriteCache = new Map<string, HTMLCanvasElement>();
     const glowSpriteCache = new Map<string, HTMLCanvasElement>();
+    // --- review fix (performance) --- ≤ 60 drawn frames a second on the rAF timestamps; classic Paint's incremental trail layer
+    const frameGate = new FrameGate();
+    const paintTrail = new PaintTrailLayer();
     let accumulator = 0;
     // Scratch space for the obstacle pass (Ball Drop): the age of the latest hit per obstacle and a bar's endpoints.
     let obstacleHitAges = new Float64Array(0);
@@ -711,6 +746,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const teamLayer = new TeamLayer(); // --- teams ---
     const scoreboardBox = { x: 0, y: 0, w: 0, h: 0 }; // --- gerald-multipliers --- where the scoreboard goes this frame (the HUD keeps clear)
     let multHudTop = -1;
+    // --- review fix (modes-gerald-odd) --- screen y of the lowest top overlay a mode drew in the square this frame (Power Layers' pills,
+    // Glass Smash's stage dots, the multiplier badges, the String Battle's badge and HUD; 0 = none): the top captions start below it
+    let modeTopHud = 0;
+    const multTopOut = { bottom: 0 };
     const boxHueColors: string[] = [];
     const boxBodyColor = (ball: { id: number }) => {
       const st = engine.getBoxView().shapes.get(ball.id);
@@ -778,8 +817,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bullseyeData = new BullseyeDataset();
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
+    const bmLayer = new BounceMathLayer(); // --- bounce-math ---
     const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
     let bdTeams: CanvasTeamOptions | null | undefined;
+    // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
+    const frameBudget = new FrameBudget();
+    const unlimitedLayer = new UnlimitedLayer();
+    const crowdPalette: string[] = [];
     // --- odd-maze --- the Maze's layer (cached walls, trail and fog) and its per-frame options
     const mazeLayer = new MazeLayer();
     const mazeRender: MazeRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showWallGlow: true, labels: DEFAULT_MAZE_LABELS, nowMs: 0, width: 0, height: 0 };
@@ -892,33 +936,44 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       return out;
     };
 
-    const draw = () => {
-      const now = offline ? offline.now() : performance.now(); // --- fast-render --- (offline: the export's clock)
+    const draw = (ts?: number) => {
+      const now = offline ? offline.now() : (ts ?? performance.now()); // --- fast-render --- (offline: the export's clock) --- review fix (performance) --- (the rAF timestamp: vsync-aligned)
       // --- fast-render --- the page's canvas keeps its last frame while a fast export renders (the run is paused meanwhile)
       if (!offline && fastRenderRef.current?.getJob()) {
         lastTimeRef.current = now;
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
-      if (now - lastFrameRef.current < 15) {
-        if (!offline) rafRef.current = requestAnimationFrame(draw); // --- fast-render ---
-        return;
+      // --- review fix (performance) --- a 60 fps budget phase-locked to the display (75 / 90 / 144 Hz draw 60 fps, not 37–55, and a
+      // late 60 Hz callback is not dropped); the fast export draws every frame it asks for
+      if (!offline) {
+        if (!frameGate.due(now)) {
+          rafRef.current = requestAnimationFrame(draw);
+          return;
+        }
+        framesDrawnRef.current++;
       }
-      lastFrameRef.current = now;
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
-      const p = propsRef.current;
+      const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
       cam.settings = cameraRef.current; // --- camera ---
 
       if (!p.isPaused && p.isStarted) {
         accumulator += frameMs * p.simSpeed * cam.timeScale(); // --- camera: slow motion feeds the engine less time; its fixed steps stay the same
         if (accumulator > 250) accumulator = 250;
+        // --- unlimited --- with No limits on (live only) a frame stops after the step that used up its budget and drops the rest
+        frameBudget.enabled = !offline && engine.getUnlimitedView().on;
+        frameBudget.begin(performance.now());
+        const simBefore = engine.getElapsedMs();
         while (accumulator >= 16.666) {
           engine.update(16.666, audioRef.current);
           cam.afterStep(engine); // --- camera: the escape replay's ring buffer
           accumulator -= 16.666;
+          if (frameBudget.exceeded(performance.now())) accumulator = 0; // --- unlimited ---
         }
-      }
+        if (engine.isSimulationFinished()) frameBudget.reset(); // --- unlimited --- (a finished run's clock stands still: not slow motion)
+        else frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
+      } else frameBudget.reset(); // --- unlimited --- (paused or not started: no slow-motion badge)
       cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
@@ -1087,6 +1142,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- gerald-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
       const multView = engine.getMultiplierView();
+      const unlimitedView = engine.getUnlimitedView(); // --- unlimited ---
       const multLabels = (labelsRef.current ?? DEFAULT_LABELS).multipliers ?? DEFAULT_MULTIPLIER_LABELS;
       const multTop = multBoard ? multBoard.cameraY : 0;
       const multBottom = multTop + size.height;
@@ -1098,7 +1154,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
-      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
+      const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
+      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
       const conicGradient = (alpha?: number) => {
@@ -1113,7 +1170,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conicCache = { time, alpha, gradient: g };
         return g;
       };
+      // --- review fix (recording-export) --- a thousand rings (a link's wc=3000; the physics runs up to LIVE_RING_LIMIT): about one per pixel of
+      // the band is drawn (ringLod.ts) and, in one colour (the gradient or a solid colour), all of them as one path, one stroke
+      const ringStride = ringDrawStride(walls.length, arena);
+      const ringBatch = ringStride > 1 && !(p.rainbowWalls && p.rainbowWallMode !== "gradient") ? new Path2D() : null;
       const strokeArc = (index: number, radius: number, from: number, to: number, alpha?: number) => {
+        if (ringBatch && alpha === undefined && !wobble.active(index)) {
+          ringBatch.moveTo(cx + Math.cos(from) * radius, cy + Math.sin(from) * radius);
+          ringBatch.arc(cx, cy, radius, from, to);
+          return;
+        }
         ctx.strokeStyle = p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
         if (wobble.strokeArc(ctx, index, cx, cy, radius, from, to)) return; // --- jdm-illusions --- a wobbling wall follows its displacement wave
         ctx.beginPath();
@@ -1123,10 +1189,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 
       const isShatter = engine.isShatterMode();
       const shatterSegments = isShatter ? engine.getShatterSegments() : null;
+      const sectorBatch = ringBatch && isShatter ? new Path2D() : null; // --- review fix (recording-export) --- (Shatter's segments of thousands of rings: one fill)
 
       // Walls
       for (let i = 0; i < walls.length; i++) {
         if (broken.has(i)) continue;
+        if (ringStride > 1 && !ringDrawn(i, walls.length, ringStride)) continue; // --- review fix (recording-export) ---
         const wall = walls[i];
         const rot = rotations[i] || 0;
         if (isShatter && shatterSegments && shatterSegments[i]) {
@@ -1139,6 +1207,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             const mid = (a0 + a1) / 2;
             const rIn = wall.radius - thickness / 2;
             const rOut = wall.radius + thickness / 2;
+            if (sectorBatch && !wobble.active(i)) {
+              // --- review fix (recording-export) --- (the gradient's hue by angle, as the conic gradient of the fill below)
+              sectorBatch.moveTo(cx + Math.cos(a0) * rOut, cy + Math.sin(a0) * rOut);
+              sectorBatch.arc(cx, cy, rOut, a0, a1);
+              sectorBatch.lineTo(cx + Math.cos(a1) * rIn, cy + Math.sin(a1) * rIn);
+              sectorBatch.arc(cx, cy, rIn, a1, a0, true);
+              sectorBatch.closePath();
+              continue;
+            }
             ctx.globalAlpha = 0.85;
             ctx.fillStyle = wallColor(i, undefined, p.rainbowWalls && p.rainbowWallMode === "gradient" ? ((mid % TWO_PI) + TWO_PI) % TWO_PI : undefined);
             if (wobble.fillSector(ctx, i, cx, cy, rIn, rOut, a0, a1, wall.radius)) continue; // --- jdm-illusions ---
@@ -1160,6 +1237,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             cursor = gap.endAngle;
           }
           if (cursor < TWO_PI + c0) strokeArc(i, wall.radius, cursor + rot, TWO_PI + c0 + rot);
+        }
+      }
+      if (ringBatch) {
+        // --- review fix (recording-export) --- the batched rings (and Shatter's segments), in the walls' alpha and colour
+        ctx.strokeStyle = p.rainbowWalls ? conicGradient() : p.circleColor;
+        ctx.stroke(ringBatch);
+        if (sectorBatch) {
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = p.rainbowWalls ? conicGradient() : p.circleColor;
+          ctx.fill(sectorBatch);
         }
       }
       ctx.globalAlpha = 1;
@@ -1512,45 +1599,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.drawImage(layers.reveal, x0, y0, 2 * R, 2 * R);
           }
         } else if (points.length > 0) {
-          ctx.globalAlpha = 0.75;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-          ctx.lineWidth = lineWidth;
-          const maxJump = 3 * lineWidth;
-          const maxJump2 = maxJump * maxJump;
-          let i = 0;
-          while (i < points.length) {
-            const start = points[i];
-            ctx.strokeStyle = start.color;
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            let j = i + 1;
-            while (j < points.length) {
-              const prev = points[j - 1];
-              const cur = points[j];
-              const dx = cur.x - prev.x;
-              const dy = cur.y - prev.y;
-              if (dx * dx + dy * dy > maxJump2) break;
-              if (cur.color !== prev.color) {
-                ctx.lineTo(cur.x, cur.y);
-                ctx.stroke();
-                ctx.strokeStyle = cur.color;
-                ctx.beginPath();
-                ctx.moveTo(cur.x, cur.y);
-              } else ctx.lineTo(cur.x, cur.y);
-              j++;
-            }
-            ctx.stroke();
-            i = j;
-          }
+          // --- review fix (performance) --- only the points since the last frame are stroked (into the trail layer), not the whole history
+          paintTrail.draw(ctx, points, paint.generation, cx, cy, R, lineWidth, dpr);
           const last = points[points.length - 1];
+          ctx.globalAlpha = 0.75;
           ctx.fillStyle = last.color;
           ctx.beginPath();
           ctx.arc(last.x, last.y, radius, 0, TWO_PI);
           ctx.fill();
           ctx.globalAlpha = 1;
         }
-      }
+        if (layers) paintTrail.release(); // --- review fix (performance) ---
+      } else paintTrail.release(); // --- review fix (performance) ---
 
       // Target segments
       if (engine.isCountdownMode()) {
@@ -1788,35 +1848,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // Lines mode strings
-      const drawStrings = (points: { x: number; y: number }[]) => {
-        const balls = drawnBalls; // --- camera: the strings end at the ball where it is drawn (replayed or between steps)
-        const ball = balls.length > 0 ? balls[0] : null;
-        const colorAt = (i: number) => {
-          if (!p.rainbowLines) return p.lineColor;
-          const base = (0.03 * time) % 360;
-          const spread = points.length > 1 ? (i / points.length) * 360 : 0;
-          return `hsl(${(base + spread) % 360}, 100%, 60%)`;
-        };
-        for (let i = 0; i < points.length; i++) {
-          const pt = points[i];
-          const color = colorAt(i);
-          if (ball) {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            ctx.moveTo(pt.x, pt.y);
-            ctx.lineTo(ball.x, ball.y);
-            ctx.stroke();
-          }
-          ctx.fillStyle = color;
-          ctx.globalAlpha = 0.9;
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 2.5, 0, TWO_PI);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      };
+      // --- review fix (performance) --- one path per colour (per hue bucket with Rainbow Lines), not a stroke and a fill per point
+      // (camera: the strings end at the ball where it is drawn, replayed or between steps)
+      const drawStrings = (points: { x: number; y: number }[]) => drawStringArt(ctx, points, drawnBalls.length > 0 ? drawnBalls[0] : null, p.rainbowLines, p.lineColor, time);
       if (engine.isLinesMode()) drawStrings(engine.getBouncePoints());
 
       // Frozen balls (Accumulation)
@@ -1862,6 +1896,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isGrow && engine.getGrowState().linesEnabled) drawStrings(engine.getGrowBouncePoints());
       }
 
+      // --- unlimited --- the crowd under the full-physics balls: batched discs, or points in one image past 20,000
+      if (unlimitedView.crowd > 0) {
+        crowdPalette.length = 0;
+        crowdPalette.push(engine.config.ballColor || "#FFFFFF", engine.config.ballColor2 || "#FF3366", ...EXTRA_BALL_COLORS);
+        unlimitedLayer.drawCrowd(ctx, engine.getCrowd(), crowdPalette, engine.config.width, engine.config.height);
+      }
+
       // Balls
       const balls = bdView ? bdLayer.frameBalls(drawnBalls, bdView, bdRender) : drawnBalls; // --- camera: the replayed balls and trails during the escape replay, or the balls between steps in slow motion (--- beat-drop --- the ball where the plan has it at the frame's time)
       const isColorMatch = engine.isColorMatchMode();
@@ -1897,6 +1938,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
+      // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
+      else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -1937,8 +1980,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const pulse = 1 + 0.15 * Math.sin(time * personality.glowPulseRate * 0.001 * TWO_PI) * personality.glowScale;
           const scale = personality.glowScale * pulse;
           const glowR = 2 * ball.radius * scale * beatEnvelope;
-          const r = Math.round(ball.radius);
-          const key = `${color}_${r}`;
           if (p.rainbowBall || isColorMatch) {
             const grad = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, glowR);
             grad.addColorStop(0, color);
@@ -1949,22 +1990,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.arc(ball.x, ball.y, glowR, 0, TWO_PI);
             ctx.fill();
           } else {
-            let sprite = glowSpriteCache.get(key);
+            // --- review fix (performance) --- one sprite per colour (the gradient scales smoothly), not one per integer radius
+            let sprite = glowSpriteCache.get(color);
             if (!sprite) {
+              const h = GLOW_SPRITE_SIZE / 2;
               sprite = document.createElement("canvas");
-              sprite.width = 4 * r;
-              sprite.height = 4 * r;
+              sprite.width = GLOW_SPRITE_SIZE;
+              sprite.height = GLOW_SPRITE_SIZE;
               const g = sprite.getContext("2d")!;
-              const grad = g.createRadialGradient(2 * r, 2 * r, 0, 2 * r, 2 * r, 2 * r);
+              const grad = g.createRadialGradient(h, h, 0, h, h, h);
               grad.addColorStop(0, color);
               grad.addColorStop(0.5, withAlpha(color, 0.27));
               grad.addColorStop(1, withAlpha(color, 0));
               g.fillStyle = grad;
               g.beginPath();
-              g.arc(2 * r, 2 * r, 2 * r, 0, TWO_PI);
+              g.arc(h, h, h, 0, TWO_PI);
               g.fill();
-              if (glowSpriteCache.size > 1000) glowSpriteCache.clear();
-              glowSpriteCache.set(key, sprite);
+              cacheSprite(glowSpriteCache, color, sprite);
             }
             ctx.drawImage(sprite, ball.x - glowR, ball.y - glowR, 2 * glowR, 2 * glowR);
           }
@@ -2011,9 +2053,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           ctx.drawImage(imageRef.current, -ball.radius, -ball.radius, 2 * ball.radius, 2 * ball.radius);
           ctx.restore();
         } else {
-          const r = Math.round(ball.radius);
-          const key = `${color}_${r}`;
-          if (p.rainbowBall || isColorMatch) {
+          // --- review fix (performance) --- sprites per colour and power-of-two device-px radius (at most five a colour, sharp on
+          // HiDPI); a ball bigger than the largest is drawn directly, like the rainbow / Color Match bodies
+          const r = bodySpriteRadius(ball.radius, dpr);
+          if (p.rainbowBall || isColorMatch || r === 0) {
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
@@ -2027,6 +2070,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
             ctx.fill();
           } else {
+            const key = `${color}_${r}`;
             let sprite = ballSpriteCache.get(key);
             if (!sprite) {
               sprite = document.createElement("canvas");
@@ -2045,8 +2089,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
               g.beginPath();
               g.arc(r, r, r, 0, TWO_PI);
               g.fill();
-              if (ballSpriteCache.size > 1000) ballSpriteCache.clear();
-              ballSpriteCache.set(key, sprite);
+              cacheSprite(ballSpriteCache, key, sprite); // --- review fix (performance) --- (a small cap, the oldest first)
             }
             ctx.drawImage(sprite, ball.x - ball.radius, ball.y - ball.radius, 2 * ball.radius, 2 * ball.radius);
           }
@@ -2090,6 +2133,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
+      // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
+      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
       if (faces.isActive() && mazeView) faces.drawOverlays(ctx, balls, mazeBodyColor, null); // --- odd-maze --- faces on the maze runners
       // --- jdm-race --- faces on the racers too
@@ -2108,7 +2153,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
 
       // Wall-break flashes and shockwaves
-      for (const flash of engine.getWallBreakFlashes()) {
+      for (const flash of cappedEffects(engine.getWallBreakFlashes(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
         const a = (flash.life / flash.maxLife) * 0.6;
         ctx.save();
         ctx.globalAlpha = a;
@@ -2121,7 +2166,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.stroke();
         ctx.restore();
       }
-      for (const wave of engine.getShockwaves()) {
+      for (const wave of cappedEffects(engine.getShockwaves(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
         const a = (wave.life / wave.maxLife) * 0.5;
         ctx.save();
         ctx.globalAlpha = a;
@@ -2205,7 +2250,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- gerald-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
-      if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
+      modeTopHud = 0; // --- review fix (modes-gerald-odd) ---
+      if (glassView) modeTopHud = Math.max(modeTopHud, drawGlassOverlay(ctx, glassView, glassRender));
       // --- jdm-race --- standings, mini-map, callouts, the countdown, the podium and the cup table (screen space, part of the recording);
       // live, below the page's buttons over a nearly square canvas
       if (raceView) raceLayer.drawOverlay(ctx, raceView, raceRef.current, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, !p.isPaused && p.isStarted ? frameMs : 0);
@@ -2217,7 +2263,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionLayer.drawOverlay(ctx, size.width, size.height, illusionView, engine.getElapsedMs(), illusionLabels);
       }
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
-      if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
+      if (plView) modeTopHud = Math.max(modeTopHud, plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS)); // --- review fix (modes-gerald-odd) --- (the pills' bottom)
       // --- gerald-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- gerald-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
@@ -2241,10 +2287,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (multView.active) {
         const sq = Math.min(size.width, size.height);
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
-        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid);
+        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut);
+        modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-gerald-odd) ---
+      }
+      // --- unlimited --- the ball count, "x0.4 real time" and ARENA FULL, bottom right of the square the recorder crops to
+      if (unlimitedView.on) {
+        const sq = Math.min(size.width, size.height);
+        const liveInset = !recordingRef.current ? 52 : 0; // live: above the playback-speed buttons (never in a recording, which crops them away)
+        unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset);
       }
 
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
+      // (--- review fix (modes-gerald-odd) --- the badge takes the top-right corner when the teams scoreboard sits in the top-left one;
+      // the badge and the HUD are what the top captions start below)
+      if (sbView) {
+        const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
+        modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+      }
       if (sbView) sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
       // --- odd-maze --- the warning badge, the distance-to-exit HUD and the verdict banner (with a roster the teams banner takes over at the end)
       if (mazeView) mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive() });
@@ -2416,8 +2475,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             },
           });
         };
-        if (multView.outgrown) fitBanner(L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), "#c4b5fd");
-        else if (multBoard && multBoard.done) fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones), "#a3e635");
+        if (multView.outgrown) fitBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(unlimitedView.ate && multView.size <= 1 ? ateSizeLabel(unlimitedView.ateRadius) : formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA; a Ball Size past the arena shows its size in px)
+        else if (multBoard && multBoard.done) {
+          // (--- review fix (modes-gerald-odd) --- and the balls lost on the way, when there are any)
+          const sub = (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones);
+          fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
+        }
         // --- end gerald-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
           const prog = engine.getShatterProgress();
@@ -2610,11 +2673,31 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionView.insetBottom = live ? 56 : 0;
         // --- viral-bot --- an arena game's scoreboard band (the top HUD_BAND of the square) is the top captions' limit too
         const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
-        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom), captionView);
+        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-gerald-odd) --- (the mode's top HUD)
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
-        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current) / 1000 : -1;
+        // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
+        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);
       } else captionLayer.clear();
+
+      // --- bounce-math --- "Show values": the ball that bounced last and every rule's fire count, inside the recorded square (so
+      // clips have it) – in its bottom-left corner above the page's buttons, the bottom text and the song bar, or in the top-right
+      // corner below the page's buttons, the scoreboard, SLOW-MO and the top text while bottom captions are on screen
+      {
+        const bmView = engine.getBounceMathView();
+        if (bmView.active && bmView.showValues) {
+          const side = Math.min(size.width, size.height);
+          const live = !recordingRef.current && (size.width - side) / 2 < 170;
+          let bottom = cy + side / 2 - (live ? 56 : 0);
+          if (p.bottomText) bottom = Math.min(bottom, edgeLines.bottomY - 0.75 * edgeLines.fontSize);
+          if (songProgressRef.current !== null) bottom = Math.min(bottom, size.height - 14);
+          if (multBoard) bottom = Math.min(bottom, cy + side / 2 - 0.025 * side - 1.5 * Math.max(16, 0.06 * side) - 6); // (above the multipliers board's HOME counter)
+          const slowMo = multView.active && multView.dilation < 1 ? 0.025 * side + 1.6 * Math.max(11, 0.034 * side) + 6 : 0;
+          const top = Math.max(cy - side / 2 + (live ? 52 : 0) + slowMo, teamLayer.isActive() ? teamLayer.scoreboardBottom + 6 : 0, p.topText ? edgeLines.topY + 0.75 * edgeLines.fontSize : 0);
+          const bmLabels = (labelsRef.current ?? DEFAULT_LABELS).bounceMath ?? DEFAULT_BOUNCE_MATH_LABELS;
+          bmLayer.drawHud(ctx, bmView, bmLabels, { x0: cx - side / 2, y0: cy - side / 2, side, bottom, top, toTop: captionLayer.usesBottom }, engine.getElapsedMs());
+        } else bmLayer.drawn = false;
+      }
 
       // Song slicer: thin progress bar along the bottom edge (part of the recording too)
       const songProgress = songProgressRef.current;
@@ -2653,7 +2736,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
       // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
-      const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
+      const scoreboardBottom = Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, modeTopHud); // --- teams --- (--- review fix (modes-gerald-odd) --- and the mode's top HUD)
       const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       if (sbView) sbLayer.applyGlitch(ctx); // --- odd-string-battle --- the neon style's glitch bars over the finished frame
@@ -2789,6 +2872,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbPainted", String(sbLayer.painted));
         setCanvasData("sbWobble", String(sbLayer.wobbling));
         setCanvasData("sbBadge", sbLayer.badgeDrawn ? "1" : "0");
+        setCanvasData("sbBadgeRight", sbLayer.badgeDrawn && sbLayer.badgeRight ? "1" : "0"); // --- review fix (modes-gerald-odd) --- (clear of the scoreboard)
         setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
         setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
         setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
@@ -2808,7 +2892,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbStalePx", stalePx.toFixed(1));
         setCanvasData("sbInRing", inRing ? "1" : "0");
       } else if (canvas.dataset.sbBalls !== undefined) {
-        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
+        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbBadgeRight", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
@@ -2871,6 +2955,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("captions", String(captionLayer.drawn));
         setCanvasData("captionTexts", captionLayer.summary);
         setCanvasData("captionReveal", captionLayer.revealed ? "1" : "0");
+        setCanvasData("captionModeHud", modeTopHud.toFixed(1)); // --- review fix (modes-gerald-odd) --- the mode's top HUD the stack starts below (0: none)
         const st = captionLayer.starts;
         if (st.top !== mirrored.stackTop || st.bottom !== mirrored.stackBottom) {
           mirrored.stackTop = st.top;
@@ -2889,7 +2974,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           mirrored.textTop = NaN;
         }
       } else if (canvas.dataset.captions !== undefined) {
-        for (const key of ["captions", "captionTexts", "captionReveal", "captionStack", "edgeText"]) delete canvas.dataset[key];
+        for (const key of ["captions", "captionTexts", "captionReveal", "captionStack", "edgeText", "captionModeHud"]) delete canvas.dataset[key];
         mirrored.stackTop = NaN;
         mirrored.textTop = NaN;
       }
@@ -2916,6 +3001,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
+      writeUnlimitedDataset(unlimitedView, frameBudget, lodOf(unlimitedView), setCanvasData, canvas.dataset); // --- unlimited --- (data-unlimited-*)
       // --- odd-power-layers --- Power Layers: hits, layers gone, power, level, the last hit's layers, freedom and the particles drawn (data-pl-*)
       if (plView) {
         setCanvasData("plSequence", plView.sequence);
@@ -2971,6 +3057,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("onbeatWarp", onBeat.warp.toFixed(2));
       } else if (canvas.dataset.onbeatHits !== undefined) for (const key of ["onbeatHits", "onbeatOnBeat", "onbeatFree", "onbeatMaxErr", "onbeatMeanErr", "onbeatBeats", "onbeatWarp"]) delete canvas.dataset[key];
 
+      // --- bounce-math --- the readout: rules, fire counts, the last ball's bounciness / speed / size, gravity, the badge (data-bm-*)
+      const bmData = engine.getBounceMathView();
+      if (bmData.active) writeBounceMathDataset(bmData, bmLayer, setCanvasData, engine.getElapsedMs());
+      else if (canvas.dataset.bmRules !== undefined) for (const key of BOUNCE_MATH_DATA_KEYS) delete canvas.dataset[key];
+
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;
       const delta = now - lastFpsSampleRef.current;
@@ -2981,10 +3072,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- fast-render --- offline, the export draws every frame itself, on its clock from 0 (one frame per call), recording from the start
     if (offline) {
       lastTimeRef.current = -offline.frameMs;
-      lastFrameRef.current = -Infinity;
       elapsedRef.current = 0;
       recordingRef.current = true;
       clipStartRef.current = 0;
+      clipLag0Ref.current = 0; // --- review fix (modes-gerald-odd) --- (a fresh camera)
       exportSizeRef.current = { width: offline.exportWidth, height: offline.exportHeight };
       offline.attach({
         canvas,
@@ -2994,6 +3085,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           songProgressRef.current = v;
         },
         holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
+        slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
         paintBackground: (c, width, height, crop) => bgPainter().paintExport(c, width, height, crop, backgroundLook()),
         ready: () => {
           const pics = picturesRef.current;

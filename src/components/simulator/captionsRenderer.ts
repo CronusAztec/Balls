@@ -1,5 +1,6 @@
 import {
   BACKGROUND_ALPHA,
+  CAPTION_COLUMN,
   CaptionTracker,
   MAX_CAPTIONS,
   animateCaption,
@@ -201,7 +202,7 @@ export class CaptionLayer {
     const cx = view.width / 2;
     const cy = view.height / 2;
     const baseFs = Math.max(12, 0.045 * side);
-    const maxTextW = 0.84 * side;
+    const maxTextW = CAPTION_COLUMN * side;
     this.revealed = wantsReveal && run.revealAtSec >= 0;
     this.msSinceReveal = this.revealed ? this.msSinceReveal + view.dtMs : 0;
 

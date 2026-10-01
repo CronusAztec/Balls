@@ -96,7 +96,8 @@ export default function ProjectSection({ t, search, matches, project }: { t: Tra
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={busy}
+          disabled={busy || project.importLocked} // --- review fix (recording-export) --- (not while a batch or a fast export renders)
+          title={project.importLocked ? t("projectImportLocked") : undefined}
           className="px-3 py-2 rounded-lg text-sm font-medium transition-all bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           ⬆️ {t("importProject")}
@@ -117,6 +118,11 @@ export default function ProjectSection({ t, search, matches, project }: { t: Tra
         />
       </div>
       <p className="text-[11px] text-zinc-500 leading-relaxed">📥 {t("projectDropHint")}</p>
+      {project.importLocked && !busy && project.status?.key !== "projectImportLocked" && (
+        <p className="text-[11px] text-amber-400 leading-relaxed" data-testid="project-import-locked">
+          {t("projectImportLocked")}
+        </p>
+      ) /* --- review fix (recording-export) --- */}
       {busy && (
         <div className="flex items-center gap-2 text-sm text-zinc-400" role="status">
           <div className="w-4 h-4 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin" />

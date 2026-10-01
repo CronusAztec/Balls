@@ -251,7 +251,9 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
             <Toggle t={t} labelKey="batchDownloadEach" tipKey="batchDownloadEachTip" value={d.downloadEach} onChange={(downloadEach) => set({ downloadEach })} caseStyle="title" />
 
             <p className="text-[11px] text-zinc-400 leading-snug">
-              {b("summary", { count: batch.jobCount, resolution: batch.exportFormat.resolution.replace("x", "×"), fps: batch.exportFormat.fps, seconds: batch.exportFormat.durationSec })}
+              {batch.exportFormat.durationSec === null /* --- review fix (recording-export) --- (a short link's clip length is known once its job runs) */
+                ? b("summaryPerJob", { count: batch.jobCount, resolution: batch.exportFormat.resolution.replace("x", "×"), fps: batch.exportFormat.fps })
+                : b("summary", { count: batch.jobCount, resolution: batch.exportFormat.resolution.replace("x", "×"), fps: batch.exportFormat.fps, seconds: batch.exportFormat.durationSec })}
             </p>
             {batch.truncated && <p className="text-[11px] text-amber-300 leading-snug">{b("truncated", { max: MAX_BATCH_JOBS })}</p>}
             <button
@@ -310,6 +312,11 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
               </div>
             )}
             {batch.zipFailed && <p className="text-[11px] text-red-400 leading-snug">{b("zipFailed")}</p>}
+            {run.interrupted && !busy && (
+              <p className="text-[11px] text-amber-300 leading-snug" data-batch-interrupted="true">
+                {b("settingsChanged")}
+              </p>
+            ) /* --- review fix (recording-export) --- */}
           </div>
         )}
       </div>

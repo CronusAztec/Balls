@@ -3,6 +3,8 @@ import type { BallMultipliers, MultiplierConfig, MultiplierRuntime } from "./mul
 import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
+import type { BounceMathConfig } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
+import type { UnlimitedConfig } from "./limits"; // --- unlimited ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -101,6 +103,14 @@ export interface Ball {
   // --- gerald-multipliers ---
   /** Stacked stat multipliers – speed, size, damage, bounce, gravity (see multipliers.ts); absent = a plain ×1 ball. */
   mult?: BallMultipliers;
+  // --- bounce-math --- per-ball values of the bounce-math rules (lib/physics/bounceMathRuntime.ts); absent = untouched
+  /** Restitution of the ball's rebounds – bounce math's "bounciness" (a factor on the engine's ring rebounds and obstacle hits); 1 when absent. */
+  restitution?: number;
+  /** Degrees bounce math has turned the ball's colour ("hue"); 0 when absent. */
+  hueShift?: number;
+  /** Semitones bounce math adds to the ball's bounce notes ("pitch"); 0 when absent. */
+  pitchShift?: number;
+  // --- end bounce-math ---
 }
 
 export type NewBall = Omit<Ball, "id" | "trail" | "trailIndex" | "spin" | "angle">;
@@ -162,7 +172,7 @@ export interface BallInteractionConfig {
 }
 
 // --- gerald-multipliers --- the stat-multiplier settings (cap, smash threshold, pickups) travel in the config too
-export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig> {
+export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig>, Partial<UnlimitedConfig> /* --- unlimited --- */ {
   width: number;
   height: number;
   gravity: number;
@@ -199,6 +209,13 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
    */
   timeline?: readonly Keyframe[];
   // --- end timeline ---
+  // --- bounce-math ---
+  /**
+   * Bounce math (lib/simulation/bounceMath.ts): the rules, the beat grid their beat / bar triggers follow and the canvas
+   * parameters' starting values. The seed finder, the arenas and the fast export copy it with the rest of the config.
+   */
+  bounceMath?: BounceMathConfig;
+  // --- end bounce-math ---
 }
 
 export interface SoundEvent {
@@ -258,6 +275,9 @@ export interface SoundEvent {
    */
   bdDrum?: "kick" | "snare" | "hat" | "none";
   bdPad?: BeatDropPadKind;
+  // --- unlimited ---
+  /** A ball ate the arena (No limits): the page plays the gulp (`ToneGenerator.playArenaEaten()`) instead of a wall break. */
+  ate?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
@@ -411,6 +431,23 @@ export interface ModeContext {
    * centred on the canvas, where the ring walls live). The mode moves its own obstacles; the physics is unchanged.
    */
   shiftWorld?(dx: number, dy: number): void;
+  // --- bounce-math ---
+  /**
+   * A mode that resolves its own walls reports a bounce of `ball` (bounce math's "bounce" trigger). `rebound`: the mode has
+   * just reflected the ball keeping its speed (Bouncing Shapes' walls) – the ball's bounce-math bounciness then applies to
+   * that rebound once; without it nothing else changes.
+   */
+  noteBounce?(ball: Ball, rebound?: boolean): void;
+  /** A mode that resolves its own ball-to-ball contacts reports a hit of `a` and `b` (bounce math's "ball hit" trigger). */
+  noteCollide?(a: Ball, b: Ball): void;
+  // --- end bounce-math ---
+  // --- unlimited ---
+  /** With No limits on, how many more full-physics balls the run may hold; null while the switch is off (the modes' own caps apply). */
+  unlimitedRoom?(): number | null;
+  /** With No limits on, adds `count` balls to the crowd at (x, y), fanned out from `angle` at `speed`; false once the crowd is full. */
+  spawnCrowd?(count: number, x: number, y: number, speed: number, radius: number, angle: number, slot: number): boolean;
+  /** With No limits on, a mode refused a clone at its ball limit (a mode without a crowd): the canvas shows ARENA FULL. A no-op while the switch is off. */
+  noteArenaFull?(): void;
 }
 
 export interface GameMode {

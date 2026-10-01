@@ -19,6 +19,10 @@
  * --post (never without it) needs IG_USER_ID, IG_ACCESS_TOKEN and BOT_VIDEO_BASE_URL (the public HTTPS location the
  * output folder is uploaded to, so Instagram can download the MP4s); IG_GRAPH_VERSION / IG_GRAPH_HOST are optional.
  * Without them, or when a post fails, the manual upload steps are printed instead.
+ *
+ * --- social-publish --- --relay URL --relay-key KEY --accounts a,b,c posts every rendered clip (or, with --post-only,
+ * every clip --out holds) through the self-hosted publish relay (relay/server.mjs) to the key's TikTok, Instagram and
+ * YouTube accounts – the relay uploads each clip once and posts it to every account (`--accounts all`: all of the key's).
  */
 import { spawnSync } from "child_process";
 import fs from "fs";
@@ -44,17 +48,21 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --post             publish the rendered clips to Instagram (needs IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL)
   --post-only        publish the clips an earlier run rendered into --out (its manifest.json) – after you uploaded
                      that folder to BOT_VIDEO_BASE_URL; nothing is planned or rendered
+  --relay URL        also post through a publish relay (relay/server.mjs) to TikTok, Instagram and YouTube accounts;
+                     with --post-only, only through the relay
+  --relay-key KEY    the relay access key (or RELAY_KEY in the environment)
+  --accounts IDS     the relay account ids, comma-separated (see GET /api/accounts), or "all"
   --help             this text
 
 Environment: BASE_URL (the served site), CHROME_PATH (a Chromium to use), FFMPEG_PATH (the ffmpeg that converts WebM
 clips to MP4 for Instagram; default: ffmpeg on PATH), and for --post IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL,
-IG_GRAPH_VERSION, IG_GRAPH_HOST.`;
+IG_GRAPH_VERSION, IG_GRAPH_HOST; for --relay RELAY_KEY.`;
 
 class UsageError extends Error {}
 
 /** Parses the command line (exported for the tests). */
 export function parseArgs(argv) {
-  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "all", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false };
+  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "all", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */ };
   const value = (i, name) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${name} needs a value`);
@@ -122,12 +130,30 @@ export function parseArgs(argv) {
       case "-h":
         opts.help = true;
         break;
+      // --- social-publish --- posting through the self-hosted relay
+      case "--relay":
+        opts.relay = take();
+        if (!/^https?:\/\/[^\s/]+/i.test(opts.relay)) throw new UsageError("--relay must be the relay's http(s) URL");
+        break;
+      case "--relay-key":
+        opts.relayKey = take();
+        break;
+      case "--accounts":
+        opts.accounts = take()
+          .split(",")
+          .map((a) => a.trim())
+          .filter(Boolean);
+        break;
       default:
         throw new UsageError(`Unknown option ${arg}`);
     }
   }
   if (opts.dryRun && (opts.post || opts.postOnly)) throw new UsageError("--dry-run renders nothing, so there is nothing to post");
   if (opts.post && opts.postOnly) throw new UsageError("--post renders and posts; --post-only posts what was rendered – pick one");
+  // --- social-publish ---
+  if (opts.relay && opts.dryRun) throw new UsageError("--dry-run renders nothing, so there is nothing to send to the relay");
+  if (opts.relay && opts.accounts.length === 0) throw new UsageError("--relay needs --accounts (relay account ids, comma-separated, or all)");
+  if (!opts.relay && (opts.relayKey || opts.accounts.length)) throw new UsageError("--relay-key and --accounts go with --relay");
   return opts;
 }
 
@@ -366,6 +392,86 @@ async function postToInstagram(planner, clips, copy) {
   return ok;
 }
 
+// --- social-publish --- posting through the publish relay
+/** A bot caption without its closing hashtag line (the relay adds the hashtags per platform). */
+export function captionWithoutHashtags(caption, hashtags) {
+  const blocks = String(caption || "").split("\n\n");
+  const line = (hashtags ?? []).join(" ");
+  if (line && blocks.length > 1 && blocks[blocks.length - 1].trim() === line) blocks.pop();
+  return blocks.join("\n\n").trim();
+}
+
+/**
+ * Posts `clips` ({ id, file, caption, hook, hashtags }) from `out` through the relay to the chosen accounts; false when
+ * anything was not posted. `planner` has the relay client (bundled from src/lib/publish/relayClient.ts).
+ *
+ * @param {{ RelayClient: any }} planner
+ * @param {{ id: string, file: string | null, caption?: string, hook?: string, hashtags?: string[] }[]} clips
+ * @param {{ relay: string, relayKey?: string | null, accounts: string[] }} opts
+ * @param {string} out
+ * @param {{ fetchImpl?: (url: string, init?: any) => Promise<Response>, log?: { log: (message: string) => void, warn: (message: string) => void, error: (message: string) => void }, intervalMs?: number }} [options]
+ * @returns {Promise<boolean>}
+ */
+export async function postViaRelay(planner, clips, opts, out, { fetchImpl = (u, i) => fetch(u, i), log = console, intervalMs = 3000 } = {}) {
+  const key = opts.relayKey || process.env.RELAY_KEY || "";
+  if (!key) {
+    log.error("\n--relay needs an access key: --relay-key KEY or RELAY_KEY. Nothing was sent to the relay.");
+    return false;
+  }
+  let client;
+  try {
+    client = new planner.RelayClient({ url: opts.relay, key }, { fetch: fetchImpl });
+  } catch (err) {
+    log.error(`\n${err.message}`);
+    return false;
+  }
+  let accounts = opts.accounts;
+  try {
+    const known = await client.accounts();
+    if (accounts.length === 1 && accounts[0] === "all") accounts = known.map((a) => a.id);
+    const unknown = accounts.filter((id) => !known.some((a) => a.id === id));
+    if (unknown.length) {
+      log.error(`\nThe relay key has no account ${unknown.join(", ")} – its accounts: ${known.map((a) => `${a.id} (${a.platform} ${a.handle || a.name})`).join(", ") || "none (connect them in the site's Publish block)"}.`);
+      return false;
+    }
+  } catch (err) {
+    log.error(`\nCannot reach the relay: ${err.message}`);
+    return false;
+  }
+  if (accounts.length === 0) {
+    log.error("\nThe relay key has no accounts yet – connect them in the site's Publish block (Recording section).");
+    return false;
+  }
+  let ok = true;
+  for (const clip of clips) {
+    if (!clip.file) {
+      log.warn(`  – ${clip.id}: not rendered, not sent to the relay`);
+      ok = false;
+      continue;
+    }
+    const file = path.join(out, clip.file);
+    const type = clip.file.endsWith(".webm") ? "video/webm" : "video/mp4";
+    log.log(`  → relay: ${clip.file} to ${accounts.length} account${accounts.length === 1 ? "" : "s"}`);
+    try {
+      const blob = new Blob([fs.readFileSync(file)], { type });
+      const { jobId } = await client.publish({ file: blob, fileName: path.basename(clip.file), accounts, title: clip.hook || "", caption: captionWithoutHashtags(clip.caption, clip.hashtags), hashtags: clip.hashtags ?? [], visibility: "public" });
+      const job = await client.waitForJob(jobId, { intervalMs });
+      for (const item of job.items) {
+        if (item.status === "published") log.log(`    ✓ ${item.platform} ${item.name}${item.link ? ` – ${item.link}` : ""}${item.note ? ` (${item.note})` : ""}`);
+        else {
+          ok = false;
+          log.error(`    ✗ ${item.platform} ${item.name}: ${item.error || item.status}`);
+        }
+      }
+    } catch (err) {
+      ok = false;
+      log.error(`    failed: ${err.message}`);
+    }
+  }
+  return ok;
+}
+// --- end social-publish ---
+
 export async function main(argv = process.argv.slice(2)) {
   loadDotEnv(ROOT);
   let opts;
@@ -399,8 +505,9 @@ export async function main(argv = process.argv.slice(2)) {
       return 1;
     }
     const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
-    const clips = (manifest.clips ?? []).map((c) => ({ id: `${c.episode}-${c.recipe}-${c.seed}`, file: c.status === "done" ? c.file : null, caption: c.caption }));
+    const clips = (manifest.clips ?? []).map((c) => ({ id: `${c.episode}-${c.recipe}-${c.seed}`, file: c.status === "done" ? c.file : null, caption: c.caption, hook: c.hook, hashtags: c.hashtags /* --- social-publish --- */ }));
     console.log(`Posting ${clips.length} clip${clips.length === 1 ? "" : "s"} from ${file}…`);
+    if (opts.relay) return (await postViaRelay(planner, clips, opts, out)) ? 0 : 1; // --- social-publish --- (only through the relay)
     return (await postToInstagram(planner, clips, copy)) ? 0 : 1;
   }
 
@@ -416,17 +523,28 @@ export async function main(argv = process.argv.slice(2)) {
   const { plans, rendered } = await renderInBrowser(opts, out);
   const done = rendered.filter((r) => r.status === "done").length;
   console.log(`\n${done}/${plans.length} clips rendered into ${out} (+ caption files, ${planner.MANIFEST_FILE}, ${planner.SCHEDULE_FILE}).`);
+  // --- social-publish --- through the relay (TikTok, Instagram, YouTube), with or without --post
+  let relayed = true;
+  if (opts.relay) {
+    const clips = plans.map((p) => {
+      const r = rendered.find((x) => x.id === p.id);
+      return { id: p.id, file: r && r.status === "done" ? r.file : null, caption: p.post.caption, hook: p.hook, hashtags: p.post.hashtags };
+    });
+    console.log(`\nSending ${clips.length} clip${clips.length === 1 ? "" : "s"} through the relay ${opts.relay}…`);
+    relayed = await postViaRelay(planner, clips, opts, out);
+  }
+  // --- end social-publish ---
   if (!opts.post) {
-    console.log("Not posting (pass --post to publish to Instagram).");
-    console.log(manualSteps(copy));
-    return done === plans.length ? 0 : 1;
+    if (!opts.relay) console.log("Not posting (pass --post to publish to Instagram)."); // --- social-publish --- (or --relay)
+    if (!opts.relay) console.log(manualSteps(copy));
+    return done === plans.length && relayed ? 0 : 1;
   }
   const clips = plans.map((p) => {
     const r = rendered.find((x) => x.id === p.id);
     return { id: p.id, file: r && r.status === "done" ? r.file : null, caption: p.post.caption };
   });
   const posted = await postToInstagram(planner, clips, copy);
-  return posted && done === plans.length ? 0 : 1;
+  return posted && relayed && done === plans.length ? 0 : 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -1,16 +1,17 @@
 name: Build and deploy to GitHub Pages
 
 # Every push is linted, type-checked, unit-tested and built. Pushes to the repository's default
-# branch (and manual runs from any branch) are then published to GitHub Pages.
+# branch (and manual runs from any branch) then run the browser smoke test against a base-path
+# build and, once it passes, are published to GitHub Pages.
 # One-time setup: Settings → Pages → "Build and deployment" → Source: "GitHub Actions".
 on:
   push:
   workflow_dispatch:
 
+# --- review fix (site-static) --- read-only by default; only the deploy job gets the Pages and OIDC write scopes (the build
+# job runs `npm ci` with third-party install scripts).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 env:
   DEPLOY: ${{ github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
@@ -18,16 +19,19 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read # the Pages settings lookup below (custom domain)
     # A newer push to the same branch supersedes a build that is still running.
     concurrency:
       group: build-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -72,8 +76,21 @@ jobs:
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "Site URL: $url (base path: '$base', from $source)"
 
+      # --- review fix (site-static) --- Next's build cache (the "No build cache found" warning)
+      - name: Cache the Next.js build
+        uses: actions/cache@v5
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-pages-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'messages/**') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-pages-${{ hashFiles('package-lock.json') }}-
+
+      - name: Date of the deployed commit (sitemap lastmod)
+        run: echo "SITEMAP_LASTMOD=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
+
+      # `npm run build` without next's own lint pass: the Lint step above already ran ESLint on the whole repository.
       - name: Build static site
-        run: npm run build
+        run: npx next build --no-lint && node scripts/postexport.mjs
         env:
           NEXT_PUBLIC_SITE_URL: ${{ steps.site.outputs.url }}
           NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}
@@ -85,17 +102,103 @@ jobs:
           NEXT_PUBLIC_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: ${{ vars.ANALYTICS_SCRIPT_URL }}
           NEXT_PUBLIC_ANALYTICS_SITE_ID: ${{ vars.ANALYTICS_SITE_ID }}
+          # --- social-publish --- the Publish block: a Google OAuth client ID for direct YouTube uploads and a relay URL
+          # the relay form suggests (both public values; each visitor can also enter their own in the block).
+          NEXT_PUBLIC_YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
+          NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL }}
 
       - name: Upload site artifact
         if: env.DEPLOY == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: out
 
-  deploy:
+  # --- review fix (site-static) --- the browser smoke test (scripts/smoke-test.mjs: base path, 404, every page and mode,
+  # recording...) gates every deploy. Feature-branch pushes skip it and stay fast; .github/workflows/smoke.yml runs it on pull
+  # requests. Timing checks the runner itself was too busy to measure are reported as inconclusive and do not block a deploy
+  # (smoke.yml runs them strictly).
+  smoke:
     needs: build
     if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    # A newer push supersedes a smoke run in progress (its deploy is then skipped and the newer run deploys).
+    concurrency:
+      group: smoke-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read the Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright's Chromium
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium for Playwright
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium's system libraries
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Cache the Next.js build
+        uses: actions/cache@v5
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-smoke-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'messages/**') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-smoke-${{ hashFiles('package-lock.json') }}-
+
+      - name: Build static site under a base path
+        run: npx next build --no-lint && node scripts/postexport.mjs
+        env:
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000/smoke
+          NEXT_PUBLIC_BASE_PATH: /smoke
+          NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+
+      - name: Serve and test
+        env:
+          BASE_URL: http://localhost:3000/smoke
+        run: |
+          node scripts/serve-static.mjs --port 3000 --base /smoke &
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done
+          npm run smoke
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: smoke-output
+          path: smoke-output
+          if-no-files-found: ignore
+
+  deploy:
+    needs: [build, smoke]
+    if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     # One deployment at a time; a queued run waits instead of cancelling one in progress.
     concurrency:
       group: pages
@@ -116,8 +219,8 @@ jobs:
           fi
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

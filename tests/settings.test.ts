@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
 import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/interactions";
 import { MODE_IDS } from "@/lib/physics/types";
-import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { NUMERIC_URL_KEYS, PRESETS_STORAGE_KEY, RANGES, defaultSettings, loadPresets, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
 describe("settings serialisation", () => {
   it("round-trips through URL parameters", () => {
@@ -167,5 +167,229 @@ describe("ball interaction settings", () => {
     expect(p).toMatchObject({ ballInteraction: "merge", maxBalls: 64, splitMinRadius: 4 });
     expect(presetToSettings({ mode: "classic", ballInteraction: 3 } as unknown as Partial<SimulatorSettings>).ballInteraction).toBe("bounce");
     expect(presetToSettings({ mode: "grow" })).toMatchObject(DEFAULT_BALL_INTERACTION);
+  });
+});
+
+// --- review fix (recording-export) --- numbers, enumerations and texts from links, share codes, batch lists, presets and project files
+describe("link and preset validation (review fix: recording-export)", () => {
+  const CORE: Record<string, keyof SimulatorSettings> = { g: "gravity", s: "ballSpeed", r: "ballRadius", wc: "wallCount", wt: "wallThickness", gap: "gapSize", rs: "rotationSpeed", tt: "trailThickness", at: "accumulationTime", sc: "spikeCount", msc: "multiplySpawnCount", tc: "targetCount", cmc: "colorMatchColorCount", gr: "growRate", ts: "textSize", slms: "sliceMs", slfade: "sliceFadeMs" };
+  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
+  const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
+
+  it("lifts a number below its slider's minimum onto it and keeps a big one (no crash on r=-5, no cap on wc)", () => {
+    const s = settingsFromSearchParams(new URLSearchParams("mode=classic&r=-5&wc=5000"));
+    expect(s.ballRadius).toBe(4);
+    expect(s.wallCount).toBe(5000);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wc=0")).wallCount).toBe(1);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&g=-900")).gravity).toBe(0);
+  });
+
+  it("falls back to the default for a value that is not a number, rounds counts", () => {
+    const d = defaultSettings("classic");
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&r=abc")).ballRadius).toBe(d.ballRadius);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&r=")).ballRadius).toBe(d.ballRadius);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wc=Infinity")).wallCount).toBe(d.wallCount);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wc=3.7")).wallCount).toBe(4);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&gap=0.37")).gapSize).toBeCloseTo(0.37);
+  });
+
+  it("keeps every core number at or above its minimum; bounded ones (gap, colours, text size, slicer) at or below their maximum", () => {
+    for (const [key, field] of Object.entries(CORE)) {
+      const range = rangeOf(field)!;
+      expect(range, field).toBeDefined();
+      const low = settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.min - 1e6}`))[field] as number;
+      expect(low, `${key}=min-1e6`).toBe(range.min);
+      const high = settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.max + 1e6}`))[field] as number;
+      expect(Number.isFinite(high), `${key}=max+1e6`).toBe(true);
+      if (BOUNDED.has(field)) expect(high, `${key}=max+1e6`).toBe(range.max);
+      else expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
+    }
+  });
+
+  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept unless bounded)", () => {
+    for (const field of Object.values(CORE)) {
+      const range = rangeOf(field)!;
+      const low = presetToSettings({ mode: "classic", [field]: range.min - 1e6 } as Partial<SimulatorSettings>);
+      expect(low[field], `preset ${field}=min-1e6`).toBe(range.min);
+      const high = presetToSettings({ mode: "classic", [field]: range.max + 1e6 } as Partial<SimulatorSettings>);
+      expect(high[field], `preset ${field}=max+1e6`).toBe(BOUNDED.has(field) ? range.max : range.max + 1e6);
+    }
+  });
+
+  it("no numeric link key with a slider range comes back below its minimum (the features' own checks included)", () => {
+    // Every numeric key the writer emits: each numeric field of the defaults nudged off its default and written out.
+    const base = defaultSettings("classic");
+    const numeric = Object.keys(base).filter((k) => typeof (base as unknown as Record<string, unknown>)[k] === "number" && rangeOf(k));
+    const keyOf = new Map<string, string>();
+    for (const field of numeric) {
+      const probe = { ...base, [field]: (base as unknown as Record<string, number>)[field] + rangeOf(field)!.step } as SimulatorSettings;
+      const before = new Set(settingsToSearchParams(base).keys());
+      const added = [...settingsToSearchParams(probe).keys()].filter((k) => !before.has(k));
+      if (added.length === 1) keyOf.set(field, added[0]);
+    }
+    for (const field of Object.values(CORE)) expect(keyOf.get(field), field).toBeDefined();
+    for (const [field, key] of keyOf) {
+      const range = rangeOf(field)!;
+      const value = (settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.min - 1e6}`)) as unknown as Record<string, number>)[field];
+      expect(Number.isFinite(value) && value >= range.min, `${key} (${field}) = ${value}`).toBe(true);
+    }
+  });
+
+  it("presetToSettings checks the core numbers too", () => {
+    const d = defaultSettings("classic");
+    const p = presetToSettings({ mode: "classic", ballRadius: -5, wallCount: 5000, gapSize: NaN } as Partial<SimulatorSettings>);
+    expect(p.ballRadius).toBe(4);
+    expect(p.wallCount).toBe(5000);
+    expect(p.gapSize).toBe(d.gapSize);
+    expect(presetToSettings({ mode: "classic", gravity: "700" } as unknown as Partial<SimulatorSettings>).gravity).toBe(d.gravity);
+    expect(presetToSettings({ mode: "classic", wallCount: 3.7 }).wallCount).toBe(4);
+  });
+
+  it("presetToSettings rejects an unknown resolution, wall-break style and rainbow mode and caps the texts at a link's 60 characters", () => {
+    const p = presetToSettings({ mode: "classic", recordingResolution: "20000x20000", wallBreakStyle: "bogus", rainbowWallMode: "bogus", topText: "x".repeat(300), bottomText: "y".repeat(70), watermarkText: "z".repeat(61) } as unknown as Partial<SimulatorSettings>);
+    expect(p.recordingResolution).toBe("1080x1920");
+    expect(p.wallBreakStyle).toBe("confetti");
+    expect(p.rainbowWallMode).toBe("gradient");
+    expect(p.topText).toHaveLength(60);
+    expect(p.bottomText).toHaveLength(60);
+    expect(p.watermarkText).toHaveLength(60);
+    const ok = presetToSettings({ mode: "classic", recordingResolution: "500x500", wallBreakStyle: "all", rainbowWallMode: "pulse", topText: "Will it escape?" });
+    expect(ok).toMatchObject({ recordingResolution: "500x500", wallBreakStyle: "all", rainbowWallMode: "pulse", topText: "Will it escape?" });
+    // A share link made from the loaded settings carries the texts whole.
+    const back = settingsFromSearchParams(settingsToSearchParams(p));
+    expect(back.topText).toBe(p.topText);
+    expect(back.watermarkText).toBe(p.watermarkText);
+  });
+
+  it("resolutionToSize gives 1080x1920 for anything but a known resolution", () => {
+    expect(resolutionToSize("20000x20000")).toEqual({ width: 1080, height: 1920 });
+    expect(resolutionToSize("bogus")).toEqual({ width: 1080, height: 1920 });
+    expect(resolutionToSize("500x500")).toEqual({ width: 500, height: 500 });
+    expect(resolutionToSize("1920x1080")).toEqual({ width: 1920, height: 1080 });
+  });
+
+  it("a pre-rename preset's default watermark (viralballs.com) becomes today's default; a custom one stays", () => {
+    const p = presetToSettings({ mode: "shatter", gravity: 700, watermarkText: "viralballs.com" });
+    expect(p.watermarkText).toBe(defaultSettings("shatter").watermarkText);
+    expect(settingsToSearchParams(p).has("wm")).toBe(false);
+    expect(settingsToSearchParams(p).get("g")).toBe("700");
+    expect(presetToSettings({ mode: "shatter", watermarkText: " ViralBalls.com " }).watermarkText).toBe("");
+    expect(presetToSettings({ mode: "shatter", watermarkText: "@me" }).watermarkText).toBe("@me");
+    expect(presetToSettings({ mode: "shatter", watermarkText: "" }).watermarkText).toBe("");
+    expect(presetToSettings({ mode: "shatter", watermarkText: 42 } as unknown as Partial<SimulatorSettings>).watermarkText).toBe("");
+    // A link keeps what it says (links never carried the old default).
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wm=viralballs.com")).watermarkText).toBe("viralballs.com");
+  });
+
+  // --- review fix (site-static) --- no domain is burned into the clips by default (jumpingballslive.com does not resolve)
+  it("clips carry no watermark by default, and a preset saved with the post-rename default (jumpingballslive.com) loads without it", () => {
+    for (const mode of ["classic", "shatter", "drop"] as const) expect(defaultSettings(mode).watermarkText).toBe("");
+    expect(settingsToSearchParams(defaultSettings("classic")).has("wm")).toBe(false);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic")).watermarkText).toBe("");
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wm=%40me")).watermarkText).toBe("@me");
+    const p = presetToSettings({ mode: "classic", watermarkText: "JumpingBallsLive.com" });
+    expect(p.watermarkText).toBe("");
+    expect(settingsToSearchParams(p).has("wm")).toBe(false);
+    const custom = { ...defaultSettings("classic"), watermarkText: "@me" };
+    expect(settingsToSearchParams(custom).get("wm")).toBe("@me");
+  });
+});
+
+// --- review fix (security-robustness) --- every numeric link key at ±1e9, in several modes, through links and presets
+describe("numeric link and preset values at ±1e9 (review fix: security-robustness)", () => {
+  const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
+  const MODES = ["classic", "target", "accumulation", "drop"] as const; // (ring modes, the count modes and one without rings)
+  /** The numbers whose range is one of meaning (both ends kept); every other core number keeps a big value as it is. */
+  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
+  const CORE = new Set(["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"]);
+  const checkValue = (field: string, value: unknown, label: string, high: boolean) => {
+    expect(typeof value === "number" && Number.isFinite(value), `${label}: ${String(value)} is a finite number`).toBe(true);
+    const range = rangeOf(field);
+    if (!range) return;
+    const v = value as number;
+    expect(v >= range.min, `${label}: ${v} >= ${range.min}`).toBe(true);
+    if (!CORE.has(field)) return; // the feature groups keep their own rules (see the recording-export tests above)
+    if (BOUNDED.has(field)) expect(v <= range.max, `${label}: ${v} <= ${range.max}`).toBe(true);
+    else if (high) expect(v, `${label}: a big value is kept (extreme values are a feature)`).toBe(1e9);
+    if (Number.isInteger(range.step)) expect(Number.isInteger(v), `${label}: ${v} is a whole number`).toBe(true);
+  };
+
+  // (a few thousand parses: a generous timeout for a busy machine)
+  it("no NUMERIC_URL_KEYS key gives a non-finite number or one below its minimum from ?key=±1e9", { timeout: 60000 }, () => {
+    expect(Object.keys(NUMERIC_URL_KEYS).length).toBeGreaterThan(50);
+    for (const mode of MODES) {
+      for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
+        for (const raw of [1e9, -1e9]) {
+          const s = settingsFromSearchParams(new URLSearchParams(`mode=${mode}&${key}=${raw}`)) as unknown as Record<string, unknown>;
+          checkValue(field, s[field], `${mode} ?${key}=${raw}`, raw > 0);
+        }
+      }
+    }
+  });
+
+  it("presetToSettings treats the same values the same way, and a value that is not a number falls back to the default", { timeout: 60000 }, () => {
+    for (const mode of MODES) {
+      for (const field of new Set(Object.values(NUMERIC_URL_KEYS))) {
+        for (const raw of [1e9, -1e9]) {
+          const p = presetToSettings({ mode, [field]: raw } as Partial<SimulatorSettings>) as unknown as Record<string, unknown>;
+          checkValue(field, p[field], `${mode} preset ${field}=${raw}`, raw > 0);
+        }
+      }
+      const d = defaultSettings(mode);
+      const p = presetToSettings({ mode, wallCount: "abc", ballRadius: null, gravity: {} } as unknown as Partial<SimulatorSettings>);
+      expect([p.wallCount, p.ballRadius, p.gravity]).toEqual([d.wallCount, d.ballRadius, d.gravity]);
+    }
+  });
+
+  it("a share code's ?r=-5 (the crash of the review) is lifted onto the minimum ball size", () => {
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&r=-5")).ballRadius).toBe(RANGES.ballRadius.min);
+    expect(presetToSettings({ mode: "classic", ballRadius: -5 }).ballRadius).toBe(RANGES.ballRadius.min);
+  });
+});
+
+// --- review fix (security-robustness) --- the saved presets in localStorage are checked: anything but an object of objects is dropped
+describe("loadPresets (review fix: security-robustness)", () => {
+  const stubStorage = (value: string | null) => {
+    const store = new Map<string, string>();
+    if (value !== null) store.set(PRESETS_STORAGE_KEY, value);
+    const g = globalThis as Record<string, unknown>;
+    const before = { window: g.window, localStorage: g.localStorage };
+    g.window = {};
+    g.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    };
+    return () => {
+      g.window = before.window;
+      g.localStorage = before.localStorage;
+    };
+  };
+  const loaded = (value: string | null) => {
+    const restore = stubStorage(value);
+    try {
+      return loadPresets();
+    } finally {
+      restore();
+    }
+  };
+
+  it("drops a stored null, array, number or broken JSON (the simulator crashed on every visit) and keeps the presets that are objects", () => {
+    expect(loaded("null")).toEqual({});
+    expect(loaded("[]")).toEqual({});
+    expect(loaded("5")).toEqual({});
+    expect(loaded('"text"')).toEqual({});
+    expect(loaded("{broken")).toEqual({});
+    expect(loaded(null)).toEqual({});
+    expect(loaded('{"a":null,"b":{"mode":"classic"},"c":[1],"d":7}')).toEqual({ b: { mode: "classic" } });
+    const store = loaded(JSON.stringify({ mine: { mode: "shatter", gravity: 700 } }));
+    expect(Object.keys(store)).toEqual(["mine"]);
+    expect(presetToSettings(store.mine).gravity).toBe(700);
+  });
+
+  it("a preset's wall-break sound is a built-in clip or none: no foreign URL, no non-string", () => {
+    expect(presetToSettings({ mode: "classic", wallBreakSound: "https://attacker.example/x.wav" }).wallBreakSound).toBeNull();
+    expect(() => presetToSettings({ mode: "classic", wallBreakSound: 5 } as unknown as Partial<SimulatorSettings>)).not.toThrow();
+    expect(presetToSettings({ mode: "classic", wallBreakSound: 5 } as unknown as Partial<SimulatorSettings>).wallBreakSound).toBeNull();
   });
 });

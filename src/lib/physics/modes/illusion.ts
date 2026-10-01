@@ -683,6 +683,14 @@ export class IllusionMode implements GameMode {
     } else v.timeSec = v.step / this.sps;
     this.flushNotes(ctx);
     this.applyBalls(ctx);
+    // --- bounce-math --- every body that touched a wall, the rim or another body this step bounced
+    if (ctx.noteBounce) {
+      const hit = v.lastHitStep;
+      for (const ball of ctx.getBalls()) {
+        const i = ball.id - this.firstId;
+        if (i >= 0 && i < hit.length && hit[i] === step + 1) ctx.noteBounce(ball);
+      }
+    }
   }
 
   onWallHit() {}

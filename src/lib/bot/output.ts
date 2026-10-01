@@ -1,3 +1,4 @@
+import { SITE_NAME } from "@/lib/site";
 import { copyString, fillTemplate, type BotCopy } from "./copy";
 import { recipeById, type BotPlatform } from "./playbook";
 import type { ClipPlan, ScoreReason } from "./planner";
@@ -154,7 +155,7 @@ export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta
   const out = [
     `# ${h("title", "Posting schedule")}`,
     "",
-    fillTemplate(h("intro", "Planned for {date} ({platform})."), { date: meta.date ?? "–", platform }),
+    fillTemplate(h("intro", "Planned for {date} ({platform})."), { date: meta.date ?? "–", platform, siteName: SITE_NAME }),
     "",
     `| # | ${h("time", "Time")} | ${h("file", "File")} | ${h("recipe", "Recipe")} | ${h("ending", "Ending")} | ${h("score", "Score")} | ${h("hook", "Hook")} |`,
     "|---|---|---|---|---|---|---|",

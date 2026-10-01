@@ -6,11 +6,13 @@ import { routing } from "@/i18n/routing";
 import { SITE_NAME, SITE_URL, absoluteUrl, pageUrl } from "@/lib/site";
 import Analytics from "@/components/site/Analytics";
 import { localeAlternates } from "@/i18n/alternates";
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 // --- pwa ---
 import PwaRegister from "@/components/site/PwaRegister";
 import { PWA_ICON_FILES, PWA_THEME_COLOR } from "@/lib/pwa";
 import { assetPath } from "@/lib/site";
 // --- end pwa ---
+import { SHARED_CLIENT_NAMESPACES, pickMessages } from "@/i18n/clientMessages"; // --- review fix (performance) ---
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -24,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Layout" });
   const title = t("metaTitle", { siteName: SITE_NAME });
-  const description = t("metaDescription");
+  const description = t("metaDescription", { count: MODE_CARD_ORDER.length });
   return {
     metadataBase: new URL(SITE_URL),
     title,
@@ -54,7 +56,8 @@ export default async function LocaleLayout({ children, params }: { children: Rea
         <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased">
-        <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+        {/* --- review fix (performance) --- only what the shared client components read (pages add their own: i18n/clientMessages.ts) */}
+        <NextIntlClientProvider messages={pickMessages(messages, SHARED_CLIENT_NAMESPACES)}>{children}</NextIntlClientProvider>
         <Analytics />
         <PwaRegister />
       </body>

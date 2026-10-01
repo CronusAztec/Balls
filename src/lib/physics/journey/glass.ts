@@ -2,38 +2,36 @@ import {
   BOUNCE_MAX,
   BOUNCE_MIN,
   BOUNCE_OF_SPACING,
-  DRIFT,
-  HIT_SPEED,
   HOLE_WIDTH,
-  MAX_DRIFT,
   PANE_RESTITUTION,
-  SHATTER_KEEP,
   glassPitch,
-  glassTempo,
-  hopSpeed,
-  makeCrack,
-  paneDamage,
+  glassReach,
+  hitGlassPane,
+  mapGlassPane,
   paneThickness,
   stageHue,
+  stepGlassShards,
+  touchGlassPane,
   updatePaneSegments,
+  type GlassHitOptions,
   type GlassPane,
   type GlassPaneKind,
   type GlassView,
 } from "../modes/glass";
-import { hitDamage } from "../multipliers";
-import { resolveBallSegment, segmentObstacle } from "../obstacles";
+import { segmentObstacle } from "../obstacles";
 import type { Ball } from "../types";
-import { rescaleShards, shiftShards, spawnShards, stageGlassLevel, stageGlassView, stepShards, syncField } from "./glassBits";
+import { rescaleShards, shiftShards, stageGlassLevel, stageGlassView, syncField } from "./glassBits";
 import { BaseStage, type StageEnv, type StageMap, type StagePainter } from "./stage";
 import type { JourneyStageSize } from "./sequence";
 
 /**
  * "glass" – a few panes from Glass Smash across the column: 2 (small), 3 (medium) or 5 (large) panes of 1–2 hit
- * points, a large stage's later panes sometimes with a hole. Built from Glass Smash's own pieces – `paneThickness()`,
- * the capsules of `updatePaneSegments()` resolved with `resolveBallSegment()`, `makeCrack()`, the shard counts, the
- * hop height rule, `glassPitch()` – with its landing rule: any contact from above cracks the pane and hops the ball
- * back up (so it never rests on glass), the last hit point shatters it (the accented note, the wall-break sound, the
- * shards) and the ball crashes through. The damage multiplier of a gate stage above takes more hit points a hit.
+ * points, a large stage's later panes sometimes with a hole. Laid out from Glass Smash's own pieces – `paneThickness()`,
+ * the capsules of `updatePaneSegments()`, the hop height rule, `glassPitch()` – and played by Glass Smash's own rules
+ * (modes/glass.ts): `touchGlassPane()` (any contact from above is a landing, so the ball never rests on glass) and
+ * `hitGlassPane()` (the crack and the hop back up, or on the last hit point the shatter – the accented note, the
+ * wall-break sound, `spawnGlassShards()` – and the ball crashes through), the shards flying by `stepGlassShards()`. The
+ * damage multiplier of a gate stage above takes more hit points a hit.
  */
 
 export const GLASS_PANES: Record<JourneyStageSize, number> = { s: 2, m: 3, l: 5 };
@@ -47,9 +45,10 @@ export class GlassStage extends BaseStage {
   panes: GlassPane[] = [];
   spacing = 0;
   bounceHeight = 0;
-  hits = 0;
-  shattered = 0;
   private passCursor = 0;
+  /** The options every pane hit shares (one object, made for the journey's env and filled in per hit). */
+  private hitOptions: GlassHitOptions | null = null;
+  private hitEnv: StageEnv | null = null;
 
   constructor(index: number, size: JourneyStageSize) {
     super(index, size);
@@ -115,9 +114,19 @@ export class GlassStage extends BaseStage {
     this.view.level = level;
     this.view.panes = panes.length;
     this.view.shardCount = 0;
-    this.hits = 0;
-    this.shattered = 0;
+    this.view.hits = 0;
+    this.view.shattered = 0;
+    this.view.cleared = 0;
     this.passCursor = 0;
+  }
+
+  /** Landings and knocks on the stage's panes so far (the Glass Smash view counts them). */
+  get hits() {
+    return this.view.hits;
+  }
+  /** Panes shattered so far. */
+  get shattered() {
+    return this.view.shattered;
   }
 
   maxBallRadius() {
@@ -127,56 +136,37 @@ export class GlassStage extends BaseStage {
   }
 
   onBallStep(env: StageEnv, ball: Ball, dtSec: number) {
-    const reachY = ball.radius + Math.abs(ball.vy) * dtSec + 2;
+    const reachY = glassReach(ball, dtSec);
     for (const pane of this.panes) {
-      if (pane.shattered || Math.abs(ball.y - pane.y) > pane.thickness / 2 + reachY) continue;
-      for (const seg of pane.segments) {
-        const impact = resolveBallSegment(ball, seg, dtSec);
-        if (impact < 0) continue;
-        // Glass Smash's rule: a contact from above is always a landing; a knock from below needs HIT_SPEED.
-        if (impact >= HIT_SPEED || ball.y < pane.y) this.hitPane(env, ball, pane, Math.max(impact, HIT_SPEED));
-        break;
-      }
+      const impact = touchGlassPane(pane, ball, dtSec, reachY);
+      if (impact >= 0) hitGlassPane(this.view, pane, ball, impact, this.hitOptionsFor(env, ball));
     }
   }
 
-  private hitPane(env: StageEnv, ball: Ball, pane: GlassPane, impact: number) {
-    const ctx = env.ctx;
-    const fromAbove = ball.y < pane.y;
-    pane.hp = Math.max(0, pane.hp - hitDamage(ball));
-    pane.hits++;
-    pane.lastHitMs = env.timeMs;
-    this.hits++;
-    this.view.hits++;
-    const impactX = ball.x - pane.x;
-    pane.cracks.push(makeCrack(pane, impactX, fromAbove, paneDamage(pane), env.timeMs, () => ctx.random()));
-    if (pane.hp <= 0) {
-      pane.shattered = true;
-      pane.shatteredAtMs = env.timeMs;
-      pane.cleared = true;
-      this.shattered++;
-      this.view.shattered++;
-      spawnShards(this.view, pane, impactX, ball.vy, () => ctx.random());
-      ball.vy = (fromAbove ? 1 : -1) * impact * SHATTER_KEEP;
-      env.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch, accent: true }, true);
-      env.sound({ type: "gap", wallIndex: 0 }, true);
-      return;
+  private hitOptionsFor(env: StageEnv, ball: Ball): GlassHitOptions {
+    let o = this.hitOptions;
+    if (!o || this.hitEnv !== env) {
+      o = this.hitOptions = {
+        random: () => env.ctx.random(),
+        sound: env.sound,
+        gravity: 0,
+        bounceHeight: 0,
+        timeMs: 0,
+        ballSpeed: 400,
+        noteBounce: (b) => env.ctx.noteBounce?.(b),
+      };
+      this.hitEnv = env;
     }
-    if (fromAbove) {
-      const b = this.bounds;
-      const k = glassTempo(ball);
-      ball.vy = -hopSpeed(env.gravity(ball), this.bounceHeight);
-      const speedScale = (ctx.config.ballSpeed || 400) / 400;
-      const drift = DRIFT * b.viewH * speedScale * k;
-      const cap = MAX_DRIFT * b.viewH * Math.max(0.5, speedScale) * k;
-      ball.vx = Math.max(-cap, Math.min(cap, 0.5 * ball.vx + (2 * ctx.random() - 1) * drift));
-    }
-    env.sound({ type: "hit", wallIndex: 0, frequency: pane.pitch }, false);
+    o.gravity = env.gravity(ball);
+    o.bounceHeight = this.bounceHeight;
+    o.timeMs = env.timeMs;
+    o.ballSpeed = env.ctx.config.ballSpeed || 400;
+    return o;
   }
 
   update(env: StageEnv, ball: Ball | null, dtSec: number, active: boolean) {
     this.view.timeMs = env.timeMs;
-    if (this.view.shardCount > 0) stepShards(this.view, dtSec, env.gravity(), this.bounds.left, this.bounds.right);
+    if (this.view.shardCount > 0) stepGlassShards(this.view, dtSec, env.gravity(), this.bounds.left, this.bounds.right);
     if (!active || !ball) return;
     // Panes the ball got below (through a hole, or shattered) are cleared.
     while (this.passCursor < this.panes.length) {
@@ -200,23 +190,7 @@ export class GlassStage extends BaseStage {
     const k = map.k;
     this.spacing *= k;
     this.bounceHeight *= k;
-    for (const pane of this.panes) {
-      pane.x = map.x(pane.x);
-      pane.baseX = map.x(pane.baseX);
-      pane.y = map.y(pane.y);
-      pane.halfWidth *= k;
-      pane.thickness *= k;
-      pane.holeX *= k;
-      pane.holeHalf *= k;
-      for (const seg of pane.segments) seg.thickness = pane.thickness;
-      for (const crack of pane.cracks) {
-        crack.x *= k;
-        crack.y *= k;
-        crack.length *= k;
-        for (let i = 0; i < 5 * crack.count; i++) crack.segs[i] *= k;
-      }
-      updatePaneSegments(pane);
-    }
+    for (const pane of this.panes) mapGlassPane(pane, map.x, map.y, k);
     rescaleShards(this.view, map);
     if (this.view.level) syncField(this.view.level, this.bounds);
   }

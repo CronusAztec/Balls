@@ -13,7 +13,7 @@ const cardClass =
 const CATEGORY_HEADINGS = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle" /* --- odd-string-battle --- */, journey: "modesJourney" /* --- gerald-journey --- */ } as const;
 
 /**
- * Mode cards, grouped under a heading per family (escape modes, rhythm modes – see lib/modes.ts). On the
+ * Mode cards, grouped under a heading per family (escape, rhythm, battle and journey modes – see MODE_CATEGORY_IDS in lib/modes.ts). On the
  * simulator page a click dispatches a DOM event the simulator listens to (so the mode switches in place);
  * elsewhere the card links to the simulator.
  */
@@ -26,7 +26,7 @@ export default function ModesOverview({ interactive = false }: { interactive?: b
     <>
       <div className="relative w-full aspect-video bg-slate-800/50 flex items-center justify-center overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={assetPath(`/modes/${id}.webp`)} alt={`${t(`${id}.name`)} mode preview`} loading="lazy" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        <img src={assetPath(`/modes/${id}.webp`)} alt={t("previewAlt", { name: t(`${id}.name`) }) /* --- review fix (ui-i18n) --- */} loading="lazy" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       </div>
       <div className="p-6 flex flex-col gap-2">
         <h3 className="text-xl font-black text-white group-hover:text-cyan-400 transition-colors tracking-tight">{t(`${id}.name`)}</h3>

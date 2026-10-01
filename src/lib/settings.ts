@@ -16,7 +16,6 @@ import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collide
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
-import { SITE_DOMAIN } from "@/lib/site";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- gerald-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
@@ -61,6 +60,10 @@ import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 // --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
 import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
 import type { BeatSourceKind } from "@/lib/simulation/beatSource";
+// --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
+import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, resolveBounceMathFields, writeBounceMathParams, type BounceRule } from "@/lib/simulation/bounceMath";
+// --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
+import { UNLIMITED_URL_KEY, discoverUrlKeys, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 // --- odd-maze --- the Maze escape mode (oddplayground)
 import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writeMazeParams, type MazeBrain, type MazeHand } from "@/lib/physics/modes/maze";
 
@@ -68,7 +71,8 @@ import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writ
  * Every user-facing simulator setting lives in this one object. The controls panel,
  * URL sharing, presets and the seed finder all read from it, so adding a setting means:
  *  1. add a field here (+ default in `defaultSettings`),
- *  2. optionally add a short URL key in URL_KEYS so it is shareable,
+ *  2. optionally add a short URL key in NUMERIC_URL_KEYS / BOOLEAN_URL_KEYS / STRING_URL_KEYS (or the feature's
+ *     write…Params / read…Params helpers) so it is shareable,
  *  3. render a control for it in components/simulator/Controls.tsx,
  *  4. apply it to the engine in components/simulator/Simulator.tsx.
  */
@@ -658,6 +662,16 @@ export interface SimulatorSettings {
   videoBackground: boolean;
   videoBgOpacity: number;
   // --- end video-beats ---
+  // --- bounce-math --- Bounce math (lib/simulation/bounceMath.ts, lib/physics/bounceMathRuntime.ts)
+  /** The rules, applied in list order (URL `bmr`: param.trigger.every.op.amount[.min][.max][.scope] joined by ";"). */
+  bounceMath: BounceRule[];
+  /** "Show values": the bounce-math HUD badge on the canvas while rules are in play (URL `bmh`). */
+  bounceMathHud: boolean;
+  // --- end bounce-math ---
+  // --- unlimited --- No limits (lib/unlimited.ts, lib/physics/limits.ts): every numeric setting past its slider range, extreme
+  // runs that melt but never crash; off by default (URL `inf`)
+  unlimited: boolean;
+  // --- end unlimited ---
   // --- odd-maze --- Maze escape (lib/physics/modes/maze.ts, lib/physics/mazeGrid.ts): balls race through a seeded maze
   /** Columns of the maze, 6–40; the rows follow the portrait field (URL `mzc`). */
   mzCols: number;
@@ -750,7 +764,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- gerald-glass ---
     ...glassSettingFields(DEFAULT_GLASS_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
-    watermarkText: SITE_DOMAIN,
+    watermarkText: "", // --- review fix (site-static) --- no mark burned into the clips unless the user adds one (the TikTok page's promise)
     topText: "",
     bottomText: "",
     textSize: 1,
@@ -805,6 +819,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBeatDropFields(),
     ...beatDropModeDefaults(mode),
     ...defaultVideoBeatsFields(), // --- video-beats ---
+    ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
+    unlimited: false, // --- unlimited ---
     ...defaultMazeFields(), // --- odd-maze ---
   };
 }
@@ -875,6 +891,7 @@ export const RANGES = {
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
+  ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
   ...MAZE_RANGES, // --- odd-maze ---
 } as const;
 
@@ -890,7 +907,8 @@ type StringKey = {
   [K in keyof SimulatorSettings]: SimulatorSettings[K] extends string ? K : never;
 }[keyof SimulatorSettings];
 
-const NUMERIC_URL_KEYS: Record<string, NumericKey> = {
+/** The short link keys of the numeric settings (exported for the link-validation tests: --- review fix (security-robustness) ---). */
+export const NUMERIC_URL_KEYS: Readonly<Record<string, NumericKey>> = {
   g: "gravity",
   s: "ballSpeed",
   r: "ballRadius",
@@ -1040,6 +1058,7 @@ const BOOLEAN_URL_KEYS: Record<string, BooleanKey> = {
   mpu: "mpUnlimited",
   mpk: "multiplierPickups",
   ne: "neverEscape", // --- rigged ---
+  [UNLIMITED_URL_KEY]: "unlimited", // --- unlimited --- `inf=1`
 };
 
 const STRING_URL_KEYS: Record<string, StringKey> = {
@@ -1116,6 +1135,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   writeMazeParams(settings, base, params); // --- odd-maze ---: mzc, mzn, mzb, mzh, mzg, mzs, mzt, mztc, mzto, mzf, mzwc, mzd, mzbg, mzhud
+  writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
+  writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
 }
 
@@ -1124,7 +1145,42 @@ function formatNumber(n: number) {
   return Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
-/** Reads settings from a URL; unknown or invalid values fall back to the defaults. */
+// --- review fix (recording-export) --- the numbers of links, share codes, batch lists, presets and project files
+/** The most characters of the Top / Bottom Text and the watermark a link keeps (and so a preset or a project file too). */
+const MAX_URL_TEXT = 60;
+/**
+ * Numbers whose slider range is a range of meaning, kept inside it at both ends: the gap is a fraction of the ring,
+ * Color Match has seven colours, the text has to fit the frame, the slicer's lengths are audio grains. Every other
+ * number only has a floor: a value past its slider's maximum is kept as it is – extreme values are a feature, and the
+ * page degrades gracefully under them – while one below its minimum (a negative ball size, no rings at all) is invalid.
+ */
+const RANGE_BOUNDED_FIELDS: ReadonlySet<string> = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
+/**
+ * The core numbers of `NUMERIC_URL_KEYS`: no feature's own resolver checks them again (the music bed, the physics extras,
+ * the modes' and features' numbers keep their own rules), so `clampToRange()` is their check.
+ */
+const CORE_NUMERIC_FIELDS: readonly NumericKey[] = ["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"];
+const CORE_NUMERIC_FIELD_SET: ReadonlySet<string> = new Set(CORE_NUMERIC_FIELDS);
+
+/**
+ * A number for `field` from a link or a stored preset: not a finite number → `fallback`; below the field's slider
+ * minimum → that minimum; above its maximum → kept (clamped only for `RANGE_BOUNDED_FIELDS`); whole numbers for a
+ * whole-number slider step (counts). A field without a range is taken as it is.
+ */
+export function clampToRange(field: string, value: number, fallback: number): number {
+  const range = (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
+  if (!Number.isFinite(value)) return fallback;
+  if (!range) return value;
+  let v = Math.max(range.min, value);
+  if (RANGE_BOUNDED_FIELDS.has(field)) v = Math.min(range.max, v);
+  return Number.isInteger(range.step) ? Math.round(v) : v;
+}
+// --- end review fix (recording-export) ---
+
+/**
+ * Reads settings from a URL; unknown or invalid values fall back to the defaults, and a number below its slider's minimum
+ * is lifted onto it (`clampToRange()`: a link with `r=-5` or `wc=0` cannot crash the page; big values stay big).
+ */
 export function settingsFromSearchParams(params: URLSearchParams): SimulatorSettings {
   const modeParam = params.get("mode");
   const mode: ModeId = isModeId(modeParam) ? modeParam : "classic";
@@ -1132,8 +1188,12 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
     const raw = params.get(key);
     if (raw === null) continue;
-    const value = Number(raw);
-    if (Number.isFinite(value)) (settings as unknown as Record<string, number>)[field] = value;
+    // --- review fix (recording-export) --- a core number through clampToRange(); the others as before (their features check them)
+    if (CORE_NUMERIC_FIELD_SET.has(field)) (settings as unknown as Record<string, number>)[field] = clampToRange(field, raw.trim() === "" ? NaN : Number(raw), settings[field]);
+    else {
+      const value = Number(raw);
+      if (Number.isFinite(value)) (settings as unknown as Record<string, number>)[field] = value;
+    }
   }
   for (const [key, field] of Object.entries(BOOLEAN_URL_KEYS)) {
     const raw = params.get(key);
@@ -1142,7 +1202,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   }
   for (const [key, field] of Object.entries(STRING_URL_KEYS)) {
     const raw = params.get(key);
-    if (raw !== null) (settings as unknown as Record<string, string>)[field] = raw.slice(0, 60);
+    if (raw !== null) (settings as unknown as Record<string, string>)[field] = raw.slice(0, MAX_URL_TEXT);
   }
   const rw = params.get("rwmode");
   if (rw === "pulse" || rw === "gradient") settings.rainbowWallMode = rw;
@@ -1237,6 +1297,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readMazeParams(params, settings); // --- odd-maze --- (clamped onto the sliders; unknown options and bad colours fall back)
+  readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
+  readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   return settings;
 }
 
@@ -1324,10 +1386,62 @@ function clampMultiplierSettings(settings: SimulatorSettings) {
   Object.assign(settings, multipliersSettingFields(resolveMultipliersSettings(multipliersSettingsOf(settings))));
 }
 
+// --- unlimited ---
+type UnlimitedRecord = Record<string, unknown>;
+/** `RANGES` as the plain record lib/unlimited.ts reads. */
+const UNLIMITED_RANGES = RANGES as unknown as Record<string, { min: number; max: number; step: number }>;
+/** The unlimited settings (numeric, with a range, not bounded; see lib/unlimited.ts), computed once. */
+let unlimitedKeyList: string[] | null = null;
+/** Their URL keys (the core map, the ball count's `nb`, and what the feature writers reveal), computed once. */
+let unlimitedUrlKeyMap: Map<string, string> | null = null;
+
+/** The settings that go past their slider range with the switch on. */
+export function unlimitedSettingKeys(): string[] {
+  unlimitedKeyList ??= unlimitedKeysOf(defaultSettings("classic") as unknown as UnlimitedRecord, UNLIMITED_RANGES);
+  return unlimitedKeyList;
+}
+
+function unlimitedUrlKeys(): Map<string, string> {
+  if (unlimitedUrlKeyMap) return unlimitedUrlKeyMap;
+  const explicit: Record<string, string> = { ballCount: "nb" };
+  for (const [param, field] of Object.entries(NUMERIC_URL_KEYS)) explicit[field] = param;
+  const base = { ...defaultSettings("classic"), unlimited: false } as unknown as UnlimitedRecord;
+  unlimitedUrlKeyMap = discoverUrlKeys(unlimitedSettingKeys(), explicit, base, (probe) => settingsToSearchParams(probe as unknown as SimulatorSettings));
+  return unlimitedUrlKeyMap;
+}
+
+/** The URL key of an unlimited setting (`infx` carries the ones without). */
+export function unlimitedUrlKeyOf(key: string): string | undefined {
+  return unlimitedUrlKeys().get(key);
+}
+
+function writeUnlimitedValues(settings: SimulatorSettings, params: URLSearchParams) {
+  if (!settings.unlimited) return;
+  writeUnlimitedParams(settings as unknown as UnlimitedRecord, params, unlimitedSettingKeys(), UNLIMITED_RANGES, unlimitedUrlKeys());
+}
+
+function readUnlimitedValues(params: URLSearchParams, settings: SimulatorSettings) {
+  if (!settings.unlimited) return;
+  readUnlimitedParams(params, settings as unknown as UnlimitedRecord, defaultSettings(settings.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES, unlimitedUrlKeys());
+  if (settings.teams.length === 0) settings.twoBalls = settings.ballCount >= 2;
+}
+
+function restoreUnlimitedPreset(preset: Partial<SimulatorSettings>, merged: SimulatorSettings) {
+  restoreUnlimitedValues(preset as unknown as UnlimitedRecord, merged as unknown as UnlimitedRecord, defaultSettings(merged.mode) as unknown as UnlimitedRecord, unlimitedSettingKeys(), UNLIMITED_RANGES);
+  if (merged.unlimited && merged.teams.length === 0) merged.twoBalls = merged.ballCount >= 2;
+}
+// --- end unlimited ---
+
 /* ------------------------------------------------------------------ presets */
 
 export const PRESETS_STORAGE_KEY = "jumpingballslive_saved_settings";
 export const ADVANCED_STORAGE_KEY = "jumpingballslive_advanced_options";
+
+/**
+ * --- review fix (recording-export) --- The default watermark before the rename (the old SITE_DOMAIN): presets and project
+ * files saved back then store it, and loading one puts today's default watermark in its place (a custom one stays).
+ */
+const LEGACY_DEFAULT_WATERMARKS: readonly string[] = ["viralballs.com", "jumpingballslive.com" /* --- review fix (site-static) --- the post-rename default, a domain nobody serves */];
 
 /** Browser-storage keys written before the rename to JumpingBallsLive, and the keys that replaced them. */
 const LEGACY_STORAGE_KEYS: Record<string, string> = {
@@ -1359,10 +1473,21 @@ export function loadPresets(): PresetStore {
   try {
     migrateLegacyStorage();
     const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PresetStore) : {};
+    // --- review fix (security-robustness) --- only an object of objects is a preset store: a stored `null`, array or number
+    // (another page on the same origin can write the key) crashed the simulator on every visit
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!isPlainRecord(parsed)) return {};
+    const out: PresetStore = {};
+    for (const [name, preset] of Object.entries(parsed)) if (isPlainRecord(preset)) out[name] = preset as Partial<SimulatorSettings>;
+    return out;
   } catch {
     return {};
   }
+}
+
+/** --- review fix (security-robustness) --- A plain object (not null, not an array). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export function savePresets(store: PresetStore) {
@@ -1385,6 +1510,21 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
   const defaults = defaultSettings(mode);
   const merged = { ...defaults, ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
+  // --- review fix (recording-export) --- the core numbers like a link's (`clampToRange()`), the enumerations the URL reader
+  // checks too, the texts at a link's length (a share link made after loading keeps them whole) and no pre-rename watermark
+  for (const field of CORE_NUMERIC_FIELDS) {
+    const value = merged[field] as unknown;
+    (merged as unknown as Record<string, number>)[field] = clampToRange(field, typeof value === "number" ? value : NaN, defaults[field]);
+  }
+  merged.recordingResolution = (RESOLUTIONS as readonly string[]).includes(preset.recordingResolution as string) ? (preset.recordingResolution as string) : defaults.recordingResolution;
+  merged.wallBreakStyle = (WALL_BREAK_STYLES as readonly string[]).includes(preset.wallBreakStyle as string) ? (preset.wallBreakStyle as WallBreakStyle) : defaults.wallBreakStyle;
+  merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
+  for (const key of ["topText", "bottomText", "watermarkText"] as const) {
+    const text = preset[key] as unknown;
+    merged[key] = typeof text === "string" ? text.slice(0, MAX_URL_TEXT) : defaults[key];
+  }
+  if (LEGACY_DEFAULT_WATERMARKS.includes(merged.watermarkText.trim().toLowerCase())) merged.watermarkText = defaults.watermarkText;
+  // --- end review fix (recording-export) ---
   merged.hitSoundMode = isHitSoundMode(preset.hitSoundMode) ? preset.hitSoundMode : defaults.hitSoundMode;
   merged.hitSampleId = normalizeHitSampleId(preset.hitSampleId);
   merged.hitSampleVolume = clampRange(Number(merged.hitSampleVolume), RANGES.hitSampleVolume, defaults.hitSampleVolume);
@@ -1435,6 +1575,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- clamped numbers on their steps, known options, real colours and booleans
+  Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
+  restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   return merged;
 }
 
@@ -1457,7 +1599,9 @@ export function presetToLiveSettings(preset: Partial<SimulatorSettings>, uploads
   return loaded;
 }
 
+/** The export frame of a resolution setting; anything but one of `RESOLUTIONS` gives the default 1080×1920 (never a bogus size for the recorder). */
 export function resolutionToSize(resolution: string): { width: number; height: number } {
+  if (!(RESOLUTIONS as readonly string[]).includes(resolution)) return { width: 1080, height: 1920 }; // --- review fix (recording-export) ---
   const [w, h] = resolution.split("x").map(Number);
   return { width: w || 1080, height: h || 1920 };
 }

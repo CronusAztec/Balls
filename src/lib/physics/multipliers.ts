@@ -19,7 +19,7 @@ import type { Ball, CircularWall, ModeContext, ModeId, SoundEvent } from "./type
  *            stability – the stat itself stays uncapped);
  *  - gravity scales the ball's `gravityScale`.
  *
- * Physics safety at extreme values lives here too: `planSteps()` picks, per 60 Hz step, enough sub-steps that no ball
+ * Physics safety at extreme values lives here too: `planStep()` picks, per 60 Hz step, enough sub-steps that no ball
  * moves more than half its radius (at most 4 px) per sub-step, up to `MAX_SUBSTEPS`; beyond that the step itself is
  * shortened by a power of two ("time dilation": the simulation clock slows and the HUD shows SLOW-MO) instead of
  * letting a ball tunnel through a wall. The obstacle and wall tests stay swept on top of that.
@@ -114,9 +114,9 @@ export function hitDamage(ball: Pick<Ball, "mult">): number {
   return ball.mult ? ball.mult.damage : 1;
 }
 
-/** Restitution factor of a ball's bounce multiplier (capped at `MAX_EFFECTIVE_BOUNCE`). */
-export function effectiveBounce(ball: Pick<Ball, "mult">): number {
-  return ball.mult ? Math.min(MAX_EFFECTIVE_BOUNCE, ball.mult.bounce) : 1;
+/** Restitution factor of a ball's bounce multiplier (capped at `MAX_EFFECTIVE_BOUNCE`; --- unlimited --- No limits passes Infinity). */
+export function effectiveBounce(ball: Pick<Ball, "mult">, cap = MAX_EFFECTIVE_BOUNCE): number {
+  return ball.mult ? Math.min(cap, ball.mult.bounce) : 1;
 }
 
 /** Modes whose rings a ball with enough damage may smash (escape formats; Lines, Paint, Grow and Target keep their arena). */
@@ -518,6 +518,8 @@ export class MultiplierRuntime {
   private readonly fit: RingFit = { burst: [], outgrown: false, dist: 0 };
   private mode: ModeId | undefined;
   private readonly plan: StepPlan = { subSteps: 0, dilation: 1 };
+  /** --- unlimited --- The most a bounce multiplier may scale a rebound (`MAX_EFFECTIVE_BOUNCE`; Infinity with No limits on). */
+  bounceCap = MAX_EFFECTIVE_BOUNCE;
   private readonly view: MultiplierView = {
     active: false,
     speed: 1,
@@ -625,7 +627,8 @@ export class MultiplierRuntime {
       const b = balls[i];
       if (b.frozen) continue;
       const v = Math.hypot(b.vx, b.vy);
-      const rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(MAX_EFFECTIVE_BOUNCE, b.mult.bounce) : reboundSpeed;
+      let rebound = b.mult ? reboundSpeed * b.mult.speed * Math.min(this.bounceCap, b.mult.bounce) : reboundSpeed; // --- unlimited --- (the cap in effect)
+      if (b.restitution !== undefined) rebound *= b.restitution; // --- bounce-math --- the ball's bounciness scales its rebounds
       const bound = SPEED_MARGIN * (v > rebound ? v : rebound) + Math.abs(gravity * (b.gravityScale ?? 1)) * stepSec;
       const r = (bound * stepSec) / maxMovePerSubStep(b.radius);
       if (r > ratio) ratio = r;
@@ -777,7 +780,11 @@ export class MultiplierRuntime {
     const host = this.host;
     const copies = Math.max(0, Math.round(factor) - 1);
     for (let k = 0; k < copies; k++) {
-      if (ctx.getBalls().length >= maxBalls) return;
+      if (ctx.getBalls().length >= maxBalls) {
+        // --- unlimited --- with No limits on the clones past the full-physics balls join the crowd (ARENA FULL once it is full)
+        if (ctx.unlimitedRoom?.() != null) ctx.spawnCrowd?.(copies - k, ball.x, ball.y, Math.hypot(ball.vx, ball.vy), ball.radius, Math.atan2(ball.vy, ball.vx), 0);
+        return;
+      }
       const turn = (ctx.random() < 0.5 ? -1 : 1) * (0.35 + 0.35 * ctx.random());
       const c = Math.cos(turn);
       const s = Math.sin(turn);

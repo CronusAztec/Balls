@@ -319,6 +319,9 @@ export class PaintMode implements GameMode {
   }
 
   private addPaintPoint(ctx: ModeContext, ball: Ball) {
+    // --- review fix (performance) --- a finished picture takes no more dabs: the trail (drawn under the end screen) stops
+    // growing instead of gathering ~100 points a second for as long as the page stays open (no random numbers drawn here)
+    if (this.coverage >= COVERAGE_DONE) return;
     const walls = ctx.getCircularWalls();
     if (walls.length === 0) return;
     const wall = walls[0];

@@ -8,6 +8,7 @@ import { resolveFastExportFps } from "@/lib/recording/fastRenderPlan";
 import {
   batchFileBase,
   batchJobCount,
+  batchLongestClipSec, // --- review fix (recording-export) ---
   batchZipBase,
   defaultBatchDefinition,
   linkJobSettings,
@@ -28,6 +29,7 @@ import {
 import { zipBlobs } from "@/lib/recording/zip";
 import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
 import type { FastExportState } from "./sections/FastExportSection";
+import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish ---
 
 /*
  * --- batch-render --- The page's side of the batch render (lib/recording/batch.ts): runs the fast export job after job.
@@ -87,6 +89,8 @@ export interface BatchRunState {
   jobs: BatchJobState[];
   startedAt: number | null;
   finishedAt: number | null;
+  /** --- review fix (recording-export) --- The page's settings were changed during the batch: it stopped and kept them. */
+  interrupted?: boolean;
 }
 
 /** What the Batch block of the Recording section shows and does (sections/BatchSection.tsx). */
@@ -98,8 +102,11 @@ export interface BatchPanelProps {
   /** Clips the definition gives (capped) and whether the cap cut it. */
   jobCount: number;
   truncated: boolean;
-  /** The Recording section's export format the clips get. */
-  exportFormat: { resolution: string; fps: number; durationSec: number };
+  /**
+   * The Recording section's export format the clips get, with the longest clip of the plan (--- review fix (recording-export)
+   * --- a swept clip length, a link's own; null when a short link's code only says so once its job runs).
+   */
+  exportFormat: { resolution: string; fps: number; durationSec: number | null };
   /** Whether the browser has WebCodecs (null until known). */
   supported: boolean | null;
   /** Record Video, Find Simulation or a single fast export is busy, or a project is being opened. */
@@ -139,6 +146,11 @@ export interface UseBatchRenderOptions {
   fastExport: FastExportState;
   supported: boolean | null;
   disabled: boolean;
+  /**
+   * --- review fix (recording-export) --- Told when a batch starts (true) and ends (false): the page locks every other way of
+   * putting settings on it meanwhile (Import project, presets, mode cards, share codes).
+   */
+  onRunningChange?: (running: boolean) => void;
 }
 
 // --- viral-bot --- a job handed in whole by another feature (the Bot section): its own settings, seed and file name
@@ -246,6 +258,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
     const { jobs } = custom ? { jobs: custom.map((c, i): BatchJobPlan => ({ id: i + 1, seed: c.seed, link: null, variant: { kind: "none" } })) } : planBatch(def, parseBatchList(def.list));
     if (jobs.length === 0) return [];
     runningRef.current = true;
+    o.onRunningChange?.(true); // --- review fix (recording-export) ---
     stopRef.current = false;
     files.current.clear();
     const used = new Set<string>();
@@ -261,9 +274,15 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
     }
     let changed = false;
     let abort = false;
+    // --- review fix (recording-export) --- the settings the batch itself last put on the page (as committed): anything else
+    // that changes them meanwhile – a path the page's lock misses, a slider – stops the batch, and the user's settings stay
+    let lastApplied = latest.current.settings;
+    let interrupted = false;
+    const changedByUser = () => !sameSettings(latest.current.settings, lastApplied);
     try {
       for (const job of jobs) {
-        if (stopRef.current || abort || !mounted.current) {
+        if (!interrupted && !abort && !stopRef.current && mounted.current && changedByUser()) interrupted = true; // --- review fix (recording-export) ---
+        if (stopRef.current || abort || interrupted || !mounted.current) {
           patchJob(job.id, { status: "skipped" });
           continue;
         }
@@ -286,6 +305,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
           latest.current.applySettings(target);
           changed = true;
           await settle();
+          lastApplied = latest.current.settings; // --- review fix (recording-export) ---
         }
         if (job.variant.kind === "mode" && job.variant.mode !== latest.current.settings.mode) {
           latest.current.changeMode(job.variant.mode);
@@ -296,12 +316,14 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
             latest.current.update({ recordingDuration: target.recordingDuration });
             await settle();
           }
+          lastApplied = latest.current.settings; // --- review fix (recording-export) ---
         }
         // --- viral-bot --- the job's own set-up (its melody), once its settings are on the page
         if (customJob?.prepare) {
           await customJob.prepare();
           changed = true;
           await settle();
+          lastApplied = latest.current.settings; // --- review fix (recording-export) ---
         }
         if (!mounted.current) break;
         const s = latest.current.settings;
@@ -340,12 +362,17 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
           const extension = result.format.extension;
           const base = uniqueFileBase(customJob ? customJob.name : batchFileBase({ mode, seed: job.seed, durationSec: result.durationSec, variant: job.variant }), extension, used); // --- viral-bot --- (its own name)
           files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob, durationSec: result.durationSec });
+          offerPublishClip({ blob: result.blob, name: `${base}.${extension}`, source: customJob ? "bot" : "batch", durationSec: result.durationSec, mode, seed: job.seed, botClipId: customJob ? customJob.name : null }); // --- social-publish --- (a bot clip's copy comes from its plan)
           if (customJob ? customJob.download : definitionRef.current.downloadEach) downloadExport(result.blob, extension, base);
           patchJob(job.id, { status: "done", wallMs, durationSec: result.durationSec, bytes: result.blob.size, fileName: `${base}.${extension}` });
         }
       }
     } finally {
-      if (mounted.current) {
+      // --- review fix (recording-export) --- settings someone else put on the page during the last job are kept, not rolled back
+      if (!interrupted && mounted.current && changedByUser()) interrupted = true;
+      if (mounted.current && interrupted) {
+        if (wasRunning && !changed) latest.current.setPaused(false);
+      } else if (mounted.current) {
         if (changed) {
           latest.current.applySettings(snapshot);
           if (restoreFound) {
@@ -356,8 +383,9 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
         } else if (wasRunning) latest.current.setPaused(false);
       }
       runningRef.current = false;
-      const stopped = stopRef.current || abort;
-      if (mounted.current) setRun((r) => ({ ...r, status: stopped ? "stopped" : "finished", finishedAt: Date.now() }));
+      latest.current.onRunningChange?.(false); // --- review fix (recording-export) ---
+      const stopped = stopRef.current || abort || interrupted;
+      if (mounted.current) setRun((r) => ({ ...r, status: stopped ? "stopped" : "finished", finishedAt: Date.now(), interrupted }));
     }
     // --- viral-bot --- the files of the batch, in job order
     return [...files.current.entries()].sort((a, b) => a[0] - b[0]).map(([id, f]) => ({ index: id, name: f.name, extension: f.extension, blob: f.blob, durationSec: f.durationSec ?? 0 }));
@@ -402,13 +430,15 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
 
   const busy = run.status === "running" || run.status === "stopping";
   const { settings: s, fastExport, supported, disabled } = options;
+  // --- review fix (recording-export) --- the summary's "up to N s each": the longest clip of the plan, not the page's length
+  const longestClipSec = useMemo(() => batchLongestClipSec(definition, list, s.recordingDuration), [definition, list, s.recordingDuration]);
   const panel: BatchPanelProps = {
     definition,
     onDefinitionChange,
     list,
     jobCount,
     truncated,
-    exportFormat: { resolution: s.recordingResolution, fps: resolveFastExportFps(s.fastExportFps), durationSec: s.recordingDuration },
+    exportFormat: { resolution: s.recordingResolution, fps: resolveFastExportFps(s.fastExportFps), durationSec: longestClipSec },
     supported,
     disabled,
     run,

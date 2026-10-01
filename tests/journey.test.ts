@@ -17,13 +17,18 @@ import { STAGE_COLORS, STAGE_HEIGHTS, stagePitch } from "@/lib/physics/journey/s
 import { createStage, stageRandom } from "@/lib/physics/journey/stages";
 import { MIN_RING_SPACING_RADII, RING_COUNTS, RingsStage } from "@/lib/physics/journey/rings";
 import { BULLSEYE_BANDS, BULLSEYE_MISS, bullseyeScore } from "@/lib/physics/journey/bullseye";
-import { GLASS_PANES } from "@/lib/physics/journey/glass";
+import { GLASS_PANES, GlassStage } from "@/lib/physics/journey/glass";
 import { GatesStage } from "@/lib/physics/journey/gates";
-import { PegsStage } from "@/lib/physics/journey/pegs";
+import { HomeStage } from "@/lib/physics/journey/home";
+import { BAR_TILT, PegsStage } from "@/lib/physics/journey/pegs";
+import type { StageBounds, StageEnv } from "@/lib/physics/journey/stage";
+import { CELEBRATION_MS, HOME_CHORD, WALK_SPEED, buildGlassField, glassReach, hitGlassPane, touchGlassPane } from "@/lib/physics/modes/glass";
+import type { Obstacle } from "@/lib/physics/obstacles";
 import {
   DEFAULT_JOURNEY_SETTINGS,
   JOURNEY_RANGES,
   JourneyMode,
+  STUCK_SQUEEZE_AFTER,
   journeyGravity,
   journeySettingsOf,
   journeyStagesOf,
@@ -32,7 +37,7 @@ import {
   type JourneySettings,
 } from "@/lib/physics/modes/journey";
 import { PhysicsEngine } from "@/lib/physics/engine";
-import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
+import { MODE_IDS, type Ball, type ModeContext, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, MODE_CATEGORY_IDS, modesInCategory } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -297,6 +302,53 @@ const BOUNDS = (kind: keyof typeof STAGE_HEIGHTS, size: "s" | "m" | "l", top = 1
   return { left: 226, right: 574, top, bottom: top + h, cx: 400, width: 348, height: h, viewH };
 };
 
+/** A stage's band in the column of a 1080×1920 canvas (the recorder's default resolution). */
+const BIG_BOUNDS = (kind: keyof typeof STAGE_HEIGHTS, size: "s" | "m" | "l"): StageBounds => {
+  const f = buildGlassField(1080, 1920);
+  const h = STAGE_HEIGHTS[kind][size] * f.height;
+  return { left: f.left, right: f.right, top: 0, bottom: h, cx: f.cx, width: f.width, height: h, viewH: f.height };
+};
+
+/** Points along an obstacle (its centre line) and how far its surface stands off them – sampled, independent of the stage's own maths. */
+function samples(o: Obstacle): { pts: [number, number][]; off: number } {
+  if (o.kind === "circle") return { pts: [[o.x, o.y]], off: o.radius };
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = -o.halfLength + (2 * o.halfLength * i) / 40;
+    pts.push([o.x + t * Math.cos(o.angle), o.y + t * Math.sin(o.angle)]);
+  }
+  return { pts, off: o.thickness / 2 };
+}
+
+function sampledGap(a: Obstacle, b: Obstacle): number {
+  const sa = samples(a);
+  const sb = samples(b);
+  let min = Infinity;
+  for (const [ax, ay] of sa.pts) for (const [bx, by] of sb.pts) min = Math.min(min, Math.hypot(ax - bx, ay - by));
+  return min - sa.off - sb.off;
+}
+
+/** A ball for the stage tests (never in an engine). */
+function testBall(x: number, y: number, vx = 0, vy = 0, radius = 8): Ball {
+  return { id: 0, x, y, vx, vy, radius, color: "#fff", trail: [], trailIndex: 0, spin: 0, angle: 0 };
+}
+
+/** What the journey hands a stage, for a stage on its own: a seeded generator, a fixed gravity, and logs of the sounds and the confetti. */
+function testEnv(seed: number, sounds: SoundEvent[], confetti: number[][] = []) {
+  const random = stageRandom(seed);
+  const ctx = { random, config: { ...config }, spawnConfetti: (x: number, y: number) => void confetti.push([x, y]) } as unknown as ModeContext;
+  const env = {
+    ctx,
+    timeMs: 1000,
+    field: buildGlassField(800, 600),
+    gravity: () => 1300,
+    sound: (e: SoundEvent) => void sounds.push(e),
+    maxBallRadius: () => Infinity,
+    addScore: () => undefined,
+  };
+  return env as StageEnv & { timeMs: number };
+}
+
 describe("the stage adapters", () => {
   it("lay out inside their band from their own generator, the same numbers giving the same stage", () => {
     for (const kind of Object.keys(STAGE_HEIGHTS) as (keyof typeof STAGE_HEIGHTS)[]) {
@@ -371,6 +423,143 @@ describe("the stage adapters", () => {
     expect(pitches.every((f) => f > 200)).toBe(true);
     expect(stagePitch(8 + 1)).toBeGreaterThan(stagePitch(0 + 1));
     expect(stage.onObstacleHit({ env: null as never, ball: null as never, obstacle: bottom, impact: 100 })!.frequency!).toBeGreaterThan(stage.onObstacleHit({ env: null as never, ball: null as never, obstacle: top, impact: 100 })!.frequency!);
+  });
+
+  it("pegs: the ball may grow only into the narrowest opening – two bar tips are closer than two pegs – and no row leaves a corner at a wall", () => {
+    for (const bounds of [BOUNDS, BIG_BOUNDS]) {
+      for (const size of ["s", "m", "l"] as const) {
+        for (const seed of [1, 2, 3]) {
+          const stage = createStage({ kind: "pegs", size }, 1) as PegsStage;
+          const b = bounds("pegs", size);
+          stage.init(b, stageRandom(seed), 8);
+          const max = stage.maxBallRadius();
+          // The bars of a row leave less room between their tips than the pegs do (the openings the review found the ball wedged in).
+          const barGap = stage.columnSpacing - 2 * stage.barHalfLength * Math.cos(BAR_TILT);
+          expect(barGap).toBeLessThan(stage.columnSpacing - 2 * stage.pegRadius);
+          expect(max).toBeLessThanOrEqual(barGap / 2 - 2 + 1e-9);
+          // The default ball still fits.
+          expect(max).toBeGreaterThan(8);
+          // Every opening between two neighbours – in a row or between rows – takes a ball of radius `max` with 2 px to spare
+          // on either side (sampled here, independently of the stage's own geometry).
+          const obs = stage.obstacles;
+          for (let i = 0; i < obs.length; i++) {
+            for (let j = i + 1; j < obs.length; j++) {
+              if (Math.hypot(obs[i].x - obs[j].x, obs[i].y - obs[j].y) > 2.2 * stage.columnSpacing) continue;
+              expect(sampledGap(obs[i], obs[j])).toBeGreaterThanOrEqual(2 * (max + 2) - 0.25);
+            }
+          }
+          // At the walls: a peg or bar either reaches the wall (a half-peg on it, a bar with its high end on it – the ball rolls
+          // off into the column) or leaves an opening as wide as the others.
+          let reaching = 0;
+          for (const o of obs) {
+            for (const wall of [b.left, b.right]) {
+              const { pts, off } = samples(o);
+              const gap = Math.min(...pts.map(([x]) => Math.abs(x - wall))) - off;
+              if (gap <= 1e-6 || (o.kind === "circle" && Math.abs(o.x - wall) < 1e-6)) {
+                reaching++;
+                if (o.kind === "circle") expect(o.x).toBe(wall);
+                else {
+                  const [first, last] = [pts[0], pts[pts.length - 1]];
+                  const [atWall, inner] = Math.abs(first[0] - wall) < Math.abs(last[0] - wall) ? [first, last] : [last, first];
+                  expect(atWall[0]).toBeCloseTo(wall, 9);
+                  expect(atWall[1]).toBeLessThan(inner[1]);
+                }
+              } else expect(gap).toBeGreaterThanOrEqual(2 * (max + 2) - 1e-6);
+            }
+          }
+          // Every full row reaches both walls (the rows alternate full and staggered: about half of them).
+          expect(reaching).toBe(2 * Math.ceil(stage.rows / 2));
+        }
+      }
+    }
+    // The 1080×1920 medium field of the review: 23.1 px before (the pegs alone), now the bars' 16.5 px opening less the margin.
+    const stage = createStage({ kind: "pegs", size: "m" }, 2) as PegsStage;
+    stage.init(BIG_BOUNDS("pegs", "m"), stageRandom(1), 8);
+    expect(stage.maxBallRadius()).toBeGreaterThan(14);
+    expect(stage.maxBallRadius()).toBeLessThan(15);
+  });
+
+  it("the glass stage plays Glass Smash's own pane rules with the journey's gravity, hop and clock", () => {
+    const make = () => {
+      const stage = createStage({ kind: "glass", size: "m" }, 1) as GlassStage;
+      stage.init(BOUNDS("glass", "m"), stageRandom(3), 8);
+      return stage;
+    };
+    const a = make();
+    const b = make();
+    const soundsA: SoundEvent[] = [];
+    const soundsB: SoundEvent[] = [];
+    const env = testEnv(11, soundsA);
+    const byHand = stageRandom(11);
+    const dt = 1 / 240;
+    const onPane = (stage: GlassStage) => testBall(stage.panes[0].x + 20, stage.panes[0].y - stage.panes[0].thickness / 2 - 8 + 0.3, 30, 5);
+    // A landing through the stage, and the same landing by hand with Glass Smash's functions: the same crack, hop, kick and note.
+    for (const shatter of [false, true]) {
+      if (shatter) {
+        a.panes[0].hp = 1;
+        b.panes[0].hp = 1;
+      }
+      const ba = onPane(a);
+      const bb = onPane(b);
+      a.onBallStep(env, ba, dt);
+      const impact = touchGlassPane(b.panes[0], bb, dt, glassReach(bb, dt));
+      hitGlassPane(b.view, b.panes[0], bb, impact, { random: byHand, sound: (e) => void soundsB.push(e), gravity: 1300, bounceHeight: b.bounceHeight, timeMs: 1000, ballSpeed: config.ballSpeed });
+      expect(ba).toEqual(bb);
+      expect(a.panes[0].cracks).toEqual(b.panes[0].cracks);
+      expect(soundsA).toEqual(soundsB);
+      if (!shatter) expect(ba.vy).toBeLessThan(0);
+    }
+    expect(a.hits).toBe(2);
+    expect(a.shattered).toBe(1);
+    expect(a.panes[0].shattered).toBe(true);
+    expect(a.view.shardCount).toBeGreaterThan(0);
+    expect(Array.from(a.view.shardX.subarray(0, a.view.shardCount))).toEqual(Array.from(b.view.shardX.subarray(0, b.view.shardCount)));
+    // The shards fly on the journey's steps (Glass Smash's stepGlassShards) and fade.
+    const n = a.view.shardCount;
+    for (let i = 0; i < 200; i++) a.update(env, null, 1 / 60, false);
+    expect(n).toBeGreaterThan(0);
+    expect(a.view.shardCount).toBe(0);
+  });
+
+  it("the HOME stage plays Glass Smash's walk to the door, the chord and the celebration", () => {
+    const stage = createStage({ kind: "home", size: "m" }, 4) as HomeStage;
+    const b = BOUNDS("home", "m");
+    stage.init(b, stageRandom(6), 8);
+    const sounds: SoundEvent[] = [];
+    const confetti: number[][] = [];
+    const env = testEnv(2, sounds, confetti);
+    const dt = 1 / 240;
+    // Falling: nothing yet. On the ground: it walks to the door at WALK_SPEED view heights a second.
+    const ball = testBall(stage.doorX + (stage.doorX < b.cx ? 150 : -150), stage.groundY - 60, 0, 300);
+    stage.onBallStep(env, ball, dt);
+    expect(stage.holdsBall()).toBe(false);
+    ball.y = stage.groundY - 8;
+    stage.onBallStep(env, ball, dt);
+    expect(stage.holdsBall()).toBe(true);
+    expect(Math.abs(ball.vx)).toBeCloseTo(WALK_SPEED * b.viewH, 9);
+    expect(Math.sign(ball.vx)).toBe(Math.sign(stage.doorX - ball.x));
+    for (let i = 0; i < 2000 && !stage.home; i++) {
+      ball.x += ball.vx * dt;
+      env.timeMs += 1000 * dt;
+      stage.onBallStep(env, ball, dt);
+    }
+    expect(stage.home).toBe(true);
+    expect(stage.controlsBall()).toBe(true);
+    expect(stage.homeAtMs).toBe(env.timeMs);
+    expect([ball.x, ball.y, ball.vx, ball.vy]).toEqual([stage.doorX, stage.groundY - 8.5, 0, 0]);
+    expect(sounds.filter((e) => e.chord)).toEqual([{ type: "hit", wallIndex: 0, frequency: HOME_CHORD[0], chord: [...HOME_CHORD], accent: true }]);
+    // Three bursts of confetti from the doorway, then – CELEBRATION_MS after Gerald got home – the run is over.
+    const home = stage.homeAtMs;
+    for (let t = 0; t < CELEBRATION_MS; t += 100) {
+      env.timeMs = home + t;
+      stage.update(env);
+      expect(stage.isFinished()).toBe(false);
+    }
+    expect(confetti).toHaveLength(3);
+    for (const [x] of confetti) expect(x).toBe(stage.doorX);
+    env.timeMs = home + CELEBRATION_MS;
+    stage.update(env);
+    expect(stage.isFinished()).toBe(true);
   });
 
   it("the bullseye scores by the distance from the centre", () => {
@@ -527,6 +716,76 @@ describe("the journey in the engine", () => {
       expect(run(engine, 90).finishedAt).toBeGreaterThan(0);
     }
   }, 30_000);
+
+  it("size gates grow the ball only as far as a peg field below still lets it through: no wedge, no stuck hop", () => {
+    // Before the bars counted, 4–6 of these 40 runs a size wedged the grown ball between two bar tips or in a corner at a
+    // wall (hops, squeezes, 10–40 s stalls).
+    const route = "multipliers-l,multipliers-l,pegs,home";
+    for (const size of [{}, { width: 1080, height: 1920 }]) {
+      let grown = 0;
+      for (let seed = 1; seed <= 40; seed++) {
+        const engine = journeyEngine({ stages: route }, seed, size);
+        const view = engine.getJourneyView();
+        const log = run(engine, 60);
+        expect(log.finishedAt, `seed ${seed}`).toBeGreaterThan(0);
+        expect(view.nudges, `seed ${seed} ${JSON.stringify(size)}`).toBe(0);
+        const ball = engine.getBalls()[0];
+        const pegs = view.stages[2] as PegsStage;
+        expect(ball.radius).toBeLessThanOrEqual(Math.max(8, pegs.maxBallRadius()) + 1e-9);
+        if (ball.radius > 8.5) grown++;
+      }
+      // The gates did grow the ball in most runs.
+      expect(grown).toBeGreaterThan(10);
+    }
+    // The route of the review at 1080×1920: two large gate stages, then a medium and a large peg field.
+    for (let seed = 1; seed <= 20; seed++) {
+      const engine = journeyEngine({ stages: "multipliers-l,multipliers-l,pegs,pegs-l,home" }, seed, { width: 1080, height: 1920 });
+      const log = run(engine, 60);
+      expect(log.finishedAt).toBeGreaterThan(0);
+      expect(log.finishedAt).toBeLessThan(25);
+      expect(engine.getJourneyView().nudges, `seed ${seed}`).toBe(0);
+    }
+  }, 180_000);
+
+  it("a ball still stuck after its hops squeezes through to a seeded spot off the centre line, drifting", () => {
+    const squeeze = (seed: number) => {
+      const engine = journeyEngine({ stages: "pegs-l,glass,home" }, seed);
+      const view = engine.getJourneyView();
+      const stage = view.stages[0];
+      const field = view.field!;
+      // Pin the ball in the open above the first row of pegs until the journey gives up hopping it.
+      const pinX = field.cx;
+      const pinY = stage.bounds.top + 0.1 * stage.bounds.height;
+      for (let i = 0; i < 60 * 30; i++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        const ball = engine.getBalls()[0];
+        if (view.nudges === STUCK_SQUEEZE_AFTER + 1) return { engine, view, stage, field, ball: { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy } };
+        ball.x = pinX;
+        ball.y = pinY;
+        ball.vx = 0;
+        ball.vy = 0;
+      }
+      throw new Error("never squeezed");
+    };
+    const xs = new Set<number>();
+    for (const seed of [1, 2, 3, 4]) {
+      const { engine, view, stage, field, ball } = squeeze(seed);
+      expect(view.active).toBe(0);
+      expect(ball.y).toBeCloseTo(stage.bounds.bottom + 1, 9);
+      // Not dead centre (where it used to land straight on the next stage's middle peg) and not still.
+      expect(ball.x).not.toBe(field.cx);
+      expect(Math.abs(ball.x - field.cx)).toBeLessThanOrEqual(0.1 * field.width);
+      expect(ball.vx).not.toBe(0);
+      expect(Math.abs(ball.vx)).toBeLessThanOrEqual(0.05 * field.height);
+      xs.add(ball.x - field.cx);
+      // The same seed squeezes to the same spot; and the run goes on to HOME.
+      expect(squeeze(seed).ball).toEqual(ball);
+      expect(run(engine, 60).finishedAt).toBeGreaterThan(0);
+      expect(view.homeReached).toBe(true);
+    }
+    expect(xs.size).toBe(4);
+  }, 60_000);
 
   it("the journey's gravity follows the Gravity setting (clamped) and the view size", () => {
     expect(journeyGravity(300, 500)).toBeCloseTo(2.4 * 500, 9);

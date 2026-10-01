@@ -398,7 +398,7 @@ export function fillLabel(label: string, tokens: Record<string, string>, value: 
   if (!text) return value;
   let used = false;
   const filled = text.replace(/\[(\w+)\]/g, (whole, key: string) => {
-    if (!(key in tokens)) return whole;
+    if (!Object.prototype.hasOwnProperty.call(tokens, key)) return whole; // --- review fix (security-robustness) --- ([constructor] is no token)
     used = true;
     return tokens[key];
   });
@@ -465,6 +465,18 @@ export function captionClock(runSec: number, clipSec: number): number {
 
 /** Room between the caption stacks and the edges of the exported square, as a share of its side. */
 export const CAPTION_MARGIN = 0.035;
+
+/** Width of the column the captions are centred in (their widest line), as a share of the exported square's side. */
+export const CAPTION_COLUMN = 0.84;
+
+/**
+ * --- review fix (modes-gerald-odd) --- Whether a screen rectangle from `x` to `x + w` reaches into the caption column of a square
+ * `side` px wide centred on `cx`: a mode HUD in a corner that stays clear of the column does not push the top captions down.
+ */
+export function inCaptionColumn(x: number, w: number, cx: number, side: number): boolean {
+  const half = (CAPTION_COLUMN * side) / 2;
+  return x < cx + half && x + w > cx - half;
+}
 
 /** Font size (px) of the page's Top / Bottom Text in a live view whose exported square is `side` px (Canvas.tsx draws it at this size). */
 export function edgeTextFontSize(side: number, textSize: number): number {
