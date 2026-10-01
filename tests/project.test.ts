@@ -251,3 +251,26 @@ describe("project files from before the checks (review fix: recording-export)", 
     expect(r.ok && r.project.settings.wallCount).toBe(1);
   });
 });
+
+// --- review fix (security-robustness) --- a project's resolution, wall-break style and rainbow mode come back as known values
+describe("project enumerations (review fix: security-robustness)", () => {
+  it("an unknown recording resolution (30000x30000 made Record Video hang), wall-break style or rainbow mode falls back to the mode's default", () => {
+    for (const mode of ["classic", "shatter"] as const) {
+      const text = JSON.stringify({ format: PROJECT_FORMAT, version: PROJECT_VERSION, settings: { mode, recordingResolution: "30000x30000", wallBreakStyle: "bogus", rainbowWallMode: "weird" } });
+      const result = parseProject(text);
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      const d = defaultSettings(mode);
+      expect(result.project.settings.recordingResolution).toBe(d.recordingResolution);
+      expect(result.project.settings.wallBreakStyle).toBe(d.wallBreakStyle);
+      expect(result.project.settings.rainbowWallMode).toBe(d.rainbowWallMode);
+    }
+    const ok = parseProject(JSON.stringify({ format: PROJECT_FORMAT, version: PROJECT_VERSION, settings: { mode: "classic", recordingResolution: "500x500", wallBreakStyle: "all", rainbowWallMode: "pulse" } }));
+    expect(ok.ok && ok.project.settings).toMatchObject({ recordingResolution: "500x500", wallBreakStyle: "all", rainbowWallMode: "pulse" });
+  });
+
+  it("a wall-break sound that is not a built-in clip is none", () => {
+    expect(resolveProjectSettings({ mode: "classic", wallBreakSound: "https://attacker.example/x.wav" }).wallBreakSound).toBeNull();
+    expect(resolveProjectSettings({ mode: "classic", wallBreakSound: 5 }).wallBreakSound).toBeNull();
+  });
+});

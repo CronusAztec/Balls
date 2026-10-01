@@ -171,6 +171,8 @@
     "shareCodeInvalid": "The share code in this link could not be read, so the shared settings were not applied.",
     "shareCodeUnsupported": "This browser cannot open short share links (?c=…). Open the link in a current Chrome, Edge, Firefox or Safari, or ask for the long link.",
     "shareCodeDismiss": "Dismiss",
+    "softCeiling": "{setting}: {asked} – the simulation runs {running} so the page stays responsive.",
+    "recordingStartError": "The recording could not start. Try another resolution in the Recording section, or a current Chrome, Edge or Firefox.",
     "canvasRaceGo": "GO!",
     "canvasRaceStandings": "STANDINGS",
     "canvasRaceLeader": "LEADER",

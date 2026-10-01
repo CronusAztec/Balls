@@ -75,7 +75,8 @@ import type { FastExportState } from "./sections/FastExportSection";
 // --- project-files ---
 import ProjectDropZone from "./ProjectDropZone";
 import { ShareCodeNotice, useShareCodeLoader, useShortShareLink } from "./shareLinks";
-import { useProjectFiles, type ProjectUploads } from "./useProjectFiles";
+import { SoftCeilingNotice } from "./softCeilingNotice"; // --- review fix (security-robustness) ---
+import { useProjectFiles, type MediaUploadOptions, type ProjectUploads } from "./useProjectFiles";
 // --- jdm-race ---
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { raceCupStore } from "@/lib/raceCup";
@@ -216,6 +217,7 @@ export default function Simulator() {
   const hitSampleObjectUrlRef = useRef<string | null>(null);
   const sliceUploadIdRef = useRef(0);
   const musicUploadIdRef = useRef(0);
+  const wallBreakUploadIdRef = useRef(0); // --- review fix (security-robustness) --- (a newer wall-break upload wins)
   const projectUploadsRef = useRef<ProjectUploads>({}); // --- project-files --- the uploads' original files (decoded songs keep no bytes)
 
   // --- daily-gallery --- a `daily=` link opens that day's challenge: its settings are the first settings (its seed is pinned below)
@@ -226,6 +228,7 @@ export default function Simulator() {
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState(false); // --- review fix (security-robustness) --- Record Video could not start
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [simSpeed, setSimSpeed] = useState(1);
   const [finished, setFinished] = useState(false);
@@ -1606,6 +1609,9 @@ export default function Simulator() {
     // The canvas starts the captions' clip clock here and keeps them clear of the text lines the recorder draws.
     canvasRef.current?.setRecording(true, resolution);
     setIsRecording(true);
+    setRecordingError(false); // --- review fix (security-robustness) ---
+    // --- review fix (security-robustness) --- a recorder that throws (it should resolve false) is a failed start too: the page
+    // never stays in a "recording" state with nothing recording
     const ok = await recorderRef.current.startRecording({
       // --- review fix (recording-export) --- no preferred type: the recorder's own order (H.264 + AAC in MP4, else WebM)
       resolution,
@@ -1615,10 +1621,14 @@ export default function Simulator() {
       // --- themes: the letterbox bars of the export continue the gradient / picture background
       backgroundColor: settings.backgroundColors[0],
       drawBackground: (c, width, height, crop) => canvasRef.current?.paintRecordingBackground(c, width, height, crop),
+    }).catch((err: unknown) => {
+      console.error("Failed to start recording:", err);
+      return false;
     });
     if (!ok) {
       canvasRef.current?.setRecording(false);
       setIsRecording(false);
+      setRecordingError(true); // --- review fix (security-robustness) --- (said under the canvas)
       return;
     }
     // --- review fix (modes-gerald-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
@@ -1815,23 +1825,29 @@ export default function Simulator() {
     reader.readAsDataURL(file);
   }, []);
 
+  // --- review fix (security-robustness) --- the media uploads resolve whether the file was loaded (an imported project counts
+  // the ones that were not) and take `quiet` for that import, which reports them in its own status line instead of an alert
   const onWallBreakSoundUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
+      const uploadId = ++wallBreakUploadIdRef.current;
       // --- review fix (audio) --- a clip the browser cannot decode is refused here (like the song and the music track)
       // instead of silently leaving every wall break on the default sound
       try {
         await audioRef.current?.decodeAudio(await file.arrayBuffer());
       } catch (err) {
+        if (uploadId !== wallBreakUploadIdRef.current) return true; // a newer upload replaced this one
         console.warn("Failed to decode the wall-break sound:", err);
-        alert(t("Controls.wallBreakDecodeError"));
-        return;
+        if (!options?.quiet) alert(t("Controls.wallBreakDecodeError"));
+        return false;
       }
+      if (uploadId !== wallBreakUploadIdRef.current) return true;
       if (wallBreakObjectUrlRef.current) URL.revokeObjectURL(wallBreakObjectUrlRef.current);
       const url = URL.createObjectURL(file);
       wallBreakObjectUrlRef.current = url;
       setCustomWallBreakName(file.name);
       projectUploadsRef.current.wallBreakSound = file; // --- project-files ---
       update({ wallBreakSound: url });
+      return true;
     },
     [t, update],
   );
@@ -1875,23 +1891,25 @@ export default function Simulator() {
   }, []);
 
   const onSliceSongUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
       const audio = audioRef.current;
-      if (!audio) return;
+      if (!audio) return false;
       const uploadId = ++sliceUploadIdRef.current;
       setSliceSongLoading(true);
       try {
         const buffer = await audio.decodeAudio(await file.arrayBuffer());
-        if (uploadId !== sliceUploadIdRef.current) return; // a newer upload replaced this one
+        if (uploadId !== sliceUploadIdRef.current) return true; // a newer upload replaced this one
         audio.getSlicer().setBuffer(buffer);
         analyzeSong("slice", buffer);
         setSliceSongInfo({ name: file.name, duration: buffer.duration });
         projectUploadsRef.current.sliceSong = file; // --- project-files ---
         update({ sliceSong: true });
+        return true;
       } catch (err) {
-        if (uploadId !== sliceUploadIdRef.current) return;
+        if (uploadId !== sliceUploadIdRef.current) return true;
         console.error("Failed to decode song for the slicer:", err);
-        alert(t("Controls.sliceDecodeError"));
+        if (!options?.quiet) alert(t("Controls.sliceDecodeError"));
+        return false;
       } finally {
         if (uploadId === sliceUploadIdRef.current) setSliceSongLoading(false);
       }
@@ -1908,22 +1926,24 @@ export default function Simulator() {
   }, [analyzeSong]);
 
   const onMusicUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
       const audio = audioRef.current;
-      if (!audio) return;
+      if (!audio) return false;
       const uploadId = ++musicUploadIdRef.current;
       setMusicLoading(true);
       try {
         const buffer = await audio.decodeAudio(await file.arrayBuffer());
-        if (uploadId !== musicUploadIdRef.current) return; // a newer upload replaced this one
+        if (uploadId !== musicUploadIdRef.current) return true; // a newer upload replaced this one
         audio.getMusicBed().setBuffer(buffer);
         analyzeSong("music", buffer);
         setMusicTrack({ name: file.name, duration: buffer.duration });
         projectUploadsRef.current.musicBed = file; // --- project-files ---
+        return true;
       } catch (err) {
-        if (uploadId !== musicUploadIdRef.current) return;
+        if (uploadId !== musicUploadIdRef.current) return true;
         console.error("Failed to decode the music track:", err);
-        alert(t("Controls.musicDecodeError"));
+        if (!options?.quiet) alert(t("Controls.musicDecodeError"));
+        return false;
       } finally {
         if (uploadId === musicUploadIdRef.current) setMusicLoading(false);
       }
@@ -2033,7 +2053,7 @@ export default function Simulator() {
   }, []);
 
   const onCustomMidiUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
       setCustomSoundLoading(true);
       setCustomSoundId("custom-upload");
       setCustomMidiName(file.name);
@@ -2042,13 +2062,15 @@ export default function Simulator() {
         audioRef.current?.setCustomNotes(notes);
         setCustomSoundNoteCount(notes.length);
         projectUploadsRef.current.midi = file; // --- project-files ---
+        return true;
       } catch (err) {
         console.error("Failed to parse uploaded MIDI file:", err);
-        alert(t("Controls.midiParseError"));
+        if (!options?.quiet) alert(t("Controls.midiParseError"));
         setCustomSoundId(null);
         setCustomMidiName(null);
         setCustomSoundNoteCount(0);
         audioRef.current?.clearCustomNotes();
+        return false;
       } finally {
         setCustomSoundLoading(false);
       }
@@ -2928,6 +2950,13 @@ export default function Simulator() {
             </div>
             {/* --- project-files --- a ?c= share code that could not be read */}
             <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
+            {/* --- review fix (security-robustness) --- counts past the soft ceilings, and a recording that could not start */}
+            <SoftCeilingNotice settings={s} />
+            {recordingError && (
+              <p className="mt-1.5 text-[11px] text-red-400/90 leading-relaxed" role="alert" data-testid="recording-error">
+                ⚠️ {t("Simulator.recordingStartError")}
+              </p>
+            )}
             {/* --- daily-gallery --- the daily challenge on the page and the Play today's seed button */}
             <DailyBar active={daily.active} busy={daily.busy} disabled={isRecording || isSearching || fastRunning || batchRender.running || !engineReady} onPlay={() => void daily.playToday()} />
             {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}

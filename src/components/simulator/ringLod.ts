@@ -1,6 +1,7 @@
 /**
  * --- review fix (recording-export) --- Level of detail for the ring walls. A link may carry far more rings than the slider
- * offers (`wc=3000`: big values are kept on purpose). They all stay in the physics, but drawing thousands of arcs a frame
+ * offers (`wc=3000`: big values are kept on purpose). The physics runs up to its soft ceiling of them (`LIVE_RING_LIMIT` in
+ * lib/physics/softCeilings.ts – review fix (security-robustness)), but drawing a thousand arcs a frame
  * froze the page, and rings closer together than a pixel only paint over each other: past `RING_LOD_FROM` rings, about
  * one ring per world pixel of the band they fill (0.4–1 × the arena radius) is drawn, evenly spread, the outermost – the
  * arena's edge – always. Pure (the canvas and the fast export draw the same rings), allocation-free.

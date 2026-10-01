@@ -16,25 +16,36 @@ interface RawNote {
   drum: boolean;
 }
 
+/** The most notes kept from a file: the melody plays one note per wall hit, so more could never be heard. */
+export const MIDI_MAX_NOTES = 200_000;
+
+/**
+ * A variable-length quantity: at most four bytes (the format's limit, values below 2^28), accumulated arithmetically so it
+ * stays a non-negative number. --- review fix (security-robustness) --- a fifth byte or one past the track's end throws:
+ * `8F FF FF FF 78` overflowed the old `value << 7` to −8 and sent the parser back to the start of its track, for ever.
+ */
 function readVarLen(view: DataView, offset: number): [number, number] {
   let value = 0;
   let length = 0;
   let byte: number;
   do {
+    if (length === 4 || offset + length >= view.byteLength) throw new Error("Malformed MIDI variable-length quantity");
     byte = view.getUint8(offset + length);
-    value = (value << 7) | (byte & 0x7f);
+    value = value * 128 + (byte & 0x7f);
     length++;
   } while (byte & 0x80);
   return [value, length];
 }
 
-function parseTrack(buffer: ArrayBuffer, start: number, length: number): RawNote[] {
+/** The notes of one track, at most `budget` of them. */
+function parseTrack(buffer: ArrayBuffer, start: number, length: number, budget: number): RawNote[] {
   const view = new DataView(buffer, start, length);
   const notes: RawNote[] = [];
   let pos = 0;
   let tick = 0;
   let runningStatus = 0;
   while (pos < length) {
+    const before = pos; // --- review fix (security-robustness) --- (every event moves forward: see the end of the loop)
     const [delta, deltaLen] = readVarLen(view, pos);
     pos += deltaLen;
     tick += delta;
@@ -53,6 +64,7 @@ function parseTrack(buffer: ArrayBuffer, start: number, length: number): RawNote
       const velocity = view.getUint8(pos + 1);
       pos += 2; // consumed whatever the channel, so running status and byte alignment stay right
       if (velocity > 0) {
+        if (notes.length >= budget) break; // --- review fix (security-robustness) --- (MIDI_MAX_NOTES in all)
         notes.push({ pitch, frequency: 440 * Math.pow(2, (pitch - 69) / 12), velocity, tick, drum: (status & 0x0f) === 9 });
       }
     } else if (type === 0x80 || type === 0xa0 || type === 0xb0 || type === 0xe0) {
@@ -63,13 +75,16 @@ function parseTrack(buffer: ArrayBuffer, start: number, length: number): RawNote
       pos += 1; // meta type
       if (pos >= length) break;
       const [len, lenLen] = readVarLen(view, pos);
+      if (pos + lenLen + len > length) break; // --- review fix (security-robustness) --- (a length past the track ends it)
       pos += lenLen + len;
     } else if (status === 0xf0 || status === 0xf7) {
       const [len, lenLen] = readVarLen(view, pos);
+      if (pos + lenLen + len > length) break; // --- review fix (security-robustness) ---
       pos += lenLen + len;
     } else {
       pos += 1;
     }
+    if (pos <= before) break; // --- review fix (security-robustness) --- forward progress, whatever the bytes say
   }
   return notes;
 }
@@ -85,7 +100,9 @@ export function parseMidiToFrequencies(buffer: ArrayBuffer): number[] {
     const chunkType = String.fromCharCode(view.getUint8(pos), view.getUint8(pos + 1), view.getUint8(pos + 2), view.getUint8(pos + 3));
     const chunkLen = view.getUint32(pos + 4);
     pos += 8;
-    if (chunkType === "MTrk") all.push(...parseTrack(buffer, pos, Math.min(chunkLen, buffer.byteLength - pos)));
+    // --- review fix (security-robustness) --- one push per note (spreading 150,000 notes into push() overflowed the call
+    // stack), and no more than MIDI_MAX_NOTES of them in all
+    if (chunkType === "MTrk") for (const n of parseTrack(buffer, pos, Math.min(chunkLen, buffer.byteLength - pos), MIDI_MAX_NOTES - all.length)) all.push(n);
     pos += chunkLen;
   }
   // --- review fix (audio) --- the drums of a GM drum track are not melody notes (a drum-only file keeps them all).
