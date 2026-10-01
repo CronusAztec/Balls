@@ -518,8 +518,6 @@ export class VortexMode implements GameMode {
   /** The balls weave through each other (nothing may disturb their spirals). */
   readonly ballsPassThrough = true;
   private settings: VortexSettings = { ...DEFAULT_VORTEX_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: VortexView = createView();
   /** The mode's clock (ms): the sum of the fixed steps since init. */
   private clockMs = 0;
@@ -551,10 +549,8 @@ export class VortexMode implements GameMode {
   getSettings(): VortexSettings {
     return this.settings;
   }
-  /** Balls, stagger, rings, duration, pull and loop apply on the next init; the depth cue, scale and root at once. */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Balls, stagger, rings, duration, pull and loop apply on the next init; the depth cue, scale and root at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<VortexSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveVortexSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.depthScale = this.settings.depthScale;

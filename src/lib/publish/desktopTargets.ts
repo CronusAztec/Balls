@@ -67,6 +67,8 @@ export interface DesktopPublishLabels {
   noAccounts: string;
   /** Some accounts failed or wait for a sign-in. */
   someFailed: (failed: number, total: number) => string;
+  /** The Publish block is still sending (a clip of its own, or an earlier click): wait for it. */
+  busy: string;
   /** The quick share opened the upload page (and copied the caption, or not). */
   shared: (platform: PublishPlatform, copied: boolean) => string;
 }
@@ -84,6 +86,13 @@ export interface DesktopPublishOptions {
 
 /** One click: the clip to every account ticked in the Publish block; the first published post's link, or why not. */
 export async function publishToAccounts(controller: PublishController, clip: LibraryClip, labels: DesktopPublishLabels, options: DesktopPublishOptions = {}): Promise<{ url?: string; message?: string }> {
+  controller.start();
+  // A send still on its way is left alone: `sendSelected()` would return at once and its results would read as this clip's
+  // (a false "Published"), and the clip on show would change under it.
+  if (controller.getSnapshot().sending) {
+    options.showPublish?.();
+    throw new Error(labels.busy);
+  }
   stageLibraryClip(controller, clip);
   const plan = sendPlan(controller.getSnapshot(), Date.now());
   const ready = plan.targets.filter((t) => !plan.blocked.includes(t.platform) && !plan.publicOnly.includes(t.platform));

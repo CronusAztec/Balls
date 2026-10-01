@@ -228,8 +228,6 @@ export class DropMode implements GameMode {
   readonly name = "drop";
   readonly ballsMayRest = true;
   private settings: DropSettings = { ...DEFAULT_DROP_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private layout: DropLayout | null = null;
   private released = 0;
   /** Balls this run will release: the configured count, or the number that fit once the board proved full. */
@@ -245,10 +243,8 @@ export class DropMode implements GameMode {
   getSettings(): DropSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Ball Drop setting changes). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Applied on the next init (the Simulator re-inits the mode when a Ball Drop setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<DropSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveDropSettings({ ...this.settings, ...patch }, unlimited);
   }
   getLayout() {

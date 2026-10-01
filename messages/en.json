@@ -3279,6 +3279,7 @@
     "libTargetShare": "{platform} (quick share)",
     "libPublishNoAccounts": "The clip is waiting in the Publish block (Recording section): connect or tick an account there – TikTok, Instagram and YouTube go through your relay – then publish again.",
     "libPublishSomeFailed": "{failed} of {total} accounts did not publish – see the Publish block (Recording section) for why, and try again there.",
+    "libPublishBusy": "The Publish block (Recording section) is still sending a clip – wait until it has finished, then publish again.",
     "libShared": "Caption copied and {platform}'s upload page opened in your browser – upload the clip from the folder that just opened.",
     "libSharedNoCopy": "{platform}'s upload page opened in your browser – upload the clip from the folder that just opened (copy the post text with “Copy post text”).",
     "libForget": "Remove from list",

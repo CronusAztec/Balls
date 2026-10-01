@@ -5,7 +5,8 @@ name: Windows app
 #   2. the app's install, type check and unit tests,
 #   3. the installer and the portable EXE (electron-builder, x64) – code-signed when the WIN_CSC_LINK /
 #      WIN_CSC_KEY_PASSWORD secrets exist, unsigned otherwise (SmartScreen: "More info" → "Run anyway"),
-#   4. a smoke run of the packaged app (`--smoke`: loads the simulator, checks the bridge, reports the GPU, exits 0),
+#   4. a smoke run of the packaged app (`--smoke`: loads the simulator, checks the bridge and that the local AI starts,
+#      reports the GPU, exits 0),
 #   5. the EXEs as workflow artifacts and – on a `desktop-v*` tag, or a manual run with a version and "publish" ticked –
 #      a GitHub Release with the versioned EXEs, their blockmaps, electron-updater's latest.yml and copies under fixed
 #      names (JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe) that the site's download page links through

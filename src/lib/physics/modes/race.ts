@@ -479,8 +479,7 @@ export class RaceMode implements GameMode {
   getSettings(): RaceSettings {
     return this.settings;
   }
-  /** The track settings (racers, length, laps, mix, favourite, cup) apply on the next init; the camera and the shape at once. */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** The track settings (racers, length, laps, mix, favourite, cup) apply on the next init; the camera and the shape at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<RaceSettings>, unlimited = false) {
     this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveRaceSettings({ ...this.settings, ...patch }, unlimited);

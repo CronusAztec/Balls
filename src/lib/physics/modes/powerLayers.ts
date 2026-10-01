@@ -631,8 +631,6 @@ export class PowerLayersMode implements GameMode {
   /** One ball; nothing to collide with. */
   readonly ballsPassThrough = true;
   private settings: PowerLayersSettings = { ...DEFAULT_POWER_LAYERS_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: PowerLayersView = createView();
   private plan: PowerPlan = buildPowerPlan(DEFAULT_POWER_LAYERS_SETTINGS.layers, DEFAULT_POWER_LAYERS_SETTINGS.sequence);
   private ballId = -1;
@@ -662,10 +660,8 @@ export class PowerLayersMode implements GameMode {
   getSettings(): PowerLayersSettings {
     return this.settings;
   }
-  /** The layers, sequence, drift and speed apply on the next init; the badge, the pills and the scale at once. */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** The layers, sequence, drift and speed apply on the next init; the badge, the pills and the scale at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<PowerLayersSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolvePowerLayersSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.badge = this.settings.badge;

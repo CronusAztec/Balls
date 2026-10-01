@@ -630,14 +630,12 @@ export class StringBattleMode implements GameMode {
   /** The mode keeps each ball at its own cruising speed itself: no engine slow-ball boost toward one base speed. */
   readonly ballsMayRest = true;
   private settings: StringBattleSettings = { ...DEFAULT_STRING_BATTLE_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: StringBattleView = createView();
   /** The engine ball of each slot this sub-step (null once it is gone). */
   private readonly ballOf: (Ball | null)[] = new Array<Ball | null>(MAX_TEAMS).fill(null);
   /** Slots that reached 0 lives this sub-step, and who took their last life (−1: nobody). */
   private readonly pending: number[] = [];
-  private readonly killerOf = new Int32Array(MAX_TEAMS).fill(-1);
+  private killerOf = new Int32Array(MAX_TEAMS).fill(-1); // (--- unlimited --- grown at init for more balls than the slider's MAX_TEAMS)
   private readonly spareStrings: SbString[] = [];
   private readonly spareGhosts: SbGhost[] = [];
   private readonly scratch = { x: 0, y: 0, angle: 0 };
@@ -647,10 +645,8 @@ export class StringBattleMode implements GameMode {
     return { ...this.settings };
   }
 
-  /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<StringBattleSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveStringBattleSettings({ ...this.settings, ...patch }, unlimited);
     const live = this.view.settings;
     live.style = this.settings.style;
@@ -709,6 +705,7 @@ export class StringBattleMode implements GameMode {
     v.tie = false;
     this.pending.length = 0;
     this.ballOf.fill(null);
+    if (this.killerOf.length < s.balls) this.killerOf = new Int32Array(s.balls).fill(-1); // --- unlimited --- (No limits: more balls than MAX_TEAMS; a typed array never grows by itself)
     this.plucksThisStep = 0;
     const base = (cfg.ballSpeed || 400) * SB_SPEED_SCALE;
     const radius = (cfg.ballRadius || 8) * SB_BALL_SCALE;

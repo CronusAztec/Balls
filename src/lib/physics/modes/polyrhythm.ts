@@ -649,8 +649,6 @@ export class PolyrhythmMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: PolyrhythmSettings = { ...DEFAULT_POLYRHYTHM_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: PolyrhythmView = {
     settings: { ...DEFAULT_POLYRHYTHM_SETTINGS },
     series: null,
@@ -698,10 +696,9 @@ export class PolyrhythmMode implements GameMode {
    * The tempo fields (count, series, custom list, cycle length, BPMs) and the cycles take effect on the next init
    * (the Simulator re-inits the mode when one of them changes). The layout, arc style, polygons, accents, pitch
    * mapping and numbers apply at once – positions are functions of the clock, so the rhythm carries on.
+   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<PolyrhythmSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolvePolyrhythmSettings({ ...this.settings, ...patch }, unlimited);
     if (!this.initialized) return;
     const v = this.view;

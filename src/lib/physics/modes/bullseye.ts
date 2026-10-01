@@ -661,8 +661,6 @@ export class BullseyeMode implements GameMode {
   /** Flying balls pass through each other; the stuck ones are the mode's own obstacles. */
   readonly ballsPassThrough = true;
   private settings: BullseyeSettings = { ...DEFAULT_BULLSEYE_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: BullseyeView = createView();
   private layout: BullseyeLayout | null = null;
   /** The simulation clock (the sum of the fixed steps) and the world clock (slowed in slow motion), ms. */
@@ -696,10 +694,8 @@ export class BullseyeMode implements GameMode {
   getSettings(): BullseyeSettings {
     return this.settings;
   }
-  /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next init; the scale and root at once. */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next init; the scale and root at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<BullseyeSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveBullseyeSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.scale = this.settings.scale;
     this.view.settings.rootNote = this.settings.rootNote;

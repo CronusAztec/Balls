@@ -5,6 +5,7 @@ import { publishClips, resetPublishClips } from "@/lib/publish/clips";
 import { PublishController, type ControllerDeps } from "@/lib/publish/controller";
 import { applyCopyToPublish, draftOfLibraryClip, publishPlatformOf, publishToAccounts, registerDesktopPublishTargets, shareLibraryClip, stageLibraryClip, type DesktopPublishLabels } from "@/lib/publish/desktopTargets";
 import { PUBLISH_STORAGE_KEY } from "@/lib/publish/store";
+import { emptyDraft } from "@/lib/publish/caption";
 import type { FetchLike } from "@/lib/publish/youtube";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -62,6 +63,7 @@ const labels: DesktopPublishLabels = {
   share: (p) => `${p} (quick share)`,
   noAccounts: "NO_ACCOUNTS",
   someFailed: (failed, total) => `FAILED ${failed}/${total}`,
+  busy: "BUSY",
   shared: (p, copied) => `SHARED ${p} ${copied}`,
 };
 
@@ -121,6 +123,35 @@ describe("the Library's Publish targets (desktop app)", () => {
     await vi.waitFor(() => expect(failing.getSnapshot().relay.status).toBe("ok"));
     await expect(publishToAccounts(failing, clipOf(item("tiktok")), labels, { showPublish: shown })).rejects.toThrow("FAILED 1/1");
     expect(shown).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a send on its way alone: a click while the Publish block is sending says so and keeps the clip on show", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const relay = relayFetch(true);
+    // The relay takes the upload only once released: the Publish block's own send is still on its way meanwhile.
+    const fetchImpl: FetchLike = async (url, init) => {
+      if (url.endsWith("/api/publish")) await gate;
+      return relay.fetchImpl(url, init);
+    };
+    const c = controller(fetchImpl, relayState);
+    c.start();
+    await vi.waitFor(() => expect(c.getSnapshot().relay.status).toBe("ok"));
+    c.addFile(new File([new Uint8Array([5])], "first.mp4", { type: "video/mp4" }));
+    const onShow = c.getSnapshot().clipId!;
+    c.setDraft(onShow, { ...emptyDraft(), caption: "The first clip" });
+    const sending = c.sendSelected();
+    await vi.waitFor(() => expect(c.getSnapshot().sending).toBe(true));
+    const shown = vi.fn();
+    await expect(publishToAccounts(c, clipOf(item("tiktok")), labels, { showPublish: shown })).rejects.toThrow("BUSY");
+    expect(shown).toHaveBeenCalledTimes(1);
+    // Nothing changed under the send: the same clip on show, the Library clip not added, one upload.
+    expect(c.getSnapshot().clipId).toBe(onShow);
+    expect(publishClips().map((x) => x.name)).toEqual(["first.mp4"]);
+    release();
+    await sending;
+    expect(c.getSnapshot().sends.map((i) => i.status)).toEqual(["published"]);
+    expect(relay.calls.filter((x) => x.url.endsWith("/api/publish"))).toHaveLength(1);
   });
 
   it("quick-shares to the clip's platform: caption copied, upload page in the browser, the file shown in its folder – no second download", async () => {
@@ -189,7 +220,7 @@ describe("the Library's Publish targets (desktop app)", () => {
 
   it("says in every language what the Library and the AI studio do with the Publish block (no 'once installed' left)", () => {
     for (const m of [en, pl, es] as unknown as { Desktop: Record<string, string>; Publish: Record<string, unknown> }[]) {
-      for (const key of ["aiUseInPublish", "aiUsedInPublish", "aiPublishNoClip", "libTargetAccounts", "libTargetShare", "libPublishNoAccounts", "libPublishSomeFailed", "libShared", "libSharedNoCopy"]) expect(typeof m.Desktop[key], key).toBe("string");
+      for (const key of ["aiUseInPublish", "aiUsedInPublish", "aiPublishNoClip", "libTargetAccounts", "libTargetShare", "libPublishNoAccounts", "libPublishSomeFailed", "libPublishBusy", "libShared", "libSharedNoCopy"]) expect(typeof m.Desktop[key], key).toBe("string");
       expect(typeof m.Publish.appYouTube).toBe("string");
       expect(m.Desktop.libTargetShare).toContain("{platform}");
     }

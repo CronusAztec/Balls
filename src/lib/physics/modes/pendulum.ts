@@ -617,8 +617,6 @@ export class PendulumMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: PendulumSettings = { ...DEFAULT_PENDULUM_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly bobs: PendulumBobState[] = [];
   private readonly byId = new Map<number, PendulumBobState>();
   private readonly view: PendulumView = {
@@ -662,10 +660,9 @@ export class PendulumMode implements GameMode {
   /**
    * Applied on the next init (the Simulator re-inits the mode when a Pendulum Wave setting changes), except the
    * trails: they only change how the canvas draws the run, so they follow at once without restarting it.
+   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<PendulumSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolvePendulumSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.trails = this.settings.trails;
   }

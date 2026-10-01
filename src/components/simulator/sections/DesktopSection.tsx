@@ -111,6 +111,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
           share: (platform) => t("libTargetShare", { platform: PLATFORM_NAMES[platform] }),
           noAccounts: t("libPublishNoAccounts"),
           someFailed: (failed, total) => t("libPublishSomeFailed", { failed, total }),
+          busy: t("libPublishBusy"),
           shared: (platform, copied) => t(copied ? "libShared" : "libSharedNoCopy", { platform: PLATFORM_NAMES[platform] }),
         },
         {

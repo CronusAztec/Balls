@@ -1089,8 +1089,7 @@ export class GlassMode implements GameMode {
   getSettings(): GlassSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Glass Smash setting changes). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Applied on the next init (the Simulator re-inits the mode when a Glass Smash setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<GlassSettings>, unlimited = false) {
     this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveGlassSettings({ ...this.settings, ...patch }, unlimited);

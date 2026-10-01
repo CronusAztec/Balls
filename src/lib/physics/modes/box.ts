@@ -404,8 +404,6 @@ export class BoxMode implements GameMode {
   /** The shapes pass through each other, so a collision can never disturb the rhythm. */
   readonly ballsPassThrough = true;
   private settings: BoxSettings = { ...DEFAULT_BOX_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private field: BoxField | null = null;
   private readonly shapes = new Map<number, BoxShapeState>();
   private readonly view: BoxView = {
@@ -430,10 +428,8 @@ export class BoxMode implements GameMode {
   getSettings(): BoxSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Bouncing Shapes setting changes). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Applied on the next init (the Simulator re-inits the mode when a Bouncing Shapes setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<BoxSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveBoxSettings({ ...this.settings, ...patch }, unlimited);
   }
   getField() {

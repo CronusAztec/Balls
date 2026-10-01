@@ -239,10 +239,10 @@ describe("packaging the local AI", () => {
     await expect(jsonGrammar(llama)).resolves.toEqual({ __grammar: true });
     expect(built).toEqual([JSON_GBNF]);
     expect(built[0]).toMatch(/^root\s+::= object/);
-    // The same text as node-llama-cpp's own json.gbnf, rule for rule.
-    const own = fs.readFileSync(path.join(__dirname, "../node_modules/node-llama-cpp/llama/grammars/json.gbnf"), "utf8");
+    // The same text as node-llama-cpp's own json.gbnf, rule for rule (where the app's dependencies are installed).
+    const ownPath = path.join(__dirname, "../node_modules/node-llama-cpp/llama/grammars/json.gbnf");
     const rules = (g: string) => g.replace(/#.*$/gm, "").replace(/\s+/g, " ").trim();
-    if (fs.existsSync(path.join(__dirname, "../node_modules/node-llama-cpp"))) expect(rules(JSON_GBNF)).toBe(rules(own));
+    if (fs.existsSync(ownPath)) expect(rules(JSON_GBNF)).toBe(rules(fs.readFileSync(ownPath, "utf8")));
   });
 
   it("fails the smoke check when the module cannot load (a package without llama/binariesGithubRelease.json)", async () => {

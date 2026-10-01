@@ -879,8 +879,7 @@ export class RunnerMode implements GameMode {
   getSettings(): RunnerSettings {
     return this.settings;
   }
-  /** Everything applies on the next init (the course is planned for it) except the scale and the root (live). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Everything applies on the next init (the course is planned for it) except the scale and the root (live). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<RunnerSettings>, unlimited = false) {
     this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveRunnerSettings({ ...this.settings, ...patch }, unlimited);

@@ -494,8 +494,6 @@ export class MultipliersMode implements GameMode {
   /** The mode resolves ball-to-ball collisions itself with a spatial hash (no O(n²) engine pair loop). */
   readonly ballsPassThrough = true;
   private settings: MultipliersSettings = { ...DEFAULT_MULTIPLIERS_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private layout: BoardLayout = { rows: [] };
   private readonly view: MultipliersView = {
     settings: { ...DEFAULT_MULTIPLIERS_SETTINGS },
@@ -552,10 +550,8 @@ export class MultipliersMode implements GameMode {
   getSettings(): MultipliersSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator restarts the board when a board setting changes). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Applied on the next init (the Simulator restarts the board when a board setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<MultipliersSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveMultipliersSettings({ ...this.settings, ...patch }, unlimited);
   }
   /** Live state for the canvas and the HUD; the same object every call. */

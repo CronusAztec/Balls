@@ -395,8 +395,6 @@ export class CollideMode implements GameMode {
   /** The engine's O(n²) pair loop is skipped: the mode resolves collisions itself with a spatial hash. */
   readonly ballsPassThrough = true;
   private settings: CollideSettings = { ...DEFAULT_COLLIDE_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: CollideView = {
     settings: { ...DEFAULT_COLLIDE_SETTINGS },
     field: null,
@@ -459,10 +457,8 @@ export class CollideMode implements GameMode {
   getSettings(): CollideSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Collision Playground setting changes). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Applied on the next init (the Simulator re-inits the mode when a Collision Playground setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<CollideSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveCollideSettings({ ...this.settings, ...patch }, unlimited);
   }
   /** Live state for the canvas and the HUD; the same object every call. */

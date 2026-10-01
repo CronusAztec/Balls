@@ -475,8 +475,6 @@ export class PaddleMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: PaddleSettings = { ...DEFAULT_PADDLE_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: PaddleView = createView();
   private ballId = -1;
   private clockMs = 0;
@@ -503,10 +501,8 @@ export class PaddleMode implements GameMode {
   getSettings(): PaddleSettings {
     return this.settings;
   }
-  /** The game applies on the next init; the scale and the root at once. */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** The game applies on the next init; the scale and the root at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<PaddleSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolvePaddleSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.scale = this.settings.scale;
     this.view.settings.rootNote = this.settings.rootNote;

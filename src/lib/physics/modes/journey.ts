@@ -200,8 +200,6 @@ export class JourneyMode implements GameMode {
   /** One ball, nothing to collide with. */
   readonly ballsPassThrough = true;
   private settings: JourneySettings = { ...DEFAULT_JOURNEY_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: JourneyView = createView();
   private stages: JourneyStage[] = [];
   private walls: SegmentObstacle[] = [];
@@ -256,10 +254,8 @@ export class JourneyMode implements GameMode {
   getSettings(): JourneySettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Journey setting changes). */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
+  /** Applied on the next init (the Simulator re-inits the mode when a Journey setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<JourneySettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveJourneySettings({ ...this.settings, ...patch }, unlimited);
   }
   getView(): JourneyView {

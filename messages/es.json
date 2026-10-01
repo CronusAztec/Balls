@@ -3056,6 +3056,7 @@
     "libTargetShare": "{platform} (compartir rápido)",
     "libPublishNoAccounts": "El clip espera en el bloque Publicar (sección Grabación): conecta o marca allí una cuenta (TikTok, Instagram y YouTube van por tu relé) y vuelve a publicar.",
     "libPublishSomeFailed": "{failed} de {total} cuentas no publicaron: el motivo está en el bloque Publicar (sección Grabación), donde puedes reintentarlo.",
+    "libPublishBusy": "El bloque Publicar (sección Grabación) todavía está enviando un clip: espera a que termine y vuelve a publicar.",
     "libShared": "Texto copiado y la página de subida de {platform} abierta en tu navegador: sube el clip desde la carpeta que se acaba de abrir.",
     "libSharedNoCopy": "La página de subida de {platform} se abrió en tu navegador: sube el clip desde la carpeta que se acaba de abrir (copia el texto con «Copiar el texto de la publicación»).",
     "libForget": "Quitar de la lista",

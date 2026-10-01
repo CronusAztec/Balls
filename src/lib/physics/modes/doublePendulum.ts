@@ -641,8 +641,6 @@ export class DoublePendulumMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: DoublePendulumSettings = { ...DEFAULT_DOUBLE_PENDULUM_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: DoublePendulumView = {
     settings: { ...DEFAULT_DOUBLE_PENDULUM_SETTINGS },
     field: null,
@@ -705,10 +703,9 @@ export class DoublePendulumMode implements GameMode {
    * The rig (count, rods, lengths, masses, gravity, start, damping, sparring) is applied by the next init – the
    * Simulator re-inits the mode when one of them changes. The trail length, the strings (count, layout, octaves,
    * tuning), the end (endless, clip length) apply at once: they change what is drawn and heard, not the swing.
+   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<DoublePendulumSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveDoublePendulumSettings({ ...this.settings, ...patch }, unlimited);
     const s = this.settings;
     const live = this.view.settings;

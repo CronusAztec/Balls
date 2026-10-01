@@ -3056,6 +3056,7 @@
     "libTargetShare": "{platform} (szybkie udostępnianie)",
     "libPublishNoAccounts": "Klip czeka w bloku Publikuj (sekcja Nagrywanie): połącz albo zaznacz tam konto – TikTok, Instagram i YouTube idą przez Twój przekaźnik – i opublikuj ponownie.",
     "libPublishSomeFailed": "{failed} z {total} kont nie opublikowało klipu – powód znajdziesz w bloku Publikuj (sekcja Nagrywanie); tam też spróbujesz ponownie.",
+    "libPublishBusy": "Blok Publikuj (sekcja Nagrywanie) wciąż wysyła klip – poczekaj, aż skończy, i opublikuj ponownie.",
     "libShared": "Opis skopiowany, a strona wysyłania {platform} otwarta w przeglądarce – wyślij klip z folderu, który właśnie się otworzył.",
     "libSharedNoCopy": "Strona wysyłania {platform} otwarta w przeglądarce – wyślij klip z folderu, który właśnie się otworzył (tekst posta skopiujesz przyciskiem „Kopiuj tekst posta”).",
     "libForget": "Usuń z listy",

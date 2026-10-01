@@ -527,7 +527,7 @@ describe("No limits: the engine", () => {
     }
   });
 
-  it("runs every mode from settings far past every range, through the page's own path (settings → config → engine)", { timeout: 600_000 }, () => {
+  it("runs every mode from settings far past every range, through the page's own path (settings → config → engine)", () => {
     // Every unlimited setting at 1e9 (the settings with a meaning that ends at that end): once with a Ball Size bigger than
     // any arena (the ring modes are eaten at once) and once at the default size (a million-ball crowd, a thousand rings…).
     for (const bigBall of [true, false]) {
@@ -665,6 +665,21 @@ describe("No limits: the engine", () => {
     expect(paint.getPaintOptions().brush).toBe(50);
     paint.setPaintOptions({ brush: 1e12 });
     expect(paint.getPaintOptions().brush).toBe(ENGINE_CEILINGS.paintBrush);
+  });
+
+  // --- unlimited --- String Battle past the slider's MAX_TEAMS: every slot keeps its kill record (a typed array never grows)
+  it("credits every String Battle elimination to its killer with more balls than the slider's six", () => {
+    const s = presetToSettings({ ...defaultSettings("stringBattle"), unlimited: true, sbBalls: 20, sbLives: 1 } as Partial<SimulatorSettings>);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "stringBattle", modeSettingsOfSettings(s), 5);
+    const view = engine.getStringBattleView();
+    for (let i = 0; i < 60 * 120 && !view.finished; i++) engine.update(1000 / 60, 0);
+    expect(view.count).toBe(20);
+    expect(view.finished).toBe(true);
+    const eliminated = view.fighters.filter((f) => !f.alive).length;
+    expect(eliminated).toBe(19);
+    // Seed 5's battle: every ball cut down by another one, slots past the sixth included.
+    expect(view.fighters.reduce((sum, f) => sum + f.kills, 0)).toBe(eliminated);
+    expect(view.fighters.slice(6).some((f) => f.kills > 0)).toBe(true);
   });
 
   it("fits a ball into a thousand rings in one quick pass, exactly as the multipliers' ring fit does", () => {

@@ -555,8 +555,8 @@ export class IllusionMode implements GameMode {
   /**
    * Everything but the display switches takes effect on the next init (the Simulator restarts the mode when one of them
    * changes); the tracks and the reveal only change the drawing and apply at once.
+   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  /** `unlimited`: No limits is on – the unlimited settings run past their sliders, up to their soft ceilings. */
   setSettings(patch: Partial<IllusionSettings>, unlimited = false) {
     this.unlimited = unlimited; // --- unlimited ---
     this.settings = resolveIllusionSettings({ ...this.settings, ...patch }, unlimited);
