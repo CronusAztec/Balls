@@ -616,7 +616,7 @@ describe("output files", () => {
 
   it("keeps the panel's state valid (unknown options fall back, foreign plans are dropped)", () => {
     const state = parseBotState({ options: { platform: "myspace", count: 99, family: "battle", bucket: "long", ending: "nope" }, plan: { date: day.date, platform: "reels", kind: "today", clips: [...day.clips, { version: 0 }] } });
-    expect(state.options).toEqual({ platform: "reels", count: 20, family: "battle", bucket: "long", ending: "auto" });
+    expect(state.options).toEqual({ platform: "reels", count: 50, family: "battle", bucket: "long", ending: "auto" }); // --- uncap-all --- (past the slider's 20, up to the clips' memory-safety ceiling)
     expect(state.plan?.clips).toHaveLength(3);
     expect(parseBotState("junk").plan).toBeNull();
   });

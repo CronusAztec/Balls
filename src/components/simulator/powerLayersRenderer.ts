@@ -128,7 +128,7 @@ export class PowerLayersLayer {
     const g = canvas.getContext("2d");
     if (!g) return null;
     const L = Math.max(1, view.layers);
-    // --- unlimited --- more layers than the stack has pixel rows (No limits): one band per pixel row, in the hue of its
+    // --- unlimited --- more layers than the stack has pixel rows (past the slider): one band per pixel row, in the hue of its
     // middle layer – the same picture as drawing each sub-pixel layer, at a cost of the stack's height instead of 100,000 rects
     const bands = Math.min(L, h);
     const spacing = h / bands;

@@ -1,6 +1,6 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Sound Vortex ("vortex" mode, feature gerald-vortex – the geraldbounces "sound vortex, pew" clips). No rings to escape:
@@ -91,7 +91,7 @@ export interface VortexFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Rounds onto a slider's step (whole numbers stay whole). */
@@ -100,13 +100,13 @@ function onStep(value: number, step: number) {
 }
 
 /** Fills in the defaults and clamps every value onto its slider (counts whole, the rest on their steps); bad values fall back to the defaults. */
-export function resolveVortexSettings(config: Partial<VortexSettings> | null | undefined, unlimited = false): VortexSettings {
+export function resolveVortexSettings(config: Partial<VortexSettings> | null | undefined): VortexSettings {
   const out = { ...DEFAULT_VORTEX_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(VORTEX_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.vxBalls, out.balls));
+  const R = VORTEX_RANGES;
+  if (config.balls !== undefined) out.balls = memoryCeiling("vxBalls", Math.round(clampNumber(config.balls, R.vxBalls, out.balls)));
   if (config.stagger !== undefined) out.stagger = Math.round(onStep(clampNumber(config.stagger, R.vxStagger, out.stagger), 0.05) * 100) / 100;
-  if (config.rings !== undefined) out.rings = Math.round(clampNumber(config.rings, R.vxRings, out.rings));
+  if (config.rings !== undefined) out.rings = memoryCeiling("vxRings", Math.round(clampNumber(config.rings, R.vxRings, out.rings)));
   if (config.duration !== undefined) out.duration = onStep(clampNumber(config.duration, R.vxDuration, out.duration), 0.5);
   if (config.gravity !== undefined) out.gravity = Math.round(onStep(clampNumber(config.gravity, R.vxGravity, out.gravity), 0.05) * 100) / 100;
   if (typeof config.loop === "boolean") out.loop = config.loop;
@@ -247,7 +247,7 @@ export function buildVortexField(width: number, height: number, rings: number, o
   out.rim = RIM_AT * size;
   out.entry = ENTRY_AT * out.rim;
   out.hole = HOLE_AT * out.rim;
-  out.ringCount = Math.max(0, Math.min(out.rings.length, Math.round(rings))); // (the field's capacity: MAX_VORTEX_RINGS, more with No limits)
+  out.ringCount = Math.max(0, Math.min(out.rings.length, Math.round(rings))); // (the field's capacity: MAX_VORTEX_RINGS, more past the slider)
   ringRadii(out.entry, out.hole, out.ringCount, out.rings);
   return out;
 }
@@ -387,15 +387,15 @@ export const MAX_PEWS_PER_STEP = 2;
  * The nominal run length (s): the last ball enters after (balls − 1) × stagger and takes `duration` to the hole, and the
  * run ends `SWALLOW_HOLD_SEC` later; the seed moves it by the tempo (±8 % of the duration). Null with the loop on.
  */
-export function vortexNominalRunSec(settings: Partial<VortexSettings> | null | undefined, unlimited = false): number | null {
-  const s = resolveVortexSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
+export function vortexNominalRunSec(settings: Partial<VortexSettings> | null | undefined): number | null {
+  const s = resolveVortexSettings(settings);
   if (s.loop) return null;
   return (s.balls - 1) * s.stagger + s.duration + SWALLOW_HOLD_SEC;
 }
 
 /** The shortest and longest run the seed's tempo allows (s), or null with the loop on. */
-export function vortexRunRangeSec(settings: Partial<VortexSettings> | null | undefined, unlimited = false): { min: number; max: number } | null {
-  const s = resolveVortexSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
+export function vortexRunRangeSec(settings: Partial<VortexSettings> | null | undefined): { min: number; max: number } | null {
+  const s = resolveVortexSettings(settings);
   if (s.loop) return null;
   const lead = (s.balls - 1) * s.stagger + SWALLOW_HOLD_SEC;
   // A ball entering at ENTRY_SPEED_MIN × v_c sinks around a guiding radius that much smaller: a little sooner in.
@@ -549,9 +549,9 @@ export class VortexMode implements GameMode {
   getSettings(): VortexSettings {
     return this.settings;
   }
-  /** Balls, stagger, rings, duration, pull and loop apply on the next init; the depth cue, scale and root at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<VortexSettings>, unlimited = false) {
-    this.settings = resolveVortexSettings({ ...this.settings, ...patch }, unlimited);
+  /** Balls, stagger, rings, duration, pull and loop apply on the next init; the depth cue, scale and root at once. */
+  setSettings(patch: Partial<VortexSettings>) {
+    this.settings = resolveVortexSettings({ ...this.settings, ...patch });
     const live = this.view.settings;
     live.depthScale = this.settings.depthScale;
     live.scale = this.settings.scale;
@@ -585,7 +585,7 @@ export class VortexMode implements GameMode {
     const s = this.settings;
     const v = this.view;
     v.settings = { ...s };
-    this.ensureCapacity(s.balls, s.rings); // --- unlimited --- (more balls and rings than the slider's with No limits on)
+    this.ensureCapacity(s.balls, s.rings); // --- unlimited --- (more balls and rings than the slider's)
     // The seed: the whirl direction, the run tempo and the first entry angle (per-ball draws follow as the balls enter).
     v.dir = ctx.random() < 0.5 ? -1 : 1;
     v.tempo = 1 + (ctx.random() - 0.5) * TEMPO_SPREAD;
@@ -628,7 +628,8 @@ export class VortexMode implements GameMode {
 
   /**
    * --- unlimited --- The per-ball and per-ring arrays hold `MAX_VORTEX_BALLS` and `MAX_VORTEX_RINGS` (the sliders' ends);
-   * a run with more (No limits) grows them once – the mode's and the view's alike – before it starts. Grow-only.
+   * a run with more (a value past the slider, up to its memory-safety ceiling) grows them once – the mode's and the view's
+   * alike – before it starts. Grow-only.
    */
   private ensureCapacity(balls: number, rings: number) {
     const v = this.view;

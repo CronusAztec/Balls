@@ -1,5 +1,6 @@
-import { RANGES, RESOLUTIONS, defaultSettings, presetToSettings, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
-import { clampUnlimitedPatch, parseUnlimitedValue, unlimitedBounds } from "@/lib/unlimited"; // --- unlimited ---
+import { RANGES, RESOLUTIONS, bouncinessPatch, defaultSettings, presetToSettings, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { BOUNCIER_ON, BOUNCINESS_OFF } from "@/lib/uncap"; // --- uncap-all --- the numeric Bounciness
+import { parseUnlimitedValue, unlimitedBounds } from "@/lib/unlimited"; // --- unlimited ---
 import { BALL_INTERACTIONS, MODE_IDS, WALL_BREAK_STYLES, isModeId } from "@/lib/physics/types";
 import { PARTICLE_STYLES } from "@/lib/physics/particleStyles";
 import { THEME_IDS } from "@/lib/themes";
@@ -57,7 +58,7 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["ballCount", "number of balls"],
   ["ballColor", "ball colour #rrggbb"],
   ["rainbowBall", "ball cycles through rainbow colours"],
-  ["bouncierEnabled", "the ball gets bouncier on every hit"],
+  ["bounciness", "every wall bounce adds (value − 1) × the ball speed: 1 = off, 1.03 = the classic Bouncier"], // --- uncap-all --- (the old Bouncier switch follows it)
   ["ballInteraction", "what balls do when they touch"],
   ["airDrag", "air drag per step"],
   ["windX", "sideways wind (fraction of ball speed per second)"],
@@ -134,11 +135,14 @@ export function describeSetting(key: string, current: SimulatorSettings, descrip
   return `${key} (${type}) = ${JSON.stringify(value)}${description ? ` — ${description}` : ""}`;
 }
 
-/** --- unlimited --- The bounds of a setting with No limits on, for the prompt: `from 50, no upper limit`, `any value`. */
+/**
+ * --- unlimited --- The bounds of a setting with the switch on, for the prompt: `from 50, no upper limit`, `any value`.
+ * (--- uncap-all --- the switch is now called Wide sliders; nothing but a list index has an upper bound any more.)
+ */
 function describeUnlimited(key: string, range: { min: number; max: number; step: number }): string {
   const { min, max } = unlimitedBounds(key, range);
   const from = Number.isFinite(min) ? `from ${min}` : "any value";
-  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit (No limits is on)`;
+  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit (Wide sliders is on)`;
 }
 
 /** The prefix of the settings that belong to a mode (its block of the panel), so the assistant can tune the mode on the page. */
@@ -313,12 +317,10 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
     errors.push(`"${key}" cannot be changed here`);
   }
   if (errors.length) return { ok: false, errors };
-  // --- unlimited --- turning No limits off brings every value past its range back into it (as the panel's switch does),
-  // unless the patch sets that value itself: nothing extreme lingers without the switch's guards
-  if ((raw as Settings).unlimited === false) {
-    const clamped = clampUnlimitedPatch({ ...(current as unknown as Settings), ...patch }, unlimitedSettingKeys(), ranges);
-    for (const [key, value] of Object.entries(clamped)) if (!(key in patch)) patch[key] = value;
-  }
+  // --- desktop-exe x uncap-all --- the Bouncier switch follows the numeric Bounciness (`bouncinessPatch()`): a change of the
+  // Bounciness brings the switch along, and a model that still sends the old switch gets the matching Bounciness
+  if (typeof patch.bouncierEnabled === "boolean" && typeof patch.bounciness !== "number") patch.bounciness = patch.bouncierEnabled ? (current.bounciness > BOUNCINESS_OFF ? current.bounciness : BOUNCIER_ON) : BOUNCINESS_OFF;
+  if (typeof patch.bounciness === "number") Object.assign(patch, bouncinessPatch(patch.bounciness));
   // The settings loader has the last word: a value it does not keep is not a valid value.
   const resolved = presetToSettings({ ...current, ...patch } as Partial<SimulatorSettings>) as unknown as Settings;
   for (const [key, value] of Object.entries(patch)) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
 import { IntlMessageFormat } from "intl-messageformat";
 import en from "../messages/en.json";
 import es from "../messages/es.json";
@@ -59,7 +60,8 @@ describe("settings search: the escape modes' Mode-row controls", () => {
     const render = (mode: ModeId, query: string, patch: Partial<SimulatorSettings> = {}) => {
       const settings = { ...defaultSettings(mode), ...patch };
       const matches = (key: string) => (t as unknown as { has: (k: string) => boolean }).has(key) && (key.toLowerCase().includes(query.toLowerCase()) || t(key).toLowerCase().includes(query.toLowerCase()));
-      return renderToStaticMarkup(createElement(EscapeModeSection, { t, search: query, matches, settings, update: () => {} }));
+      // (--- uncap-all x ui-i18n --- the sliders read the Uncap messages through next-intl: render inside its provider)
+      return renderToStaticMarkup(createElement(NextIntlClientProvider, { locale: "en", messages: en, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>, createElement(EscapeModeSection, { t, search: query, matches, settings, update: () => {} })));
     };
     const spikes = render("accumulation", "Spikes", { spikesEnabled: false });
     expect(spikes).toContain('role="switch"');
@@ -137,7 +139,7 @@ describe("the mode count in the copy", () => {
     const n = MODE_CARD_ORDER.length;
     expect(n).toBeGreaterThanOrEqual(26);
     for (const [locale, messages] of Object.entries(LOCALES) as [keyof typeof LOCALES, Record<string, Record<string, unknown>>][]) {
-      const texts = [messages.Hero.subtitle, messages.SimulatorPage.metaDescription, messages.Layout.metaDescription, messages.Layout.featuresModes, (messages.HowItWorks.step1 as { description: string }).description, messages.TikTokBallVideos.metaDescription] as string[];
+      const texts = [(messages.SiteRedesign.hero as unknown as { sub: string }).sub /* --- site-redesign --- the hero sentence moved */, messages.SimulatorPage.metaDescription, messages.Layout.metaDescription, messages.Layout.featuresModes, (messages.HowItWorks.step1 as { description: string }).description, messages.TikTokBallVideos.metaDescription] as string[];
       for (const text of texts) {
         expect(text, `${locale}: ${text}`).toContain("{count");
         const out = String(new IntlMessageFormat(text, locale).format({ count: n, siteName: "JumpingBallsLive" }));

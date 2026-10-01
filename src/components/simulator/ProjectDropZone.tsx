@@ -75,8 +75,8 @@ export default function ProjectDropZone({
     >
       {children}
       {active && (
-        <div className={`pointer-events-none absolute inset-0 z-30 rounded-lg border-2 border-dashed flex items-start justify-center pt-24 ${disabled ? "border-amber-400 bg-amber-400/5" : "border-[#93d119] bg-[#93d119]/5"}`} aria-hidden="true">
-          <span className={`px-3 py-1.5 rounded-lg bg-zinc-950/90 text-xs font-semibold shadow-lg ${disabled ? "text-amber-400" : "text-[#93d119]"}`}>{disabled ? `⏳ ${lockedLabel ?? label}` : `📥 ${label}`}</span>
+        <div className={`pointer-events-none absolute inset-0 z-30 rounded-lg border-2 border-dashed flex items-start justify-center pt-24 ${disabled ? "border-warn bg-warn/5" : "border-accent bg-accent/5"}`} aria-hidden="true">
+          <span className={`px-3 py-1.5 rounded-lg bg-bg/90 text-xs font-semibold ${disabled ? "text-warn" : "text-accent"}`}>{disabled ? `${lockedLabel ?? label}` : `${label}`}</span>
         </div>
       )}
     </div>

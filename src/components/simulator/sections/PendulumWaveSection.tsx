@@ -16,19 +16,19 @@ export interface PendulumWaveSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const PENDULUM_WAVE_KEYS = ["pwLayout", "pwPolygon", "pwCount", "pwBaseOscillations", "pwCycleSeconds", "pwAmplitude", "pwPhasing", "pwTrails", "pwSoundOn", "pwPitchDirection", "pwWaveChord", "pwCycles"];
 
-const LAYOUT_OPTIONS: Record<PendulumLayout, { icon: string; labelKey: string }> = {
-  row: { icon: "🧵", labelKey: "pwLayoutRow" },
-  arc: { icon: "⭕", labelKey: "pwLayoutArc" },
-  circle: { icon: "✳️", labelKey: "pwLayoutCircle" },
-  galaxy: { icon: "🌌", labelKey: "pwLayoutGalaxy" },
-  sliding: { icon: "↔️", labelKey: "pwLayoutSliding" },
-  bouncing: { icon: "🏀", labelKey: "pwLayoutBouncing" },
+const LAYOUT_OPTIONS: Record<PendulumLayout, { labelKey: string }> = {
+  row: { labelKey: "pwLayoutRow" },
+  arc: { labelKey: "pwLayoutArc" },
+  circle: { labelKey: "pwLayoutCircle" },
+  galaxy: { labelKey: "pwLayoutGalaxy" },
+  sliding: { labelKey: "pwLayoutSliding" },
+  bouncing: { labelKey: "pwLayoutBouncing" },
 };
 
 const SOUND_ON_LABELS: Record<PendulumSoundOn, string> = { center: "pwSoundCenter", extremes: "pwSoundExtremes", both: "pwSoundBoth" };
 const PITCH_LABELS: Record<PendulumPitchDirection, string> = { up: "pwPitchUp", down: "pwPitchDown" };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /**
  * "Pendulum wave" controls of the Pendulum Wave mode, shown in the Mode row while the mode is active (and in the
@@ -41,17 +41,17 @@ export default function PendulumWaveSection({ t, search, matches, settings: s, u
   const radial = s.pwLayout === "circle" || s.pwLayout === "galaxy";
   return (
     <div className="space-y-3 pt-2">
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("pwDesc")}</p>}
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("pwDesc")}</p>}
       <Searchable search={search} matches={matches} labelKey="pwLayout">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("pwLayout")}
             <Tooltip text={t("pwLayoutTip")} />
           </label>
           <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("pwLayout")}>
             {PENDULUM_LAYOUTS.map((layout) => (
               <button type="button" key={layout} onClick={() => update({ pwLayout: layout })} aria-pressed={s.pwLayout === layout} className={pick(s.pwLayout === layout)}>
-                <span aria-hidden="true">{LAYOUT_OPTIONS[layout].icon}</span> {t(LAYOUT_OPTIONS[layout].labelKey)}
+                {t(LAYOUT_OPTIONS[layout].labelKey)}
               </button>
             ))}
           </div>
@@ -60,7 +60,7 @@ export default function PendulumWaveSection({ t, search, matches, settings: s, u
       {(radial || !!search) && (
         <Searchable search={search} matches={matches} labelKey="pwPolygon">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-ink-2">
               {t("pwPolygon")}
               <Tooltip text={t("pwPolygonTip")} />
             </label>
@@ -74,17 +74,17 @@ export default function PendulumWaveSection({ t, search, matches, settings: s, u
           </div>
         </Searchable>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="pwCount" tipKey="pwCountTip" value={s.pwCount} range={RANGES.pwCount} onChange={(v) => update({ pwCount: v })} display={String(s.pwCount)} left="▪" right="▪▪▪" />
-      <Slider t={t} search={search} matches={matches} labelKey="pwBaseOscillations" tipKey="pwBaseOscillationsTip" value={s.pwBaseOscillations} range={RANGES.pwBaseOscillations} onChange={(v) => update({ pwBaseOscillations: v })} display={`${s.pwBaseOscillations} → ${s.pwBaseOscillations + s.pwCount - 1}`} left="🐢" right="🐇" />
-      <Slider t={t} search={search} matches={matches} labelKey="pwCycleSeconds" tipKey="pwCycleSecondsTip" value={s.pwCycleSeconds} range={RANGES.pwCycleSeconds} onChange={(v) => update({ pwCycleSeconds: v })} display={`${s.pwCycleSeconds}s`} left="⏱️" right="⏳" />
-      <Slider t={t} search={search} matches={matches} labelKey="pwAmplitude" tipKey="pwAmplitudeTip" value={s.pwAmplitude} range={RANGES.pwAmplitude} onChange={(v) => update({ pwAmplitude: v })} display={`${s.pwAmplitude}°`} left="🤏" right="👐" />
+      <Slider t={t} search={search} matches={matches} labelKey="pwCount" tipKey="pwCountTip" value={s.pwCount} range={RANGES.pwCount} onChange={(v) => update({ pwCount: v })} display={String(s.pwCount)} />
+      <Slider t={t} search={search} matches={matches} labelKey="pwBaseOscillations" tipKey="pwBaseOscillationsTip" value={s.pwBaseOscillations} range={RANGES.pwBaseOscillations} onChange={(v) => update({ pwBaseOscillations: v })} display={`${s.pwBaseOscillations} → ${s.pwBaseOscillations + s.pwCount - 1}`} />
+      <Slider t={t} search={search} matches={matches} labelKey="pwCycleSeconds" tipKey="pwCycleSecondsTip" value={s.pwCycleSeconds} range={RANGES.pwCycleSeconds} onChange={(v) => update({ pwCycleSeconds: v })} display={`${s.pwCycleSeconds}s`} />
+      <Slider t={t} search={search} matches={matches} labelKey="pwAmplitude" tipKey="pwAmplitudeTip" value={s.pwAmplitude} range={RANGES.pwAmplitude} onChange={(v) => update({ pwAmplitude: v })} display={`${s.pwAmplitude}°`} />
       <Searchable search={search} matches={matches} labelKey="pwPhasing">
         <Toggle t={t} labelKey="pwPhasing" tipKey="pwPhasingTip" value={s.pwPhasing} onChange={(v) => update({ pwPhasing: v })} />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="pwTrails" tipKey="pwTrailsTip" value={s.pwTrails} range={RANGES.pwTrails} onChange={(v) => update({ pwTrails: v })} display={s.pwTrails === 0 ? t("pwOff") : `${Math.round(100 * s.pwTrails)}%`} left="•" right="〰️" />
+      <Slider t={t} search={search} matches={matches} labelKey="pwTrails" tipKey="pwTrailsTip" value={s.pwTrails} range={RANGES.pwTrails} onChange={(v) => update({ pwTrails: v })} display={s.pwTrails === 0 ? t("pwOff") : `${Math.round(100 * s.pwTrails)}%`} />
       <Searchable search={search} matches={matches} labelKey="pwSoundOn">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("pwSoundOn")}
             <Tooltip text={t("pwSoundOnTip")} />
           </label>
@@ -99,7 +99,7 @@ export default function PendulumWaveSection({ t, search, matches, settings: s, u
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="pwPitchDirection">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("pwPitchDirection")}
             <Tooltip text={t("pwPitchDirectionTip")} />
           </label>
@@ -115,7 +115,7 @@ export default function PendulumWaveSection({ t, search, matches, settings: s, u
       <Searchable search={search} matches={matches} labelKey="pwWaveChord">
         <Toggle t={t} labelKey="pwWaveChord" tipKey="pwWaveChordTip" value={s.pwWaveChord} onChange={(v) => update({ pwWaveChord: v })} />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="pwCycles" tipKey="pwCyclesTip" value={s.pwCycles} range={RANGES.pwCycles} onChange={(v) => update({ pwCycles: v })} display={s.pwCycles === 0 ? t("pwCyclesNever") : String(s.pwCycles)} left="∞" right="10" />
+      <Slider t={t} search={search} matches={matches} labelKey="pwCycles" tipKey="pwCyclesTip" value={s.pwCycles} range={RANGES.pwCycles} onChange={(v) => update({ pwCycles: v })} display={s.pwCycles === 0 ? t("pwCyclesNever") : String(s.pwCycles)} />
     </div>
   );
 }

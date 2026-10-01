@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { Crowd } from "@/lib/physics/crowd";
-import { BREAK_EFFECTS_PER_STEP, CROWD_POUR_PER_STEP, DENSE_RINGS_FROM, OBJECT_MIN, RING_OBJECT_WORK, STEP_RING_WORK, WALL_HITS_KEPT, fitIntoSortedRings, objectLimitFor, LOD_POINTS_FROM, MAX_SAFE_SPEED, MAX_SOUNDS_PER_FRAME, PAIR_COLLISIONS_UP_TO, STEP_WORK_CAP, UnlimitedRuntime, unlimitedConfigOf, unlimitedExtrasOf } from "@/lib/physics/limits";
+import { BREAK_EFFECTS_PER_STEP, CROWD_POUR_PER_STEP, DENSE_RINGS_FROM, OBJECT_MIN, RING_OBJECT_WORK, STEP_RING_WORK, WALL_HITS_KEPT, fitIntoSortedRings, objectLimitFor, LOD_POINTS_FROM, MAX_SAFE_SPEED, MAX_SOUNDS_PER_FRAME, PAIR_COLLISIONS_UP_TO, STEP_WORK_CAP, UnlimitedRuntime, uncapConfigOf, unlimitedConfigOf, unlimitedExtrasOf } from "@/lib/physics/limits";
 import { MAX_EFFECTIVE_BOUNCE, MULTIPLIER_CEILING, effectiveBounce, fitBallToRings, type RingFit, type StepPlan } from "@/lib/physics/multipliers";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
@@ -12,7 +12,8 @@ import { FRAME_BUDGET_MS, FrameBudget, formatRealTime } from "@/lib/simulation/f
 import { EFFECT_RENDER_CAP, ateSizeLabel, cappedEffects } from "@/components/simulator/unlimitedRenderer";
 import { FINDER_MIN_SEEDS, findSimulationBudgeted, seedsWithinBudget, usesBudgetedSearch } from "@/lib/simulation/unlimitedFinder";
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
-import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { ENTITY_CEILING, MEMORY_CEILINGS, RACER_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { dropSettingFields } from "@/lib/physics/modes/drop";
 import { boxSettingFields } from "@/lib/physics/modes/box";
 import { pendulumSettingFields } from "@/lib/physics/modes/pendulum";
@@ -28,9 +29,9 @@ import { runnerSettingFields } from "@/lib/physics/modes/runner";
 import { paddleSettingFields } from "@/lib/physics/modes/paddle";
 import { vortexSettingFields } from "@/lib/physics/modes/vortex";
 import { journeySettingFields } from "@/lib/physics/modes/journey";
-import { bullseyeSettingFields } from "@/lib/physics/modes/bullseye";
+import { bullseyeSettingFields, ringScore } from "@/lib/physics/modes/bullseye";
 import { fixedRunDurationSec } from "@/lib/simulation/finder";
-import { ENGINE_CEILINGS, liftedRanges } from "@/lib/unlimited";
+import { MAX_RACERS, RACE_SCREEN_CEILING, resolveRaceTrackSettings } from "@/lib/physics/raceTrack";
 import { resolveProjectSettings } from "@/lib/project";
 import { decodeShareCode, encodeShareCode, supportsShareCodes } from "@/lib/shareCode";
 import {
@@ -40,7 +41,6 @@ import {
   LIVE_WALL_LIMIT,
   OBJECT_BALL_LIMIT,
   UNLIMITED_SLIDER_CEILING,
-  clampUnlimitedPatch,
   formatHuge,
   isUnlimitedKey,
   parseUnlimitedValue,
@@ -95,15 +95,18 @@ describe("No limits: parsing", () => {
     expect(s.twoBalls).toBe(true);
   });
 
-  it("rejects -5, NaN and Infinity (back to the default), with the switch on", () => {
+  it("rejects NaN and Infinity (back to the default) and lifts -5 onto the minimum, with the switch on", () => {
     const d = defaultSettings("classic");
     for (const bad of ["-5", "NaN", "Infinity", "-Infinity", "abc", ""]) {
       const s = settingsFromSearchParams(new URLSearchParams(`mode=classic&inf=1&s=${bad}&r=${bad}&nb=${bad}&wc=${bad}&cpn=${bad}`));
-      expect(s.ballSpeed).toBe(d.ballSpeed);
-      expect(s.ballRadius).toBe(d.ballRadius);
+      // --- uncap-all --- the switch no longer gates parsing: a finite number below the minimum is lifted to it, as a link always
+      // did (--- review fix (recording-export) --- the core numbers too, through coreNumber()); anything else falls back
+      const lifted = bad === "-5";
+      expect(s.ballSpeed).toBe(lifted ? ranges.ballSpeed.min : d.ballSpeed);
+      expect(s.ballRadius).toBe(lifted ? ranges.ballRadius.min : d.ballRadius);
       expect(s.ballCount).toBe(d.ballCount);
-      expect(s.wallCount).toBe(d.wallCount);
-      expect(s.cpCount).toBe(d.cpCount);
+      expect(s.wallCount).toBe(lifted ? ranges.wallCount.min : d.wallCount);
+      expect(s.cpCount).toBe(lifted ? ranges.cpCount.min : d.cpCount);
     }
     expect(parseUnlimitedValue("ballSpeed", -5, ranges.ballSpeed)).toBeNull();
     expect(parseUnlimitedValue("ballSpeed", Number.NaN, ranges.ballSpeed)).toBeNull();
@@ -112,41 +115,50 @@ describe("No limits: parsing", () => {
     expect(parseUnlimitedValue("wallCount", 12.6, ranges.wallCount)).toBe(13); // counts are whole
   });
 
-  // --- review fix (unlimited) --- a big core value without `inf=1` (links and presets keep it) brings No limits' guards with it
-  it("turns the switch on for a link or preset that carries a value past its range, so the tab never hangs", () => {
+  // --- review fix (unlimited) x uncap-all --- a big value in a link or preset without `inf=1` keeps the switch off (it is only
+  // Wide sliders now): the extreme-values runtime engages by the value itself, so 100,000 rings never hang the tab
+  it("runs a link or preset that carries a value past its range with the switch off, and the tab never hangs", () => {
     const link = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=100000"));
-    expect([link.unlimited, link.wallCount]).toEqual([true, 100000]);
-    expect(settingsToSearchParams(link).get("inf")).toBe("1");
+    expect([link.unlimited, link.wallCount]).toEqual([false, 100000]);
+    expect(settingsToSearchParams(link).get("inf")).toBeNull();
+    expect(settingsToSearchParams(link).get("wc")).toBe("100000");
     const engine = createEngineForSettings(physicsConfigOfSettings(link), "classic", modeSettingsOfSettings(link), 3);
     expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
     const start = performance.now();
     engine.update(1000 / 60, 0);
     expect(performance.now() - start).toBeLessThan(1000);
     const preset = presetToSettings({ ...defaultSettings("classic"), unlimited: false, ballSpeed: 1e9 });
-    expect([preset.unlimited, preset.ballSpeed]).toEqual([true, 1e9]);
-    expect(physicsConfigOfSettings(preset).unlimited).toBe(true);
-    expect(resolveProjectSettings({ mode: "classic", wallCount: 5000 }).unlimited).toBe(false); // (a project file clamps it without the switch)
-    // Values inside their ranges leave the switch off, and the switch off still clamps the mode settings.
-    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&wc=12&s=800")).unlimited).toBe(false);
-    expect(presetToSettings({ ...defaultSettings("glass"), unlimited: false, glassHp: 1000 })).toMatchObject({ unlimited: false, glassHp: RANGES.glassHp.max });
+    expect([preset.unlimited, preset.ballSpeed]).toEqual([false, 1e9]);
+    expect(physicsConfigOfSettings(preset).unlimited).toBe(true); // (engaged by the value, not by the switch)
+    expect(resolveProjectSettings({ mode: "classic", wallCount: 5000 })).toMatchObject({ unlimited: false, wallCount: 5000 }); // (a project file keeps it too)
+    // Values inside their ranges engage nothing, and a mode setting past its slider reaches its run with the switch off.
+    const plain = settingsFromSearchParams(new URLSearchParams("mode=classic&wc=12&s=800"));
+    expect(plain.unlimited).toBe(false);
+    expect(physicsConfigOfSettings(plain).unlimited).toBeUndefined();
+    expect(presetToSettings({ ...defaultSettings("glass"), unlimited: false, glassHp: 1000 })).toMatchObject({ unlimited: false, glassHp: 1000 });
   });
 
-  it("keeps the old clamping with the switch off", () => {
+  // --- uncap-all --- the switch no longer gates anything but the slider tracks (Wide sliders)
+  it("takes big values whatever the switch (it only widens the sliders now)", () => {
     const off = settingsFromSearchParams(new URLSearchParams("mode=collide&cpn=50000&nb=50000"));
     expect(off.unlimited).toBe(false);
-    expect(off.cpCount).toBe(RANGES.cpCount.max);
-    expect(off.ballCount).toBe(RANGES.ballCount.max);
+    expect(off.cpCount).toBe(50000);
+    expect(off.ballCount).toBe(50000);
     const on = settingsFromSearchParams(new URLSearchParams("mode=collide&inf=1&cpn=50000&nb=50000"));
     expect(on.cpCount).toBe(50000);
     expect(on.ballCount).toBe(50000);
   });
 
-  it("leaves bounded settings (fractions, volumes, the recording) on their ranges", () => {
-    for (const key of ["gapSize", "musicVolume", "recordingDuration", "fastExportFps", "cameraZoom", "textSize"]) expect(BOUNDED_KEYS.has(key)).toBe(true);
-    expect(isUnlimitedKey("musicVolume", ranges.musicVolume)).toBe(false);
-    expect(unlimitedSettingKeys()).not.toContain("musicVolume");
-    const s = settingsFromSearchParams(new URLSearchParams("mode=classic&inf=1&mv=50"));
-    expect(s.musicVolume).toBe(RANGES.musicVolume.max);
+  it("uncaps fractions, volumes and the recording too (--- uncap-all --- no bounded settings left)", () => {
+    expect([...BOUNDED_KEYS]).toEqual(["forcedWinner"]); // a team slot past the team colours is invalid, not capped
+    expect(unlimitedSettingKeys()).not.toContain("forcedWinner");
+    expect(unlimitedSettingKeys()).toContain("rcWinner");
+    for (const key of ["gapSize", "musicVolume", "recordingDuration", "fastExportFps", "cameraZoom", "textSize"]) {
+      expect(isUnlimitedKey(key, ranges[key])).toBe(true);
+      expect(unlimitedSettingKeys()).toContain(key);
+    }
+    const s = settingsFromSearchParams(new URLSearchParams("mode=classic&mv=50&dur=600&gap=3"));
+    expect([s.musicVolume, s.recordingDuration, s.gapSize]).toEqual([50, 600, 3]);
   });
 
   it("round-trips every unlimited setting through the link, far past its range", () => {
@@ -171,16 +183,16 @@ describe("No limits: parsing", () => {
     const loaded = presetToSettings(preset);
     expect(loaded.unlimited).toBe(true);
     expect([loaded.ballSpeed, loaded.wallCount, loaded.ballCount, loaded.cpCount]).toEqual([1e6, 1e5, 1e7, 50_000]);
-    expect(loaded.ballRadius).toBe(defaultSettings("classic").ballRadius);
+    expect(loaded.ballRadius).toBe(ranges.ballRadius.min); // --- review fix (recording-export) --- a negative size is lifted onto the minimum, as in a link
     expect(loaded.gravity).toBe(defaultSettings("classic").gravity);
-    // Without the switch the preset is clamped as before.
+    // --- uncap-all --- without the switch the preset keeps its values too.
     const off = presetToSettings({ ...preset, unlimited: false });
-    expect(off.cpCount).toBe(RANGES.cpCount.max);
+    expect(off.cpCount).toBe(50_000);
     // A project file: the numbers survive the file's own clamp too.
     const project = resolveProjectSettings({ mode: "classic", unlimited: true, ballSpeed: 1e6, wallCount: 1e5, cpCount: 50_000 });
     expect([project.unlimited, project.ballSpeed, project.wallCount, project.cpCount]).toEqual([true, 1e6, 1e5, 50_000]);
     const plain = resolveProjectSettings({ mode: "classic", cpCount: 50_000 });
-    expect(plain.cpCount).toBe(RANGES.cpCount.max);
+    expect(plain.cpCount).toBe(50_000);
   });
 
   it.runIf(supportsShareCodes())("keeps big values in short share codes", async () => {
@@ -194,10 +206,10 @@ describe("No limits: parsing", () => {
     expect([back.unlimited, back.ballSpeed, back.ballCount, back.plLayers]).toEqual([true, 1e21, 50_000, 1e6]);
   });
 
-  it("clamps every value back into its range when the switch goes off", () => {
-    const s = { ...defaultSettings("classic"), unlimited: true, ballSpeed: 1e9, wallCount: 1e5, windX: -1e6 } as unknown as Record<string, unknown>;
-    const patch = clampUnlimitedPatch(s, unlimitedSettingKeys(), ranges);
-    expect(patch).toEqual({ ballSpeed: RANGES.ballSpeed.max, wallCount: RANGES.wallCount.max, windX: RANGES.windX.min });
+  it("keeps every value when the switch goes off (--- uncap-all --- it only narrows the slider tracks again)", () => {
+    const s = { ...defaultSettings("classic"), unlimited: true, ballSpeed: 1e9, wallCount: 1e5, windX: -1e6 };
+    const off = settingsFromSearchParams(settingsToSearchParams({ ...s, unlimited: false }));
+    expect([off.unlimited, off.ballSpeed, off.wallCount, off.windX]).toEqual([false, 1e9, 1e5, -1e6]);
   });
 });
 
@@ -211,8 +223,8 @@ describe("No limits: the slider and the numbers", () => {
       const back = sliderValue("ballSpeed", sliderPosition("ballSpeed", v, r), r);
       expect(Math.abs(back - v) / v).toBeLessThan(0.06);
     }
-    // A setting with a meaning that ends (a drag of 1 stops the ball) ends its slider there.
-    expect(sliderValue("airDrag", 1000, ranges.airDrag)).toBe(1);
+    // --- uncap-all --- no setting's meaning ends any more: a drag past 1 gets the whole wide track too.
+    expect(sliderValue("airDrag", 1000, ranges.airDrag)).toBe(UNLIMITED_SLIDER_CEILING);
   });
 
   it("formats huge numbers short", () => {
@@ -220,35 +232,38 @@ describe("No limits: the slider and the numbers", () => {
     expect(formatHuge(2_500_000)).toBe("2.5M");
     expect(formatHuge(12_345)).toBe("12.3K");
     expect(formatHuge(42)).toBe("42");
-    expect(formatHuge(1e21)).toBe("1.0e21");
+    expect(formatHuge(1e21)).toBe("1e21");
     expect(formatRealTime(0.4)).toBe("0.4");
     expect(formatRealTime(0.0123)).toBe("0.01");
   });
 
-  it("knows the soft ceilings the engine runs", () => {
+  it("knows the memory-safety ceilings the engine builds at (--- uncap-all --- nothing else)", () => {
     expect(softCeiling("wallCount", ranges.wallCount)).toBe(LIVE_WALL_LIMIT);
     expect(softCeiling("ballCount", ranges.ballCount)).toBe(CROWD_LIMIT);
-    expect(softCeiling("cpCount", ranges.cpCount)).toBe(ENGINE_CEILINGS.cpCount); // --- review fix (unlimited) --- a mode's own settings go past their sliders too
     expect(softCeiling("cpCount", ranges.cpCount)).toBeGreaterThan(RANGES.cpCount.max);
-    expect(visualValue(true, "wallThickness", 1e9)).toBe(400);
-    expect(visualValue(false, "wallThickness", 1e9)).toBe(1e9);
+    expect(softCeiling("ballSpeed", ranges.ballSpeed)).toBe(Infinity);
+    // A width is drawn as typed – no wider than any canvas, the same picture.
+    expect(visualValue(1e3)).toBe(1e3);
+    expect(visualValue(1e9)).toBe(1e5);
   });
 
   it("builds the engine config: the crowd is the ball count past the team balls", () => {
-    expect(unlimitedConfigOf({ unlimited: true, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: true, crowdCount: 49_994 });
+    expect(unlimitedConfigOf({ unlimited: true, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: true, crowdCount: 49_994, memoryFull: false });
     expect(unlimitedConfigOf({ unlimited: true, ballCount: 1e12 }, 6, true).crowdCount).toBe(CROWD_LIMIT);
     expect(unlimitedConfigOf({ unlimited: true, ballCount: 50_000 }, 1, false).crowdCount).toBe(0);
-    expect(unlimitedConfigOf({ unlimited: false, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: false, crowdCount: 0 });
+    // --- uncap-all --- a Ball Count past the team balls is a crowd whatever the switch (and engages the runtime)
+    expect(unlimitedConfigOf({ unlimited: false, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: true, crowdCount: 49_994, memoryFull: false });
+    expect(unlimitedConfigOf({ unlimited: false, ballCount: 3 }, 3, true)).toEqual({ unlimited: false, crowdCount: 0, memoryFull: false });
     expect(unlimitedExtrasOf({ ...config, unlimited: true, wallBounciness: 1e6 })).toEqual({ wallBounciness: 1e6 });
     expect(unlimitedExtrasOf({ ...config, wallBounciness: 1e6 })).toEqual({});
   });
 });
 
 describe("No limits: the engine", () => {
-  it("runs at its soft ceilings and lifts the extras past their ranges", () => {
+  it("runs every value as typed (--- uncap-all --- only the rings stop at their memory-safety ceiling) and lifts the extras past their ranges", () => {
     const engine = engineFor("classic", { wallCount: 1e5, ballSpeed: 1e20, wallBounciness: 1e6, maxBalls: 1e9, windX: -1e6 });
     expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
-    expect(engine.config.ballSpeed).toBe(1e12);
+    expect(engine.config.ballSpeed).toBe(1e20);
     expect(engine.getPhysicsExtras().wallBounciness).toBe(1e6);
     expect(engine.getPhysicsExtras().windX).toBe(-1e6);
     expect(engine.getBallInteraction().maxBalls).toBe(OBJECT_BALL_LIMIT);
@@ -336,7 +351,9 @@ describe("No limits: the engine", () => {
     expect(ball.mult!.speed).toBeCloseTo(1e12, -3);
     expect(ball.mult!.damage).toBeCloseTo(1e12, -3);
     expect(effectiveBounce(ball, Infinity)).toBeCloseTo(1e12, -3);
-    expect(effectiveBounce(ball)).toBe(MAX_EFFECTIVE_BOUNCE);
+    // --- uncap-all --- no restitution cap by default any more
+    expect(MAX_EFFECTIVE_BOUNCE).toBe(Infinity);
+    expect(effectiveBounce(ball)).toBeCloseTo(1e12, -3);
     for (let i = 0; i < 90; i++) {
       engine.update(1000 / 60, 0);
       engine.consumeSoundEvents();
@@ -495,7 +512,7 @@ describe("No limits: the engine", () => {
     expect(kept.length).toBeLessThanOrEqual(MAX_SOUNDS_PER_FRAME);
     expect(kept.filter((e) => e.ate)).toHaveLength(1);
     expect(kept.filter((e) => e.type === "gap" && !e.ate).length).toBeGreaterThan(0); // the breaks still come before the bounces
-    // A ball bigger than the arena eating 50, 1,000 (and 100,000 asked) rings in one step: the page and the export hear the gulp.
+    // A ball bigger than the arena eating 7, 50 and LIVE_WALL_LIMIT (100,000 asked) rings in one step: the page and the export hear the gulp.
     for (const wallCount of [7, 50, 1e5]) {
       const engine = engineFor("classic", { wallCount, ballRadius: 1e6 });
       engine.setWallBreakStyle("all");
@@ -536,8 +553,8 @@ describe("No limits: the engine", () => {
         for (const key of unlimitedSettingKeys()) preset[key] = SEMANTIC_MAX[key] ?? Math.max(ranges[key].max, 1e9);
         if (!bigBall) preset.ballRadius = defaultSettings(mode).ballRadius;
         const s = presetToSettings(preset as Partial<SimulatorSettings>);
-        const physics = physicsConfigOfSettings(s); // (the page's config, No limits included: the switch and the crowd)
-        expect(physics).toMatchObject(unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(mode)));
+        const physics = physicsConfigOfSettings(s); // (the page's config: --- uncap-all --- engaged by the values, the crowd, ARENA FULL)
+        expect(physics).toMatchObject(uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(mode), pastAnyMemoryCeiling(s)));
         const engine = createEngineForSettings(physics, mode, modeSettingsOfSettings(s), 3);
         for (let i = 0; i < 8; i++) {
           engine.update(1000 / 60, 0);
@@ -545,15 +562,15 @@ describe("No limits: the engine", () => {
         }
         expect([mode, bigBall, allFinite(engine)]).toEqual([mode, bigBall, true]);
         expect(engine.getCircularWalls().length).toBeLessThanOrEqual(LIVE_WALL_LIMIT);
-        // (the Collision Playground resolves its own orbs with its spatial hash: up to its own ceiling of them)
-        expect(engine.getBalls().length).toBeLessThanOrEqual(mode === "collide" ? ENGINE_CEILINGS.cpCount : OBJECT_BALL_LIMIT);
+        expect(engine.getBalls().length).toBeLessThanOrEqual(Math.max(OBJECT_BALL_LIMIT, ENTITY_CEILING)); // --- uncap-all --- (a mode's own entities stop at their memory-safety ceiling)
         expect(engine.getCrowd().count).toBeLessThanOrEqual(CROWD_LIMIT);
       }
     }
   });
 
-  // --- review fix (unlimited) --- every unlimited setting reaches the engine past its slider: min(typed, its soft ceiling)
-  it("runs every mode's own settings past their sliders, up to their soft ceilings, through the page's own path", () => {
+  // --- review fix (unlimited) x uncap-all --- every setting reaches the engine past its slider, whatever the switch: min(typed,
+  // its memory-safety ceiling)
+  it("runs every mode's own settings past their sliders, as typed or at their memory-safety ceilings, through the page's own path", () => {
     /** The engine-side value of every setting a mode's engine (or the run's config) holds, under the settings' names. */
     const engineSide = (engine: ReturnType<typeof createEngineForSettings>): Record<string, number> => {
       const race = engine.getRaceSettings();
@@ -611,65 +628,94 @@ describe("No limits: the engine", () => {
     // Settings the run takes elsewhere than these, each checked in its own place: the Ball Count (team balls + the crowd,
     // "builds the engine config"), the canvas' thicknesses (`visualValue()`), the counts the page hands the engine's own
     // setters at their ceilings (`ceilValue()`: spikes, Target numbers, Multiply's spawns, Grow, the accumulation timer), the
-    // split limit (lowered by the ring count, "runs at its soft ceilings"), the paint brush (below).
+    // split limit (lowered by the ring count), the paint brush (below).
     const elsewhere = new Set(["ballCount", "wallThickness", "trailThickness", "spikeCount", "targetCount", "multiplySpawnCount", "growRate", "accumulationTime", "maxBalls", "paintBrush"]);
-    const keys = unlimitedSettingKeys();
-    // Two passes: everything typed far past its ceiling (the ceiling runs), and just past the slider (the typed value runs).
+    // (--- uncap-all --- every numeric setting is uncapped now – volumes, the recording, the camera, captions… –; the ones a
+    // mode's engine or the run's config holds are walked here, the rest round-trip in tests/uncap.test.ts)
+    const fresh = engineSide(new PhysicsEngine({ ...config }));
+    const keys = unlimitedSettingKeys().filter((key) => key in fresh);
+    expect(keys.length).toBeGreaterThan(90);
+    // Settings whose ceiling is shared with another one (the panes of every Glass Smash stage, the bobs of every pendulum chain,
+    // the screens of every lap): far past every slider at once they stop where the other one leaves room – checked just past
+    // their sliders, and in their own tests.
+    const shared = new Set(["glassStages", "dpCount", "rcLaps"]);
+    // Two passes: everything typed far past its slider with the Wide sliders switch off (a memory-safety ceiling runs, or the
+    // typed value), and just past the slider with it on (the typed value runs) – the switch changes nothing either way.
     for (const far of [true, false]) {
       const seen = new Map<string, number>();
       const typed: Record<string, number> = {};
       for (const key of keys) {
         const r = ranges[key];
         const ceiling = softCeiling(key, r);
-        typed[key] = far ? (SEMANTIC_MAX[key] ?? 1e12) : Math.min(ceiling, r.max + 3 * r.step);
+        typed[key] = far ? (SEMANTIC_MAX[key] ?? 1e9) : Math.min(ceiling, r.max + 3 * r.step);
       }
       // A mode's own settings reach only its own engine (the others keep their defaults): each key is read from the first
       // engine that holds something other than a fresh engine's default.
-      const fresh = engineSide(new PhysicsEngine({ ...config }));
       for (const mode of MODE_IDS) {
-        const s = presetToSettings({ ...defaultSettings(mode), unlimited: true, rotationEnabled: true, ...typed } as Partial<SimulatorSettings>);
+        const s = presetToSettings({ ...defaultSettings(mode), unlimited: !far, rotationEnabled: true, ...typed } as Partial<SimulatorSettings>);
+        expect(s.unlimited).toBe(!far);
         const engine = createEngineForSettings(physicsConfigOfSettings(s), mode, modeSettingsOfSettings(s), 3);
         const values = engineSide(engine);
         for (const key of keys) if (!elsewhere.has(key) && key in values && values[key] !== fresh[key] && !seen.has(key)) seen.set(key, values[key]);
       }
       for (const key of keys) {
-        if (elsewhere.has(key)) continue;
+        if (elsewhere.has(key) || (far && shared.has(key))) continue;
         const r = ranges[key];
         const want = Math.min(typed[key], softCeiling(key, r));
         expect([key, far, seen.get(key)], `${key} runs ${seen.get(key)}, want ${want}`).toEqual([key, far, expect.closeTo(want, 6)]);
       }
     }
-    // Every setting has a soft ceiling of its own past its slider – but the racers (their per-racer state is sized for the
-    // slider's 16) and the multipliers board's ball cap (its slider already ends at the full-physics limit, OBJECT_BALL_LIMIT).
-    const atSliderEnd = new Set(["rcRacers", "mpMaxBalls"]);
+    // Every ceiling lies past its slider – but the race's racers: its per-racer state and its roster are sized for the slider's
+    // 16 (RACER_CEILING = MAX_RACERS), so a grid past it builds 16 and says ARENA FULL.
+    const atSliderEnd = new Set(["rcRacers"]);
     for (const key of keys) expect([key, softCeiling(key, ranges[key]) > ranges[key].max]).toEqual([key, !atSliderEnd.has(key)]);
-    expect(liftedRanges(RANGES as unknown as Record<string, { min: number; max: number; step: number }>).glassHp.max).toBe(ENGINE_CEILINGS.glassHp);
-    // The values do what they say: thousands of panes of a billion hit points, 100,000 power layers, a thousand vortex rings.
+    expect([RACER_CEILING, MEMORY_CEILINGS.rcRacers, RANGES.rcRacers.max]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
+    const bigGrid = settingsFromSearchParams(new URLSearchParams("mode=race&rcn=40"));
+    expect([bigGrid.rcRacers, pastAnyMemoryCeiling(bigGrid)]).toEqual([40, true]);
+    const grid = createEngineForSettings(physicsConfigOfSettings(bigGrid), "race", modeSettingsOfSettings(bigGrid), 3);
+    expect([grid.getRaceSettings().racers, grid.getRaceView().racers, grid.getBalls().length]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
+    expect(allFinite(grid)).toBe(true);
+    expect(softCeiling("glassHp", ranges.glassHp)).toBe(Infinity); // (hit points allocate nothing)
+    // The values do what they say: a thousand panes a stage of a billion hit points, power layers by the thousand, long races.
     expect(stageRows(500, 3)).toBe(500);
     expect(stageHp(1e9, 4)).toBe(1e9);
     expect(stageRows(12, 9)).toBe(30); // (the slider's run is unchanged)
-    const glass = createEngineForSettings(physicsConfigOfSettings(settingsFromSearchParams(new URLSearchParams("mode=glass&inf=1&glhp=1000&glr=40"))), "glass", modeSettingsOfSettings(settingsFromSearchParams(new URLSearchParams("mode=glass&inf=1&glhp=1000&glr=40"))), 3);
+    const glassLink = settingsFromSearchParams(new URLSearchParams("mode=glass&glhp=1000&glr=40"));
+    const glass = createEngineForSettings(physicsConfigOfSettings(glassLink), "glass", modeSettingsOfSettings(glassLink), 3);
     expect(glass.getGlassView().settings.hp).toBe(1000);
     expect(glass.getGlassView().level!.panes[0].maxHp).toBe(1000);
     expect(glass.getGlassView().level!.stages[0].rows).toBe(40);
-    const pl = settingsFromSearchParams(new URLSearchParams("mode=powerLayers&inf=1&pll=100000"));
-    expect(pl.plLayers).toBe(100000);
-    const plEngine = createEngineForSettings(physicsConfigOfSettings(pl), "powerLayers", modeSettingsOfSettings(pl), 3);
-    expect(plEngine.getPowerLayersView().layers).toBe(100000);
-    // The finder plans the run the engine plays: a fixed length from the lifted settings.
-    expect(fixedRunDurationSec("powerLayers", modeSettingsOfSettings(pl), true)).toBe(powerLayersFixedDurationSec({ layers: 100000 }, true));
-    expect(fixedRunDurationSec("powerLayers", modeSettingsOfSettings(pl), true)).not.toBe(fixedRunDurationSec("powerLayers", modeSettingsOfSettings(pl), false));
-    // The brush of Picture Paint: past its slider with the switch on, at its ceiling at most.
+    // Power Layers: 4,000 layers run as typed, 100,000 at the layers' memory-safety ceiling (the link keeps the typed value),
+    // and the finder plans the run the engine plays: its fixed length from the settings as the engine resolves them.
+    for (const [asked, runs] of [[4000, 4000], [100_000, MEMORY_CEILINGS.plLayers]]) {
+      const pl = settingsFromSearchParams(new URLSearchParams(`mode=powerLayers&pll=${asked}`));
+      expect(pl.plLayers).toBe(asked);
+      const plEngine = createEngineForSettings(physicsConfigOfSettings(pl), "powerLayers", modeSettingsOfSettings(pl), 3);
+      expect(plEngine.getPowerLayersView().layers).toBe(runs);
+      expect(fixedRunDurationSec("powerLayers", modeSettingsOfSettings(pl))).toBe(powerLayersFixedDurationSec({ layers: runs }));
+    }
+    // The race track follows the settings past their sliders: 30 screens, 7 laps – every lap's rows together at most the
+    // track's ceiling of screens.
+    const longRace = settingsFromSearchParams(new URLSearchParams("mode=race&rcl=30&rclp=7"));
+    const raceEngine = createEngineForSettings(physicsConfigOfSettings(longRace), "race", modeSettingsOfSettings(longRace), 3);
+    expect(raceEngine.getRaceSettings()).toMatchObject({ trackLength: 30, laps: 7 });
+    expect(raceEngine.getRaceView().track!.laps).toBe(7);
+    expect(resolveRaceTrackSettings({ trackLength: 1e9, laps: 1e9 })).toMatchObject({ trackLength: MEMORY_CEILINGS.rcTrackLength, laps: 1 });
+    expect(resolveRaceTrackSettings({ trackLength: 50, laps: 1e9 }).laps).toBe(RACE_SCREEN_CEILING / 50);
+    // The brush of Picture Paint: past its slider as typed, and the run paints on.
     const paint = engineFor("paint");
     paint.setPaintOptions({ brush: 50 });
     expect(paint.getPaintOptions().brush).toBe(50);
     paint.setPaintOptions({ brush: 1e12 });
-    expect(paint.getPaintOptions().brush).toBe(ENGINE_CEILINGS.paintBrush);
+    expect(paint.getPaintOptions().brush).toBe(1e12);
+    for (let i = 0; i < 10; i++) paint.update(1000 / 60, 0);
+    expect(allFinite(paint)).toBe(true);
   });
 
   // --- unlimited --- String Battle past the slider's MAX_TEAMS: every slot keeps its kill record (a typed array never grows)
+  // (--- uncap-all --- with the Wide sliders switch off: the limits are gone either way)
   it("credits every String Battle elimination to its killer with more balls than the slider's six", () => {
-    const s = presetToSettings({ ...defaultSettings("stringBattle"), unlimited: true, sbBalls: 20, sbLives: 1 } as Partial<SimulatorSettings>);
+    const s = presetToSettings({ ...defaultSettings("stringBattle"), unlimited: false, sbBalls: 20, sbLives: 1 } as Partial<SimulatorSettings>);
     const engine = createEngineForSettings(physicsConfigOfSettings(s), "stringBattle", modeSettingsOfSettings(s), 5);
     const view = engine.getStringBattleView();
     for (let i = 0; i < 60 * 120 && !view.finished; i++) engine.update(1000 / 60, 0);
@@ -680,6 +726,27 @@ describe("No limits: the engine", () => {
     // Seed 5's battle: every ball cut down by another one, slots past the sixth included.
     expect(view.fighters.reduce((sum, f) => sum + f.kills, 0)).toBe(eliminated);
     expect(view.fighters.slice(6).some((f) => f.kills > 0)).toBe(true);
+  });
+
+  // --- review fix (unlimited) x uncap-all --- Bullseye past the slider's 30 shots and 10 rings: the arrays grow before the
+  // seed's draws, so a fresh engine's first run (the finder's) and a restart (the page's) play the same run
+  it("grows Bullseye's arrays before the seed's draws: past the slider a fresh engine and a restart play the same run", () => {
+    const s = presetToSettings({ ...defaultSettings("bullseye"), unlimited: false, byShots: 40, byRings: 200, byInterval: 0.3 } as Partial<SimulatorSettings>);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "bullseye", modeSettingsOfSettings(s), 9);
+    const play = () => {
+      for (let i = 0; i < 60 * 20; i++) engine.update(1000 / 60, 0);
+      const v = engine.getBullseyeView();
+      return { launched: v.launched, landed: v.landed, total: v.total, x: Array.from(v.shotX), rings: Array.from(v.shotRing), scores: Array.from(v.shotScore) };
+    };
+    const first = play();
+    engine.setSeed(9);
+    engine.initMode("bullseye");
+    const again = play();
+    expect(first.launched).toBe(40);
+    expect(first.x).toHaveLength(40);
+    expect(again).toEqual(first);
+    // Every landing's score is its ring's (no ring index wrapped round a narrow typed array).
+    for (let k = 0; k < 40; k++) if (first.rings[k] >= 0) expect(first.scores[k]).toBe(ringScore(first.rings[k], 200));
   });
 
   it("fits a ball into a thousand rings in one quick pass, exactly as the multipliers' ring fit does", () => {

@@ -130,7 +130,7 @@ describe("music bed offsets", () => {
 describe("normalizeMusicOptions", () => {
   it("clamps every field and keeps the base value for invalid numbers", () => {
     const base = DEFAULT_MUSIC_OPTIONS;
-    expect(normalizeMusicOptions({ volume: 3, ducking: -1, releaseMs: 0, startOffset: -4, loop: false }, base)).toEqual({ volume: 1, ducking: 0, releaseMs: 1, startOffset: 0, loop: false });
+    expect(normalizeMusicOptions({ volume: 3, ducking: -1, releaseMs: 0, startOffset: -4, loop: false }, base)).toEqual({ volume: 3, ducking: 0, releaseMs: 1, startOffset: 0, loop: false }); // --- uncap-all --- (volume has no maximum)
     expect(normalizeMusicOptions({ volume: Number.NaN, releaseMs: Number.POSITIVE_INFINITY }, base)).toEqual(base);
     expect(normalizeMusicOptions({}, base)).toEqual(base);
   });
@@ -464,10 +464,10 @@ describe("music bed settings", () => {
 
   it("clamps out-of-range URL values to the slider ranges", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mv=7&md=-1&mdr=5&mso=9999&mloop=0"));
-    expect(s.musicVolume).toBe(1);
+    expect(s.musicVolume).toBe(7); // --- uncap-all --- (no maximum)
     expect(s.musicDucking).toBe(0);
     expect(s.musicDuckRelease).toBe(50);
-    expect(s.musicStartOffset).toBe(600);
+    expect(s.musicStartOffset).toBe(9999);
     expect(s.musicLoop).toBe(false);
   });
 
@@ -477,7 +477,7 @@ describe("music bed settings", () => {
     expect(old.musicDuckRelease).toBe(250);
     expect(old.musicLoop).toBe(true);
     const bad = presetToSettings({ mode: "classic", musicVolume: 4, musicDucking: "loud", musicDuckRelease: -20, musicLoop: "yes", musicStartOffset: 5 } as unknown as Partial<SimulatorSettings>);
-    expect(bad.musicVolume).toBe(1);
+    expect(bad.musicVolume).toBe(4); // --- uncap-all --- (no maximum)
     expect(bad.musicDucking).toBe(0.6);
     expect(bad.musicDuckRelease).toBe(50);
     expect(bad.musicLoop).toBe(true);

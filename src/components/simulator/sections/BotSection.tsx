@@ -9,6 +9,8 @@ import type { ClipPlan } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE } from "@/lib/bot/store";
 import type { ModeId } from "@/lib/physics/types";
 import type { BotPanelProps } from "../useViralBot";
+import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
 
 export type { BotPanelProps } from "../useViralBot";
 
@@ -28,7 +30,7 @@ function modeLabel(t: Translate, mode: ModeId): string {
   return t.has(key) ? t(key) : mode;
 }
 
-const scoreTone = (score: number) => (score >= 90 ? "bg-[#93d119] text-slate-950" : score >= 75 ? "bg-amber-400 text-slate-950" : "bg-red-500 text-white");
+const scoreTone = (score: number) => (score >= 90 ? "bg-accent text-accent-ink" : score >= 75 ? "bg-warn text-accent-ink" : "bg-danger text-ink");
 
 function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Translate; bot: BotPanelProps }) {
   const [copied, setCopied] = useState(false);
@@ -45,14 +47,14 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
     }
   };
   return (
-    <li className="rounded-lg bg-zinc-800/50 border border-zinc-700/40 px-2.5 py-2 text-xs space-y-1.5" data-bot-clip={clip.id} data-bot-recipe={clip.recipe} data-bot-score={clip.score} data-bot-ending={clip.ending} data-bot-seed={clip.seed}>
+    <li className="rounded-lg bg-surface-2/50 border border-line-strong/40 px-2.5 py-2 text-xs space-y-1.5" data-bot-clip={clip.id} data-bot-recipe={clip.recipe} data-bot-score={clip.score} data-bot-ending={clip.ending} data-bot-seed={clip.seed}>
       <div className="flex items-start gap-2">
-        <span className="text-zinc-500 tabular-nums w-5 shrink-0">{clip.index}.</span>
+        <span className="text-ink-3 tabular-nums w-5 shrink-0">{clip.index}.</span>
         <div className="flex-1 min-w-0">
-          <div className="text-zinc-100 font-medium truncate">
-            {name} <span className="text-zinc-500 font-normal">· {modeLabel(t, clip.mode)}</span>
+          <div className="text-ink font-medium truncate">
+            {name} <span className="text-ink-3 font-normal">· {modeLabel(t, clip.mode)}</span>
           </div>
-          <div className="text-zinc-300 italic truncate" title={clip.hook}>
+          <div className="text-ink-2 italic truncate" title={clip.hook}>
             “{clip.hook}”
           </div>
         </div>
@@ -60,26 +62,26 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
           {clip.score}
         </span>
       </div>
-      <div className="pl-7 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-zinc-400 tabular-nums">
+      <div className="pl-7 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2 tabular-nums">
         <span>{b("seed", { seed: clip.seed })}</span>
         <span>· {b("length", { sec: clip.timing.clipSec.toFixed(1) })}</span>
         <span>· {b(`endings.${clip.ending}`)}</span>
         <span>· {b(`payoffTypes.${clip.payoff.type}`)}</span>
         {clip.post.time && <span>· {clip.post.time}</span>}
       </div>
-      {!clip.timing.found && <p className="pl-7 text-[11px] text-amber-300">{b("closest")}</p>}
+      {!clip.timing.found && <p className="pl-7 text-xs text-warn">{b("closest")}</p>}
       <details className="pl-7">
-        <summary className="cursor-pointer text-[11px] text-[#93d119] select-none">{b("why")}</summary>
+        <summary className="cursor-pointer text-xs text-accent select-none">{b("why")}</summary>
         <ul className="mt-1 space-y-0.5">
           {clip.reasons.map((r) => (
-            <li key={r.id} className="flex gap-1.5 text-[11px] leading-snug">
-              <span aria-hidden="true" className={r.points === r.max ? "text-[#93d119]" : r.points > 0 ? "text-amber-300" : "text-red-400"}>
+            <li key={r.id} className="flex gap-1.5 text-xs leading-snug">
+              <span aria-hidden="true" className={r.points === r.max ? "text-accent" : r.points > 0 ? "text-warn" : "text-danger"}>
                 {r.points === r.max ? "✓" : r.points > 0 ? "◐" : "✕"}
               </span>
-              <span className="flex-1 text-zinc-300">
-                <span className="text-zinc-500">{b(`checklist.${r.id}`)}:</span> {b(`reasons.${r.key}`, r.values)}
+              <span className="flex-1 text-ink-2">
+                <span className="text-ink-3">{b(`checklist.${r.id}`)}:</span> {b(`reasons.${r.key}`, r.values)}
               </span>
-              <span className="text-zinc-500 tabular-nums">
+              <span className="text-ink-3 tabular-nums">
                 {r.points}/{r.max}
               </span>
             </li>
@@ -87,14 +89,14 @@ function ClipRow({ clip, t, b, bot }: { clip: ClipPlan; t: Translate; b: Transla
         </ul>
       </details>
       <div className="pl-7 flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => bot.onOpen(clip.id)} disabled={busy} className="px-2 py-1 rounded-md bg-zinc-700 text-zinc-100 hover:bg-zinc-600 disabled:opacity-40 cursor-pointer">
+        <button type="button" onClick={() => bot.onOpen(clip.id)} disabled={busy} className="px-2 py-1 rounded-md bg-surface-3 text-ink hover:bg-surface-3 disabled:opacity-40 cursor-pointer">
           ▶ {b("open")}
         </button>
-        <button type="button" onClick={() => bot.onReroll(clip.id)} disabled={busy} className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 cursor-pointer">
-          {bot.rerolling === clip.id ? "…" : "🎲"} {b("reroll")}
+        <button type="button" onClick={() => bot.onReroll(clip.id)} disabled={busy} className="px-2 py-1 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 disabled:opacity-40 cursor-pointer">
+          {bot.rerolling === clip.id ? "…" : <IconRestart size={14} />} {b("reroll")}
         </button>
-        <button type="button" onClick={() => void copy()} className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 cursor-pointer">
-          {copied ? b("copied") : `📋 ${b("copyCaption")}`}
+        <button type="button" onClick={() => void copy()} className="px-2 py-1 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 cursor-pointer">
+          {copied ? b("copied") : `${b("copyCaption")}`}
         </button>
       </div>
     </li>
@@ -112,15 +114,12 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
 
   return (
     <Searchable search={search} matches={matches} labelKey="viralBot">
-      <div className="space-y-3 border-t border-zinc-800 pt-3" data-bot={status} data-bot-clips={plan?.clips.length ?? 0} data-bot-rendered={bot.render.done}>
-        <span className="text-sm font-medium text-zinc-300 flex items-center">
-          <span aria-hidden="true" className="mr-1.5">
-            🤖
-          </span>
+      <div className="space-y-3 border-t border-line pt-3" data-bot={status} data-bot-clips={plan?.clips.length ?? 0} data-bot-rendered={bot.render.done}>
+        <span className="text-sm font-medium text-ink-2 flex items-center">
           {t("viralBot")}
           <Tooltip text={t("viralBotTip")} />
         </span>
-        <p className="text-[11px] text-zinc-500 leading-snug">{b("intro")}</p>
+        <p className="text-xs text-ink-3 leading-snug">{b("intro")}</p>
 
         <div className="grid grid-cols-3 gap-2" role="group" aria-label={b("platform")}>
           {BOT_PLATFORMS.map((p) => (
@@ -131,9 +130,9 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-zinc-400 flex items-center justify-between" htmlFor="bot-count">
+          <label className="text-xs text-ink-2 flex items-center justify-between" htmlFor="bot-count">
             <span>{b("count")}</span>
-            <span className="text-zinc-500 tabular-nums">{o.count}</span>
+            <span className="text-ink-3 tabular-nums">{o.count}</span>
           </label>
           <input
             id="bot-count"
@@ -144,14 +143,15 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             value={o.count}
             disabled={busy}
             onChange={(e) => bot.setOptions({ count: Number(e.target.value) })}
-            className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
             style={sliderStyle(o.count, BOT_COUNT_RANGE.min, BOT_COUNT_RANGE.max)}
             aria-label={b("count")}
           />
+          <NumberField value={o.count} onCommit={(v) => bot.setOptions({ count: v })} label={b("count")} range={BOT_COUNT_RANGE} rules={{ min: BOT_COUNT_RANGE.min, integer: true }} disabled={busy} settingKey="botCount" /* --- uncap-all --- */ />
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <label className="flex flex-col gap-1 text-[11px] text-zinc-400" htmlFor="bot-family">
+          <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-family">
             {b("family")}
             <select id="bot-family" value={o.family} disabled={busy} onChange={(e) => bot.setOptions({ family: e.target.value as BotFamily | "all" })} className={`${selectClass} text-xs px-2`}>
               <option value="all">{b("familyAll")}</option>
@@ -162,7 +162,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[11px] text-zinc-400" htmlFor="bot-bucket">
+          <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-bucket">
             {b("bucket")}
             <select id="bot-bucket" value={o.bucket} disabled={busy} onChange={(e) => bot.setOptions({ bucket: e.target.value as LengthBucket | "auto" })} className={`${selectClass} text-xs px-2`}>
               <option value="auto">{b("buckets.auto")}</option>
@@ -173,7 +173,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[11px] text-zinc-400" htmlFor="bot-ending">
+          <label className="flex flex-col gap-1 text-xs text-ink-2" htmlFor="bot-ending">
             {b("ending")}
             <select id="bot-ending" value={o.ending} disabled={busy} onChange={(e) => bot.setOptions({ ending: e.target.value as EndingChoice })} className={`${selectClass} text-xs px-2`}>
               {ENDING_CHOICES.map((k) => (
@@ -186,62 +186,62 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={bot.onPlan} disabled={busy} className="px-3 py-2.5 rounded-xl font-bold text-sm cursor-pointer bg-[#93d119] text-slate-950 hover:bg-[#a4e02a] disabled:opacity-40 disabled:cursor-not-allowed">
-            🧠 {b("planClips")}
+          <button type="button" onClick={bot.onPlan} disabled={busy} className="px-3 py-2.5 rounded-xl font-bold text-sm cursor-pointer bg-accent text-accent-ink hover:bg-accent-strong disabled:opacity-40 disabled:cursor-not-allowed">
+            {b("planClips")}
           </button>
-          <button type="button" onClick={bot.onToday} disabled={busy} className="px-3 py-2.5 rounded-xl font-bold text-sm cursor-pointer border border-[#93d119]/60 text-[#93d119] bg-zinc-900/40 hover:bg-[#93d119]/10 disabled:opacity-40 disabled:cursor-not-allowed">
-            📅 {b("today")}
+          <button type="button" onClick={bot.onToday} disabled={busy} className="px-3 py-2.5 rounded-xl font-bold text-sm cursor-pointer border border-accent/60 text-accent bg-surface-1/40 hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed">
+            {b("today")}
           </button>
         </div>
 
         {bot.planning && (
-          <div className="flex items-center justify-between gap-2 text-xs text-zinc-300" role="status">
+          <div className="flex items-center justify-between gap-2 text-xs text-ink-2" role="status">
             <span className="tabular-nums">{b("planning", { current: bot.planning.current, total: bot.planning.total, seeds: bot.planning.seeds })}</span>
-            <button type="button" onClick={bot.onCancel} className="px-2.5 py-1 rounded-md bg-zinc-700 text-zinc-200 hover:bg-zinc-600 cursor-pointer">
+            <button type="button" onClick={bot.onCancel} className="px-2.5 py-1 rounded-md bg-surface-3 text-ink hover:bg-surface-3 cursor-pointer">
               {b("cancel")}
             </button>
           </div>
         )}
 
-        {!plan && !bot.planning && <p className="text-[11px] text-zinc-500 leading-snug">{b("empty")}</p>}
+        {!plan && !bot.planning && <p className="text-xs text-ink-3 leading-snug">{b("empty")}</p>}
 
         {plan && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+            <div className="flex items-center justify-between gap-2 text-xs text-ink-2">
               <span>{b("planFor", { count: plan.clips.length, date: plan.date, platform: b(`platforms.${plan.platform}`) })}</span>
-              <button type="button" onClick={bot.onClear} disabled={busy} className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 cursor-pointer">
+              <button type="button" onClick={bot.onClear} disabled={busy} className="px-2 py-0.5 rounded-md bg-surface-2 text-ink-2 hover:bg-surface-3 disabled:opacity-40 cursor-pointer">
                 {b("clear")}
               </button>
             </div>
-            {bot.worldChanged && <p className="text-[11px] text-amber-300 leading-snug">{b("worldChanged")}</p>}
+            {bot.worldChanged && <p className="text-xs text-warn leading-snug">{b("worldChanged")}</p>}
             <ol className="space-y-1.5 max-h-[28rem] overflow-y-auto pr-1 custom-scrollbar" aria-label={b("title")}>
               {plan.clips.map((clip) => (
                 <ClipRow key={clip.id} clip={clip} t={t} b={b} bot={bot} />
               ))}
             </ol>
-            <p className="text-[11px] text-zinc-500 leading-snug">{b("notes")}</p>
-            <button type="button" onClick={bot.onRenderAll} disabled={!canRender} className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#93d119]/60 text-[#93d119] bg-zinc-900/40 hover:bg-[#93d119]/10 disabled:opacity-40 disabled:cursor-not-allowed">
-              <span aria-hidden="true">🎬</span> {b("renderAll")}
+            <p className="text-xs text-ink-3 leading-snug">{b("notes")}</p>
+            <button type="button" onClick={bot.onRenderAll} disabled={!canRender} className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-accent/60 text-accent bg-surface-1/40 hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed">
+              <IconVideo size={16} /> {b("renderAll")}
             </button>
             {rendering && (
               <div className="space-y-1.5" role="status">
-                <div className="flex items-center justify-between gap-2 text-xs text-zinc-300">
+                <div className="flex items-center justify-between gap-2 text-xs text-ink-2">
                   <span className="tabular-nums">{b("rendering", { current: bot.renderCurrent, total: bot.render.total })}</span>
-                  <button type="button" onClick={bot.onStop} className="px-2.5 py-1 rounded-md bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-xs cursor-pointer">
+                  <button type="button" onClick={bot.onStop} className="px-2.5 py-1 rounded-md bg-surface-3 text-ink hover:bg-surface-3 text-xs cursor-pointer">
                     {b("stop")}
                   </button>
                 </div>
                 {bot.renderProgress !== null && (
-                  <div className="h-1.5 rounded-full bg-zinc-900 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(100 * bot.renderProgress)}>
-                    <div className="h-full rounded-full bg-[#93d119] transition-[width] duration-150" style={{ width: `${Math.round(100 * bot.renderProgress)}%` }} />
+                  <div className="h-1.5 rounded-full bg-surface-1 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(100 * bot.renderProgress)}>
+                    <div className="h-full rounded-full bg-accent transition-[width] duration-150" style={{ width: `${Math.round(100 * bot.renderProgress)}%` }} />
                   </div>
                 )}
               </div>
             )}
-            {bot.render.status === "done" && <p className="text-[11px] text-[#93d119] leading-snug">{b("renderDone", { done: bot.render.done, total: bot.render.total })}</p>}
-            {bot.render.status === "failed" && <p className="text-[11px] text-red-400 leading-snug">{b("renderFailed")}</p>}
-            {bot.supported === false && <p className="text-[11px] text-amber-300 leading-snug">{b("unsupported")}</p>}
-            {bot.disabled && !busy && <p className="text-[11px] text-zinc-500 leading-snug" data-testid={bot.splitRace ? "bot-split-race" : undefined}>{b(bot.splitRace ? "splitRace" : "busy")}</p>}{/* --- split-screen --- */}
+            {bot.render.status === "done" && <p className="text-xs text-accent leading-snug">{b("renderDone", { done: bot.render.done, total: bot.render.total })}</p>}
+            {bot.render.status === "failed" && <p className="text-xs text-danger leading-snug">{b("renderFailed")}</p>}
+            {bot.supported === false && <p className="text-xs text-warn leading-snug">{b("unsupported")}</p>}
+            {bot.disabled && !busy && <p className="text-xs text-ink-3 leading-snug" data-testid={bot.splitRace ? "bot-split-race" : undefined}>{b(bot.splitRace ? "splitRace" : "busy")}</p>}{/* --- split-screen --- */}
           </div>
         )}
       </div>

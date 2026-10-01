@@ -1,6 +1,5 @@
 {
   "Headings": {
-    "features": "Funciones y personalización",
     "modes": "Modos de juego",
     "modesEscape": "Modos de escape",
     "modesRhythm": "Modos de ritmo y polirritmia",
@@ -11,22 +10,10 @@
   },
   "Navbar": {
     "simulator": "Simulador",
-    "modes": "Modos",
-    "features": "Funciones",
-    "faq": "FAQ",
     "goHome": "Ir al inicio",
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú",
-    "back": "← Volver",
-    "backToSimulator": "← Volver al simulador"
-  },
-  "Hero": {
-    "title1": "Física de pelotas satisfactoria",
-    "title2": "para TikTok y Reels",
-    "subtitle": "Crea simulaciones hipnóticas de pelotas rebotando en tu navegador: ajusta la física, apila efectos arcoíris, elige uno de los {count} modos y exporta un MP4 vertical listo para publicar. Gratis, sin cuenta y sin instalar nada.",
-    "startCreating": "Empezar a crear",
-    "exploreModes": "Explorar modos",
-    "mobileNotice": "Para la mejor experiencia usa un navegador de escritorio o portátil. Los controles están optimizados para pantallas grandes."
+    "back": "Volver"
   },
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",
@@ -53,13 +40,13 @@
   "Simulator": {
     "stopRecording": "REC",
     "restart": "Reiniciar",
-    "resume": "▶ Reanudar",
-    "pause": "⏸ Pausa",
-    "restartSimulation": "🔄 Reiniciar simulación",
+    "resume": "Reanudar",
+    "pause": "Pausa",
+    "restartSimulation": "Reiniciar simulación",
     "ready": "Listo para iniciar la simulación",
     "readyToStartSimulationFor": "Listo para iniciar una simulación de {duration}s",
-    "doNotChangeSettingsWarning": "⚠️ No cambies los ajustes durante la reproducción para mantener la precisión de la simulación.",
-    "startSimulator": "▶ Iniciar simulador",
+    "doNotChangeSettingsWarning": "No cambies los ajustes durante la reproducción para mantener la precisión de la simulación.",
+    "startSimulator": "Iniciar simulador",
     "stopRecordingTooltip": "Detener la grabación y exportar el vídeo",
     "restartTooltip": "Reiniciar (R)",
     "canvasEscaped": "¡ESCAPÓ!",
@@ -194,12 +181,12 @@
     "canvasRacePoints": "pts"
   },
   "HowItWorks": {
-    "step1": { "title": "Elige un modo", "description": "Elige uno de los {count} modos de simulación: anillos clásicos, rastros de pintura, fragmentación, coincidencia de color, crecimiento, caída de pelotas y más." },
+    "step1": { "title": "Elige un modo", "description": "Elige uno de los {count} modos: anillos de escape, máquinas de ritmo, duelos y viajes." },
     "step2": { "title": "Personaliza todo", "description": "Ajusta la física, los colores, los efectos, los textos y el aspecto de la pelota hasta que el clip se sienta tuyo." },
     "step3": { "title": "Exporta y comparte", "description": "Graba la simulación como MP4 en cualquier resolución, incluido el formato vertical de TikTok, y publícala donde quieras." }
   },
   "Controls": {
-    "modeDisplay": "Cambiar modo ↓",
+    "modeDisplay": "Cambiar modo",
     "accumulationEscape": "Tiempo de escape",
     "accumulationEscapeTip": "Segundos que tiene la pelota para escapar antes de congelarse en su sitio.",
     "spikes": "Púas",
@@ -209,7 +196,7 @@
     "spawnCount": "Pelotas generadas",
     "spawnCountTip": "Cuántas pelotas nuevas aparecen cada vez que una escapa de una pared.",
     "lineColor": "Color de línea",
-    "rainbowSettings": "🌈 Arcoíris",
+    "rainbowSettings": "Arcoíris",
     "targetCount": "Número de objetivos",
     "targetCountTip": "Cuántos segmentos numerados colocar en la pared.",
     "randomOrder": "Orden aleatorio",
@@ -226,8 +213,8 @@
     "twoBalls": "Dos pelotas",
     "twoBallsTip": "Añade una segunda pelota que se mueve en dirección opuesta para el doble de acción.",
     "ballColor2": "Color de la segunda pelota",
-    "bouncier": "Más rebote en cada golpe",
-    "bouncierTip": "La pelota se acelera con cada rebote en la pared, ganando impulso hasta que escapa.",
+    "bouncier": "Rebote",
+    "bouncierTip": "Cada rebote en la pared suma al rebote (Rebote − 1) × la velocidad de la bola, sin ningún techo: 1 = desactivado, 1,03 = el clásico «más rebote en cada golpe», 3 = +200 % por rebote, 1e6 = un millón de veces. La bola acelera hasta escapar… o romper la página.",
     "ballInteraction": "Interacción entre pelotas",
     "ballInteractionTip": "Qué hacen las pelotas entre sí: rebotan (por defecto), se fusionan en una pelota más grande al tocarse, se dividen en dos cada vez que una atraviesa una pared, o se atraviesan sin tocarse. Determinista: los enlaces compartidos, los ajustes guardados y Buscar simulación lo incluyen.",
     "interactionBounce": "Rebote",
@@ -295,11 +282,11 @@
     "trailThicknessTip": "Qué tan grueso es el rastro de la pelota. Valores altos crean una estela más marcada.",
     "wallBreakEffect": "Efecto de ruptura",
     "wallBreakEffectTip": "Efecto visual que se reproduce cuando la pelota atraviesa una pared.",
-    "effectConfetti": "🎊 Confeti",
-    "effectShatter": "💎 Fragmentación",
-    "effectShockwave": "💫 Onda expansiva",
-    "effectAll": "✨ Todos",
-    "effectNone": "🚫 Ninguno",
+    "effectConfetti": "Confeti",
+    "effectShatter": "Fragmentación",
+    "effectShockwave": "Onda expansiva",
+    "effectAll": "Todos",
+    "effectNone": "Ninguno",
     "wallBreakSound": "Sonido de ruptura",
     "wallBreakSoundDesc": "Reproduce un clip de audio personalizado en lugar de los tonos por defecto cuando la pelota atraviesa una pared.",
     "wallBreakSoundDefault": "Tonos por defecto",
@@ -572,7 +559,7 @@
     "modeTitle": "Modo",
     "recording": "Grabación",
     "uploadPlaceholder": "Subir imagen",
-    "finderTitle": "Buscador de simulaciones 🔍",
+    "finderTitle": "Buscador de simulaciones",
     "finderDesc": "Encuentra una semilla de simulación que dure exactamente lo que elijas, teniendo en cuenta todos tus ajustes.",
     "targetDuration": "Duración objetivo",
     "searching": "Simulando combinaciones...",
@@ -1128,7 +1115,7 @@
     "plRunChaos": "Caos: la semilla decide cuántos golpes hay ({period}s por rebote), así que el Buscador de simulaciones puede buscar una duración.",
     "plFixedRunLength": "Siempre {duration}s con estos ajustes: cambia las capas, la secuencia o la velocidad de rebote",
     "fastExportFps": "Fotogramas de la exportación rápida",
-    "fastExportFpsTip": "Fotogramas por segundo de la ⚡ exportación rápida: 60 es lo más fluido, 30 da un archivo más pequeño y termina antes. La física siempre calcula 60 pasos por segundo, así que la partida y sus sonidos son iguales en ambos casos.",
+    "fastExportFpsTip": "Fotogramas por segundo de la exportación rápida: 60 es lo más fluido, 30 da un archivo más pequeño y termina antes. La física siempre calcula 60 pasos por segundo, así que la partida y sus sonidos son iguales en ambos casos.",
     "fastExportFps30": "30 fps",
     "fastExportFps60": "60 fps",
     "projectFiles": "Archivo de proyecto",
@@ -1479,7 +1466,7 @@
     "publishTip": "Envía el clip terminado a tus cuentas de TikTok, Instagram y YouTube – varias por plataforma – con un clic: a YouTube directamente desde el navegador, a TikTok e Instagram a través de un pequeño relay que alojas tú, o con los botones de compartir sin configuración.",
     "publishAccounts": "Cuentas (TikTok, Instagram, YouTube)",
     "publishQuickShare": "Envío rápido",
-    "unlimited": "Sin límites"
+    "unlimited": "Deslizadores amplios"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -1571,21 +1558,6 @@
       "description": "Una pelota cae sobre tablas, bloques, muelles, cuñas, barras giratorias y tambores que entran volando desde fuera de la pantalla justo antes de cada pulso, así que cada aterrizaje cae exactamente en el pulso, con un bombo, una caja o la siguiente nota de tu canción."
     }
   },
-  "Features": {
-    "wallBreak": { "name": "Efectos de ruptura", "description": "Confeti, cristal roto, onda expansiva, los tres a la vez o ninguno. Cada vez que la pelota atraviesa una pared, se reproduce el efecto elegido." },
-    "rainbowWalls": { "name": "Paredes arcoíris", "description": "Las paredes recorren el espectro en dos estilos: un degradado suave en todos los anillos o un pulso reactivo que destella color con cada golpe." },
-    "glow": { "name": "Brillo de pelota y paredes", "description": "Activa por separado un brillo suave alrededor de la pelota y un destello en las paredes para conseguir justo el resplandor que quieres." },
-    "colorTrail": { "name": "Rastro de color", "description": "La pelota deja una estela vívida de tono cambiante, para que el movimiento rápido parezca intencional y no caótico." },
-    "reactiveBg": { "name": "Fondo reactivo", "description": "El fondo pulsa y cambia de color con cada rebote, haciendo que cada golpe se sienta más contundente." },
-    "bouncier": { "name": "Rebote creciente", "description": "La pelota se acelera con cada golpe en la pared hasta que por fin se libera; entonces el impulso se reinicia para el siguiente anillo." },
-    "customBall": { "name": "Imagen personalizada", "description": "Sustituye la pelota por tu propia imagen o un emoji: un logo, una cara, un producto. Se escala y se mueve con la pelota." },
-    "textOverlays": { "name": "Textos superpuestos", "description": "Añade un texto superior y otro inferior de tamaño ajustable para ganchos, marca o llamadas a la acción, integrados en la exportación." },
-    "spikes": { "name": "Púas", "description": "Añade púas hacia dentro en la pared exterior que congelan la pelota al contacto, subiendo la tensión en el modo Acumulación." },
-    "videoExport": { "name": "Exportación de vídeo", "description": "Graba la simulación como MP4 en formato cuadrado, HD, Full HD o vertical de TikTok (1080×1920), con una duración de 10 a 120 segundos." },
-    "savePresets": { "name": "Guardar y cargar presets", "description": "Guarda toda la configuración, modo, colores, física y efectos, en tu navegador y cárgala con un clic." },
-    "watermark": { "name": "Marca de agua", "description": "Estampa tu usuario tenuemente en el centro del anillo para que las republicaciones sigan dándote crédito." },
-    "customSound": { "name": "Sonido personalizado", "description": "Elige una melodía de la biblioteca integrada o importa tu propio archivo MIDI: cada golpe en la pared toca la siguiente nota. También puedes reproducir en cada rebote un clip de audio, integrado o subido por ti, o subir una canción entera y dejar que cada rebote reproduzca su siguiente trozo. Elige uno de siete instrumentos, ajusta cada rebote a una escala musical y sincroniza los sonidos con una rejilla de BPM." }
-  },
   "FAQ": {
     "q1": { "question": "¿{siteName} es gratis?", "answer": "Sí. El simulador, todos los modos, todas las opciones de personalización y la exportación de vídeo son gratuitos, y no hay que crear ninguna cuenta." },
     "q2": { "question": "¿Qué formatos y resoluciones de vídeo puedo exportar?", "answer": "Puedes grabar clips de 500×500 (cuadrado), 1280×720 (HD), 1920×1080 (Full HD) y 1080×1920 (vertical, TikTok) de entre 10 y 120 segundos. Los navegadores que admiten grabación MP4 exportan MP4; el resto exporta WebM." },
@@ -1598,67 +1570,6 @@
     "q9": { "question": "¿Cómo funciona el sonido personalizado?", "answer": "En la sección Sonido personalizado, elige una canción de la biblioteca integrada o importa un archivo MIDI. La melodía se extrae del archivo y cada golpe en la pared toca su siguiente nota, convirtiendo la simulación en una actuación musical. ¿Prefieres un efecto de sonido? Cambia Sonido de rebote a Muestra de audio y elige un clic, una cuerda o un bombo integrados, o sube tu propio clip: sonará con un tono distinto en cada pared y se incluirá en la grabación." },
     "q10": { "question": "¿Qué hace que {siteName} sea tan satisfactorio?", "answer": "El bucle es simple: una pelota rebota dentro de anillos con huecos diminutos y cada vez que se cuela ocurre algo gratificante: confeti, una rotura, una onda expansiva. Como controlas la física, los colores y los efectos, la tensión y la recompensa se ven exactamente como quieres." },
     "q11": { "question": "¿Puedo usar {siteName} como un clicker satisfactorio?", "answer": "No es un juego clicker, pero cubre la misma necesidad. Miras, anticipas el hueco y recibes efectos y sonido como recompensa en cada escape. La simulación se ejecuta sola, así que es la satisfacción sin tener que tocar nada." }
-  },
-  "AboutTool": {
-    "badge": "Sobre la herramienta",
-    "title": "Qué es realmente {siteName}",
-    "p1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros, pulsa grabar y descarga el clip. No hay cuenta, instalación ni editor de vídeo; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
-    "p2": "El formato funciona porque es simple. Una pelota rebota dentro de un anillo con un hueco. Cada vez que se cuela, algo se recompensa: una pared se rompe, la pelota se multiplica, el color inunda la pantalla, se acierta un objetivo. El espectador quiere saber cómo acaba, así que sigue mirando. Ese pequeño bucle de tensión y alivio es lo que genera las visualizaciones, y aquí controlas cada parte en lugar de republicar el clip de otro.",
-    "h3_1": "Muchos modos, un lienzo",
-    "p3": "Cada modo cuenta una historia distinta. Clásico es el que la mayoría imagina: una pelota abriéndose paso entre anillos. Multiplicar convierte una pelota en un enjambre. Acumulación congela pelotas en su sitio hasta que la última tiene que sortear el laberinto de sus predecesoras. Pintar, Objetivo, Crecer, Fragmentación, Coincidir color, Líneas, Portal, Caída de pelotas y los demás cambian las reglas a su manera. Cambiar lleva un clic y el lienzo se actualiza al instante.",
-    "h3_2": "Hecho para trastear",
-    "p4": "El aspecto es tuyo. Añade anillos para alargar la tensión o quítalos para un desenlace rápido. Activa las paredes arcoíris, alterna el efecto de ruptura entre confeti, fragmentación y onda expansiva, o combina los tres. Añade púas para el peligro, brillo para el acabado y un rastro de color para que el movimiento rápido parezca deliberado. Pon tu propia imagen en la pelota, escribe un gancho como «¿escapará?» arriba y carga una melodía para que los rebotes sigan el ritmo. Los pequeños cambios importan: un anillo extra puede marcar la diferencia entre un clip que la gente salta y uno que ve dos veces.",
-    "h3_3": "Graba, exporta, publica",
-    "p5": "Cuando la simulación se vea bien, grábala en el navegador y exporta un vídeo con el tamaño de los feeds verticales. Sin aplicaciones de captura de pantalla, sin marcas de agua no deseadas, sin recodificar en otro sitio. ¿Encontraste una combinación que te gusta? Guárdala como preset y reutilízala para toda una serie; muchas cuentas publican el mismo modo cada día con pequeñas variaciones.",
-    "h3_4": "Por qué crearlo tú mismo",
-    "p6": "Republicar un clip que ya han usado cien cuentas no le da nada nuevo ni al algoritmo ni a tu audiencia. Cuando construyes la simulación tú mismo decides el gancho, los colores, el ritmo y el momento del desenlace. Puedes sincronizarla con un sonido en tendencia, añadir tu usuario y publicar una versión nueva cada día sin repetirte, y el contenido original nunca activa los filtros de contenido reutilizado que limitan el alcance en silencio.",
-    "h3_5": "Sin curva de aprendizaje",
-    "p7": "Los valores por defecto ya producen un clip digno de publicar. A partir de ahí, cambia una cosa cada vez y mira qué pasa: añade un anillo, cambia el efecto de ruptura, sube el brillo. Como el lienzo reacciona al instante, aprendes lo que hace cada ajuste usándolo, y tras unas sesiones desarrollas intuición sobre qué combinaciones funcionan.",
-    "h3_6": "Para quién es",
-    "p8": "La mayoría de quienes lo usan son creadores que buscan alcance sin presupuesto: sin cámara, sin estudio, sin formación en diseño, solo un gancho y unos minutos de ajustes. Los profesores lo usan para mostrar movimiento y colisiones de una forma que los alumnos sí miran. Mucha gente lo abre solo para jugar, porque una pelota rompiendo anillos es divertida por sí misma. Los controles son los mismos para todos.",
-    "h3_7": "Gratis y privado por defecto",
-    "p9_before": "{siteName} es gratis. Los presets y ajustes viven en tu propio navegador, los vídeos se procesan en tu máquina y no hay muro de registro. Si algo falla o echas en falta un ajuste, la",
-    "p9_after": "llega directamente a la persona que desarrolla la herramienta.",
-    "feedbackPage": "página de comentarios",
-    "cta": "Abrir el simulador"
-  },
-  "Instructions": {
-    "howToUse": "Cómo usarlo",
-    "title": "Cada control, explicado",
-    "description": "Este es el diseño del simulador: un lienzo en vivo a la izquierda y el panel de controles a la derecha. Los números de la maqueta coinciden con los pasos de al lado.",
-    "restart": "Reiniciar",
-    "pause": "Pausa",
-    "startSimulator": "Iniciar simulador",
-    "controls": "Controles",
-    "searchSettings": "Buscar ajustes…",
-    "recordVideo": "Grabar vídeo",
-    "mockupCaption": "Una vista simplificada de la pantalla del simulador.",
-    "whatEachControlDoes": "Qué hace cada control",
-    "tryItYourself": "Pruébalo tú mismo",
-    "labels": { "mode": "Modo", "ballPhysics": "Física de la pelota", "wallSettings": "Ajustes de paredes", "visualEffects": "Efectos visuales", "customSound": "Sonido personalizado", "recording": "Grabación", "savedPresets": "Presets guardados" },
-    "step1": { "title": "Elige un modo", "body": "Abre la fila Modo en el panel de controles y elige un modo. El modo fija las reglas, así que decídelo primero." },
-    "step2": { "title": "Abre una sección y ajústala", "body": "Pelota, Paredes, Efectos y Sonido se despliegan al pulsarlos. Cambia el número de paredes, el efecto de ruptura, los colores o el rastro. ¿Con prisa? Escribe el nombre de un ajuste en el buscador de arriba." },
-    "step3": { "title": "Pulsa Iniciar", "body": "Pulsa Iniciar simulador en el lienzo. Los valores por defecto ya se ven bien, así que empieza de inmediato y ajusta cuando lo veas moverse." },
-    "step4": { "title": "Consigue la ejecución perfecta", "body": "Mientras se reproduce, usa Reiniciar para volver a empezar, Pausa para congelar un fotograma y los botones de velocidad (1x a 8x) para avanzar. Espacio pausa, R reinicia. Repite hasta que el momento sea el que quieres." },
-    "step5": { "title": "Fija la duración y el tamaño", "body": "Abre la sección Grabación para elegir cuánto dura el clip y su resolución. 1080×1920 es el tamaño vertical para TikTok, Reels y Shorts." },
-    "step6": { "title": "Graba y se descarga", "body": "Pulsa Grabar vídeo. Captura la simulación con sonido y guarda el archivo en tu dispositivo. ¿Te gusta la configuración? Guárdala como preset y reutilízala para toda una serie." },
-    "settings": {
-      "mode": { "name": "Modo", "what": "El juego principal. Fija el objetivo y las reglas." },
-      "ballPhysics": { "name": "Física de la pelota", "what": "Velocidad, tamaño, gravedad, color y rebote." },
-      "wallsGap": { "name": "Paredes / hueco", "what": "Cuántos anillos y qué tan ancha es la abertura." },
-      "wallBreakEffect": { "name": "Efecto de ruptura", "what": "Confeti, fragmentación, onda expansiva, todos o ninguno." },
-      "visualEffects": { "name": "Efectos visuales", "what": "Paredes arcoíris, brillo y rastro de color." },
-      "reactiveBackground": { "name": "Fondo reactivo", "what": "Hace pulsar el fondo al ritmo de los golpes." },
-      "spikes": { "name": "Púas", "what": "Añade peligros dentro del anillo para más tensión." },
-      "customBall": { "name": "Pelota personalizada", "what": "Pone tu propia imagen o un emoji en la pelota." },
-      "textOverlay": { "name": "Texto superpuesto", "what": "Añade un texto superior e inferior sobre el lienzo." },
-      "customSound": { "name": "Sonido personalizado", "what": "Usa una melodía integrada, importa tu propio MIDI, reproduce un clip de audio en cada rebote o trocea una canción subida; elige instrumento, escala y compás BPM." },
-      "watermark": { "name": "Marca de agua", "what": "Estampa tu usuario para que las republicaciones sigan dándote crédito." },
-      "speed": { "name": "Velocidad (1x a 8x)", "what": "Avanza rápido una simulación larga mientras previsualizas." },
-      "findSimulation": { "name": "Buscar simulación", "what": "Busca una ejecución con la duración objetivo." },
-      "recording": { "name": "Grabación", "what": "Fija la duración del clip y la resolución de exportación." },
-      "savePreset": { "name": "Guardar preset", "what": "Guarda toda la configuración para cargarla con un clic." }
-    }
   },
   "Editorial": {
     "physicsBadge": "Detrás de la simulación",
@@ -1864,8 +1775,7 @@
     "successEmail": "Tu aplicación de correo debería abrirse ahora con el mensaje ya redactado. Si no ha pasado nada, puede que tu navegador bloquee los enlaces mailto.",
     "successGithub": "Se ha abierto en una pestaña nueva un formulario de issue de GitHub con tu mensaje. Envíalo allí para terminar.",
     "notConfigured": "Este sitio aún no tiene configurado un canal de comentarios. Si lo administras, define NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL o NEXT_PUBLIC_GITHUB_REPO antes de compilar.",
-    "openManually": "Si no se ha abierto nada, usa este enlace.",
-    "cta": "¿Falta algo? ¿Quieres informar de un error? ¡Cuéntanoslo!"
+    "openManually": "Si no se ha abierto nada, usa este enlace."
   },
   "TikTokBallVideos": {
     "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – herramienta gratuita – {siteName}",
@@ -1904,7 +1814,14 @@
     "p6": "{siteName} es un proyecto pequeño e independiente, no una empresa con inversores y una hoja de ruta llena de ventas adicionales, y eso condiciona lo que se construye. Los nuevos modos y ajustes aparecen porque los creadores los piden. Cuando escribes por la <feedback>página de comentarios</feedback>, la nota llega a la persona que realmente trabaja en la herramienta, y buena parte de lo que hay hoy en el simulador existe porque alguien lo pidió.",
     "h2_4": "Hacia dónde va",
     "p7": "El plan es mantener el núcleo gratuito y seguir añadiendo modos, efectos y mejoras de calidad de vida que hagan más rápido construir un buen clip. Si haces algo con ella, ese es el objetivo. Ve y haz que una pelota rompa unas cuantas paredes.",
-    "cta": "Abrir el simulador"
+    "cta": "Abrir el simulador",
+    "toolTitle": "Qué es realmente {siteName}",
+    "toolP1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros, pulsa grabar y descarga el clip. No hay cuenta, instalación ni editor de vídeo; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
+    "toolP2": "El formato funciona porque es simple. Una pelota rebota dentro de un anillo con un hueco. Cada vez que se cuela, algo se recompensa: una pared se rompe, la pelota se multiplica, el color inunda la pantalla, se acierta un objetivo. El espectador quiere saber cómo acaba, así que sigue mirando. Ese pequeño bucle de tensión y alivio es lo que genera las visualizaciones, y aquí controlas cada parte en lugar de republicar el clip de otro.",
+    "tweakTitle": "Hecho para trastear",
+    "tweakP": "El aspecto es tuyo. Añade anillos para alargar la tensión o quítalos para un desenlace rápido. Activa las paredes arcoíris, alterna el efecto de ruptura entre confeti, fragmentación y onda expansiva, o combina los tres. Añade púas para el peligro, brillo para el acabado y un rastro de color para que el movimiento rápido parezca deliberado. Pon tu propia imagen en la pelota, escribe un gancho como «¿escapará?» arriba y carga una melodía para que los rebotes sigan el ritmo. Los pequeños cambios importan: un anillo extra puede marcar la diferencia entre un clip que la gente salta y uno que ve dos veces.",
+    "exportTitle": "Graba, exporta, publica",
+    "exportP": "Cuando la simulación se vea bien, grábala en el navegador y exporta un vídeo con el tamaño de los feeds verticales. Sin aplicaciones de captura de pantalla, sin marcas de agua no deseadas, sin recodificar en otro sitio. ¿Encontraste una combinación que te gusta? Guárdala como preset y reutilízala para toda una serie; muchas cuentas publican el mismo modo cada día con pequeñas variaciones."
   },
   "Rigged": {
     "outcome": "Resultado",
@@ -2814,11 +2731,11 @@
     }
   },
   "Unlimited": {
-    "label": "Sin límites",
-    "tip": "Cada número más allá de su deslizador: escribe un millón de bolas, mil millones de velocidad o mil anillos. La simulación puede derretirse – se ralentiza y se dibuja más simple –, pero la pestaña sigue y la grabación continúa.",
+    "label": "Deslizadores amplios",
+    "tip": "Nada tiene tope, esté activado o no: cada deslizador tiene al lado un campo que acepta cualquier número. Activado, los deslizadores además se alargan más allá de su rango normal, en escala logarítmica, hasta mil millones.",
     "on": "SÍ",
     "off": "NO",
-    "warning": "Los valores extremos pueden ralentizar la simulación a paso de tortuga: de eso se trata. Puede derretirse, nunca colgarse.",
+    "warning": "Los valores extremos pueden ralentizar la simulación a paso de tortuga o derretir la imagen: de eso se trata. Puede derretirse, nunca colgarse.",
     "typeValue": "Escribe un valor para {label}",
     "invalidValue": "Valor no válido: un número finito de al menos {min}.",
     "softCeiling": "El motor ejecuta como máximo {value}; el enlace conserva tu número.",
@@ -2827,6 +2744,18 @@
     "canvasArenaFull": "ARENA LLENA",
     "canvasBalls": "[count] BOLAS",
     "canvasAteArena": "LA BOLA SE COMIÓ LA ARENA"
+  },
+  "Uncap": {
+    "fieldLabel": "{label}: escribe cualquier número",
+    "errEmpty": "Escribe un número.",
+    "errNotNumber": "«{text}» no es un número; se mantiene el valor anterior.",
+    "errNotFinite": "El infinito no se puede ejecutar: escribe un número finito (1e308 funciona).",
+    "errBelowMin": "Como mínimo {min}; se mantiene el valor anterior.",
+    "beyondTip": "Más allá del deslizador: {value} (el deslizador cubre {min}–{max}; el valor se usa tal cual)",
+    "memoryCeiling": "Techo de seguridad de memoria: la simulación crea como máximo {value} de estos (ARENA LLENA); el enlace conserva tu número.",
+    "canvasSpeed": "⚡ [speed] PX/S",
+    "canvasOverflow": "LOS NÚMEROS SE DESBORDARON ×[count]",
+    "finderEndless": "Con estos valores la simulación nunca termina, así que no hay nada que buscar: sigue y sigue (mejor grábala)."
   },
   "DesktopLink": {
     "navLabel": "App para Windows",
@@ -3092,5 +3021,78 @@
     },
     "privacyTitle": "Privacidad",
     "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión; una clave de la nube que introduzcas se guarda cifrada en tu PC y solo se envía al proveedor que elegiste. La aplicación solo se conecta a internet para descargar un modelo que pediste y para buscar actualizaciones en GitHub."
+  },
+  "SiteRedesign": {
+    "nav": {
+      "studio": "Estudio",
+      "about": "Acerca de",
+      "openStudio": "Abrir el estudio",
+      "skip": "Saltar al contenido",
+      "primary": "Navegación principal",
+      "menu": "Menú"
+    },
+    "lang": {
+      "label": "Idioma"
+    },
+    "footer": {
+      "product": "Producto",
+      "modes": "Modos",
+      "legal": "Legal"
+    },
+    "families": {
+      "escape": "Escape",
+      "rhythm": "Ritmo",
+      "battle": "Batalla",
+      "journey": "Viaje"
+    },
+    "hero": {
+      "eyebrow": "Estudio de física de pelotas",
+      "title": "Física de pelotas hipnótica, lista para TikTok.",
+      "sub": "Ajusta la física, elige uno de los {count} modos y exporta un clip vertical listo para publicar: gratis, en tu navegador y sin cuenta.",
+      "seeModes": "Ver los modos",
+      "live": "En vivo",
+      "preview": "Vista previa",
+      "previewLabel": "Vista previa en vivo: {mode}",
+      "previewOpen": "Abrir {mode} en el estudio",
+      "statModes": "Modos",
+      "statExport": "Exportación",
+      "statPrice": "Precio",
+      "statPriceValue": "Gratis"
+    },
+    "modesWall": {
+      "intro": "{count} formatos: anillos de escape, máquinas de ritmo, duelos y viajes. Elige uno y se abrirá en el estudio, listo para empezar.",
+      "all": "Todos",
+      "filterLabel": "Filtrar modos por familia",
+      "current": "Actual"
+    },
+    "studio": {
+      "search": "Buscar ajustes",
+      "modePicker": "Elige un modo",
+      "mode": "Modo",
+      "changeMode": "Cambiar modo",
+      "seed": "Semilla",
+      "seedPinned": "Semilla fijada: cada simulación la repite",
+      "time": "Tiempo",
+      "format": "Formato",
+      "transport": "Reproducción y exportación",
+      "speed": "Velocidad de reproducción",
+      "rail": "Grupos de controles",
+      "panelEmpty": "Elige un grupo para editarlo. Todo lo que cambies se guarda en el enlace.",
+      "closeSettings": "Cerrar los ajustes",
+      "paletteTitle": "Buscar ajustes y grupos",
+      "palettePlaceholder": "Ir a un ajuste o a un grupo…",
+      "paletteSections": "Grupos",
+      "paletteControls": "Ajustes",
+      "paletteEmpty": "Nada coincide con «{query}».",
+      "paletteMove": "mover",
+      "paletteOpen": "abrir",
+      "paletteClose": "cerrar"
+    },
+    "dialog": {
+      "close": "Cerrar"
+    },
+    "prose": {
+      "onThisPage": "En esta página"
+    }
   }
 }

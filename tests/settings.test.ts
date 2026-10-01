@@ -3,6 +3,7 @@ import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
 import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/interactions";
 import { MODE_IDS } from "@/lib/physics/types";
 import { NUMERIC_URL_KEYS, PRESETS_STORAGE_KEY, RANGES, defaultSettings, loadPresets, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { SIGNED_KEYS } from "@/lib/uncap"; // --- uncap-all ---
 
 describe("settings serialisation", () => {
   it("round-trips through URL parameters", () => {
@@ -37,14 +38,15 @@ describe("settings serialisation", () => {
     for (const key of ["inst", "minst", "scale", "root", "qz", "bpm", "grid"]) expect(defaults.has(key)).toBe(false);
   });
 
-  it("rejects unknown instruments, scales, grids and out-of-range root/BPM", () => {
+  it("rejects unknown instruments, scales and grids, and keeps a root / BPM past the slider (--- uncap-all ---)", () => {
     const s = settingsFromSearchParams(new URLSearchParams("inst=organ&minst=kazoo&scale=dorian&grid=1%2F3&root=14&bpm=999&qz=1"));
     expect(s.instrument).toBe("triangle");
     expect(s.melodyInstrument).toBe("sine");
     expect(s.scale).toBe("chromatic");
     expect(s.quantizeGrid).toBe("1/8");
-    expect(s.rootNote).toBe(0);
-    expect(s.bpm).toBe(120);
+    expect(s.rootNote).toBe(14);
+    expect(s.bpm).toBe(999);
+    expect(settingsFromSearchParams(new URLSearchParams("root=-3&bpm=abc"))).toMatchObject({ rootNote: 0, bpm: 120 });
     expect(s.quantizeToBeat).toBe(true);
   });
 
@@ -78,10 +80,11 @@ describe("settings serialisation", () => {
     expect(s.scale).toBe("chromatic");
     expect(s.quantizeGrid).toBe("1/8");
     expect(s.quantizeToBeat).toBe(false);
-    expect(s.rootNote).toBe(0);
-    expect(s.bpm).toBe(200);
+    // --- uncap-all --- numbers past their sliders are kept; below the minimum they are lifted onto it
+    expect(s.rootNote).toBe(14);
+    expect(s.bpm).toBe(999);
     expect(s.sliceMs).toBe(80);
-    expect(s.sliceFadeMs).toBe(50);
+    expect(s.sliceFadeMs).toBe(999);
     expect(s.hitSoundMode).toBe("tones");
     const good = presetToSettings({ mode: "portal", instrument: "chip", melodyInstrument: "marimba", scale: "blues", quantizeGrid: "1/16", quantizeToBeat: true, rootNote: 7, bpm: 90 });
     expect(good).toMatchObject({ instrument: "chip", melodyInstrument: "marimba", scale: "blues", quantizeGrid: "1/16", quantizeToBeat: true, rootNote: 7, bpm: 90 });
@@ -122,18 +125,18 @@ describe("physics extras settings", () => {
     expect(settingsToSearchParams({ ...defaultSettings("classic"), gapSize: 0.35, trailThickness: 1.2 }).toString()).toBe("mode=classic&gap=0.35&tt=1.2");
   });
 
-  it("are clamped to their ranges from URLs and presets, falling back to off", () => {
+  it("are kept past their sliders (--- uncap-all ---), lifted onto the minimum below it and fall back to off when invalid", () => {
     const s = settingsFromSearchParams(new URLSearchParams("drag=9&wx=-3&spin=abc&wb=0.1&bw=1&bws=0&rg=720"));
-    expect(s.airDrag).toBe(0.05);
-    expect(s.windX).toBe(-0.5);
+    expect(s.airDrag).toBe(9);
+    expect(s.windX).toBe(-3);
     expect(s.spinStrength).toBe(0);
     expect(s.wallBounciness).toBe(0.5);
-    expect(s.breathingAmplitude).toBe(0.3);
+    expect(s.breathingAmplitude).toBe(1);
     expect(s.breathingSpeed).toBe(0.1);
-    expect(s.rotatingGravity).toBe(180);
+    expect(s.rotatingGravity).toBe(720);
     const p = presetToSettings({ mode: "classic", airDrag: -1, windY: 2, rotatingGravity: "sideways" } as unknown as Partial<SimulatorSettings>);
     expect(p.airDrag).toBe(0);
-    expect(p.windY).toBe(0.5);
+    expect(p.windY).toBe(2);
     expect(p.rotatingGravity).toBe(0);
     expect(p.wallBounciness).toBe(1);
     expect(presetToSettings({ mode: "portal", spinStrength: 0.4, breathingAmplitude: 0.2 })).toMatchObject({ spinStrength: 0.4, breathingAmplitude: 0.2, breathingSpeed: 1 });
@@ -157,14 +160,14 @@ describe("ball interaction settings", () => {
     expect(settingsToSearchParams({ ...defaultSettings("classic"), ballInteraction: "merge" }).toString()).toBe("mode=classic&bi=merge");
   });
 
-  it("reject unknown interactions and clamp the split limits to whole numbers in their ranges, from URLs and presets", () => {
+  it("reject unknown interactions and keep the split limits whole numbers from their minimum up (--- uncap-all --- no maximum), from URLs and presets", () => {
     const s = settingsFromSearchParams(new URLSearchParams("bi=explode&smr=99&mb=0"));
     expect(s.ballInteraction).toBe("bounce");
-    expect(s.splitMinRadius).toBe(20);
+    expect(s.splitMinRadius).toBe(99);
     expect(s.maxBalls).toBe(2);
     expect(settingsFromSearchParams(new URLSearchParams("bi=pass&smr=abc&mb=7.6"))).toMatchObject({ ballInteraction: "pass", splitMinRadius: 4, maxBalls: 8 });
     const p = presetToSettings({ mode: "multiply", ballInteraction: "merge", maxBalls: 100, splitMinRadius: -3 } as unknown as Partial<SimulatorSettings>);
-    expect(p).toMatchObject({ ballInteraction: "merge", maxBalls: 64, splitMinRadius: 4 });
+    expect(p).toMatchObject({ ballInteraction: "merge", maxBalls: 100, splitMinRadius: 4 });
     expect(presetToSettings({ mode: "classic", ballInteraction: 3 } as unknown as Partial<SimulatorSettings>).ballInteraction).toBe("bounce");
     expect(presetToSettings({ mode: "grow" })).toMatchObject(DEFAULT_BALL_INTERACTION);
   });
@@ -173,7 +176,6 @@ describe("ball interaction settings", () => {
 // --- review fix (recording-export) --- numbers, enumerations and texts from links, share codes, batch lists, presets and project files
 describe("link and preset validation (review fix: recording-export)", () => {
   const CORE: Record<string, keyof SimulatorSettings> = { g: "gravity", s: "ballSpeed", r: "ballRadius", wc: "wallCount", wt: "wallThickness", gap: "gapSize", rs: "rotationSpeed", tt: "trailThickness", at: "accumulationTime", sc: "spikeCount", msc: "multiplySpawnCount", tc: "targetCount", cmc: "colorMatchColorCount", gr: "growRate", ts: "textSize", slms: "sliceMs", slfade: "sliceFadeMs" };
-  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
   const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
 
   it("lifts a number below its slider's minimum onto it and keeps a big one (no crash on r=-5, no cap on wc)", () => {
@@ -193,7 +195,8 @@ describe("link and preset validation (review fix: recording-export)", () => {
     expect(settingsFromSearchParams(new URLSearchParams("mode=classic&gap=0.37")).gapSize).toBeCloseTo(0.37);
   });
 
-  it("keeps every core number at or above its minimum; bounded ones (gap, colours, text size, slicer) at or below their maximum", () => {
+  // (--- uncap-all --- no core number has a maximum: the gap, Color Match's colours, the text size and the slicer included)
+  it("keeps every core number at or above its minimum and never caps one", () => {
     for (const [key, field] of Object.entries(CORE)) {
       const range = rangeOf(field)!;
       expect(range, field).toBeDefined();
@@ -201,18 +204,17 @@ describe("link and preset validation (review fix: recording-export)", () => {
       expect(low, `${key}=min-1e6`).toBe(range.min);
       const high = settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.max + 1e6}`))[field] as number;
       expect(Number.isFinite(high), `${key}=max+1e6`).toBe(true);
-      if (BOUNDED.has(field)) expect(high, `${key}=max+1e6`).toBe(range.max);
-      else expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
+      expect(high, `${key}=max+1e6`).toBe(range.max + 1e6);
     }
   });
 
-  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept unless bounded)", () => {
+  it("presetToSettings treats every core number like a link does (min-1e6 lifted, max+1e6 kept)", () => {
     for (const field of Object.values(CORE)) {
       const range = rangeOf(field)!;
       const low = presetToSettings({ mode: "classic", [field]: range.min - 1e6 } as Partial<SimulatorSettings>);
       expect(low[field], `preset ${field}=min-1e6`).toBe(range.min);
       const high = presetToSettings({ mode: "classic", [field]: range.max + 1e6 } as Partial<SimulatorSettings>);
-      expect(high[field], `preset ${field}=max+1e6`).toBe(BOUNDED.has(field) ? range.max : range.max + 1e6);
+      expect(high[field], `preset ${field}=max+1e6`).toBe(range.max + 1e6);
     }
   });
 
@@ -231,7 +233,9 @@ describe("link and preset validation (review fix: recording-export)", () => {
     for (const [field, key] of keyOf) {
       const range = rangeOf(field)!;
       const value = (settingsFromSearchParams(new URLSearchParams(`mode=classic&${key}=${range.min - 1e6}`)) as unknown as Record<string, number>)[field];
-      expect(Number.isFinite(value) && value >= range.min, `${key} (${field}) = ${value}`).toBe(true);
+      // --- uncap-all --- the signed settings (the winds, the pendulum's start angles, arena seeds) take any sign: finite is enough
+      if (SIGNED_KEYS.has(field)) expect(Number.isFinite(value), `${key} (${field}) = ${value}`).toBe(true);
+      else expect(Number.isFinite(value) && value >= range.min, `${key} (${field}) = ${value}`).toBe(true);
     }
   });
 
@@ -299,18 +303,17 @@ describe("link and preset validation (review fix: recording-export)", () => {
 describe("numeric link and preset values at ±1e9 (review fix: security-robustness)", () => {
   const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
   const MODES = ["classic", "target", "accumulation", "drop"] as const; // (ring modes, the count modes and one without rings)
-  /** The numbers whose range is one of meaning (both ends kept); every other core number keeps a big value as it is. */
-  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
+  // (--- uncap-all --- no core number has a maximum: every one keeps a big value as it is)
   const CORE = new Set(["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"]);
   const checkValue = (field: string, value: unknown, label: string, high: boolean) => {
     expect(typeof value === "number" && Number.isFinite(value), `${label}: ${String(value)} is a finite number`).toBe(true);
     const range = rangeOf(field);
     if (!range) return;
     const v = value as number;
-    expect(v >= range.min, `${label}: ${v} >= ${range.min}`).toBe(true);
+    // (--- uncap-all --- the signed settings – the winds, the pendulum's start angles, arena seeds – take any sign)
+    if (!SIGNED_KEYS.has(field)) expect(v >= range.min, `${label}: ${v} >= ${range.min}`).toBe(true);
     if (!CORE.has(field)) return; // the feature groups keep their own rules (see the recording-export tests above)
-    if (BOUNDED.has(field)) expect(v <= range.max, `${label}: ${v} <= ${range.max}`).toBe(true);
-    else if (high) expect(v, `${label}: a big value is kept (extreme values are a feature)`).toBe(1e9);
+    if (high) expect(v, `${label}: a big value is kept (extreme values are a feature)`).toBe(1e9);
     if (Number.isInteger(range.step)) expect(Number.isInteger(v), `${label}: ${v} is a whole number`).toBe(true);
   };
 

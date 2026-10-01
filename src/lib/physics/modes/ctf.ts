@@ -184,9 +184,9 @@ export class CtfMode implements GameMode {
   getSettings(): CtfSettings {
     return this.settings;
   }
-  /** Team size, score to win and nudge apply on the next init; the clip length (the time limit) at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<CtfSettings>, unlimited = false) {
-    this.settings = resolveCtfSettings({ ...this.settings, ...patch }, unlimited);
+  /** Team size, score to win and nudge apply on the next init; the clip length (the time limit) at once. */
+  setSettings(patch: Partial<CtfSettings>) {
+    this.settings = resolveCtfSettings({ ...this.settings, ...patch });
     this.run = { ...this.run, clipSeconds: this.settings.clipSeconds };
     if (this.view.field) this.view.timeLimitSec = ctfTimeLimitSec(this.run.clipSeconds);
   }

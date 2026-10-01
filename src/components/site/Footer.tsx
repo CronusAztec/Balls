@@ -1,47 +1,119 @@
-import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
-import { SITE_NAME } from "@/lib/site";
-import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
+"use client";
 
-export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
+import { useLocale, useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
+import { LOCALE_OPTIONS } from "@/i18n/routing";
+import { SITE_NAME } from "@/lib/site";
+import { modeFamilies } from "@/lib/siteDesign";
+import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
+import Kbd from "@/components/ui/Kbd";
+import { useModifierKey } from "@/components/ui/useModifierKey";
+import { cx } from "@/components/ui/cx";
+
+/*
+ * --- site-redesign --- The footer: four columns – Product, Modes (one link per family, opening its first mode), Legal and
+ * Language (this page in the other languages) – then the wordmark line with the keyboard shortcuts.
+ */
+
+const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle", journey: "modesJourney" };
+
+export default function Footer() {
   const t = useTranslations("Footer");
+  const s = useTranslations("SiteRedesign");
+  const headings = useTranslations("Headings");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
   const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (a small namespace: every page hands it to the client)
-  const links: { href: string; label: string }[] = [
-    { href: "/about", label: t("about") },
+  const locale = useLocale();
+  const pathname = usePathname();
+  const mod = useModifierKey();
+
+  const product = [
+    { href: "/simulator", label: s("nav.studio") },
+    { href: "/gallery", label: gallery("navLabel") },
+    { href: "/download", label: desktop("navLabel") } /* --- desktop-exe --- */,
     { href: "/tiktok-ball-videos", label: t("tiktok") },
+    { href: "/about", label: t("about") },
+    { href: "/feedback", label: t("feedback") },
+  ];
+  const legal = [
     { href: "/privacy", label: t("privacy") },
     { href: "/terms", label: t("terms") },
     { href: "/disclaimer", label: t("disclaimer") },
-    { href: "/feedback", label: t("feedback") },
-    { href: "/gallery", label: gallery("navLabel") }, // --- daily-gallery ---
-    { href: "/download", label: desktop("navLabel") }, // --- desktop-exe ---
   ];
+  const familyLabel = (id: string) => (FAMILY_HEADINGS[id] ? headings(FAMILY_HEADINGS[id]) : s.has(`families.${id}`) ? s(`families.${id}`) : id);
+  const linkClass = "text-sm text-ink-2 transition-colors duration-150 hover:text-ink";
+
   return (
-    <footer className="mt-16 border-t border-zinc-800 py-6">
-      <div className="container mx-auto px-4 text-center text-zinc-500 text-sm">
-        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-zinc-600" aria-label={t("navLabel") /* --- review fix (ui-i18n) --- */}>
-          {links.map((link, i) => (
-            <span key={link.href} className="contents">
-              {i > 0 && <span aria-hidden="true">·</span>}
-              <Link href={link.href} className="hover:text-zinc-400 transition-colors">
-                {link.label}
-              </Link>
-            </span>
-          ))}
-        </nav>
-        {/* --- pwa --- only while the browser offers to install the site */}
-        <InstallAppButton />
-        {showShortcuts && (
-          <p className="mt-4 text-zinc-600 text-xs hidden sm:block">
-            {t("shortcuts")}: <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400 text-xs border border-zinc-700">Space</kbd> {t("pauseResume")} ·{" "}
-            <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400 text-xs border border-zinc-700">R</kbd> {t("restart")}
+    <footer className="border-t border-line bg-bg">
+      <nav aria-label={t("navLabel")} className="site-container grid grid-cols-2 gap-x-6 gap-y-10 py-12 md:grid-cols-4">
+        <div>
+          <h2 className="eyebrow text-ink-3">{s("footer.product")}</h2>
+          <ul className="mt-4 space-y-3">
+            {product.map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className={linkClass}>
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {/* --- pwa --- only while the browser offers to install the site */}
+          <InstallAppButton />
+        </div>
+        <div>
+          <h2 className="eyebrow text-ink-3">{s("footer.modes")}</h2>
+          <ul className="mt-4 space-y-3">
+            {modeFamilies().map((f) => (
+              <li key={f.id}>
+                <Link href={`/simulator?mode=${f.modes[0]}`} className={linkClass}>
+                  {familyLabel(f.id)}
+                </Link>
+                <span className="num ml-2 text-xs text-ink-3">{f.modes.length}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h2 className="eyebrow text-ink-3">{s("footer.legal")}</h2>
+          <ul className="mt-4 space-y-3">
+            {legal.map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className={linkClass}>
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h2 className="eyebrow text-ink-3">{s("lang.label")}</h2>
+          <ul className="mt-4 space-y-3">
+            {LOCALE_OPTIONS.map((opt) => (
+              <li key={opt.code}>
+                <Link href={pathname} locale={opt.code} lang={opt.code} aria-current={opt.code === locale ? "true" : undefined} className={cx(linkClass, opt.code === locale && "text-ink")}>
+                  {opt.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </nav>
+      <div className="border-t border-line">
+        <div className="site-container flex flex-col gap-3 py-6 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            {/* --- review fix (site-static) --- the name, never a host: the copyright line names no URL */}
+            © {new Date().getFullYear()} {SITE_NAME}
           </p>
-        )}
-        <p className="mt-4">
-          {/* --- review fix (site-static) --- the name, never a host: the copyright line names no URL */}
-          © {new Date().getFullYear()} {SITE_NAME}
-        </p>
+          <p className="hidden items-center gap-2 sm:flex" aria-label={t("shortcuts")}>
+            <span>{t("shortcuts")}</span>
+            <Kbd>Space</Kbd>
+            <span>{t("pauseResume")}</span>
+            <Kbd>R</Kbd>
+            <span>{t("restart")}</span>
+            <Kbd>{mod} K</Kbd>
+            <span>{s("studio.search")}</span>
+          </p>
+        </div>
       </div>
     </footer>
   );

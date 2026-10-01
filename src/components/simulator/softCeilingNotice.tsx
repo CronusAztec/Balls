@@ -18,8 +18,8 @@ export function SoftCeilingNotice({ settings }: { settings: Pick<SimulatorSettin
   return (
     <div data-testid="soft-ceiling-notice">
       {notes.map((note) => (
-        <p key={note.setting} className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" role="status">
-          ⚡ {t("Simulator.softCeiling", { setting: t(`Controls.${note.setting}`), asked: format.format(note.asked), running: format.format(note.running) })}
+        <p key={note.setting} className="text-xs leading-relaxed text-warn" role="status" /* --- site-redesign --- (the studio notes' tokens) */>
+          {t("Simulator.softCeiling", { setting: t(`Controls.${note.setting}`), asked: format.format(note.asked), running: format.format(note.running) })}
         </p>
       ))}
     </div>

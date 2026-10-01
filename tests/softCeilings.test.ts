@@ -80,10 +80,11 @@ describe("soft memory-safe ceilings", () => {
     expect(softCeilingNotes({ ...base, wallCount: 1e6 })).toEqual([{ setting: "wallCount", asked: 1e6, running: LIVE_RING_LIMIT }]);
     expect(softCeilingNotes({ ...base, mode: "shatter", wallCount: LIVE_RING_LIMIT })).toEqual([]);
     expect(softCeilingNotes({ ...base, mode: "drop", wallCount: 1e6 })).toEqual([]); // no rings there
-    expect(softCeilingNotes({ ...base, mode: "target", targetCount: 5000 })).toEqual([{ setting: "targetCount", asked: 5000, running: LIVE_TARGET_LIMIT }]);
+    // (--- uncap-all --- past the memory-safety ceilings: 5,000 targets and spikes)
+    expect(softCeilingNotes({ ...base, mode: "target", targetCount: 50_000 })).toEqual([{ setting: "targetCount", asked: 50_000, running: LIVE_TARGET_LIMIT }]);
     expect(softCeilingNotes({ ...base, mode: "target", targetCount: LIVE_TARGET_LIMIT })).toEqual([]);
-    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: 5000 })).toEqual([]); // spikes off
-    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: 5000, spikesEnabled: true })).toEqual([{ setting: "spikeCount", asked: 5000, running: LIVE_SPIKE_LIMIT }]);
+    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: 50_000 })).toEqual([]); // spikes off
+    expect(softCeilingNotes({ ...base, mode: "accumulation", spikeCount: 50_000, spikesEnabled: true })).toEqual([{ setting: "spikeCount", asked: 50_000, running: LIVE_SPIKE_LIMIT }]);
   });
 
   it("the notice and the recording error are translated in every language", () => {

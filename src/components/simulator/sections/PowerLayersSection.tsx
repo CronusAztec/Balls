@@ -16,22 +16,22 @@ export interface PowerLayersSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const POWER_LAYERS_KEYS = ["plLayers", "plSequence", "plDrift", "plSpeed", "plBadge", "plPills"];
 
-const SEQUENCE_OPTIONS: Record<PlSequence, { icon: string; labelKey: string }> = {
-  double: { icon: "✖️", labelKey: "plSeqDouble" },
-  fibonacci: { icon: "🌀", labelKey: "plSeqFibonacci" },
-  primes: { icon: "🔢", labelKey: "plSeqPrimes" },
-  plusOne: { icon: "➕", labelKey: "plSeqPlusOne" },
-  random: { icon: "🎲", labelKey: "plSeqRandom" },
+const SEQUENCE_OPTIONS: Record<PlSequence, { labelKey: string }> = {
+  double: { labelKey: "plSeqDouble" },
+  fibonacci: { labelKey: "plSeqFibonacci" },
+  primes: { labelKey: "plSeqPrimes" },
+  plusOne: { labelKey: "plSeqPlusOne" },
+  random: { labelKey: "plSeqRandom" },
 };
 
 const BADGE_LABELS: Record<PlBadge, string> = { sound: "plBadgeSound", warning: "plBadgeWarning", both: "plBadgeBoth", none: "plBadgeNone" };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /** The run in numbers for the summary line: hits and seconds (null for chaos, whose hit count the seed decides). */
 export function powerLayersRunInfo(s: SimulatorSettings): { hits: number; seconds: number; period: number } | null {
-  // --- unlimited --- the run the engine plays: the layers and speed at most at their soft ceilings
-  const pl = resolvePowerLayersSettings({ layers: s.plLayers, speed: s.plSpeed, sequence: s.plSequence }, s.unlimited);
+  // --- unlimited --- the run the engine plays: the layers at most at their memory-safety ceiling
+  const pl = resolvePowerLayersSettings({ layers: s.plLayers, speed: s.plSpeed, sequence: s.plSequence });
   const period = bouncePeriodSec(pl.speed);
   if (pl.sequence === "random") return null;
   const hits = buildPowerPlan(pl.layers, pl.sequence).powers.length;
@@ -52,36 +52,36 @@ export default function PowerLayersSection({ t, search, matches, settings: s, up
     <div className="space-y-3 pt-2" data-testid="power-layers">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("plTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("plDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("plTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("plDesc")}</p>
         </div>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="plLayers" tipKey="plLayersTip" value={s.plLayers} range={RANGES.plLayers} onChange={(v) => update({ plLayers: v })} display={String(s.plLayers)} left="▭" right="☰" />
+      <Slider t={t} search={search} matches={matches} labelKey="plLayers" tipKey="plLayersTip" value={s.plLayers} range={RANGES.plLayers} onChange={(v) => update({ plLayers: v })} display={String(s.plLayers)} />
       <Searchable search={search} matches={matches} labelKey="plSequence">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("plSequence")}
             <Tooltip text={t("plSequenceTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("plSequence")}>
             {PL_SEQUENCES.map((id) => (
               <button type="button" key={id} onClick={() => update({ plSequence: id })} aria-pressed={s.plSequence === id} className={pick(s.plSequence === id)}>
-                <span aria-hidden="true">{SEQUENCE_OPTIONS[id].icon}</span> {t(SEQUENCE_OPTIONS[id].labelKey)}
+                {t(SEQUENCE_OPTIONS[id].labelKey)}
               </button>
             ))}
           </div>
           {!search && (
-            <p className="text-[11px] text-zinc-500 leading-relaxed tabular-nums" data-testid="power-layers-sequence">
+            <p className="text-xs text-ink-3 leading-relaxed tabular-nums" data-testid="power-layers-sequence">
               {s.plSequence === "random" ? t("plHintRandom") : t("plHintPowers", { powers: first.join(", ") })}
             </p>
           )}
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="plDrift" tipKey="plDriftTip" value={s.plDrift} range={RANGES.plDrift} onChange={(v) => update({ plDrift: v })} display={s.plDrift.toFixed(2)} left="⏸" right="↔️" />
-      <Slider t={t} search={search} matches={matches} labelKey="plSpeed" tipKey="plSpeedTip" value={s.plSpeed} range={RANGES.plSpeed} onChange={(v) => update({ plSpeed: v })} display={`${s.plSpeed.toFixed(2)}×`} left="🐢" right="🐇" />
+      <Slider t={t} search={search} matches={matches} labelKey="plDrift" tipKey="plDriftTip" value={s.plDrift} range={RANGES.plDrift} onChange={(v) => update({ plDrift: v })} display={s.plDrift.toFixed(2)} />
+      <Slider t={t} search={search} matches={matches} labelKey="plSpeed" tipKey="plSpeedTip" value={s.plSpeed} range={RANGES.plSpeed} onChange={(v) => update({ plSpeed: v })} display={`${s.plSpeed.toFixed(2)}×`} />
       <Searchable search={search} matches={matches} labelKey="plBadge">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="power-layers-badge">
+          <label className="text-sm font-medium text-ink-2" htmlFor="power-layers-badge">
             {t("plBadge")}
             <Tooltip text={t("plBadgeTip")} />
           </label>
@@ -98,7 +98,7 @@ export default function PowerLayersSection({ t, search, matches, settings: s, up
         <Toggle t={t} labelKey="plPills" tipKey="plPillsTip" value={s.plPills} onChange={(v) => update({ plPills: v })} />
       </Searchable>
       {!search && (
-        <p className="text-xs text-zinc-400 leading-relaxed tabular-nums" data-testid="power-layers-run">
+        <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="power-layers-run">
           {info ? t("plRunInfo", { hits: info.hits, period: info.period.toFixed(2), seconds: info.seconds.toFixed(1) }) : t("plRunChaos", { period: bouncePeriodSec(s.plSpeed).toFixed(2) })}
         </p>
       )}

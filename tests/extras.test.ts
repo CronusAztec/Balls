@@ -191,7 +191,7 @@ describe("physics extras helpers", () => {
     expect(resolvePhysicsExtras({})).toEqual(DEFAULT_PHYSICS_EXTRAS);
     expect(resolvePhysicsExtras(config)).toEqual(DEFAULT_PHYSICS_EXTRAS);
     const clamped = resolvePhysicsExtras({ airDrag: 9, windX: Number.NaN, windY: -4, wallBounciness: 0.1, breathingAmplitude: 2, breathingSpeed: 0, rotatingGravity: 1e9 });
-    expect(clamped).toEqual({ ...DEFAULT_PHYSICS_EXTRAS, airDrag: PHYSICS_EXTRA_RANGES.airDrag.max, windX: 0, windY: -0.5, wallBounciness: 0.5, breathingAmplitude: 0.3, breathingSpeed: 0.1, rotatingGravity: 180 });
+    expect(clamped).toEqual({ ...DEFAULT_PHYSICS_EXTRAS, airDrag: 9, windX: 0, windY: -4, wallBounciness: 0.5, breathingAmplitude: 2, breathingSpeed: 0.1, rotatingGravity: 1e9 }); // --- uncap-all --- (no maximum)
     expect(hasPhysicsExtras(DEFAULT_PHYSICS_EXTRAS)).toBe(false);
     expect(hasPhysicsExtras({ ...DEFAULT_PHYSICS_EXTRAS, windY: 0.01 })).toBe(true);
     expect(physicsExtrasOf({ ...ALL_EXTRAS_ON, extra: "ignored" } as PhysicsExtras)).toEqual(ALL_EXTRAS_ON);
@@ -489,7 +489,7 @@ describe("PhysicsEngine with physics extras", () => {
   it("the finder forwards the extras and simulates them deterministically", () => {
     const engine = createEngineForSettings({ ...config, ...ALL_EXTRAS_ON }, "classic", modeSettings, 5);
     expect(engine.getPhysicsExtras()).toEqual(ALL_EXTRAS_ON);
-    expect(createEngineForSettings({ ...config, airDrag: 5, wallBounciness: -1 }, "classic", modeSettings, 5).getPhysicsExtras()).toEqual({ ...DEFAULT_PHYSICS_EXTRAS, airDrag: 0.05, wallBounciness: 0.5 });
+    expect(createEngineForSettings({ ...config, airDrag: 5, wallBounciness: -1 }, "classic", modeSettings, 5).getPhysicsExtras()).toEqual({ ...DEFAULT_PHYSICS_EXTRAS, airDrag: 5, wallBounciness: 0.5 }); // --- uncap-all --- (no maximum)
     const request: FinderRequest = {
       targetDurationSec: 30,
       toleranceSec: 0.5,

@@ -75,15 +75,18 @@ export function findSimulationBudgeted(
     let elapsed = 0;
     let stepsTimed = 0;
     let timeSpent = 0;
+    let unfinished = 0; // --- uncap-all --- seeds that ran to the horizon without ending
     const result = (found: boolean, s: number, durationMs: number): FinderResult => ({
       found,
       seed: s,
       duration: Number.isFinite(durationMs) ? durationMs / 1000 : 0,
       seedsTested: tested,
       ...(limited ? { limitedSeeds: maxSeeds } : {}),
+      ...(!found && tested > 0 && unfinished === tested ? { neverEnded: true } : {}), // --- uncap-all --- (a run that never ends says so)
     });
     const finishSeed = (durationMs: number): boolean => {
       tested++;
+      if (durationMs >= maxSimMs) unfinished++; // --- uncap-all ---
       const diff = Math.abs(durationMs - targetMs);
       if (diff < best.diff) best = { seed, durationMs, diff };
       engine = null;

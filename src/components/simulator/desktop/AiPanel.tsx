@@ -59,21 +59,21 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
           </div>
           {prefs.aiProvider === "local" ? (
             <>
-              <p className="text-[11px] text-zinc-500">{t("aiLocalHint")}</p>
+              <p className="text-xs text-ink-3">{t("aiLocalHint")}</p>
               <ul className="space-y-2" data-testid="ai-models">
                 {ai.models.map((m) => {
                   const p = ai.progress[m.id];
                   const downloading = m.state === "downloading" || p?.state === "downloading" || p?.state === "verifying";
                   return (
-                    <li key={m.id} className={`rounded-lg border px-3 py-2 space-y-1 ${m.selected ? "border-[#93d119]/60 bg-[#93d119]/5" : "border-zinc-800"}`} data-model={m.id} data-model-state={m.state}>
+                    <li key={m.id} className={`rounded-lg border px-3 py-2 space-y-1 ${m.selected ? "border-accent/60 bg-accent/5" : "border-line"}`} data-model={m.id} data-model-state={m.state}>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="font-medium text-zinc-200 flex-1">{m.name}</span>
-                        <span className="text-zinc-500">{formatBytes(m.size)}</span>
+                        <span className="font-medium text-ink flex-1">{m.name}</span>
+                        <span className="text-ink-3">{formatBytes(m.size)}</span>
                       </div>
-                      <p className="text-[11px] text-zinc-500">
+                      <p className="text-xs text-ink-3">
                         {t("aiLicence")}:{" "}
                         {m.licenceUrl ? (
-                          <a href={m.licenceUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">
+                          <a href={m.licenceUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">
                             {m.licence}
                           </a>
                         ) : (
@@ -83,7 +83,7 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                       {downloading && (
                         <>
                           <Bar value={(p?.downloaded ?? m.downloaded) / Math.max(1, m.size)} />
-                          <p className="text-[11px] text-zinc-400">
+                          <p className="text-xs text-ink-2">
                             {p?.state === "verifying" ? t("aiVerifying") : t("aiDownloading", { done: formatBytes(p?.downloaded ?? m.downloaded), total: formatBytes(m.size), speed: formatBytes(p?.bytesPerSec ?? 0) })}
                           </p>
                         </>
@@ -104,7 +104,7 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                             {t("aiUse")}
                           </button>
                         )}
-                        {m.selected && m.state === "ready" && <span className="text-[11px] text-[#93d119]">{t("aiInUse")}</span>}
+                        {m.selected && m.state === "ready" && <span className="text-xs text-accent">{t("aiInUse")}</span>}
                         {(m.state === "ready" || m.state === "partial" || m.custom) && (
                           <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => ai.remove(m.id)}>
                             {m.custom ? t("aiForget") : t("jobRemove")}
@@ -118,8 +118,8 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
               <button type="button" className={ghostBtn} onClick={ai.importModel}>
                 {t("aiPickGguf")}
               </button>
-              {status?.local.loaded && <p className="text-[11px] text-zinc-400" data-testid="ai-backend">{t("aiBackend", { backend: status.local.backend ?? "cpu", layers: status.local.gpuLayers ?? 0 })}</p>}
-              {status?.local.error && <p className="text-[11px] text-red-400">{status.local.error}</p>}
+              {status?.local.loaded && <p className="text-xs text-ink-2" data-testid="ai-backend">{t("aiBackend", { backend: status.local.backend ?? "cpu", layers: status.local.gpuLayers ?? 0 })}</p>}
+              {status?.local.error && <p className="text-xs text-danger">{status.local.error}</p>}
             </>
           ) : (
             <form
@@ -129,7 +129,7 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                 void ai.setCloud({ provider, baseUrl, model, use: true, ...(apiKey ? { apiKey } : {}) }).then(() => setApiKey(""));
               }}
             >
-              <p className="text-[11px] text-zinc-500">{t("aiCloudHint")}</p>
+              <p className="text-xs text-ink-3">{t("aiCloudHint")}</p>
               <select
                 className={`${inputClass} w-full`}
                 value={provider}
@@ -157,10 +157,10 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                   </button>
                 )}
               </div>
-              {status && !status.cloud.encryption && <p className="text-[11px] text-amber-400">{t("aiNoEncryption")}</p>}
+              {status && !status.cloud.encryption && <p className="text-xs text-warn">{t("aiNoEncryption")}</p>}
             </form>
           )}
-          {ai.message && <p className="text-xs text-red-400">{ai.message}</p>}
+          {ai.message && <p className="text-xs text-danger">{ai.message}</p>}
         </Card>
       </div>
 
@@ -173,11 +173,11 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
               </Chip>
             ))}
           </div>
-          <p className="text-[11px] text-zinc-500">{t(`aiTaskHint.${ai.task}`)}</p>
+          <p className="text-xs text-ink-3">{t(`aiTaskHint.${ai.task}`)}</p>
           <textarea className={`${inputClass} w-full h-20`} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t(`aiPlaceholder.${ai.task}`)} aria-label={t("aiPrompt")} data-testid="ai-prompt" />
           {(ai.task === "videos" || ai.task === "copy") && (
             <div className="flex gap-2 flex-wrap items-center">
-              <span className="text-[11px] text-zinc-500">{t("aiPlatforms")}</span>
+              <span className="text-xs text-ink-3">{t("aiPlatforms")}</span>
               {BOT_PLATFORMS.map((p) => (
                 <Chip key={p} on={platforms.includes(p)} onClick={() => setPlatforms((ps) => (ps.includes(p) ? (ps.length > 1 ? ps.filter((x) => x !== p) : ps) : [...ps, p]))}>
                   {t(`preset.${p}`)}
@@ -196,40 +196,40 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                 {t("aiRun")}
               </button>
             )}
-            {!canRun && <span className="text-[11px] text-amber-400">{prefs.aiProvider === "local" && !localReady ? t("aiNeedModel") : t("aiNeedKey")}</span>}
+            {!canRun && <span className="text-xs text-warn">{prefs.aiProvider === "local" && !localReady ? t("aiNeedModel") : t("aiNeedKey")}</span>}
           </div>
           {(ai.stream || ai.running) && (
-            <pre className="text-[11px] leading-snug text-zinc-300 bg-black/40 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap break-words" data-testid="ai-stream">
+            <pre className="text-xs leading-snug text-ink-2 bg-black/40 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap break-words" data-testid="ai-stream">
               {ai.stream || "…"}
             </pre>
           )}
           {ai.log.length > 0 && (
-            <ul className="text-[11px] space-y-0.5" data-testid="ai-log">
+            <ul className="text-xs space-y-0.5" data-testid="ai-log">
               {ai.log.map((line, i) => (
-                <li key={i} className={line.kind === "invalid" || line.kind === "error" ? "text-amber-400" : line.kind === "tool" ? "text-cyan-300" : "text-zinc-500"}>
-                  {line.kind === "invalid" ? `↻ ${t("aiRetried")}: ` : line.kind === "tool" ? "⚙ " : ""}
+                <li key={i} className={line.kind === "invalid" || line.kind === "error" ? "text-warn" : line.kind === "tool" ? "text-accent-strong" : "text-ink-3"}>
+                  {line.kind === "invalid" ? `↻ ${t("aiRetried")}: ` : line.kind === "tool" ? "› " : ""}
                   {line.text}
                 </li>
               ))}
             </ul>
           )}
-          {ai.error && <p className="text-xs text-red-400" data-testid="ai-error">{ai.error}</p>}
+          {ai.error && <p className="text-xs text-danger" data-testid="ai-error">{ai.error}</p>}
         </Card>
 
         {ai.result?.kind === "videos" && (
           <Card title={t("aiClipsTitle", { count: ai.result.result.clips.length })} actions={<button type="button" className={primaryBtn} onClick={onQueueTab}>{t("aiOpenQueue")}</button>}>
-            <p className="text-[11px] text-[#93d119]">{t("aiClipsQueued")}</p>
-            {ai.result.result.summary && <p className="text-xs text-zinc-300">{ai.result.result.summary}</p>}
+            <p className="text-xs text-accent">{t("aiClipsQueued")}</p>
+            {ai.result.result.summary && <p className="text-xs text-ink-2">{ai.result.result.summary}</p>}
             <ul className="space-y-2">
               {ai.result.result.clips.map((c) => (
-                <li key={`${c.planId}-${c.name}`} className="rounded-lg border border-zinc-800 p-2 text-xs space-y-1">
+                <li key={`${c.planId}-${c.name}`} className="rounded-lg border border-line p-2 text-xs space-y-1">
                   <div className="flex gap-2">
-                    <span className="font-semibold text-zinc-100 flex-1">{c.title}</span>
-                    <span className="text-zinc-500">{t(`preset.${c.platform}`)}</span>
+                    <span className="font-semibold text-ink flex-1">{c.title}</span>
+                    <span className="text-ink-3">{t(`preset.${c.platform}`)}</span>
                   </div>
-                  <p className="text-cyan-300">{c.hook}</p>
-                  <p className="text-zinc-400 whitespace-pre-wrap">{c.caption}</p>
-                  <p className="text-zinc-500">{c.hashtags.join(" ")}</p>
+                  <p className="text-accent-strong">{c.hook}</p>
+                  <p className="text-ink-2 whitespace-pre-wrap">{c.caption}</p>
+                  <p className="text-ink-3">{c.hashtags.join(" ")}</p>
                 </li>
               ))}
             </ul>
@@ -241,9 +241,9 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
             {ai.result.result.items.map((item) => {
               const post = `${item.caption}\n\n${item.hashtags.join(" ")}`;
               return (
-                <div key={item.platform} className="rounded-lg border border-zinc-800 p-2 text-xs space-y-1">
+                <div key={item.platform} className="rounded-lg border border-line p-2 text-xs space-y-1">
                   <div className="flex gap-2 items-center">
-                    <span className="font-semibold text-zinc-100 flex-1">
+                    <span className="font-semibold text-ink flex-1">
                       {t(`preset.${item.platform}`)} · {item.title}
                     </span>
                     <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => copy(post, item.platform)}>
@@ -253,9 +253,9 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
                       {t("aiUseHook")}
                     </button>
                   </div>
-                  <p className="text-cyan-300">{item.hook}</p>
-                  <p className="text-zinc-400 whitespace-pre-wrap">{item.caption}</p>
-                  <p className="text-zinc-500">{item.hashtags.join(" ")}</p>
+                  <p className="text-accent-strong">{item.hook}</p>
+                  <p className="text-ink-2 whitespace-pre-wrap">{item.caption}</p>
+                  <p className="text-ink-3">{item.hashtags.join(" ")}</p>
                 </div>
               );
             })}
@@ -264,15 +264,15 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
               <button type="button" className={`${primaryBtn} !py-0.5`} data-testid="ai-use-in-publish" onClick={() => setUsedInPublish(applyCopyToPublish(ai.result?.kind === "copy" ? ai.result.result.items : []) ? "done" : "noClip")}>
                 {t("aiUseInPublish")}
               </button>
-              <p className={`text-[11px] ${usedInPublish === "noClip" ? "text-amber-300" : "text-zinc-500"}`}>{usedInPublish === "done" ? t("aiUsedInPublish") : usedInPublish === "noClip" ? t("aiPublishNoClip") : t("aiPublishHint")}</p>
+              <p className={`text-xs ${usedInPublish === "noClip" ? "text-warn" : "text-ink-3"}`}>{usedInPublish === "done" ? t("aiUsedInPublish") : usedInPublish === "noClip" ? t("aiPublishNoClip") : t("aiPublishHint")}</p>
             </div>
           </Card>
         )}
 
         {ai.result?.kind === "settings" && (
           <Card title={t("aiSettingsTitle")} actions={ai.undo ? <button type="button" className={ghostBtn} onClick={ai.undoSettings} data-testid="ai-undo">{t("aiUndo")}</button> : undefined}>
-            <p className="text-xs text-zinc-200">{ai.result.result.summary}</p>
-            <p className="text-[11px] text-zinc-500 font-mono" data-testid="ai-changed">{ai.result.changed.join(", ") || t("aiNothingChanged")}</p>
+            <p className="text-xs text-ink">{ai.result.result.summary}</p>
+            <p className="text-xs text-ink-3 font-mono" data-testid="ai-changed">{ai.result.changed.join(", ") || t("aiNothingChanged")}</p>
           </Card>
         )}
 
@@ -280,15 +280,15 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
           <Card title={t("aiIdeasTitle")}>
             <ul className="space-y-2">
               {ai.result.result.ideas.map((idea, i) => (
-                <li key={i} className="rounded-lg border border-zinc-800 p-2 text-xs space-y-1">
+                <li key={i} className="rounded-lg border border-line p-2 text-xs space-y-1">
                   <div className="flex gap-2 items-center">
-                    <span className="font-semibold text-zinc-100 flex-1">{idea.title}</span>
-                    <span className="text-zinc-500">
+                    <span className="font-semibold text-ink flex-1">{idea.title}</span>
+                    <span className="text-ink-3">
                       {idea.recipe} · {idea.mode} · {t(`ending.${idea.ending}`)}
                     </span>
                   </div>
-                  <p className="text-cyan-300">{idea.hook}</p>
-                  <p className="text-zinc-400">{idea.why}</p>
+                  <p className="text-accent-strong">{idea.hook}</p>
+                  <p className="text-ink-2">{idea.why}</p>
                   <div className="flex gap-1.5">
                     <button
                       type="button"

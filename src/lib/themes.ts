@@ -1,4 +1,5 @@
 import { PARTICLE_STYLES, isParticleStyle, type ParticleStyle } from "@/lib/physics/particleStyles";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Themes and backgrounds: one-click looks for the simulator.
@@ -221,7 +222,7 @@ function colorPair(value: unknown): [string, string] | null {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and validates every field (presets, URLs); unknown ids and styles, bad colours and out-of-range dims fall back. */

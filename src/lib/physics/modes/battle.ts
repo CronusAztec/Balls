@@ -221,9 +221,9 @@ export class BattleMode implements GameMode {
   getSettings(): BattleSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a battle setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<BattleSettings>, unlimited = false) {
-    this.settings = resolveBattleSettings({ ...this.settings, ...patch }, unlimited);
+  /** Applied on the next init (the Simulator re-inits the mode when a battle setting changes). */
+  setSettings(patch: Partial<BattleSettings>) {
+    this.settings = resolveBattleSettings({ ...this.settings, ...patch });
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): ArenaView {

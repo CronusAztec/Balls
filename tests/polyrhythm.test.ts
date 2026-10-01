@@ -584,7 +584,7 @@ describe("Metronomes & Polyrhythms settings", () => {
       numbers: true,
       cycles: -2,
     });
-    expect(r).toEqual({ count: 400, layout: "rings", arcStyle: "chords", tempos: "harmonic", custom: "3,4,5", cycleSeconds: 12.5, baseBpm: 240, bpmStep: 0.1, polygon: true, accentEvery: 4, pitchBy: "index", numbers: true, cycles: 0 });
+    expect(r).toEqual({ count: 999, layout: "rings", arcStyle: "chords", tempos: "harmonic", custom: "3,4,5", cycleSeconds: 12.5, baseBpm: 500, bpmStep: 0.1, polygon: true, accentEvery: 4, pitchBy: "index", numbers: true, cycles: 0 }); // --- uncap-all --- (no maximum)
     expect(resolvePolyrhythmSettings({ count: Number.NaN }).count).toBe(DEFAULT_POLYRHYTHM_SETTINGS.count);
     for (const key of Object.keys(POLYRHYTHM_RANGES) as (keyof typeof POLYRHYTHM_RANGES)[]) expect(RANGES[key]).toEqual(POLYRHYTHM_RANGES[key]);
   });
@@ -618,8 +618,8 @@ describe("Metronomes & Polyrhythms settings", () => {
 
   it("fall back for bad URL values and presets", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=polyrhythm&prn=1&prl=cube&pras=x&prt=fast&prcu=%3Cb%3E2%2C3&prcs=0&prb=9&prbs=99&pra=-1&prpb=loud&prc=50"));
-    expect(polyrhythmSettingsOf(fromUrl)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, count: 2, custom: "2,3", cycleSeconds: 1, baseBpm: 20, bpmStep: 10, accentEvery: 0, cycles: 20 });
+    expect(polyrhythmSettingsOf(fromUrl)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, count: 2, custom: "2,3", cycleSeconds: 1, baseBpm: 20, bpmStep: 99, accentEvery: 0, cycles: 50 }); // --- uncap-all --- (prbs=99, prc=50 kept)
     const preset = presetToSettings({ mode: "polyrhythm", prCount: 1000, prLayout: "spiral", prTempos: "arithmetic", prCustom: 12, prPolygon: "yes", prCycles: 2 } as unknown as Partial<SimulatorSettings>);
-    expect(polyrhythmSettingsOf(preset)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, count: 400, layout: "spiral", tempos: "arithmetic", cycles: 2 });
+    expect(polyrhythmSettingsOf(preset)).toEqual({ ...DEFAULT_POLYRHYTHM_SETTINGS, count: 1000, layout: "spiral", tempos: "arithmetic", cycles: 2 }); // --- uncap-all --- (prCount 1000 kept)
   });
 });

@@ -78,11 +78,11 @@ describe("Ball Drop settings", () => {
     expect(resolveDropSettings(undefined)).toEqual(DEFAULT_DROP_SETTINGS);
     expect(resolveDropSettings({})).toEqual(DEFAULT_DROP_SETTINGS);
     expect(resolveDropSettings({ ballCount: 999, sizeVariation: 3, gravityVariation: -1, rows: 2.6, spawnInterval: 9, loop: true })).toEqual({
-      ballCount: DROP_RANGES.dropBallCount.max,
-      sizeVariation: 1,
+      ballCount: 999, // --- uncap-all --- (no maximum)
+      sizeVariation: 3,
       gravityVariation: 0,
       rows: 3,
-      spawnInterval: DROP_RANGES.dropSpawnInterval.max,
+      spawnInterval: 9,
       loop: true,
     });
     expect(resolveDropSettings({ ballCount: Number.NaN, rows: "many" as unknown as number, loop: "yes" as unknown as boolean })).toEqual(DEFAULT_DROP_SETTINGS);
@@ -114,9 +114,9 @@ describe("Ball Drop settings", () => {
 
   it("clamp bad URL values and presets to the ranges, falling back to the defaults", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mode=drop&dbc=999&dsv=abc&dgv=-2&drows=2.4&dsi=7&dloop=1"));
-    expect(s).toMatchObject({ dropBallCount: 40, dropSizeVariation: 0.5, dropGravityVariation: 0, dropRows: 3, dropSpawnInterval: 2, dropLoop: true });
+    expect(s).toMatchObject({ dropBallCount: 999, dropSizeVariation: 0.5, dropGravityVariation: 0, dropRows: 3, dropSpawnInterval: 7, dropLoop: true }); // --- uncap-all --- (no maximum)
     const p = presetToSettings({ mode: "drop", dropBallCount: -5, dropRows: 50, dropLoop: "yes" } as unknown as Partial<SimulatorSettings>);
-    expect(p).toMatchObject({ dropBallCount: 1, dropRows: 12, dropLoop: false });
+    expect(p).toMatchObject({ dropBallCount: 1, dropRows: 50, dropLoop: false });
     expect(presetToSettings({ mode: "classic" })).toMatchObject(dropSettingFields(DEFAULT_DROP_SETTINGS));
   });
 });

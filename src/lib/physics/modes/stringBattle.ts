@@ -4,7 +4,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
 import { TWO_PI, arenaRadius } from "../types";
 import { wobbleStrength } from "../wobble";
 import { teamResult } from "@/lib/teams";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * String Battle ("stringBattle" mode, battle family – feature odd-string-battle): the oddplayground "WEB DOMINION"
@@ -118,17 +118,17 @@ export interface StringBattleSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value (counts and the duration whole, the finale speed on its 0.1 steps); unknown options and non-boolean flags fall back to the defaults. */
-export function resolveStringBattleSettings(config: Partial<StringBattleSettings> | null | undefined, unlimited = false): StringBattleSettings {
+export function resolveStringBattleSettings(config: Partial<StringBattleSettings> | null | undefined): StringBattleSettings {
   const out = { ...DEFAULT_STRING_BATTLE_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(STRING_BATTLE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.sbBalls, out.balls));
+  const R = STRING_BATTLE_RANGES;
+  if (config.balls !== undefined) out.balls = memoryCeiling("sbBalls", Math.round(clampNumber(config.balls, R.sbBalls, out.balls)));
   if (config.lives !== undefined) out.lives = Math.round(clampNumber(config.lives, R.sbLives, out.lives));
-  if (config.maxStrings !== undefined) out.maxStrings = Math.round(clampNumber(config.maxStrings, R.sbMaxStrings, out.maxStrings));
+  if (config.maxStrings !== undefined) out.maxStrings = memoryCeiling("sbMaxStrings", Math.round(clampNumber(config.maxStrings, R.sbMaxStrings, out.maxStrings)));
   if (isSbRule(config.rule)) out.rule = config.rule;
   if (isSbStyle(config.style)) out.style = config.style;
   if (config.duration !== undefined) out.duration = Math.round(clampNumber(config.duration, R.sbDuration, out.duration));
@@ -645,9 +645,9 @@ export class StringBattleMode implements GameMode {
     return { ...this.settings };
   }
 
-  /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
-  setSettings(patch: Partial<StringBattleSettings>, unlimited = false) {
-    this.settings = resolveStringBattleSettings({ ...this.settings, ...patch }, unlimited);
+  /** Balls, lives, threads, rule, clip limit and finale speed apply on the next init; the style, HUD, badge and wobble at once. */
+  setSettings(patch: Partial<StringBattleSettings>) {
+    this.settings = resolveStringBattleSettings({ ...this.settings, ...patch });
     const live = this.view.settings;
     live.style = this.settings.style;
     live.hud = this.settings.hud;
@@ -705,7 +705,7 @@ export class StringBattleMode implements GameMode {
     v.tie = false;
     this.pending.length = 0;
     this.ballOf.fill(null);
-    if (this.killerOf.length < s.balls) this.killerOf = new Int32Array(s.balls).fill(-1); // --- unlimited --- (No limits: more balls than MAX_TEAMS; a typed array never grows by itself)
+    if (this.killerOf.length < s.balls) this.killerOf = new Int32Array(s.balls).fill(-1); // --- unlimited --- (more balls than MAX_TEAMS; a typed array never grows by itself)
     this.plucksThisStep = 0;
     const base = (cfg.ballSpeed || 400) * SB_SPEED_SCALE;
     const radius = (cfg.ballRadius || 8) * SB_BALL_SCALE;

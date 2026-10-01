@@ -5,7 +5,7 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { DEFAULT_WALL_WOBBLE, resolveWallWobble } from "../wobble";
 import { buildPendulumField, pendulumPitch, type PendulumField } from "./pendulum";
-import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Circle Illusion ("illusion" mode, rhythm family – feature jdm-illusions; the project.jdm "Circle Bounce ILLUSION",
@@ -111,19 +111,19 @@ export interface IllusionSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value (counts and cycles whole, the speed on its 0.05 steps); unknown options fall back to the defaults. */
-export function resolveIllusionSettings(config: Partial<IllusionSettings> | null | undefined, unlimited = false): IllusionSettings {
+export function resolveIllusionSettings(config: Partial<IllusionSettings> | null | undefined): IllusionSettings {
   const out = { ...DEFAULT_ILLUSION_SETTINGS };
   if (!config) return out;
-  const R = rangesFor(ILLUSION_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
+  const R = ILLUSION_RANGES;
   if (isIllusionType(config.type)) out.type = config.type;
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.ilBalls, out.balls));
-  if (config.rings !== undefined) out.rings = Math.round(clampNumber(config.rings, R.ilRings, out.rings));
+  if (config.balls !== undefined) out.balls = memoryCeiling("ilBalls", Math.round(clampNumber(config.balls, R.ilBalls, out.balls)));
+  if (config.rings !== undefined) out.rings = memoryCeiling("ilRings", Math.round(clampNumber(config.rings, R.ilRings, out.rings)));
   if (config.depth !== undefined) out.depth = Math.round(clampNumber(config.depth, R.ilDepth, out.depth));
-  if (config.painters !== undefined) out.painters = Math.round(clampNumber(config.painters, R.ilPainters, out.painters));
+  if (config.painters !== undefined) out.painters = memoryCeiling("ilPainters", Math.round(clampNumber(config.painters, R.ilPainters, out.painters)));
   if (isIllusionPatternChoice(config.pattern)) out.pattern = config.pattern;
   if (config.speed !== undefined) out.speed = Math.round(20 * clampNumber(config.speed, R.ilSpeed, out.speed)) / 20;
   if (typeof config.tracks === "boolean") out.tracks = config.tracks;
@@ -238,8 +238,8 @@ export const RING_CYCLE_SEC = 24;
 export const RING_TRAVERSALS = 24;
 
 /** Length (s) of a cycle – lines: one turn of the rolling circle; rings: the ring alignment – or 0 for the types without cycles. */
-export function illusionCycleSeconds(settings: Partial<IllusionSettings> | null | undefined, unlimited = false): number {
-  const s = resolveIllusionSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
+export function illusionCycleSeconds(settings: Partial<IllusionSettings> | null | undefined): number {
+  const s = resolveIllusionSettings(settings);
   if (s.type === "lines") return LINE_CYCLE_SEC / s.speed;
   if (s.type === "rings") return RING_CYCLE_SEC / s.speed;
   return 0;
@@ -254,9 +254,9 @@ export function illusionRunNeverFinishes(settings: Partial<IllusionSettings> | n
 }
 
 /** The run length (s) when the settings fix it whatever the seed (lines / rings: cycles × the cycle length), else null. */
-export function illusionFixedDurationSec(settings: Partial<IllusionSettings> | null | undefined, unlimited = false): number | null {
-  const s = resolveIllusionSettings(settings, unlimited); // --- unlimited --- (as the mode resolves them)
-  if ((s.type === "lines" || s.type === "rings") && s.cycles > 0) return s.cycles * illusionCycleSeconds(s, unlimited);
+export function illusionFixedDurationSec(settings: Partial<IllusionSettings> | null | undefined): number | null {
+  const s = resolveIllusionSettings(settings);
+  if ((s.type === "lines" || s.type === "rings") && s.cycles > 0) return s.cycles * illusionCycleSeconds(s);
   return null;
 }
 
@@ -509,8 +509,6 @@ export class IllusionMode implements GameMode {
   readonly ballsMayRest = true;
   readonly ballsPassThrough = true;
   private settings: IllusionSettings = { ...DEFAULT_ILLUSION_SETTINGS };
-  /** --- unlimited --- No limits was on at the last `setSettings()` (the plans built from the settings resolve them the same way). */
-  private unlimited = false;
   private readonly view: IllusionView = createView();
   private sps = 60;
   private firstId = 0;
@@ -555,11 +553,9 @@ export class IllusionMode implements GameMode {
   /**
    * Everything but the display switches takes effect on the next init (the Simulator restarts the mode when one of them
    * changes); the tracks and the reveal only change the drawing and apply at once.
-   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  setSettings(patch: Partial<IllusionSettings>, unlimited = false) {
-    this.unlimited = unlimited; // --- unlimited ---
-    this.settings = resolveIllusionSettings({ ...this.settings, ...patch }, unlimited);
+  setSettings(patch: Partial<IllusionSettings>) {
+    this.settings = resolveIllusionSettings({ ...this.settings, ...patch });
     if (!this.initialized) return;
     this.view.settings = { ...this.view.settings, tracks: this.settings.tracks, reveal: this.settings.reveal };
   }
@@ -610,7 +606,7 @@ export class IllusionMode implements GameMode {
     v.circleError = 0;
     v.pattern = null;
     v.intrinsicWobble = s.type === "nested" ? NESTED_WOBBLE : 0;
-    v.cycleSec = illusionCycleSeconds(s, this.unlimited);
+    v.cycleSec = illusionCycleSeconds(s);
     this.sps = 60;
     this.width = ctx.config.width;
     this.height = ctx.config.height;
@@ -872,7 +868,16 @@ export class IllusionMode implements GameMode {
       final = true;
     }
     const slotSec = v.cycleSec / (2 * n);
-    for (let m = lo; m < hi; m++) {
+    // --- uncap-all --- a speed so high that one step spans more than a whole cycle of rim touches: the earlier ones repeat
+    // the last cycle's (every ball's last touch and note are the same), so only the last 2N slots are walked – and past
+    // the float's whole numbers (2⁵³) the slots are no longer countable at all: the step touches nothing
+    let from = lo;
+    if (hi > Number.MAX_SAFE_INTEGER) from = hi;
+    else if (hi - from > 2 * n) {
+      v.noteCount += hi - 2 * n - from;
+      from = hi - 2 * n;
+    }
+    for (let m = from; m < hi; m++) {
       const touch = lineTouch(m, n, v.direction);
       v.lastHitStep[touch.ball] = step + 1;
       this.queueNote(this.pitch[touch.ball], 1, false);

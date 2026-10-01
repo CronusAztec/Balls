@@ -16,12 +16,12 @@ export interface ArenaGamesSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const ARENA_GAME_KEYS = ["arenaTitle", "btCount", "btHp", "btDamage", "btArena", "btShrink", "btPowerUps", "ctfPerTeam", "ctfScoreToWin", "arenaNudge"];
 
-const ARENA_OPTIONS: Record<BattleArena, { icon: string; labelKey: string }> = {
-  box: { icon: "⬛", labelKey: "btArenaBox" },
-  circle: { icon: "⚪", labelKey: "btArenaCircle" },
+const ARENA_OPTIONS: Record<BattleArena, { labelKey: string }> = {
+  box: { labelKey: "btArenaBox" },
+  circle: { labelKey: "btArenaCircle" },
 };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /**
  * "Arena games" controls (feature jdm-arena-games), shown in the Mode row while Battle Royale or Capture the Flag is the
@@ -38,25 +38,25 @@ export default function ArenaGamesSection({ t, search, matches, settings: s, upd
     <div className="space-y-3 pt-2" data-testid="arena-games-section">
       {!search && (
         <>
-          <p className="text-sm font-semibold text-zinc-200">{t("arenaTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t(ctf ? "ctfDesc" : "btDesc")}</p>
+          <p className="text-sm font-semibold text-ink">{t("arenaTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t(ctf ? "ctfDesc" : "btDesc")}</p>
         </>
       )}
       {(battle || all) && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="btCount" tipKey="btCountTip" value={s.btCount} range={RANGES.btCount} onChange={(v) => update({ btCount: v })} display={String(s.btCount)} left="▪" right="▦" />
-          <Slider t={t} search={search} matches={matches} labelKey="btHp" tipKey="btHpTip" value={s.btHp} range={RANGES.btHp} onChange={(v) => update({ btHp: v })} display={String(s.btHp)} left="💔" right="❤️" />
-          <Slider t={t} search={search} matches={matches} labelKey="btDamage" tipKey="btDamageTip" value={s.btDamage} range={RANGES.btDamage} onChange={(v) => update({ btDamage: v })} display={`${s.btDamage.toFixed(2)}×`} left="🪶" right="💥" />
+          <Slider t={t} search={search} matches={matches} labelKey="btCount" tipKey="btCountTip" value={s.btCount} range={RANGES.btCount} onChange={(v) => update({ btCount: v })} display={String(s.btCount)} />
+          <Slider t={t} search={search} matches={matches} labelKey="btHp" tipKey="btHpTip" value={s.btHp} range={RANGES.btHp} onChange={(v) => update({ btHp: v })} display={String(s.btHp)} />
+          <Slider t={t} search={search} matches={matches} labelKey="btDamage" tipKey="btDamageTip" value={s.btDamage} range={RANGES.btDamage} onChange={(v) => update({ btDamage: v })} display={`${s.btDamage.toFixed(2)}×`} />
           <Searchable search={search} matches={matches} labelKey="btArena">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">
+              <label className="text-sm font-medium text-ink-2">
                 {t("btArena")}
                 <Tooltip text={t("btArenaTip")} />
               </label>
               <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("btArena")}>
                 {BATTLE_ARENAS.map((id) => (
                   <button type="button" key={id} onClick={() => update({ btArena: id })} aria-pressed={s.btArena === id} className={pick(s.btArena === id)}>
-                    <span aria-hidden="true">{ARENA_OPTIONS[id].icon}</span> {t(ARENA_OPTIONS[id].labelKey)}
+                    {t(ARENA_OPTIONS[id].labelKey)}
                   </button>
                 ))}
               </div>
@@ -72,17 +72,17 @@ export default function ArenaGamesSection({ t, search, matches, settings: s, upd
       )}
       {(ctf || all) && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="ctfPerTeam" tipKey="ctfPerTeamTip" value={s.ctfPerTeam} range={RANGES.ctfPerTeam} onChange={(v) => update({ ctfPerTeam: v })} display={`${s.ctfPerTeam} – ${s.ctfPerTeam}`} left="1" right="4" />
-          <Slider t={t} search={search} matches={matches} labelKey="ctfScoreToWin" tipKey="ctfScoreToWinTip" value={s.ctfScoreToWin} range={RANGES.ctfScoreToWin} onChange={(v) => update({ ctfScoreToWin: v })} display={String(s.ctfScoreToWin)} left="🚩" right="🏆" />
+          <Slider t={t} search={search} matches={matches} labelKey="ctfPerTeam" tipKey="ctfPerTeamTip" value={s.ctfPerTeam} range={RANGES.ctfPerTeam} onChange={(v) => update({ ctfPerTeam: v })} display={`${s.ctfPerTeam} – ${s.ctfPerTeam}`} />
+          <Slider t={t} search={search} matches={matches} labelKey="ctfScoreToWin" tipKey="ctfScoreToWinTip" value={s.ctfScoreToWin} range={RANGES.ctfScoreToWin} onChange={(v) => update({ ctfScoreToWin: v })} display={String(s.ctfScoreToWin)} />
           {!search && (
-            <p className="text-xs text-zinc-400 tabular-nums" data-testid="ctf-time-limit">
+            <p className="text-xs text-ink-2 tabular-nums" data-testid="ctf-time-limit">
               {t("ctfTimeInfo", { seconds: Math.round(ctfTimeLimitSec(s.recordingDuration)) })}
             </p>
           )}
         </>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="arenaNudge" tipKey="arenaNudgeTip" value={s.arenaNudge} range={RANGES.arenaNudge} onChange={(v) => update({ arenaNudge: v })} display={`${Math.round(100 * s.arenaNudge)}%`} left="🎲" right="🎬" />
-      {!search && <p className="text-[11px] text-zinc-500 leading-relaxed">{t("arenaTeamsHint")}</p>}
+      <Slider t={t} search={search} matches={matches} labelKey="arenaNudge" tipKey="arenaNudgeTip" value={s.arenaNudge} range={RANGES.arenaNudge} onChange={(v) => update({ arenaNudge: v })} display={`${Math.round(100 * s.arenaNudge)}%`} />
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("arenaTeamsHint")}</p>}
     </div>
   );
 }

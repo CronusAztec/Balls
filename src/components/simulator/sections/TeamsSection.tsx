@@ -1,10 +1,11 @@
 "use client";
 
 import Tooltip from "../Tooltip";
-import { ColorPicker, ResetButton, Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
+import { ColorPicker, Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap } from "@/lib/physics/ballStats";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 import {
   MAX_TEAM_NAME_LENGTH,
   SCOREBOARD_POSITIONS,
@@ -52,21 +53,24 @@ export function BallCountControl({ t, search, matches, settings: s, update }: Om
   if (search && !matches("ballCount") && !matches("twoBalls")) return null;
   const count = effectiveBallCount(s);
   const range = { ...RANGES.ballCount, max: Math.min(RANGES.ballCount.max, modeBallCap(s.mode)) };
-  // --- unlimited --- with No limits on the count goes past the team balls (the rest are crowd balls): the plain ball-count range, unclamped
+  // --- unlimited --- the count goes past the team balls (the rest are crowd balls): the plain ball-count range, unclamped
+  // --- uncap-all --- whatever the Wide sliders switch: the slider keeps the mode's team range (two in Grow) unless Wide
+  // sliders is on, and a count past the six team balls – typed into the number field or from a link – is a crowd
   const crowd = s.unlimited;
-  const shown = crowd ? Math.max(count, Math.floor(s.ballCount)) : count;
+  const pastTeams = s.ballCount > RANGES.ballCount.max;
+  const shown = crowd || pastTeams ? Math.max(count, Math.floor(s.ballCount)) : count;
   const body = (
     <div className="space-y-3">
-      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={shown} range={crowd ? RANGES.ballCount : range} onChange={(v) => update(crowd && v > range.max ? { ballCount: v, twoBalls: true } : ballCountPatch(s, v, defaultTeamNames(t)))} display={String(shown)} left="⚪" right="🎱" />
+      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={shown} range={crowd ? RANGES.ballCount : range} onChange={(v) => update((crowd && v > range.max) || v > RANGES.ballCount.max ? { ballCount: v, twoBalls: true } : ballCountPatch(s, v, defaultTeamNames(t)))} display={String(shown)} />
       {count >= 2 && !s.rainbowBall && s.teams.length === 0 && (
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">{t("ballColor2")}</label>
+          <label className="text-sm font-medium text-ink-2">{t("ballColor2")}</label>
           <ColorPicker value={s.ballColor2} onChange={(v) => update({ ballColor2: v })} label={t("ballColor2")} />
         </div>
       )}
     </div>
   );
-  return search ? <div className="p-3 bg-zinc-800/40 rounded-xl border border-zinc-700/50 shadow-sm">{body}</div> : body;
+  return search ? <div className="p-3 bg-surface-2/40 rounded-xl border border-line-strong/50 shadow-sm">{body}</div> : body;
 }
 
 /** One roster row: colour, emoji (a text field with suggestions) and name, plus a remove button. */
@@ -79,7 +83,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
         value={team.color}
         onChange={(e) => onChange({ color: e.target.value })}
         aria-label={t("teamColor", { n })}
-        className="w-9 h-9 shrink-0 bg-zinc-800 rounded-lg cursor-pointer border border-zinc-700"
+        className="w-9 h-9 shrink-0 bg-surface-2 rounded-lg cursor-pointer border border-line-strong"
       />
       <input
         type="text"
@@ -88,7 +92,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
         list={EMOJI_LIST_ID}
         aria-label={t("teamEmoji", { n })}
         placeholder="🙂"
-        className="w-12 shrink-0 px-1 py-1.5 text-center text-lg bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-600"
+        className="w-12 shrink-0 px-1 py-1.5 text-center text-lg bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3"
       />
       <input
         type="text"
@@ -97,11 +101,11 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
         maxLength={2 * MAX_TEAM_NAME_LENGTH}
         placeholder={t("teamNamePlaceholder", { n })}
         aria-label={t("teamName", { n })}
-        className="flex-1 min-w-0 px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+        className="flex-1 min-w-0 px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
         style={{ boxShadow: `inset 3px 0 0 ${team.color}` }}
       />
-      <button type="button" onClick={onRemove} aria-label={t("teamRemove", { n })} className="shrink-0 px-2 py-1 text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer">
-        ✕
+      <button type="button" onClick={onRemove} aria-label={t("teamRemove", { n })} className="shrink-0 px-2 py-1 text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer">
+        <IconClose size={14} />
       </button>
     </div>
   );
@@ -113,7 +117,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
  * scoreboard corner. Only the canvas reads the roster; the engine only learns the ball count, like "two balls"
  * before it, so a roster change restarts nothing but the balls it adds or removes.
  */
-export default function TeamsSection({ t, search, matches, settings: s, update, onReset }: TeamsSectionProps) {
+export default function TeamsSection({ t, search, matches, settings: s, update }: TeamsSectionProps) {
   const names = defaultTeamNames(t);
   const on = s.teams.length > 0;
   const plays = MULTI_BALL_MODES.includes(s.mode) || s.mode === "stringBattle"; // --- odd-string-battle --- (its balls wear the roster)
@@ -124,15 +128,14 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
   const editTeam = (index: number, patch: Partial<TeamEntry>) => update({ teams: s.teams.map((team, i) => (i === index ? { ...team, ...patch } : team)) });
   return (
     <div className="space-y-4">
-      <ResetButton search={search} t={t} section="teams" onReset={onReset} />
       <Searchable search={search} matches={matches} labelKey="teams">
         <div className="space-y-2">
           <Toggle t={t} labelKey="teams" tipKey="teamsTip" value={on} onChange={(v) => setRoster(v ? resizeRoster([], Math.max(2, effectiveBallCount(s)), names) : [])} caseStyle="title" />
-          {!plays && s.mode !== "race" && <p className="text-xs text-amber-500/90 leading-relaxed">{t("teamsModeNote")}</p>}
+          {!plays && s.mode !== "race" && <p className="text-xs text-warn/90 leading-relaxed">{t("teamsModeNote")}</p>}
           {/* --- jdm-race --- the Square Racing Grand Prix names, colours and emoji its first racers from the roster */}
-          {s.mode === "race" && <p className="text-xs text-[#93d119]/80 leading-relaxed" data-testid="teams-race-note">{t("rcTeamsNote")}</p>}
+          {s.mode === "race" && <p className="text-xs text-accent/80 leading-relaxed" data-testid="teams-race-note">{t("rcTeamsNote")}</p>}
           {plays && maxTeams < MAX_TEAMS && (on || !!search) && (
-            <p className="text-xs text-amber-500/90 leading-relaxed" data-testid="teams-cap-note">
+            <p className="text-xs text-warn/90 leading-relaxed" data-testid="teams-cap-note">
               {t("teamsModeCapNote", { max: maxTeams })}
             </p>
           )}
@@ -153,7 +156,7 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
               type="button"
               onClick={() => update(ballCountPatch(s, s.teams.length + 1, names))}
               disabled={s.teams.length >= maxTeams}
-              className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-dashed border-[#93d119]/40 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface-2 text-accent border border-dashed border-accent/40 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               ＋ {t("teamAdd")}
             </button>
@@ -171,7 +174,7 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
           {(s.showScoreboard || !!search) && (
             <Searchable search={search} matches={matches} labelKey="scoreboardPosition">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-300">
+                <label className="text-sm font-medium text-ink-2">
                   {t("scoreboardPosition")}
                   <Tooltip text={t("scoreboardPositionTip")} />
                 </label>
@@ -182,7 +185,7 @@ export default function TeamsSection({ t, search, matches, settings: s, update, 
                       key={position}
                       onClick={() => update({ scoreboardPosition: position })}
                       aria-pressed={s.scoreboardPosition === position}
-                      className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.scoreboardPosition === position ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.scoreboardPosition === position ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                     >
                       <span aria-hidden="true">{POSITION_LABELS[position].icon}</span> {t(POSITION_LABELS[position].labelKey)}
                     </button>

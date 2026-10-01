@@ -14,6 +14,11 @@ import type { MusicTrackInfo } from "./sections/MusicSection";
 import type { PaintBeatInfo, PaintPictureInfo } from "./sections/PicturePaintSection";
 import type { ThemeImageInfo, ThemeImageProps } from "./sections/ThemeSection"; // --- themes
 import Tooltip from "./Tooltip";
+// --- site-redesign --- the studio's stage: strip, transport bar, mode picker
+import StageStrip from "./studio/StageStrip";
+import ModePicker from "./studio/ModePicker";
+import Button from "@/components/ui/Button";
+import { IconCheck, IconClose, IconLink, IconPause, IconPlay, IconRecord, IconRestart, IconStop, IconTarget, IconWarning } from "@/components/ui/icons";
 import { PhysicsEngine } from "@/lib/physics/engine"; // --- teams --- (the two-ball switch became the ball count: MULTI_BALL_MODES below)
 import { physicsExtrasOf } from "@/lib/physics/extras";
 import { ballInteractionOf } from "@/lib/physics/interactions";
@@ -47,9 +52,12 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
-import { unlimitedConfigOf } from "@/lib/physics/limits"; // --- unlimited ---
+import { uncapConfigOf } from "@/lib/physics/limits"; // --- unlimited --- (--- uncap-all --- engaged by the values, not a switch)
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
 import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
+import { pastAnyMemoryCeiling, uncappedEngaged } from "@/lib/settings"; // --- uncap-all ---
+import NumberField from "./NumberField"; // --- uncap-all --- (the Find Simulation length has a number field too)
+import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
 import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
@@ -68,7 +76,7 @@ import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- 
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
 import { resolveFastExportFps, type EndHolds } from "@/lib/recording/fastRenderPlan";
-import type { FastExportState } from "./sections/FastExportSection";
+import { FastExportButton, FastExportStatus, type FastExportState } from "./sections/FastExportSection";
 // --- project-files ---
 import ProjectDropZone from "./ProjectDropZone";
 import { ShareCodeNotice, useShareCodeLoader, useShortShareLink } from "./shareLinks";
@@ -175,11 +183,14 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
 const FAST_PROGRESS_MS = 120;
 // --- end fast-render ---
 
+/** --- site-redesign --- a store that never changes (useSyncExternalStore for values only the browser knows). */
+const subscribeNever = () => () => {};
+
 /**
  * --- review fix (performance) --- The FPS badge's number, twice a second. It re-renders only itself: as page state it
  * re-rendered the whole simulator and its settings panel (~600 components) on almost every tick.
  */
-function FpsReadout({ canvasRef, label, className }: { canvasRef: React.RefObject<CanvasHandle | null>; label: string; className: string }) {
+function FpsReadout({ canvasRef, label, className }: { canvasRef: React.RefObject<CanvasHandle | null>; label?: string; className: string }) {
   const [fps, setFps] = useState(60);
   useEffect(() => {
     const id = setInterval(() => {
@@ -190,7 +201,8 @@ function FpsReadout({ canvasRef, label, className }: { canvasRef: React.RefObjec
   }, [canvasRef]);
   return (
     <span className={className} data-testid="fps-readout">
-      {fps} {label}
+      {fps}
+      {label ? ` ${label}` : null}
     </span>
   );
 }
@@ -274,7 +286,9 @@ export default function Simulator() {
   const [findWinner, setFindWinner] = useState(0);
   const [searchOutcome, setSearchOutcome] = useState<FinderOutcomeKind>("duration");
   const [shareCopied, setShareCopied] = useState(false);
-  const recordingSupported = useMemo(() => VideoRecorder.isSupported(), []);
+  // --- site-redesign --- read after hydration (the server has no MediaRecorder), so the server-rendered page and the
+  // first client render agree
+  const recordingSupported = useSyncExternalStore(subscribeNever, () => VideoRecorder.isSupported(), () => false);
 
   const update = useCallback((patch: Partial<SimulatorSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
@@ -284,6 +298,7 @@ export default function Simulator() {
 
   const initEngineForMode = useCallback((engine: PhysicsEngine, s: SimulatorSettings) => {
     engine.setBouncier(s.bouncierEnabled);
+    engine.setBounciness(s.bounciness); // --- uncap-all --- (the uncapped Bouncier: its gain per bounce)
     engine.setWallBreakStyle(s.wallBreakStyle);
     engine.setCinematicEnabled(s.cinematicEnabled);
     engine.setCountdownTotal(s.targetCount);
@@ -345,7 +360,7 @@ export default function Simulator() {
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
-      ...unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)), // --- unlimited --- (before the first run: its soft ceilings and crowd)
+      ...uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), pastAnyMemoryCeiling(s)), // --- unlimited --- (before the first run: its crowd; --- uncap-all --- engaged by any value past its slider)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -411,9 +426,12 @@ export default function Simulator() {
   const s = settings;
   // --- unlimited --- No limits travels in the physics config (the switch and the crowd: the Ball Count past the team balls).
   // Declared first, so the engine knows the switch before the values past their ranges below reach it.
+  // --- uncap-all --- engaged by any value past its slider (whatever the Wide sliders switch), ARENA FULL past a memory ceiling
+  const uncapEngaged = uncappedEngaged(s);
+  const uncapMemoryFull = pastAnyMemoryCeiling(s);
   useEffect(() => {
-    engineRef.current?.setConfig(unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)));
-  }, [s.unlimited, s.ballCount, s.mode, s.teams, s.twoBalls]); // eslint-disable-line react-hooks/exhaustive-deps
+    engineRef.current?.setConfig(uncapConfigOf(uncapEngaged, s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), uncapMemoryFull));
+  }, [uncapEngaged, uncapMemoryFull, s.ballCount, s.mode, s.teams, s.twoBalls]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setConfig({
       gravity: s.gravity,
@@ -453,7 +471,8 @@ export default function Simulator() {
   }, [s.wallBreakStyle]);
   useEffect(() => {
     engineRef.current?.setBouncier(s.bouncierEnabled);
-  }, [s.bouncierEnabled]);
+    engineRef.current?.setBounciness(s.bounciness); // --- uncap-all ---
+  }, [s.bouncierEnabled, s.bounciness]);
   useEffect(() => {
     engineRef.current?.setCinematicEnabled(s.cinematicEnabled);
     // --- review fix (modes-rhythm) --- the director changes how a seed plays out: a found run's promise goes with the switch
@@ -969,7 +988,7 @@ export default function Simulator() {
     const engine = engineRef.current;
     if (!engine) return;
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeat));
-    const plan = runnerPlanOf(engine.getRunnerSettings(), s.gravity, s.unlimited); // --- unlimited --- (as the engine resolved them)
+    const plan = runnerPlanOf(engine.getRunnerSettings(), s.gravity);
     const before = runnerPlanRef.current;
     runnerPlanRef.current = plan;
     // The engine was created with these settings, or nothing the course is planned from changed.
@@ -978,7 +997,7 @@ export default function Simulator() {
     if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
     restartRunRef.current(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, s.unlimited, rhythmBeat]);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, rhythmBeat]);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1113,7 +1132,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setSeed(null);
     setSearchResult((r) => (r?.found ? null : r));
-  }, [s.mode, s.bouncierEnabled, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
+  }, [s.mode, s.bouncierEnabled, s.bounciness /* --- uncap-all --- */, s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.circleColor, s.ballColor, s.ballRadius, s.wallCount, s.wallThickness, s.gapSize, s.spikesEnabled, s.spikeCount, s.multiplySpawnCount, s.targetCount, s.colorMatchColorCount, s.growRate, s.airDrag, s.windX, s.windY, s.spinStrength, s.wallBounciness, s.breathingAmplitude, s.breathingSpeed, s.rotatingGravity, s.ballInteraction, s.splitMinRadius, s.maxBalls, s.dropBallCount, s.dropSizeVariation, s.dropGravityVariation, s.dropRows, s.dropSpawnInterval, s.dropLoop, s.boxShapeCount, s.boxShape, s.boxAspect, s.boxGravity, s.boxCountdown, s.boxGrowPerHit, s.boxSpeedRatio, s.pwCount, s.pwBaseOscillations, s.pwCycleSeconds, s.pwAmplitude, s.pwLayout, s.pwPolygon, s.pwPhasing, s.pwSoundOn, s.pwPitchDirection, s.pwWaveChord, s.pwCycles, s.cinematicEnabled]); // --- review fix (modes-rhythm) --- (the Cinematic switch)
 
   // --- teams --- Live add/remove of balls when the ball count (the old "two balls" switch) or the team roster changes – only in the
   // multi-ball modes (Ball Drop starts with many balls of its own; see engine.setBallCount()). A new count invalidates a found seed.
@@ -1189,6 +1208,7 @@ export default function Simulator() {
       live: (engine, arena) => {
         engine.setWallBreakStyle(arena.wallBreakStyle);
         engine.setBouncier(arena.bouncierEnabled);
+        engine.setBounciness(arena.bounciness ?? (arena.bouncierEnabled ? 1.03 : 1)); // --- uncap-all ---
         engine.setCinematicEnabled(arena.cinematicEnabled);
         engine.setParticleStyle(arena.particleStyle, particlePalette(arena));
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- gerald-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
@@ -2318,7 +2338,7 @@ export default function Simulator() {
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
-      settings.unlimited ? findSimulationBudgeted : findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
+      uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       {
         targetDurationSec: findDuration,
         toleranceSec: findTolerance,
@@ -2328,6 +2348,7 @@ export default function Simulator() {
         mode: settings.mode,
         modeSettings: {
           bouncierEnabled: settings.bouncierEnabled,
+          bounciness: settings.bounciness, // --- uncap-all ---
           countdownTotal: settings.targetCount,
           countdownRandom: settings.countdownRandom,
           colorMatchColorCount: settings.colorMatchColorCount,
@@ -2393,11 +2414,11 @@ export default function Simulator() {
       const holdMs = Math.max(teamsPlayRef.current ? WINNER_HOLD_MS : 0, settings.mode === "multipliers" ? MULT_FINISH_HOLD_MS : 0);
       // --- rigged --- a found outcome run that goes on past its clip (never escapes; Multiply) has no end to hold for
       const hold = result.outcome && !result.finished ? 0 : holdMs;
-      update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + hold / 1000))) });
+      update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + hold / 1000)) }); // (--- uncap-all --- a found run longer than the slider keeps its whole length)
       // --- jdm-double-pendulum --- the clip length is this mode's run length (its finale ends the clip): a found seed keeps it
       if (settings.mode === "doublePendulum") update({ recordingDuration: settings.recordingDuration });
       // --- odd-string-battle --- a found battle is recorded with its finish hold (the last shatter and the winner banner)
-      if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.min(RANGES.recordingDuration.max, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000))) });
+      if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000)) }) /* --- uncap-all --- */;
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       engine.setConfig({ ballRadius: settings.ballRadius });
@@ -2605,6 +2626,11 @@ export default function Simulator() {
         balls: (count) => fill("Unlimited.canvasBalls", { count }),
         ateArena: t("Unlimited.canvasAteArena"),
       },
+      // --- uncap-all ---
+      uncap: {
+        speed: (speed) => fill("Uncap.canvasSpeed", { speed }),
+        overflow: (count) => fill("Uncap.canvasOverflow", { count }),
+      },
     };
   }, [t]);
 
@@ -2710,8 +2736,14 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [settings.mode]);
   // --- end obstacle-editor ---
-  const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
-  const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
+  // --- site-redesign --- the studio's mode picker and the stage strip's seed readout
+  const [modePickerOpen, setModePickerOpen] = useState(false);
+  const openModePicker = useCallback(() => setModePickerOpen(true), []);
+  const closeModePicker = useCallback(() => setModePickerOpen(false), []);
+  const getStripSeed = useCallback(() => {
+    const engine = engineRef.current;
+    return engine ? { seed: engine.getSeed(), pinned: engine.getPinnedSeed() !== null } : null;
+  }, []);
 
   // --- desktop-exe --- what the Desktop group (sections/DesktopSection.tsx) may use of the page: it renders nothing on the website
   const desktopPage: DesktopPageHooks = {
@@ -2741,392 +2773,408 @@ export default function Simulator() {
   };
   // --- end desktop-exe ---
 
-  return (
-    <main id="simulator" ref={mainRef} className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="lg:col-span-2 flex flex-col">
-          <div className="bg-zinc-900/50 rounded-lg p-2 sm:p-4 border border-zinc-800">
-            <div className="relative aspect-square sm:aspect-video bg-black rounded-lg overflow-hidden shadow-2xl shadow-cyan-500/20">
-              {engineReady && engineRef.current && (
-                <Canvas
-                  ref={canvasRef}
-                  physicsEngine={engineRef.current}
-                  audioIntensity={0}
-                  showTrails={s.showTrails}
-                  trailThickness={visualValue(s.unlimited, "trailThickness", s.trailThickness) /* --- unlimited --- (drawn at its ceiling) */}
-                  showGlow={s.showGlow}
-                  showWallGlow={s.showWallGlow}
-                  isPaused={isPaused}
-                  isStarted={isStarted}
-                  circleColor={s.circleColor}
-                  wallThickness={visualValue(s.unlimited, "wallThickness", s.wallThickness) /* --- unlimited --- (drawn at its ceiling) */}
-                  watermarkText={s.watermarkText}
-                  rainbowWalls={s.rainbowWalls}
-                  rainbowWallMode={s.rainbowWallMode}
-                  rainbowBall={s.rainbowBall}
-                  lineColor={s.lineColor}
-                  rainbowLines={s.rainbowLines}
-                  ballImage={ballImage}
-                  ballEmoji={ballEmoji}
-                  topText={s.topText}
-                  bottomText={s.bottomText}
-                  textSize={s.textSize}
-                  reactiveBackground={s.reactiveBackground}
-                  colorTrail={s.colorTrail}
-                  cameraFollow={s.cameraFollow}
-                  simSpeed={simSpeed}
-                  labels={labels}
-                  paintPicture={paintPicture?.url ?? null}
-                  paintGhost={s.paintGhost}
-                  character={characterRender}
-                  onCharacterChirp={onCharacterChirp}
-                  // --- themes
-                  backgroundColor={s.backgroundColors[0]}
-                  backgroundType={s.backgroundType}
-                  backgroundColors={s.backgroundColors}
-                  backgroundDim={s.backgroundDim}
-                  backgroundImage={backgroundImage?.url ?? null}
-                  trailColors={s.trailColors}
-                  teams={teamRender} // --- teams ---
-                  // --- camera ---
-                  camera={cameraSettingsOf(s)}
-                  // --- obstacle-editor ---
-                  obstacleEditing={obstacleEditing}
-                  onObstaclesChange={onObstaclesChange}
-                  onSizeChange={onCanvasSizeChange} // --- review fix (modes-rhythm) ---
-                  captions={captionRender} // --- captions ---
-                  wallWobble={s.wallWobble} // --- jdm-illusions ---
-                  fastRender={fastRenderHost} // --- fast-render ---
-                  race={raceRender} // --- jdm-race ---
-                  videoBackground={videoBeats.videoLayer} // --- video-beats ---
-                  splitScreen={splitRender} // --- split-screen ---
-                />
-              )}
-              <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
-                <FpsReadout canvasRef={canvasRef} label={t("Simulator.fps")} className={gradientText} />
-              </div>
-              {isRecording && (
-                <button
-                  type="button"
-                  onClick={toggleRecording}
-                  className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 motion-safe:animate-pulse hover:bg-red-500 transition-colors cursor-pointer"
-                  aria-label={t("Simulator.stopRecordingTooltip")}
-                >
-                  <div className="w-2 h-2 bg-white rounded-full" />
-                  {t("Simulator.stopRecording")}
-                </button>
-              )}
-              {isStarted && !isRecording && !finished && (
-                <button type="button" onClick={restart} title={t("Simulator.restartTooltip")} className={`absolute top-4 left-4 group flex items-center gap-2 ${overlayButton}`}>
-                  <span className={`${gradientText} group-hover:rotate-180 transition-transform duration-500 inline-block`}>↻</span>
-                  <span className={gradientText}>{t("Simulator.restart")}</span>
-                </button>
-              )}
-              {isStarted && !finished && (
-                <button type="button" onClick={() => setIsPaused((p) => !p)} className={`absolute top-4 right-4 flex items-center gap-1.5 ${overlayButton}`}>
-                  <span className={gradientText}>{isPaused ? t("Simulator.resume") : t("Simulator.pause")}</span>
-                </button>
-              )}
-              {isStarted && (
-                <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md rounded-xl border border-slate-700/40 p-1.5 shadow-2xl">
-                  <span ref={timeLabelRef} className={`text-[11px] font-black font-mono ${gradientText} px-2 tabular-nums`}>
-                    0.0s
-                  </span>
-                  <div className="w-px h-4 bg-slate-700/60" />
-                  {SPEEDS.map((speed) => (
-                    <button
-                      type="button"
-                      key={speed}
-                      onClick={() => setSimSpeed(speed)}
-                      aria-pressed={simSpeed === speed}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black font-mono cursor-pointer ${simSpeed === speed ? "bg-cyan-500 text-slate-950" : "text-slate-400 hover:text-white hover:bg-slate-700/60"}`}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
-                </div>
-              )}
-              {isStarted && finished && !isRecording && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-md transition-all duration-500">
-                  <button type="button" onClick={restart} className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-base transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
-                    {t("Simulator.restartSimulation")}
-                  </button>
-                </div>
-              )}
-              {/* --- daily-gallery --- a finished daily run: its result and the invitation to share it (never on the canvas, so never recorded) */}
-              {isStarted && finished && !isRecording && daily.result && <DailyResultPanel result={daily.result} />}
-              {isSearching && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
-                  <div className="text-center space-y-5 max-w-xs px-4">
-                    <div className="text-5xl motion-safe:animate-pulse">🔍</div>
-                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-400">{t("Simulator.findingSimulation")}</p>
-                    {searchProgress && (
-                      <div className="space-y-3">
-                        <div className="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden">
-                          <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2.5 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
-                        </div>
-                        <p className="text-xs text-slate-400 font-mono">{t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
-                        {searchOutcome !== "duration" /* --- rigged --- */ ? <p className="text-xs text-slate-500">{outcomeProgressText(t, searchOutcome, searchProgress)}</p> : searchProgress.bestDuration > 0 && <p className="text-xs text-slate-500">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
-                      </div>
-                    )}
-                    <button type="button" onClick={cancelFinder} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
-                      {t("Simulator.cancel")}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {!isStarted && !isSearching && searchResult && !searchResult.found && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
-                  <div className="text-center space-y-5 max-w-xs px-4">
-                    <div className="text-5xl">❌</div>
-                    <p className="text-base font-bold text-red-400">{t("Simulator.didNotFind")}</p>
-                    <p className="text-xs text-slate-500">
-                      {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(plFinderFixedKey /* --- odd-power-layers --- */, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
-                    </p>
-                    <button type="button" onClick={() => setSearchResult(null)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-zinc-700 hover:border-zinc-600 cursor-pointer">
-                      {t("Simulator.tryAgain")}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {!isStarted && !isSearching && !(searchResult && !searchResult.found) && !obstacleEditing && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40 backdrop-blur-2xl">
-                  <div className="text-center space-y-6 px-4">
-                    <div className="text-7xl drop-shadow-[0_0_20px_rgba(34,211,238,0.3)]">⚡</div>
-                    <p className="text-lg font-medium text-slate-300">
-                      {searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}
-                    </p>
-                    {searchResult?.found && <p className="text-sm text-amber-500/90 max-w-sm mx-auto font-medium">{t("Simulator.doNotChangeSettingsWarning")}</p>}
-                    <button type="button" onClick={start} className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-base transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
-                      {t("Simulator.startSimulator")}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {/* --- obstacle-editor --- with a layout in play the ready screen shrinks to a bar at the top, so the obstacles stay visible and draggable */}
-              {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
-                <div className="absolute inset-x-0 top-0 flex justify-center p-3 sm:p-4 pointer-events-none" data-testid="obstacle-ready-bar">
-                  <div className="pointer-events-auto flex flex-col items-center gap-1.5 p-1.5 sm:px-4 sm:py-2.5 bg-slate-950/75 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-2xl shadow-cyan-500/10">
-                    <div className="flex items-center justify-center gap-4">
-                      <span className="hidden sm:inline text-sm font-medium text-slate-300">
-                        {searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}
-                      </span>
-                      <button type="button" onClick={start} className="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl font-semibold text-sm transition-all shadow-lg hover:scale-105 active:scale-95 text-slate-950 cursor-pointer">
-                        {t("Simulator.startSimulator")}
-                      </button>
+  // --- site-redesign --- the studio: the stage (strip, canvas in its frame, timeline, transport bar, Find Simulation, notes)
+  // goes between the rail and the panel (Controls.tsx lays the three zones out); the overlays stay on the canvas.
+  const fastExportPanel = { state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }; // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
+  const finderShown = showFinder || finderOutcome !== null; // --- rigged --- (the outcomes)
+  const scrim = "absolute inset-0 flex items-center justify-center bg-bg/80";
+  const stage = (
+    <div className="studio-stage-column">
+      <StageStrip
+        modeName={t(`Modes.${s.mode}.name`)}
+        onOpenModePicker={openModePicker}
+        getSeed={getStripSeed}
+        timeLabelRef={timeLabelRef}
+        clipSec={s.recordingDuration}
+        resolution={s.recordingResolution}
+        fpsReadout={<FpsReadout canvasRef={canvasRef} className="num text-sm text-ink-2" />}
+      />
+      <div className="studio-stage-area stage-vignette">
+        <div className="stage-frame relative overflow-hidden rounded-[var(--radius-stage)] border border-line bg-black">
+          {engineReady && engineRef.current && (
+            <Canvas
+              ref={canvasRef}
+              physicsEngine={engineRef.current}
+              audioIntensity={0}
+              showTrails={s.showTrails}
+              trailThickness={visualValue(s.trailThickness) /* --- unlimited --- (--- uncap-all --- as typed; stroked no wider than any canvas) */}
+              showGlow={s.showGlow}
+              showWallGlow={s.showWallGlow}
+              isPaused={isPaused}
+              isStarted={isStarted}
+              circleColor={s.circleColor}
+              wallThickness={visualValue(s.wallThickness) /* --- unlimited --- (--- uncap-all --- as typed; stroked no wider than any canvas) */}
+              watermarkText={s.watermarkText}
+              rainbowWalls={s.rainbowWalls}
+              rainbowWallMode={s.rainbowWallMode}
+              rainbowBall={s.rainbowBall}
+              lineColor={s.lineColor}
+              rainbowLines={s.rainbowLines}
+              ballImage={ballImage}
+              ballEmoji={ballEmoji}
+              topText={s.topText}
+              bottomText={s.bottomText}
+              textSize={s.textSize}
+              reactiveBackground={s.reactiveBackground}
+              colorTrail={s.colorTrail}
+              cameraFollow={s.cameraFollow}
+              simSpeed={simSpeed}
+              labels={labels}
+              paintPicture={paintPicture?.url ?? null}
+              paintGhost={s.paintGhost}
+              character={characterRender}
+              onCharacterChirp={onCharacterChirp}
+              // --- themes
+              backgroundColor={s.backgroundColors[0]}
+              backgroundType={s.backgroundType}
+              backgroundColors={s.backgroundColors}
+              backgroundDim={s.backgroundDim}
+              backgroundImage={backgroundImage?.url ?? null}
+              trailColors={s.trailColors}
+              teams={teamRender} // --- teams ---
+              // --- camera ---
+              camera={cameraSettingsOf(s)}
+              // --- obstacle-editor ---
+              obstacleEditing={obstacleEditing}
+              onObstaclesChange={onObstaclesChange}
+              onSizeChange={onCanvasSizeChange} // --- review fix (modes-rhythm) ---
+              captions={captionRender} // --- captions ---
+              wallWobble={s.wallWobble} // --- jdm-illusions ---
+              fastRender={fastRenderHost} // --- fast-render ---
+              race={raceRender} // --- jdm-race ---
+              videoBackground={videoBeats.videoLayer} // --- video-beats ---
+              splitScreen={splitRender} // --- split-screen ---
+            />
+          )}
+          {isRecording && (
+            <button
+              type="button"
+              onClick={toggleRecording}
+              className="absolute left-3 top-3 inline-flex h-8 items-center gap-2 rounded-full bg-bg/80 pl-2.5 pr-3 text-xs font-medium text-ink ring-1 ring-danger/60 hover:bg-bg cursor-pointer"
+              aria-label={t("Simulator.stopRecordingTooltip")}
+            >
+              <span className="h-2.5 w-2.5 rounded-full bg-danger animate-[var(--animate-rec)]" />
+              <span className="num">{t("Simulator.stopRecording")}</span>
+            </button>
+          )}
+          {isStarted && finished && !isRecording && (
+            <div className={scrim}>
+              <Button variant="primary" size="md" onClick={restart} icon={<IconRestart size={18} />}>
+                {t("Simulator.restartSimulation")}
+              </Button>
+            </div>
+          )}
+          {/* --- daily-gallery --- a finished daily run: its result and the invitation to share it (never on the canvas, so never recorded) */}
+          {isStarted && finished && !isRecording && daily.result && <DailyResultPanel result={daily.result} />}
+          {isSearching && (
+            <div className={`${scrim} z-20`}>
+              <div className="w-full max-w-xs space-y-4 px-4 text-center">
+                <IconTarget size={32} className="mx-auto text-accent" />
+                <p className="eyebrow text-ink-2">{t("Simulator.findingSimulation")}</p>
+                {searchProgress && (
+                  <div className="space-y-2">
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">
+                      <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
                     </div>
-                    {/* A found seed holds only while nothing changes – moving an obstacle included (it drops the seed). */}
-                    {searchResult?.found && (
-                      <p className="max-w-sm px-2 text-center text-[11px] leading-snug text-amber-500/90 font-medium" data-testid="obstacle-ready-warning">
-                        {t("Simulator.doNotChangeSettingsWarning")}
-                      </p>
-                    )}
+                    <p className="num text-xs text-ink-2">{t("Simulator.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</p>
+                    {searchOutcome !== "duration" /* --- rigged --- */ ? <p className="text-xs text-ink-3">{outcomeProgressText(t, searchOutcome, searchProgress)}</p> : searchProgress.bestDuration > 0 && <p className="text-xs text-ink-3">{mpCountSearch && searchProgress.bestCount !== undefined ? t("Simulator.finderMpClosestCount", { count: searchProgress.bestCount }) : t("Simulator.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</p>}
                   </div>
-                </div>
-              )}
-            </div>
-            {/* --- timeline --- the keyframe markers and the playhead under the canvas */}
-            {s.keyframes.length > 0 && <TimelineBar keyframes={s.keyframes} clipSec={s.recordingDuration} getEngine={getTimelineEngine} />}
-            <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-zinc-500">
-              <span>{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</span>
-              <button type="button" onClick={copyShareLink} className="shrink-0 px-2.5 py-1 rounded-md bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 transition-colors cursor-pointer">
-                {shareCopied ? `✅ ${t("Simulator.shareLinkCopied")}` : `🔗 ${t("Simulator.shareLink")}`}
-              </button>
-            </div>
-            {/* --- project-files --- a ?c= share code that could not be read */}
-            <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
-            {/* --- review fix (security-robustness) --- counts past the soft ceilings, and a recording that could not start */}
-            <SoftCeilingNotice settings={s} />
-            {recordingError && (
-              <p className="mt-1.5 text-[11px] text-red-400/90 leading-relaxed" role="alert" data-testid="recording-error">
-                ⚠️ {t("Simulator.recordingStartError")}
-              </p>
-            )}
-            {/* --- daily-gallery --- the daily challenge on the page and the Play today's seed button */}
-            <DailyBar active={daily.active} busy={daily.busy} disabled={isRecording || isSearching || fastRunning || batchRender.running || !engineReady} onPlay={() => void daily.playToday()} />
-            {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}
-            {obstacleEditing && (
-              <p className="mt-1.5 text-[11px] text-[#93d119]/80 leading-relaxed" data-testid="obstacle-canvas-hint">
-                ✋ {t("Controls.obstacleHint")}
-              </p>
-            )}
-            {/* --- rigged --- the rig is on: said here, outside the canvas, so the recording never shows it */}
-            {riggedNote && (
-              <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="rigged-note">
-                🎭 {riggedNote}
-              </p>
-            )}
-            {/* --- jdm-race --- a staged winner is said here too, outside the canvas */}
-            {raceRender && s.rcWinner >= 0 && s.rcWinner < s.rcRacers && (
-              <p className="mt-1.5 text-[11px] text-amber-400/90 leading-relaxed" data-testid="race-rigged-note">
-                🎭 {t("Controls.rcRigNote", { name: raceRender.names[s.rcWinner] ?? "" })}
-              </p>
-            )}
-          </div>
-
-          {(showFinder || finderOutcome !== null) /* --- rigged --- (the outcomes) */ && (
-            <div className="mt-6 max-w-[800px] mx-auto w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-xl flex-1 flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-zinc-300">🔍 {t("Controls.findSimulation")}</span>
-                <Tooltip text={t("Controls.findSimulationTip")} />
-                {/* --- rigged --- the outcome to search for */}
-                {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
+                )}
+                <Button variant="secondary" size="sm" onClick={cancelFinder}>
+                  {t("Simulator.cancel")}
+                </Button>
               </div>
-              {/* --- rigged --- an outcome search's explanation and fields */}
-              {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
-              <div className="flex-1 flex flex-col justify-center">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500" htmlFor="find-duration">
-                      {t("Controls.duration")}
-                    </label>
-                    <span className="text-xs font-mono text-cyan-400">{findDuration}s</span>
-                  </div>
-                  <input
-                    id="find-duration"
-                    type="range"
-                    min={RANGES.findDuration.min}
-                    max={RANGES.findDuration.max}
-                    step={RANGES.findDuration.step}
-                    value={findDuration}
-                    onChange={(e) => setFindDuration(Number(e.target.value))}
-                    className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer"
-                    style={sliderStyle(findDuration, RANGES.findDuration.min, RANGES.findDuration.max)}
-                  />
-                  <div className="flex justify-between text-[10px] text-zinc-600">
-                    <span>{RANGES.findDuration.min}s</span>
-                    <span>{RANGES.findDuration.max}s</span>
-                  </div>
-                </div>
-              </div>
-              {isSearching && searchProgress && (
-                <div className="space-y-2" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
-                  <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                    <div className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-2 rounded-full transition-all duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-zinc-500">
-                    <span className="font-mono">{t("Controls.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</span>
-                    {searchOutcome !== "duration" /* --- rigged --- */ ? <span>{outcomeProgressText(t, searchOutcome, searchProgress)}</span> : searchProgress.bestDuration > 0 && <span>{t("Controls.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</span>}
-                  </div>
-                </div>
-              )}
-              {!isSearching && searchResult && !searchResult.found && (
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-red-950/30 border border-red-900/30 rounded-lg">
-                  <span className="text-sm">❌</span>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-red-400">{t("Controls.didNotFind")}</p>
-                    <p className="text-[10px] text-zinc-500">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
-                  </div>
-                  <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
-                    ✕
-                  </button>
-                </div>
-              )}
-              {/* --- unlimited --- a heavy No limits run: fewer seeds were tested, a slice of every frame at a time */}
-              {!isSearching && searchResult?.limitedSeeds !== undefined && (
-                <p className="px-3 text-[10px] text-amber-400" data-testid="finder-unlimited-note">
-                  ♾️ {t("Unlimited.finderLimited", { count: searchResult.limitedSeeds })}
+            </div>
+          )}
+          {!isStarted && !isSearching && searchResult && !searchResult.found && (
+            <div className={`${scrim} z-20`}>
+              <div className="max-w-xs space-y-4 px-4 text-center">
+                <IconWarning size={28} className="mx-auto text-danger" />
+                <p className="text-md font-medium text-danger">{t("Simulator.didNotFind")}</p>
+                <p className="text-xs text-ink-2">
+                  {outcomeOverlayText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.endless ? t("Simulator.finderEndless") : searchResult.fixedDuration ? t(plFinderFixedKey /* --- odd-power-layers --- */, { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Simulator.finderMpTestedClosest", { tested: searchResult.seedsTested, closest: searchResult.count ?? 0, target: settings.mpTarget }) : t("Simulator.testedSeedsClosest", { tested: searchResult.seedsTested, closest: searchResult.duration.toFixed(1), target: findDuration, tolerance: findTolerance }))}
                 </p>
-              )}
-              {!isSearching && searchResult && searchResult.found && (
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">
-                  <span className="text-sm">✅</span>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-emerald-400">{outcomeFoundText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) }))}</p>
-                    <p className="text-[10px] text-zinc-500">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
-                    {/* --- video-beats --- On beat: how many beats the found run's wall hits land on */}
-                    {searchResult.beatsCovered !== undefined && (
-                      <p className="text-[10px] text-[#93d119]/80" data-testid="finder-beats-covered">
-                        ♩ {t("VideoBeats.finderBeats", { beats: searchResult.beatsCovered, hits: searchResult.beatHits ?? 0 })}
-                      </p>
-                    )}
-                  </div>
-                  <button type="button" onClick={() => setSearchResult(null)} className="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer" aria-label={t("Controls.clearSearch")}>
-                    ✕
-                  </button>
-                </div>
-              )}
+                <Button variant="secondary" size="sm" onClick={() => setSearchResult(null)}>
+                  {t("Simulator.tryAgain")}
+                </Button>
+              </div>
+            </div>
+          )}
+          {/* The ready screen: the status over the paused first frame (the Start button is the transport bar's). */}
+          {!isStarted && !isSearching && !(searchResult && !searchResult.found) && !obstacleEditing && (
+            <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-bg/40 p-3 sm:p-4">
+              <div className="flex max-w-sm flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 text-center ring-1 ring-line">
+                <p className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
+                {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
+              </div>
+            </div>
+          )}
+          {/* --- obstacle-editor --- with a layout in play the ready screen shrinks to a bar at the top, so the obstacles stay visible and draggable */}
+          {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3" data-testid="obstacle-ready-bar">
+              <div className="flex flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 ring-1 ring-line">
+                <span className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</span>
+                {/* A found seed holds only while nothing changes – moving an obstacle included (it drops the seed). */}
+                {searchResult?.found && (
+                  <p className="max-w-sm text-center text-xs font-medium leading-snug text-warn" data-testid="obstacle-ready-warning">
+                    {t("Simulator.doNotChangeSettingsWarning")}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* --- timeline --- the keyframe markers and the playhead above the transport bar */}
+      {s.keyframes.length > 0 && (
+        <div className="shrink-0 px-3 sm:px-4">
+          <TimelineBar keyframes={s.keyframes} clipSec={s.recordingDuration} getEngine={getTimelineEngine} />
+        </div>
+      )}
+      <div className="studio-transport @container" role="group" aria-label={t("SiteRedesign.studio.transport")}>
+        <div className="flex items-center gap-1.5">
+          {!isStarted && !isSearching && !(searchResult && !searchResult.found) && (
+            <Button variant="primary" size="sm" onClick={start} icon={<IconPlay size={16} />}>
+              {t("Simulator.startSimulator")}
+            </Button>
+          )}
+          {isStarted && !finished && (
+            <Button variant="secondary" size="sm" className="min-w-[6.5rem]" onClick={() => setIsPaused((p) => !p)} icon={isPaused ? <IconPlay size={16} /> : <IconPause size={16} />}>
+              {isPaused ? t("Simulator.resume") : t("Simulator.pause")}
+            </Button>
+          )}
+          {isStarted && !isRecording && !finished && (
+            <Button variant="ghost" size="sm" onClick={restart} title={t("Simulator.restartTooltip")} icon={<IconRestart size={16} />}>
+              <span className="sr-only @[40rem]:not-sr-only">{t("Simulator.restart")}</span>
+            </Button>
+          )}
+        </div>
+        <div className={isStarted ? "flex items-center" : "invisible hidden items-center @[40rem]:flex"} role="group" aria-label={t("SiteRedesign.studio.speed")}>
+          <div className="inline-flex items-center gap-0.5 rounded-md border border-line bg-surface-1 p-0.5">
+            {SPEEDS.map((speed) => (
               <button
                 type="button"
-                onClick={isSearching ? cancelFinder : runFinder}
-                disabled={isRecording}
-                className={`mt-auto w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg text-xs uppercase tracking-wider cursor-pointer ${
-                  isSearching
-                    ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700"
-                    : "bg-gradient-to-r from-blue-600 to-cyan-600 text-slate-950 hover:from-blue-500 hover:to-cyan-500 shadow-blue-600/20 hover:scale-[1.02] active:scale-95"
-                } ${isRecording ? "opacity-40 cursor-not-allowed" : ""}`}
+                key={speed}
+                onClick={() => setSimSpeed(speed)}
+                aria-pressed={simSpeed === speed}
+                className={`num inline-flex h-7 min-w-8 items-center justify-center rounded-[5px] px-1.5 text-xs cursor-pointer ${simSpeed === speed ? "bg-accent text-accent-ink" : "text-ink-2 hover:bg-surface-3 hover:text-ink"}`}
               >
-                {isSearching ? (
-                  <>
-                    <span className="motion-safe:animate-pulse">🔍</span> {t("Controls.cancelSearch")}
-                  </>
-                ) : (
-                  <>🔍 {outcomeButtonText(t, finderOutcome, outcomeText) /* --- rigged --- */ ?? (mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration }))}</>
+                {speed}x
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          {finderShown && (
+            <Button variant="secondary" size="sm" onClick={isSearching ? cancelFinder : runFinder} disabled={isRecording} icon={<IconTarget size={16} />} title={t("Controls.findSimulationTip")}>
+              <span className="sr-only @[52rem]:not-sr-only">
+                {isSearching ? t("Controls.cancelSearch") : (outcomeButtonText(t, finderOutcome, outcomeText) /* --- rigged --- */ ?? (mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration })))}
+              </span>
+            </Button>
+          )}
+          <Button
+            variant={isRecording ? "danger" : "secondary"}
+            size="sm"
+            onClick={toggleRecording}
+            disabled={!(recordingSupported && !fastRunning && !batchRender.running) /* --- fast-render --- (not while a fast export runs) --- batch-render --- (or a batch) */}
+            icon={isRecording ? <IconStop size={16} /> : <IconRecord size={16} className="text-danger" />}
+          >
+            <span className="sr-only @[44rem]:not-sr-only">{isRecording ? t("Controls.stopExport") : t("Controls.recordVideo")}</span>
+          </Button>
+          <FastExportButton {...fastExportPanel} labelClassName="sr-only @[60rem]:not-sr-only" /* --- fast-render --- */ />
+          <Button variant="ghost" size="sm" onClick={copyShareLink} icon={shareCopied ? <IconCheck size={16} className="text-accent" /> : <IconLink size={16} />}>
+            <span className="sr-only @[68rem]:not-sr-only">{shareCopied ? t("Simulator.shareLinkCopied") : t("Simulator.shareLink")}</span>
+          </Button>
+        </div>
+      </div>
+
+      {finderShown && (
+        <div className="studio-finder" data-testid="finder-strip">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="eyebrow flex items-center text-ink-3">
+              {t("Controls.findSimulation")}
+              <Tooltip text={t("Controls.findSimulationTip")} />
+            </span>
+            {/* --- rigged --- the outcome to search for */}
+            {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
+            <div className="flex min-w-[16rem] flex-1 items-center gap-2">
+              <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-duration">
+                {t("Controls.duration")}
+              </label>
+              <input
+                id="find-duration"
+                type="range"
+                min={RANGES.findDuration.min}
+                max={RANGES.findDuration.max}
+                step={RANGES.findDuration.step}
+                value={findDuration}
+                onChange={(e) => setFindDuration(Number(e.target.value))}
+                className="min-w-0 flex-1 cursor-pointer"
+                style={sliderStyle(findDuration, RANGES.findDuration.min, RANGES.findDuration.max)}
+              />
+              {/* --- uncap-all --- any run length from the minimum up (a search for a 10-minute run is the owner's call) */}
+              <NumberField value={findDuration} onCommit={setFindDuration} label={t("Controls.duration")} range={RANGES.findDuration} rules={rulesForRange(RANGES.findDuration)} disabled={isSearching} settingKey="findDuration" />
+            </div>
+          </div>
+          {/* --- rigged --- an outcome search's explanation and fields */}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ />}
+          {isSearching && searchProgress && (
+            <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">
+                <div className="h-full rounded-full bg-accent transition-[width] duration-200" style={{ width: `${(searchProgress.seedsTested / searchProgress.maxSeeds) * 100}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-xs text-ink-3">
+                <span className="num">{t("Controls.seedProgress", { tested: searchProgress.seedsTested, max: searchProgress.maxSeeds })}</span>
+                {searchOutcome !== "duration" /* --- rigged --- */ ? <span>{outcomeProgressText(t, searchOutcome, searchProgress)}</span> : searchProgress.bestDuration > 0 && <span>{t("Controls.closestDuration", { duration: searchProgress.bestDuration.toFixed(1) })}</span>}
+              </div>
+            </div>
+          )}
+          {!isSearching && searchResult && !searchResult.found && (
+            <div className="flex items-start gap-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2">
+              <IconWarning size={16} className="mt-0.5 shrink-0 text-danger" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-danger">{t("Controls.didNotFind")}</p>
+                <p className="text-xs text-ink-2">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
+              </div>
+              <button type="button" onClick={() => setSearchResult(null)} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer" aria-label={t("Controls.clearSearch")}>
+                <IconClose size={14} />
+              </button>
+            </div>
+          )}
+          {/* --- unlimited --- a heavy No limits run: fewer seeds were tested, a slice of every frame at a time */}
+          {/* --- uncap-all --- no tested seed ever ended: with these values the run never ends */}
+          {!isSearching && searchResult?.neverEnded && (
+            <p className="text-xs text-warn" data-testid="finder-never-ended">
+              {t("Uncap.finderEndless")}
+            </p>
+          )}
+          {!isSearching && searchResult?.limitedSeeds !== undefined && (
+            <p className="text-xs text-warn" data-testid="finder-unlimited-note">
+              {t("Unlimited.finderLimited", { count: searchResult.limitedSeeds })}
+            </p>
+          )}
+          {!isSearching && searchResult && searchResult.found && (
+            <div className="flex items-start gap-2 rounded-md border border-ok/25 bg-ok/5 px-3 py-2">
+              <IconCheck size={16} className="mt-0.5 shrink-0 text-ok" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-ok">{outcomeFoundText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (mpCountSearch && searchResult.count !== undefined ? t("Controls.mpFoundCount", { count: searchResult.count, duration: searchResult.duration.toFixed(1) }) : t("Controls.foundDuration", { duration: searchResult.duration.toFixed(1) }))}</p>
+                <p className="num text-xs text-ink-3">{t("Controls.seedTested", { seed: searchResult.seed, tested: searchResult.seedsTested })}</p>
+                {/* --- video-beats --- On beat: how many beats the found run's wall hits land on */}
+                {searchResult.beatsCovered !== undefined && (
+                  <p className="text-xs text-accent" data-testid="finder-beats-covered">
+                    {t("VideoBeats.finderBeats", { beats: searchResult.beatsCovered, hits: searchResult.beatHits ?? 0 })}
+                  </p>
                 )}
+              </div>
+              <button type="button" onClick={() => setSearchResult(null)} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer" aria-label={t("Controls.clearSearch")}>
+                <IconClose size={14} />
               </button>
             </div>
           )}
         </div>
+      )}
 
-        <ProjectDropZone className="lg:col-span-1" label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} disabled={projectFiles.panel.importLocked} lockedLabel={t("Controls.projectImportLocked")} /* --- project-files --- */ /* --- review fix (recording-export) --- (locked during a batch) */>
-          <Controls
-            settings={settings}
-            update={update}
-            onResetSection={onResetSection}
-            isRecording={isRecording}
-            recordingSupported={recordingSupported && !fastRunning && !batchRender.running} // --- fast-render --- (not while a fast export runs) --- batch-render --- (or a batch)
-            simulationFound={!!searchResult?.found}
-            onRecordToggle={toggleRecording}
-            ballImage={ballImage}
-            onBallImageUpload={onBallImageUpload}
-            onBallImageClear={() => setBallImage(null)}
-            ballEmoji={ballEmoji}
-            onBallEmojiChange={(emoji) => {
-              setBallEmoji(emoji);
-              if (emoji) setBallImage(null);
-            }}
-            customSoundId={customSoundId}
-            customSoundLoading={customSoundLoading}
-            customSoundNoteCount={customSoundNoteCount}
-            onCustomSoundSelect={onCustomSoundSelect}
-            customMidiName={customMidiName}
-            onCustomMidiUpload={onCustomMidiUpload}
-            customWallBreakName={customWallBreakName}
-            onWallBreakSoundUpload={onWallBreakSoundUpload}
-            customHitSampleName={customHitSample?.name ?? null}
-            hitSampleStatus={hitSampleStatus}
-            onHitSampleUpload={onHitSampleUpload}
-            sliceSongName={sliceSongInfo?.name ?? null}
-            sliceSongDuration={sliceSongInfo?.duration ?? 0}
-            sliceSongLoading={sliceSongLoading}
-            onSliceSongUpload={onSliceSongUpload}
-            onSliceSongClear={onSliceSongClear}
-            musicTrack={musicTrack}
-            musicLoading={musicLoading}
-            musicPlaying={musicPlaying}
-            getMusicDuckGain={getMusicDuckGain}
-            onMusicUpload={onMusicUpload}
-            onMusicRemove={onMusicRemove}
-            paintPicture={paintPicture}
-            onPaintPictureUpload={onPaintPictureUpload}
-            onPaintPictureRemove={onPaintPictureRemove}
-            paintBeat={paintBeat}
-            savedPresetNames={Object.keys(presets)}
-            onSavePreset={onSavePreset}
-            onLoadPreset={onLoadPreset}
-            onDeletePreset={onDeletePreset}
-            themeImage={themeImage} // --- themes
-            fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
-            project={projectFiles.panel} // --- project-files ---
-            batch={batchRender.panel} // --- batch-render ---
-            batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)
-            videoBeats={videoBeats.panel} // --- video-beats ---
-            bot={viralBot} // --- viral-bot ---
-            bounceMath={bounceMathPanel} // --- bounce-math ---
-          />
-        </ProjectDropZone>
-        <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />
+      <div className="studio-notes">
+        {/* --- fast-render --- how the last fast export went (or why it is off) */}
+        <FastExportStatus state={fastExport} supported={fastSupported} handPlay={handPlayed} />
+        <p className="text-xs text-ink-3">{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</p>
+        {/* --- project-files --- a ?c= share code that could not be read */}
+        <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
+        {/* --- review fix (security-robustness) --- counts past the soft ceilings, and a recording that could not start */}
+        <SoftCeilingNotice settings={s} />
+        {recordingError && (
+          <p className="text-xs leading-relaxed text-danger" role="alert" data-testid="recording-error">
+            {t("Simulator.recordingStartError")}
+          </p>
+        )}
+        {/* --- daily-gallery --- the daily challenge on the page and the Play today's seed button */}
+        <DailyBar active={daily.active} busy={daily.busy} disabled={isRecording || isSearching || fastRunning || batchRender.running || !engineReady} onPlay={() => void daily.playToday()} />
+        {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}
+        {obstacleEditing && (
+          <p className="text-xs leading-relaxed text-accent" data-testid="obstacle-canvas-hint">
+            {t("Controls.obstacleHint")}
+          </p>
+        )}
+        {/* --- rigged --- the rig is on: said here, outside the canvas, so the recording never shows it */}
+        {riggedNote && (
+          <p className="text-xs leading-relaxed text-warn" data-testid="rigged-note">
+            {riggedNote}
+          </p>
+        )}
+        {/* --- jdm-race --- a staged winner is said here too, outside the canvas */}
+        {raceRender && s.rcWinner >= 0 && s.rcWinner < s.rcRacers && (
+          <p className="text-xs leading-relaxed text-warn" data-testid="race-rigged-note">
+            {t("Controls.rcRigNote", { name: raceRender.names[s.rcWinner] ?? "" })}
+          </p>
+        )}
       </div>
+    </div>
+  );
+
+  return (
+    <main id="simulator" ref={mainRef} className="studio-main">
+      <ProjectDropZone label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} disabled={projectFiles.panel.importLocked} lockedLabel={t("Controls.projectImportLocked")} /* --- project-files --- (the whole studio takes a dropped project file; --- review fix (recording-export) --- not while a render runs) */>
+        <Controls
+          settings={settings}
+          update={update}
+          onResetSection={onResetSection}
+          isRecording={isRecording}
+          recordingSupported={recordingSupported && !fastRunning && !batchRender.running} // --- fast-render --- (not while a fast export runs) --- batch-render --- (or a batch)
+          simulationFound={!!searchResult?.found}
+          onRecordToggle={toggleRecording}
+          ballImage={ballImage}
+          onBallImageUpload={onBallImageUpload}
+          onBallImageClear={() => setBallImage(null)}
+          ballEmoji={ballEmoji}
+          onBallEmojiChange={(emoji) => {
+            setBallEmoji(emoji);
+            if (emoji) setBallImage(null);
+          }}
+          customSoundId={customSoundId}
+          customSoundLoading={customSoundLoading}
+          customSoundNoteCount={customSoundNoteCount}
+          onCustomSoundSelect={onCustomSoundSelect}
+          customMidiName={customMidiName}
+          onCustomMidiUpload={onCustomMidiUpload}
+          customWallBreakName={customWallBreakName}
+          onWallBreakSoundUpload={onWallBreakSoundUpload}
+          customHitSampleName={customHitSample?.name ?? null}
+          hitSampleStatus={hitSampleStatus}
+          onHitSampleUpload={onHitSampleUpload}
+          sliceSongName={sliceSongInfo?.name ?? null}
+          sliceSongDuration={sliceSongInfo?.duration ?? 0}
+          sliceSongLoading={sliceSongLoading}
+          onSliceSongUpload={onSliceSongUpload}
+          onSliceSongClear={onSliceSongClear}
+          musicTrack={musicTrack}
+          musicLoading={musicLoading}
+          musicPlaying={musicPlaying}
+          getMusicDuckGain={getMusicDuckGain}
+          onMusicUpload={onMusicUpload}
+          onMusicRemove={onMusicRemove}
+          paintPicture={paintPicture}
+          onPaintPictureUpload={onPaintPictureUpload}
+          onPaintPictureRemove={onPaintPictureRemove}
+          paintBeat={paintBeat}
+          savedPresetNames={Object.keys(presets)}
+          onSavePreset={onSavePreset}
+          onLoadPreset={onLoadPreset}
+          onDeletePreset={onDeletePreset}
+          themeImage={themeImage} // --- themes
+          fastExport={fastExportPanel} // --- fast-render ---
+          project={projectFiles.panel} // --- project-files ---
+          batch={batchRender.panel} // --- batch-render ---
+          videoBeats={videoBeats.panel} // --- video-beats ---
+          bot={viralBot} // --- viral-bot ---
+          bounceMath={bounceMathPanel} // --- bounce-math ---
+          batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)
+          stage={stage} // --- site-redesign ---
+          onOpenModePicker={openModePicker} // --- site-redesign ---
+        />
+      </ProjectDropZone>
+      <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />
+      {/* --- site-redesign --- the mode picker (the modes wall in a dialog) */}
+      {modePickerOpen && <ModePicker current={s.mode} onClose={closeModePicker} />}
     </main>
   );
 }

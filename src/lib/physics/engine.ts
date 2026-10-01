@@ -56,10 +56,11 @@ import { BM_BOUNCE, BM_COLLIDE, BounceMathRuntime, bounceHitEvent, shiftedObstac
 // --- unlimited --- No limits: soft ceilings, the crowd, finite numbers, the ate-the-arena finish
 import { UnlimitedRuntime, WALL_HITS_KEPT, type LimitsHost, type UnlimitedView } from "./limits";
 import type { Crowd } from "./crowd";
-import { MAX_EFFECTIVE_BOUNCE } from "./multipliers";
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
+import { BOUNCIER_CLASSIC_MAX, bouncierIncrementOf } from "@/lib/uncap"; // --- uncap-all --- the uncapped Bouncier
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
+import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
 import { ObstacleField, supportsObstacles } from "./obstacleEditor"; // --- obstacle-editor ---
 import type { PaintModeOptions } from "./picturePaint";
 import { spawnStyledBurst, type ParticleStyle } from "./particleStyles"; // --- themes
@@ -203,8 +204,8 @@ export class PhysicsEngine {
   private readonly MAX_PARTICLES = 200;
   private bouncierEnabled = false;
   private bounceSpeedMultiplier = 1;
-  private readonly bouncierIncrement = 0.03;
-  private readonly bouncierMaxMultiplier = 3;
+  // --- uncap-all --- the rebound gain per bounce is the Bounciness − 1 (0.03 = the old switch) and has no ceiling
+  private bouncierIncrement = 0.03;
   private cinematicDirector = new CinematicDirector();
   private _seed = 0;
   private _rngState = 0;
@@ -356,6 +357,7 @@ export class PhysicsEngine {
       reportWallBreak: (ball, wallIndex) => this.reportWallBreak(ball, wallIndex),
       creditWallBreak: (ball) => this.ballStats.wall(ball), // --- teams ---
       isBouncierEnabled: () => this.bouncierEnabled,
+      getBouncierIncrement: () => this.bouncierIncrement, // --- uncap-all ---
       getBounceSpeedMultiplier: () => this.bounceSpeedMultiplier,
       setBounceSpeedMultiplier: (value) => {
         this.bounceSpeedMultiplier = value;
@@ -772,6 +774,21 @@ export class PhysicsEngine {
     this.bouncierEnabled = enabled;
     if (!enabled) this.bounceSpeedMultiplier = 1;
   }
+  // --- uncap-all ---
+  /**
+   * The numeric Bounciness (the uncapped Bouncier): every wall bounce adds (value − 1) × the Ball Speed to the rebound
+   * multiplier – 1.03 is the old switch, 3 adds 200 % a bounce, 1e6 a million times – with no ceiling; 1 (or less) is off.
+   * The multiplier resets on a gap pass or a wall break, as it always did.
+   */
+  setBounciness(value: number) {
+    const increment = bouncierIncrementOf(value);
+    if (increment > 0) this.bouncierIncrement = increment;
+    this.setBouncier(increment > 0);
+  }
+  getBouncierIncrement() {
+    return this.bouncierIncrement;
+  }
+  // --- end uncap-all ---
   isBouncierEnabled() {
     return this.bouncierEnabled;
   }
@@ -853,7 +870,6 @@ export class PhysicsEngine {
   }
   /** Picture Paint: brush, beat sync, guidance and pacing of the Paint mode (see physics/picturePaint.ts). */
   setPaintOptions(patch: Partial<PaintModeOptions>) {
-    if (patch.brush !== undefined && this.limits.on) patch = { ...patch, brush: this.limits.ceilValue("paintBrush", patch.brush) }; // --- unlimited --- (past the slider, up to its soft ceiling)
     this.paintMode.setOptions(patch);
   }
   getPaintOptions(): PaintModeOptions {
@@ -914,7 +930,7 @@ export class PhysicsEngine {
     w.gDirY = gDirY;
     w.windX = this.extras.windX * base;
     w.windY = this.extras.windY * base;
-    w.dragKeep = this.extras.airDrag > 0 ? 1 - this.extras.airDrag : 1;
+    w.dragKeep = this.extras.airDrag > 0 ? Math.max(0, 1 - this.extras.airDrag) : 1; // --- uncap-all --- a drag of 1 or more stops the ball each step
     w.keepMoving = keepMoving;
     // Picture Paint's beat sync times the ball itself: On beat stands aside while it runs.
     const paint = this.currentMode === this.paintMode ? this.paintMode.getOptions() : null;
@@ -1068,7 +1084,7 @@ export class PhysicsEngine {
   }
   /** Ball count, size / gravity spread, rows, release interval and rain; applied by the next `initDrop()`. */
   setDropSettings(settings: Partial<DropSettings>) {
-    this.dropMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.dropMode.setSettings(settings);
   }
   getDropProgress() {
     return this.dropMode.getProgress();
@@ -1084,7 +1100,7 @@ export class PhysicsEngine {
   }
   /** Shape count / kind, box aspect, gravity, countdown, growth and speed ratio; applied by the next `initBox()`. */
   setBoxSettings(settings: Partial<BoxSettings>) {
-    this.boxMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.boxMode.setSettings(settings);
   }
   /** Live Bouncing Shapes state (box, shapes, recent hits) for the canvas and the HUD; the same object every call. */
   getBoxView(): BoxView {
@@ -1101,7 +1117,7 @@ export class PhysicsEngine {
   }
   /** Count, tuning, amplitude, layout, polygon, phasing, trails, sound and cycles of the Pendulum Wave; applied by the next `initPendulum()`. */
   setPendulumSettings(settings: Partial<PendulumSettings>) {
-    this.pendulumMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.pendulumMode.setSettings(settings);
   }
   /** Live Pendulum Wave state (rig, bobs, clock, counters) for the canvas and the HUD; the same object every call. */
   getPendulumView(): PendulumView {
@@ -1123,7 +1139,7 @@ export class PhysicsEngine {
   }
   /** Voices, tempo series, cycle and cycles of Metronomes & Polyrhythms apply on the next `initPolyrhythm()`; layout, polygons, accents, pitch mapping and numbers at once. */
   setPolyrhythmSettings(settings: Partial<PolyrhythmSettings>) {
-    this.polyrhythmMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.polyrhythmMode.setSettings(settings);
   }
   /** Live Metronomes & Polyrhythms state (geometry, voices, clock, counters) for the canvas and the HUD; the same object every call. */
   getPolyrhythmView(): PolyrhythmView {
@@ -1146,7 +1162,7 @@ export class PhysicsEngine {
   }
   /** Count, sizes, container, gravity, restitution, squishy, sync start, anti-collision and ring of the Collision Playground; applied by the next `initCollide()`. */
   setCollideSettings(settings: Partial<CollideSettings>) {
-    this.collideMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.collideMode.setSettings(settings);
   }
   /** Live Collision Playground state (container, colours, impacts, counters) for the canvas; the same object every call. */
   getCollideView(): CollideView {
@@ -1165,7 +1181,7 @@ export class PhysicsEngine {
   }
   /** Rows, gate mix, start balls, ball cap and count target of the multipliers board; applied by the next `initMultipliers()`. */
   setMultipliersSettings(settings: Partial<MultipliersSettings>) {
-    this.multipliersMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.multipliersMode.setSettings(settings);
   }
   /** Live multipliers-board state (board, camera, counters) for the canvas and the HUD; the same object every call. */
   getMultipliersView(): MultipliersView {
@@ -1280,7 +1296,7 @@ export class PhysicsEngine {
   }
   /** Rows, hit points, stages, sliding panes and holes of Glass Smash; applied by the next `initGlass()`. */
   setGlassSettings(settings: Partial<GlassSettings>) {
-    this.glassMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.glassMode.setSettings(settings);
   }
   /** Live Glass Smash state (level, panes, cracks, shards, camera, stage, HOME) for the canvas and the HUD; the same object every call. */
   getGlassView(): GlassView {
@@ -1299,7 +1315,7 @@ export class PhysicsEngine {
   }
   /** Rig (count, rods, lengths, masses, gravity, start, damping, sparring) applied by the next `initDoublePendulum()`; trails, strings, tuning and the end at once. */
   setDoublePendulumSettings(settings: Partial<DoublePendulumSettings>) {
-    this.doublePendulumMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.doublePendulumMode.setSettings(settings);
   }
   /** Live Double Pendulum state (field, chains, trails, strings, hits, clock, counters) for the canvas and the HUD; the same object every call. */
   getDoublePendulumView(): DoublePendulumView {
@@ -1322,7 +1338,7 @@ export class PhysicsEngine {
   }
   /** Type, counts, pattern, speed and cycles of the Circle Illusion apply on the next `initIllusion()`; the tracks and the reveal at once. */
   setIllusionSettings(settings: Partial<IllusionSettings>) {
-    this.illusionMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.illusionMode.setSettings(settings);
   }
   /** Live Circle Illusion state (bodies, circles, rings, layers, paint, counters) for the canvas and the HUD; the same object every call. */
   getIllusionView(): IllusionView {
@@ -1345,7 +1361,7 @@ export class PhysicsEngine {
   }
   /** Balls, lives, threads, rule, clip limit and finale speed of the String Battle apply on the next `initStringBattle()`; the style, HUD, badge and wobble at once. */
   setStringBattleSettings(settings: Partial<StringBattleSettings>) {
-    this.stringBattleMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.stringBattleMode.setSettings(settings);
   }
   /** Live String Battle state (ring, fighters, threads, effects, finale, verdict) for the canvas and the HUD; the same object every call. */
   getStringBattleView(): StringBattleView {
@@ -1364,7 +1380,7 @@ export class PhysicsEngine {
   }
   /** Layers, sequence, drift and bounce speed of Power Layers apply on the next `initPowerLayers()`; the badges and the scale at once. */
   setPowerLayersSettings(settings: Partial<PowerLayersSettings>) {
-    this.powerLayersMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.powerLayersMode.setSettings(settings);
   }
   /** Live Power Layers state (field, stack, power, level, particles, freedom) for the canvas and the HUD; the same object every call. */
   getPowerLayersView(): PowerLayersView {
@@ -1381,7 +1397,7 @@ export class PhysicsEngine {
   }
   /** The runner's course is planned at init: every setting (and the beat grid) applies on the next `initRunner()`; the scale and root at once. */
   setRunnerSettings(settings: Partial<RunnerSettings>) {
-    this.runnerMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.runnerMode.setSettings(settings);
   }
   getRunnerSettings(): RunnerSettings {
     return this.runnerMode.getSettings();
@@ -1402,7 +1418,7 @@ export class PhysicsEngine {
   }
   /** The game applies on the next `initPaddle()`; the scale and root at once. */
   setPaddleSettings(settings: Partial<PaddleSettings>) {
-    this.paddleMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.paddleMode.setSettings(settings);
   }
   getPaddleSettings(): PaddleSettings {
     return this.paddleMode.getSettings();
@@ -1431,7 +1447,7 @@ export class PhysicsEngine {
   }
   /** Racers, track length, laps, obstacle mix, the favourite and the cup apply on the next `initRace()`; the camera and the shape at once. */
   setRaceSettings(settings: Partial<RaceSettings>) {
-    this.raceMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.raceMode.setSettings(settings);
   }
   /** Live race state (track, standings, gaps, callouts, camera, podium) for the canvas and the HUD; the same object every call. */
   getRaceView(): RaceView {
@@ -1450,7 +1466,7 @@ export class PhysicsEngine {
   }
   /** Squares, hit points, damage, arena, shrinking zone, power-ups and nudge of the battle; applied by the next `initBattle()`. */
   setBattleSettings(settings: Partial<BattleSettings>) {
-    this.battleMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.battleMode.setSettings(settings);
   }
   getBattleProgress() {
     return this.battleMode.getProgress();
@@ -1463,7 +1479,7 @@ export class PhysicsEngine {
   }
   /** Team size, score to win and nudge of Capture the Flag apply on the next `initCtf()`; the clip length (its time limit) at once. */
   setCtfSettings(settings: Partial<CtfSettings>) {
-    this.ctfMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.ctfMode.setSettings(settings);
   }
   getCtfProgress() {
     return this.ctfMode.getProgress();
@@ -1484,7 +1500,7 @@ export class PhysicsEngine {
   }
   /** Balls, stagger, rings, duration, pull and loop of the Sound Vortex apply on the next `initVortex()`; the depth cue, scale and root at once. */
   setVortexSettings(settings: Partial<VortexSettings>) {
-    this.vortexMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.vortexMode.setSettings(settings);
   }
   /** Live Sound Vortex state (funnel, rings, balls, splashes, counters) for the canvas and the HUD; the same object every call. */
   getVortexView(): VortexView {
@@ -1503,7 +1519,7 @@ export class PhysicsEngine {
   }
   /** The stage list and the auto count apply on the next `initJourney()`. */
   setJourneySettings(settings: Partial<JourneySettings>) {
-    this.journeyMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.journeyMode.setSettings(settings);
   }
   /** Live Journey state (stages, active stage, camera, banner, progress, score, HOME) for the canvas and the HUD; the same object every call. */
   getJourneyView(): JourneyView {
@@ -1548,7 +1564,7 @@ export class PhysicsEngine {
   }
   /** Shots, interval, chaos, rings, the moving target and the perfect shot apply on the next `initBullseye()`; the scale and root at once. */
   setBullseyeSettings(settings: Partial<BullseyeSettings>) {
-    this.bullseyeMode.setSettings(settings, this.limits.on); // --- unlimited --- (past the sliders with No limits on)
+    this.bullseyeMode.setSettings(settings);
   }
   /** Live Bullseye state (field, target, shots, scores, slow motion) for the canvas and the HUD; the same object every call. */
   getBullseyeView(): BullseyeView {
@@ -1774,7 +1790,7 @@ export class PhysicsEngine {
       this._config = this.limits.ceilPatch(this._config, this._config);
       this.limits.liftPhysics(this.extras, this.interaction, this._config);
       this.breathing = this.extras.breathingAmplitude > 0;
-      this.multipliers.setConfig({ ...this._config, mpUnlimited: true });
+      // (--- uncap-all --- the multipliers keep the creator's own cap choice: `mpUnlimited` is on by default, uncapped)
       // Rings built from a count past the ceiling before the switch arrived: rebuilt at the ceiling.
       if (this.circularWalls.length > LIVE_WALL_LIMIT) {
         this.restoreWallRadii();
@@ -1783,7 +1799,7 @@ export class PhysicsEngine {
         this.brokenWalls.clear();
       }
     }
-    this.multipliers.bounceCap = this.limits.on ? Infinity : MAX_EFFECTIVE_BOUNCE;
+    this.multipliers.bounceCap = Infinity; // --- uncap-all --- a bounce multiplier scales every rebound without a ceiling, whatever the switch
   }
   /** What the canvas shows of a No limits run: the crowd, ARENA FULL, the ate-the-arena finish. */
   getUnlimitedView(): UnlimitedView {
@@ -2059,7 +2075,9 @@ export class PhysicsEngine {
     const walls = this.circularWalls;
     if (this.wallBaseRadii.length !== walls.length) this.syncWallBaseRadii();
     const cycles = this.timeline.active ? this.timeline.integralAt("breathingSpeed", tMs / 1000) : NaN;
-    const scale = Number.isNaN(cycles) ? breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000) : breathingScaleAtPhase(amplitude, cycles);
+    const pulse = Number.isNaN(cycles) ? breathingScale(amplitude, this.extras.breathingSpeed, tMs / 1000) : breathingScaleAtPhase(amplitude, cycles);
+    // --- uncap-all --- breathing past ±100 % shrinks a ring to a point, never to a negative radius (a ring has none)
+    const scale = pulse > 0 ? pulse : 0;
     const prev = this.wallPrevRadii;
     for (let i = 0; i < walls.length; i++) {
       prev[i] = walls[i].radius;
@@ -2126,7 +2144,10 @@ export class PhysicsEngine {
       const multActive = mult.isActive(modeName);
       const clock = this.bounceMath.clockScale(modeName); // --- bounce-math --- the "timeScale" parameter: simulated time per step (1 without one)
       // --- unlimited --- with No limits on every step is planned (bounded sub-steps, time dilation beyond) and a new run's crowd appears
-      const limitsOn = this.limits.on;
+      // --- uncap-all --- engaged by the config or by the run: rebounds a Bounciness grew past the old Bouncier's ×3 are
+      // planned like every extreme run (sub-steps up to 64, time dilation beyond – the run slows down, never clamps)
+      const limitsOn = this.limits.engage(this.bouncierEnabled && this.bounceSpeedMultiplier > BOUNCIER_CLASSIC_MAX);
+      beginPairStep(limitsOn ? PAIR_STEP_BUDGET : Infinity); // --- uncap-all --- (an extreme step's pair checks are budgeted; a normal one never meets it)
       if (limitsOn) this.limits.beginStep(this.ctx, mult, this.limitsHost, 6);
       if (limitsOn && mult.isOutgrown()) break; // the ball ate the arena before the step began: the run is over
       const plan = multActive || limitsOn ? mult.planStep(this.balls, (this.FIXED_STEP_MS * clock) / 1000, this.gravityAccel(audioIntensity), this.reboundSpeedBound()) : null;
@@ -2169,7 +2190,7 @@ export class PhysicsEngine {
       // its default so a run without extras takes exactly the original code path.
       const airDrag = bmOn ? this.bounceMath.airDrag(extras.airDrag) : extras.airDrag; // --- bounce-math --- (the "damping" parameter)
       if (airDrag > 0) {
-        const keep = 1 - airDrag;
+        const keep = Math.max(0, 1 - airDrag); // --- uncap-all --- a drag of 1 or more stops the balls each step (never reverses them)
         for (const ball of this.balls) {
           ball.vx *= keep;
           ball.vy *= keep;
@@ -2197,8 +2218,10 @@ export class PhysicsEngine {
         this.cinematicDirector.rig.markInside(this.balls); // the backstop below keeps these balls in
       }
 
-      let subSteps =
-        this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * this.bounceSpeedMultiplier) : 4;
+      // (--- uncap-all --- up to the old Bouncier's ×3 the sub-steps it always had – old runs replay exactly –; past it the
+      // planned step above takes over: `plan.subSteps` and the time dilation, never an unbounded sub-step count)
+      const bouncierSubMult = this.bounceSpeedMultiplier > BOUNCIER_CLASSIC_MAX ? BOUNCIER_CLASSIC_MAX : this.bounceSpeedMultiplier;
+      let subSteps = this.bouncierEnabled && this.bounceSpeedMultiplier > 1.5 ? Math.ceil(4 * bouncierSubMult) : 4;
       if (plan && plan.subSteps > subSteps) subSteps = plan.subSteps; // --- gerald-multipliers ---
       const subMs = stepMs / subSteps;
       const subSec = subMs / 1000;
@@ -2305,6 +2328,7 @@ export class PhysicsEngine {
       }
       if (mult.isOutgrown()) break; // --- gerald-multipliers --- the run just ended
     }
+    beginPairStep(Infinity); // --- uncap-all --- (queries outside a step – a mode's init – are never budgeted)
     if (this.finishedAtMs < 0 && this.isSimulationFinished()) this.finishedAtMs = this._elapsedMs; // --- split-screen --- (the race's finish time)
     this.updateParticles(frameMs / 1000);
   }
@@ -2320,7 +2344,8 @@ export class PhysicsEngine {
     // --- bounce-math --- an obstacle rebound may lift a bouncy ball to its cruising speed × its bounciness (planStep() multiplies them in)
     const lift = this.bounceMath.on && (this.obstacles.length > 0 || this.editorObstaclesLive()) ? (this._config.ballSpeed || 400) * this.extras.wallBounciness : 0;
     if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return lift;
-    const bouncier = this.bouncierEnabled ? Math.min(this.bouncierMaxMultiplier, this.bounceSpeedMultiplier + 0.3) : 1;
+    // --- uncap-all --- no ceiling: the next few bounces' gain on top of the multiplier (0.3 for the old switch's 0.03 steps)
+    const bouncier = this.bouncierEnabled ? this.bounceSpeedMultiplier + Math.max(0.3, 2 * this.bouncierIncrement) : 1;
     const ring = (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
     return ring > lift ? ring : lift;
   }
@@ -2552,7 +2577,7 @@ export class PhysicsEngine {
         this.pendingSoundEvents.push(bounceHitEvent(w, ball)); // --- bounce-math --- (with the ball's pitch shift, when it has one)
         this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
-          this.bounceSpeedMultiplier = Math.min(this.bounceSpeedMultiplier + this.bouncierIncrement, this.bouncierMaxMultiplier);
+          this.bounceSpeedMultiplier = this.bounceSpeedMultiplier + this.bouncierIncrement; // --- uncap-all --- (no ceiling: faster on every bounce, forever)
         }
         if (!result?.suppressBounce) {
           const baseSpeed = this._config.ballSpeed || 400;

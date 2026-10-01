@@ -134,8 +134,8 @@ describe("settings, URL and presets", () => {
   });
 
   it("resolve clamps onto the sliders and drops bad values", () => {
-    expect(resolveBullseyeSettings({ shots: 99, interval: 0.1, chaos: 1.7, rings: 2, perfect: -3 })).toMatchObject({ shots: 30, interval: 0.3, chaos: 1, rings: 3, perfect: 0 });
-    expect(resolveBullseyeSettings({ shots: 4.6, interval: 1.234, chaos: 0.333, rings: 12, perfect: 7.6 })).toMatchObject({ shots: 5, interval: 1.2, chaos: 0.35, rings: 10, perfect: 8 });
+    expect(resolveBullseyeSettings({ shots: 99, interval: 0.1, chaos: 1.7, rings: 2, perfect: -3 })).toMatchObject({ shots: 99, interval: 0.3, chaos: 1.7, rings: 3, perfect: 0 }); // --- uncap-all --- (no maximum)
+    expect(resolveBullseyeSettings({ shots: 4.6, interval: 1.234, chaos: 0.333, rings: 12, perfect: 7.6 })).toMatchObject({ shots: 5, interval: 1.2, chaos: 0.35, rings: 12, perfect: 8 }); // --- uncap-all --- (rings 12 kept)
     const junk = { shots: "many", moving: "yes", rings: null, scale: "klingon", rootNote: "x", perfect: "all" } as unknown as Partial<BullseyeSettings>;
     expect(resolveBullseyeSettings(junk)).toEqual(DEFAULT_BULLSEYE_SETTINGS);
     expect(resolveBullseyeSettings({ rootNote: 14 }).rootNote).toBe(2);
@@ -156,9 +156,9 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("bullseye");
     expect(resolveBullseyeFields(back)).toEqual({ byShots: 20, byInterval: 0.8, byChaos: 0.85, byRings: 6, byTargetMoving: true, byPerfect: 7 });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=bullseye&bys=500&byr=abc&bym=7&byi=0"));
-    expect(resolveBullseyeFields(bad)).toEqual({ ...defaultBullseyeFields(), byShots: 30, byInterval: 0.3 });
+    expect(resolveBullseyeFields(bad)).toEqual({ ...defaultBullseyeFields(), byShots: 500, byInterval: 0.3 }); // --- uncap-all --- (bys=500 kept)
     const preset = presetToSettings({ mode: "bullseye", byShots: 0, byTargetMoving: "no", byChaos: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
-    expect(resolveBullseyeFields(preset)).toMatchObject({ byShots: 1, byTargetMoving: false, byChaos: 1 });
+    expect(resolveBullseyeFields(preset)).toMatchObject({ byShots: 1, byTargetMoving: false, byChaos: 9 }); // --- uncap-all --- (kept; every candidate deflector is in play past 1)
   });
 
   it("the mode is registered: a rhythm card of the Gerald family, right before the Sound Vortex", () => {

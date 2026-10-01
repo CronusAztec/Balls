@@ -7,6 +7,7 @@ import { pickedToFile } from "@/lib/desktop/bridge";
 import { onPublishTargetsChange, postText, publishTargets, type PublishTarget } from "@/lib/desktop/publish";
 import { Card, dangerBtn, errorText, formatBytes, formatSeconds, ghostBtn, primaryBtn } from "./ui";
 
+import { IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 /*
  * --- desktop-exe --- The Library: the clips the render queue saved, newest first – thumbnail, length, size, encoder, the
  * post copy – with Open, Show in folder, Re-render (the clip's simulator link and seed back into the queue), Copy post text,
@@ -53,33 +54,33 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
         </>
       }
     >
-      {status && <p className="text-xs text-zinc-300">{status}</p>}
+      {status && <p className="text-xs text-ink-2">{status}</p>}
       {items.length === 0 ? (
-        <p className="text-xs text-zinc-500 py-6 text-center">{t("libEmpty")}</p>
+        <p className="text-xs text-ink-3 py-6 text-center">{t("libEmpty")}</p>
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           {items.map((item) => (
-            <li key={item.id} className="rounded-lg border border-zinc-800 bg-zinc-900/60 overflow-hidden flex flex-col" data-library-item={item.fileName}>
+            <li key={item.id} className="rounded-lg border border-line bg-surface-1/60 overflow-hidden flex flex-col" data-library-item={item.fileName}>
               <div className="relative bg-black aspect-video flex items-center justify-center">
                 {item.thumbnail ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={item.thumbnail} alt={item.meta.title} className="h-full object-contain" />
                 ) : (
-                  <span className="text-3xl">🎬</span>
+                  <IconVideo size={28} className="text-ink-3" />
                 )}
-                {!item.exists && <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600/80 text-[10px] text-white">{t("libMissing")}</span>}
+                {!item.exists && <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-danger/80 text-xs text-ink">{t("libMissing")}</span>}
               </div>
               <div className="p-2 space-y-1 text-xs flex-1 flex flex-col">
-                <p className="font-semibold text-zinc-100 truncate" title={item.path}>
+                <p className="font-semibold text-ink truncate" title={item.path}>
                   {item.fileName}
                 </p>
-                <p className="text-zinc-500">
+                <p className="text-ink-3">
                   {formatSeconds(item.durationSec)} · {formatBytes(item.bytes)}
                   {item.width && item.height ? ` · ${item.width}×${item.height}` : ""}
                   {item.encoder ? ` · ${item.encoder}` : ""}
                 </p>
-                <p className="text-zinc-500">{new Date(item.createdAt).toLocaleString()}</p>
-                {item.meta.hook && <p className="text-cyan-300 truncate">{item.meta.hook}</p>}
+                <p className="text-ink-3">{new Date(item.createdAt).toLocaleString()}</p>
+                {item.meta.hook && <p className="text-accent-strong truncate">{item.meta.hook}</p>}
                 <div className="flex gap-1.5 flex-wrap mt-auto pt-1">
                   <button type="button" className={`${primaryBtn} !py-0.5`} disabled={!item.exists} onClick={() => void bridge.library.open(item.id)}>
                     {t("libOpen")}
@@ -120,7 +121,7 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
           ))}
         </ul>
       )}
-      {targets.length === 0 && items.length > 0 && <p className="text-[11px] text-zinc-500">{t("libPublishHint")}</p>}
+      {targets.length === 0 && items.length > 0 && <p className="text-xs text-ink-3">{t("libPublishHint")}</p>}
     </Card>
   );
 }

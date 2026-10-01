@@ -1,48 +1,60 @@
-"use client";
-
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { buttonClass } from "@/components/ui/Button";
+import { IconArrowRight } from "@/components/ui/icons";
+import { modesForFilter } from "@/lib/siteDesign";
 import DownloadAppButton from "./DownloadAppButton"; // --- desktop-exe ---
-import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
-import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
+import LivePreview from "./LivePreview";
 
+/*
+ * --- site-redesign --- The landing hero: the headline (at most eight words), one sentence, the primary action and the
+ * Windows app; on the right, from 1024 px, the live mini simulation in its 9:16 frame. A row of mono readouts underlines
+ * the claim with numbers instead of adjectives.
+ */
 export default function Hero() {
-  const t = useTranslations("Hero");
+  const t = useTranslations("SiteRedesign");
+  const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (server-side: the button's labels as props)
+  const count = modesForFilter("all").length;
   return (
-    <section className="relative overflow-hidden bg-slate-950">
-      <div
-        className="absolute inset-0 pointer-events-none opacity-60"
-        aria-hidden="true"
-        style={{
-          backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)",
-          backgroundSize: "26px 26px",
-          maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%)",
-          WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%)",
-        }}
-      />
-      <div className="relative container mx-auto px-4 py-16 sm:py-24 text-center">
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[0.98] tracking-tight max-w-full sm:max-w-4xl mx-auto break-words hyphens-auto">
-          <span className="text-slate-50">{t("title1")}</span>
-          <br />
-          <span className="bg-gradient-to-r from-cyan-600 to-cyan-500 bg-clip-text text-transparent">{t("title2")}</span>
-        </h1>
-        <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-slate-400 leading-relaxed">{t("subtitle", { count: MODE_CARD_ORDER.length })}</p>
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link href="/simulator" className="px-8 py-3.5 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-600/20 hover:scale-105 active:scale-95 transition-all">
-            {t("startCreating")}
-          </Link>
-          <a
-            href="#modes"
-            onClick={(e) => {
-              e.preventDefault();
-              document.getElementById("modes")?.scrollIntoView({ behavior: scrollBehavior() });
-            }}
-            className="px-8 py-3.5 rounded-xl font-bold text-slate-300 border border-zinc-700 hover:border-cyan-500 hover:text-cyan-400 transition-all"
-          >
-            {t("exploreModes")}
-          </a>
-          <DownloadAppButton /* --- desktop-exe --- */ />
+    <section className="border-b border-line" aria-labelledby="hero-title">
+      <div className="site-container grid items-center gap-12 py-12 sm:py-16 lg:grid-cols-[minmax(0,1fr)_270px] lg:gap-20 lg:py-20 xl:gap-28">
+        <div className="min-w-0">
+          <div className="eyebrow text-ink-3">{t("hero.eyebrow")}</div>
+          <h1 id="hero-title" className="mt-5 max-w-[17ch] text-2xl font-bold text-ink sm:text-3xl lg:text-4xl">
+            {t("hero.title")}
+          </h1>
+          <p className="mt-6 max-w-[46ch] text-base text-ink-2 sm:text-lg">{t("hero.sub", { count })}</p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/simulator" className={buttonClass({ variant: "primary", size: "md" })}>
+              {t("nav.openStudio")}
+              <IconArrowRight size={18} />
+            </Link>
+            <DownloadAppButton
+              label={desktop("heroButton")}
+              note={desktop("heroNote")}
+              fallback={
+                <a href="#modes" className={buttonClass({ variant: "secondary", size: "md" })}>
+                  {t("hero.seeModes")}
+                </a>
+              }
+            />
+          </div>
+          <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-line pt-5">
+            <div>
+              <dt className="eyebrow text-ink-3">{t("hero.statModes")}</dt>
+              <dd className="num mt-1 text-lg text-ink">{count}</dd>
+            </div>
+            <div>
+              <dt className="eyebrow text-ink-3">{t("hero.statExport")}</dt>
+              <dd className="num mt-1 text-lg text-ink">1080×1920</dd>
+            </div>
+            <div>
+              <dt className="eyebrow text-ink-3">{t("hero.statPrice")}</dt>
+              <dd className="num mt-1 text-lg text-ink">{t("hero.statPriceValue")}</dd>
+            </div>
+          </dl>
         </div>
+        <LivePreview />
       </div>
     </section>
   );

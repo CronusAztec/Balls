@@ -175,47 +175,61 @@ describe("settings assistant", () => {
     const unlimited = { ...current, unlimited: true };
     const r = validateSettingsPatch(unlimited, { ballSpeed: 5000, ballCount: 1e6, windX: -40 });
     expect(r).toEqual({ ok: true, patch: { ballSpeed: 5000, ballCount: 1e6, windX: -40 } });
-    const bad = validateSettingsPatch(unlimited, { ballSpeed: -5, airDrag: 3, recordingDuration: 5000 });
+    const bad = validateSettingsPatch(unlimited, { ballSpeed: -5, airDrag: -1 });
     expect(bad.ok).toBe(false);
     const text = bad.ok ? "" : bad.errors.join("\n");
     expect(text).toMatch(/"ballSpeed" must be a number from 50, no upper limit/);
-    expect(text).toMatch(/"airDrag" must be a number from 0 up to 1/);
-    expect(text).toMatch(/"recordingDuration" must be between/); // a bounded setting keeps its range
+    expect(text).toMatch(/"airDrag" must be a number from 0, no upper limit/);
+    // --- uncap-all --- no semantic or recording maximum is left (a drag of 1 or more stops the balls, a long clip is just long)
+    expect(validateSettingsPatch(unlimited, { airDrag: 3, recordingDuration: 5000 })).toEqual({ ok: true, patch: { airDrag: 3, recordingDuration: 5000 } });
     // a patch may turn the switch on itself; without it the ranges apply
     expect(validateSettingsPatch(current, { unlimited: true, ballSpeed: 5000 })).toEqual({ ok: true, patch: { unlimited: true, ballSpeed: 5000 } });
     expect(validateSettingsPatch(current, { ballSpeed: 5000 }).ok).toBe(false);
-    expect(settingsCatalog(unlimited)).toContain("ballSpeed (number from 50, no upper limit (No limits is on), slider 50–800, step 10) = 400");
+    expect(settingsCatalog(unlimited)).toContain("ballSpeed (number from 50, no upper limit (Wide sliders is on), slider 50–800, step 10) = 400");
     const schema = changesSchema(unlimited);
     expect(validateJson(schema, [{ setting: "ballSpeed", value: 1e9 }])).toEqual([]);
     expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);
   });
 
-  // --- review fix (unlimited) --- turning No limits off through the assistant clamps like the panel's switch does
-  it("turns No limits off the way the panel does: every value past its slider comes back into its range", () => {
+  it("changes the numeric Bounciness, and the old Bouncier switch through it (--- uncap-all ---)", () => {
+    expect(assistantSettings(current).map(([k]) => k)).toContain("bounciness");
+    expect(validateSettingsPatch(current, { bounciness: 1.5 })).toEqual({ ok: true, patch: { bounciness: 1.5, bouncierEnabled: true } });
+    expect(validateSettingsPatch(current, { bouncierEnabled: true })).toEqual({ ok: true, patch: { bouncierEnabled: true, bounciness: 1.03 } });
+    const bouncy = { ...current, bounciness: 1.5, bouncierEnabled: true };
+    expect(validateSettingsPatch(bouncy, { bouncierEnabled: false })).toEqual({ ok: true, patch: { bouncierEnabled: false, bounciness: 1 } });
+    expect(validateSettingsPatch(current, { bounciness: 50 }).ok).toBe(false); // past its slider only with Wide sliders on
+    expect(validateSettingsPatch({ ...current, unlimited: true }, { bounciness: 50 })).toEqual({ ok: true, patch: { bounciness: 50, bouncierEnabled: true } });
+  });
+
+  // --- review fix (unlimited) x uncap-all --- the switch is only Wide sliders now: turning it off through the assistant
+  // changes no value, as the panel's switch does (the limits are gone either way)
+  it("turns Wide sliders off the way the panel does: every value past its slider stays as it is", () => {
     const big = { ...current, mode: "classic" as const, unlimited: true, wallCount: 1e5, ballSpeed: 1e6, ballCount: 5e4, glassHp: 1000, windX: -1e6 };
     const off = validateSettingsPatch(big, { unlimited: false });
-    expect(off.ok).toBe(true);
+    expect(off).toEqual({ ok: true, patch: { unlimited: false } });
     if (!off.ok) return;
-    expect(off.patch).toMatchObject({ unlimited: false, wallCount: RANGES.wallCount.max, ballSpeed: RANGES.ballSpeed.max, ballCount: RANGES.ballCount.max, glassHp: RANGES.glassHp.max, windX: RANGES.windX.min });
-    // Applied, nothing extreme lingers – and the settings loader keeps the switch off.
+    // Applied, the settings loader keeps the switch off and every big value.
     const applied = presetToSettings({ ...big, ...off.patch });
-    expect(applied.unlimited).toBe(false);
-    expect(applied.wallCount).toBe(RANGES.wallCount.max);
-    // A value the patch sets itself wins over the clamp (and must fit the range now).
+    expect([applied.unlimited, applied.wallCount, applied.ballSpeed, applied.ballCount, applied.glassHp, applied.windX]).toEqual([false, 1e5, 1e6, 5e4, 1000, -1e6]);
+    // A value the patch sets itself comes in too – inside the slider now that the assistant's suggestions are no longer widened.
     const own = validateSettingsPatch(big, { unlimited: false, wallCount: 12 });
     expect(own.ok && own.patch.wallCount).toBe(12);
     expect(validateSettingsPatch(big, { unlimited: false, wallCount: 5000 }).ok).toBe(false);
+    expect(RANGES.wallCount.max).toBeLessThan(5000);
   });
 
-  // --- review fix (unlimited) --- find_simulation searches the run the page renders: No limits' config and the budgeted search
-  it("plans an unlimited clip's search on the page engine's config: the switch, the crowd and the soft ceilings", () => {
-    const plan = { ...defaultSettings("classic"), unlimited: true, wallCount: 1e5, ballCount: 5e4 };
-    const request = finderRequestOfSettings(plan);
-    expect(request.physicsConfig).toMatchObject({ unlimited: true, crowdCount: 5e4 - effectiveBallCount(plan) });
-    expect(usesBudgetedSearch(request)).toBe(true);
-    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, 1);
-    expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
-    // Without the switch nothing of it is in the request.
+  // --- review fix (unlimited) x uncap-all --- find_simulation searches the run the page renders: the extreme-values runtime
+  // engages by the values (whatever the switch), with the crowd and the page's budgeted search
+  it("plans an uncapped clip's search on the page engine's config: engaged by the values, the crowd and the memory-safety ceilings", () => {
+    for (const unlimited of [false, true]) {
+      const plan = { ...defaultSettings("classic"), unlimited, wallCount: 1e5, ballCount: 5e4 };
+      const request = finderRequestOfSettings(plan);
+      expect(request.physicsConfig).toMatchObject({ unlimited: true, crowdCount: 5e4 - effectiveBallCount(plan) });
+      expect(usesBudgetedSearch(request)).toBe(true);
+      const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, 1);
+      expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
+    }
+    // At the sliders' values nothing of it is in the request (the default run is the one it always was).
     const plain = finderRequestOfSettings(defaultSettings("classic"));
     expect(plain.physicsConfig.unlimited).toBeUndefined();
     expect(plain.physicsConfig.crowdCount).toBeUndefined();

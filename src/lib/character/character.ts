@@ -1,3 +1,4 @@
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 /**
  * Ball characters (the "Gerald" persona of the geraldbounces format): a vector face drawn on the ball – two eyes
  * whose pupils look along the flight, a seeded blink and expressions driven by what happens to the ball – plus an
@@ -74,7 +75,7 @@ export function sanitizeName(value: unknown): string {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and validates every value (URL parameters and presets alike): unknown faces and non-boolean flags fall back. */

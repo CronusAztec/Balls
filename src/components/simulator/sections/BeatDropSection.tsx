@@ -26,30 +26,30 @@ export interface BeatDropSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const BEAT_DROP_KEYS = ["bdKinds", "bdDrift", "bdScroll", "bdBounceHeight", "bdAnticipation", "bdSound", "bdColorMode", "bdTrail"];
 
-const KIND_OPTIONS: Record<BeatDropPadKind, { icon: string; labelKey: string }> = {
-  plank: { icon: "➖", labelKey: "bdKindPlank" },
-  block: { icon: "🟧", labelKey: "bdKindBlock" },
-  spring: { icon: "🌀", labelKey: "bdKindSpring" },
-  wedge: { icon: "📐", labelKey: "bdKindWedge" },
-  spinner: { icon: "🔄", labelKey: "bdKindSpinner" },
-  drum: { icon: "🥁", labelKey: "bdKindDrum" },
+const KIND_OPTIONS: Record<BeatDropPadKind, { labelKey: string }> = {
+  plank: { labelKey: "bdKindPlank" },
+  block: { labelKey: "bdKindBlock" },
+  spring: { labelKey: "bdKindSpring" },
+  wedge: { labelKey: "bdKindWedge" },
+  spinner: { labelKey: "bdKindSpinner" },
+  drum: { labelKey: "bdKindDrum" },
 };
-const SCROLL_OPTIONS: Record<BeatDropScroll, { icon: string; labelKey: string }> = {
-  endless: { icon: "⬇️", labelKey: "bdScrollEndless" },
-  arena: { icon: "🔲", labelKey: "bdScrollArena" },
+const SCROLL_OPTIONS: Record<BeatDropScroll, { labelKey: string }> = {
+  endless: { labelKey: "bdScrollEndless" },
+  arena: { labelKey: "bdScrollArena" },
 };
-const SOUND_OPTIONS: Record<BeatDropSound, { icon: string; labelKey: string }> = {
-  drums: { icon: "🥁", labelKey: "bdSoundDrums" },
-  melody: { icon: "🎹", labelKey: "bdSoundMelody" },
-  both: { icon: "🎶", labelKey: "bdSoundBoth" },
+const SOUND_OPTIONS: Record<BeatDropSound, { labelKey: string }> = {
+  drums: { labelKey: "bdSoundDrums" },
+  melody: { labelKey: "bdSoundMelody" },
+  both: { labelKey: "bdSoundBoth" },
 };
-const COLOR_OPTIONS: Record<BeatDropColorMode, { icon: string; labelKey: string }> = {
-  pad: { icon: "🎨", labelKey: "bdColorPad" },
-  rainbow: { icon: "🌈", labelKey: "bdColorRainbow" },
-  team: { icon: "🏆", labelKey: "bdColorTeam" },
+const COLOR_OPTIONS: Record<BeatDropColorMode, { labelKey: string }> = {
+  pad: { labelKey: "bdColorPad" },
+  rainbow: { labelKey: "bdColorRainbow" },
+  team: { labelKey: "bdColorTeam" },
 };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /**
  * "Beat Drop" controls (feature beat-drop), shown in the Mode row while Beat Drop is the mode (and in the Ball section while
@@ -71,13 +71,13 @@ export default function BeatDropSection({ t, search, matches, settings: s, updat
     <div className="space-y-3 pt-2" data-testid="beat-drop">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("bdTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("bdDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("bdTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("bdDesc")}</p>
         </div>
       )}
       <Searchable search={search} matches={matches} labelKey="bdKinds">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("bdKinds")}
             <Tooltip text={t("bdKindsTip")} />
           </label>
@@ -86,41 +86,41 @@ export default function BeatDropSection({ t, search, matches, settings: s, updat
               const on = kinds.includes(id);
               return (
                 <button type="button" key={id} onClick={() => update({ bdKinds: toggleBeatDropKind(s.bdKinds, id) })} aria-pressed={on} className={pick(on)}>
-                  <span aria-hidden="true">{KIND_OPTIONS[id].icon}</span> {t(KIND_OPTIONS[id].labelKey)}
+                  {t(KIND_OPTIONS[id].labelKey)}
                 </button>
               );
             })}
           </div>
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="bdDrift" tipKey="bdDriftTip" value={s.bdDrift} range={RANGES.bdDrift} onChange={(v) => update({ bdDrift: v })} display={`${Math.round(100 * s.bdDrift)}%`} left="⬇️" right="↔️" />
+      <Slider t={t} search={search} matches={matches} labelKey="bdDrift" tipKey="bdDriftTip" value={s.bdDrift} range={RANGES.bdDrift} onChange={(v) => update({ bdDrift: v })} display={`${Math.round(100 * s.bdDrift)}%`} />
       <Searchable search={search} matches={matches} labelKey="bdScroll">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("bdScroll")}
             <Tooltip text={t("bdScrollTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("bdScroll")}>
             {BEAT_DROP_SCROLLS.map((id) => (
               <button type="button" key={id} onClick={() => update({ bdScroll: id })} aria-pressed={s.bdScroll === id} className={pick(s.bdScroll === id)}>
-                <span aria-hidden="true">{SCROLL_OPTIONS[id].icon}</span> {t(SCROLL_OPTIONS[id].labelKey)}
+                {t(SCROLL_OPTIONS[id].labelKey)}
               </button>
             ))}
           </div>
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="bdBounceHeight" tipKey="bdBounceHeightTip" value={s.bdBounceHeight} range={RANGES.bdBounceHeight} onChange={(v) => update({ bdBounceHeight: v })} display={`${Math.round(100 * s.bdBounceHeight)}%`} left="⤵" right="⏫" />
-      <Slider t={t} search={search} matches={matches} labelKey="bdAnticipation" tipKey="bdAnticipationTip" value={s.bdAnticipation} range={RANGES.bdAnticipation} onChange={(v) => update({ bdAnticipation: v })} display={t("bdBeats", { value: s.bdAnticipation.toFixed(2) })} left="⚡" right="🐢" />
+      <Slider t={t} search={search} matches={matches} labelKey="bdBounceHeight" tipKey="bdBounceHeightTip" value={s.bdBounceHeight} range={RANGES.bdBounceHeight} onChange={(v) => update({ bdBounceHeight: v })} display={`${Math.round(100 * s.bdBounceHeight)}%`} />
+      <Slider t={t} search={search} matches={matches} labelKey="bdAnticipation" tipKey="bdAnticipationTip" value={s.bdAnticipation} range={RANGES.bdAnticipation} onChange={(v) => update({ bdAnticipation: v })} display={t("bdBeats", { value: s.bdAnticipation.toFixed(2) })} />
       <Searchable search={search} matches={matches} labelKey="bdSound">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("bdSound")}
             <Tooltip text={t("bdSoundTip")} />
           </label>
           <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("bdSound")}>
             {BEAT_DROP_SOUNDS.map((id) => (
               <button type="button" key={id} onClick={() => update({ bdSound: id })} aria-pressed={s.bdSound === id} className={pick(s.bdSound === id)}>
-                <span aria-hidden="true">{SOUND_OPTIONS[id].icon}</span> {t(SOUND_OPTIONS[id].labelKey)}
+                {t(SOUND_OPTIONS[id].labelKey)}
               </button>
             ))}
           </div>
@@ -128,14 +128,14 @@ export default function BeatDropSection({ t, search, matches, settings: s, updat
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="bdColorMode">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("bdColorMode")}
             <Tooltip text={t("bdColorModeTip")} />
           </label>
           <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("bdColorMode")}>
             {BEAT_DROP_COLOR_MODES.map((id) => (
               <button type="button" key={id} onClick={() => update({ bdColorMode: id })} aria-pressed={s.bdColorMode === id} className={pick(s.bdColorMode === id)}>
-                <span aria-hidden="true">{COLOR_OPTIONS[id].icon}</span> {t(COLOR_OPTIONS[id].labelKey)}
+                {t(COLOR_OPTIONS[id].labelKey)}
               </button>
             ))}
           </div>
@@ -145,12 +145,12 @@ export default function BeatDropSection({ t, search, matches, settings: s, updat
         <Toggle t={t} labelKey="bdTrail" tipKey="bdTrailTip" value={s.bdTrail} onChange={(v) => update({ bdTrail: v })} />
       </Searchable>
       {!search && (
-        <p className="text-[11px] text-zinc-500 leading-relaxed tabular-nums" data-testid="beat-drop-beat">
+        <p className="text-xs text-ink-3 leading-relaxed tabular-nums" data-testid="beat-drop-beat">
           {beatLine}
         </p>
       )}
       {info && (
-        <p className="text-xs text-zinc-400 leading-relaxed tabular-nums" data-testid="beat-drop-run">
+        <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="beat-drop-run">
           {t("bdRunInfo", { beats: info.beats, bpm: Math.round(info.bpm), seconds: info.seconds.toFixed(1), clip: s.recordingDuration })}
         </p>
       )}

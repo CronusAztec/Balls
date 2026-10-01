@@ -122,7 +122,7 @@ export class AccumulationMode implements GameMode {
             ball.vx = (ball.vx / speed) * target;
             ball.vy = (ball.vy / speed) * target;
           }
-          if (ctx.isBouncierEnabled()) ctx.setBounceSpeedMultiplier(Math.min(mult + 0.03, 3));
+          if (ctx.isBouncierEnabled()) ctx.setBounceSpeedMultiplier(mult + (ctx.getBouncierIncrement?.() ?? 0.03)); // --- uncap-all --- (the Bounciness' gain, no ceiling)
           ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0 });
         }
       }
