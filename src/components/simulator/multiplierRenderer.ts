@@ -2,6 +2,7 @@ import { MULTIPLIER_COLORS, formatDilation, formatMultiplier, type MultiplierVie
 import { OB_BLOCKER, OB_BUMPER, OB_DIVIDER, OB_DOOR, OB_FLOOR, OB_FUNNEL, type GateKind, type MultipliersView } from "@/lib/physics/modes/multipliers";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import type { Ball } from "@/lib/physics/types";
+import { inCaptionColumn } from "@/lib/captions";
 
 /**
  * Canvas drawing of the stat multipliers (lib/physics/multipliers.ts) and of the multipliers board
@@ -509,9 +510,12 @@ function overlaps(x: number, y: number, w: number, h: number, r: HudRect | null 
  * simulation time the badge pops are measured on (a pause freezes them); `board` says the multipliers board is up.
  * `avoid` is the teams' scoreboard in a top corner of the same square: in the badges' corner (top left) the badges start
  * below it, in the other one a badge that would run into it wraps to the next row and SLOW-MO moves below it. Returns
- * the screen y of the first badge row (−1 while no badge shows), which the canvas mirrors for the smoke test.
+ * the screen y of the first badge row (−1 while no badge shows), which the canvas mirrors for the smoke test; `top.bottom`
+ * gets the lowest bottom edge of the badges and SLOW-MO that reach into the captions' centred column (0: none), which the
+ * top captions start below.
  */
-export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null, avoid?: HudRect | null): number {
+export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierView, labels: MultiplierLabels, x0: number, y0: number, side: number, nowMs: number, board: MultipliersView | null, avoid?: HudRect | null, top?: { bottom: number }): number {
+  if (top) top.bottom = 0; // --- review fix (modes-gerald-odd) ---
   if (!mv.active) return -1;
   ctx.save();
   const fs = Math.max(11, 0.034 * side);
@@ -548,6 +552,7 @@ export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierV
       } else y = avoid!.y + avoid!.h + gap;
     }
     if (firstY < 0) firstY = y;
+    if (top && y + h > top.bottom && inCaptionColumn(x, w, x0 + side / 2, side)) top.bottom = y + h;
     ctx.save();
     ctx.translate(x + w / 2, y + h / 2);
     ctx.scale(pop, pop);
@@ -576,6 +581,7 @@ export function drawMultiplierHud(ctx: CanvasRenderingContext2D, mv: MultiplierV
     const w = ctx.measureText(text).width + 1.2 * fs;
     const sx = x0 + side - pad - w;
     const sy = overlaps(sx, y0 + pad, w, h, avoid) ? avoid!.y + avoid!.h + gap : y0 + pad;
+    if (top && sy + h > top.bottom && inCaptionColumn(sx, w, x0 + side / 2, side)) top.bottom = sy + h;
     ctx.globalAlpha = 0.85 + 0.15 * Math.sin(nowMs * 0.01);
     ctx.fillStyle = "rgba(8, 8, 10, 0.7)";
     ctx.beginPath();

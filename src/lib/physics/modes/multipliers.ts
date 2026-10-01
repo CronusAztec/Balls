@@ -9,7 +9,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
  * board the camera scrolls down with the lowest ball. Balls fall through rows of gates, each row split into 2–4 slots
  * labelled with what they do to every ball passing through:
  *  - count gates x2 / x3 / x5 clone the ball (clones inherit its velocity with a small seeded spread and its
- *    multipliers; never more than `maxBalls` in play),
+ *    multipliers; never more than `maxBalls` in play; from `COUNT_GATES_CLOSE_MS` on they stop cloning, so the board drains),
  *  - speed x1.5 / x2, size x1.25 / x1.5 and damage x2 gates stack a stat multiplier (multipliers.ts – uncapped by
  *    default),
  *  - reverse gates ÷2 absorb every second ball that passes,
@@ -17,7 +17,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
  * plus splitter pegs over the dividers, bumpers that kick, funnels off the side walls and blockers – tilted bars with
  * hit points that the balls' damage wears down (a damage gate makes that faster). At the bottom a HOME zone counts the
  * arrivals; the run ends when every ball is home or lost ("N Gerald made it home"), or when a ball grew wider than the
- * board (OUTGREW THE ARENA).
+ * board – or, the last ball in play, grew too big to get through and is stuck for good – (OUTGREW THE ARENA).
  *
  * The balls are ordinary engine balls (gravity, drag, wind, pause, playback speed, recording all work). The board is
  * private to the mode – thousands of balls against every obstacle would not fit the frame budget – so the mode resolves
@@ -442,6 +442,13 @@ export const BUMPER_KICK = 140;
 /** A ball that has not got lower for this long gets a seeded nudge; this long and it is lost. */
 export const STUCK_NUDGE_MS = 2500;
 export const STUCK_GIVEUP_MS = 15000;
+/**
+ * --- review fix (modes-gerald-odd) --- Closing time of the count gates (simulation ms): from then on they no longer clone, so
+ * the board drains and the run ends. A crowded board (big balls up to a big ball cap, count gates only) otherwise refills
+ * itself as fast as balls arrive and never finishes. It is the count search's horizon (finder.ts simulates a board for at
+ * most max(its clip, 240 s)), so no run the finder or a recording uses changes; the ball cap itself stays as set.
+ */
+export const COUNT_GATES_CLOSE_MS = 240_000;
 
 /* ------------------------------------------------------------------ the mode */
 
@@ -843,6 +850,7 @@ export class MultipliersMode implements GameMode {
       v.gatePasses++;
       switch (gate.kind) {
         case "count": {
+          if (ctx.getElapsedMs() >= COUNT_GATES_CLOSE_MS) break; // --- review fix (modes-gerald-odd) --- closing time: the board drains
           // Every generation of clones takes the next colour, so the crowd shows where it multiplied (and stays a few paths to draw).
           ball.color = nextCloneColor(ball.color);
           const copies = Math.round(gate.factor) - 1;
@@ -906,6 +914,14 @@ export class MultipliersMode implements GameMode {
       // Waiting in a door's cup counts at a quarter of the rate (the door opens every couple of seconds; the stuck
       // limit is only a safety net that makes sure every run ends).
       this.stuck[id] += this.waitingAtDoor(board, b, t) ? dtMs / 4 : dtMs;
+      // --- review fix (modes-gerald-odd) --- a ball grown by size gates wedges between the rows long before it is as wide as
+      // the board: the last ball in play stuck for good that way has outgrown the board (the run ends with the celebration)
+      // instead of silently vanishing. With other balls still in play it is lost as before, so a busy board is not cut short.
+      if (this.stuck[id] >= STUCK_GIVEUP_MS && b.mult && b.mult.size > 1 && runtime && balls.length - this.removals === 1) {
+        runtime.outgrow(ctx, b, half);
+        b.x = (board.left + board.right) / 2;
+        return;
+      }
       if (this.stuck[id] >= STUCK_GIVEUP_MS) {
         this.state[id] = 2;
         this.removals++;

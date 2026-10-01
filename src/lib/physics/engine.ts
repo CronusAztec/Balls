@@ -2676,8 +2676,21 @@ export class PhysicsEngine {
       a.team = b.team;
       a.color = b.color;
     }
+    // --- review fix (modes-gerald-odd) --- the String Battle knows a fighter by its ball's id and has no rings (the rig above is off
+    // there): a merge that would absorb the forced winner's own ball gives the merged ball that identity instead, so the chosen
+    // fighter plays on with it and the other one is the fighter that is out
+    let goneId = b.id;
+    if (this.currentMode === this.stringBattleMode && b.team !== undefined && a.team !== b.team) {
+      const battle = this.stringBattleMode.getView();
+      if (b.team === battle.forcedWinner && battle.fighters[b.team]?.id === b.id) {
+        goneId = a.id;
+        a.id = b.id;
+        a.team = b.team;
+        a.color = b.color;
+      }
+    }
     this.balls.splice(ib, 1);
-    this.lastWallLayer.delete(b.id);
+    this.lastWallLayer.delete(goneId);
     this.pendingSoundEvents.push({ type: "merge", wallIndex: 0 });
     this.spawnMergeBurst(a.x, a.y, a.color, a.radius);
     if (this.bounceMath.on) this.bounceMath.note(BM_COLLIDE, a, null); // --- bounce-math --- (a merge is a collision too)

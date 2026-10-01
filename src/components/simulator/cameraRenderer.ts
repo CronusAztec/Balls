@@ -34,7 +34,7 @@ export type ReplayPhase = "idle" | "postroll" | "playing" | "done";
 /** Balls (besides the followed one) that the zoom keeps in frame. */
 const FIT_BALLS = 8;
 const TWO_PI = Math.PI * 2;
-const DATA_KEYS = ["cameraReplay", "cameraScale", "cameraTimeScale", "cameraShakes", "cameraSlowMo", "cameraReplays", "cameraSlowFrames", "cameraSlowStill"] as const;
+const DATA_KEYS = ["cameraReplay", "cameraScale", "cameraTimeScale", "cameraShakes", "cameraSlowMo", "cameraReplays", "cameraSlowFrames", "cameraSlowStill", "cameraSlowLag"] as const;
 /** The replay speed next to the label ("½×" at half speed). */
 const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
 
@@ -55,7 +55,9 @@ const SPEED_LABEL = REPLAY_SPEED === 0.5 ? "½×" : `${REPLAY_SPEED}×`;
  *  - `applyView()` in place of the classic camera follow: zoom + follow + shake, or false to let the
  *    classic follow run untouched when no camera feature needs the view;
  *  - `drawOverlay()` last, in screen space: the "REPLAY" badge (so it is part of recordings too);
- *  - `holdsEndScreen()` for the page: true while the replay is pending or playing.
+ *  - `holdsEndScreen()` for the page: true while the replay is pending or playing;
+ *  - `getSlowLagMs()` for the page: the real time the slow motion has added to this run so far (a recording's clip is
+ *    measured on the run's pace, so it is extended by the lag – and its countdown runs on the same clock).
  *
  * It only reads the engine – except that a wall breaking inside the replayed window spawns the wall-break
  * particles again (`spawnWallBreakByStyle`, visual only: particles use Math.random, never the seeded
@@ -87,6 +89,11 @@ export class CinematicCamera {
   private lastBreaks = -1;
   private lastMisses = -1;
   private scaleNow = 1;
+  /**
+   * --- review fix (modes-gerald-odd) --- Real ms the slow motion has added to this run: every frame played in a window takes
+   * `frameMs × (1 − timeScale)` longer than the run itself moves on. Reset with the run (`checkRestart()`).
+   */
+  private slowLagMs = 0;
   /** Shakes, slow-motion windows and replays in this run (mirrored onto the canvas as data-camera-* for tools and the smoke test). */
   private shakes = 0;
   private replays = 0;
@@ -107,6 +114,11 @@ export class CinematicCamera {
 
   getPhase(): ReplayPhase {
     return this.phase;
+  }
+
+  /** Real ms the slow motion has stretched this run by so far (0 without it; see `slowLagMs`). */
+  getSlowLagMs(): number {
+    return this.slowLagMs;
   }
 
   isReplaying() {
@@ -169,6 +181,7 @@ export class CinematicCamera {
       this.replays = 0;
       this.slowFrames = 0;
       this.slowStill = 0;
+      this.slowLagMs = 0;
       this.drawnId = NaN;
       this.lastBreaks = engine.getWallBreakSerial();
       this.lastMisses = engine.getNearMissSerial();
@@ -232,6 +245,8 @@ export class CinematicCamera {
       if (s.slowMoOnNearMiss && live) this.slowMo.trigger(s.slowMoMs);
     }
     if (!running) return;
+    // --- review fix (modes-gerald-odd) --- the real time this frame's slow motion added (this frame's time scale, see timeScale())
+    if (this.phase === "idle") this.slowLagMs += frameMs * (1 - this.scaleNow);
     this.shakeAge += frameMs;
     this.slowMo.advance(frameMs, s.slowMoMs);
 
@@ -453,7 +468,8 @@ export class CinematicCamera {
   /**
    * Mirrors the camera state onto the canvas element (data-camera-*) while any camera feature is on, for tools
    * and the smoke test: the replay phase, the view scale, the time scale, the shake / slow-motion / replay
-   * counts and the slow-motion frames drawn (and how many of them stood still). Removed again when the camera is off.
+   * counts, the slow-motion frames drawn (and how many of them stood still) and the real ms the slow motion added to the
+   * run (data-camera-slow-lag). Removed again when the camera is off.
    */
   syncData(canvas: HTMLCanvasElement) {
     const data = canvas.dataset;
@@ -469,6 +485,7 @@ export class CinematicCamera {
     setData(data, "cameraReplays", String(this.replays));
     setData(data, "cameraSlowFrames", String(this.slowFrames));
     setData(data, "cameraSlowStill", String(this.slowStill));
+    setData(data, "cameraSlowLag", String(Math.round(this.slowLagMs))); // --- review fix (modes-gerald-odd) --- the real ms the slow motion added
   }
 }
 
