@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
   const paths = [...STATIC_PATHS];
   paths.push("/gallery"); // --- daily-gallery --- the preset gallery
+  paths.push("/download"); // --- desktop-exe --- the Windows app
   for (const p of paths) {
     const languages: Record<string, string> = {};
     for (const l of routing.locales) languages[l] = pageUrl(l, p);

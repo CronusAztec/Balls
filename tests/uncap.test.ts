@@ -419,6 +419,9 @@ const ALLOWED: readonly [string, string][] = [
   ["lib/bot/planner.ts", "Math.min(R_DUR.max, range.max)"],
   // A batch holds at most MAX_BATCH_JOBS clips in memory for its ZIP (BATCH_COUNT_RANGE / SWEEP_STEPS_LIMIT end there).
   ["lib/recording/batch.ts", "Math.max(range.min, Math.min(range.max, n))"],
+  // --- desktop-exe x uncap-all --- the desktop AI studio snaps the model's own suggestions into the slider's comfort range (the
+  // model's plan, not a user's number; a user can still type any value in the number field afterwards).
+  ["lib/desktop/ai/settingsPatch.ts", "return Math.min(range.max, Math.max(range.min, Number(snapped.toFixed(decimals))))"],
 ];
 
 describe("uncap-all: the guard", () => {

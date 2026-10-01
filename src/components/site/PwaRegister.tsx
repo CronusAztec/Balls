@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { BASE_PATH } from "@/lib/site";
 import { canRegisterServiceWorker, serviceWorkerScope, serviceWorkerUrl } from "@/lib/pwa";
 import { listenForInstallPrompt } from "./installPrompt";
+import { isDesktopApp } from "@/lib/desktop/bridge"; // --- desktop-exe ---
 
 /** How often a long-open tab looks for a new deploy when it becomes visible again. */
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
@@ -16,6 +17,8 @@ const UPDATE_CHECK_MS = 30 * 60 * 1000;
  */
 export default function PwaRegister() {
   useEffect(() => {
+    // --- desktop-exe --- the Windows app serves the export itself (app://): no service worker, no install prompt
+    if (isDesktopApp()) return;
     listenForInstallPrompt();
     const supported = "serviceWorker" in navigator;
     const production = process.env.NODE_ENV === "production";
