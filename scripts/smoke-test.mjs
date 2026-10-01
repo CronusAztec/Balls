@@ -351,7 +351,8 @@ if (submitEnabled) {
   check("feedback form explains missing channel", await page.getByRole("status").isVisible());
 }
 
-// 2. Simulator: every mode runs for a few seconds without errors and the ball moves.
+// 2. Simulator: the original ring and rhythm modes (MODES) run for a few seconds without errors and the ball moves (the later
+// modes have their own sections below).
 for (const mode of MODES) {
   await page.goto(`${BASE}/en/simulator/?mode=${mode}`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();

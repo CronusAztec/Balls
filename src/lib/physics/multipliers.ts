@@ -19,7 +19,7 @@ import type { Ball, CircularWall, ModeContext, ModeId, SoundEvent } from "./type
  *            stability – the stat itself stays uncapped);
  *  - gravity scales the ball's `gravityScale`.
  *
- * Physics safety at extreme values lives here too: `planSteps()` picks, per 60 Hz step, enough sub-steps that no ball
+ * Physics safety at extreme values lives here too: `planStep()` picks, per 60 Hz step, enough sub-steps that no ball
  * moves more than half its radius (at most 4 px) per sub-step, up to `MAX_SUBSTEPS`; beyond that the step itself is
  * shortened by a power of two ("time dilation": the simulation clock slows and the HUD shows SLOW-MO) instead of
  * letting a ball tunnel through a wall. The obstacle and wall tests stay swept on top of that.

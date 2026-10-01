@@ -11,6 +11,10 @@
  * types that name their codecs are tried: a bare "video/mp4" lets the browser choose them, and Chromium without an
  * H.264 encoder then writes VP9 + Opus into an .mp4 that QuickTime, iOS Photos and many editors cannot play.
  */
+import { SITE_SLUG } from "@/lib/site";
+
+/** --- review fix (docs-consistency) --- The stem of a downloaded clip (`jumpingballslive-export.mp4`), from the site's name. */
+export const EXPORT_BASE_NAME = `${SITE_SLUG}-export`;
 
 export interface RecordingTextOverlay {
   topText?: string;
@@ -269,7 +273,7 @@ export class VideoRecorder {
   }
 
   /** Triggers a download; the extension is picked from the blob's container type. */
-  downloadBlob(blob: Blob, baseName = "jumpingballslive-export") {
+  downloadBlob(blob: Blob, baseName = EXPORT_BASE_NAME) {
     const ext = recordingExtension(blob.type); // --- review fix (recording-export) --- (never .mp4 for VP9 in MP4)
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

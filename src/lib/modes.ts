@@ -50,9 +50,12 @@ MODE_CARD_ORDER.push("journey");
 }
 
 /**
- * The two families of modes, shown under their own headings: "escape" is the original ring formats (a ball
- * working its way out of concentric walls), "rhythm" the project.jdm-style formats built around sound
- * (Ball Drop, Bouncing Shapes, Pendulum Wave) where every hit is a note and the physics writes a polyrhythm.
+ * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
+ * components/site/ModesOverview.tsx, `Headings.modes<Family>` in messages/*.json):
+ * - "escape": the ring formats (a ball working its way out of concentric walls) plus Power Layers and the Multipliers board;
+ * - "rhythm": the project.jdm and Gerald sound-first formats, where every hit is a note and the physics writes a polyrhythm;
+ * - "battle": the oddplayground duels, last ball standing;
+ * - "journey": multi-stage runs home.
  */
 export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle", "journey"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing) --- gerald-journey --- ("journey": multi-stage runs home)
 export type ModeCategory = (typeof MODE_CATEGORY_IDS)[number];

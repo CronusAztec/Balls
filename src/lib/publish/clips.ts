@@ -4,6 +4,7 @@
  * newest few (a picked file joins them too). A small module-level store, so a clip made while the Recording section is
  * closed is there when it opens; kept in memory only (never in storage), the oldest dropped past MAX_CLIPS.
  */
+import { SITE_SLUG } from "@/lib/site";
 
 export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file"] as const;
 export type ClipSource = (typeof CLIP_SOURCES)[number];
@@ -60,7 +61,7 @@ export function clipType(blob: Blob, name: string): string {
 /** The clip's file name with the right extension. */
 export function clipFileName(name: string, type: string): string {
   const ext = clipExtension(type, name);
-  const base = name.replace(/\.(mp4|webm|mov|m4v|mkv)$/i, "").trim() || "jumpingballslive-clip";
+  const base = name.replace(/\.(mp4|webm|mov|m4v|mkv)$/i, "").trim() || `${SITE_SLUG}-clip`;
   return `${base}.${ext}`;
 }
 

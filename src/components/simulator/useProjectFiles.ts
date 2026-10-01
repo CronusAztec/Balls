@@ -35,6 +35,7 @@ import {
   type ProjectError,
 } from "@/lib/project";
 import type { SimulatorSettings } from "@/lib/settings";
+import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 
 /** The original files of the audio uploads (the page keeps only decoded buffers or blob: URLs of them). */
 export interface ProjectUploads {
@@ -231,7 +232,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
     [settings.wallBreakSound, media.ballImage, media.customHitSampleName, media.customWallBreakName, media.sliceSongName, media.musicTrackName, media.customSoundId, media.customMidiName, media.paintPicture, media.backgroundImage, media.beatMediaName], // --- video-beats --- (beatMediaName)
   );
   const totalBytes = listed.reduce((sum, m) => sum + m.info.bytes, 0);
-  const defaultName = `jumpingballslive-${settings.mode}`;
+  const defaultName = `${SITE_SLUG}-${settings.mode}`;
   const fileName = projectFileName(name || defaultName);
 
   const onExport = useCallback(async () => {
@@ -256,7 +257,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
         if (asset) assets[item.info.kind] = asset;
       }
       const melody = o.media.customSoundId && SONGS.some((song) => song.id === o.media.customSoundId) ? o.media.customSoundId : null;
-      const projectName = sanitizeProjectName(name) || `jumpingballslive-${o.settings.mode}`;
+      const projectName = sanitizeProjectName(name) || `${SITE_SLUG}-${o.settings.mode}`;
       const text = serializeProject(buildProject({ name: projectName, settings: o.settings, extras: { ballEmoji: o.media.ballEmoji, melody }, assets }));
       const blob = new Blob([text], { type: "application/json" });
       const file = projectFileName(projectName);
@@ -331,7 +332,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
       try {
         const result = parseProject(await file.text());
         if (!result.ok) {
-          setStatus({ tone: "error", key: ERROR_KEYS[result.error], values: { max: formatBytes(PROJECT_MAX_BYTES) } });
+          setStatus({ tone: "error", key: ERROR_KEYS[result.error], values: { max: formatBytes(PROJECT_MAX_BYTES), siteName: SITE_NAME } });
           return;
         }
         const failed = await applyProject(result.project);

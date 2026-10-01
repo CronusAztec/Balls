@@ -22,7 +22,7 @@ import { SONGS, WALL_BREAK_SOUNDS, normalizeWallBreakSound } from "@/lib/audio/s
 import { CUSTOM_HIT_SAMPLE_ID } from "@/lib/audio/sampler";
 import { RANGES, defaultSettings, presetToSettings, type SimulatorSettings } from "@/lib/settings";
 import { keepsUnlimitedValue } from "@/lib/unlimited"; // --- unlimited ---
-import { SITE_NAME } from "@/lib/site";
+import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 import { themeById } from "@/lib/themes";
 import { isModeId } from "@/lib/physics/types";
 
@@ -121,9 +121,9 @@ export function sanitizeProjectName(name: unknown): string {
   return Array.from(cleaned).slice(0, PROJECT_NAME_MAX).join("").trim();
 }
 
-/** `<name>.jumpingballslive.json` (the name sanitised; "jumpingballslive-project" without one). */
+/** `<name>.jumpingballslive.json` (the name sanitised; `<SITE_SLUG>-project` without one). */
 export function projectFileName(name: string): string {
-  return `${sanitizeProjectName(name) || "jumpingballslive-project"}${PROJECT_EXTENSION}`;
+  return `${sanitizeProjectName(name) || `${SITE_SLUG}-project`}${PROJECT_EXTENSION}`;
 }
 
 /** The project name a file name suggests: "My clip.jumpingballslive.json" → "My clip". */
