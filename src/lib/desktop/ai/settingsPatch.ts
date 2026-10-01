@@ -1,4 +1,5 @@
-import { RANGES, RESOLUTIONS, defaultSettings, presetToSettings, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, RESOLUTIONS, bouncinessPatch, defaultSettings, presetToSettings, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { BOUNCIER_ON, BOUNCINESS_OFF } from "@/lib/uncap"; // --- uncap-all --- the numeric Bounciness
 import { parseUnlimitedValue, unlimitedBounds } from "@/lib/unlimited"; // --- unlimited ---
 import { BALL_INTERACTIONS, MODE_IDS, WALL_BREAK_STYLES, isModeId } from "@/lib/physics/types";
 import { PARTICLE_STYLES } from "@/lib/physics/particleStyles";
@@ -57,7 +58,7 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["ballCount", "number of balls"],
   ["ballColor", "ball colour #rrggbb"],
   ["rainbowBall", "ball cycles through rainbow colours"],
-  ["bouncierEnabled", "the ball gets bouncier on every hit"],
+  ["bounciness", "every wall bounce adds (value − 1) × the ball speed: 1 = off, 1.03 = the classic Bouncier"], // --- uncap-all --- (the old Bouncier switch follows it)
   ["ballInteraction", "what balls do when they touch"],
   ["airDrag", "air drag per step"],
   ["windX", "sideways wind (fraction of ball speed per second)"],
@@ -316,6 +317,10 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
     errors.push(`"${key}" cannot be changed here`);
   }
   if (errors.length) return { ok: false, errors };
+  // --- desktop-exe x uncap-all --- the Bouncier switch follows the numeric Bounciness (`bouncinessPatch()`): a change of the
+  // Bounciness brings the switch along, and a model that still sends the old switch gets the matching Bounciness
+  if (typeof patch.bouncierEnabled === "boolean" && typeof patch.bounciness !== "number") patch.bounciness = patch.bouncierEnabled ? (current.bounciness > BOUNCINESS_OFF ? current.bounciness : BOUNCIER_ON) : BOUNCINESS_OFF;
+  if (typeof patch.bounciness === "number") Object.assign(patch, bouncinessPatch(patch.bounciness));
   // The settings loader has the last word: a value it does not keep is not a valid value.
   const resolved = presetToSettings({ ...current, ...patch } as Partial<SimulatorSettings>) as unknown as Settings;
   for (const [key, value] of Object.entries(patch)) {

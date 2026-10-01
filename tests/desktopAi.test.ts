@@ -186,6 +186,16 @@ describe("settings assistant", () => {
     expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);
   });
 
+  it("changes the numeric Bounciness, and the old Bouncier switch through it (--- uncap-all ---)", () => {
+    expect(assistantSettings(current).map(([k]) => k)).toContain("bounciness");
+    expect(validateSettingsPatch(current, { bounciness: 1.5 })).toEqual({ ok: true, patch: { bounciness: 1.5, bouncierEnabled: true } });
+    expect(validateSettingsPatch(current, { bouncierEnabled: true })).toEqual({ ok: true, patch: { bouncierEnabled: true, bounciness: 1.03 } });
+    const bouncy = { ...current, bounciness: 1.5, bouncierEnabled: true };
+    expect(validateSettingsPatch(bouncy, { bouncierEnabled: false })).toEqual({ ok: true, patch: { bouncierEnabled: false, bounciness: 1 } });
+    expect(validateSettingsPatch(current, { bounciness: 50 }).ok).toBe(false); // past its slider only with Wide sliders on
+    expect(validateSettingsPatch({ ...current, unlimited: true }, { bounciness: 50 })).toEqual({ ok: true, patch: { bounciness: 50, bouncierEnabled: true } });
+  });
+
   it("runs as an agent task: an out-of-range change is sent back, the corrected one comes out", async () => {
     const model = scripted([
       '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":1600},{"setting":"rainbowBall","value":true}],"summary":"x2"}}',
