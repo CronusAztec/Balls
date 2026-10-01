@@ -291,3 +291,8 @@ export const IconDesktop = (p: IconProps) => (
     <path d="M7 16.5h6M10 13.5v3" />
   </Icon>
 );
+export const IconStar = ({ filled = false, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p}>
+    <path d="m10 2.9 2.2 4.5 4.9.7-3.6 3.5.9 4.9-4.4-2.3-4.4 2.3.9-4.9-3.6-3.5 4.9-.7Z" fill={filled ? "currentColor" : "none"} />
+  </Icon>
+);

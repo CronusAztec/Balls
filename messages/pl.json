@@ -3070,6 +3070,9 @@
     },
     "dialog": {
       "close": "Zamknij"
+    },
+    "prose": {
+      "onThisPage": "Na tej stronie"
     }
   }
 }
