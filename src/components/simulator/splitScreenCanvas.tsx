@@ -12,6 +12,7 @@ import { recordingTextLayout, type RecordingCrop } from "@/lib/recording/recorde
 import { BackgroundPainter, type BackgroundLook } from "./themeRenderer";
 import { DEFAULT_BACKGROUND_COLORS } from "@/lib/themes";
 import { ACCENT } from "@/lib/site";
+import { FrameGate } from "./renderBudget"; // --- review fix (performance) ---
 
 /*
  * --- split-screen --- The page's canvas during a split-screen race (lib/splitScreen.ts, lib/simulation/multi.ts). Every
@@ -74,6 +75,13 @@ export function withSplitScreen(Inner: CanvasComponent): CanvasComponent {
   return CanvasWithSplitScreen;
 }
 
+/** --- review fix (modes-gerald-odd) --- The most real time the camera's slow motion has added to any of the first `n` arenas' runs (ms). */
+function slowLagOf(slots: readonly (ArenaSlot | undefined)[], n: number): number {
+  let lag = 0;
+  for (let i = 0; i < n && i < slots.length; i++) lag = Math.max(lag, slots[i]?.renderer?.slowLagMs() ?? 0);
+  return lag;
+}
+
 /** The page's background look (the canvas' sides and the recording's letterbox bars show it, like a single canvas). */
 function lookOf(p: CanvasProps, image: HTMLImageElement | null): BackgroundLook {
   return { type: p.backgroundType ?? "solid", colors: p.backgroundColors ?? DEFAULT_BACKGROUND_COLORS, dim: p.backgroundDim ?? 0.35, image };
@@ -101,8 +109,10 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   /** The stage clock (performance.now() of the frame being drawn), which every arena's driver reads relative to its origin. */
   const clockRef = useRef(0);
   const fpsRef = useRef(60);
+  const framesDrawnRef = useRef(0); // --- review fix (performance) ---
   const recordingRef = useRef(false);
   const clipStartRef = useRef(0);
+  const clipLag0Ref = useRef(0); // --- review fix (modes-gerald-odd) --- the arenas' slow-motion lag when the recording started
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   const songProgressRef = useRef<number | null>(null);
   const captionLayerRef = useRef<CaptionLayer | null>(null);
@@ -181,7 +191,10 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   useImperativeHandle(handleRef, () => ({
     getCanvas: () => canvasRef.current,
     setRecording: (v: boolean, exportSize?: { width: number; height: number }) => {
-      if (v && !recordingRef.current) clipStartRef.current = performance.now();
+      if (v && !recordingRef.current) {
+        clipStartRef.current = performance.now();
+        clipLag0Ref.current = slowLagOf(slotsRef.current, splitRef.current.engines.length); // --- review fix (modes-gerald-odd) ---
+      }
       recordingRef.current = v;
       exportSizeRef.current = v ? (exportSize ?? null) : null;
     },
@@ -191,12 +204,14 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       slotsRef.current[0]?.renderer?.setSongProgress(v);
     },
     fpsRef,
+    framesDrawn: () => framesDrawnRef.current, // --- review fix (performance) --- (the composed frames)
     noteWallBreak: () => slotsRef.current[0]?.renderer?.noteWallBreak(),
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => (painterRef.current ??= new BackgroundPainter()).paintExport(c, width, height, crop, lookOf(propsRef.current, bgImageRef.current)),
     holdsEndScreen: () =>
       slotsRef.current.some((s, i) => i < splitRef.current.engines.length && !!s.renderer?.holdsEndScreen()) ||
       (captionLayerRef.current?.holdsEndScreen() ?? false) ||
       splitRef.current.runner.holding(performance.now(), SPLIT_FINISH_HOLD_MS),
+    getSlowLagMs: () => slowLagOf(slotsRef.current, splitRef.current.engines.length), // --- review fix (modes-gerald-odd) --- (the slowest arena)
   }));
 
   // The one loop: restarts caught, every arena stepped and drawn, the frame composed.
@@ -232,10 +247,13 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
     };
 
-    const frame = () => {
+    const gate = new FrameGate(); // --- review fix (performance) ---
+    const frame = (ts?: number) => {
       raf = requestAnimationFrame(frame);
-      const now = performance.now();
-      if (now - last < 15) return;
+      // --- review fix (performance) --- a 60 fps budget on the rAF timestamps (not a 15 ms minimum gap: 37–55 fps at 75–165 Hz)
+      const now = ts ?? performance.now();
+      if (!gate.due(now)) return;
+      framesDrawnRef.current++;
       const dt = last > 0 ? Math.min(now - last, 100) : 16.7;
       last = now;
       const sp = splitRef.current;
@@ -420,7 +438,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         captionView.insetBottom = live ? 56 : 0;
         edgeTextBounds(edgeLines, 0, captionView);
         captionView.dtMs = playing ? dt : 0;
-        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current) / 1000 : -1;
+        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, slowLagOf(slots, n) - clipLag0Ref.current)) / 1000 : -1; // --- review fix (modes-gerald-odd) --- (on the run's pace)
         captionLayer.draw(ctx, sp.engines[0], captionOptions, captionView);
       } else captionLayer.clear();
 

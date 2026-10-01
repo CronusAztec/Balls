@@ -35,6 +35,7 @@ import {
   type ProjectError,
 } from "@/lib/project";
 import type { SimulatorSettings } from "@/lib/settings";
+import { SITE_NAME, SITE_SLUG } from "@/lib/site";
 
 /** The original files of the audio uploads (the page keeps only decoded buffers or blob: URLs of them). */
 export interface ProjectUploads {
@@ -69,7 +70,15 @@ export interface ProjectMediaState {
   beatMediaName?: string | null;
 }
 
-/** How the page loads things – the same handlers the panel's upload buttons use. */
+/** --- review fix (security-robustness) --- How a media upload handler is called: `quiet` – an imported project's – says nothing itself. */
+export interface MediaUploadOptions {
+  quiet?: boolean;
+}
+
+/**
+ * How the page loads things – the same handlers the panel's upload buttons use. The audio uploads resolve whether the file
+ * was loaded (--- review fix (security-robustness) --- a file the browser cannot decode or parse resolves false).
+ */
 export interface ProjectMediaActions {
   loadSettings: (settings: Partial<SimulatorSettings>) => void;
   update: (patch: Partial<SimulatorSettings>) => void;
@@ -78,12 +87,12 @@ export interface ProjectMediaActions {
   setPaintPicture: (picture: PictureInfo | null) => void;
   setBackgroundImage: (picture: PictureInfo | null) => void;
   onHitSampleUpload: (file: File) => void;
-  onWallBreakSoundUpload: (file: File) => void;
-  onSliceSongUpload: (file: File) => Promise<void>;
+  onWallBreakSoundUpload: (file: File, options?: MediaUploadOptions) => Promise<boolean>;
+  onSliceSongUpload: (file: File, options?: MediaUploadOptions) => Promise<boolean>;
   onSliceSongClear: () => void;
-  onMusicUpload: (file: File) => Promise<void>;
+  onMusicUpload: (file: File, options?: MediaUploadOptions) => Promise<boolean>;
   onMusicRemove: () => void;
-  onCustomMidiUpload: (file: File) => Promise<void>;
+  onCustomMidiUpload: (file: File, options?: MediaUploadOptions) => Promise<boolean>;
   onCustomSoundSelect: (id: string | null) => Promise<void>;
   /** --- video-beats --- Imports a video / audio file for its beats (it becomes the music bed). */
   onBeatMediaUpload?: (file: File) => Promise<void>;
@@ -94,6 +103,11 @@ export interface ProjectFilesOptions {
   uploads: MutableRefObject<ProjectUploads>;
   media: ProjectMediaState;
   actions: ProjectMediaActions;
+  /**
+   * --- review fix (recording-export) --- A batch render or a fast export is running: an import is refused with a status line
+   * (the batch would put its own settings back over the project's, the export renders the settings it started with).
+   */
+  locked?: boolean;
 }
 
 /** One loaded medium in the panel's list. */
@@ -123,6 +137,8 @@ export interface ProjectPanelProps {
   status: ProjectStatus | null;
   onExport: () => void;
   onImport: (file: File) => void;
+  /** --- review fix (recording-export) --- Import project is off (a batch render or a fast export is running). */
+  importLocked: boolean;
 }
 
 const ERROR_KEYS: Record<ProjectError, string> = {
@@ -165,6 +181,22 @@ function toFile(asset: ProjectAsset): File {
   return new File([asset.bytes as Uint8Array<ArrayBuffer>], asset.name, { type: asset.type });
 }
 
+/**
+ * --- review fix (security-robustness) --- Whether a picture's data: URL decodes (the check the panel's own picture uploads
+ * make): a project's damaged picture is left out and counted instead of being shown as loaded.
+ */
+async function pictureOk(url: string): Promise<boolean> {
+  if (typeof Image === "undefined") return true;
+  const img = new Image();
+  img.src = url;
+  try {
+    await img.decode();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function download(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -200,7 +232,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
     [settings.wallBreakSound, media.ballImage, media.customHitSampleName, media.customWallBreakName, media.sliceSongName, media.musicTrackName, media.customSoundId, media.customMidiName, media.paintPicture, media.backgroundImage, media.beatMediaName], // --- video-beats --- (beatMediaName)
   );
   const totalBytes = listed.reduce((sum, m) => sum + m.info.bytes, 0);
-  const defaultName = `jumpingballslive-${settings.mode}`;
+  const defaultName = `${SITE_SLUG}-${settings.mode}`;
   const fileName = projectFileName(name || defaultName);
 
   const onExport = useCallback(async () => {
@@ -225,7 +257,7 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
         if (asset) assets[item.info.kind] = asset;
       }
       const melody = o.media.customSoundId && SONGS.some((song) => song.id === o.media.customSoundId) ? o.media.customSoundId : null;
-      const projectName = sanitizeProjectName(name) || `jumpingballslive-${o.settings.mode}`;
+      const projectName = sanitizeProjectName(name) || `${SITE_SLUG}-${o.settings.mode}`;
       const text = serializeProject(buildProject({ name: projectName, settings: o.settings, extras: { ballEmoji: o.media.ballEmoji, melody }, assets }));
       const blob = new Blob([text], { type: "application/json" });
       const file = projectFileName(projectName);
@@ -239,31 +271,54 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
     }
   }, [name, t]);
 
-  /** Settings like a preset, then the media through the page's handlers, then the project's own switches. */
-  const applyProject = useCallback(async (project: LoadedProject) => {
+  /**
+   * Settings like a preset, then the media through the page's handlers, then the project's own switches. Resolves the kinds
+   * of the media that could not be loaded (--- review fix (security-robustness) --- a picture that does not decode, an audio
+   * file the browser cannot decode, a MIDI file that does not parse), which the status line counts with the damaged ones.
+   */
+  const applyProject = useCallback(async (project: LoadedProject): Promise<ProjectAssetKind[]> => {
     const { actions } = latest.current;
     const a = project.assets;
+    const failed: ProjectAssetKind[] = [];
+    const picture = async (kind: "ballImage" | "paintPicture" | "backgroundImage") => {
+      const asset = a[kind];
+      if (!asset) return null;
+      const url = assetToDataUrl(asset);
+      if (await pictureOk(url)) return { name: asset.name, url };
+      failed.push(kind);
+      return null;
+    };
+    const [ballImage, paintPicture, backgroundImage] = await Promise.all([picture("ballImage"), picture("paintPicture"), picture("backgroundImage")]);
     actions.loadSettings(project.settings);
-    actions.setBallImage(a.ballImage ? assetToDataUrl(a.ballImage) : null);
-    actions.setBallEmoji(a.ballImage ? null : project.extras.ballEmoji);
-    actions.setPaintPicture(a.paintPicture ? { name: a.paintPicture.name, url: assetToDataUrl(a.paintPicture) } : null);
-    actions.setBackgroundImage(a.backgroundImage ? { name: a.backgroundImage.name, url: assetToDataUrl(a.backgroundImage) } : null);
+    actions.setBallImage(ballImage ? ballImage.url : null);
+    actions.setBallEmoji(ballImage ? null : project.extras.ballEmoji);
+    actions.setPaintPicture(paintPicture);
+    actions.setBackgroundImage(backgroundImage);
     if (a.hitSample) actions.onHitSampleUpload(toFile(a.hitSample));
-    if (a.wallBreakSound) actions.onWallBreakSoundUpload(toFile(a.wallBreakSound));
     actions.onSliceSongClear();
     actions.onMusicRemove();
-    const loads: Promise<void>[] = [];
-    if (a.sliceSong) loads.push(actions.onSliceSongUpload(toFile(a.sliceSong)));
-    if (a.musicBed) loads.push(actions.onMusicUpload(toFile(a.musicBed)));
+    const quiet = { quiet: true };
+    const loads: Promise<unknown>[] = [];
+    const counted = (kind: ProjectAssetKind, load: Promise<boolean>) => loads.push(load.then((ok) => void (ok || failed.push(kind))));
+    if (a.wallBreakSound) counted("wallBreakSound", actions.onWallBreakSoundUpload(toFile(a.wallBreakSound), quiet));
+    if (a.sliceSong) counted("sliceSong", actions.onSliceSongUpload(toFile(a.sliceSong), quiet));
+    if (a.musicBed) counted("musicBed", actions.onMusicUpload(toFile(a.musicBed), quiet));
     if (a.beatMedia && actions.onBeatMediaUpload) loads.push(actions.onBeatMediaUpload(toFile(a.beatMedia))); // --- video-beats --- (it becomes the bed)
-    loads.push(a.midi ? actions.onCustomMidiUpload(toFile(a.midi)) : actions.onCustomSoundSelect(project.extras.melody));
+    if (a.midi) counted("midi", actions.onCustomMidiUpload(toFile(a.midi), quiet));
+    else loads.push(actions.onCustomSoundSelect(project.extras.melody));
     await Promise.all(loads);
     actions.update(projectMediaPatch(project));
+    return failed;
   }, []);
 
   const onImport = useCallback(
     async (file: File) => {
       if (busyRef.current) return;
+      // --- review fix (recording-export) --- (a dropped project too: said, not silently ignored)
+      if (latest.current.locked) {
+        setStatus({ tone: "warn", key: "projectImportLocked" });
+        return;
+      }
       if (!looksLikeProjectFile(file)) {
         setStatus({ tone: "error", key: "projectErrorNotFile", values: { file: file.name } });
         return;
@@ -277,13 +332,13 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
       try {
         const result = parseProject(await file.text());
         if (!result.ok) {
-          setStatus({ tone: "error", key: ERROR_KEYS[result.error], values: { max: formatBytes(PROJECT_MAX_BYTES) } });
+          setStatus({ tone: "error", key: ERROR_KEYS[result.error], values: { max: formatBytes(PROJECT_MAX_BYTES), siteName: SITE_NAME } });
           return;
         }
-        await applyProject(result.project);
+        const failed = await applyProject(result.project);
         const projectName = result.project.name || projectNameFromFileName(file.name);
         setName(projectName);
-        const skipped = result.project.skipped.length;
+        const skipped = result.project.skipped.length + failed.length; // --- review fix (security-robustness) --- (and the media that did not load)
         setStatus(skipped ? { tone: "warn", key: "projectImportedSkipped", values: { name: projectName, count: skipped } } : { tone: "ok", key: "projectImported", values: { name: projectName } });
       } catch (err) {
         console.error("Project import failed:", err);
@@ -309,8 +364,9 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
       status,
       onExport: exportProject,
       onImport: importFile,
+      importLocked: !!options.locked, // --- review fix (recording-export) ---
     }),
-    [name, fileName, listed, totalBytes, busy, status, exportProject, importFile],
+    [name, fileName, listed, totalBytes, busy, status, exportProject, importFile, options.locked],
   );
   return { panel, importFile };
 }

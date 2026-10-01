@@ -127,7 +127,7 @@ export function advanceObstacles(obstacles: readonly Obstacle[], dtSec: number):
 
 /**
  * Resolves `ball` against `obstacle`: pushes the ball out of the obstacle and applies the rebound
- * (restitution × `restitutionScale`, capped at MAX_OBSTACLE_RESTITUTION) when the ball is moving
+ * (restitution × `restitutionScale`, capped at MAX_OBSTACLE_RESTITUTION, × the ball's bounciness) when the ball is moving
  * into it, plus the contact friction. `dtSec` is the length of the sub-step that moved the ball to
  * its current position; it lets the resolver look at where the ball came from, so a fast ball that
  * crossed a thin bar or passed a peg's centre in one step is still bounced back to the side it came
@@ -136,13 +136,18 @@ export function advanceObstacles(obstacles: readonly Obstacle[], dtSec: number):
  * Returns −1 when the ball does not touch the obstacle, otherwise the approach speed along the
  * contact normal (≥ 0; 0 for a resting or already separating contact). Callers use it to decide
  * whether the contact counts as a "hit" worth a sound and a glow.
+ *
+ * `ballRestitution` and `liftSpeed` are the ball's own bounciness (bounce math; 1 and no lift without a rule) – see
+ * `rebound()`: it is applied after the cap, so it has no upper limit.
  */
-export function resolveBallObstacle(ball: Ball, obstacle: Obstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION): number {
-  return obstacle.kind === "circle" ? resolveBallCircle(ball, obstacle, dtSec, restitutionScale, separation) : resolveBallSegment(ball, obstacle, dtSec, restitutionScale, separation);
+export function resolveBallObstacle(ball: Ball, obstacle: Obstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity): number {
+  return obstacle.kind === "circle"
+    ? resolveBallCircle(ball, obstacle, dtSec, restitutionScale, separation, ballRestitution, liftSpeed)
+    : resolveBallSegment(ball, obstacle, dtSec, restitutionScale, separation, ballRestitution, liftSpeed);
 }
 
 /** Ball vs peg: swept circle-circle test, so the contact normal is taken where the ball first touched the peg. */
-export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION): number {
+export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity): number {
   const R = ball.radius + peg.radius;
   const dx = ball.x - peg.x;
   const dy = ball.y - peg.y;
@@ -188,7 +193,7 @@ export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number
   }
   ball.x = peg.x + nx * (R + separation);
   ball.y = peg.y + ny * (R + separation);
-  return rebound(ball, nx, ny, 0, 0, peg.restitution * restitutionScale, peg.friction);
+  return rebound(ball, nx, ny, 0, 0, peg.restitution * restitutionScale, peg.friction, ballRestitution, liftSpeed);
 }
 
 /**
@@ -197,7 +202,7 @@ export function resolveBallCircle(ball: Ball, peg: CircleObstacle, dtSec: number
  * from. A spinning bar's surface velocity at the contact point is taken into account, so it can
  * fling the ball.
  */
-export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION): number {
+export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: number, restitutionScale = 1, separation = SEPARATION, ballRestitution = 1, liftSpeed = Infinity): number {
   const ux = Math.cos(bar.angle);
   const uy = Math.sin(bar.angle);
   const reach = ball.radius + bar.thickness / 2;
@@ -255,7 +260,7 @@ export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: numb
     sx = -bar.angularVelocity * cy;
     sy = bar.angularVelocity * cx;
   }
-  return rebound(ball, nx, ny, sx, sy, bar.restitution * restitutionScale, bar.friction);
+  return rebound(ball, nx, ny, sx, sy, bar.restitution * restitutionScale, bar.friction, ballRestitution, liftSpeed);
 }
 
 /**
@@ -263,9 +268,17 @@ export function resolveBallSegment(ball: Ball, bar: SegmentObstacle, dtSec: numb
  * to the ball and a surface moving at (sx, sy): the normal component of the relative velocity is
  * reflected with `restitution` when the ball approaches, and the tangential component loses
  * `friction`. Returns the approach speed (0 when the ball was not moving into the surface).
+ *
+ * --- bounce-math --- `ballRestitution` is the ball's own bounciness (`ball.restitution`, 1 without a rule). It multiplies
+ * the capped restitution and is not capped itself (the owner's "no upper limit"): a bounciness of 2 turns a 0.7 peg into a
+ * 1.4 rebound, so above 1 a rebound may add energy. `liftSpeed` (px/s) bounds what the bounciness adds, so it never
+ * compounds hit after hit: a rebound the bounciness made faster than the plain one leaves the ball at most at the larger of
+ * the plain rebound's speed and `liftSpeed` (callers pass the cruising speed × the bounciness – like the ring rebounds, which
+ * set the speed to the cruising speed × the bounciness). With the defaults (1, no lift) nothing changes, bit for bit.
  */
-export function rebound(ball: Ball, nx: number, ny: number, sx: number, sy: number, restitution: number, friction: number): number {
-  const e = Math.max(0, Math.min(MAX_OBSTACLE_RESTITUTION, restitution));
+export function rebound(ball: Ball, nx: number, ny: number, sx: number, sy: number, restitution: number, friction: number, ballRestitution = 1, liftSpeed = Infinity): number {
+  const plain = Math.max(0, Math.min(MAX_OBSTACLE_RESTITUTION, restitution));
+  const e = plain * (ballRestitution > 0 ? ballRestitution : 0);
   let rvx = ball.vx - sx;
   let rvy = ball.vy - sy;
   const vn = rvx * nx + rvy * ny;
@@ -277,6 +290,21 @@ export function rebound(ball: Ball, nx: number, ny: number, sx: number, sy: numb
     impact = -vn;
     rvx += j * nx;
     rvy += j * ny;
+    if (e > plain && liftSpeed < Infinity) {
+      // What the bounciness added on top of the plain rebound is limited to the lift (never below the plain rebound).
+      const extra = -(e - plain) * vn;
+      const plainX = ball.vx - extra * nx;
+      const plainY = ball.vy - extra * ny;
+      const bound = Math.max(Math.sqrt(plainX * plainX + plainY * plainY), liftSpeed);
+      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      if (speed > bound) {
+        const k = bound / speed;
+        ball.vx *= k;
+        ball.vy *= k;
+        rvx = ball.vx - sx;
+        rvy = ball.vy - sy;
+      }
+    }
   }
   if (friction > 0) {
     const f = Math.min(1, friction);

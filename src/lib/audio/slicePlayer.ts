@@ -1,5 +1,20 @@
 import { normalizeSliceOptions, planSlice, positionAt, sliceProgress, songEnded, type SliceOptions } from "./slicer";
 
+// --- review fix (audio) ---
+/**
+ * The gain of a slice `elapsed` seconds after it started: a linear fade in and out around a plateau of 1, 0 outside the slice.
+ * A cut slice fades out from this value (`AudioParam.value` only holds the last rendered value, so a cut inside a fade – or
+ * a slice not rendered yet, as in a fast export – would jump to the wrong level).
+ */
+export function sliceGainAt(elapsed: number, duration: number, fadeIn: number, fadeOut: number): number {
+  if (elapsed < 0 || elapsed >= duration) return 0;
+  let g = 1;
+  if (fadeIn > 0 && elapsed < fadeIn) g = Math.min(g, elapsed / fadeIn);
+  if (fadeOut > 0 && elapsed > duration - fadeOut) g = Math.min(g, (duration - elapsed) / fadeOut);
+  return g;
+}
+// --- end review fix (audio) ---
+
 /**
  * Web Audio side of the song slicer. Holds the decoded song (an AudioBuffer), the cursor
  * and the slice that is currently sounding, and plays the next slice on demand through
@@ -14,7 +29,7 @@ export class SlicePlayer {
   private cursor = 0;
   private enabled = false;
   private options: SliceOptions = { sliceSec: 0.25, fadeSec: 0.008, loop: true };
-  private voice: { source: AudioBufferSourceNode; gain: GainNode; start: number; duration: number; startedAt: number } | null = null;
+  private voice: { source: AudioBufferSourceNode; gain: GainNode; start: number; duration: number; startedAt: number; fadeIn: number; fadeOut: number } | null = null;
   private lastTriggerAt = -Infinity;
 
   /** Bounces closer together than this (two balls, a corner rattle) share one slice. */
@@ -120,7 +135,7 @@ export class SlicePlayer {
         if (this.voice?.source === source) this.voice = null;
       };
       source.start(now, plan.start, plan.duration);
-      this.voice = { source, gain, start: plan.start, duration: plan.duration, startedAt: now };
+      this.voice = { source, gain, start: plan.start, duration: plan.duration, startedAt: now, fadeIn: plan.fadeIn, fadeOut: plan.fadeOut };
       this.cursor = plan.cursorAfter;
       this.lastTriggerAt = now;
       return true;
@@ -145,7 +160,7 @@ export class SlicePlayer {
     try {
       const g = v.gain.gain;
       g.cancelScheduledValues(t);
-      g.setValueAtTime(g.value, t);
+      g.setValueAtTime(sliceGainAt(t - v.startedAt, v.duration, v.fadeIn, v.fadeOut), t); // --- review fix (audio) --- not g.value
       g.linearRampToValueAtTime(0, t + SlicePlayer.CUT_FADE_SEC);
       v.source.stop(t + SlicePlayer.CUT_FADE_SEC);
     } catch {

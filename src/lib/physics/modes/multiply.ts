@@ -45,6 +45,8 @@ export class MultiplyMode implements GameMode {
     const cy = ctx.config.height / 2;
     const balls = ctx.getBalls();
     let spawned = false;
+    // --- unlimited --- with No limits on the swarm has no MULTIPLY_MAX_BALLS: past the full-physics balls the new balls join the crowd
+    const unlimited = (ctx.unlimitedRoom?.() ?? null) !== null;
     for (const ball of balls) {
       if (this.escapedBalls.has(ball.id)) continue;
       if (Math.hypot(ball.x - cx, ball.y - cy) > wall.radius + ball.radius + 10) {
@@ -54,11 +56,16 @@ export class MultiplyMode implements GameMode {
         ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
         ctx.reportWallBreak(ball, 0);
         for (let i = 0; i < this.spawnCount; i++) {
-          if (balls.length >= MULTIPLY_MAX_BALLS) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS)
+          if (!unlimited && balls.length >= MULTIPLY_MAX_BALLS) break; // the swarm's soft ceiling (see MULTIPLY_MAX_BALLS) (--- unlimited --- lifted with No limits on)
           const a = ctx.random() * Math.PI * 2;
           // --- gerald-multipliers --- the new balls inherit the escaped ball's multipliers (speed, size, damage…)
           const speed = cruiseSpeed(ball, ctx.config.ballSpeed || 400);
           const size = ball.mult ? ball.mult.size : 1;
+          // --- unlimited --- no room left for full-physics balls: the rest of this escape's balls fan out as crowd balls
+          if (unlimited && (ctx.unlimitedRoom?.() ?? 1) <= 0) {
+            ctx.spawnCrowd?.(this.spawnCount - i, cx, cy, speed, (ctx.config.ballRadius || 8) * size, a, ball.team ?? 0);
+            break;
+          }
           ctx.addBall({
             x: cx,
             y: cy,

@@ -14,9 +14,14 @@ describe("normalizeWallBreakSound", () => {
     expect(normalizeWallBreakSound("/wallBreak/chime.wav")).toBe(WALL_BREAK_SOUNDS.find((s) => s.id === "chime")!.url);
   });
 
-  it("drops dead blob: URLs from custom uploads and keeps unknown URLs", () => {
+  // --- review fix (security-robustness) --- only the built-in clips: a stored preset must not make the page fetch some other address
+  it("drops dead blob: URLs from custom uploads, unknown URLs and values that are not strings", () => {
     expect(normalizeWallBreakSound("blob:http://localhost/abc")).toBeNull();
-    expect(normalizeWallBreakSound("https://example.com/boom.wav")).toBe("https://example.com/boom.wav");
+    expect(normalizeWallBreakSound("https://example.com/boom.wav")).toBeNull();
+    expect(normalizeWallBreakSound("https://attacker.example/wallBreak/x.wav")).toBeNull();
+    expect(normalizeWallBreakSound("")).toBeNull();
+    expect(normalizeWallBreakSound(5)).toBeNull();
+    expect(normalizeWallBreakSound({ url: WALL_BREAK_SOUNDS[0].url })).toBeNull();
   });
 
   it("is applied when presets are loaded", () => {

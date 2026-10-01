@@ -17,6 +17,7 @@ import {
   type TyPower,
 } from "@/lib/physics/modes/territory";
 import type { TeamEntry } from "@/lib/teams";
+import { inCaptionColumn } from "@/lib/captions";
 
 /**
  * Canvas drawing of Territory (feature odd-territory; lib/physics/modes/territory.ts), one `TerritoryLayer` per draw
@@ -171,9 +172,15 @@ export class TerritoryLayer {
   repaints = 0;
   pops = 0;
   badgeDrawn = false;
+  /** The badge sits in the top-right corner (the teams scoreboard has the top-left one). */
+  badgeRight = false;
   hudDrawn = false;
   bannerDrawn = false;
   private repaintGeneration = -1;
+  // The last badge drawn (screen px): what the top captions keep clear of.
+  private badgeX = 0;
+  private badgeW = 0;
+  private badgeBottom = 0;
 
   /** The colour of team `team` this frame (the roster's, else the palette's). */
   colorOf(team: number): string {
@@ -572,9 +579,11 @@ export class TerritoryLayer {
    * Screen space, the HUD band at the top of the square the recorder exports: the badge, PICK A SIDE, the countdown, the
    * VS line and the percentage bar – and, without a team roster (`teamBanner` false), the winner banner and its confetti.
    * `inset` moves the band below the page's overlay buttons (live, on a nearly square canvas); `dtMs` eases the bar and
-   * advances the confetti (0 while paused).
+   * advances the confetti (0 while paused); `badgeRight` – the teams scoreboard takes the top-left corner (the HUD is off
+   * then) – moves the badge to the top-right one. Returns the screen y the top captions start below: the band's bottom
+   * with the HUD, the badge's when it reaches into the captions' centred column, else 0.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: TerritoryView, o: TerritoryRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean }) {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: TerritoryView, o: TerritoryRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean; badgeRight?: boolean }): number {
     this.refreshLooks(view, o);
     const f = view.field;
     const S = f.side;
@@ -599,9 +608,12 @@ export class TerritoryLayer {
       ctx.fillRect(f.sqLeft, top, S, f.hudHeight);
     }
     this.badgeDrawn = view.settings.badge;
-    if (view.settings.badge) this.drawBadge(ctx, f.sqLeft + margin, top + 0.35 * margin, S, L);
+    this.badgeRight = !!frame.badgeRight;
+    if (view.settings.badge) this.drawBadge(ctx, this.badgeRight ? f.sqLeft + S - margin : f.sqLeft + margin, top + 0.35 * margin, S, L, this.badgeRight);
     this.hudDrawn = view.settings.hud;
     if (view.settings.hud) this.drawHud(ctx, view, top, S, o);
+    let topBottom = this.hudDrawn ? top + f.hudHeight : 0;
+    if (this.badgeDrawn && inCaptionColumn(this.badgeX, this.badgeW, f.sqLeft + S / 2, S)) topBottom = Math.max(topBottom, this.badgeBottom);
     this.bannerDrawn = false;
     if (view.finished && !frame.teamBanner && o.nowMs - view.finishedMs >= BANNER_DELAY_MS) {
       if (this.bannerGeneration !== view.generation) {
@@ -613,9 +625,11 @@ export class TerritoryLayer {
     } else if (!view.finished) this.bannerGeneration = -1;
     this.stepConfetti(ctx, frame.dtMs / 1000, S);
     ctx.restore();
+    return topBottom;
   }
 
-  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: TerritoryLabels) {
+  /** The warning badge with its top-left corner at (x, y) – or, `right`, its top-right corner. */
+  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: TerritoryLabels, right = false) {
     const fs = Math.max(7, 0.016 * side);
     const small = 0.78 * fs;
     ctx.font = this.font(fs, 900);
@@ -626,6 +640,10 @@ export class TerritoryLayer {
     const pad = 0.55 * fs;
     const w = pad * 3 + icon + Math.max(w1, w2);
     const h = pad * 2 + fs + 1.15 * small;
+    if (right) x -= w;
+    this.badgeX = x;
+    this.badgeW = w;
+    this.badgeBottom = y + h;
     ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
     roundRect(ctx, x, y, w, h, 0.35 * fs);
     ctx.fill();
@@ -861,6 +879,7 @@ export const TERRITORY_DATA_KEYS = [
   "tyRepaints",
   "tyPops",
   "tyBadge",
+  "tyBadgeRight",
   "tyHud",
   "tyBanner",
   "tyInField",
@@ -899,6 +918,7 @@ export function writeTerritoryDataset(view: TerritoryView, layer: TerritoryLayer
   set("tyRepaints", String(layer.repaints));
   set("tyPops", String(layer.pops));
   set("tyBadge", layer.badgeDrawn ? "1" : "0");
+  set("tyBadgeRight", layer.badgeDrawn && layer.badgeRight ? "1" : "0");
   set("tyHud", layer.hudDrawn ? "1" : "0");
   set("tyBanner", layer.bannerDrawn ? "1" : "0");
   let inField = true;

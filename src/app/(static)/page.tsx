@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { routing } from "@/i18n/routing";
 import { BASE_PATH, SITE_NAME } from "@/lib/site";
 
@@ -19,6 +20,9 @@ const redirectScript = `(function () {
   }
   location.replace(${JSON.stringify(BASE_PATH)} + "/" + pick + "/" + location.search + location.hash);
 })();`;
+
+// --- review fix (ui-i18n) --- the title moved here from the (static) layout (the 404 page sets its own)
+export const metadata: Metadata = { title: SITE_NAME };
 
 export default function RootRedirect() {
   const fallback = `${BASE_PATH}/${routing.defaultLocale}/`;

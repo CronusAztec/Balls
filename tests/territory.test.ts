@@ -48,6 +48,9 @@ import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
 import { midiToFrequency } from "@/lib/audio/scales";
+import { bounceTriggerApplies } from "@/lib/physics/bounceMathRuntime";
+import { bounceMathBeatConfig, type BounceRule } from "@/lib/simulation/bounceMath";
+import { assistantSettings, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 
 /**
  * Territory (lib/physics/modes/territory.ts, feature odd-territory): the settings (resolve, URL, presets), the board
@@ -783,5 +786,39 @@ describe("Find Simulation", () => {
     const rigged = await withFrames(() => findSimulation(request({ outcome, physicsConfig: { ...config, forcedWinner: 1 } }), () => undefined));
     expect(rigged.found).toBe(true);
     expect(rigged.seedsTested).toBe(1);
+  });
+});
+
+/* ------------------------------------------------------------------ the other features */
+
+describe("Territory with the other features", () => {
+  it("reports its bounces, ball hits and blasts to bounce math (and runs exactly as before without rules)", () => {
+    expect(bounceTriggerApplies("bounce", "territory")).toBe(true);
+    expect(bounceTriggerApplies("collide", "territory")).toBe(true);
+    expect(bounceTriggerApplies("break", "territory")).toBe(true);
+    const listen = (["bounce", "collide", "break"] as const).map((trigger): BounceRule => ({ param: "hue", trigger, every: 1, op: "add", amount: 5, scope: "ball" }));
+    const settings: Partial<TerritorySettings> = { teams: 4, ballsPerTeam: 4, powers: ["bomber", "bomber", "vortex", "ghost"], duration: 12 };
+    const engine = territory(settings, 9, { ...config, bounceMath: { rules: listen, beat: bounceMathBeatConfig(120), wallThickness: 2, wallWobble: 0, showValues: true } });
+    for (let i = 0; i < 600; i++) {
+      engine.update(STEP, 0);
+      engine.consumeSoundEvents();
+    }
+    const fires = engine.getBounceMathView().fires;
+    expect(fires[0], "bounce").toBeGreaterThan(0);
+    expect(fires[1], "ball hit").toBeGreaterThan(0);
+    expect(fires[2], "wall break (a blast)").toBeGreaterThan(0);
+    expect(accounted(engine).ok).toBe(true);
+    // The hue rules change only the colours: the battle itself is the one a run without rules plays.
+    const plain = territory(settings, 9);
+    for (let i = 0; i < 600; i++) plain.update(STEP, 0);
+    expect(Array.from(plain.getTerritoryView().counts)).toEqual(Array.from(engine.getTerritoryView().counts));
+  });
+
+  it("lets the AI assistant tune its settings", () => {
+    const keys = assistantSettings({ ...defaultSettings("territory"), mode: "territory" }).map(([k]) => k);
+    for (const key of ["tyCols", "tyTeams", "tyBallsPerTeam", "tyPowers", "tyPowerEvery", "tyRadius", "tyDuration", "tyPegs", "tyBadge", "tyHud"]) expect(keys, key).toContain(key);
+    const current = { ...defaultSettings("territory"), mode: "territory" as const };
+    expect(validateSettingsPatch(current, { tyTeams: 4, tyPowers: "ghost,bomber,none,vortex" }).ok).toBe(true);
+    expect(validateSettingsPatch(current, { tyPowers: "laser" }).ok).toBe(false);
   });
 });

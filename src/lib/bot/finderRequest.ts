@@ -29,6 +29,7 @@ import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
 import { engineTimelineOf } from "@/lib/simulation/timeline";
 import { effectiveBallCount } from "@/lib/teams";
 import { markerBeatInputOf, onBeatConfigOfSettings } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
+import { bounceMathConfigOf } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 
 /*
  * --- viral-bot --- The seed finder's view of a settings object, without a page: the physics config and the mode settings the
@@ -69,6 +70,7 @@ export function physicsConfigOfSettings(s: SimulatorSettings, world: BotWorld = 
     ...obstacleConfigOf(s),
     timeline: engineTimelineOf(s),
     ...riggedConfigOf(s),
+    ...(s.bounceMath.length > 0 ? { bounceMath: bounceMathConfigOf(s, markerBeatInputOf(s)) } : {}), // --- bounce-math --- (the hand-placed markers, else the BPM: a page's song is not there)
   };
 }
 

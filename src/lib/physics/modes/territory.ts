@@ -956,9 +956,10 @@ export class TerritoryMode implements GameMode {
       if (hitX && (ball.vx < 0 ? -1 : 1) !== sx) ball.vx = -ball.vx;
       if (hitY && (ball.vy < 0 ? -1 : 1) !== sy) ball.vy = -ball.vy;
       v.wallBounces++;
+      ctx.noteBounce?.(ball); // a bounce-math trigger (the frame is the mode's own wall)
       if (tb && tb.power === "ghost" && !v.finished) this.ghostBlock(ctx, ball, team, now);
     }
-    if (v.settings.pegs) this.pegs(ball, dtSec);
+    if (v.settings.pegs) this.pegs(ctx, ball, dtSec);
     if (dashing) this.paintTrail(ctx, ball, team, now);
     else if (!(tb && tb.power === "ghost")) this.probeTiles(ctx, ball, team, now);
     if (tb) {
@@ -987,6 +988,7 @@ export class TerritoryMode implements GameMode {
       if (col >= 0 && row >= 0 && col < cols && row < rows && tiles[row * cols + col] !== team) this.convert(ctx, row * cols + col, team, now, row, true);
     }
     const r = ball.radius;
+    let bounced = false;
     for (let k = 0; k < 8; k++) {
       const nx = PROBE_X[k];
       const ny = PROBE_Y[k];
@@ -1001,7 +1003,9 @@ export class TerritoryMode implements GameMode {
       ball.vx -= 2 * vn * nx;
       ball.vy -= 2 * vn * ny;
       v.tileBounces++;
+      bounced = true;
     }
+    if (bounced) ctx.noteBounce?.(ball); // a bounce-math trigger, once a step however many probes reflected
   }
 
   /** The painter's dash: no bounces off enemy tiles, the tile under the ball turns its team's – a one-tile trail. */
@@ -1055,7 +1059,7 @@ export class TerritoryMode implements GameMode {
   }
 
   /** The pegs of the dotted grid next to the ball (the four corners of its lattice cell), through the obstacle layer's peg resolver. */
-  private pegs(ball: Ball, dtSec: number) {
+  private pegs(ctx: ModeContext, ball: Ball, dtSec: number) {
     const v = this.view;
     const f = v.field;
     const L = TY_PEG_STEP * f.tile;
@@ -1073,7 +1077,10 @@ export class TerritoryMode implements GameMode {
         if (i < 1 || i > iMax) continue;
         peg.x = f.gx + i * L;
         peg.y = f.gy + j * L;
-        if (resolveBallCircle(ball, peg, dtSec, 1) > 0) v.pegHits++;
+        if (resolveBallCircle(ball, peg, dtSec, 1) > 0) {
+          v.pegHits++;
+          ctx.noteBounce?.(ball);
+        }
       }
     }
   }

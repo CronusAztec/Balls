@@ -348,6 +348,13 @@ describe("the obstacle field", () => {
     expect(soft.vy).toBeLessThan(0);
     expect(f.hitCount).toBe(1);
     expect(events).toHaveLength(1);
+    // --- bounce-math --- the ball's bounciness multiplies the capped restitution (0.95 × 1.5), up to the lift speed.
+    const bouncy = ball(400, 300 - 19, 0, 300);
+    f.collide(bouncy, DT, 1, 40, 400, 3000, events, 1.5, 1000);
+    expect(bouncy.vy).toBeCloseTo(-300 * 0.95 * 1.5, 9);
+    const lifted = ball(400, 300 - 19, 0, 300);
+    f.collide(lifted, DT, 1, 40, 400, 3000, events, 3, 600);
+    expect(Math.hypot(lifted.vx, lifted.vy)).toBeCloseTo(600, 6);
   });
 
   it("makes a bumper multiply the ball speed by the boost, capped, with the ding event", () => {

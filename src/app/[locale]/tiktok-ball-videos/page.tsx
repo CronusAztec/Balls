@@ -6,11 +6,12 @@ import SectionHeading from "@/components/site/SectionHeading";
 import { Link } from "@/i18n/navigation";
 import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
+import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "TikTokBallVideos" });
-  const v = { siteName: SITE_NAME };
+  const v = { siteName: SITE_NAME, count: MODE_CARD_ORDER.length };
   return {
     title: t("metaTitle", v),
     description: t("metaDescription", v),

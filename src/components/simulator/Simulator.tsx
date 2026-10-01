@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale, useMessages } from "next-intl"; // --- viral-bot ---
 import { useViralBot } from "./useViralBot"; // --- viral-bot ---
+import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish --- finished clips go to the Publish block
 import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
 import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
@@ -37,7 +38,7 @@ import { CUSTOM_HIT_SAMPLE_ID, builtInHitSampleUrl, type HitSampleStatus } from 
 import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
-import { VideoRecorder } from "@/lib/recording/recorder";
+import { EXPORT_BASE_NAME, VideoRecorder } from "@/lib/recording/recorder";
 import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
 import { findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- gerald-faces ---
@@ -46,7 +47,10 @@ import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces
 import type { CanvasTeamOptions } from "./teamsRenderer";
 import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
-import { cameraSettingsOf } from "@/lib/simulation/camera"; // --- camera ---
+import { unlimitedConfigOf } from "@/lib/physics/limits"; // --- unlimited ---
+import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
+import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
+import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
@@ -68,7 +72,8 @@ import type { FastExportState } from "./sections/FastExportSection";
 // --- project-files ---
 import ProjectDropZone from "./ProjectDropZone";
 import { ShareCodeNotice, useShareCodeLoader, useShortShareLink } from "./shareLinks";
-import { useProjectFiles, type ProjectUploads } from "./useProjectFiles";
+import { SoftCeilingNotice } from "./softCeilingNotice"; // --- review fix (security-robustness) ---
+import { useProjectFiles, type MediaUploadOptions, type ProjectUploads } from "./useProjectFiles";
 // --- jdm-race ---
 import { raceSettingsOf } from "@/lib/physics/modes/race";
 import { raceCupStore } from "@/lib/raceCup";
@@ -78,6 +83,9 @@ import { cupTitleOf, defaultRacerNames, useRaceCup } from "./sections/RaceSectio
 // --- jdm-arena-games --- Bouncing Square Battle Royale and Capture the Flag
 import { ARENA_WIN_HOLD_SEC, arenaFoundClipSec, battleSettingsOf, ctfFinderSettings, ctfSettingsOf, isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 import { useBatchRender, type BatchExportRequest } from "./useBatchRender"; // --- batch-render ---
+// --- desktop-exe --- the Windows app's Desktop group (GPU, Render queue, AI, Library): rendered only inside the app
+import DesktopSection from "./sections/DesktopSection";
+import type { DesktopPageHooks } from "./desktop/pageHooks";
 // --- jdm-rhythm-runner --- Beat Runner and Paddle Keep-Up
 import { runnerPlanOf, runnerSettingsOf, sameRunnerPlan, type RunnerBeatInput, type RunnerPlan } from "@/lib/physics/modes/runner";
 import { paddleSettingsOf } from "@/lib/physics/modes/paddle";
@@ -100,6 +108,9 @@ import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
 import { DAILY_PARAM, dailyFromParam, dailySettings } from "@/lib/daily";
 import { useDailyChallenge } from "./useDailyChallenge";
 import { DailyBar, DailyResultPanel } from "./DailyChallengeUi";
+// --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
+import { bounceMathCarryOver, bounceMathConfigOf, sameRules, type BounceMathConfig } from "@/lib/simulation/bounceMath";
+import type { BounceMathPanelProps } from "./sections/BounceMathSection";
 import {
   RANGES,
   defaultSettings,
@@ -112,6 +123,7 @@ import {
   type PresetStore,
   type SimulatorSettings,
 } from "@/lib/settings";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 const SPEEDS = [1, 2, 4, 8];
 /** --- gerald-multipliers --- who makes it home when the ball has no name. */
@@ -168,6 +180,26 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
 const FAST_PROGRESS_MS = 120;
 // --- end fast-render ---
 
+/**
+ * --- review fix (performance) --- The FPS badge's number, twice a second. It re-renders only itself: as page state it
+ * re-rendered the whole simulator and its settings panel (~600 components) on almost every tick.
+ */
+function FpsReadout({ canvasRef, label, className }: { canvasRef: React.RefObject<CanvasHandle | null>; label: string; className: string }) {
+  const [fps, setFps] = useState(60);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const fpsRef = canvasRef.current?.fpsRef;
+      if (fpsRef) setFps(Math.round(fpsRef.current));
+    }, 500);
+    return () => clearInterval(id);
+  }, [canvasRef]);
+  return (
+    <span className={className} data-testid="fps-readout">
+      {fps} {label}
+    </span>
+  );
+}
+
 export default function Simulator() {
   const t = useTranslations();
   const searchParams = useSearchParams();
@@ -187,6 +219,7 @@ export default function Simulator() {
   const hitSampleObjectUrlRef = useRef<string | null>(null);
   const sliceUploadIdRef = useRef(0);
   const musicUploadIdRef = useRef(0);
+  const wallBreakUploadIdRef = useRef(0); // --- review fix (security-robustness) --- (a newer wall-break upload wins)
   const projectUploadsRef = useRef<ProjectUploads>({}); // --- project-files --- the uploads' original files (decoded songs keep no bytes)
 
   // --- daily-gallery --- a `daily=` link opens that day's challenge: its settings are the first settings (its seed is pinned below)
@@ -197,9 +230,9 @@ export default function Simulator() {
   const [isStarted, setIsStarted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState(false); // --- review fix (security-robustness) --- Record Video could not start
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [simSpeed, setSimSpeed] = useState(1);
-  const [fps, setFps] = useState(60);
   const [finished, setFinished] = useState(false);
   const [ballImage, setBallImage] = useState<string | null>(null);
   const [ballEmoji, setBallEmoji] = useState<string | null>(null);
@@ -318,6 +351,7 @@ export default function Simulator() {
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
+      ...unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)), // --- unlimited --- (before the first run: its soft ceilings and crowd)
     });
     initEngineForMode(engine, s);
     engineRef.current = engine;
@@ -328,6 +362,11 @@ export default function Simulator() {
     setEngineReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // --- review fix (audio) --- leaving the page (an in-app link, a language switch) closes the AudioContext: the music bed,
+  // the keep-alive oscillator, the hit samples and the slicer stop with it. The generator itself is kept – stop() can be
+  // restarted (start() rebuilds the context and re-attaches the bed with its track) – so StrictMode's simulated unmount
+  // and remount keep the settings already pushed to it.
+  useEffect(() => () => audioRef.current?.stop(), []);
 
   /**
    * Restarts the current mode from scratch: the run and everything that plays along with it – the melody from its first
@@ -337,12 +376,18 @@ export default function Simulator() {
    * bed starts from its start offset when it resumes.
    */
   const restartRun = useCallback(
-    (keepPaused: boolean) => {
+    (keepPaused: boolean, opts?: { sameSeed?: boolean }) => {
       const engine = engineRef.current;
       if (!engine) return;
       const paused = keepPaused && isPaused;
       setFinished(false);
       if (!paused) setIsPaused(false);
+      // --- review fix (recording-export) --- the end-screen holds start over with the run (the frame loop sets them again)
+      paintFinishedAtRef.current = null;
+      winnerShownAtRef.current = null;
+      illusionRevealAtRef.current = null;
+      battleFinishAtRef.current = null;
+      arenaWinAtRef.current = null;
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
@@ -350,8 +395,15 @@ export default function Simulator() {
       // cannot tell a restart from "still running", so it is done here).
       if (isStarted && !paused) audioRef.current?.getMusicBed().restart();
       else audioRef.current?.getMusicBed().stop();
+      // --- review fix (recording-export) --- `sameSeed`: the run starts over from its own seed (Record Video on a finished run
+      // records the run again – the one the fast export would render); a seed nobody pinned is let go again afterwards, so
+      // later restarts roll new ones. (The split-screen arenas start over with this engine's clock, as on any restart.)
+      const replaySeed = opts?.sameSeed ? engine.getSeed() : null;
+      const pinned = engine.getPinnedSeed() !== null;
+      if (replaySeed !== null) engine.setSeed(replaySeed);
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (replaySeed !== null && !pinned) engine.setSeed(null);
     },
     [settings, isStarted, isPaused, initEngineForMode],
   );
@@ -363,6 +415,11 @@ export default function Simulator() {
 
   // Keep the engine in sync with the settings object.
   const s = settings;
+  // --- unlimited --- No limits travels in the physics config (the switch and the crowd: the Ball Count past the team balls).
+  // Declared first, so the engine knows the switch before the values past their ranges below reach it.
+  useEffect(() => {
+    engineRef.current?.setConfig(unlimitedConfigOf(s, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode)));
+  }, [s.unlimited, s.ballCount, s.mode, s.teams, s.twoBalls]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     engineRef.current?.setConfig({
       gravity: s.gravity,
@@ -1051,6 +1108,32 @@ export default function Simulator() {
   }, [s.bdSound, s.bdColorMode, s.bdTrail, s.recordingDuration, s.scale, s.rootNote]);
   // --- end beat-drop ---
 
+  // --- bounce-math --- the rules travel in the physics config with the beat grid their beat / bar triggers follow (the beat source in
+  // effect – the loaded song's, an imported video's or the hand-placed markers –, else the BPM, like Beat Drop), the starting values of
+  // the canvas parameters and Show values; the seed finder, the arenas, the batch renderer and the fast export copy it. New rules – or
+  // a new beat while a rule may follow it – drop a found seed with its promise, like new keyframes.
+  const bounceMathConfig = useMemo<BounceMathConfig>(
+    () => bounceMathConfigOf(s, rhythmBeat),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.bounceMath, s.bounceMathHud, s.bpm, s.wallThickness, s.wallWobble, rhythmBeat],
+  );
+  const bounceMathSentRef = useRef<BounceMathConfig | null>(null);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig({ bounceMath: bounceMathConfig });
+    const before = bounceMathSentRef.current;
+    bounceMathSentRef.current = bounceMathConfig;
+    if (!before) return;
+    const followsBeat = bounceMathConfig.rules.some((r) => r.trigger === "beat" || r.trigger === "bar" || r.op === "formula");
+    if (!sameRules(before.rules, bounceMathConfig.rules) || (followsBeat && !sameBeatSchedule(before.beat, bounceMathConfig.beat))) {
+      engine.setSeed(null);
+      setSearchResult((r) => (r?.found ? null : r));
+    }
+  }, [bounceMathConfig]);
+  const bounceMathPanel = useMemo<BounceMathPanelProps>(() => ({ getView: () => engineRef.current?.getBounceMathView() ?? null }), []);
+  // --- end bounce-math ---
+
   // Any physics-relevant change invalidates a seed found by the finder – and its promise: the panel stops quoting a run the
   // page no longer plays (the Cinematic director and Bouncier draw from the seeded RNG and change the rebounds too).
   useEffect(() => {
@@ -1121,6 +1204,7 @@ export default function Simulator() {
         engine.setPaintOptions(page.getPaintOptions());
         engine.setPaintBeat(splitBeatRef.current);
         engine.setOnBeat(videoBeatsRef.current.onBeatConfig); // --- video-beats --- every arena's flights land on the same grid
+        if (page.config.bounceMath) engine.setConfig({ bounceMath: page.config.bounceMath }); // --- bounce-math --- the page's rules and beat grid
         // A Beat Runner / Paddle Keep-Up played by hand is played in the first arena only: the others play by themselves.
         initEngineForMode(engine, jdmRhythmPlayedByHand(arena) ? { ...arena, runnerAutoJump: true, pdAuto: true } : arena);
       },
@@ -1136,6 +1220,8 @@ export default function Simulator() {
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- gerald-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
         engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- gerald-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
+        const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
+        if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
       },
     }),
     [initEngineForMode],
@@ -1258,6 +1344,8 @@ export default function Simulator() {
       fresh.fastExportFps = themeLookRef.current.fastExportFps; // --- fast-render --- the export's frame rate carries over like the resolution
       Object.assign(fresh, videoBeatsCarryOver(themeLookRef.current)); // --- video-beats --- the beat source, markers, On beat and video background are part of the song
       Object.assign(fresh, splitScreenCarryOver(themeLookRef.current)); // --- split-screen --- the arenas carry over (a new mode for the race)
+      Object.assign(fresh, bounceMathCarryOver(themeLookRef.current)); // --- bounce-math --- the rules script the clip in every mode: they carry over
+      fresh.unlimited = themeLookRef.current.unlimited; // --- unlimited --- the switch carries over (the new mode starts from its defaults)
       setSettings(fresh);
       if (engine) {
         engine.setConfig({
@@ -1285,9 +1373,10 @@ export default function Simulator() {
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
   useEffect(() => {
     const handler = (e: Event) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (a batch puts its own modes on the page)
       const mode = (e as CustomEvent<ModeId>).detail;
       changeMode(mode);
-      document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
     };
     window.addEventListener("jumpingballslive:select-mode", handler);
     return () => window.removeEventListener("jumpingballslive:select-mode", handler);
@@ -1350,6 +1439,11 @@ export default function Simulator() {
           // --- beat-drop --- a Beat Drop landing's drum and pad accent, or an off-beat hat
           if (ev.bdDrum) {
             audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
+            continue;
+          }
+          // --- unlimited --- a ball ate the arena: the gulp
+          if (ev.ate) {
+            audio.playArenaEaten();
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
@@ -1427,14 +1521,6 @@ export default function Simulator() {
     loop();
     return () => cancelAnimationFrame(raf);
   }, [isStarted, isPaused, audioEnabled]);
-
-  // FPS readout.
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (canvasRef.current?.fpsRef) setFps(Math.round(canvasRef.current.fpsRef.current));
-    }, 500);
-    return () => clearInterval(id);
-  }, []);
 
   // Elapsed time readout (written directly to the DOM to avoid re-renders).
   useEffect(() => {
@@ -1520,7 +1606,8 @@ export default function Simulator() {
     const recorder = recorderRef.current;
     if (recorder) {
       const blob = await recorder.stopRecording();
-      if (blob) recorder.downloadBlob(blob, "jumpingballslive-export");
+      if (blob) recorder.downloadBlob(blob, EXPORT_BASE_NAME);
+      if (blob) offerPublishClip({ blob, name: EXPORT_BASE_NAME, source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null }); // --- social-publish ---
     }
     setIsRecording(false);
   }, []);
@@ -1532,6 +1619,12 @@ export default function Simulator() {
       await stopRecordingAndDownload();
       return;
     }
+    // --- review fix (recording-export) --- a finished run (its end screen, or the hold before it) is recorded again from
+    // its own seed, as the fast export renders it – not as half a second of the frozen end screen. restartRun() clears
+    // `finished` in this same handler, so the stop-after-the-finish effect below never sees the old run's end.
+    const engineNow = engineRef.current;
+    const runOver = isStarted && !!engineNow && (finished || (engineNow.isSimulationFinished() && (splitRunnerRef.current?.allFinished() ?? true)));
+    if (runOver) restartRun(false, { sameSeed: true });
     if (!isStarted) await start();
     recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
     await audioRef.current?.start();
@@ -1539,21 +1632,35 @@ export default function Simulator() {
     // The canvas starts the captions' clip clock here and keeps them clear of the text lines the recorder draws.
     canvasRef.current?.setRecording(true, resolution);
     setIsRecording(true);
+    setRecordingError(false); // --- review fix (security-robustness) ---
+    // --- review fix (security-robustness) --- a recorder that throws (it should resolve false) is a failed start too: the page
+    // never stays in a "recording" state with nothing recording
     const ok = await recorderRef.current.startRecording({
-      mimeType: "video/mp4",
+      // --- review fix (recording-export) --- no preferred type: the recorder's own order (H.264 + AAC in MP4, else WebM)
       resolution,
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
+      sourceFrames: () => canvasRef.current?.framesDrawn() ?? -1, // --- review fix (performance) --- each frame the canvas drew, copied once
       // --- themes: the letterbox bars of the export continue the gradient / picture background
       backgroundColor: settings.backgroundColors[0],
       drawBackground: (c, width, height, crop) => canvasRef.current?.paintRecordingBackground(c, width, height, crop),
+    }).catch((err: unknown) => {
+      console.error("Failed to start recording:", err);
+      return false;
     });
     if (!ok) {
       canvasRef.current?.setRecording(false);
       setIsRecording(false);
+      setRecordingError(true); // --- review fix (security-robustness) --- (said under the canvas)
       return;
     }
-    recordTimerRef.current = setTimeout(() => {
+    // --- review fix (modes-gerald-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
+    // a run takes, so an unfinished run's clip is extended by the lag it added while recording (re-armed until it stops growing,
+    // at most the whole clip at the slowest factor – a paused run adds none) and the finished effect below ends it as usual
+    const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
+    const maxExtraMs = maxSlowLagMs(1000 * settings.recordingDuration);
+    let credited = 0;
+    const onClipEnd = () => {
       // The run is already over and the page is still holding it (the winner banner, the escape replay, a finished
       // picture): the effect below stops the export once that hold is over instead of cutting it off here. The
       // fallback timer only matters if the hold never ends (the run paused by hand, say).
@@ -1561,9 +1668,16 @@ export default function Simulator() {
         recordTimerRef.current = setTimeout(() => void stopRecordingAndDownload(), END_HOLD_FALLBACK_MS);
         return;
       }
+      const extra = Math.min(maxExtraMs - credited, (canvasRef.current?.getSlowLagMs() ?? 0) - lag0 - credited);
+      if (extra > SLOW_LAG_MIN_MS) {
+        credited += extra;
+        recordTimerRef.current = setTimeout(onClipEnd, extra);
+        return;
+      }
       void stopRecordingAndDownload();
-    }, 1000 * settings.recordingDuration);
-  }, [isRecording, isStarted, recordingSupported, settings, start, stopRecordingAndDownload]);
+    };
+    recordTimerRef.current = setTimeout(onClipEnd, 1000 * settings.recordingDuration);
+  }, [isRecording, isStarted, finished, recordingSupported, settings, start, stopRecordingAndDownload, restartRun]);
 
   // Stop the recording shortly after the run finishes.
   useEffect(() => {
@@ -1595,9 +1709,29 @@ export default function Simulator() {
   useEffect(() => setFastSupported(fastRenderSupported()), []);
   const fastAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => fastAbortRef.current?.abort(), []); // an export stops with the page
+  // --- review fix (performance) --- a recording in progress stops with the page too (a client-side navigation keeps the window,
+  // its timers and the MediaRecorder alive): its clip timer is cleared and the clip is discarded – no download from a page
+  // that is gone. (The audio closes in the effect next to the engine's.)
+  useEffect(
+    () => () => {
+      if (recordTimerRef.current) {
+        clearTimeout(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      const recorder = recorderRef.current;
+      if (recorder?.isRecording()) void recorder.stopRecording();
+    },
+    [],
+  );
   const fastRunning = fastExport.status === "running";
   // --- batch-render --- a batch job for the next export: its seed, and the file handed back instead of downloaded (useBatchRender.ts)
   const batchExportRef = useRef<BatchExportRequest | null>(null);
+  // --- review fix (recording-export) --- while a batch runs (the Batch block's or the viral bot's renders through it) nothing
+  // else may put settings on the page: Import project, a dropped project, a saved preset, a mode card or a share code would be
+  // rolled back by the batch's next job or by its restore at the end. Set by the batch itself as it starts and ends.
+  const [batchActive, setBatchActive] = useState(false);
+  const batchActiveRef = useRef(false);
+  batchActiveRef.current = batchActive;
   const startFastExport = useCallback(async () => {
     const batchJob = batchExportRef.current; // --- batch-render ---
     batchExportRef.current = null;
@@ -1664,6 +1798,7 @@ export default function Simulator() {
         world: { width: page.config.width, height: page.config.height },
         resolution,
         durationSec: s.recordingDuration,
+        slowMoStretch: s.slowMoOnNearMiss ? 1 / Math.max(RANGES.slowMoFactor.min, s.slowMoFactor) : 1, // --- review fix (modes-gerald-odd) --- (the clip is extended by the slow motion's lag)
         fps,
         audio: audioRef.current,
         endHolds: (engine) => fastExportEndHolds(engine, teamsPlay),
@@ -1683,6 +1818,7 @@ export default function Simulator() {
       if (!result) setFastExport({ status: "cancelled" });
       else {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
+        if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
       }
     } catch (err) {
@@ -1712,16 +1848,31 @@ export default function Simulator() {
     reader.readAsDataURL(file);
   }, []);
 
+  // --- review fix (security-robustness) --- the media uploads resolve whether the file was loaded (an imported project counts
+  // the ones that were not) and take `quiet` for that import, which reports them in its own status line instead of an alert
   const onWallBreakSoundUpload = useCallback(
-    (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
+      const uploadId = ++wallBreakUploadIdRef.current;
+      // --- review fix (audio) --- a clip the browser cannot decode is refused here (like the song and the music track)
+      // instead of silently leaving every wall break on the default sound
+      try {
+        await audioRef.current?.decodeAudio(await file.arrayBuffer());
+      } catch (err) {
+        if (uploadId !== wallBreakUploadIdRef.current) return true; // a newer upload replaced this one
+        console.warn("Failed to decode the wall-break sound:", err);
+        if (!options?.quiet) alert(t("Controls.wallBreakDecodeError"));
+        return false;
+      }
+      if (uploadId !== wallBreakUploadIdRef.current) return true;
       if (wallBreakObjectUrlRef.current) URL.revokeObjectURL(wallBreakObjectUrlRef.current);
       const url = URL.createObjectURL(file);
       wallBreakObjectUrlRef.current = url;
       setCustomWallBreakName(file.name);
       projectUploadsRef.current.wallBreakSound = file; // --- project-files ---
       update({ wallBreakSound: url });
+      return true;
     },
-    [update],
+    [t, update],
   );
 
   const onHitSampleUpload = useCallback(
@@ -1763,23 +1914,25 @@ export default function Simulator() {
   }, []);
 
   const onSliceSongUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
       const audio = audioRef.current;
-      if (!audio) return;
+      if (!audio) return false;
       const uploadId = ++sliceUploadIdRef.current;
       setSliceSongLoading(true);
       try {
         const buffer = await audio.decodeAudio(await file.arrayBuffer());
-        if (uploadId !== sliceUploadIdRef.current) return; // a newer upload replaced this one
+        if (uploadId !== sliceUploadIdRef.current) return true; // a newer upload replaced this one
         audio.getSlicer().setBuffer(buffer);
         analyzeSong("slice", buffer);
         setSliceSongInfo({ name: file.name, duration: buffer.duration });
         projectUploadsRef.current.sliceSong = file; // --- project-files ---
         update({ sliceSong: true });
+        return true;
       } catch (err) {
-        if (uploadId !== sliceUploadIdRef.current) return;
+        if (uploadId !== sliceUploadIdRef.current) return true;
         console.error("Failed to decode song for the slicer:", err);
-        alert(t("Controls.sliceDecodeError"));
+        if (!options?.quiet) alert(t("Controls.sliceDecodeError"));
+        return false;
       } finally {
         if (uploadId === sliceUploadIdRef.current) setSliceSongLoading(false);
       }
@@ -1796,22 +1949,24 @@ export default function Simulator() {
   }, [analyzeSong]);
 
   const onMusicUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
       const audio = audioRef.current;
-      if (!audio) return;
+      if (!audio) return false;
       const uploadId = ++musicUploadIdRef.current;
       setMusicLoading(true);
       try {
         const buffer = await audio.decodeAudio(await file.arrayBuffer());
-        if (uploadId !== musicUploadIdRef.current) return; // a newer upload replaced this one
+        if (uploadId !== musicUploadIdRef.current) return true; // a newer upload replaced this one
         audio.getMusicBed().setBuffer(buffer);
         analyzeSong("music", buffer);
         setMusicTrack({ name: file.name, duration: buffer.duration });
         projectUploadsRef.current.musicBed = file; // --- project-files ---
+        return true;
       } catch (err) {
-        if (uploadId !== musicUploadIdRef.current) return;
+        if (uploadId !== musicUploadIdRef.current) return true;
         console.error("Failed to decode the music track:", err);
-        alert(t("Controls.musicDecodeError"));
+        if (!options?.quiet) alert(t("Controls.musicDecodeError"));
+        return false;
       } finally {
         if (uploadId === musicUploadIdRef.current) setMusicLoading(false);
       }
@@ -1921,7 +2076,7 @@ export default function Simulator() {
   }, []);
 
   const onCustomMidiUpload = useCallback(
-    async (file: File) => {
+    async (file: File, options?: MediaUploadOptions): Promise<boolean> => {
       setCustomSoundLoading(true);
       setCustomSoundId("custom-upload");
       setCustomMidiName(file.name);
@@ -1930,13 +2085,15 @@ export default function Simulator() {
         audioRef.current?.setCustomNotes(notes);
         setCustomSoundNoteCount(notes.length);
         projectUploadsRef.current.midi = file; // --- project-files ---
+        return true;
       } catch (err) {
         console.error("Failed to parse uploaded MIDI file:", err);
-        alert(t("Controls.midiParseError"));
+        if (!options?.quiet) alert(t("Controls.midiParseError"));
         setCustomSoundId(null);
         setCustomMidiName(null);
         setCustomSoundNoteCount(0);
         audioRef.current?.clearCustomNotes();
+        return false;
       } finally {
         setCustomSoundLoading(false);
       }
@@ -1997,6 +2154,7 @@ export default function Simulator() {
 
   const onLoadPreset = useCallback(
     (name: string) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (the Load buttons are off meanwhile)
       const preset = presets[name];
       if (preset) loadPresetSettings(preset);
     },
@@ -2047,8 +2205,12 @@ export default function Simulator() {
       onCustomSoundSelect,
       onBeatMediaUpload: videoBeats.onImport, // --- video-beats ---
     },
+    locked: batchActive || fastRunning, // --- review fix (recording-export) --- (refused with a status line meanwhile)
   });
-  const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
+  // --- review fix (recording-export) --- (a share code decoded while a batch runs is not put over the batch's settings)
+  const shareCode = useShareCodeLoader(searchParams.toString(), (shared) => {
+    if (!batchActiveRef.current) loadPresetSettings(shared);
+  });
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
   // --- batch-render --- a batch that puts other settings on the page drops a found simulation on the way (the preset loader
@@ -2089,6 +2251,7 @@ export default function Simulator() {
     fastExport,
     supported: fastSupported,
     disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || settings.arenaCount > 1, // --- split-screen --- (not during a race)
+    onRunningChange: setBatchActive, // --- review fix (recording-export) ---
   });
   // --- end batch-render ---
   // --- viral-bot --- the Viral video bot block after the Batch block: it plans clips (lib/bot/planner.ts) in this page's
@@ -2187,7 +2350,7 @@ export default function Simulator() {
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
-      findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others')
+      settings.unlimited ? findSimulationBudgeted : findSimulation, // --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       {
         targetDurationSec: findDuration,
         toleranceSec: findTolerance,
@@ -2351,6 +2514,7 @@ export default function Simulator() {
       outgrewSub: (size) => fill("Simulator.canvasMpOutgrewSub", { size }),
       madeItHome: (n) => fill("Simulator.canvasMpMadeItHome", { count: n, name: ballNameRef.current.trim() || DEFAULT_GERALD_NAME }),
       madeItHomeSub: (clones) => fill("Simulator.canvasMpMadeItHomeSub", { count: clones }),
+      madeItHomeLost: (lost) => fill("Simulator.canvasMpMadeItHomeLost", { count: lost }), // --- review fix (modes-gerald-odd) ---
       // --- jdm-double-pendulum ---
       dpDone: t("Simulator.canvasDpDone"),
       dpPlucks: (n) => fill("Simulator.canvasDpPlucks", { count: n }),
@@ -2461,6 +2625,21 @@ export default function Simulator() {
         done: t("BeatDrop.canvasDone"),
         doneSub: (landings, errorMs) => fill("BeatDrop.canvasDoneSub", { count: landings, ms: errorMs }),
       },
+      // --- bounce-math ---
+      bounceMath: {
+        bounce: t("BounceMath.hudBounce"),
+        speed: t("BounceMath.hudSpeed"),
+        size: t("BounceMath.hudSize"),
+        gravity: t("BounceMath.hudGravity"),
+        rule: (n, fires) => fill("BounceMath.hudRule", { n, fires }),
+      },
+      // --- unlimited ---
+      unlimited: {
+        realTime: (ratio) => fill("Unlimited.canvasRealTime", { ratio }),
+        arenaFull: t("Unlimited.canvasArenaFull"),
+        balls: (count) => fill("Unlimited.canvasBalls", { count }),
+        ateArena: t("Unlimited.canvasAteArena"),
+      },
       // --- odd-territory ---
       territory: {
         vs: t("Territory.canvasVs"),
@@ -2496,6 +2675,9 @@ export default function Simulator() {
         bounces: t("Simulator.canvasTeamBounces"),
         walls: t("Simulator.canvasTeamWalls"),
         escapes: t("Simulator.canvasTeamEscapes"),
+        kills: t("Simulator.canvasTeamKills"), // --- review fix (modes-gerald-odd) --- a String Battle's columns and banner
+        win: t("Simulator.canvasTeamWin"),
+        tiles: t("Territory.canvasTiles"), // --- odd-territory --- Territory's tiles column and banner line
         wins: (name) => fill("Simulator.canvasTeamWins", "name", name),
         tie: t("Simulator.canvasTeamTie"),
         team: (n) => fill("Simulator.canvasTeamFallback", "n", n),
@@ -2579,6 +2761,34 @@ export default function Simulator() {
   const overlayButton = "px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl hover:bg-slate-800/80 transition-all font-bold text-sm border border-slate-700/50 hover:border-cyan-500/40 shadow-lg shadow-cyan-500/10 cursor-pointer";
   const gradientText = "bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent";
 
+  // --- desktop-exe --- what the Desktop group (sections/DesktopSection.tsx) may use of the page: it renders nothing on the website
+  const desktopPage: DesktopPageHooks = {
+    settings,
+    update,
+    applySettings: loadPresetSettings,
+    changeMode,
+    runJobs: batchRender.runJobs,
+    batchRun: batchRender.panel.run,
+    cancelExport: cancelFastExport,
+    fastExport,
+    busy: isRecording || isSearching || fastRunning || batchRender.running || !engineReady || projectFiles.panel.busy === "import",
+    selectMelody: onCustomSoundSelect,
+    currentMelody: customSoundId,
+    getWorld: () => splitRunnerRef.current?.canvasSize() ?? (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),
+    pageSeed: () => engineRef.current?.getSeed() ?? 1,
+    copy: (botMessages.ViralBot ?? {}) as BotCopy,
+    locale: isBotLocale(botLocale) ? botLocale : "en",
+    actions: {
+      startPause: () => (isStarted ? setIsPaused((p) => !p) : void start()),
+      restart,
+      fastExport: () => void startFastExport(),
+      record: () => void toggleRecording(),
+      find: () => void (isSearching ? cancelFinder() : runFinder()),
+    },
+    media: { song: (f) => void onMusicUpload(f), video: (f) => videoBeats.panel.onImport(f), midi: (f) => void onCustomMidiUpload(f), image: onBallImageUpload, project: projectFiles.importFile },
+  };
+  // --- end desktop-exe ---
+
   return (
     <main id="simulator" ref={mainRef} className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -2591,13 +2801,13 @@ export default function Simulator() {
                   physicsEngine={engineRef.current}
                   audioIntensity={0}
                   showTrails={s.showTrails}
-                  trailThickness={s.trailThickness}
+                  trailThickness={visualValue(s.unlimited, "trailThickness", s.trailThickness) /* --- unlimited --- (drawn at its ceiling) */}
                   showGlow={s.showGlow}
                   showWallGlow={s.showWallGlow}
                   isPaused={isPaused}
                   isStarted={isStarted}
                   circleColor={s.circleColor}
-                  wallThickness={s.wallThickness}
+                  wallThickness={visualValue(s.unlimited, "wallThickness", s.wallThickness) /* --- unlimited --- (drawn at its ceiling) */}
                   watermarkText={s.watermarkText}
                   rainbowWalls={s.rainbowWalls}
                   rainbowWallMode={s.rainbowWallMode}
@@ -2641,15 +2851,13 @@ export default function Simulator() {
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
-                <span className={gradientText}>
-                  {fps} {t("Simulator.fps")}
-                </span>
+                <FpsReadout canvasRef={canvasRef} label={t("Simulator.fps")} className={gradientText} />
               </div>
               {isRecording && (
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 animate-pulse hover:bg-red-500 transition-colors cursor-pointer"
+                  className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 motion-safe:animate-pulse hover:bg-red-500 transition-colors cursor-pointer"
                   aria-label={t("Simulator.stopRecordingTooltip")}
                 >
                   <div className="w-2 h-2 bg-white rounded-full" />
@@ -2698,7 +2906,7 @@ export default function Simulator() {
               {isSearching && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-xl z-20">
                   <div className="text-center space-y-5 max-w-xs px-4">
-                    <div className="text-5xl animate-pulse">🔍</div>
+                    <div className="text-5xl motion-safe:animate-pulse">🔍</div>
                     <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-400">{t("Simulator.findingSimulation")}</p>
                     {searchProgress && (
                       <div className="space-y-3">
@@ -2775,6 +2983,13 @@ export default function Simulator() {
             </div>
             {/* --- project-files --- a ?c= share code that could not be read */}
             <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
+            {/* --- review fix (security-robustness) --- counts past the soft ceilings, and a recording that could not start */}
+            <SoftCeilingNotice settings={s} />
+            {recordingError && (
+              <p className="mt-1.5 text-[11px] text-red-400/90 leading-relaxed" role="alert" data-testid="recording-error">
+                ⚠️ {t("Simulator.recordingStartError")}
+              </p>
+            )}
             {/* --- daily-gallery --- the daily challenge on the page and the Play today's seed button */}
             <DailyBar active={daily.active} busy={daily.busy} disabled={isRecording || isSearching || fastRunning || batchRender.running || !engineReady} onPlay={() => void daily.playToday()} />
             {/* --- obstacle-editor --- how the obstacles are edited on the canvas */}
@@ -2855,6 +3070,12 @@ export default function Simulator() {
                   </button>
                 </div>
               )}
+              {/* --- unlimited --- a heavy No limits run: fewer seeds were tested, a slice of every frame at a time */}
+              {!isSearching && searchResult?.limitedSeeds !== undefined && (
+                <p className="px-3 text-[10px] text-amber-400" data-testid="finder-unlimited-note">
+                  ♾️ {t("Unlimited.finderLimited", { count: searchResult.limitedSeeds })}
+                </p>
+              )}
               {!isSearching && searchResult && searchResult.found && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-950/30 border border-emerald-900/30 rounded-lg">
                   <span className="text-sm">✅</span>
@@ -2885,7 +3106,7 @@ export default function Simulator() {
               >
                 {isSearching ? (
                   <>
-                    <span className="animate-pulse">🔍</span> {t("Controls.cancelSearch")}
+                    <span className="motion-safe:animate-pulse">🔍</span> {t("Controls.cancelSearch")}
                   </>
                 ) : (
                   <>🔍 {outcomeButtonText(t, finderOutcome, outcomeText) /* --- rigged --- */ ?? (mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration }))}</>
@@ -2895,7 +3116,7 @@ export default function Simulator() {
           )}
         </div>
 
-        <ProjectDropZone className="lg:col-span-1" label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} /* --- project-files --- */>
+        <ProjectDropZone className="lg:col-span-1" label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} disabled={projectFiles.panel.importLocked} lockedLabel={t("Controls.projectImportLocked")} /* --- project-files --- */ /* --- review fix (recording-export) --- (locked during a batch) */>
           <Controls
             settings={settings}
             update={update}
@@ -2946,10 +3167,13 @@ export default function Simulator() {
             fastExport={{ state: fastExport, supported: fastSupported, disabled: isRecording || isSearching || !engineReady || projectFiles.panel.busy === "import" || batchRender.running || splitRender !== null, handPlay: handPlayed, onStart: startFastExport, onCancel: cancelFastExport }} // --- fast-render --- (not while a project is being opened: its settings and media arrive over several renders) --- jdm-rhythm-runner --- (nor for a run played by hand) --- split-screen --- (nor during a race: it renders one arena)
             project={projectFiles.panel} // --- project-files ---
             batch={batchRender.panel} // --- batch-render ---
+            batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)
             videoBeats={videoBeats.panel} // --- video-beats ---
             bot={viralBot} // --- viral-bot ---
+            bounceMath={bounceMathPanel} // --- bounce-math ---
           />
         </ProjectDropZone>
+        <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />
       </div>
     </main>
   );

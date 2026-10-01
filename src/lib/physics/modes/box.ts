@@ -1,4 +1,5 @@
 import type { Ball, GameMode, ModeContext } from "../types";
+import { pitchedFrequency } from "../bounceMathRuntime"; // --- bounce-math ---
 
 /**
  * Bouncing Shapes ("box" mode, the project.jdm DVD / countdown formats): no rings. A rectangular box
@@ -690,10 +691,12 @@ export class BoxMode implements GameMode {
   /** One wall hit: the sound event, the countdown, the flash / colour / growth bookkeeping and the finish. */
   private hit(ctx: ModeContext, ball: Ball, st: BoxShapeState, wall: number, accent: boolean) {
     const v = this.view;
+    ctx.noteBounce?.(ball, true); // --- bounce-math --- a wall of the box is a bounce (the box keeps the speed: the ball's bounciness applies)
     const s = this.settings;
     if (this.soundsThisStep < MAX_BOX_SOUNDS_PER_STEP) {
       this.soundsThisStep++;
-      ctx.addPendingSoundEvent(accent ? { type: "hit", wallIndex: wall, frequency: BOX_WALL_NOTES[wall], accent: true } : { type: "hit", wallIndex: wall, frequency: BOX_WALL_NOTES[wall] });
+      const note = ball.pitchShift ? pitchedFrequency(BOX_WALL_NOTES[wall], ball.pitchShift) : BOX_WALL_NOTES[wall]; // --- bounce-math --- (the ball's pitch)
+      ctx.addPendingSoundEvent(accent ? { type: "hit", wallIndex: wall, frequency: note, accent: true } : { type: "hit", wallIndex: wall, frequency: note });
     }
     st.hits++;
     v.totalHits++;

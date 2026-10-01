@@ -1196,6 +1196,11 @@ export class RunnerMode implements GameMode {
     const sim = tau + this.shift;
     v.landings++;
     v.lastLandSec = sim;
+    // --- bounce-math --- a landing is the runner's bounce
+    if (ctx.noteBounce) {
+      const ball = this.findBall(ctx);
+      if (ball) ctx.noteBounce(ball);
+    }
     v.lastLandX = v.x;
     v.lastLandLevel = top;
     // The event this landing completes (its landing spot), if it is the one planned.

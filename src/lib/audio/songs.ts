@@ -50,12 +50,14 @@ export function modeWallBreakSound(mode: string, chosen: string | null): string 
 
 /**
  * Presets and share links may carry a wall-break sound URL saved under another base path
- * (or a dead blob: URL from a custom upload). Maps built-in sounds back to their current URL,
- * drops dead uploads and leaves anything else untouched.
+ * (or a dead blob: URL from a custom upload). Maps built-in sounds back to their current URL
+ * and drops everything else. --- review fix (security-robustness) --- anything but a built-in
+ * clip is dropped: a stored preset (localStorage is shared by the whole origin) must not make
+ * the page fetch some other address, the rule project files follow; a non-string is none too.
+ * The page's live upload (a blob: URL) is put back by `presetToLiveSettings()`.
  */
-export function normalizeWallBreakSound(value: string | null | undefined): string | null {
-  if (!value) return null;
-  if (value.startsWith("blob:")) return null;
+export function normalizeWallBreakSound(value: unknown): string | null {
+  if (typeof value !== "string" || !value || value.startsWith("blob:")) return null;
   const builtIn = WALL_BREAK_SOUNDS.find((snd) => value === snd.url || value.endsWith(`/wallBreak/${snd.id}.wav`));
-  return builtIn ? builtIn.url : value;
+  return builtIn ? builtIn.url : null;
 }

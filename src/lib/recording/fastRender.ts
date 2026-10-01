@@ -1,8 +1,9 @@
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
+import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
-import { drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
+import { EXPORT_BASE_NAME, drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
 import {
   AUDIO_BITRATE,
   DIGEST_EVERY,
@@ -33,6 +34,7 @@ import {
   type ExportFormat,
   type FastExportPhase,
 } from "./fastRenderPlan";
+import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVideoConfig } from "@/lib/desktop/gpuEncode"; // --- desktop-exe ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -66,6 +68,8 @@ export interface OfflineFrameRenderer {
   setSongProgress(progress: number | null): void;
   /** True while the canvas holds the end screen back (the escape replay, a caption's answer). */
   holdsEndScreen(): boolean;
+  /** --- review fix (modes-gerald-odd) --- Real ms the camera's slow motion has added to the run so far (the clip is extended by it). */
+  slowLagMs(): number;
   /** Paints the export frame's background (theme gradient / picture, so the letterbox bars continue it). */
   paintBackground(ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop): void;
   /** True once the pictures a frame needs (ball image, background picture, Picture Paint picture) are decoded. */
@@ -145,6 +149,11 @@ export interface FastRenderOptions {
   resolution: { width: number; height: number };
   /** The clip length (s): the export ends there, or earlier when the run finishes (see `ExportEndTracker`). */
   durationSec: number;
+  /**
+   * --- review fix (modes-gerald-odd) --- The most the camera's slow motion can stretch the clip (1 / its factor with slow motion
+   * on near misses, else 1): the clip is extended by the slow motion's lag, and the frames and the mix are sized for it.
+   */
+  slowMoStretch?: number;
   fps: number;
   /** The page's tone generator: its sound settings, melody, samples, song and music bed are copied into the offline mix. */
   audio: ToneGenerator | null;
@@ -228,6 +237,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, ev.level);
     return;
   }
+  // --- unlimited --- a ball ate the arena: the gulp
+  if (ev.ate) {
+    audio.playArenaEaten();
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();
@@ -237,8 +251,9 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
 
 /** Asks the browser's encoders (the probe `selectExportFormat()` uses). */
 async function browserSupportsVideo(codec: string, width: number, height: number, fps: number): Promise<boolean> {
-  const support = await VideoEncoder.isConfigSupported({ codec, width, height, framerate: fps, bitrate: videoBitrate(width, height, fps) });
-  return support.supported === true;
+  // --- desktop-exe --- in the desktop app the GPU encoder is asked first ("prefer-hardware"), the plain config is the fallback
+  const config = await resolveVideoConfig({ codec, width, height, framerate: fps, bitrate: videoBitrate(width, height, fps) }, (c) => VideoEncoder.isConfigSupported(c));
+  return config !== null;
 }
 async function browserSupportsAudio(codec: string): Promise<boolean> {
   const support = await AudioEncoder.isConfigSupported({ codec, sampleRate: EXPORT_SAMPLE_RATE, numberOfChannels: EXPORT_CHANNELS, bitrate: AUDIO_BITRATE });
@@ -248,7 +263,9 @@ async function browserSupportsAudio(codec: string): Promise<boolean> {
 /** The format the browser can write for this export size, or null. */
 export function pickExportFormat(width: number, height: number, fps: number): Promise<ExportFormat | null> {
   if (!fastRenderSupported()) return Promise.resolve(null);
-  return selectExportFormat(width, height, fps, { video: (codec) => browserSupportsVideo(codec, width, height, fps), audio: browserSupportsAudio });
+  const probe = { video: (codec: string) => browserSupportsVideo(codec, width, height, fps), audio: browserSupportsAudio };
+  // --- desktop-exe --- the desktop render queue's HEVC / AV1 MP4 first when it asks for one (else the usual formats)
+  return pickDesktopFormat(width, height, fps, probe).then((desktop) => desktop ?? selectExportFormat(width, height, fps, probe));
 }
 
 /** Lets the page breathe (progress bar, Cancel) without the clamping and background throttling of timers. */
@@ -295,7 +312,7 @@ async function createMuxer(format: ExportFormat, width: number, height: number, 
   if (format.container === "mp4") {
     const { Muxer, ArrayBufferTarget } = await import("mp4-muxer");
     const target = new ArrayBufferTarget();
-    const muxer = new Muxer({ target, video: { codec: "avc", width, height, frameRate: fps }, audio: { codec: format.audioTrackCodec === "aac" ? "aac" : "opus", ...audio }, fastStart: "in-memory" });
+    const muxer = new Muxer({ target, video: { codec: format.videoTrackCodec === "hevc" || format.videoTrackCodec === "av1" ? format.videoTrackCodec : "avc" /* --- desktop-exe --- */, width, height, frameRate: fps }, audio: { codec: format.audioTrackCodec === "aac" ? "aac" : "opus", ...audio }, fastStart: "in-memory" });
     return {
       addVideoChunk: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
       addAudioChunk: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
@@ -319,7 +336,7 @@ async function createMuxer(format: ExportFormat, width: number, height: number, 
 }
 
 /** Triggers the download of an export (`jumpingballslive-export.mp4` / `.webm`). */
-export function downloadExport(blob: Blob, extension: string, baseName = "jumpingballslive-export") {
+export function downloadExport(blob: Blob, extension: string, baseName = EXPORT_BASE_NAME) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -384,7 +401,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
   };
 
   // The offline mix: a copy of the page's sound set-up scheduling into an OfflineAudioContext on the export clock.
-  const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec)), sampleRate: EXPORT_SAMPLE_RATE });
+  const stretch = Math.max(1, Number.isFinite(options.slowMoStretch) ? (options.slowMoStretch as number) : 1); // --- review fix (modes-gerald-odd) ---
+  const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec, stretch)), sampleRate: EXPORT_SAMPLE_RATE });
   const mix = await (options.audio ?? new ToneGenerator()).createOfflineTwin(audioContext, () => clock.ms / 1000);
   if (signal?.aborted) return null;
 
@@ -406,14 +424,19 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const muxer = await createMuxer(format, width, height, fps);
     let failure: unknown = null;
     videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => (failure = e) });
+    // --- desktop-exe --- the config the probe settled on: with the GPU hint in the desktop app when the GPU takes it
+    const videoConfig: VideoEncoderConfig = { codec: format.videoCodec, width, height, bitrate: videoBitrate(width, height, fps), framerate: fps };
+    const accelerated = hardwarePreferred() ? ((await resolveVideoConfig(videoConfig, (c) => VideoEncoder.isConfigSupported(c))) ?? videoConfig) : videoConfig;
+    noteVideoAcceleration(format.videoCodec, accelerated);
     videoEncoder.configure({
+      ...accelerated, // --- desktop-exe ---
       codec: format.videoCodec,
       width,
       height,
       bitrate: videoBitrate(width, height, fps),
       framerate: fps,
       latencyMode: "quality",
-      ...(format.container === "mp4" ? { avc: { format: "avc" as const } } : {}),
+      ...(format.videoTrackCodec === "avc" ? { avc: { format: "avc" as const } } : {}), // --- desktop-exe --- (was: format.container === "mp4"; an HEVC / AV1 MP4 keeps the encoder's defaults)
     });
 
     // The export frame (letterbox background, the square of the world, Top / Bottom Text) and the digest's thumbnail.
@@ -429,11 +452,12 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop) };
     let digest = 0x811c9dc5;
 
-    const tracker = new ExportEndTracker(clipMs);
-    const lastFrame = maxSimFrames(options.durationSec);
+    const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-gerald-odd) --- (the slow motion's lag)
+    const lastFrame = maxSimFrames(options.durationSec, stretch);
     let bedStopped = false;
     let exported = 0;
     let lastYield = performance.now();
+    const yieldAfterMs = engine.getUnlimitedView().on ? FRAME_BUDGET_MS : 32; // --- unlimited --- (a heavy run yields every frame budget: the page stays responsive)
     for (let simFrame = 0; simFrame < lastFrame; simFrame++) {
       const t = simFrameTimeMs(simFrame);
       if (simFrame > 0 && t >= tracker.endMs) break;
@@ -446,7 +470,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
         for (const ev of engine.consumeSoundEvents()) playSoundEvent(mix, ev, () => frameRenderer.noteWallBreak());
         frameRenderer.setSongProgress(mix.getSliceProgress());
         const finished = engine.isSimulationFinished();
-        tracker.frame(t, finished, frameRenderer.holdsEndScreen(), finished && options.endHolds ? options.endHolds(engine) : NO_END_HOLDS);
+        tracker.frame(t, finished, frameRenderer.holdsEndScreen(), finished && options.endHolds ? options.endHolds(engine) : NO_END_HOLDS, frameRenderer.slowLagMs());
         // The page stops the music bed when its end screen appears; the recorder keeps rolling for another half second.
         if (tracker.finishedAt !== null && !bedStopped) {
           mix.getMusicBed().stop();
@@ -465,7 +489,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       }
       exported = index + 1;
       await drainQueue(videoEncoder, 6);
-      if (performance.now() - lastYield > 32) {
+      if (performance.now() - lastYield > yieldAfterMs) {
         report("frames", expectedFrames > 0 ? exported / expectedFrames : 1, exported, t / 1000);
         await yieldTask();
         lastYield = performance.now();

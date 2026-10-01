@@ -1,11 +1,12 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { SITE_DOMAIN } from "@/lib/site";
+import { SITE_NAME } from "@/lib/site";
 import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 
 export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
   const t = useTranslations("Footer");
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
+  const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (a small namespace: every page hands it to the client)
   const links: { href: string; label: string }[] = [
     { href: "/about", label: t("about") },
     { href: "/tiktok-ball-videos", label: t("tiktok") },
@@ -14,11 +15,12 @@ export default function Footer({ showShortcuts = false }: { showShortcuts?: bool
     { href: "/disclaimer", label: t("disclaimer") },
     { href: "/feedback", label: t("feedback") },
     { href: "/gallery", label: gallery("navLabel") }, // --- daily-gallery ---
+    { href: "/download", label: desktop("navLabel") }, // --- desktop-exe ---
   ];
   return (
     <footer className="mt-16 border-t border-zinc-800 py-6">
       <div className="container mx-auto px-4 text-center text-zinc-500 text-sm">
-        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-zinc-600" aria-label="Footer">
+        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-zinc-600" aria-label={t("navLabel") /* --- review fix (ui-i18n) --- */}>
           {links.map((link, i) => (
             <span key={link.href} className="contents">
               {i > 0 && <span aria-hidden="true">·</span>}
@@ -37,7 +39,8 @@ export default function Footer({ showShortcuts = false }: { showShortcuts?: bool
           </p>
         )}
         <p className="mt-4">
-          © {new Date().getFullYear()} {SITE_DOMAIN}
+          {/* --- review fix (site-static) --- the name, never a host: the copyright line names no URL */}
+          © {new Date().getFullYear()} {SITE_NAME}
         </p>
       </div>
     </footer>

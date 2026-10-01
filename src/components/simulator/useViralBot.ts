@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SimulatorSettings } from "@/lib/settings";
 import { downloadExport } from "@/lib/recording/fastRender";
+import { SITE_SLUG } from "@/lib/site";
 import { zipBlobs } from "@/lib/recording/zip";
 import type { BotCopy, BotLocale } from "@/lib/bot/copy";
 import type { BotWorld } from "@/lib/bot/finderRequest";
@@ -11,6 +12,7 @@ import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPla
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
+import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 /*
  * --- viral-bot --- The page's side of the viral video bot (the Bot block of the Recording section, sections/BotSection.tsx):
@@ -244,7 +246,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       await l.selectMelody(clip.melodyId);
       await nextCommit();
       latest.current.pinSeed(clip.seed);
-      document.getElementById("simulator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     },
     [nextCommit],
   );
@@ -273,7 +275,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     if (download === "zip" && files.length > 0) {
       const texts = batchTextFiles(clips, latest.current.copy, { date: plan.date, platform: plan.platform, locale: latest.current.locale }, results);
       const zip = await zipBlobs([...files.map((f) => ({ name: f.name, blob: f.blob })), ...texts.map((t) => ({ name: t.name, blob: new Blob([t.text], { type: "text/plain;charset=utf-8" }) }))]);
-      downloadExport(zip, "zip", `jumpingballslive-bot-${plan.date}`);
+      downloadExport(zip, "zip", `${SITE_SLUG}-bot-${plan.date}`);
     }
     setRender({ status: files.length > 0 ? "done" : "failed", total: clips.length, done: files.length, zip: download === "zip" });
     return results;

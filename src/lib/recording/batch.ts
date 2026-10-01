@@ -1,4 +1,5 @@
 import { MODE_CARD_ORDER } from "@/lib/modes";
+import { SITE_SLUG } from "@/lib/site";
 import { isModeId, type ModeId } from "@/lib/physics/types";
 import { RANGES, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { SHARE_CODE_PARAM, decodeShareCode, mergeShareParams } from "@/lib/shareCode";
@@ -315,6 +316,31 @@ export function linkJobSettings(link: SimulatorSettings, page: SimulatorSettings
   return { ...keepExportFormat(link, page), wallBreakSound: page.wallBreakSound };
 }
 
+/**
+ * --- review fix (recording-export) --- The longest clip of a batch (s), for its summary: the page's clip length, the longest
+ * swept one in a sweep of the clip length, a long link's own `dur` (a link job keeps its clip length: `keepExportFormat()`
+ * keeps only the resolution and the frame rate). Null when it is only known once a job runs: a short `?c=` link, whose
+ * code is decoded then.
+ */
+export function batchLongestClipSec(def: BatchDefinition, list: BatchListParse, pageDurationSec: number): number | null {
+  if (def.variant === "sweep" && def.sweepKey === "recordingDuration") {
+    const values = sweepValues(def.sweepKey, def.sweepFrom, def.sweepTo, def.sweepSteps);
+    return values.length > 0 ? Math.max(...values) : pageDurationSec;
+  }
+  if (def.source !== "list") return pageDurationSec;
+  let longest = 0;
+  for (const entry of list.entries) {
+    if (!entry.link) {
+      longest = Math.max(longest, pageDurationSec);
+      continue;
+    }
+    const params = linkParams(entry.link);
+    if (!params || params.has(SHARE_CODE_PARAM)) return null;
+    longest = Math.max(longest, settingsFromSearchParams(params).recordingDuration);
+  }
+  return longest > 0 ? longest : pageDurationSec;
+}
+
 /** The settings with one swept value. */
 export function sweepSettings(settings: SimulatorSettings, key: SweepKey, value: number): SimulatorSettings {
   return { ...settings, [key]: value };
@@ -355,7 +381,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** The ZIP's file name (without extension): `jumpingballslive-batch-20260929-1432`. */
 export function batchZipBase(date: Date): string {
-  return `jumpingballslive-batch-${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
+  return `${SITE_SLUG}-batch-${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}-${pad2(date.getHours())}${pad2(date.getMinutes())}`;
 }
 
 /** A wall-clock time for the queue: `0:07`, `2:31`, `1:02:03`. */

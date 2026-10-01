@@ -699,6 +699,7 @@ export class PaddleMode implements GameMode {
         v.wallHits++;
         v.lastWallSec = t;
         this.spin *= 0.7;
+        this.noteBounce(ctx); // --- bounce-math ---
         this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(12 + (v.wallHits % 3), v.settings.scale, v.settings.rootNote), level: 0.3, melody: false });
         continue;
       }
@@ -708,6 +709,7 @@ export class PaddleMode implements GameMode {
         v.ceilingHits++;
         v.lastCeilingSec = t;
         v.lastCeilingX = v.bx;
+        this.noteBounce(ctx); // --- bounce-math ---
         this.sound(ctx, { type: "hit", wallIndex: 0, frequency: rhythmPitch(16, v.settings.scale, v.settings.rootNote), level: 0.45, melody: false });
         continue;
       }
@@ -746,6 +748,7 @@ export class PaddleMode implements GameMode {
       v.lastHitX = v.bx;
       v.lastHitOffset = off;
       this.spawnSparks(v.bx, PD_PLATFORM, t, off);
+      this.noteBounce(ctx); // --- bounce-math --- a catch on the paddle is a bounce
       ctx.addWallHit(0, (((v.hits % 12) + 12) % 12) * (Math.PI / 6), 0); // the reactive background flashes on a catch
       // The catch is the next note of the tune (a loaded melody's next note); everything else the game sounds – the walls,
       // the ceiling, the streak chime, a miss, the game over – accompanies it (`melody: false`) and never uses one up.
@@ -769,6 +772,13 @@ export class PaddleMode implements GameMode {
       this.sound(ctx, { type: "hit", wallIndex: 0, frequency: chord[0], chord, accent: true, melody: false });
       this.sound(ctx, { type: "gap", wallIndex: 0 });
     } else this.respawnAt = t + RESPAWN_SEC;
+  }
+
+  /** --- bounce-math --- A wall, ceiling or paddle bounce of the ball (not in the finder's silent run, which has no engine around it). */
+  private noteBounce(ctx: ModeContext) {
+    if (this.silent || !ctx.noteBounce) return;
+    const ball = this.findBall(ctx);
+    if (ball) ctx.noteBounce(ball);
   }
 
   private sound(ctx: ModeContext, event: Parameters<ModeContext["addPendingSoundEvent"]>[0]) {

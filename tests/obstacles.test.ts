@@ -211,6 +211,48 @@ describe("rebound and dispatch", () => {
     expect(dead.vy).toBeCloseTo(0, 10);
   });
 
+  it("applies the ball's bounciness after the cap – no upper limit – and bounds what it adds by the lift speed (bounce math)", () => {
+    // 0.7 × a bounciness of 2 = 1.4: the ball leaves faster than it came, which the 0.98 cap never allowed.
+    const bouncy = ball(0, 0, 0, 100);
+    expect(rebound(bouncy, 0, -1, 0, 0, 0.7, 0, 2)).toBe(100);
+    expect(bouncy.vy).toBeCloseTo(-140, 10);
+    // Above the cap the bounciness still counts: 5 → 0.98, × 3.
+    const capped = ball(0, 0, 0, 100);
+    rebound(capped, 0, -1, 0, 0, 5, 0, 3);
+    expect(capped.vy).toBeCloseTo(-100 * MAX_OBSTACLE_RESTITUTION * 3, 10);
+    // Below 1 it damps; 1 (and the default) leaves the rebound exactly as it was.
+    const soft = ball(0, 0, 0, 100);
+    rebound(soft, 0, -1, 0, 0, 0.7, 0, 0.5);
+    expect(soft.vy).toBeCloseTo(-35, 10);
+    const plain = ball(0, 0, 30, 100);
+    const same = ball(0, 0, 30, 100);
+    rebound(plain, 0, -1, 4, 2, 0.7, 0.02);
+    rebound(same, 0, -1, 4, 2, 0.7, 0.02, 1, 500);
+    expect([same.vx, same.vy]).toEqual([plain.vx, plain.vy]);
+    // The lift: a gain beyond the plain rebound stops at the lift speed (never below the plain rebound), so it never compounds.
+    const lifted = ball(0, 0, 0, 100);
+    rebound(lifted, 0, -1, 0, 0, 0.7, 0, 3, 150);
+    expect(Math.hypot(lifted.vx, lifted.vy)).toBeCloseTo(150, 9);
+    const fast = ball(0, 0, 0, 1000);
+    rebound(fast, 0, -1, 0, 0, 0.7, 0, 3, 150);
+    expect(fast.vy).toBeCloseTo(-700, 9); // the plain rebound: the bounciness adds nothing above the lift
+    let v = 100;
+    for (let i = 0; i < 50; i++) {
+      const b = ball(0, 0, 0, v);
+      rebound(b, 0, -1, 0, 0, 0.7, 0, 2, 400);
+      v = -b.vy; // bounce straight back onto the same peg, over and over
+    }
+    expect(v).toBeLessThanOrEqual(400 + 1e-9);
+    expect(v).toBeGreaterThan(280);
+    // The resolvers pass it through (a peg and a bar).
+    const onPeg = ball(100, 100 - 12.5, 0, 200);
+    resolveBallCircle(onPeg, circleObstacle(100, 100, 5, { restitution: 0.7 }), DT, 1, undefined, 2);
+    expect(onPeg.vy).toBeCloseTo(-280, 9);
+    const onBar = ball(100, 200 - 7.5, 0, 100);
+    resolveBallObstacle(onBar, segmentBetween(70, 200, 130, 200, { restitution: 0.5, friction: 0 }), DT, 1, undefined, 3);
+    expect(onBar.vy).toBeCloseTo(-150, 9);
+  });
+
   it("dispatches on the obstacle kind and is a pure function of its inputs", () => {
     const a = ball(100, 100 - 12.5, 30, 200);
     const b = ball(100, 100 - 12.5, 30, 200);
