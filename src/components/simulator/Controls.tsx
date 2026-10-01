@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import { ColorPicker, Searchable, Slider, Toggle, offBtn, onBtn, rainbowBtn, selectClass, sliderStyle } from "./ControlPrimitives";
@@ -42,7 +42,7 @@ import TimelineSection, { TIMELINE_SECTION_KEYS, TimelineRangeInput, TimelineVal
 import { defaultTimelineSettings } from "@/lib/simulation/timeline"; // --- timeline ---
 // --- jdm-illusions --- the Circle Illusion block of the Mode row and the Wobbly Walls slider of the Visual section
 import IllusionSection, { ILLUSION_KEYS } from "./sections/IllusionSection";
-import WallWobbleSection, { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
+import WallWobbleSection, { WALL_WOBBLE_KEYS, hasWobblyWalls } from "./sections/WallWobbleSection";
 import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattleSection"; // --- odd-string-battle ---
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
@@ -58,7 +58,6 @@ import ArenaGamesSection, { ARENA_GAME_KEYS } from "./sections/ArenaGamesSection
 import { isArenaGameMode } from "@/lib/physics/modes/arenaGames";
 // --- jdm-rhythm-runner --- the "Beat runner" and "Paddle keep-up" blocks of the Mode row
 import { JDM_RHYTHM_KEYS, PaddleSection, RunnerSection } from "./sections/JdmRhythmSection";
-import { isJdmRhythmMode } from "@/lib/physics/modes/jdmRhythm";
 // --- split-screen --- the "Split screen" section: arena count, layout, sound and the per-arena overrides
 import ArenasSection, { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { defaultSplitScreenFields } from "@/lib/splitScreen";
@@ -99,7 +98,8 @@ import { useModifierKey } from "@/components/ui/useModifierKey";
 import { useMediaQuery } from "@/components/ui/useMediaQuery";
 import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
-import type { PaletteEntry } from "@/lib/siteDesign";
+import { paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
+import { MODE_BLOCK_KEYS, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
 
 /** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
 export type StudioSection = "mode" | ControlSection | "presets";
@@ -245,6 +245,19 @@ SECTION_KEYS.ball.push(...BOUNCE_MATH_KEYS);
 // --- social-publish --- the Publish block (TikTok, Instagram, YouTube) closes the Recording section, after the Viral video bot block.
 SECTION_KEYS.recording.push(...PUBLISH_KEYS);
 
+/**
+ * --- review fix (site-redesign) --- The command palette's controls, group by group, for this panel state: the mode's own
+ * block under the Mode group, then the rail's sections (`sectionIds`, in rail order) without the other modes' blocks and
+ * without the controls the mode or a setting leaves out (panelKeys.ts), and the Project file block's under Saved Presets.
+ */
+export function paletteKeyGroups(p: PanelShown, sectionIds: readonly ControlSection[], project: boolean): { section: StudioSection; keys: readonly string[] }[] {
+  const multipliers = showsMultipliersSection(p.mode, p.glassGates);
+  const groups: { section: StudioSection; keys: readonly string[] }[] = [{ section: "mode", keys: MODE_BLOCK_KEYS[p.mode] ?? [] }];
+  for (const id of sectionIds) groups.push({ section: id, keys: SECTION_KEYS[id].filter((key) => sectionKeyShown(key, p, multipliers)) });
+  if (project) groups.push({ section: "presets", keys: PROJECT_KEYS });
+  return groups;
+}
+
 export default function Controls(props: ControlsProps) {
   const { settings: s, update } = props;
   const t = useTranslations("Controls");
@@ -256,8 +269,13 @@ export default function Controls(props: ControlsProps) {
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const scrollTo = useRef<StudioSection | null>(null);
+  const [scrollTick, setScrollTick] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const pendingFocus = useRef<{ label: string; tries: StudioSection[] } | null>(null);
+  /**
+   * A control the palette jumped to, until it is focused: its label and search key, the id of its block and of its section's
+   * search results (null: anywhere among them), and whether the search box was tried.
+   */
+  const pendingFocus = useRef<{ label: string; key: string; block: string; results: string | null; searched: boolean } | null>(null);
   const [focusTick, setFocusTick] = useState(0);
   const phone = useMediaQuery("(max-width: 767.98px)");
   const mod = useModifierKey();
@@ -511,13 +529,12 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop"].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
-    // --- review fix (ui-i18n) --- Grow builds one gapless ring and Portal's gaps come only from used-up portals: no Gap Size there
-    // (their Rotation toggle still applies – Grow's Spin extra, Portal's rotating gaps).
-    const hasGapSize = hasGapControls && s.mode !== "grow" && s.mode !== "portal";
-    // Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and the Collision Playground have no rings, but their pegs, bars, box walls, rigs, guides and containers are drawn with the wall thickness.
-    const hasThickness = hasGapControls || s.mode === "drop" || s.mode === "box" || s.mode === "pendulum" || s.mode === "polyrhythm" || s.mode === "collide" || s.mode === "glass" || s.mode === "multipliers" || s.mode === "doublePendulum" || s.mode === "illusion" || s.mode === "race" || isArenaGameMode(s.mode) || s.mode === "stringBattle" || s.mode === "vortex" || s.mode === "bullseye" || s.mode === "beatDrop"; // --- jdm-double-pendulum --- (strings and rods) --- jdm-illusions --- (illusion) --- jdm-race --- (walls, arms) --- jdm-arena-games --- (the arena walls) --- odd-string-battle --- (the ring) --- gerald-vortex --- (the sound rings) --- gerald-bullseye --- (the walls, the landing line, the target's rim) --- beat-drop --- (the obstructions' outlines)
+    // --- review fix (site-redesign) --- the mode rules live in panelKeys.ts (wallControlsOf()), shared with the command palette
+    const walls = wallControlsOf(s.mode);
+    const hasWallCount = walls.wallCount;
+    const hasGapControls = walls.gapControls;
+    const hasGapSize = walls.gapSize;
+    const hasThickness = walls.thickness;
     return (
       <div className="space-y-4">
         {hasWallCount && (
@@ -1289,89 +1306,123 @@ export default function Controls(props: ControlsProps) {
     else if (id === "presets") setPresetsOpen(true);
     else setSection(id);
     scrollTo.current = id;
+    setScrollTick((n) => n + 1);
     setSheetOpen(true);
   };
   const select = (id: string) => {
     const item = id as StudioSection;
+    pendingFocus.current = null; // --- review fix (site-redesign) --- a press on the rail wins over a palette jump still under way
+    // --- review fix (site-redesign) --- while the search results fill the panel no group shows (none is pressed): a press
+    // shows its group instead of closing it
+    const searching = !!search;
     setSearch("");
-    if (!panelOpen || !isOpen(item)) return openGroup(item);
+    if (searching || !panelOpen || !isOpen(item)) return openGroup(item);
+    // --- review fix (site-redesign) --- on a phone a press on an open tab puts the sheet away and keeps its blocks (the next
+    // press brings them back): with the Mode block open from the start, the sheet used to stay up over the transport bar
+    if (phone) return setSheetOpen(false);
     if (item === "mode") setModeOpen(false);
     else if (item === "presets") setPresetsOpen(false);
     else setSection(null);
-    // the sheet closes with its last block
-    if (phone && openIds.length <= 1) setSheetOpen(false);
   };
-  // A block just opened: scroll the panel to it (the Mode block above stays where it is).
+  // A block just opened (or came back with the sheet): scroll the panel to it (the Mode block above stays where it is). The
+  // tick runs this after every openGroup(), also when the block was open already.
   useEffect(() => {
     const id = scrollTo.current;
     if (!id) return;
     scrollTo.current = null;
     if (id === "mode") return;
     document.getElementById(`studio-block-${id}`)?.scrollIntoView({ block: "nearest" });
-  }, [modeOpen, section, presetsOpen]);
+  }, [scrollTick]);
 
-  // The command palette: every group, and every searchable control of the groups on the rail.
+  // The command palette: every group, and the controls this mode's panel shows in them. --- review fix (site-redesign) --- the
+  // mode's own block under the Mode group, the other groups without the other modes' blocks and without the controls the
+  // mode or a setting leaves out (panelKeys.ts), one entry per label in a group, the Project file block's under Saved
+  // Presets. Built while the palette is open.
+  const paletteShown: PanelShown = {
+    mode: s.mode,
+    ballPicture: !!props.ballImage || !!props.ballEmoji,
+    showTrails: s.showTrails,
+    glassGates: s.glassGates,
+    wobblyWalls: hasWobblyWalls(s),
+    simulationFound: props.simulationFound,
+    bannerText: !!(s.topText || s.bottomText),
+    arenas: s.arenaCount > 1,
+    teams: s.teams.length > 0,
+    captions: s.captions.length > 0,
+    videoBackground: s.videoBackground,
+    videoBeats: !!props.videoBeats,
+    batch: !!props.batch,
+    bot: !!props.bot,
+  };
+  const paletteState = JSON.stringify(paletteShown);
   const paletteEntries = useMemo<PaletteEntry[]>(() => {
+    if (!paletteOpen) return [];
+    const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
+    const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    const seen = new Set<string>();
-    for (const item of sections) {
-      for (const key of keysOf(item.id)) {
-        if (seen.has(key) || !t.has(key)) continue;
-        seen.add(key);
-        out.push({ kind: "control", section: item.id, key, label: t(key), sectionLabel: item.label });
-      }
-    }
-    if (props.project) for (const key of PROJECT_KEYS) if (!seen.has(key) && t.has(key)) out.push({ kind: "control", section: "presets", key, label: t(key), sectionLabel: t("savedPresetsSpan") });
-    return out;
-    // The labels follow the language and the rail follows the mode.
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : null))];
+    // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, s.mode, sections.length, !!props.project]);
+  }, [paletteOpen, t, paletteState, sections.length, !!props.project]);
   const railIcons = Object.fromEntries(railItems.map((item) => [item.id, item.icon])) as Record<string, ReactNode>;
 
   const choosePalette = (entry: PaletteEntry) => {
     setPaletteOpen(false);
     setSearch("");
-    openGroup(entry.section as StudioSection);
-    // A control: focus it once its group has rendered – in its group, else in the Mode group (a mode's own block), else
-    // the search box shows it (an advanced option, a control of another mode).
-    pendingFocus.current = entry.kind === "control" ? { label: entry.label, tries: [entry.section as StudioSection, "mode"] } : null;
+    // A control: focus it in its block once the block has rendered. --- review fix (site-redesign) --- one its block does not
+    // show right now (an advanced option, the collapsed Project file block, one that waits for another setting) is looked up
+    // through the search box at once, so nothing is left pending for a later click to set off. The Project file block sits
+    // under the panel, open or not: its entries open no group.
+    const project = entry.kind === "control" && PROJECT_KEYS.includes(entry.key);
+    if (!project) openGroup(entry.section as StudioSection);
+    // (a section's controls are looked for among its own search results – two sections may name a control alike; a mode
+    // block's show in the Ball or Visual section's results, the project file's apart, found by their keys and labels)
+    const results = project || entry.section === "mode" || entry.section === "presets" ? null : `studio-results-${entry.section}`;
+    pendingFocus.current = entry.kind === "control" ? { label: entry.label, key: entry.key, block: project ? "studio-block-project" : `studio-block-${entry.section}`, results, searched: false } : null;
     setFocusTick((n) => n + 1);
   };
   useEffect(() => {
     const pending = pendingFocus.current;
     if (!pending) return;
     const panel = document.getElementById("studio-panel-body");
-    const target = panel ? findControl(panel, pending.label) : null;
-    if (target) {
+    const scope = pending.searched ? ((pending.results && document.getElementById(pending.results)) || panel) : document.getElementById(pending.block);
+    const target = scope ? findControl(scope, pending.label, pending.key) : null;
+    // A control to focus, or – the search tried – what shows its label (a disabled picker, an upload area, a heading).
+    if (target && (target.focusable || pending.searched)) {
       pendingFocus.current = null;
-      target.scrollIntoView({ block: "center" });
-      target.focus({ preventScroll: true });
-      const row = target.closest<HTMLElement>("[data-uncap-slider], .space-y-2, .space-y-3") ?? target;
+      target.el.scrollIntoView({ block: "center" });
+      if (target.focusable) target.el.focus({ preventScroll: true });
+      const row = target.el.closest<HTMLElement>("[data-search-key], [data-uncap-slider], .space-y-2, .space-y-3") ?? target.el;
       row.setAttribute("data-palette-hit", "");
       window.setTimeout(() => row.removeAttribute("data-palette-hit"), 1600);
       return;
     }
-    const [, ...rest] = pending.tries;
-    if (rest.length) {
-      pendingFocus.current = { label: pending.label, tries: rest };
-      openGroup(rest[0]);
-    } else {
+    if (pending.searched) {
+      // Not even among the search results: the search box shows what matches the label, nothing stays pending.
       pendingFocus.current = null;
-      setSearch(pending.label);
+      return;
     }
-  }, [modeOpen, section, presetsOpen, focusTick]);
+    pendingFocus.current = { ...pending, searched: true };
+    setSearch(pending.label);
+    setFocusTick((n) => n + 1);
+  }, [focusTick]);
 
+  /** Opens the palette. --- review fix (site-redesign) --- a jump of the last one still looking for its control is dropped. */
+  const openPalette = useCallback(() => {
+    pendingFocus.current = null;
+    setPaletteOpen(true);
+  }, []);
   // Cmd/Ctrl+K opens the palette from anywhere in the studio.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPaletteOpen(true);
+        openPalette();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [openPalette]);
 
   const presetsPanel = () => (
     <div className="space-y-4">
@@ -1442,9 +1493,10 @@ export default function Controls(props: ControlsProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-2 px-3 py-2.5">
         <span className="min-w-0 truncate text-md font-medium text-ink">{modeNames[s.mode]}</span>
-        <button type="button" onClick={props.onOpenModePicker} aria-haspopup="dialog" className="shrink-0 rounded-sm text-sm font-medium text-accent hover:text-accent-strong cursor-pointer">
+        {/* --- review fix (site-redesign) --- the kit's small button: a 32 px target (44 px on touch), not a 20 px line of text */}
+        <Button variant="ghost" size="sm" onClick={props.onOpenModePicker} aria-haspopup="dialog" className="-my-1 -mr-2 shrink-0">
           {t("modeDisplay")}
-        </button>
+        </Button>
       </div>
       {modeSpecific()}
     </div>
@@ -1461,7 +1513,14 @@ export default function Controls(props: ControlsProps) {
             </button>
           </div>
           {!anyResults && <p className="py-4 text-center text-sm text-ink-3">{t("noSearchResults")}</p>}
-          {(Object.keys(SECTION_KEYS) as ControlSection[]).map((id) => sectionMatches(keysOf(id)) && <div key={id}>{renderSection(id)}</div>)}
+          {(Object.keys(SECTION_KEYS) as ControlSection[]).map(
+            (id) =>
+              sectionMatches(keysOf(id)) && (
+                <div key={id} id={`studio-results-${id}`} /* --- review fix (site-redesign) --- (the palette looks for a section's control among its own results) */>
+                  {renderSection(id)}
+                </div>
+              ),
+          )}
           {props.project && <ProjectSection t={t} search={search} matches={matches} project={props.project} /> /* --- project-files --- */}
         </div>
       );
@@ -1479,7 +1538,7 @@ export default function Controls(props: ControlsProps) {
         {presetsOpen && block("presets", t("savedPresetsSpan"), presetsPanel())}
         {!modeOpen && !sectionItem && !presetsOpen && <p className="py-8 text-center text-sm text-ink-3">{site("studio.panelEmpty")}</p>}
         {props.project && (
-          <div className="border-t border-line pt-4">
+          <div id="studio-block-project" className="border-t border-line pt-4">
             <ProjectSection t={t} search="" matches={matches} project={props.project} /* --- project-files --- */ />
           </div>
         )}
@@ -1492,16 +1551,18 @@ export default function Controls(props: ControlsProps) {
     <UnlimitedProvider on={s.unlimited /* --- unlimited --- */}>
       <div className="studio" data-studio-active={section ?? (modeOpen ? "mode" : "")}>
         <div className="studio-stage">{props.stage}</div>
+        {/* --- review fix (site-redesign) --- a tap outside the open sheet (on the dimmed stage) puts it away */}
+        {phone && sheetOpen && <div className="studio-scrim" aria-hidden="true" onClick={() => setSheetOpen(false)} data-testid="studio-scrim" />}
         <div className={cx("studio-desk", sheetOpen && "studio-desk-open")}>
           <div className="studio-rail">
-            <button type="button" onClick={() => setPaletteOpen(true)} className="studio-rail-item studio-rail-search" aria-label={site("studio.search")} title={`${site("studio.search")} (${mod} K)`}>
+            <button type="button" onClick={openPalette} className="studio-rail-item studio-rail-search" aria-label={site("studio.search")} title={`${site("studio.search")} (${mod} K)`}>
               <IconSearch />
               <span className="studio-rail-label" aria-hidden="true">{site("studio.search")}</span>
               <Kbd className="ml-auto max-2xl:hidden">{mod} K</Kbd>
             </button>
             <TabStrip
               items={railItems}
-              active={panelOpen ? openIds : null}
+              active={panelOpen && !search ? openIds : null}
               onSelect={select}
               label={site("studio.rail")}
               controls="studio-panel"
@@ -1521,10 +1582,10 @@ export default function Controls(props: ControlsProps) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label={t("searchSettings")}
-                  className="h-9 w-full rounded-md border border-line bg-surface-2 pl-9 pr-10 text-md text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent-dim cursor-text"
+                  className="h-9 w-full rounded-md border border-line bg-surface-2 pl-9 pr-10 text-md text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent-dim cursor-text [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:pr-12"
                 />
                 {search && (
-                  <button type="button" onClick={() => setSearch("")} aria-label={t("clearSearch")} className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer">
+                  <button type="button" onClick={() => setSearch("")} aria-label={t("clearSearch")} className="absolute right-0.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer [@media(pointer:coarse)]:right-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11">
                     <IconClose size={16} />
                   </button>
                 )}
@@ -1546,7 +1607,7 @@ export default function Controls(props: ControlsProps) {
               ) : (
                 <span />
               )}
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2 hover:text-ink">
+              <label className="flex min-h-8 cursor-pointer items-center gap-2 text-sm text-ink-2 hover:text-ink [@media(pointer:coarse)]:min-h-11">
                 <input type="checkbox" className="switch" checked={advanced} onChange={(e) => setAdvancedPersist(e.target.checked)} />
                 <span>{t("showAdvancedOptions")}</span>
               </label>
@@ -1559,23 +1620,56 @@ export default function Controls(props: ControlsProps) {
   );
 }
 
+/** What the palette may focus: a shown, enabled field, button or link. */
+const FOCUSABLE = 'input:not([type="hidden"]), select, textarea, button, a[href], [tabindex]:not([tabindex="-1"])';
+const usable = (el: Element | null): el is HTMLElement => el instanceof HTMLElement && el.getClientRects().length > 0 && !(el as HTMLInputElement).disabled;
+/** The element itself when the palette may focus it, else the first such element inside it. */
+function focusableIn(el: HTMLElement): HTMLElement | null {
+  if (el.matches(FOCUSABLE) && usable(el)) return el;
+  return [...el.querySelectorAll(FOCUSABLE)].find(usable) ?? null;
+}
+
 /**
- * --- site-redesign --- The control a palette entry names, inside the open panel: the element labelled with it (a slider,
- * a switch, a picker) or the first control next to its label.
+ * --- site-redesign --- The control a palette entry names, inside `scope` (its block, or the search results): the element
+ * labelled with it (a slider, a switch, a picker) or the first control next to its label. --- review fix (site-redesign) ---
+ * A search result's card is found by its search key first (two controls named alike – the Ball section's Gravity and the
+ * box's – are told apart); a group named by the label gives its first button, a label inside a button gives the button, a
+ * button reading the label is one too; hidden and disabled elements (a file input behind its button) are skipped. With
+ * nothing to focus – a disabled picker, an upload area, a heading – the label itself is shown (`focusable` false).
  */
-function findControl(panel: HTMLElement, label: string): HTMLElement | null {
-  const named = [...panel.querySelectorAll<HTMLElement>("[aria-label], [aria-labelledby]")].find((el) => {
+function findControl(scope: HTMLElement, label: string, key: string): { el: HTMLElement; focusable: boolean } | null {
+  const shown = (el: HTMLElement | null): el is HTMLElement => !!el && el.getClientRects().length > 0;
+  const card = scope.querySelector<HTMLElement>(`[data-search-key="${CSS.escape(key)}"]`);
+  const inCard = card ? focusableIn(card) : null;
+  if (inCard) return { el: inCard, focusable: true };
+  let fallback: HTMLElement | null = shown(card) ? card : null;
+  for (const el of scope.querySelectorAll<HTMLElement>("[aria-label], [aria-labelledby]")) {
     const own = el.getAttribute("aria-label");
-    if (own) return own === label;
-    const ids = (el.getAttribute("aria-labelledby") ?? "").split(/\s+/).filter(Boolean);
-    return ids.some((id) => (document.getElementById(id)?.textContent ?? "").trim() === label);
-  });
-  if (named) return named;
-  const text = [...panel.querySelectorAll<HTMLElement>("label, span, p, h3, h4, legend")].find((el) => (el.firstChild?.textContent ?? el.textContent ?? "").trim() === label);
-  if (!text) return null;
-  if (text instanceof HTMLLabelElement && text.htmlFor) return document.getElementById(text.htmlFor);
-  const scope = text.parentElement ?? text;
-  return scope.querySelector<HTMLElement>("input, select, textarea, button, [tabindex]") ?? text;
+    const named = own !== null ? own === label : (el.getAttribute("aria-labelledby") ?? "").split(/\s+/).some((id) => !!id && (document.getElementById(id)?.textContent ?? "").trim() === label);
+    const hit = named ? focusableIn(el) : null;
+    if (hit) return { el: hit, focusable: true };
+  }
+  for (const text of scope.querySelectorAll<HTMLElement>("label, span, p, h3, h4, legend")) {
+    if ((text.firstChild?.textContent ?? text.textContent ?? "").trim() !== label || !shown(text)) continue;
+    const labelFor = text.closest("label")?.htmlFor; // (the label's text may sit in a span of the <label for=…>)
+    const field = labelFor ? document.getElementById(labelFor) : null;
+    if (usable(field)) return { el: field, focusable: true };
+    const own = text.closest<HTMLElement>("button, a[href]");
+    if (usable(own)) return { el: own, focusable: true };
+    // the control next to the label: in the label's row (its first block-level ancestor)
+    let row = text.parentElement;
+    while (row && scope.contains(row) && getComputedStyle(row).display.startsWith("inline")) row = row.parentElement;
+    const near = row && scope.contains(row) ? focusableIn(row) : null;
+    if (near) return { el: near, focusable: true };
+    fallback ??= text;
+  }
+  for (const button of scope.querySelectorAll<HTMLElement>("button")) {
+    // (a leading symbol – "＋ Add Team" – is not part of the name)
+    if ((button.textContent ?? "").trim().replace(/^[^\p{L}\p{N}]+/u, "") !== label) continue;
+    if (usable(button)) return { el: button, focusable: true };
+    if (shown(button)) fallback ??= button;
+  }
+  return fallback ? { el: fallback, focusable: false } : null;
 }
 
 /** Settings that the "Reset Category" buttons restore, per section. */

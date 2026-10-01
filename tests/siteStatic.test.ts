@@ -168,6 +168,22 @@ describe("static 404 page", () => {
     }
   });
 
+  it("--- review fix (site-redesign) --- reads every message by static member access: a catalog handed to a function or spread is shipped whole (all three were in the /404 chunk)", () => {
+    const src = fs.readFileSync(path.join(ROOT, "src/components/site/NotFoundStatic.tsx"), "utf8");
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "")
+      .replace(/^import .*$/gm, "")
+      .replace(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, '""')
+      .replace(/\btypeof (en|pl|es)\b/g, "");
+    expect(code).not.toMatch(/\((en|pl|es)\)/);
+    expect(code).not.toMatch(/\.\.\.(en|pl|es)\b/);
+    // what is left is member access (en.NotFound, pl.SiteRedesign.nav …) and the locales' keys of MESSAGES
+    const bare = [...code.matchAll(/\b(en|pl|es)\b(?!\s*[.:])/g)].map((m) => code.slice(Math.max(0, (m.index ?? 0) - 30), (m.index ?? 0) + 30));
+    expect(bare).toEqual([]);
+    expect(code).toContain("studio: { search: es.SiteRedesign.studio.search }");
+  });
+
   it("the (static) layout sets no title (a metadata <title> would overwrite the localised one); the root page sets its own", () => {
     const layout = fs.readFileSync(path.join(ROOT, "src/app/(static)/layout.tsx"), "utf8");
     const metadata = layout.slice(layout.indexOf("export const metadata"), layout.indexOf("};", layout.indexOf("export const metadata")));

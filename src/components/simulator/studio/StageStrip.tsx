@@ -46,8 +46,8 @@ export default function StageStrip({
   const ratio = aspectRatioLabel(resolution);
   const readout = "flex shrink-0 items-baseline gap-2 whitespace-nowrap";
   return (
-    <div className="flex h-11 shrink-0 items-center gap-5 overflow-x-auto border-b border-line px-3 sm:px-4" data-testid="stage-strip">
-      <button type="button" onClick={onOpenModePicker} aria-haspopup="dialog" className="group -ml-1.5 flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-md px-1.5 text-left hover:bg-surface-2 cursor-pointer" title={t("studio.changeMode")}>
+    <div className="flex h-11 shrink-0 items-center gap-5 overflow-x-auto border-b border-line px-3 sm:px-4 [@media(pointer:coarse)]:h-12" data-testid="stage-strip">
+      <button type="button" onClick={onOpenModePicker} aria-haspopup="dialog" className="group -ml-1.5 flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-md px-1.5 text-left hover:bg-surface-2 cursor-pointer [@media(pointer:coarse)]:h-11" title={t("studio.changeMode")}>
         <span className="eyebrow text-ink-3">{t("studio.mode")}</span>
         <span className="max-w-[12rem] truncate text-sm font-medium text-ink">{modeName}</span>
         <IconChevronDown size={16} className="text-ink-3 group-hover:text-ink-2" />

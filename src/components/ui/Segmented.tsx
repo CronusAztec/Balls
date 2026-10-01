@@ -3,7 +3,8 @@ import { cx } from "./cx";
 
 /*
  * --- site-redesign --- A segmented control: a labelled group of aria-pressed buttons (one is on). The active segment
- * takes the accent; the rest sit on the surface. Used for small exclusive choices (speeds, layouts, frame rates).
+ * takes the accent; the rest sit on the surface. Used for small exclusive choices (speeds, layouts, frame rates). Every
+ * segment is a 32 px target, 44 px on touch screens.
  */
 export interface SegmentedOption<T> {
   value: T;
@@ -48,7 +49,8 @@ export default function Segmented<T extends string | number>({
             onClick={() => onChange(o.value)}
             className={cx(
               "inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap cursor-pointer transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 [@media(pointer:coarse)]:min-h-11",
-              size === "xs" ? "h-6 min-w-7 px-1.5 text-xs" : "h-7 min-w-8 px-2.5 text-sm",
+              // --- review fix (site-redesign) --- 32 px targets either way (44 px on touch); xs is the narrower one
+              size === "xs" ? "h-8 min-w-8 px-1.5 text-xs" : "h-8 min-w-8 px-2.5 text-sm",
               mono && "num",
               on ? "bg-accent text-accent-ink" : "text-ink-2 hover:bg-surface-3 hover:text-ink",
             )}

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import fs from "fs";
 import path from "path";
-import { MODE_IDS } from "@/lib/physics/types";
+import { MODE_IDS, type ModeId } from "@/lib/physics/types";
 import { MODE_CARD_ORDER } from "@/lib/modes";
-import { aspectRatioLabel, familyOf, modeFamilies, modesForFilter, paletteMatches, type PaletteEntry } from "@/lib/siteDesign";
+import { aspectRatioLabel, familyOf, modeFamilies, modesForFilter, paletteControlEntries, paletteMatches, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
+import { paletteKeyGroups, type ControlSection } from "@/components/simulator/Controls";
+import { MODE_BLOCK_KEYS, MODE_BLOCK_KEY_SET, sectionKeyShown, wallControlsOf, type PanelShown } from "@/components/simulator/panelKeys";
+import { supportsObstacles } from "@/lib/physics/obstacleEditor";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -78,6 +81,105 @@ describe("paletteMatches", () => {
   });
   it("stops at the limit", () => {
     expect(paletteMatches(entries, "a", 2)).toHaveLength(2);
+  });
+});
+
+describe("paletteControlEntries", () => {
+  const groups: PaletteGroup[] = [
+    { section: "mode", label: "Mode", keys: ["boxGravity"] },
+    { section: "ball", label: "Ball & Physics", keys: ["gravity", "gravity", "noLabel", "gravityAlias", "ballPhysics", "ballSpeed"] },
+    { section: "wall", label: "Wall Settings", keys: ["gravity", "wallCount"] },
+  ];
+  const labels: Record<string, string> = { boxGravity: "Gravity", gravity: "Gravity", gravityAlias: "gravity ", ballPhysics: "Ball & Physics", ballSpeed: "Ball Speed", wallCount: "Wall Count" };
+  const entries = paletteControlEntries(groups, (key) => labels[key] ?? null);
+  it("keep a key once, skip keys without a label and one of two labels alike in a group", () => {
+    expect(entries.map((e) => `${e.section}:${e.key}`)).toEqual(["mode:boxGravity", "ball:gravity", "ball:ballSpeed", "wall:wallCount"]);
+  });
+  it("leave out a control named like its own group (the group's entry covers it)", () => {
+    expect(entries.some((e) => e.key === "ballPhysics")).toBe(false);
+  });
+  it("carry the group's name as the section label", () => {
+    expect(entries.find((e) => e.key === "ballSpeed")).toEqual({ kind: "control", section: "ball", key: "ballSpeed", label: "Ball Speed", sectionLabel: "Ball & Physics" });
+  });
+});
+
+describe("command palette: what each mode offers (review fix)", () => {
+  const PANEL: Omit<PanelShown, "mode"> = { ballPicture: false, showTrails: true, glassGates: false, wobblyWalls: false, simulationFound: false, bannerText: false, arenas: false, teams: false, captions: false, videoBackground: false, videoBeats: true, batch: true, bot: true };
+  const railOf = (mode: ModeId): ControlSection[] => ["ball", "wall", "visual", "sound", "teams", ...(supportsObstacles(mode) ? (["obstacles"] as const) : []), "captions", "timeline", "arenas", "recording"];
+  const entriesOf = (mode: ModeId, extra: Partial<PanelShown> = {}, catalog: { Controls: unknown } = en) => {
+    const controls = catalog.Controls as Record<string, unknown>;
+    const groups = paletteKeyGroups({ ...PANEL, ...extra, mode }, railOf(mode), true).map((g) => ({ ...g, label: g.section }));
+    return paletteControlEntries(groups, (key) => (typeof controls[key] === "string" ? (controls[key] as string) : null));
+  };
+  const where = (entries: PaletteEntry[], label: string) => entries.filter((e) => e.label === label).map((e) => `${e.section}:${e.key}`);
+
+  it("offer one Gravity in Classic and no other mode's gravity (Bouncing Shapes', Ball Drop's, the orbs', the pendulum's, the vortex's)", () => {
+    const classic = entriesOf("classic");
+    expect(where(classic, "Gravity")).toEqual(["ball:gravity"]);
+    for (const key of ["boxGravity", "dropGravityVariation", "cpGravity", "dpGravity", "vxGravity"]) expect(classic.some((e) => e.key === key), key).toBe(false);
+    expect(paletteMatches(classic, "grav").map((e) => e.label)).toEqual(["Gravity", "Rotating Gravity"]);
+  });
+
+  it("offer a mode's own block under the Mode group, in that mode only", () => {
+    expect(where(entriesOf("box"), "Gravity")).toEqual(["mode:boxGravity", "ball:gravity"]);
+    expect(where(entriesOf("drop"), "Gravity Variation")).toEqual(["mode:dropGravityVariation"]);
+    expect(where(entriesOf("accumulation"), "Spikes")).toEqual(["mode:spikes"]);
+    expect(entriesOf("classic").some((e) => e.section === "mode")).toBe(false);
+    for (const mode of MODE_IDS) {
+      const entries = entriesOf(mode);
+      const own = new Set(MODE_BLOCK_KEYS[mode] ?? []);
+      for (const e of entries) {
+        if (MODE_BLOCK_KEY_SET.has(e.key)) expect(own.has(e.key) && e.section === "mode", `${mode} ${e.section}:${e.key}`).toBe(true);
+      }
+      // one entry per label in a group
+      const seen = new Set<string>();
+      for (const e of entries) {
+        const id = `${e.section}:${e.label.toLowerCase()}`;
+        expect(seen.has(id), `${mode} ${id}`).toBe(false);
+        seen.add(id);
+      }
+    }
+  });
+
+  it("leave out what the mode or a setting hides: Wall Count, Ball Count, the arena editor, the caption form, Add Team", () => {
+    expect(entriesOf("classic").some((e) => e.key === "wallCount")).toBe(true);
+    for (const mode of ["accumulation", "box", "drop"] as const) expect(entriesOf(mode).some((e) => e.key === "wallCount"), mode).toBe(false);
+    expect(wallControlsOf("grow")).toEqual({ wallCount: false, thickness: true, gapControls: true, gapSize: false });
+    expect(entriesOf("classic").some((e) => e.key === "ballCount")).toBe(true);
+    expect(entriesOf("box").some((e) => e.key === "ballCount")).toBe(false);
+    expect(entriesOf("classic").some((e) => e.key === "twoBalls")).toBe(false); // (a search alias of the Ball Count)
+    expect(entriesOf("classic").some((e) => e.key === "splitArenaGravity")).toBe(false);
+    expect(entriesOf("classic", { arenas: true }).some((e) => e.key === "splitArenaGravity")).toBe(true);
+    expect(entriesOf("classic").some((e) => e.key === "captionStart")).toBe(false);
+    expect(entriesOf("classic", { captions: true }).some((e) => e.key === "captionStart")).toBe(true);
+    expect(entriesOf("classic").some((e) => e.key === "teamAdd")).toBe(false);
+    expect(entriesOf("classic", { teams: true }).some((e) => e.key === "teamAdd")).toBe(true);
+    expect(entriesOf("classic").some((e) => e.key === "vbVideoOpacity")).toBe(false);
+    expect(entriesOf("classic", { videoBackground: true }).some((e) => e.key === "vbVideoOpacity")).toBe(true);
+    expect(entriesOf("classic").some((e) => e.key === "timeline")).toBe(false); // (the Timeline group's own word)
+    expect(sectionKeyShown("ballColor", { ...PANEL, mode: "classic", ballPicture: true }, false)).toBe(false);
+    expect(sectionKeyShown("multiplierPickups", { ...PANEL, mode: "drop" }, false)).toBe(false);
+  });
+
+  it("keep the Project file's entries under Saved Presets", () => {
+    expect(where(entriesOf("classic"), "Export project")).toEqual(["presets:exportProject"]);
+  });
+
+  it("name every entry in Polish and Spanish too", () => {
+    for (const mode of MODE_IDS) {
+      for (const e of entriesOf(mode)) {
+        for (const [lang, catalog] of [["pl", pl], ["es", es]] as const) expect(typeof (catalog.Controls as Record<string, unknown>)[e.key], `${lang} ${mode} ${e.key}`).toBe("string");
+      }
+    }
+  });
+
+  it("know the block of every mode that has one in the Mode group (Controls.tsx modeSpecific())", () => {
+    const src = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "Controls.tsx"), "utf8");
+    const body = src.slice(src.indexOf("const modeSpecific = () => {"), src.indexOf("default:", src.indexOf("const modeSpecific = () => {")));
+    const modes = [...body.matchAll(/case "(\w+)":/g)].map((m) => m[1]);
+    expect(modes.length).toBeGreaterThan(20);
+    for (const mode of modes) expect(MODE_BLOCK_KEYS[mode as ModeId]?.length ?? 0, mode).toBeGreaterThan(0);
+    expect(src).toContain("const walls = wallControlsOf(s.mode);");
   });
 });
 
