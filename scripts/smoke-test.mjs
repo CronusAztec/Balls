@@ -1151,6 +1151,98 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
   await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
 }
 
+// --- review fix (security-robustness) --- hostile input: huge counts in a link, a stored preset list that is not an object, and a
+// project file with a crafted MIDI file (a five-byte length that looped the parser for ever), damaged pictures, a damaged
+// wall-break sound and a resolution no browser can capture
+{
+  const errorsBefore = errors.length;
+  const framesIn2s = () =>
+    page.evaluate(() => new Promise((resolve) => {
+      let n = 0;
+      const s = performance.now();
+      const f = (t) => (++n, t - s < 2000 ? requestAnimationFrame(f) : resolve(n));
+      requestAnimationFrame(f);
+    }));
+  // 1. wc=1000000 / tc=1000000 (each blocked the main thread for more than 15 s) keep their value in the link, run at the soft
+  // ceiling – the notice under the canvas says so – and the page stays responsive.
+  for (const query of ["mode=classic&wc=1000000", "mode=target&tc=1000000"]) {
+    const t0 = Date.now();
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle", timeout: 60000 });
+    const loadMs = Date.now() - t0;
+    const started = await page.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 }).then(() => true).catch(() => false);
+    const frames = await framesIn2s();
+    const t1 = Date.now();
+    await page.evaluate(() => 1);
+    const roundTrip = Date.now() - t1;
+    const notice = await page.getByTestId("soft-ceiling-notice").innerText({ timeout: 5000 }).catch(() => "");
+    const [key, value] = query.split("&")[1].split("=");
+    check(
+      `a link with ${query} keeps its value, runs at the soft ceiling (said under the canvas) and the page stays responsive`,
+      new URL(page.url()).searchParams.get(key) === value && started && frames >= 4 && roundTrip < 2000 && /1,000,000.*\b(1,000|100)\b/.test(notice),
+      `(load ${loadMs} ms, ${frames} frames in 2 s, round trip ${roundTrip} ms, notice "${notice}")`,
+    );
+  }
+
+  // 2. A stored preset list of null (any page of the origin can write it) crashed the simulator on every visit.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  const storedLists = [];
+  for (const stored of ["null", "[]", '{"a":null,"Kept":{"mode":"shatter","gravity":700}}']) {
+    await page.evaluate((v) => localStorage.setItem("jumpingballslive_saved_settings", v), stored);
+    await page.reload({ waitUntil: "networkidle" });
+    const appError = await page.getByText(/Application error/).isVisible().catch(() => false);
+    const startShown = await page.getByRole("button", { name: /Start Simulator/ }).isVisible().catch(() => false);
+    storedLists.push({ stored, appError, startShown });
+  }
+  await page.getByRole("button", { name: /Saved Presets/ }).click().catch(() => {});
+  const keptRow = await page.locator("div", { hasText: /^Kept/ }).last().isVisible().catch(() => false);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_saved_settings"));
+  check("a stored preset list that is not an object of presets never crashes the simulator; the valid presets in it stay", storedLists.every((o) => !o.appError && o.startShown) && keptRow, `(${JSON.stringify(storedLists)}, kept row ${keptRow})`);
+
+  // 3. A project with the crafted 34-byte MIDI file, three pictures and a wall-break sound that are text, and a 30000×30000
+  // resolution: it opens at once, says that 5 media files were left out, and the resolution is the default one.
+  const crafted = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, 1, 0, 0x60, 0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, 12, 0x00, 0xff, 0x01, 0x8f, 0xff, 0xff, 0xff, 0x78, 0x00, 0xff, 0x2f, 0x00];
+  const junk = Buffer.from("this is neither a picture nor a sound ".repeat(14));
+  const asset = (name, type, bytes) => ({ name, type, size: bytes.length, data: Buffer.from(bytes).toString("base64") });
+  const hostile = {
+    format: "jumpingballslive-project",
+    version: 1,
+    name: "hostile",
+    settings: { mode: "classic", recordingResolution: "30000x30000" },
+    assets: {
+      midi: asset("a.mid", "audio/midi", crafted),
+      wallBreakSound: asset("boom.mp3", "audio/mpeg", junk),
+      ballImage: asset("ball.png", "image/png", junk),
+      paintPicture: asset("paint.png", "image/png", junk),
+      backgroundImage: asset("bg.png", "image/png", junk),
+    },
+  };
+  const hostilePath = path.join(outDir, "hostile.jumpingballslive.json");
+  fs.writeFileSync(hostilePath, JSON.stringify(hostile));
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  if (!(await page.getByTestId("project-section").isVisible().catch(() => false))) await page.getByRole("button", { name: /Project file/ }).click();
+  await page.getByTestId("project-section").waitFor({ timeout: 5000 }).catch(() => {});
+  const importStart = Date.now();
+  await page.locator("#project-file-input").setInputFiles(hostilePath);
+  const hostileStatus = await page.getByTestId("project-status").waitFor({ timeout: 20000 }).then(() => page.getByTestId("project-status").innerText()).catch(() => "");
+  const importMs = Date.now() - importStart;
+  const t2 = Date.now();
+  await page.evaluate(() => 1);
+  const hostileRoundTrip = Date.now() - t2;
+  const hostileMedia = (await page.getByTestId("project-media").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const hostileParams = new URL(page.url()).searchParams;
+  check(
+    "a project with a crafted MIDI file, undecodable pictures and wall-break sound and a bogus resolution opens at once and counts the 5 left out",
+    /Opened .hostile., but 5 damaged media/.test(hostileStatus) && hostileRoundTrip < 2000 && !hostileParams.has("res") && !/ball\.png|paint\.png|bg\.png|a\.mid|boom\.mp3/.test(hostileMedia),
+    `(status "${hostileStatus}" after ${importMs} ms, round trip ${hostileRoundTrip} ms, media "${hostileMedia}", link ${hostileParams.toString()})`,
+  );
+
+  // The MIDI file's parse error is logged on purpose; anything else (a page error, a hang's aftermath) is not.
+  const fresh = errors.splice(errorsBefore);
+  const unexpected = fresh.filter((e) => !IGNORED_CONSOLE.test(e) && !/Failed to parse uploaded MIDI file/.test(e));
+  check("the hostile inputs cause no page errors", unexpected.length === 0, unexpected.length ? `\n   ${unexpected.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end review fix (security-robustness) ---
+
 // 6. Find Simulation
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Find 30s Simulation/ }).click();

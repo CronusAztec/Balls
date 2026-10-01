@@ -1125,7 +1125,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conicCache = { time, alpha, gradient: g };
         return g;
       };
-      // --- review fix (recording-export) --- thousands of rings (a link's wc=3000 stays 3000 in the physics): about one per pixel of
+      // --- review fix (recording-export) --- a thousand rings (a link's wc=3000; the physics runs up to LIVE_RING_LIMIT): about one per pixel of
       // the band is drawn (ringLod.ts) and, in one colour (the gradient or a solid colour), all of them as one path, one stroke
       const ringStride = ringDrawStride(walls.length, arena);
       const ringBatch = ringStride > 1 && !(p.rainbowWalls && p.rainbowWallMode !== "gradient") ? new Path2D() : null;

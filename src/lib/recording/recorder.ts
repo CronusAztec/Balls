@@ -154,33 +154,40 @@ export class VideoRecorder {
     return typeof window !== "undefined" && typeof MediaRecorder !== "undefined";
   }
 
+  /**
+   * Starts recording; resolves false (never throws) when it cannot start – no canvas, an oversized frame the browser refuses
+   * to capture, no 2D context, no MediaRecorder for the stream – after undoing what it had set up (the draw loop, the timer).
+   */
   async startRecording(options: RecordingOptions = {}): Promise<boolean> {
-    if (!this.sourceCanvas) throw new Error("Canvas not available");
+    if (!this.sourceCanvas) return false; // --- review fix (security-robustness) --- (was a throw the page did not catch)
     this.chunks = [];
     const width = options.resolution?.width || this.sourceCanvas.width;
     const height = options.resolution?.height || this.sourceCanvas.height;
-    this.recordingCanvas = document.createElement("canvas");
-    this.recordingCanvas.width = width;
-    this.recordingCanvas.height = height;
-    const ctx = this.recordingCanvas.getContext("2d");
-    if (!ctx) throw new Error("Failed to get recording canvas context");
-    const bg = options.backgroundColor ?? "#0a0a0a";
-    const textLayout = recordingTextLayout(width, height, options.textOverlay?.textSize ?? 1);
-
-    const drawFrame = () => {
-      if (!this.sourceCanvas || !this.recordingCanvas || !ctx) return;
-      drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout); // --- fast-render --- (shared with the fast export)
-      this.animationFrameId = requestAnimationFrame(drawFrame);
-    };
-    this.animationFrameId = requestAnimationFrame(drawFrame);
-
-    const videoStream = this.recordingCanvas.captureStream(60);
-    const stream =
-      options.audioStream && options.audioStream.getAudioTracks().length > 0
-        ? new MediaStream([...videoStream.getVideoTracks(), ...options.audioStream.getAudioTracks()])
-        : videoStream;
-    const mimeType = VideoRecorder.getBestMimeType(options.mimeType);
+    // --- review fix (security-robustness) --- the canvas, its context and the capture are set up inside the try (a 30000×30000
+    // frame makes captureStream() throw), and the draw loop starts only once the capture works
     try {
+      this.recordingCanvas = document.createElement("canvas");
+      this.recordingCanvas.width = width;
+      this.recordingCanvas.height = height;
+      const ctx = this.recordingCanvas.getContext("2d");
+      if (!ctx) throw new Error("Failed to get recording canvas context");
+      const bg = options.backgroundColor ?? "#0a0a0a";
+      const textLayout = recordingTextLayout(width, height, options.textOverlay?.textSize ?? 1);
+
+      const videoStream = this.recordingCanvas.captureStream(60);
+      const stream =
+        options.audioStream && options.audioStream.getAudioTracks().length > 0
+          ? new MediaStream([...videoStream.getVideoTracks(), ...options.audioStream.getAudioTracks()])
+          : videoStream;
+      const mimeType = VideoRecorder.getBestMimeType(options.mimeType);
+
+      const drawFrame = () => {
+        if (!this.sourceCanvas || !this.recordingCanvas) return;
+        drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout); // --- fast-render --- (shared with the fast export)
+        this.animationFrameId = requestAnimationFrame(drawFrame);
+      };
+      this.animationFrameId = requestAnimationFrame(drawFrame);
+
       this.mediaRecorder = new MediaRecorder(stream, {
         mimeType,
         videoBitsPerSecond: options.videoBitsPerSecond ?? 8_000_000,

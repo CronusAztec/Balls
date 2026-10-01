@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_PHYSICS_EXTRAS, physicsExtrasOf } from "@/lib/physics/extras";
 import { DEFAULT_BALL_INTERACTION, ballInteractionOf } from "@/lib/physics/interactions";
 import { MODE_IDS } from "@/lib/physics/types";
-import { RANGES, defaultSettings, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { NUMERIC_URL_KEYS, PRESETS_STORAGE_KEY, RANGES, defaultSettings, loadPresets, presetToSettings, resolutionToSize, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
 describe("settings serialisation", () => {
   it("round-trips through URL parameters", () => {
@@ -292,5 +292,103 @@ describe("link and preset validation (review fix: recording-export)", () => {
     expect(settingsToSearchParams(p).has("wm")).toBe(false);
     const custom = { ...defaultSettings("classic"), watermarkText: "@me" };
     expect(settingsToSearchParams(custom).get("wm")).toBe("@me");
+  });
+});
+
+// --- review fix (security-robustness) --- every numeric link key at ±1e9, in several modes, through links and presets
+describe("numeric link and preset values at ±1e9 (review fix: security-robustness)", () => {
+  const rangeOf = (field: string) => (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
+  const MODES = ["classic", "shatter", "target", "accumulation", "multiply", "grow", "drop", "box"] as const;
+  /** The numbers whose range is one of meaning (both ends kept); every other core number keeps a big value as it is. */
+  const BOUNDED = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
+  const CORE = new Set(["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"]);
+  const checkValue = (field: string, value: unknown, label: string, high: boolean) => {
+    expect(typeof value === "number" && Number.isFinite(value), `${label}: ${String(value)} is a finite number`).toBe(true);
+    const range = rangeOf(field);
+    if (!range) return;
+    const v = value as number;
+    expect(v >= range.min, `${label}: ${v} >= ${range.min}`).toBe(true);
+    if (!CORE.has(field)) return; // the feature groups keep their own rules (see the recording-export tests above)
+    if (BOUNDED.has(field)) expect(v <= range.max, `${label}: ${v} <= ${range.max}`).toBe(true);
+    else if (high) expect(v, `${label}: a big value is kept (extreme values are a feature)`).toBe(1e9);
+    if (Number.isInteger(range.step)) expect(Number.isInteger(v), `${label}: ${v} is a whole number`).toBe(true);
+  };
+
+  it("no NUMERIC_URL_KEYS key gives a non-finite number or one below its minimum from ?key=±1e9", () => {
+    expect(Object.keys(NUMERIC_URL_KEYS).length).toBeGreaterThan(50);
+    for (const mode of MODES) {
+      for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
+        for (const raw of [1e9, -1e9]) {
+          const s = settingsFromSearchParams(new URLSearchParams(`mode=${mode}&${key}=${raw}`)) as unknown as Record<string, unknown>;
+          checkValue(field, s[field], `${mode} ?${key}=${raw}`, raw > 0);
+        }
+      }
+    }
+  });
+
+  it("presetToSettings treats the same values the same way, and a value that is not a number falls back to the default", () => {
+    for (const mode of MODES) {
+      for (const field of new Set(Object.values(NUMERIC_URL_KEYS))) {
+        for (const raw of [1e9, -1e9]) {
+          const p = presetToSettings({ mode, [field]: raw } as Partial<SimulatorSettings>) as unknown as Record<string, unknown>;
+          checkValue(field, p[field], `${mode} preset ${field}=${raw}`, raw > 0);
+        }
+      }
+      const d = defaultSettings(mode);
+      const p = presetToSettings({ mode, wallCount: "abc", ballRadius: null, gravity: {} } as unknown as Partial<SimulatorSettings>);
+      expect([p.wallCount, p.ballRadius, p.gravity]).toEqual([d.wallCount, d.ballRadius, d.gravity]);
+    }
+  });
+
+  it("a share code's ?r=-5 (the crash of the review) is lifted onto the minimum ball size", () => {
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&r=-5")).ballRadius).toBe(RANGES.ballRadius.min);
+    expect(presetToSettings({ mode: "classic", ballRadius: -5 }).ballRadius).toBe(RANGES.ballRadius.min);
+  });
+});
+
+// --- review fix (security-robustness) --- the saved presets in localStorage are checked: anything but an object of objects is dropped
+describe("loadPresets (review fix: security-robustness)", () => {
+  const stubStorage = (value: string | null) => {
+    const store = new Map<string, string>();
+    if (value !== null) store.set(PRESETS_STORAGE_KEY, value);
+    const g = globalThis as Record<string, unknown>;
+    const before = { window: g.window, localStorage: g.localStorage };
+    g.window = {};
+    g.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    };
+    return () => {
+      g.window = before.window;
+      g.localStorage = before.localStorage;
+    };
+  };
+  const loaded = (value: string | null) => {
+    const restore = stubStorage(value);
+    try {
+      return loadPresets();
+    } finally {
+      restore();
+    }
+  };
+
+  it("drops a stored null, array, number or broken JSON (the simulator crashed on every visit) and keeps the presets that are objects", () => {
+    expect(loaded("null")).toEqual({});
+    expect(loaded("[]")).toEqual({});
+    expect(loaded("5")).toEqual({});
+    expect(loaded('"text"')).toEqual({});
+    expect(loaded("{broken")).toEqual({});
+    expect(loaded(null)).toEqual({});
+    expect(loaded('{"a":null,"b":{"mode":"classic"},"c":[1],"d":7}')).toEqual({ b: { mode: "classic" } });
+    const store = loaded(JSON.stringify({ mine: { mode: "shatter", gravity: 700 } }));
+    expect(Object.keys(store)).toEqual(["mine"]);
+    expect(presetToSettings(store.mine).gravity).toBe(700);
+  });
+
+  it("a preset's wall-break sound is a built-in clip or none: no foreign URL, no non-string", () => {
+    expect(presetToSettings({ mode: "classic", wallBreakSound: "https://attacker.example/x.wav" }).wallBreakSound).toBeNull();
+    expect(() => presetToSettings({ mode: "classic", wallBreakSound: 5 } as unknown as Partial<SimulatorSettings>)).not.toThrow();
+    expect(presetToSettings({ mode: "classic", wallBreakSound: 5 } as unknown as Partial<SimulatorSettings>).wallBreakSound).toBeNull();
   });
 });

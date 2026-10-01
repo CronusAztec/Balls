@@ -81,6 +81,8 @@ import type {
   WallHit,
 } from "./types";
 import { TWO_PI, passableGap } from "./types";
+// --- review fix (security-robustness) --- soft memory-safe ceilings of the rings, Target segments and spikes
+import { LIVE_SPIKE_LIMIT, LIVE_TARGET_LIMIT, liveCount, withLiveRingCount } from "./softCeilings";
 
 /**
  * Approach speed (px/s) from which an obstacle contact counts as a hit (sound + glow); resting contacts stay
@@ -294,6 +296,7 @@ export class PhysicsEngine {
   readonly ctx: ModeContext;
 
   constructor(config: PhysicsConfig) {
+    config = withLiveRingCount(config); // --- review fix (security-robustness) --- (a link's wc=1000000 builds LIVE_RING_LIMIT rings)
     this._config = config;
     this.extras = resolvePhysicsExtras(config);
     this.breathing = this.extras.breathingAmplitude > 0;
@@ -800,7 +803,7 @@ export class PhysicsEngine {
     this.accumulationMode.setSpikesEnabled(enabled, this.ctx);
   }
   setSpikeCount(count: number) {
-    this.accumulationMode.setSpikeCount(count, this.ctx);
+    this.accumulationMode.setSpikeCount(liveCount(count, LIVE_SPIKE_LIMIT), this.ctx); // --- review fix (security-robustness) ---
   }
   isMultiplyModeActive() {
     return this.currentMode === this.multiplyMode;
@@ -921,7 +924,7 @@ export class PhysicsEngine {
     return this.targetMode.getSegmentMap();
   }
   setCountdownTotal(n: number) {
-    this.targetMode.setTotal(n);
+    this.targetMode.setTotal(liveCount(n, LIVE_TARGET_LIMIT)); // --- review fix (security-robustness) ---
   }
   setCountdownRandomOrder(v: boolean) {
     this.targetMode.setRandomOrder(v);
@@ -1782,6 +1785,7 @@ export class PhysicsEngine {
   }
 
   setConfig(patch: Partial<PhysicsConfig>) {
+    patch = withLiveRingCount(patch); // --- review fix (security-robustness) --- (soft ring ceiling, softCeilings.ts)
     // --- bounce-math --- the page re-sending its own value of a world setting a rule holds (another setting of the same effect
     // changed) leaves the rule's value; a new value from the page replaces it
     if (!this.timelineApplying && this.bounceMath.worldTouched()) patch = this.bounceMath.filterPatch(patch);

@@ -612,3 +612,13 @@ describe("caption clip clock and layout", () => {
     expect(portrait.bottomY).toBeCloseTo(960 + 459 + 0.6 * 43.2, 9);
   });
 });
+
+// --- review fix (security-robustness) --- a label's [token] is filled only from the caption's own tokens
+describe("caption label tokens (review fix: security-robustness)", () => {
+  it("leaves [constructor], [toString], [valueOf] and [__proto__] as typed instead of filling in Object.prototype", () => {
+    expect(countdownText({ text: "Left [constructor]" }, 30, 3)).toBe("Left [constructor] 0:27");
+    expect(wallCounterText({ text: "[__proto__] [toString]" }, 2, 7, "")).toBe("[__proto__] [toString] 2/7");
+    expect(fillLabel("[valueOf] [hasOwnProperty]", { time: "0:10" }, "0:10")).toBe("[valueOf] [hasOwnProperty] 0:10");
+    expect(fillLabel("Time [time] [constructor]", { time: "0:10" }, "0:10")).toBe("Time 0:10 [constructor]");
+  });
+});
