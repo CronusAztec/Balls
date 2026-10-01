@@ -205,7 +205,7 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
             <ul className="text-xs space-y-0.5" data-testid="ai-log">
               {ai.log.map((line, i) => (
                 <li key={i} className={line.kind === "invalid" || line.kind === "error" ? "text-warn" : line.kind === "tool" ? "text-accent-strong" : "text-ink-3"}>
-                  {line.kind === "invalid" ? `${t("aiRetried")}: ` : line.kind === "tool" ? "› " : ""}
+                  {line.kind === "invalid" ? `↻ ${t("aiRetried")}: ` : line.kind === "tool" ? "› " : ""}
                   {line.text}
                 </li>
               ))}
