@@ -1188,7 +1188,7 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
     const [key, value] = query.split("&")[1].split("=");
     check(
       `a link with ${query} keeps its value, runs at the soft ceiling (said under the canvas) and the page stays responsive`,
-      new URL(page.url()).searchParams.get(key) === value && started && frames >= 4 && roundTrip < 2000 && /1,000,000.*\b(10,000|5,000)\b/.test(notice), // --- uncap-all --- (the memory-safety ceilings: 10,000 rings, 5,000 targets)
+      new URL(page.url()).searchParams.get(key) === value && started && frames >= 4 && roundTrip < 2000 && /1,000,000.*\b(10,000|100)\b/.test(notice), // --- uncap-all --- (the rings' memory-safety ceiling is 10,000; the targets stop at 100)
       `(load ${loadMs} ms, ${frames} frames in 2 s, round trip ${roundTrip} ms, notice "${notice}")`,
     );
   }
