@@ -9,6 +9,7 @@ import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./r
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- gerald-vortex ---
 import { scheduleSwooshTone } from "./swooshTone"; // --- gerald-journey ---
 import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- gerald-bullseye ---
+import { scheduleGulpTone } from "./gulpTone"; // --- unlimited ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { MusicBed } from "./musicBed";
@@ -779,6 +780,33 @@ export class ToneGenerator {
     }
   }
   // --- end gerald-bullseye ---
+  // --- unlimited ---
+  /**
+   * A ball ate the arena (No limits): the gulp (gulpTone.ts) – a diving swallow, a chomp and a blip. An effect, not a note
+   * (never snapped, never a melody note, a hit sample or a song slice): on the beat grid when the beat lock is on, ducking
+   * the music bed.
+   */
+  playArenaEaten() {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleArenaEaten());
+      return;
+    }
+    this.scheduleArenaEaten();
+  }
+
+  private scheduleArenaEaten() {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const time = this.scheduleTime(this.audioContext.currentTime);
+      scheduleGulpTone(this.audioContext, this.masterGain, time, this.noiseCache.get(this.audioContext));
+      this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the gulp:", err);
+    }
+  }
+  // --- end unlimited ---
 
   // --- beat-drop ---
   private readonly bdVoices: BeatDropVoices = { kick: 0, snare: 0, hat: 0, accent: 0 };

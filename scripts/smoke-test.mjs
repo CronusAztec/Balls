@@ -7210,6 +7210,81 @@ const bdInstrument = () =>
   check("pwa: no page errors while offline or across the update", offErrors.length === 0, offErrors.length ? `\n   ${offErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end pwa ---
+// --- unlimited --- No limits: an extreme link – the switch on, 50,000 balls and a huge speed – opens with the crowd on the
+// canvas and the "x… real time" badge (the frame budget slices the run), the page stays responsive (a click registers within
+// 300 ms while the run crawls), the panel shows the switch on with the typed values, and a recording still downloads.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=classic&inf=1&nb=50000&s=1000000&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  const unlimitedData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // The crowd appears with the run's first step (the Ball Count past the six team balls)…
+  const spawned = await page
+    .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.unlimitedCrowd) > 0, null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  const first = await unlimitedData();
+  // …and the huge speed makes the run crawl: the frame budget and the time dilation show as "x… real time".
+  const sliced = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.unlimited === "1" && d.unlimitedSlow === "1";
+    }, null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  const data = await unlimitedData();
+  // Responsiveness under the load: the time from a real mouse click being issued to its event in the page.
+  await page.evaluate(() => {
+    window.__unlimitedClicks = [];
+    document.addEventListener("pointerdown", () => window.__unlimitedClicks.push(performance.now()), { capture: true });
+  });
+  const sectionButton = page.getByRole("button", { name: /Ball & Physics/ });
+  const box = await sectionButton.boundingBox();
+  const latencies = [];
+  for (let i = 0; i < 3 && box; i++) {
+    const issued = await page.evaluate(() => performance.now());
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForFunction((n) => window.__unlimitedClicks.length > n, i, { timeout: 5000 }).catch(() => {});
+    const at = await page.evaluate((n) => window.__unlimitedClicks[n] ?? NaN, i);
+    latencies.push(at - issued);
+  }
+  const worstClick = Math.max(...latencies);
+  // The Ball & Physics section is open (odd number of clicks): the switch is on and the speed input holds the typed value.
+  const toggleOn = (await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null)) === "true";
+  const speedInput = await page.locator('input[data-unlimited-input="ballSpeed"]').inputValue().catch(() => "");
+  check(
+    "no limits: an extreme link (50,000 balls, huge speed) runs time-sliced with the real-time badge and stays responsive",
+    spawned && Number(first.unlimitedBalls) >= 45000 && sliced && Number(data.unlimitedRealtime) < 0.9 && latencies.length === 3 && worstClick < 300 && toggleOn && speedInput === "1000000",
+    `(spawned=${spawned}, balls ${first.unlimitedBalls} → ${data.unlimitedBalls}, sliced=${sliced}, real time x${data.unlimitedRealtime}, lod ${first.unlimitedLod}, clicks ${latencies.map((l) => Math.round(l)).join("/")} ms, toggle ${toggleOn}, speed input "${speedInput}"${loadNote()})`,
+  );
+  // A recording of the extreme run still downloads. At this speed the six team balls may escape within a second or two, which
+  // ends the run – and the recording stops and downloads by itself; otherwise Stop & Export ends it.
+  await page.getByRole("button", { name: /Restart/ }).first().click().catch(() => {});
+  const extremeDownload = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(3500);
+      const stop = page.getByRole("button", { name: /Stop & Export/ });
+      if (await stop.isVisible().catch(() => false)) await stop.click().catch(() => {});
+    })(),
+  ])
+    .then(([dl]) => dl)
+    .catch(() => null);
+  let extremeBytes = 0;
+  if (extremeDownload) {
+    const file = path.join(outDir, `unlimited-${extremeDownload.suggestedFilename()}`);
+    await extremeDownload.saveAs(file);
+    extremeBytes = fs.statSync(file).size;
+  }
+  check("no limits: the extreme run records and downloads", extremeBytes > 10000, `(${extremeDownload?.suggestedFilename() ?? "no download"}, ${extremeBytes} bytes)`);
+  // A ball bigger than the arena: THE BALL ATE THE ARENA ends the run (the outgrow finish, data-unlimited-ate).
+  await page.goto(`${BASE}/en/simulator/?mode=classic&inf=1&r=100000`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const ate = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedAte === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const ateData = await unlimitedData();
+  check("no limits: a ball bigger than the arena eats it (the run ends with its banner)", ate && ateData.multOutgrew === "1", `(ate=${ate}, outgrew ${ateData.multOutgrew})`);
+}
+// --- end unlimited ---
 
 // --- review fix (audio) ---
 // Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its
@@ -7657,6 +7732,165 @@ const bdInstrument = () =>
   check("publish: no page errors in the Publish checks", pubHard.length === 0, pubHard.length ? `\n   ${pubHard.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end social-publish ---
+
+// --- desktop-exe --- the Windows app on the website: the download page and its links, the landing button, the navbar /
+// footer / sitemap entries; the Desktop group absent on the website and working with a stand-in window.desktop (the bridge
+// the app's preload exposes): GPU panel, render queue (a real fast export saved through the bridge, with its ffmpeg pass
+// requested), menu actions, Library and the AI settings assistant (an invalid patch retried, the valid one applied, Undo).
+{
+  const repo = process.env.NEXT_PUBLIC_GITHUB_REPO || "CronusAztec/Balls";
+  const latest = `https://github.com/${repo}/releases/latest`;
+  const titles = { en: "for Windows", pl: "dla Windows", es: "para Windows" };
+  for (const locale of ["en", "pl", "es"]) {
+    const res = await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
+    const info = await page.evaluate(() => ({
+      h1: document.querySelector("h1")?.textContent ?? "",
+      setup: document.querySelector('[data-testid="download-setup"]')?.getAttribute("href") ?? "",
+      portable: document.querySelector('[data-testid="download-portable"]')?.getAttribute("href") ?? "",
+      releases: document.querySelector('[data-testid="download-releases"]')?.getAttribute("href") ?? "",
+      requirements: document.querySelectorAll('[data-testid="download-requirements"] li').length,
+      smartScreen: document.querySelector('[data-testid="download-smartscreen"]')?.textContent ?? "",
+    }));
+    check(
+      `desktop-exe: /${locale}/download/ links the latest installer and portable EXE, lists the requirements and explains SmartScreen`,
+      res.status() === 200 && info.h1.includes(titles[locale]) && info.setup === `${latest}/download/JumpingBallsLive-Setup.exe` && info.portable === `${latest}/download/JumpingBallsLive-portable.exe` && info.releases === latest && info.requirements === 4 && info.smartScreen.length > 40,
+      `(${res.status()}, h1="${info.h1}", setup=${info.setup}, requirements=${info.requirements})`,
+    );
+  }
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const heroHref = await page.getByTestId("hero-download").getAttribute("href").catch(() => null);
+  const navHref = await page.locator("header").getByRole("link", { name: "Windows app", exact: true }).first().getAttribute("href").catch(() => null);
+  const footerHref = await page.locator("footer").getByRole("link", { name: "Windows app", exact: true }).first().getAttribute("href").catch(() => null);
+  const sitemapXml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
+  const downloadPath = `${new URL(BASE).pathname.replace(/\/+$/, "")}/en/download/`;
+  check(
+    "desktop-exe: “Download for Windows” on the landing page, the navbar and the footer link /download/, which is in the sitemap in every language",
+    heroHref === downloadPath && navHref === downloadPath && footerHref === downloadPath && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/download/`)),
+    `(hero ${heroHref}, nav ${navHref}, footer ${footerHref})`,
+  );
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  check("desktop-exe: no Desktop group on the website", (await page.locator("[data-desktop-group]").count()) === 0);
+
+  const FAKE_BRIDGE = `(() => {
+    const listeners = {};
+    const replies = [
+      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":5000},{"setting":"rainbowBall","value":true}],"summary":"x"}}',
+      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":800},{"setting":"rainbowBall","value":true},{"setting":"gravity","value":0}],"summary":"Twice as fast, rainbow, no gravity"}}',
+    ];
+    const state = {
+      prefs: { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: "llama-3.2-3b-instruct-q4km", aiGpu: "auto" },
+      journal: null, saves: [], chats: [], logs: [],
+      library: [{ id: "lib-1", path: "D:/Clips/earlier.mp4", fileName: "earlier.mp4", bytes: 2400000, durationSec: 12.5, width: 1080, height: 1920, createdAt: Date.now() - 60000, thumbnail: null, exists: true, encoder: "h264_nvenc", meta: { title: "Earlier", mode: "classic", seed: 7, link: "/en/simulator/?mode=classic&seed=7", platform: "tiktok", hook: "Can it escape?", caption: "Which ring?", hashtags: ["#physics"], queueJobId: null } }],
+    };
+    const emit = (event, payload) => (listeners[event] || []).forEach((l) => l(payload));
+    window.desktop = {
+      apiVersion: 1,
+      info: async () => ({ appName: "JumpingBallsLive", version: "9.9.9", electron: "44.5.1", chrome: "146.0", platform: "win32", arch: "x64", packaged: true, dataDir: "C:/Users/smoke/AppData/Roaming/JumpingBallsLive", logFile: "main.log", smoke: false }),
+      log: (level, message) => state.logs.push(level + ": " + message),
+      openLogs: async () => {},
+      prefs: { get: async () => state.prefs, set: async (p) => (state.prefs = { ...state.prefs, ...p }) },
+      gpu: {
+        status: async () => ({ devices: [{ vendor: "nvidia", vendorId: 4318, deviceId: 9860, name: "NVIDIA GeForce RTX 4090", driver: "560.94", active: true }], features: { video_encode: "enabled", video_decode: "enabled", webgpu: "enabled" }, hardwareVideoEncode: true, hardwareVideoDecode: true, webgpu: true, switches: ["--ignore-gpu-blocklist"], disabled: false }),
+        probeEncoders: async () => ({ ffmpeg: { path: "ffmpeg.exe", version: "7.1", bundled: true }, encoders: [{ id: "h264_nvenc", codec: "h264", kind: "nvenc", listed: true, works: true }, { id: "libx264", codec: "h264", kind: "software", listed: true, works: true }], chosen: { h264: "h264_nvenc", hevc: "hevc_nvenc", av1: null }, error: null }),
+        benchmark: async () => [{ encoder: "h264_nvenc", codec: "h264", fps: 900, realtime: 15, ok: true }],
+      },
+      dialogs: { pickFolder: async () => "D:/Clips", pickMedia: async () => null },
+      render: {
+        save: async (req) => {
+          state.saves.push({ name: req.name, extension: req.extension, bytes: req.data.byteLength, transcode: req.transcode, meta: req.meta, durationSec: req.durationSec });
+          const path = "D:/Clips/" + req.name + (req.transcode ? ".mp4" : "." + req.extension);
+          const item = { id: "lib-" + state.saves.length + 1, path, fileName: path.split("/").pop(), bytes: req.data.byteLength, durationSec: req.durationSec, width: null, height: null, createdAt: Date.now(), thumbnail: null, exists: true, encoder: req.transcode ? "h264_nvenc" : null, meta: req.meta };
+          state.library.unshift(item);
+          return { path, bytes: req.data.byteLength, durationSec: req.durationSec, encoder: item.encoder, item };
+        },
+        cancel: async () => {},
+      },
+      journal: { load: async () => state.journal, save: async (j) => { state.journal = JSON.parse(JSON.stringify(j)); } },
+      library: { list: async () => state.library, remove: async (id) => (state.library = state.library.filter((i) => i.id !== id)), reveal: async () => {}, open: async () => {}, openFolder: async () => {}, read: async () => { throw new Error("no file"); } },
+      ai: {
+        status: async () => ({ provider: "local", ready: true, local: { model: "llama-3.2-3b-instruct-q4km", loaded: true, backend: "vulkan", gpuLayers: 29, error: null }, cloud: { provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-opus-5-5", hasKey: false, encryption: true } }),
+        models: async () => [{ id: "llama-3.2-3b-instruct-q4km", name: "Llama 3.2 3B Instruct (Q4_K_M)", size: 2019377696, sha256: "x", licence: "Llama 3.2 Community License", licenceUrl: "https://www.llama.com/llama3_2/license/", url: "https://huggingface.co/x.gguf", state: "ready", downloaded: 2019377696, path: "C:/m.gguf", custom: false, selected: true }],
+        downloadModel: async () => [], cancelDownload: async () => {}, importModel: async () => [], selectModel: async () => ({}), removeModel: async () => [],
+        chat: async (req) => {
+          state.chats.push(req);
+          const text = replies.shift() || '{"action":"final","result":{"changes":[{"setting":"showTrails","value":true}],"summary":"-"}}';
+          emit("aiToken", { requestId: req.requestId, text });
+          return { text, provider: "local", model: "llama", cancelled: false };
+        },
+        cancel: async () => {}, setCloud: async () => ({}), clearCloudKey: async () => ({}), playbook: async () => "## 3. The recipe\\nMotion in frame one.",
+      },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
+    };
+    window.__fakeDesktop = { state, emit };
+  })();`;
+  const dctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await dctx.addInitScript(FAKE_BRIDGE);
+  const dp = await dctx.newPage();
+  const desktopErrors = [];
+  dp.on("pageerror", (e) => desktopErrors.push(e.message));
+  dp.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource/.test(m.text()) && desktopErrors.push(m.text()));
+  try {
+    await dp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    const shown = await dp.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    await dp.getByTestId("desktop-tab-gpu").click().catch(() => {});
+    const gpuName = await dp.getByTestId("desktop-gpu").innerText().catch(() => "");
+    const chosen = await dp.locator('[data-encoder="h264"]').innerText().catch(() => "");
+    const version = await dp.getByTestId("desktop-version").innerText().catch(() => "");
+    check("desktop-exe: with window.desktop the Desktop group shows the GPU, the chosen encoders and the app version", shown && gpuName.includes("NVIDIA GeForce RTX 4090") && chosen === "h264_nvenc" && version.startsWith("9.9.9"), `(shown ${shown}, encoder ${chosen}, version ${version})`);
+
+    await dp.evaluate(() => window.__fakeDesktop.emit("menu", "library"));
+    await dp.waitForTimeout(300);
+    const libTab = await dp.locator("[data-desktop-group]").getAttribute("data-desktop-tab");
+    const libItems = await dp.locator("[data-library-item]").count();
+    check("desktop-exe: a menu action opens the Library, which lists the saved clips", libTab === "library" && libItems === 1, `(tab ${libTab}, items ${libItems})`);
+
+    await dp.getByTestId("desktop-tab-queue").click();
+    const q = dp.getByTestId("desktop-queue");
+    await q.getByTestId("queue-source-random").click();
+    await q.locator('input[type="number"]').fill("1");
+    await q.getByRole("button", { name: "500x500", exact: true }).click();
+    await q.getByRole("button", { name: "1080x1920", exact: true }).click();
+    await q.getByRole("button", { name: "30 fps", exact: true }).click();
+    await q.getByRole("button", { name: "60 fps", exact: true }).click();
+    await q.getByTestId("queue-add").click();
+    const queued = await q.getAttribute("data-queue-count");
+    await q.getByTestId("queue-start").click();
+    const done = await dp.locator('[data-queue-status="done"]').waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+    const fake = await dp.evaluate(() => ({ saves: window.__fakeDesktop.state.saves, journal: window.__fakeDesktop.state.journal, logs: window.__fakeDesktop.state.logs }));
+    const save = fake.saves[0];
+    const journalDone = fake.journal?.format === "jumpingballslive-render-journal" && fake.journal.jobs?.[0]?.status === "done";
+    check(
+      "desktop-exe: the render queue renders a clip through the fast export and saves it through the app (no download), asking ffmpeg for H.264 when the browser wrote WebM, and journals it",
+      queued === "1" && done && !!save && save.bytes > 1000 && (save.extension === "mp4" ? save.transcode === null : save.transcode?.codec === "h264" && save.transcode?.width === 500) && save.meta?.link?.includes("seed=") && journalDone,
+      `(queued ${queued}, done ${done}, save ${save ? `${save.name}.${save.extension} ${save.bytes} B, transcode ${JSON.stringify(save.transcode)}` : "none"}, journal ${journalDone}, logs ${fake.logs.slice(0, 2).join(" | ")})`,
+    );
+    await dp.screenshot({ path: path.join(outDir, "desktop-queue.png") });
+
+    await dp.getByTestId("desktop-tab-ai").click();
+    await dp.getByTestId("ai-task-settings").click();
+    await dp.getByTestId("ai-prompt").fill("make the ball twice as fast and rainbow, no gravity");
+    await dp.getByTestId("ai-run").click();
+    const changed = await dp.getByTestId("ai-changed").innerText({ timeout: 20000 }).catch(() => "");
+    const retried = await dp.getByTestId("ai-log").innerText().catch(() => "");
+    const applied = await dp.evaluate(() => new URLSearchParams(location.search).toString());
+    await dp.getByTestId("ai-undo").click().catch(() => {});
+    await dp.waitForTimeout(500);
+    const undone = await dp.evaluate(() => new URLSearchParams(location.search).toString());
+    const chats = await dp.evaluate(() => window.__fakeDesktop.state.chats.length);
+    check(
+      "desktop-exe: the AI settings assistant retries an out-of-range patch, applies the valid one and Undo restores the page",
+      changed.includes("ballSpeed") && changed.includes("gravity") && /↻/.test(retried) && chats === 2 && applied !== undone,
+      `(changed "${changed}", chats ${chats}, url after ${applied.slice(0, 60)}, after undo ${undone.slice(0, 60)})`,
+    );
+    await dp.screenshot({ path: path.join(outDir, "desktop-ai.png") });
+  } finally {
+    await dctx.close().catch(() => {});
+  }
+  check("desktop-exe: no page errors in the Desktop group", desktopErrors.length === 0, desktopErrors.length ? `\n   ${desktopErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end desktop-exe ---
 
 // --- review fix (ui-i18n) --- the settings search finds the escape modes' Mode-row controls, Wall Count / Gap Size only
 // where they act, named switches, the collapsed mobile menu out of the tab order, the language list closes on Escape,

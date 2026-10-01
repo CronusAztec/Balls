@@ -72,6 +72,10 @@ import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LA
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
+// --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
+import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
+import { FrameBudget } from "@/lib/simulation/frameBudget";
+import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
 import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (recording-export) --- rings past the slider drawn at about one per pixel
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -168,6 +172,9 @@ export interface CanvasLabels {
   // --- bounce-math ---
   /** Bounce math: the words of the "Show values" badge (bounciness, speed, size, gravity, a rule's fire count). */
   bounceMath?: BounceMathHudLabels;
+  // --- unlimited ---
+  /** No limits: the ball count, "x0.4 real time" and ARENA FULL badges. */
+  unlimited?: UnlimitedLabels;
 }
 
 export interface CanvasHandle {
@@ -339,6 +346,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   journey: DEFAULT_JOURNEY_LABELS, // --- gerald-journey ---
   bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
+  unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -806,6 +814,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bmLayer = new BounceMathLayer(); // --- bounce-math ---
     const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
     let bdTeams: CanvasTeamOptions | null | undefined;
+    // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
+    const frameBudget = new FrameBudget();
+    const unlimitedLayer = new UnlimitedLayer();
+    const crowdPalette: string[] = [];
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -936,12 +948,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (!p.isPaused && p.isStarted) {
         accumulator += frameMs * p.simSpeed * cam.timeScale(); // --- camera: slow motion feeds the engine less time; its fixed steps stay the same
         if (accumulator > 250) accumulator = 250;
+        // --- unlimited --- with No limits on (live only) a frame stops after the step that used up its budget and drops the rest
+        frameBudget.enabled = !offline && engine.getUnlimitedView().on;
+        frameBudget.begin(performance.now());
+        const simBefore = engine.getElapsedMs();
         while (accumulator >= 16.666) {
           engine.update(16.666, audioRef.current);
           cam.afterStep(engine); // --- camera: the escape replay's ring buffer
           accumulator -= 16.666;
+          if (frameBudget.exceeded(performance.now())) accumulator = 0; // --- unlimited ---
         }
-      }
+        if (engine.isSimulationFinished()) frameBudget.reset(); // --- unlimited --- (a finished run's clock stands still: not slow motion)
+        else frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
+      } else frameBudget.reset(); // --- unlimited --- (paused or not started: no slow-motion badge)
       cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
@@ -1110,6 +1129,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- gerald-multipliers --- the multipliers board scrolls down with its lowest ball (the mode's own, simulation-timed camera)
       const multBoard = isMult ? engine.getMultipliersView() : null;
       const multView = engine.getMultiplierView();
+      const unlimitedView = engine.getUnlimitedView(); // --- unlimited ---
       const multLabels = (labelsRef.current ?? DEFAULT_LABELS).multipliers ?? DEFAULT_MULTIPLIER_LABELS;
       const multTop = multBoard ? multBoard.cameraY : 0;
       const multBottom = multTop + size.height;
@@ -1849,6 +1869,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (isGrow && engine.getGrowState().linesEnabled) drawStrings(engine.getGrowBouncePoints());
       }
 
+      // --- unlimited --- the crowd under the full-physics balls: batched discs, or points in one image past 20,000
+      if (unlimitedView.crowd > 0) {
+        crowdPalette.length = 0;
+        crowdPalette.push(engine.config.ballColor || "#FFFFFF", engine.config.ballColor2 || "#FF3366", ...EXTRA_BALL_COLORS);
+        unlimitedLayer.drawCrowd(ctx, engine.getCrowd(), crowdPalette, engine.config.width, engine.config.height);
+      }
+
       // Balls
       const balls = bdView ? bdLayer.frameBalls(drawnBalls, bdView, bdRender) : drawnBalls; // --- camera: the replayed balls and trails during the escape replay, or the balls between steps in slow motion (--- beat-drop --- the ball where the plan has it at the frame's time)
       const isColorMatch = engine.isColorMatchMode();
@@ -1883,6 +1910,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
+      // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
+      else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
         // --- teams --- a team ball wears its team colour (Color Match keeps the colour to match) and its emoji
         const teamColor = isColorMatch ? null : teamLayer.colorOf(ball);
@@ -2094,7 +2123,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
 
       // Wall-break flashes and shockwaves
-      for (const flash of engine.getWallBreakFlashes()) {
+      for (const flash of cappedEffects(engine.getWallBreakFlashes(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
         const a = (flash.life / flash.maxLife) * 0.6;
         ctx.save();
         ctx.globalAlpha = a;
@@ -2107,7 +2136,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         ctx.stroke();
         ctx.restore();
       }
-      for (const wave of engine.getShockwaves()) {
+      for (const wave of cappedEffects(engine.getShockwaves(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
         const a = (wave.life / wave.maxLife) * 0.5;
         ctx.save();
         ctx.globalAlpha = a;
@@ -2230,6 +2259,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
         multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut);
         modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-gerald-odd) ---
+      }
+      // --- unlimited --- the ball count, "x0.4 real time" and ARENA FULL, bottom right of the square the recorder crops to
+      if (unlimitedView.on) {
+        const sq = Math.min(size.width, size.height);
+        const liveInset = !recordingRef.current ? 52 : 0; // live: above the playback-speed buttons (never in a recording, which crops them away)
+        unlimitedLayer.drawHud(ctx, unlimitedView, frameBudget, (labelsRef.current ?? DEFAULT_LABELS).unlimited ?? DEFAULT_UNLIMITED_LABELS, cx - sq / 2, cy - sq / 2, sq, time, liveInset);
       }
 
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
@@ -2407,7 +2442,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             },
           });
         };
-        if (multView.outgrown) fitBanner(L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(formatMultiplier(multView.size)), "#c4b5fd");
+        if (multView.outgrown) fitBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(unlimitedView.ate && multView.size <= 1 ? ateSizeLabel(unlimitedView.ateRadius) : formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA; a Ball Size past the arena shows its size in px)
         else if (multBoard && multBoard.done) {
           // (--- review fix (modes-gerald-odd) --- and the balls lost on the way, when there are any)
           const sub = (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones);
@@ -2933,6 +2968,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of MULTIPLIER_DATA_KEYS) delete canvas.dataset[key];
       }
       writeRigDataset(engine, setCanvasData); // --- rigged --- the rules in effect, what the rig did, the first escape (data-rig-*, data-first-escape)
+      writeUnlimitedDataset(unlimitedView, frameBudget, lodOf(unlimitedView), setCanvasData, canvas.dataset); // --- unlimited --- (data-unlimited-*)
       // --- odd-power-layers --- Power Layers: hits, layers gone, power, level, the last hit's layers, freedom and the particles drawn (data-pl-*)
       if (plView) {
         setCanvasData("plSequence", plView.sequence);

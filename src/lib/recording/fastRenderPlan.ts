@@ -249,7 +249,7 @@ export interface ExportFormat {
   /** WebCodecs codec of the video (`VideoEncoder.configure`). */
   videoCodec: string;
   /** The muxer's video codec: mp4-muxer `avc`, webm-muxer `V_VP9` / `V_VP8`. */
-  videoTrackCodec: "avc" | "V_VP9" | "V_VP8";
+  videoTrackCodec: "avc" | "V_VP9" | "V_VP8" | "hevc" | "av1"; // --- desktop-exe --- (hevc, av1: the desktop app's GPU formats, lib/desktop/gpuEncode.ts)
   /** WebCodecs codec of the audio (`AudioEncoder.configure`). */
   audioCodec: "mp4a.40.2" | "opus";
   /** The muxer's audio codec: mp4-muxer `aac` / `opus`, webm-muxer `A_OPUS`. */

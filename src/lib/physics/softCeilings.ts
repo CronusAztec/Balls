@@ -8,15 +8,17 @@
  * the band at sub-pixel spacing, see ringLod.ts; a hundred numbered segments are 3.6° each) and the same soft ceilings the
  * No limits feature runs – while the settings keep the typed value and the page says so under the canvas
  * (`softCeilingNotes()`). They apply inside the engine, so the page, Find Simulation, the fast export, batch
- * renders and the bot all run the same, deterministic world for a seed.
+ * renders and the bot all run the same, deterministic world for a seed. With No limits on, limits.ts applies the same
+ * ceilings (`ENGINE_CEILINGS` in lib/unlimited.ts, the source of these numbers); these keep them with it off too.
  */
+import { ENGINE_CEILINGS, LIVE_WALL_LIMIT } from "@/lib/unlimited";
 
-/** The most rings the engine builds from the Wall Count (Classic, Shatter). */
-export const LIVE_RING_LIMIT = 1_000;
-/** The most numbered segments Target mode lays out (Number of Targets): the canvas labels every one, every frame. */
-export const LIVE_TARGET_LIMIT = 100;
-/** The most spikes Accumulation puts on its wall (Spike Count): one per degree. */
-export const LIVE_SPIKE_LIMIT = 360;
+/** The most rings the engine builds from the Wall Count (Classic, Shatter): No limits' `LIVE_WALL_LIMIT` (1,000). */
+export const LIVE_RING_LIMIT = LIVE_WALL_LIMIT;
+/** The most numbered segments Target mode lays out (Number of Targets, 100): the canvas labels every one, every frame. */
+export const LIVE_TARGET_LIMIT = ENGINE_CEILINGS.targetCount;
+/** The most spikes Accumulation puts on its wall (Spike Count, 360): one per degree. */
+export const LIVE_SPIKE_LIMIT = ENGINE_CEILINGS.spikeCount;
 
 /** `value`, or `limit` when it is past it. */
 export function liveCount(value: number, limit: number): number {

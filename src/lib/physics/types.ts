@@ -4,6 +4,7 @@ import type { EditorObstacle } from "./obstacleEditor"; // --- obstacle-editor -
 import type { Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import type { BounceMathConfig } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
+import type { UnlimitedConfig } from "./limits"; // --- unlimited ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -169,7 +170,7 @@ export interface BallInteractionConfig {
 }
 
 // --- gerald-multipliers --- the stat-multiplier settings (cap, smash threshold, pickups) travel in the config too
-export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig> {
+export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInteractionConfig>, Partial<MultiplierConfig>, Partial<UnlimitedConfig> /* --- unlimited --- */ {
   width: number;
   height: number;
   gravity: number;
@@ -272,6 +273,9 @@ export interface SoundEvent {
    */
   bdDrum?: "kick" | "snare" | "hat" | "none";
   bdPad?: BeatDropPadKind;
+  // --- unlimited ---
+  /** A ball ate the arena (No limits): the page plays the gulp (`ToneGenerator.playArenaEaten()`) instead of a wall break. */
+  ate?: boolean;
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
@@ -435,6 +439,13 @@ export interface ModeContext {
   /** A mode that resolves its own ball-to-ball contacts reports a hit of `a` and `b` (bounce math's "ball hit" trigger). */
   noteCollide?(a: Ball, b: Ball): void;
   // --- end bounce-math ---
+  // --- unlimited ---
+  /** With No limits on, how many more full-physics balls the run may hold; null while the switch is off (the modes' own caps apply). */
+  unlimitedRoom?(): number | null;
+  /** With No limits on, adds `count` balls to the crowd at (x, y), fanned out from `angle` at `speed`; false once the crowd is full. */
+  spawnCrowd?(count: number, x: number, y: number, speed: number, radius: number, angle: number, slot: number): boolean;
+  /** With No limits on, a mode refused a clone at its ball limit (a mode without a crowd): the canvas shows ARENA FULL. A no-op while the switch is off. */
+  noteArenaFull?(): void;
 }
 
 export interface GameMode {
