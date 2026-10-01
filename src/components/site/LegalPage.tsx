@@ -7,7 +7,7 @@ export default function LegalPage({ title, lastUpdatedLabel, locale, children }:
   const date = new Date(LEGAL_LAST_UPDATED + "T00:00:00Z").toLocaleDateString(locale === "pl" ? "pl-PL" : locale === "es" ? "es-ES" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 font-sans">
-      <Navbar backHref="/" />
+      <Navbar />
       <main className="container mx-auto px-4 py-12 max-w-3xl">
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">{title}</h1>
         <p className="mt-2 text-sm text-zinc-500">

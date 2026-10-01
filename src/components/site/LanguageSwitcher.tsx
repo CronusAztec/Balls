@@ -1,26 +1,39 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useLocale } from "next-intl";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { LOCALE_OPTIONS, type Locale } from "@/i18n/routing";
+import { IconCheck, IconChevronDown, IconGlobe } from "@/components/ui/icons";
+import { cx } from "@/components/ui/cx";
 
+/*
+ * Language switcher. --- site-redesign --- A quiet ghost button (globe, language name, chevron) that opens a menu of the
+ * languages (arrow keys move, Esc closes and returns to the button); in the header's mobile sheet the languages are a
+ * plain list. The page keeps its query string when the language changes.
+ */
 export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMenu?: boolean }) {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
+  const t = useTranslations("SiteRedesign");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
+    if (!open) return;
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onClick);
+    const current = Math.max(0, LOCALE_OPTIONS.findIndex((o) => o.code === locale));
+    itemsRef.current[current]?.focus();
     return () => document.removeEventListener("mousedown", onClick);
-  }, []);
+  }, [open, locale]);
 
   const current = LOCALE_OPTIONS.find((o) => o.code === locale) || LOCALE_OPTIONS[0];
 
@@ -32,48 +45,79 @@ export default function LanguageSwitcher({ isMobileMenu = false }: { isMobileMen
     router.replace({ pathname: (pathname + search) as any, params: params as Record<string, string> } as never, { locale: code });
   };
 
+  const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const items = itemsRef.current.filter(Boolean) as HTMLButtonElement[];
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      buttonRef.current?.focus();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = (index + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  };
+
+  if (isMobileMenu) {
+    return (
+      <div role="group" aria-label={t("lang.label")} className="space-y-2">
+        <p className="eyebrow text-ink-3">{t("lang.label")}</p>
+        <div className="grid grid-cols-3 gap-2">
+          {LOCALE_OPTIONS.map((opt) => (
+            <button
+              type="button"
+              key={opt.code}
+              lang={opt.code}
+              aria-pressed={locale === opt.code}
+              onClick={() => switchTo(opt.code)}
+              className={cx("h-11 rounded-md border text-sm font-medium cursor-pointer", locale === opt.code ? "border-accent bg-accent text-accent-ink" : "border-line text-ink-2 hover:text-ink")}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={isMobileMenu ? "w-full" : "relative"} ref={ref}>
+    <div className="relative" ref={ref}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 hover:border-zinc-600 transition-all group cursor-pointer ${isMobileMenu ? "w-full justify-between" : "min-w-[120px]"}`}
+        aria-label={`${t("lang.label")}: ${current.label}`}
+        className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink cursor-pointer"
       >
-        <div className="flex items-center gap-2">
-          <span className="text-lg" aria-hidden="true">
-            {current.flag}
-          </span>
-          <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">{current.label}</span>
-        </div>
-        <svg className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <IconGlobe size={16} />
+        <span className="hidden lg:inline">{current.label}</span>
+        <span className="num text-xs uppercase lg:hidden">{current.code}</span>
+        <IconChevronDown size={14} className={cx("transition-transform duration-150", open && "rotate-180")} />
       </button>
       {open && (
-        <div className={`mt-2 w-full bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[60] animate-fadeIn ${isMobileMenu ? "relative" : "absolute top-full right-0 min-w-[140px]"}`}>
-          <div className="py-1" role="menu">
-            {LOCALE_OPTIONS.map((opt) => (
-              <button
-                type="button"
-                key={opt.code}
-                role="menuitem"
-                onClick={() => switchTo(opt.code)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${locale === opt.code ? "bg-blue-500/10 text-blue-400 font-medium" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}
-              >
-                <span className="text-lg" aria-hidden="true">
-                  {opt.flag}
-                </span>
-                <span>{opt.label}</span>
-                {locale === opt.code && (
-                  <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            ))}
-          </div>
+        <div role="menu" aria-label={t("lang.label")} onKeyDown={onMenuKey} className="absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-line bg-surface-2 p-1 shadow-[var(--shadow-float)] animate-fadeIn">
+          {LOCALE_OPTIONS.map((opt, i) => (
+            <button
+              type="button"
+              key={opt.code}
+              ref={(el) => {
+                itemsRef.current[i] = el;
+              }}
+              role="menuitem"
+              lang={opt.code}
+              onClick={() => switchTo(opt.code)}
+              className={cx("flex h-9 w-full items-center gap-3 rounded-md px-3 text-sm cursor-pointer", locale === opt.code ? "text-ink" : "text-ink-2 hover:bg-surface-3 hover:text-ink")}
+            >
+              <span className="num w-6 text-xs uppercase text-ink-3">{opt.code}</span>
+              <span>{opt.label}</span>
+              {locale === opt.code && <IconCheck size={16} className="ml-auto text-accent" />}
+            </button>
+          ))}
         </div>
       )}
     </div>

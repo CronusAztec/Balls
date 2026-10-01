@@ -1,6 +1,5 @@
 {
   "Headings": {
-    "features": "Features & Customisation",
     "modes": "Game Modes",
     "modesEscape": "Escape modes",
     "modesRhythm": "Rhythm & polyrhythm modes",
@@ -21,11 +20,6 @@
     "backToSimulator": "← Back to simulator"
   },
   "Hero": {
-    "title1": "Satisfying Ball Physics",
-    "title2": "for TikTok & Reels",
-    "subtitle": "Build hypnotic bouncing-ball simulations in your browser: tune the physics, stack rainbow effects, pick one of 12 modes and export a vertical MP4 that is ready to post. Free, no account, nothing to install.",
-    "startCreating": "Start Creating",
-    "exploreModes": "Explore Modes",
     "mobileNotice": "For the best experience, use a desktop or laptop browser. Controls are optimised for larger screens."
   },
   "SimulatorPage": {
@@ -193,7 +187,7 @@
   "HowItWorks": {
     "step1": {
       "title": "Pick a Mode",
-      "description": "Choose one of 12 simulation modes: classic rings, paint trails, shatter, colour match, grow, ball drop and more."
+      "description": "Choose one of {count} modes: escape rings, rhythm machines, duels and journeys."
     },
     "step2": {
       "title": "Customise Everything",
@@ -1603,60 +1597,6 @@
       "description": "A ball drops onto planks, blocks, springs, wedges, spinning bars and drum pads that fly in from off-screen just before each beat – so every single landing hits exactly on the beat, with a kick, a snare or the next note of your song."
     }
   },
-  "Features": {
-    "wallBreak": {
-      "name": "Wall Break Effects",
-      "description": "Confetti, glass shatter, a shockwave, all three at once, or none. Every time the ball breaks through a wall, your chosen effect plays."
-    },
-    "rainbowWalls": {
-      "name": "Rainbow Walls",
-      "description": "Walls cycle through the spectrum in two styles: a smooth gradient across all rings, or a reactive pulse that flashes colour on every hit."
-    },
-    "glow": {
-      "name": "Ball & Wall Glow",
-      "description": "Toggle a soft radial glow around the ball and a flash on the walls independently, so you get exactly the amount of shine you want."
-    },
-    "colorTrail": {
-      "name": "Colour Trail",
-      "description": "The ball leaves a vivid, hue-shifting streak behind it, so fast motion reads as intentional rather than messy."
-    },
-    "reactiveBg": {
-      "name": "Reactive Background",
-      "description": "The backdrop pulses and shifts colour with every bounce, making each hit feel heavier."
-    },
-    "bouncier": {
-      "name": "Increasing Bounciness",
-      "description": "The ball speeds up with every wall hit until it finally breaks free, then the boost resets for the next ring."
-    },
-    "customBall": {
-      "name": "Custom Ball Image",
-      "description": "Replace the ball with your own image or an emoji: a logo, a face, a product. It scales and moves with the ball."
-    },
-    "textOverlays": {
-      "name": "Text Overlays",
-      "description": "Add a top and a bottom caption with adjustable size for hooks, branding or calls to action, baked into the export."
-    },
-    "spikes": {
-      "name": "Spikes",
-      "description": "Add inward-pointing spikes to the outer wall that freeze the ball on contact, raising the stakes in Accumulation mode."
-    },
-    "videoExport": {
-      "name": "Video Export",
-      "description": "Record the run as an MP4 in square, HD, Full HD or vertical TikTok (1080×1920) format, from 10 to 120 seconds long."
-    },
-    "savePresets": {
-      "name": "Save & Load Presets",
-      "description": "Store the whole configuration, mode, colours, physics and effects, in your browser and load it back with one click."
-    },
-    "watermark": {
-      "name": "Custom Watermark",
-      "description": "Stamp your handle faintly in the centre of the ring so reposts still credit you."
-    },
-    "customSound": {
-      "name": "Custom Sound",
-      "description": "Pick a melody from the built-in library or import your own MIDI file, and every wall hit plays the next note. Play an audio clip – built-in or uploaded – on every bounce instead, or upload a whole song and let each bounce play its next slice. Choose one of seven instruments, snap every bounce to a musical scale and lock the sounds to a BPM grid."
-    }
-  },
   "FAQ": {
     "q1": {
       "question": "Is {siteName} free to use?",
@@ -1701,93 +1641,6 @@
     "q11": {
       "question": "Can I use {siteName} as a satisfying ball clicker?",
       "answer": "It is not a clicker game, but it scratches the same itch. You watch, anticipate the gap and get rewarded with effects and sound on every escape. The run plays itself, so it is the satisfaction without the tapping."
-    }
-  },
-  "AboutTool": {
-    "badge": "About the tool",
-    "title": "What {siteName} actually is",
-    "p1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings, press record and download the clip. There is no account, no installation and no video editor involved; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
-    "p2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
-    "h3_1": "Eleven modes, one canvas",
-    "p3": "Each of the eleven modes tells a different kind of story. Classic is the one most people picture: a ball breaking out through rings. Multiply turns one ball into a swarm. Accumulation freezes balls in place until the last one has to thread a maze of its predecessors. Paint, Target, Grow, Shatter, Color Match, Lines, Portal and Ball Drop each change the rules in their own way. Switching takes one click and the canvas updates immediately.",
-    "h3_2": "Built to be tweaked",
-    "p4": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
-    "h3_3": "Record, export, post",
-    "p5": "When the run looks right, record it in the browser and export a video sized for vertical feeds. No screen-capture app, no unwanted watermark, no re-encoding elsewhere. Found a combination you like? Save it as a preset and reuse it for a whole series; many accounts post the same mode every day with small variations.",
-    "h3_4": "Why build it yourself",
-    "p6": "Reposting a clip that a hundred other accounts already used gives the algorithm, and your audience, nothing new. When you build the run yourself you decide the hook, the colours, the pacing and the moment it pays off. You can match a trending sound, add your handle and post a fresh version every day without repeating yourself, and original content never trips the reused-content filters that quietly limit reach.",
-    "h3_5": "No learning curve",
-    "p7": "The defaults already produce a clip worth posting. From there, change one thing at a time and watch what happens: add a ring, swap the break effect, turn the glow up. Because the canvas reacts immediately you learn what each setting does by using it, and after a few sessions you develop a feel for which combinations land.",
-    "h3_6": "Who it is for",
-    "p8": "Most people here are creators chasing reach without a budget: no camera, no studio, no design background, just a hook and a few minutes of tuning. Teachers use it to show motion and collisions in a way students actually watch. Plenty of people open it just to play, because a ball smashing through rings is fun on its own. The controls are the same for everyone.",
-    "h3_7": "Free, and private by default",
-    "p9_before": "{siteName} is free. Presets and settings live in your own browser, videos render on your own machine and there is no sign-up wall. If something feels off or you wish a setting existed, the",
-    "p9_after": "goes straight to the person building it.",
-    "feedbackPage": "feedback page",
-    "cta": "Open the simulator"
-  },
-  "Instructions": {
-    "howToUse": "How to use it",
-    "title": "Every control, explained",
-    "description": "This is the simulator layout: a live canvas on the left and the controls panel on the right. The numbers on the mockup match the steps beside it.",
-    "restart": "Restart",
-    "pause": "Pause",
-    "startSimulator": "Start simulator",
-    "controls": "Controls",
-    "searchSettings": "Search settings…",
-    "recordVideo": "Record video",
-    "mockupCaption": "A simplified view of the simulator screen.",
-    "whatEachControlDoes": "What each control does",
-    "tryItYourself": "Try it yourself",
-    "labels": {
-      "mode": "Mode",
-      "ballPhysics": "Ball physics",
-      "wallSettings": "Wall settings",
-      "visualEffects": "Visual effects",
-      "customSound": "Custom sound",
-      "recording": "Recording",
-      "savedPresets": "Saved presets"
-    },
-    "step1": {
-      "title": "Pick a mode",
-      "body": "Open the Mode row in the controls panel and choose one of the eleven modes. The mode sets the rules, so decide it first."
-    },
-    "step2": {
-      "title": "Open a section and tweak it",
-      "body": "Ball, Wall, Visual and Sound each expand when clicked. Change the wall count, the break effect, the colours or the trail. In a hurry? Type a setting name into the search box at the top."
-    },
-    "step3": {
-      "title": "Press Start",
-      "body": "Hit Start simulator on the canvas. The defaults already look good, so start right away and adjust once you see it move."
-    },
-    "step4": {
-      "title": "Get the run right",
-      "body": "While it plays, use Restart to reroll, Pause to hold a frame and the speed buttons (1x to 8x) to skip ahead. Space pauses, R restarts. Reset until the timing lands the way you want."
-    },
-    "step5": {
-      "title": "Set length and size",
-      "body": "Open the Recording section to choose how long the clip runs and its resolution. 1080×1920 is the vertical size for TikTok, Reels and Shorts."
-    },
-    "step6": {
-      "title": "Record, and it downloads",
-      "body": "Press Record video. It captures the run with sound and saves the file to your device. Like the setup? Save it as a preset and reuse it for a whole series."
-    },
-    "settings": {
-      "mode": { "name": "Mode", "what": "The core game. Sets the goal and the rules." },
-      "ballPhysics": { "name": "Ball physics", "what": "Speed, size, gravity, colour and bounce." },
-      "wallsGap": { "name": "Walls / Gap", "what": "How many rings and how wide the opening is." },
-      "wallBreakEffect": { "name": "Wall break effect", "what": "Confetti, shatter, shockwave, all or none." },
-      "visualEffects": { "name": "Visual effects", "what": "Rainbow walls, glow and the colour trail." },
-      "reactiveBackground": { "name": "Reactive background", "what": "Pulses the backdrop in time with hits." },
-      "spikes": { "name": "Spikes", "what": "Adds hazards inside the ring for tension." },
-      "customBall": { "name": "Custom ball", "what": "Puts your own image or an emoji on the ball." },
-      "textOverlay": { "name": "Text overlay", "what": "Adds a top and bottom caption over the canvas." },
-      "customSound": { "name": "Custom sound", "what": "Use a built-in melody, import your own MIDI, play an audio clip on every bounce or slice an uploaded song; pick an instrument, a scale and a BPM lock." },
-      "watermark": { "name": "Watermark", "what": "Stamps your handle so reposts still credit you." },
-      "speed": { "name": "Speed (1x to 8x)", "what": "Fast-forwards a long run while you preview." },
-      "findSimulation": { "name": "Find simulation", "what": "Searches for a run that hits a target length." },
-      "recording": { "name": "Recording", "what": "Sets the clip length and export resolution." },
-      "savePreset": { "name": "Save preset", "what": "Stores the whole setup to load again in one click." }
     }
   },
   "Editorial": {
@@ -2076,8 +1929,7 @@
     "successEmail": "Your email app should now open with the message prefilled. If nothing happened, your browser may be blocking mailto links.",
     "successGithub": "A GitHub issue form with your message opened in a new tab. Submit it there to finish.",
     "notConfigured": "This site has no feedback channel configured yet. If you run it, set NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL or NEXT_PUBLIC_GITHUB_REPO before building.",
-    "openManually": "If nothing opened, use this link.",
-    "cta": "Missing something? Want to report a bug? Let us know!"
+    "openManually": "If nothing opened, use this link."
   },
   "TikTokBallVideos": {
     "metaTitle": "Make Bouncing Ball Videos for TikTok – Free Tool – {siteName}",
@@ -2116,7 +1968,14 @@
     "p6": "{siteName} is a small, independent project rather than a venture-backed company with a roadmap full of upsells, and that shapes what gets built. New modes and settings appear because creators ask for them. When you write in through the <feedback>feedback page</feedback>, the note reaches the person actually working on the tool, and a lot of what is in the simulator today exists because someone asked for it.",
     "h2_4": "Where it is going",
     "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
-    "cta": "Open the simulator"
+    "cta": "Open the simulator",
+    "toolTitle": "What {siteName} actually is",
+    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings, press record and download the clip. There is no account, no installation and no video editor involved; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
+    "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
+    "tweakTitle": "Built to be tweaked",
+    "tweakP": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
+    "exportTitle": "Record, export, post",
+    "exportP": "When the run looks right, record it in the browser and export a video sized for vertical feeds. No screen-capture app, no unwanted watermark, no re-encoding elsewhere. Found a combination you like? Save it as a preset and reuse it for a whole series; many accounts post the same mode every day with small variations."
   },
   "Rigged": {
     "outcome": "Outcome",
@@ -3294,5 +3153,57 @@
     },
     "privacyTitle": "Privacy",
     "privacyBody": "Everything runs on your PC. The local AI works offline; a cloud key you enter is stored encrypted on your PC and only sent to the provider you chose. The app only goes online to download a model you asked for and to check GitHub for updates."
+  },
+  "SiteRedesign": {
+    "nav": {
+      "studio": "Studio",
+      "about": "About",
+      "openStudio": "Open the studio",
+      "skip": "Skip to content",
+      "primary": "Main",
+      "menu": "Menu"
+    },
+    "lang": {
+      "label": "Language"
+    },
+    "footer": {
+      "product": "Product",
+      "modes": "Modes",
+      "legal": "Legal"
+    },
+    "families": {
+      "escape": "Escape",
+      "rhythm": "Rhythm",
+      "battle": "Battle",
+      "journey": "Journey"
+    },
+    "hero": {
+      "eyebrow": "Ball physics studio",
+      "title": "Satisfying ball physics, made for TikTok.",
+      "sub": "Tune the physics, pick one of {count} modes and export a vertical clip that is ready to post – free, in your browser, no account.",
+      "seeModes": "See the modes",
+      "live": "Live",
+      "preview": "Preview",
+      "previewLabel": "Live preview: {mode}",
+      "previewOpen": "Open {mode} in the studio",
+      "statModes": "Modes",
+      "statExport": "Export",
+      "statPrice": "Price",
+      "statPriceValue": "Free"
+    },
+    "modesWall": {
+      "intro": "{count} formats – escape rings, rhythm machines, duels and journeys. Pick one and it opens in the studio, ready to run.",
+      "all": "All",
+      "filterLabel": "Filter modes by family",
+      "previewAlt": "{mode} mode preview",
+      "current": "Current"
+    },
+    "studio": {
+      "search": "Search settings",
+      "modePicker": "Choose a mode"
+    },
+    "dialog": {
+      "close": "Close"
+    }
   }
 }

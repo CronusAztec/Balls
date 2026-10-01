@@ -23,7 +23,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ local
   const t = await getTranslations({ locale, namespace: "Feedback" });
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 font-sans">
-      <Navbar backHref="/" />
+      <Navbar />
       <main className="container mx-auto px-4 py-12 max-w-2xl">
         <div className="text-center mb-10">
           <div className="text-5xl mb-4" aria-hidden="true">

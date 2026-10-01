@@ -51,7 +51,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 font-sans">
       <JsonLd data={appJsonLd} />
-      <Navbar backHref="/" />
+      <Navbar />
       <main className="container mx-auto px-4 py-12 max-w-5xl" data-testid="download-page">
         <SectionHeading as="h1" badge={t("badge")} title={t("title", v)} description={t("intro")} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

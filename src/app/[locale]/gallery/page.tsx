@@ -47,7 +47,7 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30 font-sans">
       <JsonLd data={listJsonLd} />
-      <Navbar backHref="/" />
+      <Navbar />
       <main className="container mx-auto px-4 py-12 max-w-6xl">
         <SectionHeading as="h1" badge={t("badge")} title={t("title", v)} description={t("intro", v)} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="gallery-grid">

@@ -25,7 +25,7 @@ export default async function TikTokPage({ params }: { params: Promise<{ locale:
   const v = { siteName: SITE_NAME };
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 font-sans">
-      <Navbar backHref="/" />
+      <Navbar />
       <main className="container mx-auto px-4 py-12 max-w-3xl">
         <SectionHeading as="h1" badge={t("badge")} title={t("title")} />
         <div className="space-y-5 text-[15px] sm:text-base leading-relaxed text-slate-300">
