@@ -12,7 +12,7 @@ static host – no server required.
 
 | Area | What you get |
 | --- | --- |
-| **13 game modes** | Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow, Ball Drop, Bouncing Shapes, Pendulum Wave – each a small plugin class, grouped into two families on the mode cards: **escape** (the ten ring modes) and **rhythm** (the project.jdm-style sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata show the count as `MODE_COUNT`) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow – plus Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Collision Playground, Circle Illusion, Square Battle Royale, Capture the Flag, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -83,8 +83,8 @@ Copy `.env.example` to `.env.local` to configure the build. Everything is option
 - `NEXT_PUBLIC_ANALYTICS_SCRIPT_URL` / `NEXT_PUBLIC_ANALYTICS_SITE_ID` – load a privacy-friendly analytics script (Plausible, Umami, Rybbit…).
 - `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` / `NEXT_PUBLIC_PUBLISH_RELAY_URL` – --- social-publish --- the Publish block's Google OAuth client ID for direct YouTube uploads and the relay URL it suggests (both public; see "Publish").
 
-`next build` reads `.env.local`; so do `npm start`, `npm run smoke` and `npm run previews` (for `NEXT_PUBLIC_BASE_PATH`),
-so a base-path build previews correctly at `http://localhost:3000/<base path>/`. You can also pass it explicitly:
+`next build` reads `.env.local` (and `.env.production*`, `.env`); `npm start`, `npm run smoke` and `npm run previews` read them with
+Next's own loader (`@next/env`, in `scripts/dotenv.mjs`), so they see the same `NEXT_PUBLIC_BASE_PATH` and a base-path build previews correctly at `http://localhost:3000/<base path>/`. You can also pass it explicitly:
 `npm start -- --base /Balls` and `BASE_URL=http://localhost:3000/Balls npm run smoke`.
 
 Other scripts:
@@ -112,7 +112,8 @@ The repository ships with `.github/workflows/deploy.yml`:
    Private repositories need a paid GitHub plan (Pro, Team or Enterprise) for Pages; public repositories work on
    the free plan.
 2. **Push to the default branch** (or run the workflow manually from the *Actions* tab). Every push is linted,
-   type-checked, unit-tested and built; pushes to the default branch are then published.
+   type-checked, unit-tested and built; pushes to the default branch then run the browser smoke test (the `smoke` job)
+   and are published only once it passes.
 3. The site appears at `https://<user>.github.io/<repo>/` – for this repository
    `https://cronusaztec.github.io/Balls/`. The workflow reads the site URL from the repository's Pages settings
    on every run (falling back to that conventional URL while Pages is off) and builds with the matching base path.
@@ -131,8 +132,13 @@ and builds for the domain root (no base path) on the next run.
 **Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
 set and upload `out/`. Point the host's "not found" page at `404.html`.
 
-`.github/workflows/smoke.yml` builds the site under a base path and runs the browser smoke test on pull
-requests and on demand.
+The browser smoke test (`scripts/smoke-test.mjs`, ~45 minutes at most) gates every deploy: the `smoke` job of
+`deploy.yml` builds the site under a base path, serves it with `scripts/serve-static.mjs` and runs the suite before the
+`deploy` job may publish. `.github/workflows/smoke.yml` runs the same suite on pull requests and on demand, with
+`SMOKE_STRICT_TIMING=1`. Frame-rate and timing checks retry once; when they still fail while the page itself, with the run
+paused, gets below 50 fps – an idle machine gives it 60 – (the machine, not the run, is short of CPU), they are reported as *inconclusive* and listed apart
+instead of failing the run – unless `SMOKE_STRICT_TIMING=1`. The suite also fails on any same-origin request that answers 4xx/5xx (a
+missing asset, a URL without the base path).
 
 ### How the static export works
 
@@ -144,6 +150,8 @@ requests and on demand.
 - `src/lib/site.ts` exposes `assetPath()` for `/public` files referenced from plain `<img>`/`fetch()` calls (Next's
   `Link`/`Image` add the base path on their own) and `pageUrl()`/`absoluteUrl()` for canonical, Open Graph and
   sitemap URLs.
+- `src/app/sitemap.ts` lists the indexable pages (not the noindex feedback form) with the same hreflang set as every page's
+  `<head>` (x-default included) and, when the build sets `SITEMAP_LASTMOD` (deploy.yml: the deployed commit's date), a lastmod.
 - The feedback form talks to its channel directly from the browser (`src/components/site/FeedbackForm.tsx`).
 - `scripts/postexport.mjs` also writes `out/offline.html` and `out/sw.js`, the service worker of the installable offline
   app, with the list of exported files it precaches and a version hash of the export (see "Installable offline app" below).
@@ -171,9 +179,9 @@ src/
   lib/recording/        recorder.ts (MediaRecorder wrapper) · fastRender.ts + fastRenderPlan.ts (fast export: offline rendering, WebCodecs, muxing) · batch.ts + zip.ts (batch render: jobs, names, STORE-only ZIP)
   lib/character/        ball characters: character.ts (settings, Gerald persona, face geometry) · expression.ts · eyes.ts (look, blink, squash) · tracker.ts
   lib/simulation/       finder.ts (seed search) · outcomes.ts (Find Simulation's outcomes) · timeline.ts (keyframes) · beatClock.ts (simulation time → beat phase)
-  lib/modes.ts          mode card order and the two mode families (MODE_CATEGORIES: escape / rhythm)
+  lib/modes.ts          mode card order, the mode families (MODE_CATEGORIES: escape / rhythm / battle / journey) and MODE_COUNT
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
-  lib/site.ts           site name/domain/accent – change these to rebrand; base-path and URL helpers
+  lib/site.ts           site name and accent – change these to rebrand; the domain derived from the site URL; base-path and URL helpers
   lib/project.ts        project files (.jumpingballslive.json): build, versioning / migration, validation · shareCode.ts (short ?c= share codes) · base64.ts
 ```
 
@@ -636,7 +644,11 @@ Feature beat-drop: a rhythm mode without rings that owns its scene and its motio
 - **Tests** – `tests/beatDrop.test.ts`: the easing curves, the planner landing every beat within 1 ms from 50 to 220 BPM and on irregular grids (tapped, swung, gaps, double taps), flights up and down within the headroom, the safe area, endless / arena, the mix and the fixed draws, spring and drum boosts, obstructions arriving before and leaving after their beat, never from the ball's side and never through the ball, spinners flat at the beat, the squash and stretch, the camera, sounds by beat position and their queueing in the beat's step, the voices, the drum kit through a real ToneGenerator on the fake audio graph and the fast export's dispatch, a 20 s run at 120 BPM whose bounces (measured from the ball's sampled states) are on the beat, determinism, resizes, the clip's end, song grids and re-planning, the renderer's sub-frame ball, settings / URL / presets, the registration and the finder; `tests/extras.test.ts` holds the fingerprint of the default run. The smoke test checks the card and the preview image, the URL ↔ panel round trip and the search box, a 20 s run at 120 BPM landing on the beats (`data-bd-landing-times`), the frame rate at 1080×1920 scaled by the machine's load, a recording that downloads, the finder and a fast export that plays the same drums.
 
 ### Rebrand
-Change `SITE_NAME`, `SITE_DOMAIN` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.
+Change `SITE_NAME` and the accent colours in `src/lib/site.ts`, the theme tokens in `src/app/globals.css`, and `public/icon.svg`.
+`SITE_DOMAIN` – the address the legal pages name the site by – is not hard-coded: it is `NEXT_PUBLIC_SITE_URL` without the scheme
+(`cronusaztec.github.io/Balls` on GitHub Pages), so a custom domain set in the Pages settings (which `deploy.yml` turns into
+`NEXT_PUBLIC_SITE_URL`) shows up there on the next deploy; `NEXT_PUBLIC_SITE_DOMAIN` overrides it. The footer shows the site name
+and exported clips carry no watermark unless the user types one.
 
 ### Beats from a video
 Feature video-beats: "make it understand a video and have the ball land on the beat – or let me put the beats myself – and do it automatically". One beat-source layer that every rhythm feature consumes, two new sources (a media file and hand-placed markers) and On beat for the ring modes.

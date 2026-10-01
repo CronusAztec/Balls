@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { SITE_DOMAIN } from "@/lib/site";
+import { SITE_NAME } from "@/lib/site";
 import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 
 export default function Footer({ showShortcuts = false }: { showShortcuts?: boolean }) {
@@ -37,7 +37,8 @@ export default function Footer({ showShortcuts = false }: { showShortcuts?: bool
           </p>
         )}
         <p className="mt-4">
-          © {new Date().getFullYear()} {SITE_DOMAIN}
+          {/* --- review fix (site-static) --- the name, never a host: the copyright line names no URL */}
+          © {new Date().getFullYear()} {SITE_NAME}
         </p>
       </div>
     </footer>

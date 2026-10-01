@@ -68,7 +68,7 @@ async function bundleAudioLib(): Promise<string> {
     platform: "browser",
     target: "es2020",
     alias: { "@": path.join(ROOT, "src") },
-    define: { "process.env.NEXT_PUBLIC_BASE_PATH": '""', "process.env.NEXT_PUBLIC_SITE_URL": '""' },
+    define: { "process.env.NEXT_PUBLIC_BASE_PATH": '""', "process.env.NEXT_PUBLIC_SITE_URL": '""', "process.env.NEXT_PUBLIC_SITE_DOMAIN": '""' /* --- review fix (site-static) --- read by lib/site.ts */ },
     logLevel: "error",
   });
   return result.outputFiles[0].text;

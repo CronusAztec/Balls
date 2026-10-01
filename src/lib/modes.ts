@@ -1,4 +1,7 @@
-import type { ModeId } from "@/lib/physics/types";
+import { MODE_IDS, type ModeId } from "@/lib/physics/types";
+
+/** --- review fix (site-static) --- How many modes the site has: the `{modeCount}` of the meta descriptions, the JSON-LD and the landing copy. */
+export const MODE_COUNT = MODE_IDS.length;
 
 /** Display order of the mode cards on the landing and simulator pages (edit to reorder). */
 export const MODE_CARD_ORDER: ModeId[] = ["classic", "accumulation", "multiply", "lines", "paint", "target", "grow", "shatter", "colorMatch", "portal", "drop", "box", "pendulum", "polyrhythm", "collide"];

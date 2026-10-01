@@ -23,21 +23,22 @@
   "Hero": {
     "title1": "Satisfying Ball Physics",
     "title2": "for TikTok & Reels",
-    "subtitle": "Build hypnotic bouncing-ball simulations in your browser: tune the physics, stack rainbow effects, pick one of 12 modes and export a vertical MP4 that is ready to post. Free, no account, nothing to install.",
+    "subtitle": "Build hypnotic bouncing-ball simulations in your browser: tune the physics, stack rainbow effects, pick one of {modeCount} modes and export a vertical MP4 that is ready to post. Free, no account, nothing to install.",
     "startCreating": "Start Creating",
     "exploreModes": "Explore Modes",
     "mobileNotice": "For the best experience, use a desktop or laptop browser. Controls are optimised for larger screens."
   },
   "SimulatorPage": {
+    "heading": "Ball Physics Simulator",
     "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator with 12 modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
+    "metaDescription": "Free browser-based ball physics simulator with {modeCount} modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
   },
   "Layout": {
     "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and 12 unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
+    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and {modeCount} unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
+    "featureModes": "{modeCount} simulation modes",
     "features": [
-      "12 simulation modes",
       "Customisable physics and visuals",
       "Rainbow wall effects",
       "Colour trail",
@@ -193,7 +194,7 @@
   "HowItWorks": {
     "step1": {
       "title": "Pick a Mode",
-      "description": "Choose one of 12 simulation modes: classic rings, paint trails, shatter, colour match, grow, ball drop and more."
+      "description": "Choose one of {modeCount} simulation modes: classic rings, paint trails, shatter, colour match, grow, ball drop and more."
     },
     "step2": {
       "title": "Customise Everything",
@@ -1483,6 +1484,7 @@
     "publishQuickShare": "Quick share"
   },
   "Modes": {
+    "previewAlt": "{name} mode preview",
     "classic": {
       "name": "Classic",
       "description": "A ball bounces inside concentric rings that each have a single gap. Every wall it slips through breaks with a satisfying effect. Simple, hypnotic and endlessly rewatchable."
@@ -1709,8 +1711,8 @@
     "title": "What {siteName} actually is",
     "p1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings, press record and download the clip. There is no account, no installation and no video editor involved; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
     "p2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
-    "h3_1": "Eleven modes, one canvas",
-    "p3": "Each of the eleven modes tells a different kind of story. Classic is the one most people picture: a ball breaking out through rings. Multiply turns one ball into a swarm. Accumulation freezes balls in place until the last one has to thread a maze of its predecessors. Paint, Target, Grow, Shatter, Color Match, Lines, Portal and Ball Drop each change the rules in their own way. Switching takes one click and the canvas updates immediately.",
+    "h3_1": "Every mode, one canvas",
+    "p3": "Each of the {modeCount} modes tells a different kind of story. Classic is the one most people picture: a ball breaking out through rings. Multiply turns one ball into a swarm. Accumulation freezes balls in place until the last one has to thread a maze of its predecessors. Paint, Target, Grow, Shatter, Color Match, Lines, Portal and Ball Drop each change the rules in their own way. Switching takes one click and the canvas updates immediately.",
     "h3_2": "Built to be tweaked",
     "p4": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
     "h3_3": "Record, export, post",
@@ -1751,7 +1753,7 @@
     },
     "step1": {
       "title": "Pick a mode",
-      "body": "Open the Mode row in the controls panel and choose one of the eleven modes. The mode sets the rules, so decide it first."
+      "body": "Open the Mode row in the controls panel and choose one of the {modeCount} modes. The mode sets the rules, so decide it first."
     },
     "step2": {
       "title": "Open a section and tweak it",
@@ -1987,7 +1989,7 @@
     },
     "intellectual": {
       "title": "5. Intellectual Property",
-      "content": "The Service, including its code, design and branding, belongs to {siteDomain}. Videos and images you create with it are yours."
+      "content": "The Service, including its code, design and branding, belongs to the operator of {siteName}. Videos and images you create with it are yours."
     },
     "warranties": {
       "title": "6. Disclaimer of Warranties",
@@ -1995,7 +1997,7 @@
     },
     "liability": {
       "title": "7. Limitation of Liability",
-      "content": "To the fullest extent permitted by law, {siteDomain} is not liable for any indirect, incidental, special or consequential damages arising from your use of the Service, including loss of data, revenue or profits."
+      "content": "To the fullest extent permitted by law, the operator of {siteName} is not liable for any indirect, incidental, special or consequential damages arising from your use of the Service, including loss of data, revenue or profits."
     },
     "changes": {
       "title": "8. Changes to These Terms",
@@ -2082,7 +2084,7 @@
   },
   "TikTokBallVideos": {
     "metaTitle": "Make Bouncing Ball Videos for TikTok – Free Tool – {siteName}",
-    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with 12 modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
+    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with {modeCount} modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
@@ -2096,7 +2098,7 @@
     "p6": "You can also export 500×500 (square), 1280×720 (HD) or 1920×1080 (Full HD) for Reels, YouTube Shorts and other platforms. Recording happens entirely in your browser; nothing is uploaded and no watermark is added unless you add your own.",
     "h2_3": "Start with a Proven Format",
     "p7": "The best TikTok ball videos follow a simple recipe: a clear visual hook in the first second, a visible progress indicator such as the number of walls left, and a satisfying payoff when the ball finally escapes. The Find Simulation tool searches for a seed that produces a run of your target length, so you can plan the clip instead of guessing.",
-    "p8": "All eleven modes, Classic, Accumulation, Multiply, Lines, Paint, Target, Grow, Shatter, Color Match, Portal and Ball Drop, produce a different rhythm, so you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
+    "p8": "The {modeCount} modes come in families, and every mode has its own rhythm: escape modes such as Classic, Shatter and Portal, rhythm modes such as Ball Drop, Pendulum Wave and Beat Runner, battle modes such as String Battle, and the multi-stage Journey. So you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
     "cta": "Make Your First TikTok Ball Video"
   },
   "About": {

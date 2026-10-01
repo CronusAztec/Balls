@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 import { routing } from "@/i18n/routing";
 import { BASE_PATH, SITE_NAME } from "@/lib/site";
 import { buildWebAppManifest } from "@/lib/pwa";
+import { createTranslator } from "next-intl";
+import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
 import en from "../../messages/en.json";
 
 /**
@@ -15,7 +17,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return buildWebAppManifest({
     basePath: BASE_PATH,
     name: SITE_NAME,
-    description: en.Layout.metaDescription,
+    description: createTranslator({ locale: "en", messages: en, namespace: "Layout" })("metaDescription", { modeCount: MODE_COUNT }), // --- review fix (site-static) --- (fills {modeCount})
     locale: routing.defaultLocale,
     simulatorLabel: en.Navbar.simulator,
   });

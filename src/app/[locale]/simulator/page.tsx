@@ -9,12 +9,13 @@ import Simulator from "@/components/simulator/Simulator";
 import EditorialSections from "@/components/site/EditorialSections";
 import { SITE_NAME, pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
+import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "SimulatorPage" });
   const title = t("metaTitle", { siteName: SITE_NAME });
-  const description = t("metaDescription");
+  const description = t("metaDescription", { modeCount: MODE_COUNT });
   return {
     title,
     description,
@@ -30,6 +31,8 @@ export default async function SimulatorPage({ params }: { params: Promise<{ loca
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30 font-sans">
       <Navbar backHref="/" backLabel={t("Navbar.back")} />
+      {/* --- review fix (site-static) --- the page's main heading for search and screen readers, outside the Suspense boundary */}
+      <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
       <div className="sm:hidden mx-4 mb-3 mt-3 px-4 py-3 rounded-lg bg-blue-900/40 border border-blue-800/50 text-blue-300 text-xs leading-relaxed text-center">{t("Hero.mobileNotice")}</div>
       <Suspense fallback={<div className="container mx-auto px-4 py-16 text-center text-zinc-500">…</div>}>
         <Simulator />

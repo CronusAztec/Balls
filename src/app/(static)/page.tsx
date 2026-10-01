@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import { routing } from "@/i18n/routing";
 import { BASE_PATH, SITE_NAME } from "@/lib/site";
+
+// --- review fix (site-static) --- the title of "/" (the (static) layout sets none, so that the 404 page keeps its localised one)
+export const metadata: Metadata = { title: SITE_NAME };
 
 /**
  * The static export has no middleware, so "/" is a tiny page that sends the visitor to the

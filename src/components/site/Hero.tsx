@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { MODE_COUNT } from "@/lib/modes"; // --- review fix (site-static) ---
 
 export default function Hero() {
   const t = useTranslations("Hero");
@@ -23,7 +24,7 @@ export default function Hero() {
           <br />
           <span className="bg-gradient-to-r from-cyan-600 to-cyan-500 bg-clip-text text-transparent">{t("title2")}</span>
         </h1>
-        <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-slate-400 leading-relaxed">{t("subtitle")}</p>
+        <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-slate-400 leading-relaxed">{t("subtitle", { modeCount: MODE_COUNT })}</p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/simulator" className="px-8 py-3.5 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-600/20 hover:scale-105 active:scale-95 transition-all">
             {t("startCreating")}
