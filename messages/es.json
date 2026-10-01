@@ -1553,7 +1553,31 @@
     "mzBadgeTip": "La insignia «LUCES INTERMITENTES – EL FINAL SE PONE INTENSO» en la esquina superior izquierda del clip.",
     "mzHud": "Marcador de distancia",
     "mzHudTip": "Una fila por bola en la esquina superior derecha: su color, su nombre y una barra que se llena a medida que se acerca a la salida, con los pasos que le faltan (o su puesto cuando ya ha salido).",
-    "mzRunInfo": "Un laberinto de {cols} × {rows} ({cells} celdas, uno nuevo para cada semilla); la partida termina cuando todas las bolas han salido, como muy tarde a los {seconds} s."
+    "mzRunInfo": "Un laberinto de {cols} × {rows} ({cells} celdas, uno nuevo para cada semilla); la partida termina cuando todas las bolas han salido, como muy tarde a los {seconds} s.",
+    "modeConveyor": "Cinta transportadora",
+    "cvTitle": "Cinta transportadora",
+    "cvDesc": "Una cinta en lo alto saca una pelota de la trampilla cada pocos segundos y la deja caer en la arena de abajo. En los anillos cada pelota tiene que escapar por su cuenta (los anillos nunca se rompen y el director ayuda a la pelota que lleva un rato atrapada); la cinta de abajo saca del campo las que escapan. El cuenco se llena y se desborda; el campo de clavos reparte las pelotas en casillas. La cinta zumba mientras lleva una pelota y hace clic cuando la suelta, y cada rebote toca una nota de tu escala.",
+    "cvArena": "Arena",
+    "cvArenaTip": "Dónde caen las pelotas: anillos concéntricos con huecos que giran (se aplican Número de paredes, Tamaño del hueco y Rotación de los ajustes de paredes), un cuenco donde se amontonan o un campo de clavos sobre casillas.",
+    "cvArenaRings": "Anillos",
+    "cvArenaBowl": "Cuenco",
+    "cvArenaPegs": "Clavos",
+    "cvHintRings": "Cada pelota baja por un tubo hasta el centro y tiene que encontrar los huecos para salir. Las fugas se cuentan, y la cinta de abajo se lleva las pelotas que escapan.",
+    "cvHintBowl": "Las pelotas se amontonan en un cuenco y se asientan: caben unas 30 pelotas (con el Tamaño de la pelota elegido) antes de que la primera ruede por el borde; lo que rebosa cae a la cinta de abajo y cuenta como desbordamiento.",
+    "cvHintPegs": "Las pelotas rebotan por un campo de clavos –cada clavo es una nota, grave a la izquierda y aguda a la derecha– y se amontonan en las casillas de abajo.",
+    "cvInterval": "Intervalo de caída",
+    "cvIntervalTip": "Segundos entre dos pelotas en la cinta: en cada intervalo sale una pelota de la trampilla y, más o menos un segundo después, cae por el extremo de la cinta.",
+    "cvMaxBalls": "Pelotas",
+    "cvMaxBallsTip": "Cuántas pelotas carga la cinta (1–200). La partida termina cuando la última sale de los anillos o la arena se asienta.",
+    "cvFreeze": "Congelar al aterrizar",
+    "cvFreezeTip": "Una pelota que aterriza se congela en su sitio y se convierte en un obstáculo, así que el montón crece a la vista (como en Acumulación). En los anillos la libertad de una pelota dura cuatro segundos; después se congela donde esté.",
+    "cvVariety": "Variedad",
+    "cvVarietyTip": "Cuánto varían los tamaños y los colores de las pelotas: 0 manda por la cinta copias idénticas de Gerald; 100 %, una mezcla de tamaños y colores. La primera pelota siempre es Gerald.",
+    "cvRunInfo": "{balls, plural, one {# pelota} other {# pelotas}}: unos {seconds} s con el cartel final. La semilla decide cada rebote (y cuánto tarda la última pelota), así que Buscar simulación puede acertar la duración de tu clip.",
+    "respawnEvery": "Reaparecer cada",
+    "respawnEveryTip": "Cada tantos segundos cae una pelota nueva desde arriba (0 = desactivado). En Clásico se detiene cuando todos los anillos están rotos.",
+    "respawnEveryValue": "{seconds} s",
+    "respawnEveryOff": "No"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -1651,7 +1675,8 @@
     "maze": {
       "name": "Escape del laberinto",
       "description": "¿A alguien más le pareció sangre? Las bolas caen por una ranura roja en un laberinto aleatorio que brilla en verde y rebotan hasta la salida, pintando de rojo cada pasillo por el que pasan. Cada golpe en una pared es una nota que sube a medida que la bola se acerca a la salida; gana la primera bola que sale."
-    }
+    },
+    "conveyor": { "name": "Cinta transportadora", "description": "Gerald reaparece cada 3 segundos: una cinta transportadora en lo alto saca pelota tras pelota de una trampilla y las deja caer en la arena de abajo: anillos concéntricos de los que escapar, un cuenco que se va llenando o un campo de clavos sobre casillas. Cada rebote es una nota, la cinta zumba y hace clic, y un contador lleva la cuenta: Cargadas 17 / Escapadas 4." }
   },
   "FAQ": {
     "q1": { "question": "¿{siteName} es gratis?", "answer": "Sí. El simulador, todos los modos, todas las opciones de personalización y la exportación de vídeo son gratuitos, y no hay que crear ninguna cuenta." },
@@ -1733,7 +1758,8 @@
     "modeBullseye": "El formato «bulleye!!» de geraldbounces, sin anillos de los que escapar: un campo vertical con una diana de dardos – de 3 a 10 anillos concéntricos con los colores de una diana – tumbada abajo. Un lanzador arriba dispara de 1 a 30 bolas una tras otra por un corto campo de clavijas y rebotadores (el Caos decide cuántos se interponen). El anillo donde cae una bola puntúa – 10 el centro, menos cuanto más lejos, nada fuera de la diana – con un marcador emergente y un total acumulado, y la bola se queda clavada donde cae, así que los tiros siguientes pueden rebotar en los anteriores. Las clavijas tocan notas de tu escala como un teclado de izquierda a derecha, los aterrizajes suenan más graves cuanto más lejos del centro, y un tiro al centro es ¡DIANA! con confeti, fanfarria y medio segundo de cámara lenta. La diana puede deslizarse a los lados, un Tiro perfecto amañado va directo al centro y el cartel final muestra el total y el mejor tiro. Con semilla y determinista, así que Buscar simulación puede encontrar una partida con la duración de tu clip.",
     "modeBeatDrop": "Un modo rítmico sin anillos, pensado para ediciones musicales: una escena vertical sobre un degradado oscuro en la que una pelota cae y rebota de obstáculo en obstáculo, y cada obstáculo entra volando desde fuera de la pantalla –por la izquierda, la derecha, arriba o abajo, nunca por el lado del que llega la pelota– con una desaceleración suave y se detiene un instante antes de su pulso, así que la pelota aterriza sobre él exactamente en el pulso. El recorrido se planifica de antemano a partir del pulso que sigue (el pulso detectado de la canción cargada o el BPM configurado): la velocidad de salida de cada vuelo se calcula para que el vuelo dure exactamente el tiempo entre dos pulsos, a cualquier tempo y con rejillas irregulares, así que cada aterrizaje queda a una fracción de milisegundo de su pulso. Seis tipos de obstáculo –tablas, bloques, muelles (un rebote más alto con un «boing»), cuñas (desvían la pelota de lado), barras giratorias (planas justo en el pulso) y grandes tambores– se aplastan con el impacto, brillan con el pulso y se deslizan fuera desvaneciéndose cuando la pelota ya se ha ido; la pelota se aplasta y se estira y deja una estela, y cada aterrizaje lanza una onda y una nube de partículas. Los aterrizajes tocan batería sintetizada –bombo en los tiempos 1 y 3, caja en el 2 y el 4, charles a contratiempo y el acento propio de cada obstáculo–, la siguiente nota de la melodía o ambas cosas. El desplazamiento infinito sigue a la pelota hacia abajo sin fin; la arena la mantiene dentro del encuadre. Nunca falla un pulso, así que Buscar simulación simplemente elige una semilla y ajusta el clip a los pulsos que cubre.",
     "modeTerritory": "El pong wars de oddplayground: un mapa de casillas dividido en 2 o 4 zonas de equipo, con las bolas de cada equipo rebotando dentro de su color. Una bola atraviesa las casillas de su color y rebota en las de cualquier otro, convirtiendo la casilla que golpea, así que cada rebote empuja la frontera y la barra de porcentajes bajo ELIGE UN BANDO oscila con ella. Cada equipo puede tener un poder: el vórtice curva su trayectoria y arrastra un remolino cuyos brazos en espiral convierten casillas rivales; el bombardero se arma cada pocos segundos y explota en su siguiente rebote contra una casilla rival, quedándose con todas las casillas a su alcance (con onda expansiva, escombros y una sacudida del tablero); el pintor atraviesa en línea recta el territorio rival dejando un rastro pintado; y el fantasma atraviesa las casillas rivales y convierte un bloque de 3×3 en cada rebote contra la pared. Las bolas chocan entre sí, la rejilla de puntos opcional las desvía, los últimos cinco segundos lo aceleran todo y, cuando se acaba la cuenta atrás, gana el equipo con más casillas, con cámara lenta cuando el liderato cambia en el final si la cámara lenta está activada. Cada semilla se reproduce exactamente, Buscar simulación busca una partida que gane el equipo elegido, el Ganador forzado la amaña y una plantilla de equipos presta a los equipos sus colores y nombres.",
-    "modeMaze": "Los laberintos de oddplayground («¿a alguien más le pareció sangre?»): un laberinto perfecto aleatorio con paredes verdes brillantes sobre un fondo casi negro, una ranura de entrada roja en la pared superior y una salida en la inferior. De 1 a 8 bolas caen una tras otra y se abren paso físicamente (una atracción hacia abajo, paredes perfectamente elásticas), guiadas por un cerebro: rebote puro, mano en la pared o una exploradora que prefiere los pasillos sin visitar. Cada celda por la que pasa una bola se pinta de rojo, cada golpe en una pared es una nota que sube a medida que la bola se acerca a la salida, y gana la primera bola que sale, con una barra de distancia a la salida por bola en el marcador y niebla opcional sobre las celdas sin visitar para dar suspense. Buscar simulación ajusta la duración de la partida o elige a la ganadora."
+    "modeMaze": "Los laberintos de oddplayground («¿a alguien más le pareció sangre?»): un laberinto perfecto aleatorio con paredes verdes brillantes sobre un fondo casi negro, una ranura de entrada roja en la pared superior y una salida en la inferior. De 1 a 8 bolas caen una tras otra y se abren paso físicamente (una atracción hacia abajo, paredes perfectamente elásticas), guiadas por un cerebro: rebote puro, mano en la pared o una exploradora que prefiere los pasillos sin visitar. Cada celda por la que pasa una bola se pinta de rojo, cada golpe en una pared es una nota que sube a medida que la bola se acerca a la salida, y gana la primera bola que sale, con una barra de distancia a la salida por bola en el marcador y niebla opcional sobre las celdas sin visitar para dar suspense. Buscar simulación ajusta la duración de la partida o elige a la ganadora.",
+    "modeConveyor": "Una cinta transportadora recorre lo alto del campo y deja caer una pelota en la arena de abajo cada pocos segundos: Gerald reaparece una y otra vez. Elige la arena: anillos concéntricos con huecos que giran, de los que cada pelota tiene que escapar por su cuenta (los anillos nunca se rompen y una segunda cinta saca del campo las pelotas que escapan), un cuenco que se llena hasta desbordarse o un campo de clavos que reparte las pelotas en casillas. Congelar al aterrizar convierte cada pelota que aterriza en un obstáculo para la siguiente, así que el montón crece; Variedad mezcla tamaños y colores. Cada rebote es una nota de tu escala, la cinta zumba y hace clic, y el contador lleva la cuenta: Cargadas 17 / Escapadas 4. En Clásico y Multiplicar, el mismo temporizador de reaparición deja caer una pelota nueva cada pocos segundos. Todo es determinista para cada semilla, así que Buscar simulación puede elegir una partida de la duración de tu clip."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -3220,5 +3246,16 @@
     "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!",
     "canvasClosest": "[name] quedó más cerca",
     "canvasCaption": "¿a alguien más le pareció sangre?"
+  },
+  "Conveyor": {
+    "canvasTitle": "CINTA TRANSPORTADORA",
+    "canvasLoadedEscaped": "Cargadas [loaded] / Escapadas [escaped]",
+    "canvasLoadedOverflow": "Cargadas [loaded] / Desbordadas [overflow]",
+    "canvasLoadedLanded": "Cargadas [loaded] / Aterrizadas [landed]",
+    "canvasFrozen": "Congeladas: [count]",
+    "canvasDoneRings": "¡TODAS FUERA!",
+    "canvasDoneBowl": "¡ASENTADAS!",
+    "canvasDonePegs": "¡ATERRIZARON!",
+    "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!"
   }
 }

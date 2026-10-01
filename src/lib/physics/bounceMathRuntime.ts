@@ -104,6 +104,13 @@ export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MO
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("territory");
 // --- odd-maze --- the Maze's winner breaks out through the exit with the wall-break sound
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("maze");
+// --- gerald-conveyor --- the Conveyor Belt's balls move under the engine's physics (bounciness, speed, size, the clock act on
+// them), hit each other in the pair pass, pass the rings' gaps and break out of the rings with the wall-break sound
+(BOUNCE_MATH_BALL_MODES as ModeId[]).push("conveyor");
+(BOUNCE_MATH_CLOCK_MODES as ModeId[]).push("conveyor");
+(BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("conveyor");
+(BOUNCE_MATH_PASS_MODES as ModeId[]).push("conveyor");
+(BOUNCE_MATH_BREAK_MODES as ModeId[]).push("conveyor");
 
 /**
  * Whether `trigger` ever fires in `mode` (the panel marks a rule whose trigger the mode never sets off). Every mode reports

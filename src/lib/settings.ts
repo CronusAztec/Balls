@@ -70,6 +70,9 @@ import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, isIntegerRange, readUn
 import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastMin, bouncinessOf, pastMemoryCeiling } from "@/lib/uncap";
 // --- odd-maze --- the Maze escape mode (oddplayground)
 import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writeMazeParams, type MazeBrain, type MazeHand } from "@/lib/physics/modes/maze";
+// --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
+import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConveyorFields, writeConveyorParams, type ConveyorArena } from "@/lib/physics/modes/conveyor";
+import { RESPAWN_RANGES } from "@/lib/physics/respawn";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -732,6 +735,20 @@ export interface SimulatorSettings {
   /** The distance-to-exit HUD (URL `mzhud`). */
   mzHud: boolean;
   // --- end odd-maze ---
+  // --- gerald-conveyor --- Conveyor Belt (lib/physics/modes/conveyor.ts) and the respawn timer of Classic and Multiply (lib/physics/respawn.ts)
+  /** Seconds between two balls on the belt, 0.5–10 on the slider, any number from 0.5 typed (URL `cvi`). */
+  cvInterval: number;
+  /** Balls the belt loads, 1–200 on the slider (any number from 1 typed; a run builds at most 2,000) (URL `cvn`). */
+  cvMaxBalls: number;
+  /** What the balls drop into: rings | bowl | pegs (URL `cva`). */
+  cvArena: ConveyorArena;
+  /** A ball that lands freezes in place and becomes an obstacle (URL `cvf`). */
+  cvFreeze: boolean;
+  /** 0–1: how much the balls' sizes and colours vary (URL `cvv`). */
+  cvVariety: number;
+  /** Classic and Multiply: a new ball drops in every this many seconds, 0 = off (URL `rse`; `rs` is the Rotation Speed's). */
+  respawnEvery: number;
+  // --- end gerald-conveyor ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -856,6 +873,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     unlimited: false, // --- unlimited ---
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
     ...defaultMazeFields(), // --- odd-maze ---
+    ...defaultConveyorFields(), // --- gerald-conveyor --- (and the respawn timer, off)
   };
 }
 
@@ -929,6 +947,8 @@ export const RANGES = {
   bounciness: BOUNCINESS_RANGE, // --- uncap-all --- (the comfort range; the number field takes any value from 1 up)
   ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
   ...MAZE_RANGES, // --- odd-maze ---
+  ...CONVEYOR_RANGES, // --- gerald-conveyor ---
+  ...RESPAWN_RANGES, // --- gerald-conveyor --- (the respawn timer of Classic and Multiply)
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1173,6 +1193,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   writeTerritoryParams(settings, base, params); // --- odd-territory ---: tyc, tyt, tyb, typ, tye, tyr, tyd, typg, tybg, tyh
   writeMazeParams(settings, base, params); // --- odd-maze ---: mzc, mzn, mzb, mzh, mzg, mzs, mzt, mztc, mzto, mzf, mzwc, mzd, mzbg, mzhud
+  writeConveyorParams(settings, base, params); // --- gerald-conveyor ---: cvi, cvn, cva, cvf, cvv, rse
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1330,6 +1351,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
   readMazeParams(params, settings); // --- odd-maze --- (valid numbers kept, no maximum; unknown options and bad colours fall back)
+  readConveyorParams(params, settings); // --- gerald-conveyor --- (valid numbers kept, no maximum; an unknown arena falls back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1511,9 +1533,9 @@ const CORE_ENGINE_KEYS: readonly string[] = ["ballSpeed", "ballRadius", "gravity
 const RING_ENGINE_KEYS: readonly string[] = [...rangeKeys(OBSTACLE_EDITOR_RANGES), "obstacles", ...rangeKeys(MULTIPLIER_RANGES), "onBeatRange"];
 /** Each mode's own settings its engine reads (a key of another mode, or of the recording, the text, the sound or the picture, never). */
 const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
-  classic: [],
+  classic: ["respawnEvery"], // --- gerald-conveyor --- (the respawn timer)
   accumulation: ["accumulationTime", "spikeCount"],
-  multiply: ["multiplySpawnCount"],
+  multiply: ["multiplySpawnCount", "respawnEvery"], // --- gerald-conveyor --- (the respawn timer)
   lines: [],
   paint: rangeKeys(PICTURE_PAINT_RANGES),
   target: ["targetCount"],
@@ -1543,6 +1565,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   beatDrop: rangeKeys(BEAT_DROP_RANGES),
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
   maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
+  conveyor: rangeKeys(CONVEYOR_RANGES), // --- gerald-conveyor ---
 };
 
 const engineKeyCache = new Map<ModeId, readonly string[]>();
@@ -1740,6 +1763,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans
   Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- valid numbers on their steps (no maximum), known options, real colours and booleans
+  Object.assign(merged, resolveConveyorFields(merged)); // --- gerald-conveyor --- valid numbers on their steps (no maximum), a known arena, a real boolean, the respawn period
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

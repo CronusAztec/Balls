@@ -59,6 +59,12 @@ MODE_CARD_ORDER.push("journey");
   const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("stringBattle");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "maze");
 }
+// --- gerald-conveyor --- the Conveyor Belt joins the escape family (the balls it loads work their way out of the rings), after
+// the ring modes and before Power Layers and the multipliers board (which close the escape cards)
+{
+  const at = MODE_CARD_ORDER.indexOf("powerLayers");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "conveyor");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -122,6 +128,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   territory: "battle",
   // --- odd-maze --- balls race through a maze to its exit: the oddplayground battle family
   maze: "battle",
+  // --- gerald-conveyor --- a belt loads ball after ball into the rings, and each works its way out: the escape family
+  conveyor: "escape",
 };
 
 /** The modes of a category in card order. */

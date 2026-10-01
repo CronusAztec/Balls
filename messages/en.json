@@ -1562,7 +1562,31 @@
     "mzBadgeTip": "The “FLASHING LIGHTS – THE END GETS INTENSE” badge in the top-left corner of the clip.",
     "mzHud": "Distance HUD",
     "mzHudTip": "A row per ball in the top-right corner: its colour, its name and a bar that fills as it gets closer to the exit, with the passages left to go (or its place once it is out).",
-    "mzRunInfo": "A {cols} × {rows} maze ({cells} cells, a new one for every seed); the run ends when every ball is out, at {seconds}s at the latest."
+    "mzRunInfo": "A {cols} × {rows} maze ({cells} cells, a new one for every seed); the run ends when every ball is out, at {seconds}s at the latest.",
+    "modeConveyor": "Conveyor Belt",
+    "cvTitle": "Conveyor Belt",
+    "cvDesc": "A belt across the top carries a ball out of the hatch every few seconds and drops it into the arena below. In the rings every ball has to escape on its own (the rings never break, and the director helps a ball that has been stuck for a while); the escaped balls ride the bottom belt out of the field. The bowl fills up and spills over; the peg field sorts the balls into bins. The belt hums while it carries a ball and clicks when one drops, and every bounce plays a note of your scale.",
+    "cvArena": "Arena",
+    "cvArenaTip": "What the balls drop into: concentric rings with rotating gaps (the Wall Count, Gap Size and Rotation of the wall settings apply), a bowl that piles them up, or a peg field over bins.",
+    "cvArenaRings": "Rings",
+    "cvArenaBowl": "Bowl",
+    "cvArenaPegs": "Pegs",
+    "cvHintRings": "Each ball slides down a tube into the core and has to find the gaps to get out. Escapes are counted, and the bottom belt carries the escaped balls away.",
+    "cvHintBowl": "The balls pile up in a bowl and settle – about 30 balls (at the chosen Ball Size) fit before the first one rolls over the rim; whatever spills falls onto the bottom belt and counts as overflow.",
+    "cvHintPegs": "The balls bounce through a field of pegs – every peg a note, low on the left, high on the right – and pile up in the bins below.",
+    "cvInterval": "Drop Interval",
+    "cvIntervalTip": "Seconds between two balls on the belt: a ball comes out of the hatch every interval and drops off the belt's end about a second later.",
+    "cvMaxBalls": "Balls",
+    "cvMaxBallsTip": "How many balls the belt loads (1–200). The run ends once the last one is out of the rings or the arena has settled.",
+    "cvFreeze": "Freeze on Landing",
+    "cvFreezeTip": "A ball that lands freezes in place and becomes an obstacle, so the pile grows visibly (Accumulation style). In the rings a ball's freedom lasts four seconds, then it freezes where it is.",
+    "cvVariety": "Variety",
+    "cvVarietyTip": "How much the balls' sizes and colours vary: 0 sends Gerald's identical twins down the belt, 100% a mix of sizes and colours. The first ball is always Gerald.",
+    "cvRunInfo": "{balls, plural, one {# ball} other {# balls}} – about {seconds}s with the final banner. The seed decides every bounce (and how long the last ball takes), so Find Simulation can hit your clip length.",
+    "respawnEvery": "Respawn Every",
+    "respawnEveryTip": "A new ball drops in from the top every this many seconds (0 = off). In Classic it stops once every ring is broken.",
+    "respawnEveryValue": "{seconds}s",
+    "respawnEveryOff": "Off"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -1693,6 +1717,10 @@
     "maze": {
       "name": "Maze Escape",
       "description": "Who else thought that was blood? Balls drop through a red slot into a seeded, green-glowing maze and bounce their way to the exit, painting every corridor they pass red. Every wall hit is a note that climbs as a ball closes in on the way out – the first ball through the exit wins."
+    },
+    "conveyor": {
+      "name": "Conveyor Belt",
+      "description": "Gerald respawns every 3 seconds: a conveyor belt across the top carries ball after ball out of a hatch and drops it into the arena below – concentric rings to escape, a bowl that fills up, or a peg field over bins. Every bounce is a note, the belt hums and clicks, and a counter keeps score: Loaded 17 / Escaped 4."
     }
   },
   "FAQ": {
@@ -1808,7 +1836,8 @@
     "modeBullseye": "The geraldbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length.",
     "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers.",
     "modeTerritory": "The oddplayground pong-wars battle: a tile map split into 2 or 4 team regions, every team's balls bouncing inside its own colour. A ball passes through tiles of its own colour and bounces off any other, converting the tile it hits – so every bounce pushes the border, and the live percentage bar under PICK A SIDE swings with it. Every team can have a power: the vortex curves its path and drags a whirl whose spiral arms convert enemy tiles, the bomber arms every few seconds and blows on its next bounce off an enemy tile, taking every tile within its reach (with a shock ring, debris and a jolt of the board), the painter dashes straight through enemy territory painting a trail, and the ghost passes through enemy tiles and converts a 3×3 block on every wall bounce. The balls collide with each other, the optional dotted grid deflects them, the last five seconds speed everything up, and when the countdown runs out the team with the most tiles wins – with slow motion when the lead flips in the finale and the camera's slow motion is on. Every seed replays exactly, Find Simulation searches for a run your chosen team wins, the Forced Winner rigs one, and a team roster lends the teams its colours and names.",
-    "modeMaze": "oddplayground's maze reels (“who else thought that was blood”): a seeded perfect maze with glowing green walls on near-black – a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls drop in one after another and work their way through physically (a downward pull, perfectly elastic walls), steered by a brain: pure bounce, a wall follower or an explorer that prefers the corridors it has not visited. Every cell a ball passes is painted red, every wall hit is a note that climbs as the ball nears the exit, and the first ball out wins – with a distance-to-exit bar per ball in the HUD and optional fog over the unvisited cells for suspense. Find Simulation times the run or picks the winner."
+    "modeMaze": "oddplayground's maze reels (“who else thought that was blood”): a seeded perfect maze with glowing green walls on near-black – a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls drop in one after another and work their way through physically (a downward pull, perfectly elastic walls), steered by a brain: pure bounce, a wall follower or an explorer that prefers the corridors it has not visited. Every cell a ball passes is painted red, every wall hit is a note that climbs as the ball nears the exit, and the first ball out wins – with a distance-to-exit bar per ball in the HUD and optional fog over the unvisited cells for suspense. Find Simulation times the run or picks the winner.",
+    "modeConveyor": "A conveyor belt runs across the top of the field and drops a ball into the arena below every few seconds – Gerald respawns, again and again. Pick the arena: concentric rings with rotating gaps that every ball has to escape on its own (the rings never break, and a second belt carries the escaped balls out of the field), a bowl that fills up until it spills over, or a peg field that sorts the balls into bins. Freeze on Landing turns every ball that lands into an obstacle for the next one, so the pile grows; Variety mixes sizes and colours. Every bounce is a note of your scale, the belt hums and clicks, and the counter keeps score – Loaded 17 / Escaped 4. In Classic and Multiply the same respawn timer drops in a new ball every few seconds. Seeded and deterministic, so Find Simulation can pick a run of your clip length."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -3378,5 +3407,16 @@
     "canvasTimeUp": "TIME'S UP",
     "canvasClosest": "[name] got closest",
     "canvasCaption": "who else thought that was blood"
+  },
+  "Conveyor": {
+    "canvasTitle": "CONVEYOR BELT",
+    "canvasLoadedEscaped": "Loaded [loaded] / Escaped [escaped]",
+    "canvasLoadedOverflow": "Loaded [loaded] / Overflow [overflow]",
+    "canvasLoadedLanded": "Loaded [loaded] / Landed [landed]",
+    "canvasFrozen": "[count] frozen",
+    "canvasDoneRings": "ALL OUT!",
+    "canvasDoneBowl": "SETTLED!",
+    "canvasDonePegs": "LANDED!",
+    "canvasTimeUp": "TIME'S UP"
   }
 }

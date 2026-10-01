@@ -84,6 +84,8 @@ import { DEFAULT_UNCAP_LABELS, drawUncapHud, fastestSpeed, writeUncapDataset, ty
 import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (recording-export) --- rings past the slider drawn at about one per pixel
 // --- odd-maze --- the Maze: the field, the painted trail, the glowing walls, the fog, the halos, the badge, the HUD and the banner
 import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type MazeLabels, type MazeRenderOptions } from "./mazeRenderer";
+// --- gerald-conveyor --- the Conveyor Belt: the belts, the hatch, the loading tube, the bowl, the bins, the frost and the counter
+import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -191,6 +193,9 @@ export interface CanvasLabels {
   // --- odd-maze ---
   /** Maze: the HUD title, the badge, the distances, the places and the verdict banner with its caption. */
   maze?: MazeLabels;
+  // --- gerald-conveyor ---
+  /** Conveyor Belt: the HUD title, the counter ("Loaded 17 / Escaped 4"), the frozen count and the final banner. */
+  conveyor?: ConveyorLabels;
 }
 
 export interface CanvasHandle {
@@ -366,6 +371,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
   uncap: DEFAULT_UNCAP_LABELS, // --- uncap-all ---
   maze: DEFAULT_MAZE_LABELS, // --- odd-maze ---
+  conveyor: DEFAULT_CONVEYOR_LABELS, // --- gerald-conveyor ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -845,6 +851,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bullseyeLayer = new BullseyeLayer();
     const bullseyeRender: BullseyeRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const bullseyeData = new BullseyeDataset();
+    // --- gerald-conveyor --- the Conveyor Belt's layer, its per-frame options and the data-cv-* writer
+    const conveyorLayer = new ConveyorLayer();
+    const conveyorRender: ConveyorRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
+    const conveyorData = new ConveyorDataset();
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
     const bmLayer = new BounceMathLayer(); // --- bounce-math ---
@@ -1198,6 +1208,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
+      const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
@@ -1544,6 +1555,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         bullseyeRender.wallThickness = p.wallThickness;
         bullseyeRender.showWallGlow = p.showWallGlow;
         bullseyeLayer.drawWorld(ctx, bullseyeView, bullseyeRender);
+      }
+      // --- gerald-conveyor --- Conveyor Belt: the belts, the hatch, the loading tube, the bowl's glass and the bins under the balls.
+      if (conveyorView) {
+        conveyorRender.wallAlpha = circleAlpha;
+        conveyorRender.wallThickness = p.wallThickness;
+        conveyorRender.showWallGlow = p.showWallGlow;
+        conveyorLayer.drawWorld(ctx, conveyorView, conveyorRender);
       }
       // --- beat-drop --- the obstructions (flying in, settled, squashing, glowing with the beat, leaving) and the ball's trail
       if (bdView) bdLayer.drawWorld(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender);
@@ -2209,6 +2227,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (journeyView) journeyLayer.drawEffects(ctx, journeyView, size.height); // --- gerald-journey --- the glass stages' shards over the ball
       if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
+      if (conveyorView) conveyorLayer.drawEffects(ctx, conveyorView); // --- gerald-conveyor --- the frost on the frozen balls
 
       // Wall-break flashes and shockwaves
       for (const flash of cappedEffects(engine.getWallBreakFlashes(), unlimitedView)) { // --- unlimited --- (the newest few with No limits on)
@@ -2328,6 +2347,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (journeyView) journeyLayer.drawOverlay(ctx, journeyView, (labelsRef.current ?? DEFAULT_LABELS).journey ?? DEFAULT_JOURNEY_LABELS);
       // --- gerald-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
       if (bullseyeView) bullseyeLayer.drawOverlay(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // --- gerald-conveyor --- Conveyor Belt: the title and the counter (screen space, part of the recording).
+      if (conveyorView) conveyorLayer.drawOverlay(ctx, conveyorView, (labelsRef.current ?? DEFAULT_LABELS).conveyor ?? DEFAULT_CONVEYOR_LABELS, size.width, size.height, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- beat-drop --- Beat Drop: the title, the tempo, the landings and the bar's beats (screen space, part of the recording)
       if (bdView) bdLayer.drawOverlay(ctx, bdView, (labelsRef.current ?? DEFAULT_LABELS).beatDrop ?? DEFAULT_BEAT_DROP_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- jdm-arena-games --- the scoreboard band, the "CAPTURE!" banner and the winner banner with confetti (screen space, part of the recording).
@@ -2611,6 +2632,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (bullseyeView && bullseyeView.allLanded) {
           const BY = L.bullseye ?? DEFAULT_BULLSEYE_LABELS;
           bigBanner(BY.finalTitle(bullseyeView.total), BY.finalSub(bullseyeView.bestShot + 1, bullseyeView.best, bullseyeView.bullseyes), "#a3e635");
+        }
+        // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
+        if (conveyorView && conveyorView.allDone) {
+          const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
+          bigBanner(CV.title, CV.sub, "#a3e635");
         }
         // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
         if (bdView && bdLayer.finale(bdView)) {
@@ -3122,6 +3148,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- gerald-bullseye --- shots, landings, total, best, bullseyes, scores, notes, thuds, slow motion, target, perfect shot, finished (data-bullseye-*)
       if (bullseyeView) bullseyeData.write(bullseyeView, setCanvasData);
       else if (canvas.dataset.bullseyeShots !== undefined) for (const key of BULLSEYE_DATA_KEYS) delete canvas.dataset[key];
+      // --- gerald-conveyor --- arena, balls, loaded, escaped / overflow / landed, frozen, carried, passes, notes, drops, the end (data-cv-*)
+      if (conveyorView) conveyorData.write(conveyorView, setCanvasData);
+      else if (canvas.dataset.cvArena !== undefined) for (const key of CONVEYOR_DATA_KEYS) delete canvas.dataset[key];
+      // (the respawn timer of Classic and Multiply: balls dropped in this run, and the balls in play – data-respawns, data-respawn-balls)
+      if ((engine.config.respawnEvery ?? 0) > 0) {
+        setCanvasData("respawns", String(engine.getRespawnCount()));
+        setCanvasData("respawnBalls", String(engine.getBalls().length));
+      } else if (canvas.dataset.respawns !== undefined) {
+        delete canvas.dataset.respawns;
+        delete canvas.dataset.respawnBalls;
+      }
       // --- beat-drop --- landings (measured times and their beats), error, tempo, pads alive, drums, camera, finish (data-bd-*)
       if (bdView) writeBeatDropDataset(bdView, bdLayer, setCanvasData);
       else if (canvas.dataset.bdLanded !== undefined) for (const key of BEAT_DROP_DATA_KEYS) delete canvas.dataset[key];

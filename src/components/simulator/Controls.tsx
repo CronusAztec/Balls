@@ -67,6 +67,7 @@ import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // 
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
 import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
+import ConveyorSection, { CONVEYOR_KEYS, RESPAWN_KEYS, RespawnControl } from "./sections/ConveyorSection"; // --- gerald-conveyor --- the Conveyor block of the Mode row, the respawn timer of the Ball section
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
 import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
@@ -244,6 +245,9 @@ SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
 SECTION_KEYS.ball.push(...TERRITORY_KEYS);
 // --- odd-maze --- the Maze block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...MAZE_KEYS);
+// --- gerald-conveyor --- the Conveyor block of the Mode row is searched with the Ball section too, where the respawn timer
+// of Classic and Multiply lives.
+SECTION_KEYS.ball.push(...CONVEYOR_KEYS, ...RESPAWN_KEYS);
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -368,6 +372,8 @@ export default function Controls(props: ControlsProps) {
     territory: t("modeTerritory"),
     // --- odd-maze ---
     maze: t("modeMaze"),
+    // --- gerald-conveyor ---
+    conveyor: t("modeConveyor"),
   };
 
   // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
@@ -422,6 +428,8 @@ export default function Controls(props: ControlsProps) {
       )}
       {/* --- teams --- the ball count (1–6) replaced the "Two balls" switch; Color Match takes several balls too */}
       {MULTI_BALL_MODES.includes(s.mode) && <BallCountControl t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- gerald-conveyor --- the respawn timer of Classic and Multiply (a new ball drops in every N seconds) */}
+      <RespawnControl t={t} search={search} matches={matches} settings={s} update={update} />
       {TWO_BALL_MODES.includes(s.mode) && <BallInteractionSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* The Ball Drop controls live in the Mode row; while searching only the sections render, so they show up here. */}
       {s.mode === "drop" && !!search && <BallDropSection t={t} search={search} matches={matches} settings={s} update={update} />}
@@ -463,6 +471,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "territory" && !!search && <TerritorySection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- odd-maze --- */}
       {s.mode === "maze" && !!search && <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- gerald-conveyor --- */}
+      {s.mode === "conveyor" && !!search && <ConveyorSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
@@ -1295,6 +1305,9 @@ export default function Controls(props: ControlsProps) {
       // --- odd-maze ---
       case "maze":
         return <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- gerald-conveyor ---
+      case "conveyor":
+        return <ConveyorSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

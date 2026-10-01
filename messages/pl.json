@@ -1553,7 +1553,31 @@
     "mzBadgeTip": "Plakietka „MIGAJĄCE ŚWIATŁA – KOŃCÓWKA BĘDZIE INTENSYWNA” w lewym górnym rogu klipu.",
     "mzHud": "Tablica odległości",
     "mzHudTip": "Wiersz dla każdej kulki w prawym górnym rogu: jej kolor, nazwa i pasek, który wypełnia się, gdy zbliża się do wyjścia, z liczbą przejść do pokonania (albo miejscem, gdy już wyjdzie).",
-    "mzRunInfo": "Labirynt {cols} × {rows} ({cells, plural, one {# komórka} few {# komórki} many {# komórek} other {# komórki}}, nowy dla każdego ziarna); przebieg kończy się, gdy wszystkie kulki wyjdą, najpóźniej po {seconds} s."
+    "mzRunInfo": "Labirynt {cols} × {rows} ({cells, plural, one {# komórka} few {# komórki} many {# komórek} other {# komórki}}, nowy dla każdego ziarna); przebieg kończy się, gdy wszystkie kulki wyjdą, najpóźniej po {seconds} s.",
+    "modeConveyor": "Taśmociąg",
+    "cvTitle": "Taśmociąg",
+    "cvDesc": "Taśma u góry co kilka sekund wywozi piłkę z włazu i zrzuca ją na arenę poniżej. W pierścieniach każda piłka musi uciec sama (pierścienie nigdy nie pękają, a reżyser pomaga piłce, która od dłuższej chwili nie może się wydostać); piłki, które uciekły, dolna taśma wywozi poza pole. Misa zapełnia się i przelewa, a pole kołków rozdziela piłki do przegródek. Taśma buczy, gdy wiezie piłkę, i klika, gdy ją zrzuca, a każde odbicie gra nutę z Twojej skali.",
+    "cvArena": "Arena",
+    "cvArenaTip": "Na co spadają piłki: koncentryczne pierścienie z obracającymi się szczelinami (działają tu Liczba ścian, Rozmiar szczeliny i Obrót z ustawień ścian), misa, w której się piętrzą, albo pole kołków nad przegródkami.",
+    "cvArenaRings": "Pierścienie",
+    "cvArenaBowl": "Misa",
+    "cvArenaPegs": "Kołki",
+    "cvHintRings": "Każda piłka zjeżdża rurą do środka i musi znaleźć szczeliny, żeby się wydostać. Ucieczki są liczone, a dolna taśma wywozi piłki, które uciekły.",
+    "cvHintBowl": "Piłki piętrzą się w misie i układają – misa mieści około 30 piłek (przy wybranym Rozmiarze piłki), zanim pierwsza stoczy się przez krawędź; to, co się przeleje, spada na dolną taśmę i liczy się jako przelew.",
+    "cvHintPegs": "Piłki odbijają się od pola kołków – każdy kołek to nuta, nisko po lewej, wysoko po prawej – i piętrzą się w przegródkach poniżej.",
+    "cvInterval": "Odstęp zrzutów",
+    "cvIntervalTip": "Sekundy między dwiema piłkami na taśmie: co tyle sekund z włazu wyjeżdża piłka, a mniej więcej sekundę później spada z końca taśmy.",
+    "cvMaxBalls": "Piłki",
+    "cvMaxBallsTip": "Ile piłek załaduje taśma (1–200). Przebieg kończy się, gdy ostatnia wydostanie się z pierścieni albo arena się uspokoi.",
+    "cvFreeze": "Zamrażanie po lądowaniu",
+    "cvFreezeTip": "Piłka, która wyląduje, zamarza w miejscu i staje się przeszkodą, więc stos wyraźnie rośnie (jak w Akumulacji). W pierścieniach wolność piłki trwa cztery sekundy, potem zamarza tam, gdzie jest.",
+    "cvVariety": "Różnorodność",
+    "cvVarietyTip": "Jak bardzo różnią się rozmiary i kolory piłek: 0 wysyła na taśmę identyczne kopie Geralda, 100% – mieszankę rozmiarów i kolorów. Pierwsza piłka to zawsze Gerald.",
+    "cvRunInfo": "{balls, plural, one {# piłka} few {# piłki} many {# piłek} other {# piłki}} – około {seconds} s razem z końcowym banerem. Ziarno decyduje o każdym odbiciu (i o tym, ile potrwa ostatnia piłka), więc Znajdź symulację może trafić w długość Twojego klipu.",
+    "respawnEvery": "Odradzanie co",
+    "respawnEveryTip": "Co tyle sekund od góry wpada nowa piłka (0 = wyłączone). W trybie Klasycznym przestaje, gdy wszystkie pierścienie są rozbite.",
+    "respawnEveryValue": "{seconds} s",
+    "respawnEveryOff": "Wył."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -1651,7 +1675,8 @@
     "maze": {
       "name": "Ucieczka z labiryntu",
       "description": "Kto jeszcze pomyślał, że to krew? Kulki wpadają przez czerwoną szczelinę do losowego, świecącego na zielono labiryntu i odbijają się w stronę wyjścia, malując na czerwono każdy korytarz, którym przejdą. Każde uderzenie w ścianę to nuta, która wznosi się, gdy kulka zbliża się do wyjścia – wygrywa pierwsza, która się wydostanie."
-    }
+    },
+    "conveyor": { "name": "Taśmociąg", "description": "Gerald odradza się co 3 sekundy: taśmociąg u góry wywozi z włazu piłkę za piłką i zrzuca je na arenę poniżej – do koncentrycznych pierścieni, z których trzeba uciec, do misy, która się zapełnia, albo na pole kołków nad przegródkami. Każde odbicie to nuta, taśma buczy i klika, a licznik prowadzi rachunek: Załadowano 17 / Uciekło 4." }
   },
   "FAQ": {
     "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Tak. Symulator, wszystkie tryby, każda opcja personalizacji i eksport wideo są darmowe, a konta nie trzeba zakładać." },
@@ -1733,7 +1758,8 @@
     "modeBullseye": "Format „bulleye!!” z geraldbounces, bez pierścieni do ucieczki: pionowe pole z tarczą do rzutek – 3–10 koncentrycznych pierścieni w barwach tarczy – leżącą na dole. Wyrzutnia na górze wystrzeliwuje 1–30 kulek jedna po drugiej przez krótkie pole kołków i odbijaczy (Chaos decyduje, ile ich stoi na drodze). Pierścień, w którym wyląduje kulka, daje punkty – 10 za środek, mniej dalej od niego, nic poza tarczą – z wyskakującym wynikiem i bieżącą sumą, a kulka zostaje tam, gdzie wylądowała, więc kolejne strzały mogą się od niej odbić. Kołki grają nuty Twojej skali jak klawiatura od lewej do prawej, lądowania stukają tym niżej, im dalej od środka, a trafienie w środek to DZIESIĄTKA! z konfetti, fanfarą i pół sekundy zwolnionego tempa. Tarcza może jeździć w lewo i w prawo, ustawiony Idealny strzał trafia w dziesiątkę, a końcowy baner pokazuje sumę i najlepszy strzał. Deterministyczne dla ziarna, więc Znajdź symulację może wyszukać przebieg o długości Twojego klipu.",
     "modeBeatDrop": "Tryb rytmiczny bez pierścieni, stworzony do edycji pod muzykę: pionowa scena na ciemnym gradiencie, w której jedna kulka spada i odbija się od przeszkody do przeszkody, a każda przeszkoda wlatuje zza ekranu – z lewej, z prawej, z góry albo z dołu, nigdy od strony, z której nadlatuje kulka – z płynnym wyhamowaniem i zatrzymuje się tuż przed swoim bitem, więc kulka ląduje na niej dokładnie w bit. Bieg jest zaplanowany z góry na podstawie bitu, za którym podąża (wykrytego bitu wczytanej piosenki albo ustawienia BPM): prędkość wybicia każdego lotu jest wyliczana tak, by lot trwał dokładnie tyle, ile odstęp między dwoma bitami – przy każdym tempie i na nieregularnej siatce – więc każde lądowanie mieści się w ułamku milisekundy od swojego bitu. Sześć rodzajów przeszkód – deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny – ugina się przy uderzeniu, świeci w rytm i odjeżdża z zanikaniem, gdy kulka już ją opuści; kulka spłaszcza się i rozciąga, zostawia smugę ruchu, a każde lądowanie wywołuje falę i obłok cząsteczek. Lądowania grają syntezowaną perkusję – stopę na 1 i 3, werbel na 2 i 4, hi-hat między bitami i własny akcent każdej przeszkody – kolejną nutę melodii albo jedno i drugie. Przewijanie bez końca jedzie za kulką w dół w nieskończoność; arena trzyma ją w kadrze. Ten tryb nigdy nie chybia bitu, więc Znajdź symulację po prostu wybiera ziarno i dopasowuje klip do bitów, które obejmuje.",
     "modeTerritory": "Pong wars z konta oddplayground: mapa kafelków podzielona na 2 lub 4 obszary drużyn, a kulki każdej drużyny odbijają się w obrębie jej koloru. Kulka przelatuje przez kafelki swojego koloru i odbija się od każdego innego, przemalowując kafelek, w który trafi – każde odbicie przesuwa więc granicę, a pasek procentów pod napisem WYBIERZ STRONĘ wychyla się razem z nią. Każda drużyna może mieć moc: wir zakrzywia swój tor i ciągnie za sobą wir, którego spiralne ramiona przemalowują wrogie kafelki; bombowiec co kilka sekund się uzbraja i wybucha przy najbliższym odbiciu od wrogiego kafelka, przejmując każdy kafelek w zasięgu (z falą uderzeniową, odłamkami i wstrząsem planszy); malarz pędzi prosto przez wrogie terytorium, malując za sobą ślad; a duch przenika przez wrogie kafelki i przy każdym odbiciu od ściany przemalowuje blok 3×3. Kulki zderzają się ze sobą, opcjonalna siatka kropek je odbija, ostatnie pięć sekund wszystko przyspiesza, a gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków – ze zwolnionym tempem, gdy w finale zmienia się prowadzenie, a zwolnione tempo kamery jest włączone. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka przebiegu, który wygra wybrana drużyna, Wymuszony zwycięzca go ustawia, a skład drużyn użycza drużynom swoich barw i nazw.",
-    "modeMaze": "Labirynty z konta oddplayground („kto jeszcze pomyślał, że to krew”): losowy labirynt doskonały ze świecącymi na zielono ścianami na prawie czarnym tle – czerwona szczelina wejścia w górnej ścianie i wyjście w dolnej. 1–8 kulek wpada jedna po drugiej i fizycznie przebija się przez korytarze (przyciąganie w dół, idealnie sprężyste ściany), sterowanych przez mózg: czyste odbijanie, rękę na ścianie albo odkrywcę, który wybiera nieodwiedzone korytarze. Każda komórka, przez którą przejdzie kulka, zostaje zamalowana na czerwono, każde uderzenie w ścianę to nuta wznosząca się w miarę zbliżania do wyjścia, a wygrywa pierwsza kulka na zewnątrz – z paskiem odległości do wyjścia dla każdej kulki i opcjonalną mgłą nad nieodwiedzonymi komórkami dla napięcia. Znajdź symulację dobiera długość przebiegu albo zwycięzcę."
+    "modeMaze": "Labirynty z konta oddplayground („kto jeszcze pomyślał, że to krew”): losowy labirynt doskonały ze świecącymi na zielono ścianami na prawie czarnym tle – czerwona szczelina wejścia w górnej ścianie i wyjście w dolnej. 1–8 kulek wpada jedna po drugiej i fizycznie przebija się przez korytarze (przyciąganie w dół, idealnie sprężyste ściany), sterowanych przez mózg: czyste odbijanie, rękę na ścianie albo odkrywcę, który wybiera nieodwiedzone korytarze. Każda komórka, przez którą przejdzie kulka, zostaje zamalowana na czerwono, każde uderzenie w ścianę to nuta wznosząca się w miarę zbliżania do wyjścia, a wygrywa pierwsza kulka na zewnątrz – z paskiem odległości do wyjścia dla każdej kulki i opcjonalną mgłą nad nieodwiedzonymi komórkami dla napięcia. Znajdź symulację dobiera długość przebiegu albo zwycięzcę.",
+    "modeConveyor": "Taśmociąg biegnie górą pola i co kilka sekund zrzuca piłkę na arenę poniżej – Gerald odradza się raz za razem. Wybierz arenę: koncentryczne pierścienie z obracającymi się szczelinami, z których każda piłka musi uciec sama (pierścienie nigdy nie pękają, a druga taśma wywozi poza pole piłki, które uciekły), misę, która zapełnia się, aż się przeleje, albo pole kołków, które rozdziela piłki do przegródek. Zamrażanie po lądowaniu zamienia każdą piłkę, która wyląduje, w przeszkodę dla następnej, więc stos rośnie; Różnorodność miesza rozmiary i kolory. Każde odbicie to nuta z Twojej skali, taśma buczy i klika, a licznik prowadzi rachunek – Załadowano 17 / Uciekło 4. W trybach Klasyczny i Mnożenie ten sam licznik odradzania co kilka sekund wrzuca nową piłkę. Wszystko jest deterministyczne dla danego ziarna, więc Znajdź symulację dobierze przebieg o długości Twojego klipu."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -3220,5 +3246,16 @@
     "canvasTimeUp": "KONIEC CZASU",
     "canvasClosest": "najbliżej wyjścia: [name]",
     "canvasCaption": "kto jeszcze pomyślał, że to krew"
+  },
+  "Conveyor": {
+    "canvasTitle": "TAŚMOCIĄG",
+    "canvasLoadedEscaped": "Załadowano [loaded] / Uciekło [escaped]",
+    "canvasLoadedOverflow": "Załadowano [loaded] / Przelew [overflow]",
+    "canvasLoadedLanded": "Załadowano [loaded] / Wylądowało [landed]",
+    "canvasFrozen": "Zamrożone: [count]",
+    "canvasDoneRings": "WSZYSTKIE NA WOLNOŚCI!",
+    "canvasDoneBowl": "UŁOŻONE!",
+    "canvasDonePegs": "WYLĄDOWAŁY!",
+    "canvasTimeUp": "KONIEC CZASU"
   }
 }

@@ -110,6 +110,9 @@ import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenC
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
 import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-journey ---
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
+// --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
+import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
+import { respawnConfigOf } from "@/lib/physics/respawn";
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
@@ -345,6 +348,7 @@ export default function Simulator() {
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
     engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
+    engine.setConveyorSettings(conveyorSettingsOf(s)); // --- gerald-conveyor ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -910,6 +914,35 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.scale, s.rootNote]);
   // --- end gerald-bullseye ---
+  // --- gerald-conveyor --- Conveyor Belt: a change of the interval, the ball count, the arena, the freeze or the variety restarts
+  // the run and drops a found seed; the Sound section's scale and root (the peg, bowl and ring-pass notes) follow live. The
+  // respawn timer of Classic and Multiply travels in the physics config (so the finder and the exports run it); a new period
+  // drops a found seed with its promise.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConveyorSettings(conveyorSettingsOf(s));
+    if (s.mode === "conveyor" && engine.getCurrentModeName() === "conveyor") {
+      engine.initConveyor();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.cvInterval, s.cvMaxBalls, s.cvArena, s.cvFreeze, s.cvVariety]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.cvInterval, s.cvMaxBalls, s.cvArena, s.cvFreeze, s.cvVariety]);
+  useEffect(() => {
+    engineRef.current?.setConveyorSettings(conveyorSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.scale, s.rootNote]);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setConfig(respawnConfigOf(s));
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [s.respawnEvery]); // eslint-disable-line react-hooks/exhaustive-deps
+  // --- end gerald-conveyor ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1271,6 +1304,7 @@ export default function Simulator() {
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
         engine.setMazeSettings({ trail: arena.mzTrail, trailColor: arena.mzTrailColor, trailOwn: arena.mzTrailOwn, fog: arena.mzFog, wallColor: arena.mzWallColor, badge: arena.mzBadge, hud: arena.mzHud }); // --- odd-maze --- (the drawing follows live; the maze and the race wait for a restart)
+        engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1493,6 +1527,11 @@ export default function Simulator() {
           // --- unlimited --- a ball ate the arena: the gulp
           if (ev.ate) {
             audio.playArenaEaten();
+            continue;
+          }
+          // --- gerald-conveyor --- the Conveyor Belt's hum and drop click (and a respawn's drop-in click)
+          if (ev.conveyor) {
+            audio.playConveyor(ev.conveyor, ev.cvSec, ev.frequency, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
@@ -2448,6 +2487,7 @@ export default function Simulator() {
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
           maze: mazeSettingsOf(settings), // --- odd-maze ---
+          conveyor: conveyorSettingsOf(settings), // --- gerald-conveyor ---
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2667,6 +2707,18 @@ export default function Simulator() {
         miss: t("Bullseye.canvasMiss"),
         finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
         finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
+      },
+      // --- gerald-conveyor ---
+      conveyor: {
+        title: t("Conveyor.canvasTitle"),
+        loadedEscaped: (loaded, escaped) => fill("Conveyor.canvasLoadedEscaped", { loaded, escaped }),
+        loadedOverflow: (loaded, overflow) => fill("Conveyor.canvasLoadedOverflow", { loaded, overflow }),
+        loadedLanded: (loaded, landed) => fill("Conveyor.canvasLoadedLanded", { loaded, landed }),
+        frozen: (n) => fill("Conveyor.canvasFrozen", { count: n }),
+        doneRings: t("Conveyor.canvasDoneRings"),
+        doneBowl: t("Conveyor.canvasDoneBowl"),
+        donePegs: t("Conveyor.canvasDonePegs"),
+        timeUp: t("Conveyor.canvasTimeUp"),
       },
       // --- odd-maze ---
       maze: {

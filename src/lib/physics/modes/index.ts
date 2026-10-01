@@ -74,3 +74,6 @@ export type { TerritorySettings, TerritoryView, TerritoryField, TyBall, TyShock,
 // --- odd-maze ---
 export { MazeMode } from "./maze";
 export type { MazeSettings, MazeView, MazeRunner, MazeHit, MazeBrain, MazeHand } from "./maze";
+// --- gerald-conveyor ---
+export { ConveyorMode } from "./conveyor";
+export type { ConveyorSettings, ConveyorView, ConveyorLayout, ConveyorArena, ConveyorBowl } from "./conveyor";

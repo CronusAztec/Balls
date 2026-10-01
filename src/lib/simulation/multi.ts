@@ -109,6 +109,8 @@ export interface ArenaSoundSink {
   playBeatDrop(drum: string | undefined, pad: BeatDropPadKind | undefined, frequency?: number, accent?: boolean, level?: number): void;
   /** --- unlimited --- a ball ate the arena (No limits). */
   playArenaEaten?(): void;
+  /** --- gerald-conveyor --- the Conveyor Belt's hum or drop click (a respawn's drop-in click too). */
+  playConveyor?(kind: "hum" | "click", seconds?: number, frequency?: number, level?: number): void;
 }
 
 /**
@@ -124,6 +126,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.swoosh) return sink.playSwoosh(); // --- gerald-journey --- (a stage transition's whoosh, not a wall hit)
   if (ev.bdDrum) return sink.playBeatDrop(ev.bdDrum, ev.bdPad, ev.frequency, ev.accent, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- beat-drop --- (a drum, not a wall hit)
   if (ev.ate) return sink.playArenaEaten?.(); // --- unlimited --- (the gulp, not a wall break)
+  if (ev.conveyor) return sink.playConveyor?.(ev.conveyor, ev.cvSec, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- gerald-conveyor --- (machinery, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);

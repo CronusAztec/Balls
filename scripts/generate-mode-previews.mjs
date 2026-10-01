@@ -69,6 +69,9 @@ const MODES = {
   territory: { wait: 9000, query: "tyb=3" },
   // --- odd-maze --- mid-race: four balls in the maze, blood-red corridors behind them, the distance HUD and the warning badge
   maze: { wait: 6500, query: "mzn=4&seed=6&glow=1" },
+  // --- gerald-conveyor --- mid-run: balls riding the belt, one sliding down the tube, others working their way out of the rings,
+  // the escaped ones riding the bottom belt away, and the counter
+  conveyor: { wait: 7600, query: "cvi=1&cvn=12&face=cute&glow=1" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 // --- daily-gallery --- GALLERY=1 (every card) or GALLERY=<id>,<id>: gallery previews; with MODES and no GALLERY, none
