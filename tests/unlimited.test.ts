@@ -14,6 +14,7 @@ import { FINDER_MIN_SEEDS, findSimulationBudgeted, seedsWithinBudget, usesBudget
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
 import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
 import { ENTITY_CEILING, MEMORY_CEILINGS, RACER_CEILING } from "@/lib/uncap"; // --- uncap-all ---
+import { raceRoster } from "@/lib/raceRoster"; // --- review fix (uncap-all) ---
 import { dropSettingFields } from "@/lib/physics/modes/drop";
 import { boxSettingFields } from "@/lib/physics/modes/box";
 import { pendulumSettingFields } from "@/lib/physics/modes/pendulum";
@@ -669,17 +670,26 @@ describe("No limits: the engine", () => {
         expect([key, far, seen.get(key)], `${key} runs ${seen.get(key)}, want ${want}`).toEqual([key, far, expect.closeTo(want, 6)]);
       }
     }
-    // Every ceiling lies past its slider – but the race's racers: its per-racer state and its roster are sized for the slider's
-    // 16 (RACER_CEILING = MAX_RACERS), so a grid past it builds 16 and says ARENA FULL.
-    const atSliderEnd = new Set(["rcRacers"]);
-    atSliderEnd.add("tyTeams"); // --- odd-territory --- (Territory's teams: halves or quadrants, the per-team state sized for four)
+    // Every ceiling lies past its slider – --- review fix (uncap-all) --- the race's racers too: its per-racer state and its
+    // roster are sized for the grid at init, so a grid of 40 races 40, and one past RACER_CEILING builds that many (ARENA FULL).
+    // --- odd-territory --- But Territory's teams: halves or quadrants, the per-team state sized for four.
+    const atSliderEnd = new Set(["tyTeams"]);
     for (const key of keys) expect([key, softCeiling(key, ranges[key]) > ranges[key].max]).toEqual([key, !atSliderEnd.has(key)]);
-    expect([RACER_CEILING, MEMORY_CEILINGS.rcRacers, RANGES.rcRacers.max]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
+    expect(RACER_CEILING).toBeGreaterThan(RANGES.rcRacers.max);
+    expect([MEMORY_CEILINGS.rcRacers, RANGES.rcRacers.max]).toEqual([RACER_CEILING, MAX_RACERS]);
     const bigGrid = settingsFromSearchParams(new URLSearchParams("mode=race&rcn=40"));
-    expect([bigGrid.rcRacers, pastAnyMemoryCeiling(bigGrid)]).toEqual([40, true]);
+    expect([bigGrid.rcRacers, pastAnyMemoryCeiling(bigGrid)]).toEqual([40, false]);
     const grid = createEngineForSettings(physicsConfigOfSettings(bigGrid), "race", modeSettingsOfSettings(bigGrid), 3);
-    expect([grid.getRaceSettings().racers, grid.getRaceView().racers, grid.getBalls().length]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
+    expect([grid.getRaceSettings().racers, grid.getRaceView().racers, grid.getBalls().length]).toEqual([40, 40, 40]);
+    for (let i = 0; i < 60 * 8; i++) grid.update(1000 / 60, 0);
     expect(allFinite(grid)).toBe(true);
+    expect(grid.getRaceView().order.slice().sort((a, b) => a - b)).toEqual(Array.from({ length: 40 }, (_, i) => i));
+    const roster = raceRoster([], [], 40);
+    expect([roster.names.length, new Set(roster.colors).size]).toEqual([40, 40]);
+    const hugeGrid = settingsFromSearchParams(new URLSearchParams("mode=race&rcn=100000"));
+    expect([hugeGrid.rcRacers, pastAnyMemoryCeiling(hugeGrid)]).toEqual([100_000, true]);
+    const huge = createEngineForSettings(physicsConfigOfSettings(hugeGrid), "race", modeSettingsOfSettings(hugeGrid), 3);
+    expect([huge.getRaceView().racers, huge.getBalls().length]).toEqual([RACER_CEILING, RACER_CEILING]);
     expect(softCeiling("glassHp", ranges.glassHp)).toBe(Infinity); // (hit points allocate nothing)
     // The values do what they say: a thousand panes a stage of a billion hit points, power layers by the thousand, long races.
     expect(stageRows(500, 3)).toBe(500);

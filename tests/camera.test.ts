@@ -289,7 +289,10 @@ describe("screen shake", () => {
     expect(shakeAmplitude(1, 1000)).toBeCloseTo(1000 * MAX_SHAKE_FRACTION, 12);
     expect(shakeAmplitude(0.5, 1000)).toBeCloseTo(500 * MAX_SHAKE_FRACTION, 12);
     expect(shakeAmplitude(0, 1000)).toBe(0);
-    expect(shakeAmplitude(3, 1000)).toBeCloseTo(1000 * MAX_SHAKE_FRACTION, 12);
+    // --- review fix (uncap-all) --- past the slider's 1 the shake grows with the setting (it stopped at 1 before)
+    expect(shakeAmplitude(3, 1000)).toBeCloseTo(3 * 1000 * MAX_SHAKE_FRACTION, 12);
+    expect(shakeAmplitude(-2, 1000)).toBe(0);
+    expect(shakeAmplitude(Number.NaN, 1000)).toBe(0);
     const out = { x: 0, y: 0 };
     let moved = 0;
     for (let t = 0; t < 300; t += 3) {

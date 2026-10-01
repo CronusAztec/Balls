@@ -13,10 +13,17 @@ import { useTranslations } from "next-intl";
 import { IDLE_FIELD, fieldDisplay, formatCompact, numberFieldReduce, type NumberFieldEvent, type NumberFieldState, type NumberRules, type NumericRange } from "@/lib/uncap";
 
 export interface NumberFieldProps {
-  /** The current value (what the settings hold). */
-  value: number;
+  /** The current value (what the settings hold); undefined only for an optional value (`onClear`) that has none. */
+  value: number | undefined;
   /** A valid typed or stepped value (never an invalid one). */
   onCommit: (value: number) => void;
+  /**
+   * --- review fix (uncap-all) --- An optional value (bounce math's min / max): an empty field calls this instead of being
+   * refused, and the field shows `placeholder` while there is no value.
+   */
+  onClear?: () => void;
+  /** The text an empty optional field shows ("–", "∞"). */
+  placeholder?: string;
   /** The control's name, for screen readers ("Ball Speed"). */
   label: string;
   /** The slider's comfort range: its step drives the arrow keys, its ends the "beyond the slider" tint. */
@@ -30,17 +37,24 @@ export interface NumberFieldProps {
   className?: string;
   /** The id of the input (a <label htmlFor>). */
   id?: string;
+  /** data-testid of the input (the rows of the Timeline and Bounce math lists). */
+  testId?: string;
 }
 
-export default function NumberField({ value, onCommit, label, range, rules, disabled, settingKey, className, id }: NumberFieldProps) {
+export default function NumberField({ value, onCommit, onClear, placeholder, label, range, rules, disabled, settingKey, className, id, testId }: NumberFieldProps) {
   const t = useTranslations("Uncap");
   const [state, setState] = useState<NumberFieldState>(IDLE_FIELD);
   const errorId = useId();
-  const display = fieldDisplay(value, range);
+  const optional = !!onClear;
+  const display = value === undefined ? { text: "", beyond: false, compact: "" } : fieldDisplay(value, range);
+  const fieldRules = optional ? { ...rules, optional: true } : rules;
   const dispatch = (event: NumberFieldEvent) => {
-    const next = numberFieldReduce(state, event, value, range, rules);
+    // (an optional field without a value steps from the range's start, as a slider would)
+    const next = numberFieldReduce(state, event, value ?? Number.NaN, range, fieldRules);
     setState(next.state);
-    if (next.commit !== undefined && next.commit !== value) onCommit(next.commit);
+    if (next.clear) {
+      if (value !== undefined) onClear?.();
+    } else if (next.commit !== undefined && next.commit !== value) onCommit(next.commit);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -75,6 +89,7 @@ export default function NumberField({ value, onCommit, label, range, rules, disa
         autoComplete="off"
         spellCheck={false}
         value={state.draft ?? display.text}
+        placeholder={placeholder}
         disabled={disabled}
         onChange={(e) => dispatch({ type: "type", text: e.target.value })}
         onKeyDown={onKeyDown}
@@ -84,6 +99,7 @@ export default function NumberField({ value, onCommit, label, range, rules, disa
         aria-describedby={error ? errorId : undefined}
         title={error ? (message ?? undefined) : beyondTip}
         data-number-field={settingKey ?? ""}
+        data-testid={testId}
         data-beyond={display.beyond ? "1" : undefined}
         /* --- review fix (site-redesign) --- a 32 px field (44 px on touch), the kit's control height */
         className={`${className ?? "w-20"} h-8 px-2 text-right font-mono text-xs rounded-md border disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 ${

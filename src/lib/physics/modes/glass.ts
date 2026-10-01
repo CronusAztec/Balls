@@ -694,9 +694,12 @@ export const CAMERA_FOLLOW = 0.36;
 /** Most sounds one 60 Hz step may queue. */
 export const MAX_GLASS_SOUNDS_PER_STEP = 4;
 
-/** Gravity (px/s²) for a view `viewH` px tall: GLASS_GRAVITY view heights per s², scaled by the Gravity setting (0.3×–3×). */
+/**
+ * Gravity (px/s²) for a view `viewH` px tall: GLASS_GRAVITY view heights per s², scaled by the Gravity setting (from 0.3×;
+ * --- review fix (uncap-all) --- no maximum: 9e9 falls that much harder – the panes are swept, so no fall is too fast for them).
+ */
 export function glassGravity(gravitySetting: number, viewH: number): number {
-  const factor = Number.isFinite(gravitySetting) ? Math.max(0.3, Math.min(3, gravitySetting / 300)) : 1;
+  const factor = Number.isFinite(gravitySetting) ? Math.max(0.3, gravitySetting / 300) : 1;
   return GLASS_GRAVITY * viewH * factor;
 }
 
@@ -1264,22 +1267,26 @@ export class GlassMode implements GameMode {
 
   /**
    * --- gerald-multipliers --- The ball went through a gate: its stat stacks through the run's multipliers (the cap in
-   * effect, the HUD badges) – a size gate only as far as the ball still fits between the panes below – with the
-   * rising arpeggio.
+   * effect, the HUD badges) with the rising arpeggio. --- review fix (uncap-all) --- A size gate grows the ball by its whole
+   * factor (it stopped where the ball still fitted between the panes below): a ball the shaft can no longer hold has eaten
+   * the arena – the run ends with the engine's finish, its banner and its gulp.
    */
   private applyGate(ctx: ModeContext, ball: Ball, row: GlassGateRow) {
     const v = this.view;
     const level = v.level!;
     const slot = row.slots[row.passedSlot];
-    let factor = slot.factor;
-    if (slot.kind === "size") factor = Math.min(factor, glassMaxBallRadius(level, row.stage) / ball.radius);
+    const factor = slot.factor;
     const runtime = ctx.getMultipliers?.();
     runtime?.markTouched();
     row.applied = factor > 1 ? (runtime ? runtime.apply(ball, slot.kind, factor) : applyMultiplier(ball, slot.kind, factor)) : 1;
     v.gatesPassed++;
     if (slot.kind === "size" && row.applied !== 1) {
-      // Grown next to a wall: moved clear of it at once (the obstacle walls would only push it out on the next step).
       const f = level.field;
+      if (2 * ball.radius >= f.right - f.left) {
+        runtime?.outgrow(ctx, ball, (f.right - f.left) / 2);
+        return;
+      }
+      // Grown next to a wall: moved clear of it at once (the obstacle walls would only push it out on the next step).
       ball.x = Math.max(f.left + ball.radius, Math.min(f.right - ball.radius, ball.x));
     }
     if (row.applied !== 1 && ball.mult) this.queueSound(ctx, { type: "multiplier", wallIndex: 0, multiplier: ball.mult[slot.kind] }, true);

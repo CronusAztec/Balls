@@ -157,7 +157,8 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 export class CaptionLayer {
   private readonly tracker = new CaptionTracker();
-  private readonly slots = Array.from({ length: MAX_CAPTIONS }, () => new CaptionSlot());
+  /** One slot per caption, grown when the list grows (--- review fix (uncap-all) --- any number up to MAX_CAPTIONS; never per frame). */
+  private readonly slots: CaptionSlot[] = [];
   private summaryDirty = true;
   /** Captions drawn this frame. */
   drawn = 0;
@@ -191,6 +192,7 @@ export class CaptionLayer {
   draw(ctx: CanvasRenderingContext2D, engine: CaptionEngineView, options: CanvasCaptionOptions, view: CaptionView) {
     const captions = options.captions;
     const count = Math.min(captions.length, MAX_CAPTIONS);
+    while (this.slots.length < count) this.slots.push(new CaptionSlot());
     let wantsReveal = false;
     for (let i = 0; i < count; i++) if (captions[i].type === "question" && captions[i].answer) wantsReveal = true;
     const run = this.tracker.update(engine, wantsReveal);

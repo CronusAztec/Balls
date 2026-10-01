@@ -5,7 +5,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { MAX_CUP_TITLE_LENGTH, RACE_CAMERAS, RACE_SHAPES, type RaceCamera, type RaceShape } from "@/lib/physics/modes/race";
-import { RACE_FEATURES, type RaceFeature } from "@/lib/physics/raceTrack";
+import { RACE_FEATURES, resolveRaceTrackSettings, type RaceFeature } from "@/lib/physics/raceTrack";
 import { rankCup, raceCupStore } from "@/lib/raceCup";
 import { CUP_TITLE_KEYS, RACER_NAME_KEYS, raceRoster } from "@/lib/raceRoster";
 
@@ -72,7 +72,7 @@ export function cupTitleOf(t: (key: string) => string, s: Pick<SimulatorSettings
  */
 export default function RaceSection({ t, search, matches, settings: s, update }: RaceSectionProps) {
   const cup = useRaceCup();
-  const roster = raceRoster(s.teams, defaultRacerNames(t));
+  const roster = raceRoster(s.teams, defaultRacerNames(t), resolveRaceTrackSettings({ racers: s.rcRacers }).racers); // --- review fix (uncap-all) --- (a slot per racer of the grid)
   const cupHere = cup && cup.racers === s.rcRacers ? cup : null;
   const leader = cupHere && cupHere.races > 0 ? rankCup(cupHere)[0] : -1;
   const rigged = s.rcWinner >= 0 && s.rcWinner < s.rcRacers;

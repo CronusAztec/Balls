@@ -6,7 +6,8 @@ import { MODE_IDS, type ModeId, type PhysicsConfig, type SoundEvent } from "@/li
 import { wallHitFrequency } from "@/lib/audio/sampler";
 import { MULTIPLY_MAX_BALLS } from "@/lib/physics/modes/multiply";
 import { BOX_WALL_NOTES } from "@/lib/physics/modes/box";
-import { BM_BOUNCE, BounceMathRuntime, PITCH_MAX_HZ, bounceHitEvent, bounceParamApplies, bounceTriggerApplies, pitchedFrequency, resizeTrail } from "@/lib/physics/bounceMathRuntime";
+import { BM_BOUNCE, BounceMathRuntime, PITCH_MAX_HZ, SPEED_CEILING, bounceHitEvent, bounceParamApplies, bounceTriggerApplies, pitchedFrequency, resizeTrail } from "@/lib/physics/bounceMathRuntime";
+import { TRAIL_POINT_CEILING } from "@/lib/uncap";
 import { createEngineForSettings, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { buildProject, parseProject, serializeProject } from "@/lib/project";
@@ -283,13 +284,25 @@ describe("applyRule", () => {
     expect(applyRule(0, rule({ param: "pitch", op: "subtract", amount: 12 }), ctxOf())).toBe(-12);
   });
 
-  it("clamps at physical ceilings and the float ceiling, and rounds counts", () => {
+  it("clamps only where a value ends in meaning or allocates (a gap past the whole ring, a trail past its memory-safety ceiling), and rounds counts", () => {
     expect(applyRule(0.4, rule({ param: "gap", op: "add", amount: 100 }), ctxOf())).toBe(MAX_GAP);
-    expect(applyRule(0.01, rule({ param: "damping", op: "multiply", amount: 1000 }), ctxOf())).toBe(0.99);
     expect(applyRule(20, rule({ param: "trail", op: "multiply", amount: 1000 }), ctxOf())).toBe(MAX_TRAIL_POINTS);
+    expect(MAX_TRAIL_POINTS).toBe(TRAIL_POINT_CEILING);
     expect(applyRule(3, rule({ param: "balls", op: "multiply", amount: 1.5 }), ctxOf())).toBe(5); // 4.5 rounds to 5
-    expect(applyRule(1e14, rule({ param: "bounciness", op: "multiply", amount: 1000 }), ctxOf())).toBe(FLOAT_CEILING);
-    expect(applyRule(-1e14, rule({ param: "gravity", op: "multiply", amount: 1000 }), ctxOf())).toBe(-FLOAT_CEILING);
+    // --- review fix (uncap-all) --- no ceiling below the float range: 10¹⁶ px/s, a size of 10²⁰, gravity of 10³⁰, a wobble of
+    // 500, a wall 10⁷ px thick, a clock 10⁷× faster and an air drag of 1.5 (it stops the balls, never reverses them) run as
+    // computed; only an overflowed result is refused (the value stays as it was).
+    expect(FLOAT_CEILING).toBe(Number.MAX_VALUE);
+    expect(SPEED_CEILING).toBe(Number.MAX_VALUE);
+    expect(applyRule(1e13, rule({ param: "speed", op: "multiply", amount: 1000 }), ctxOf())).toBe(1e16);
+    expect(applyRule(1e17, rule({ param: "size", op: "multiply", amount: 1000 }), ctxOf())).toBe(1e20);
+    expect(applyRule(1e27, rule({ param: "gravity", op: "multiply", amount: 1000 }), ctxOf())).toBe(1e30);
+    expect(applyRule(-1e27, rule({ param: "gravity", op: "multiply", amount: 1000 }), ctxOf())).toBe(-1e30);
+    expect(applyRule(5, rule({ param: "wobble", op: "multiply", amount: 100 }), ctxOf())).toBe(500);
+    expect(applyRule(1e4, rule({ param: "thickness", op: "multiply", amount: 1000 }), ctxOf())).toBe(1e7);
+    expect(applyRule(1e4, rule({ param: "timeScale", op: "multiply", amount: 1000 }), ctxOf())).toBe(1e7);
+    expect(applyRule(0.01, rule({ param: "damping", op: "multiply", amount: 150 }), ctxOf())).toBe(1.5);
+    expect(applyRule(1e300, rule({ param: "bounciness", op: "multiply", amount: 1e10 }), ctxOf())).toBe(1e300); // (overflowed: unchanged)
   });
 
   it("gives the amount slider a comfort range only", () => {
@@ -351,6 +364,25 @@ describe("validation and the URL form", () => {
     const many = Array.from({ length: MAX_BOUNCE_RULES + 5 }, () => rule());
     expect(resolveRules(many)).toHaveLength(MAX_BOUNCE_RULES);
     expect(resolveRules("nope")).toEqual([]);
+  });
+
+  // --- review fix (uncap-all) --- "every N" has no maximum (it was 1,000,000), the rule list stops at its memory-safety
+  // ceiling (a thousand – it was 24, a design count), and both travel through the link exactly.
+  it("keep any every-N (no 1,000,000 cap) and up to a thousand rules, through the link", () => {
+    expect(MAX_BOUNCE_RULES).toBeGreaterThanOrEqual(40 * 24);
+    expect(sanitizeRule({ ...rule(), every: 5e6 })?.every).toBe(5_000_000);
+    expect(sanitizeRule({ ...rule(), every: 1.5e21 })?.every).toBe(1.5e21);
+    for (const every of [5_000_000, 1.5e21, 1e300]) {
+      const r = rule({ every });
+      const text = serializeRule(r);
+      expect(text.split(".")).toHaveLength(5); // (the number never adds a field separator)
+      expect(parseRule(text)).toEqual(r);
+    }
+    // Old links write the same text as before.
+    expect(serializeRule(rule({ every: 3 }))).toBe("bounciness.bounce.3.multiply.1_05");
+    const long = Array.from({ length: 300 }, (_, i) => rule({ amount: 1 + i / 1000 }));
+    expect(resolveRules(long)).toHaveLength(300);
+    expect(parseRules(serializeRules(long))).toEqual(long);
   });
 
   it("round-trips through the settings URL (bmr, bmh), presets, project files and share codes – next to the beat markers' bm", async () => {

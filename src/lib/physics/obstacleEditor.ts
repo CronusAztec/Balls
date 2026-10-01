@@ -1,13 +1,14 @@
 import { circleObstacle, resolveBallCircle, resolveBallSegment, segmentObstacle, type Obstacle, type SegmentObstacle } from "./obstacles";
 import type { Ball, ModeId, PhysicsConfig, SoundEvent } from "./types";
+import { OBSTACLE_CEILING } from "@/lib/uncap"; // --- review fix (uncap-all) ---
 
 /**
  * Obstacle editor: pegs, bumpers, blockers and spinners that a creator places inside any ring ("circular arena")
  * mode, on top of whatever the mode itself builds. It reuses the collision maths of the generic obstacle layer
  * (obstacles.ts):
  *  - **peg** – a static circle,
- *  - **bumper** – a circle that multiplies the ball's speed by `bumperBoost` (1–2) on a hard hit, flashes and plays a
- *    pinball "ding" (a `SoundEvent` with `bumper: true`; see audio/bumperTone.ts),
+ *  - **bumper** – a circle that multiplies the ball's speed by `bumperBoost` (the slider's 1–2, any value from 1 up) on a
+ *    hard hit, flashes and plays a pinball "ding" (a `SoundEvent` with `bumper: true`; see audio/bumperTone.ts),
  *  - **blocker** – a static bar,
  *  - **spinner** – a bar turning around its centre at `rpm` revolutions per minute (negative = anticlockwise).
  *
@@ -58,34 +59,34 @@ export function supportsObstacles(mode: ModeId | null | undefined): boolean {
   return !!mode && OBSTACLE_EDITOR_MODES.includes(mode);
 }
 
-/** Most obstacles in one layout (40 balls × 24 obstacles × 240 sub-steps a second stays well inside the frame budget). */
-export const MAX_OBSTACLES = 24;
+/**
+ * Most obstacles in one layout: --- review fix (uncap-all) --- their memory-safety ceiling (`OBSTACLE_CEILING`, the
+ * `obstacles` entry of `MEMORY_CEILINGS` in lib/uncap.ts – each obstacle is resolved against every ball every sub-step and
+ * is a row of number fields in the panel). A link or preset past it keeps the first ones and the canvas says ARENA FULL;
+ * the panel's add button stops there. (It was 24, a frame-cost cap.)
+ */
+export const MAX_OBSTACLES = OBSTACLE_CEILING;
 export const DEFAULT_BUMPER_BOOST = 1.3;
-/** A bumper never kicks a ball past this multiple of the ball speed setting (the ring rebound resets it anyway). */
-export const BUMPER_SPEED_CAP = 3;
 /**
- * A ring only catches a ball whose centre lands within `ball.radius + RING_CAPTURE_MARGIN` px of it (the engine's
- * `processWallCollisions()` band) and judges the side by the centre: a ball crossing more than that in one sub-step
- * lands on the far side and is resolved there – it tunnels through an intact, even a sealed ring.
+ * --- review fix (uncap-all) --- The fastest (px/s) the obstacles left a ball of `radius` px that met them at `speedIn`
+ * px/s before uncap-all: a kick or a fling kept the larger of its incoming speed and 3 × the ball speed setting
+ * (`baseSpeed`), within 90 % of a ring's capture band (`radius` + 2 px) a sub-step of `dtSec`. Nothing is clamped to it
+ * any more – a bumper kicks by its boost and a spinner flings at its surface speed, whatever they are – but a run whose
+ * obstacles never went past it plays exactly as before; the first kick or fling past it makes the engine plan every
+ * further step of the run (`ObstacleField.pastClassicLimit`: enough sub-steps that no ball moves more than half its radius,
+ * time dilation past 64), so the ball keeps its speed without tunnelling through an obstacle or a ring.
  */
-export const RING_CAPTURE_MARGIN = 2;
-/** Share of that capture band a ball the obstacles sped up may cover in one sub-step. */
-export const RING_CAPTURE_SHARE = 0.9;
-
-/**
- * The fastest (px/s) the obstacles may leave a ball of `radius` px that met them at `speedIn` px/s: a spinner's fling
- * or a bumper's kick keeps the larger of its incoming speed and BUMPER_SPEED_CAP × the ball speed setting (`baseSpeed`),
- * but never covers more than RING_CAPTURE_SHARE of a ring's capture band in one sub-step of `dtSec` – so the next ring
- * still catches it. Applied only when the obstacles made the ball faster than it came in.
- */
-export function obstacleSpeedLimit(speedIn: number, radius: number, baseSpeed: number, dtSec: number): number {
-  const band = dtSec > 0 ? (RING_CAPTURE_SHARE * (radius + RING_CAPTURE_MARGIN)) / dtSec : Infinity;
-  return Math.min(Math.max(speedIn, BUMPER_SPEED_CAP * baseSpeed), band);
+export function classicObstacleSpeed(speedIn: number, radius: number, baseSpeed: number, dtSec: number): number {
+  const band = dtSec > 0 ? (0.9 * (radius + 2)) / dtSec : Infinity;
+  return Math.min(Math.max(speedIn, 3 * baseSpeed), band);
 }
 /** Hit sounds the editor's obstacles may queue per 60 Hz step (a ball rattling between two pegs stays listenable). */
 export const MAX_OBSTACLE_SOUNDS_PER_STEP = 4;
 
-/** Limits of the per-obstacle numbers (the panel's sliders and the URL / preset validation). */
+/**
+ * The comfort ranges of the per-obstacle sliders (--- review fix (uncap-all) --- not limits: the number field next to each
+ * takes any value – positions, angles and spin signed and unbounded, sizes from their minimum up; `sanitizeObstacle()`).
+ */
 export const OBSTACLE_LIMITS = {
   /** Centre coordinates, arena radii. */
   position: { min: -1.3, max: 1.3, step: 0.01 },
@@ -132,12 +133,27 @@ export function isCircleKind(kind: ObstacleKind): boolean {
   return kind === "peg" || kind === "bumper";
 }
 
+/**
+ * --- review fix (uncap-all) --- True when a number of `o` lies past its row slider's comfort range (a 1,000 rpm spinner, a
+ * bar longer than 120 %, a peg off the arena): the page then engages the extreme-values machinery like for any value past
+ * its slider (`uncappedEngaged()`).
+ */
+export function obstacleBeyondSliders(o: EditorObstacle): boolean {
+  const L = OBSTACLE_LIMITS;
+  const size = isCircleKind(o.kind) ? L.circleSize : L.barSize;
+  return Math.abs(o.x) > L.position.max || Math.abs(o.y) > L.position.max || o.size > size.max || o.rpm > L.rpm.max || o.rpm < L.rpm.min;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-/** Rounds to `decimals` places and turns −0 into 0 (so the URL form and the stored value agree exactly). */
+/**
+ * Rounds to `decimals` places and turns −0 into 0 (so the URL form and the stored value agree exactly). --- review fix
+ * (uncap-all) --- A huge value is kept whole: from 1e12 on its decimals mean nothing, and scaling it could overflow the float.
+ */
 function round(value: number, decimals: number): number {
+  if (!(Math.abs(value) < 1e12)) return value;
   const f = 10 ** decimals;
   const r = Math.round(value * f) / f;
   return r === 0 ? 0 : r;
@@ -157,9 +173,11 @@ export function defaultObstacle(kind: ObstacleKind, x = 0, y = 0): EditorObstacl
 }
 
 /**
- * A valid obstacle from anything (a preset, a URL, a drag): unknown kinds give null, numbers are clamped to
- * `OBSTACLE_LIMITS` (a bad number falls back to the kind's default) and rounded – positions to 3 decimals, sizes,
- * angles and rpm to 1 – so the stored value is exactly what the URL form reads back.
+ * A valid obstacle from anything (a preset, a URL, a drag): unknown kinds give null, a bad number falls back to the kind's
+ * default and every number is rounded – positions to 3 decimals, sizes, angles and rpm to 1 – so the stored value is
+ * exactly what the URL form reads back. --- review fix (uncap-all) --- No maximum: a position (anywhere on or off the
+ * canvas) and a spin are signed and unbounded, an angle wraps into (−180, 180], a size is lifted onto its slider's minimum
+ * and kept from there up.
  */
 export function sanitizeObstacle(value: unknown): EditorObstacle | null {
   if (!value || typeof value !== "object") return null;
@@ -171,15 +189,15 @@ export function sanitizeObstacle(value: unknown): EditorObstacle | null {
     return Number.isFinite(n) ? n : fallback;
   };
   const circle = isCircleKind(kind);
-  const sizeRange = circle ? OBSTACLE_LIMITS.circleSize : OBSTACLE_LIMITS.barSize;
-  const { min: pMin, max: pMax } = OBSTACLE_LIMITS.position;
+  const sizeMin = (circle ? OBSTACLE_LIMITS.circleSize : OBSTACLE_LIMITS.barSize).min;
+  const size = num(v.size, DEFAULT_SIZES[kind]);
   return {
     kind,
-    x: round(clamp(num(v.x, 0), pMin, pMax), 3),
-    y: round(clamp(num(v.y, 0), pMin, pMax), 3),
-    size: round(clamp(num(v.size, DEFAULT_SIZES[kind]), sizeRange.min, sizeRange.max), 1),
+    x: round(num(v.x, 0), 3),
+    y: round(num(v.y, 0), 3),
+    size: round(size < sizeMin ? sizeMin : size, 1),
     angle: circle ? 0 : round(wrapDegrees(num(v.angle, 0)), 1),
-    rpm: kind === "spinner" ? round(clamp(num(v.rpm, 20), OBSTACLE_LIMITS.rpm.min, OBSTACLE_LIMITS.rpm.max), 1) : 0,
+    rpm: kind === "spinner" ? round(num(v.rpm, 20), 1) : 0,
   };
 }
 
@@ -471,6 +489,16 @@ export class ObstacleField {
   private boost = DEFAULT_BUMPER_BOOST;
   private spinning = false;
   private soundsThisStep = 0;
+  /** The layout has a bumper (its kick multiplies a ball's speed by the boost). */
+  private hasBumper = false;
+  /** The fastest surface (px/s) of the spinners: the tip of the fastest-turning bar, half its thickness beyond its end. */
+  private spinnerTipSpeed = 0;
+  /**
+   * --- review fix (uncap-all) --- A kick or a fling of this run left a ball faster than the obstacles ever left one before
+   * uncap-all (`classicObstacleSpeed()`): from the next step on the engine plans every step of the run (sub-steps for the
+   * fastest ball, its next kick and the spinners' surface speed; time dilation past 64). Cleared by `reset()`.
+   */
+  pastClassicLimit = false;
 
   /** Rebuilds the pixel obstacles when the list or the canvas size changed (a spinner whose settings stayed keeps its current angle). Returns true when it rebuilt. */
   configure(config: Pick<PhysicsConfig, "width" | "height" | "editorObstacles" | "bumperBoost">): boolean {
@@ -491,6 +519,8 @@ export class ObstacleField {
     const hits = this.lastHitMs.slice();
     this.lastHitMs.length = 0;
     this.spinning = false;
+    this.hasBumper = false;
+    this.spinnerTipSpeed = 0;
     const at: Vec = { x: 0, y: 0 };
     for (let i = 0; i < list.length; i++) {
       const o = list[i];
@@ -499,6 +529,7 @@ export class ObstacleField {
       let item: Obstacle;
       if (isCircleKind(o.kind)) {
         item = circleObstacle(at.x, at.y, Math.max(3, (o.size / 100) * R), material);
+        if (o.kind === "bumper") this.hasBumper = true;
       } else {
         const angularVelocity = o.kind === "spinner" ? (o.rpm * 2 * Math.PI) / 60 : 0;
         item = segmentObstacle(at.x, at.y, Math.max(6, ((o.size / 100) * R) / 2), (o.angle * Math.PI) / 180, { ...material, thickness, angularVelocity });
@@ -506,7 +537,13 @@ export class ObstacleField {
         const prevItem = previousItems[i];
         // A spinner that only moved (or a resize) keeps turning from where it is instead of jumping back.
         if (o.kind === "spinner" && prev && prev.kind === "spinner" && prev.angle === o.angle && prev.rpm === o.rpm && prevItem?.kind === "segment") item.angle = prevItem.angle;
-        if (angularVelocity !== 0) this.spinning = true;
+        if (angularVelocity !== 0) {
+          this.spinning = true;
+          if (item.kind === "segment") {
+            const tip = Math.abs(angularVelocity) * (item.halfLength + item.thickness / 2);
+            if (tip > this.spinnerTipSpeed) this.spinnerTipSpeed = tip;
+          }
+        }
       }
       this.items.push(item);
       this.kinds.push(o.kind);
@@ -526,6 +563,7 @@ export class ObstacleField {
     this.hitCount = 0;
     this.bumpCount = 0;
     this.soundsThisStep = 0;
+    this.pastClassicLimit = false;
   }
 
   get count() {
@@ -539,6 +577,20 @@ export class ObstacleField {
 
   get bumperBoost() {
     return this.boost;
+  }
+
+  /**
+   * --- review fix (uncap-all) --- What one contact may multiply a ball's speed by (the planned steps take it into account):
+   * the bumper boost × the restitution scale when the layout has a bumper with a boost above 1, else 1.
+   */
+  kickFactor(restitutionScale: number): number {
+    const k = this.hasBumper ? this.boost * restitutionScale : 1;
+    return k > 1 ? k : 1;
+  }
+
+  /** --- review fix (uncap-all) --- The fastest surface of the spinners (px/s): what a fling may add to a ball's speed (twice it, at most). */
+  get flingSpeed(): number {
+    return this.spinnerTipSpeed;
   }
 
   /** The creator's list the items were built from. */
@@ -565,11 +617,12 @@ export class ObstacleField {
   /**
    * Resolves `ball` against every obstacle: push-out and rebound always (restitution × `restitutionScale`); a contact
    * at `hitSpeed` or more counts as a hit – it lights the obstacle at `nowMs`, a bumper kicks the ball to its speed
-   * before the hit × the boost (× `restitutionScale`, at most BUMPER_SPEED_CAP × `baseSpeed`, never slower than the
-   * rebound left it), and a sound event is queued into `events` (at most MAX_OBSTACLE_SOUNDS_PER_STEP per step).
-   * Whatever sped the ball up – a spinner's fling or a bumper's kick – it leaves at most `obstacleSpeedLimit()`, so it
-   * cannot tunnel through the next ring (`dtSec` is the sub-step the ball moves with). `ballRestitution` / `liftSpeed`: the
-   * ball's bounce-math bounciness, applied after the restitution cap (see obstacles.ts `rebound()`).
+   * before the hit × the boost (× `restitutionScale`, never slower than the rebound left it), and a sound event is queued
+   * into `events` (at most MAX_OBSTACLE_SOUNDS_PER_STEP per step). `ballRestitution` / `liftSpeed`: the ball's bounce-math
+   * bounciness, applied after the restitution cap (see obstacles.ts `rebound()`). --- review fix (uncap-all) --- No speed
+   * cap: a kick or a fling leaves the ball as fast as it makes it; one past what the obstacles ever gave before uncap-all
+   * (`classicObstacleSpeed()`, from `baseSpeed` and the sub-step `dtSec`) sets `pastClassicLimit`, and the engine plans the
+   * run's steps from there on.
    */
   collide(ball: Ball, dtSec: number, restitutionScale: number, hitSpeed: number, baseSpeed: number, nowMs: number, events: SoundEvent[], ballRestitution = 1, liftSpeed = Infinity) {
     const items = this.items;
@@ -585,7 +638,8 @@ export class ObstacleField {
       if (bumper) {
         this.bumpCount++;
         const after = Math.hypot(ball.vx, ball.vy);
-        const target = Math.max(after, Math.min(before * this.boost * restitutionScale * ballRestitution, BUMPER_SPEED_CAP * baseSpeed));
+        const kicked = before * this.boost * restitutionScale * ballRestitution;
+        const target = kicked > after ? kicked : after;
         if (after > 1e-9 && target > after) {
           const k = target / after;
           ball.vx *= k;
@@ -596,14 +650,9 @@ export class ObstacleField {
       this.soundsThisStep++;
       events.push(bumper ? { type: "hit", wallIndex: 0, frequency: bumperNote(i), accent: true, bumper: true } : { type: "hit", wallIndex: 0, frequency: obstacleNote(i) });
     }
-    // Only a ball the obstacles sped up is limited (no contact leaves the velocity exactly as it was).
+    // Only a ball the obstacles sped up can pass the classic limit (no contact leaves the velocity exactly as it was).
+    if (this.pastClassicLimit) return;
     const out = Math.hypot(ball.vx, ball.vy);
-    if (out <= speedIn) return;
-    const limit = obstacleSpeedLimit(speedIn, ball.radius, baseSpeed, dtSec);
-    if (out > limit) {
-      const k = limit / out;
-      ball.vx *= k;
-      ball.vy *= k;
-    }
+    if (out > speedIn && out > classicObstacleSpeed(speedIn, ball.radius, baseSpeed, dtSec)) this.pastClassicLimit = true;
   }
 }

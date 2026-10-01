@@ -285,9 +285,9 @@ export interface RunnerPhysics {
   flatFlight: number;
 }
 
-/** The gravity factor of the Gravity setting (300 → 1), clamped to 0.5–2 (0 still falls). */
+/** The gravity factor of the Gravity setting (300 → 1), from 0.5 (0 still falls; --- review fix (uncap-all) --- no maximum). */
 export function runnerGravityFactor(gravitySetting: number): number {
-  return Number.isFinite(gravitySetting) ? Math.max(0.5, Math.min(2, gravitySetting / 300)) : 1;
+  return Number.isFinite(gravitySetting) ? Math.max(0.5, gravitySetting / 300) : 1;
 }
 
 export function runnerPhysics(settings: Pick<RunnerSettings, "speed" | "jumpHeight">, gravitySetting: number): RunnerPhysics {

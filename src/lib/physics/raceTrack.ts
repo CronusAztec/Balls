@@ -23,6 +23,11 @@ import { ENTITY_CEILING, memoryCeiling } from "@/lib/uncap"; // --- uncap-all --
  */
 
 export const MIN_RACERS = 2;
+/**
+ * The racers' slider end (the grid the panel's slider offers, the racer palette's own colours and translated names). ---
+ * review fix (uncap-all) --- Not a limit: a link or the number field may ask any grid, up to the racers' memory-safety
+ * ceiling (`RACER_CEILING` in lib/uncap.ts); the race's per-racer state and its roster are sized for the grid at init.
+ */
 export const MAX_RACERS = 16;
 
 /** The obstacle mix a track is generated from: everything, or one kind featured in about half of the rows. */
@@ -246,15 +251,16 @@ export function raceLapsWithin(trackLength: number, laps: number): number {
 }
 
 /**
- * The track-relevant settings, filled in (whole racers 2–16, from 3 screens, from 1 lap, a known mix) – --- uncap-all --- no
- * maximum but the memory-safety ones: the racers stop at MAX_RACERS (the per-racer state and the roster are sized for
- * them), the screens at the track's ceiling, the laps where all of them together reach RACE_SCREEN_CEILING screens.
+ * The track-relevant settings, filled in (whole racers from 2, from 3 screens, from 1 lap, a known mix) – --- uncap-all ---
+ * no maximum but the memory-safety ones: the racers stop at their ceiling (`RACER_CEILING`: --- review fix (uncap-all) ---
+ * the per-racer state and the roster are sized for the grid at init, every pair of racers is tested every sub-step), the
+ * screens at the track's ceiling, the laps where all of them together reach RACE_SCREEN_CEILING screens.
  */
 export function resolveRaceTrackSettings(settings: Partial<RaceTrackSettings> | null | undefined): RaceTrackSettings {
   const s = settings ?? {};
   const trackLength = memoryCeiling("rcTrackLength", clampInt(s.trackLength, 3, Infinity, 8));
   return {
-    racers: clampInt(s.racers, MIN_RACERS, MAX_RACERS, 8),
+    racers: memoryCeiling("rcRacers", clampInt(s.racers, MIN_RACERS, Infinity, 8)),
     trackLength,
     laps: raceLapsWithin(trackLength, clampInt(s.laps, 1, Infinity, 1)),
     feature: isRaceFeature(s.feature) ? s.feature : "mixed",

@@ -215,7 +215,10 @@ export function pitchedFrequency(hz: number, semitones: number): number {
   return Number.isNaN(f) ? hz : Math.max(PITCH_MIN_HZ, Math.min(PITCH_MAX_HZ, f));
 }
 
-/** The fastest a ball may move, px/s: the float ceiling of a runaway bounciness (not a gameplay limit – see `FLOAT_CEILING`). */
+/**
+ * The fastest a ball may move, px/s: --- review fix (uncap-all) --- the float range itself (it was 10¹⁵) – a runaway
+ * bounciness compounds as far as a float can say; only a ball whose numbers overflowed is put back (`summarize()`).
+ */
 export const SPEED_CEILING = FLOAT_CEILING;
 
 /** The "hit" sound event of a ring bounce off wall `wallIndex` – with the ball's pitch shift (bounce math's "pitch") when it has one. */
@@ -795,22 +798,21 @@ export class BounceMathRuntime {
   private summarize() {
     const v = this.view;
     const ctx = this.host.ctx();
-    // Float safety: a runaway bounciness compounds on obstacle reflections; a ball is never faster than SPEED_CEILING (and a
-    // non-finite velocity – which would turn its position into NaN – stops it).
+    // Float safety: a runaway bounciness or clock compounds as far as a float can say (--- review fix (uncap-all) --- no speed
+    // ceiling below the float range); a ball whose numbers overflowed it – a velocity or a position no longer finite, which
+    // would turn everything it touches into NaN – is put back at the centre at the Ball Speed (as limits.ts' rescue does).
     const balls = ctx.getBalls();
     for (let i = 0; i < balls.length; i++) {
       const b = balls[i];
-      if (b.restitution === undefined && !b.mult) continue;
-      const speed = Math.hypot(b.vx, b.vy);
-      if (speed <= SPEED_CEILING) continue;
-      if (Number.isFinite(speed)) {
-        const k = SPEED_CEILING / speed;
-        b.vx *= k;
-        b.vy *= k;
-      } else {
-        b.vx = 0;
-        b.vy = 0;
-      }
+      if (Number.isFinite(b.vx) && Number.isFinite(b.vy) && Number.isFinite(b.x) && Number.isFinite(b.y)) continue;
+      const a = 2 * Math.PI * ((Math.abs(b.id) * 0.618033988749895) % 1);
+      const speed = Number.isFinite(ctx.config.ballSpeed) && ctx.config.ballSpeed > 0 ? ctx.config.ballSpeed : 400;
+      b.x = ctx.config.width / 2;
+      b.y = ctx.config.height / 2;
+      b.vx = Math.cos(a) * speed;
+      b.vy = Math.sin(a) * speed;
+      b.trail.length = 0;
+      b.trailIndex = 0;
     }
     const ball = this.focusBall();
     v.hasBall = !!ball;

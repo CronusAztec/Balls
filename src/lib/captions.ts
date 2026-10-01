@@ -1,5 +1,5 @@
 import { normalizeHexColor } from "@/lib/themes";
-import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
+import { CAPTION_CEILING, atLeastMin } from "@/lib/uncap"; // --- uncap-all --- (--- review fix (uncap-all) --- the captions' memory-safety ceiling)
 
 /**
  * Animated captions – overlays beyond the plain top / bottom text, drawn on the canvas (so every recording has
@@ -72,8 +72,12 @@ export function defaultCaptionSettings(): CaptionSettings {
   return { captions: [] };
 }
 
-/** The most captions a clip carries. */
-export const MAX_CAPTIONS = 8;
+/**
+ * The most captions a clip carries: --- review fix (uncap-all) --- their memory-safety ceiling (`CAPTION_CEILING`, the
+ * `captions` entry of `MEMORY_CEILINGS` in lib/uncap.ts – each a row of the panel and a few characters of the link; the
+ * canvas lays out only the ones showing). It was 8, a design count.
+ */
+export const MAX_CAPTIONS = CAPTION_CEILING;
 /** Longest caption text and answer (in characters). */
 export const MAX_CAPTION_TEXT_LENGTH = 80;
 export const MAX_CAPTION_ANSWER_LENGTH = 40;
@@ -128,9 +132,17 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
   return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
-/** Rounds to the slider step (0.5 s, 0.1×) so values survive links and presets unchanged. */
+/**
+ * Rounds to the slider step (0.5 s, 0.1×) so values survive links and presets unchanged (--- review fix (uncap-all) --- a
+ * value too big for its steps to mean anything is kept whole: dividing it by a step below 1 could overflow the float).
+ */
 function toStep(value: number, step: number): number {
-  return Math.round(value / step) * step;
+  return Math.abs(value / step) < 2 ** 53 ? Math.round(value / step) * step : value;
+}
+
+/** A size on its 0.1× steps (a huge one kept whole: ten times it could overflow the float). */
+function tenths(value: number): number {
+  return Math.abs(value) < 1e15 ? Math.round(10 * value) / 10 : value;
 }
 
 /** A valid caption from anything (a preset entry, a parsed link), or null when its type is unknown. */
@@ -150,7 +162,7 @@ export function sanitizeCaption(value: unknown): Caption | null {
     end: toStep(clampNumber(source.end, CAPTION_RANGES.captionEnd, d.end), CAPTION_RANGES.captionEnd.step),
     animation: isCaptionAnimation(source.animation) ? source.animation : d.animation,
     style: {
-      size: Math.round(10 * clampNumber(style.size, CAPTION_RANGES.captionSize, d.style.size)) / 10,
+      size: tenths(clampNumber(style.size, CAPTION_RANGES.captionSize, d.style.size)),
       color: normalizeHexColor(style.color) ?? d.style.color,
       background,
     },

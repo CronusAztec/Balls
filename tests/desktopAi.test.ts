@@ -135,11 +135,12 @@ describe("settings assistant", () => {
     expect(r).toEqual({ ok: true, patch: { ballSpeed: 800, rainbowBall: true, gravity: 0, windX: 0.12 } });
   });
   it("refuses unknown settings, wrong types, out-of-range numbers, bad options and colours", () => {
-    const r = validateSettingsPatch(current, { speed: 2, ballSpeed: 5000, rainbowBall: "yes", instrument: "kazoo", ballColor: "red", teams: [], mode: "nope" });
+    // (--- review fix (uncap-all) --- out of range means below the minimum: a speed past the slider is valid)
+    const r = validateSettingsPatch(current, { speed: 2, ballSpeed: -50, rainbowBall: "yes", instrument: "kazoo", ballColor: "red", teams: [], mode: "nope" });
     expect(r.ok).toBe(false);
     const text = r.ok ? "" : r.errors.join("\n");
     expect(text).toMatch(/"speed" is not a setting/);
-    expect(text).toMatch(/"ballSpeed" must be between 50 and 800/);
+    expect(text).toMatch(/"ballSpeed" must be a number from 50, no upper limit \(got -50\)/);
     expect(text).toMatch(/"rainbowBall" must be true or false/);
     expect(text).toMatch(/"instrument" must be one of/);
     expect(text).toMatch(/"ballColor" must be a colour/);
@@ -152,7 +153,8 @@ describe("settings assistant", () => {
     expect(invertPatch(current, { ballSpeed: 800, rainbowBall: true })).toEqual({ ballSpeed: 400, rainbowBall: false });
     expect(changedKeys(current, { ballSpeed: 400, gravity: 0 })).toEqual(["gravity"]);
     const catalog = settingsCatalog(current);
-    expect(catalog).toContain("ballSpeed (number 50–800, step 10) = 400");
+    expect(catalog).toContain("ballSpeed (number from 50, no upper limit, slider 50–800, step 10) = 400"); // --- review fix (uncap-all) --- (the slider is a comfort range)
+    expect(catalog).toContain("windX (number any value, no upper limit, slider -0.5–0.5, step 0.01) = 0");
     expect(catalog).toMatch(/instrument \(one of "sine"\|/);
   });
   it("offers the mode's own settings and a changes schema of exactly those settings", () => {
@@ -164,7 +166,8 @@ describe("settings assistant", () => {
     expect(schema.type).toBe("array");
     expect(schema.items?.oneOf?.length).toBe(keys.length);
     expect(validateJson(schema, [{ setting: "glassRows", value: 12 }, { setting: "rainbowBall", value: true }, { setting: "instrument", value: "marimba" }])).toEqual([]);
-    expect(validateJson(schema, [{ setting: "ballSpeed", value: 900 }]).join(" ")).toMatch(/≤ 800/);
+    expect(validateJson(schema, [{ setting: "ballSpeed", value: 900 }])).toEqual([]); // --- review fix (uncap-all) --- (past the slider: valid)
+    expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);
     expect(validateJson(schema, [{ setting: "type", value: "fast" }]).length).toBeGreaterThan(0);
     expect(validateJson(schema, []).join(" ")).toMatch(/at least 1/);
     expect(patchFromChanges([{ setting: "gravity", value: 0 }, { setting: "gravity", value: 50 }])).toEqual({ gravity: 50 });
@@ -182,13 +185,18 @@ describe("settings assistant", () => {
     expect(text).toMatch(/"airDrag" must be a number from 0, no upper limit/);
     // --- uncap-all --- no semantic or recording maximum is left (a drag of 1 or more stops the balls, a long clip is just long)
     expect(validateSettingsPatch(unlimited, { airDrag: 3, recordingDuration: 5000 })).toEqual({ ok: true, patch: { airDrag: 3, recordingDuration: 5000 } });
-    // a patch may turn the switch on itself; without it the ranges apply
+    // --- review fix (uncap-all) --- the switch (Wide sliders) gates nothing: past the slider is valid with it on or off
     expect(validateSettingsPatch(current, { unlimited: true, ballSpeed: 5000 })).toEqual({ ok: true, patch: { unlimited: true, ballSpeed: 5000 } });
-    expect(validateSettingsPatch(current, { ballSpeed: 5000 }).ok).toBe(false);
-    expect(settingsCatalog(unlimited)).toContain("ballSpeed (number from 50, no upper limit (Wide sliders is on), slider 50–800, step 10) = 400");
-    const schema = changesSchema(unlimited);
-    expect(validateJson(schema, [{ setting: "ballSpeed", value: 1e9 }])).toEqual([]);
-    expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);
+    expect(validateSettingsPatch(current, { ballSpeed: 5000 })).toEqual({ ok: true, patch: { ballSpeed: 5000 } });
+    expect(validateSettingsPatch(current, { ballSpeed: 5000, ballCount: 1e6, windX: -40 })).toEqual({ ok: true, patch: { ballSpeed: 5000, ballCount: 1e6, windX: -40 } });
+    const low = validateSettingsPatch(current, { ballSpeed: -5 });
+    expect(low.ok ? "" : low.errors.join("\n")).toMatch(/"ballSpeed" must be a number from 50, no upper limit/);
+    for (const page of [current, unlimited]) {
+      expect(settingsCatalog(page)).toContain("ballSpeed (number from 50, no upper limit, slider 50–800, step 10) = 400");
+      const schema = changesSchema(page);
+      expect(validateJson(schema, [{ setting: "ballSpeed", value: 1e9 }])).toEqual([]);
+      expect(validateJson(schema, [{ setting: "ballSpeed", value: 10 }]).join(" ")).toMatch(/≥ 50/);
+    }
   });
 
   it("changes the numeric Bounciness, and the old Bouncier switch through it (--- uncap-all ---)", () => {
@@ -197,8 +205,10 @@ describe("settings assistant", () => {
     expect(validateSettingsPatch(current, { bouncierEnabled: true })).toEqual({ ok: true, patch: { bouncierEnabled: true, bounciness: 1.03 } });
     const bouncy = { ...current, bounciness: 1.5, bouncierEnabled: true };
     expect(validateSettingsPatch(bouncy, { bouncierEnabled: false })).toEqual({ ok: true, patch: { bouncierEnabled: false, bounciness: 1 } });
-    expect(validateSettingsPatch(current, { bounciness: 50 }).ok).toBe(false); // past its slider only with Wide sliders on
+    // --- review fix (uncap-all) --- past its slider whatever the Wide sliders switch
+    expect(validateSettingsPatch(current, { bounciness: 50 })).toEqual({ ok: true, patch: { bounciness: 50, bouncierEnabled: true } });
     expect(validateSettingsPatch({ ...current, unlimited: true }, { bounciness: 50 })).toEqual({ ok: true, patch: { bounciness: 50, bouncierEnabled: true } });
+    expect(validateSettingsPatch(current, { bounciness: 0.5 }).ok).toBe(false); // (below its minimum: invalid)
   });
 
   // --- review fix (unlimited) x uncap-all --- the switch is only Wide sliders now: turning it off through the assistant
@@ -214,7 +224,8 @@ describe("settings assistant", () => {
     // A value the patch sets itself comes in too – inside the slider now that the assistant's suggestions are no longer widened.
     const own = validateSettingsPatch(big, { unlimited: false, wallCount: 12 });
     expect(own.ok && own.patch.wallCount).toBe(12);
-    expect(validateSettingsPatch(big, { unlimited: false, wallCount: 5000 }).ok).toBe(false);
+    // --- review fix (uncap-all) --- and one past the slider too: the switch gates nothing
+    expect(validateSettingsPatch(big, { unlimited: false, wallCount: 5000 })).toEqual({ ok: true, patch: { unlimited: false, wallCount: 5000 } });
     expect(RANGES.wallCount.max).toBeLessThan(5000);
   });
 
@@ -236,15 +247,22 @@ describe("settings assistant", () => {
   });
 
   it("runs as an agent task: an out-of-range change is sent back, the corrected one comes out", async () => {
+    // (--- review fix (uncap-all) --- out of range is below the minimum now; a value past the slider is no error)
     const model = scripted([
-      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":1600},{"setting":"rainbowBall","value":true}],"summary":"x2"}}',
-      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":800},{"setting":"rainbowBall","value":true},{"setting":"gravity","value":0}],"summary":"Twice as fast (capped), rainbow, no gravity"}}',
+      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":-800},{"setting":"rainbowBall","value":true}],"summary":"x2"}}',
+      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":800},{"setting":"rainbowBall","value":true},{"setting":"gravity","value":0}],"summary":"Twice as fast, rainbow, no gravity"}}',
     ]);
     const out = await runAgent<SettingsResult>(model, settingsTask("make the ball twice as fast and rainbow, no gravity", current, "en"));
     expect(out.ok).toBe(true);
     if (out.ok) expect(patchFromChanges(out.result.changes)).toEqual({ ballSpeed: 800, rainbowBall: true, gravity: 0 });
     expect(out).toMatchObject({ retries: 1 });
-    expect(model.calls[1].at(-1)?.content).toMatch(/≤ 800/);
+    expect(model.calls[1].at(-1)?.content).toMatch(/≥ 50/);
+    // Twice as fast from 800 is 1,600 – past the slider, and taken as it is (never capped at the slider).
+    const fast = scripted(['{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":1600}],"summary":"x2"}}']);
+    const twice = await runAgent<SettingsResult>(fast, settingsTask("twice as fast", { ...current, ballSpeed: 800 }, "en"));
+    expect(twice).toMatchObject({ ok: true, retries: 0 });
+    if (twice.ok) expect(patchFromChanges(twice.result.changes)).toEqual({ ballSpeed: 1600 });
+    expect(fast.calls[0][0].content).toMatch(/never capped at a slider/);
   });
 });
 

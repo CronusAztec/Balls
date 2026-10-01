@@ -184,9 +184,10 @@ export const COLLISION_ITERATIONS = 3;
  */
 export const COLLIDE_PAIR_BUDGET = 40_000;
 /**
- * Speed cap (× the Ball Speed; raised under strong gravity to what a fall across the container gives): a safety net
- * against a crowded pile squeezing an orb out at an absurd speed. It sits far above the speeds small orbs reach by
- * equipartition (their share of the energy makes them faster than big ones), so it never cools a normal run.
+ * The old speed cap (× the Ball Speed; raised under strong gravity to what a fall across the container gives), once a
+ * safety net against a crowded pile squeezing an orb out at an absurd speed. --- review fix (uncap-all) --- No longer a
+ * cap: past it the engine plans the steps for the fastest orb (`CollideMode.stepSpeedBound()`), so a restitution past 1
+ * keeps gaining speed on every bounce.
  */
 export const MAX_SPEED_FACTOR = 8;
 /** Level of a collision note relative to a normal wall hit at full impact (the notes are soft; weaker impacts are softer still). */
@@ -728,7 +729,7 @@ export class CollideMode implements GameMode {
     return ctx.config.gravity * ((ctx.config.ballSpeed || 400) / 300) * this.view.settings.gravity;
   }
 
-  /** The engine moved the orb: keep it inside the container (a rebound with the restitution) and under the speed cap. */
+  /** The engine moved the orb: keep it inside the container (a rebound with the restitution). */
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     this.subSec = dtSec;
     this.view.tickMs = dtSec * 1000;
@@ -745,14 +746,35 @@ export class CollideMode implements GameMode {
     const field = this.view.field;
     if (!field) return;
     this.containerBounce(ball, k, field, true, ctx);
-    // Speed cap: a safety net against a pile squeezing an orb out at an absurd speed.
-    const cap = Math.max(MAX_SPEED_FACTOR * this.ballSpeed, 1.5 * Math.sqrt(2 * this.gravityAccel(ctx) * 2 * field.radius));
-    const v2 = ball.vx * ball.vx + ball.vy * ball.vy;
-    if (v2 > cap * cap) {
-      const f = cap / Math.sqrt(v2);
-      ball.vx *= f;
-      ball.vy *= f;
+    // --- review fix (uncap-all) --- no speed cap: a restitution past 1 gains speed on every bounce, without end – the engine
+    // plans the step for the fastest orb (`stepSpeedBound()`) and puts back an orb whose numbers overflowed the float range
+  }
+
+  /**
+   * --- review fix (uncap-all) --- The fastest an orb may move within the next step – its speed × one more bounce's
+   * restitution – once an orb outruns the old speed cap (`classicSpeedCap()`; nothing faster happened before uncap-all, so a
+   * run that never gets there replays exactly), else 0: the engine plans the step for it (sub-steps, time dilation past 64).
+   */
+  stepSpeedBound(ctx: ModeContext): number {
+    const field = this.view.field;
+    if (this.ring || !field) return 0;
+    let fastest = 0;
+    for (const ball of ctx.getBalls()) {
+      const v2 = ball.vx * ball.vx + ball.vy * ball.vy;
+      if (v2 > fastest) fastest = v2;
     }
+    fastest = Math.sqrt(fastest);
+    if (!(fastest > this.classicSpeedCap(ctx, field))) return 0;
+    const e = Math.max(1, this.wallRestitution, this.view.settings.restitution);
+    return fastest * e;
+  }
+
+  /**
+   * The speed the playground held every orb under before uncap-all (MAX_SPEED_FACTOR × the Ball Speed, or what a fall across
+   * the container gives): no longer a cap, only the line past which the steps are planned.
+   */
+  private classicSpeedCap(ctx: ModeContext, field: CollideField): number {
+    return Math.max(MAX_SPEED_FACTOR * (ctx.config.ballSpeed || 400), 1.5 * Math.sqrt(2 * this.gravityAccel(ctx) * 2 * field.radius));
   }
 
   /**

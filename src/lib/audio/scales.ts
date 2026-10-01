@@ -91,9 +91,12 @@ export function isQuantizeGrid(value: unknown): value is QuantizeGrid {
   return typeof value === "string" && (QUANTIZE_GRIDS as readonly string[]).includes(value);
 }
 
-/** Length of one grid step in seconds: a quarter note is one beat at the given BPM. */
+/**
+ * Length of one grid step in seconds: a quarter note is one beat at the given BPM (from BPM_MIN; --- review fix (uncap-all)
+ * --- no maximum: a BPM past the slider's 200 quantizes to its own, finer grid).
+ */
 export function gridStepSeconds(bpm: number, grid: QuantizeGrid): number {
-  const beat = 60 / Math.min(BPM_MAX, Math.max(BPM_MIN, bpm));
+  const beat = 60 / (Number.isFinite(bpm) ? Math.max(BPM_MIN, bpm) : BPM_MIN);
   switch (grid) {
     case "1/4":
       return beat;

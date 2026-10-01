@@ -1,4 +1,5 @@
 import { pointsForPlace } from "@/lib/physics/raceStandings";
+import { RACER_CEILING } from "@/lib/uncap"; // --- review fix (uncap-all) ---
 
 /**
  * Cups of the Square Racing Grand Prix: with the Cup switch on, every race that reaches its podium adds its F1 points
@@ -40,7 +41,7 @@ export interface RaceResult {
 }
 
 export function emptyCup(racers: number): RaceCup {
-  const n = Math.max(0, Math.min(64, Math.round(racers)));
+  const n = Math.max(0, Math.min(RACER_CEILING, Math.round(racers))); // --- review fix (uncap-all) --- (every racer of any grid the race builds)
   return { version: RACE_CUP_VERSION, racers: n, races: 0, points: new Array(n).fill(0), places: Array.from({ length: n }, () => new Array(n).fill(0)), lastRun: "" };
 }
 
@@ -96,7 +97,7 @@ export function parseCup(value: unknown): RaceCup | null {
   }
   if (!data || typeof data !== "object") return null;
   const c = data as Partial<Record<keyof RaceCup, unknown>>;
-  if (c.version !== RACE_CUP_VERSION || !isCount(c.racers) || c.racers < 1 || c.racers > 64 || !isCount(c.races)) return null;
+  if (c.version !== RACE_CUP_VERSION || !isCount(c.racers) || c.racers < 1 || c.racers > RACER_CEILING || !isCount(c.races)) return null;
   const n = c.racers;
   if (!Array.isArray(c.points) || c.points.length !== n || !c.points.every(isCount)) return null;
   if (!Array.isArray(c.places) || c.places.length !== n || !c.places.every((p) => Array.isArray(p) && p.length === n && p.every(isCount))) return null;

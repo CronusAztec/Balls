@@ -506,6 +506,14 @@ export interface GameMode {
    * steps and queues them here with `ctx.addPendingSoundEvent()`. Must not touch the physics (determinism).
    */
   flushPendingSounds?(ctx: ModeContext): void;
+  /**
+   * --- review fix (uncap-all) --- The fastest (px/s) a ball of the mode may move within the next step when that may outrun
+   * the engine's own sub-steps (0 = nothing to plan): instead of clamping a user-driven speed, a mode that moves its balls
+   * itself (Collision Playground's restitution, the Journey's fall) reports it and the engine plans the step for it –
+   * enough sub-steps that no ball moves more than half its radius, time dilation past 64 (`planStep()`). A mode reports 0
+   * while its balls stay under what it used to clamp them to, so those runs replay exactly as before.
+   */
+  stepSpeedBound?(ctx: ModeContext, stepSec: number): number;
 }
 
 export interface PersonalityVisuals {

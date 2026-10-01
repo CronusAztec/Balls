@@ -122,7 +122,8 @@ export function resolveIllusionSettings(config: Partial<IllusionSettings> | null
   if (isIllusionType(config.type)) out.type = config.type;
   if (config.balls !== undefined) out.balls = memoryCeiling("ilBalls", Math.round(clampNumber(config.balls, R.ilBalls, out.balls)));
   if (config.rings !== undefined) out.rings = memoryCeiling("ilRings", Math.round(clampNumber(config.rings, R.ilRings, out.rings)));
-  if (config.depth !== undefined) out.depth = Math.round(clampNumber(config.depth, R.ilDepth, out.depth));
+  // --- review fix (uncap-all) --- the nested circles size typed arrays and a body each: a memory-safety ceiling like the other counts
+  if (config.depth !== undefined) out.depth = memoryCeiling("ilDepth", Math.round(clampNumber(config.depth, R.ilDepth, out.depth)));
   if (config.painters !== undefined) out.painters = memoryCeiling("ilPainters", Math.round(clampNumber(config.painters, R.ilPainters, out.painters)));
   if (isIllusionPatternChoice(config.pattern)) out.pattern = config.pattern;
   if (config.speed !== undefined) out.speed = Math.round(20 * clampNumber(config.speed, R.ilSpeed, out.speed)) / 20;
@@ -513,6 +514,8 @@ export class IllusionMode implements GameMode {
   private sps = 60;
   private firstId = 0;
   private initialized = false;
+  /** --- review fix (uncap-all) --- The Ball Size asked for a body the arena cannot hold (this run's `init()` ends it: the ball ate the arena). */
+  private overflowed = false;
   private width = 800;
   private height = 600;
   private ballRadius = 8;
@@ -614,6 +617,7 @@ export class IllusionMode implements GameMode {
     this.initialized = true;
     // The first random decision of every type: the direction the figure rolls / the rings turn.
     v.direction = ctx.random() < 0.5 ? -1 : 1;
+    this.overflowed = false;
     const count = s.type === "lines" ? s.balls : s.type === "rings" ? s.rings : s.type === "nested" ? s.depth : s.painters;
     this.allocate(count);
     this.layoutField();
@@ -624,6 +628,11 @@ export class IllusionMode implements GameMode {
     this.firstId = ctx.getNextId();
     for (let i = 0; i < v.count; i++) {
       ctx.addBall({ x: v.x[i], y: v.y[i], vx: 0, vy: 0, radius: v.r[i], color: v.colors[i], gravityScale: 0, radiusScale: v.r[i] / this.ballRadius });
+    }
+    // --- review fix (uncap-all) --- a Ball Size the arena cannot hold: the ball ate the arena (the engine's finish)
+    if (this.overflowed) {
+      const balls = ctx.getBalls();
+      if (balls.length > 0) ctx.getMultipliers?.().outgrow(ctx, balls[balls.length - 1], v.radius);
     }
   }
 
@@ -1022,8 +1031,10 @@ export class IllusionMode implements GameMode {
       v.layerR = new Float64Array(layers);
     }
     v.layerCount = layers;
-    // Radii fall geometrically from the arena (1) to the innermost circle, whose size follows the Ball Size.
-    const innermost = Math.max(0.05, Math.min(0.2, (NESTED_INNER * this.ballRadius) / 8));
+    // Radii fall geometrically from the arena (1) to the innermost circle, whose size follows the Ball Size (--- review fix
+    // (uncap-all) --- from 0.05 of the arena, no maximum: one the arena cannot hold has eaten it – `init()` ends the run)
+    const innermost = Math.max(0.05, (NESTED_INNER * this.ballRadius) / 8);
+    if (innermost >= 1) this.overflowed = true;
     const q = Math.pow(innermost, 1 / d);
     this.nestedSpeed = NESTED_SPEED * v.settings.speed;
     this.pitch = [];
@@ -1135,7 +1146,9 @@ export class IllusionMode implements GameMode {
     this.patternOffsetX = (2 * ctx.random() - 1) * 0.04;
     this.patternOffsetY = (2 * ctx.random() - 1) * 0.04;
     this.patternScale = 0.94 + 0.12 * ctx.random();
-    const rp = R * Math.max(0.02, Math.min(0.09, (PAINTER_RADIUS * this.ballRadius) / 8));
+    // (--- review fix (uncap-all) --- from 0.02 of the arena, no maximum: a painter the arena cannot hold has eaten it)
+    const rp = R * Math.max(0.02, (PAINTER_RADIUS * this.ballRadius) / 8);
+    if (rp >= R - 2) this.overflowed = true;
     v.painterRadius = rp;
     this.painterSpeed = PAINTER_SPEED * R * s.speed;
     const pattern = buildIllusionPattern(this.patternId, v.cx, v.cy, R, this.patternOffsetX, this.patternOffsetY, this.patternScale);

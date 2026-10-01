@@ -7,8 +7,10 @@ import { Searchable, Toggle, onBtn, offBtn, selectClass, sliderStyle, type Match
 import type { SimulatorSettings } from "@/lib/settings";
 import { bounceParamApplies, bounceTriggerApplies, type BounceMathView } from "@/lib/physics/bounceMathRuntime";
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
+import NumberField from "../NumberField"; // --- review fix (uncap-all) --- the shared number field (was a native one of its own)
 import {
   BOUNCE_MATH_PRESET_IDS,
+  BOUNCE_MATH_RANGES,
   BOUNCE_OPS,
   BOUNCE_PARAMS,
   BOUNCE_TRIGGERS,
@@ -50,46 +52,6 @@ const smallBtn = "px-1.5 py-0.5 rounded-md text-xs font-medium transition-all cu
 const fieldClass = "px-1.5 py-1 bg-surface-1 text-ink text-xs tabular-nums rounded-md border border-line-strong focus:border-accent-dim";
 const miniSelect = "min-w-0 flex-1 px-1.5 py-1 bg-surface-1 text-ink text-xs rounded-md border border-line-strong focus:border-accent-dim";
 
-/**
- * A number field that keeps a draft while it has the focus and commits a finite value on Enter or when it loses the focus
- * (Escape drops the draft); `optional` fields commit an emptied field as "none".
- */
-function NumberField({ value, ariaLabel, onCommit, optional, placeholder, className, testId }: { value: number | undefined; ariaLabel: string; onCommit: (v: number | undefined) => void; optional?: boolean; placeholder?: string; className: string; testId: string }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? (value === undefined ? "" : String(value));
-  const commit = (text: string | null) => {
-    setDraft(null);
-    if (text === null) return;
-    const trimmed = text.trim();
-    if (trimmed === "") {
-      if (optional && value !== undefined) onCommit(undefined);
-      return;
-    }
-    const v = Number(trimmed.replace(",", "."));
-    if (Number.isFinite(v) && v !== value) onCommit(v);
-  };
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      value={shown}
-      placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => commit(draft)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        else if (e.key === "Escape") {
-          setDraft(null);
-          e.currentTarget.blur();
-        }
-      }}
-      aria-label={ariaLabel}
-      data-testid={testId}
-      className={`${fieldClass} ${className}`}
-    />
-  );
-}
-
 /** The formula of a "formula" rule: a draft that commits whenever it compiles, with the error shown live and an example line. */
 function FormulaField({ value, n, onCommit, b }: { value: string; n: number; onCommit: (formula: string) => void; b: Translate }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -129,6 +91,8 @@ function FormulaField({ value, n, onCommit, b }: { value: string; n: number; onC
 function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, b }: { rule: BounceRule; index: number; count: number; mode: SimulatorSettings["mode"]; fires: number | null; onChange: (patch: Partial<BounceRule>) => void; onMove: (direction: -1 | 1) => void; onRemove: () => void; b: Translate }) {
   const n = index + 1;
   const comfort = amountComfortRange(rule.param, rule.op);
+  // --- review fix (uncap-all) --- min / max bound the parameter's own value: their arrow keys step on its "set" range
+  const bounds = amountComfortRange(rule.param, "set");
   const sliderValue = Math.max(comfort.min, Math.min(comfort.max, rule.amount));
   const applies = bounceParamApplies(rule.param, mode);
   const triggered = bounceTriggerApplies(rule.trigger, mode);
@@ -162,7 +126,7 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
       </div>
       <div className="flex items-center gap-1.5 text-xs text-ink-2">
         <span>{b("every")}</span>
-        <NumberField value={rule.every} ariaLabel={b("everyOf", { n })} onCommit={(v) => v !== undefined && onChange({ every: v })} className="w-12" testId="bm-every" />
+        <NumberField value={rule.every} onCommit={(v) => onChange({ every: v })} label={b("everyOf", { n })} range={BOUNCE_MATH_RANGES.bmEvery} rules={{ min: 1, integer: true }} settingKey="bmEvery" className="w-14" testId="bm-every" />
         <span className="flex-1 truncate">{b(`everyUnit.${rule.trigger}`, { count: rule.every })}</span>
         {fires !== null && (
           <span className="shrink-0 rounded-md bg-accent/15 px-1.5 py-0.5 text-xs font-semibold text-accent tabular-nums" data-testid="bm-fires">
@@ -178,7 +142,7 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
             </option>
           ))}
         </select>
-        {rule.op !== "formula" && <NumberField value={rule.amount} ariaLabel={b("amountOf", { n })} onCommit={(v) => v !== undefined && onChange({ amount: v })} className="w-20" testId="bm-amount" />}
+        {rule.op !== "formula" && <NumberField value={rule.amount} onCommit={(v) => onChange({ amount: v })} label={b("amountOf", { n })} range={comfort} rules={{}} settingKey="bmAmount" className="w-20" testId="bm-amount" />}
       </div>
       {rule.op === "formula" ? (
         <FormulaField value={rule.formula ?? ""} n={n} onCommit={(formula) => onChange({ formula })} b={b} />
@@ -198,9 +162,9 @@ function RuleRow({ rule, index, count, mode, fires, onChange, onMove, onRemove, 
       )}
       <div className="flex items-center gap-1.5 text-xs text-ink-2">
         <span>{b("min")}</span>
-        <NumberField value={rule.min} optional placeholder="–" ariaLabel={b("minOf", { n })} onCommit={(v) => onChange({ min: v })} className="w-14" testId="bm-min" />
+        <NumberField value={rule.min} onCommit={(v) => onChange({ min: v })} onClear={() => onChange({ min: undefined })} placeholder="–" label={b("minOf", { n })} range={bounds} rules={{}} settingKey="bmMin" className="w-16" testId="bm-min" />
         <span>{b("max")}</span>
-        <NumberField value={rule.max} optional placeholder="∞" ariaLabel={b("maxOf", { n })} onCommit={(v) => onChange({ max: v })} className="w-14" testId="bm-max" />
+        <NumberField value={rule.max} onCommit={(v) => onChange({ max: v })} onClear={() => onChange({ max: undefined })} placeholder="∞" label={b("maxOf", { n })} range={bounds} rules={{}} settingKey="bmMax" className="w-16" testId="bm-max" />
         <button
           type="button"
           onClick={() => onChange({ scope: rule.scope === "all" ? "ball" : "all" })}

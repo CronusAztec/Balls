@@ -185,12 +185,25 @@ export function battleUnit(field: ArenaField): number {
   return field.side / ARENA_REFERENCE_SIDE;
 }
 
-/** Half-size of the squares at the start: `count` squares cover BATTLE_FILL of the field at Ball Size 8, capped so they fit. */
+/**
+ * Half-size of the squares at the start: `count` squares cover BATTLE_FILL of the field at Ball Size 8, scaled by the Ball
+ * Size (from 0.5×; --- review fix (uncap-all) --- no maximum) as far as the field holds them: past `battleSquaresFit()` they
+ * stop at the most that still moves (the arena is full: ARENA FULL).
+ */
 export function battleSquareHalf(field: ArenaField, count: number, ballRadius: number): number {
+  return Math.max(4 * battleUnit(field), Math.min(battleSquareWish(field, count, ballRadius), maxSquareHalf(field) * 0.9));
+}
+
+/** --- review fix (uncap-all) --- The half-size the Ball Size asks of `count` squares, before the field's room. */
+function battleSquareWish(field: ArenaField, count: number, ballRadius: number): number {
   const n = Math.max(1, count);
-  const scale = Math.max(0.5, Math.min(2.5, (ballRadius || 8) / 8));
-  const base = 0.5 * Math.sqrt((BATTLE_FILL * zoneArea(field)) / n) * scale;
-  return Math.max(4 * battleUnit(field), Math.min(base, maxSquareHalf(field) * 0.9));
+  const scale = Math.max(0.5, (ballRadius || 8) / 8);
+  return 0.5 * Math.sqrt((BATTLE_FILL * zoneArea(field)) / n) * scale;
+}
+
+/** --- review fix (uncap-all) --- Whether the squares the Ball Size asks for fit the field (else they are cut to fit and the run says ARENA FULL). */
+export function battleSquaresFit(field: ArenaField, count: number, ballRadius: number): boolean {
+  return battleSquareWish(field, count, ballRadius) <= maxSquareHalf(field) * 0.9;
 }
 
 /* ------------------------------------------------------------------ the mode */
@@ -259,6 +272,7 @@ export class BattleMode implements GameMode {
     this.tempo = new Float64Array(n);
     this.byIndex = new Array(n).fill(null);
     const half = battleSquareHalf(field, n, this.lastBallRadius);
+    if (!battleSquaresFit(field, n, this.lastBallRadius)) ctx.noteArenaFull?.(); // --- review fix (uncap-all) --- (cut to fit the field)
     // Spots that overlap nothing placed so far (up to 60 tries each), launched away from the axes. The margins are in
     // reference pixels (× the field's unit), so the same seed finds the same spots – relative to the field – on any canvas.
     const u = battleUnit(field);
@@ -337,10 +351,11 @@ export class BattleMode implements GameMode {
         ball.vx *= next / s;
         ball.vy *= next / s;
       }
-      // A live Ball Size change (the engine scales every square) never lets a square outgrow the zone.
+      // A live Ball Size change (the engine scales every square) never lets a square outgrow the zone (the arena is full).
       if (ball.radius > cap) {
         ball.radius = cap;
         ball.radiusScale = cap / radius;
+        ctx.noteArenaFull?.(); // --- review fix (uncap-all) ---
       }
     }
     if (v.finished) return;

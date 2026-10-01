@@ -357,7 +357,8 @@ export const SETTINGS_FINAL: JsonSchema = {
 
 export function settingsTask(request: string, current: SimulatorSettings, locale: string): AgentTask<SettingsResult> {
   const system = [
-    "You change the settings of JumpingBallsLive, a ball-physics simulator. Answer with the changes: one {\"setting\", \"value\"} per setting to change, only those (numbers inside their range; relative requests like 'twice as fast' are computed from the current value and capped at the range).",
+    // --- review fix (uncap-all) --- a number's slider range is a comfort range, not a limit: every value from its minimum up is valid
+    "You change the settings of JumpingBallsLive, a ball-physics simulator. Answer with the changes: one {\"setting\", \"value\"} per setting to change, only those (numbers within their bounds: \"from N, no upper limit\" takes any value from N up – the slider range shown with it is only the comfortable part – and a plain range is a hard one; relative requests like 'twice as fast' are computed from the current value and never capped at a slider).",
     `Write the summary in ${languageName(locale)}.`,
     "Settings (name (type) = current value — meaning):",
     settingsCatalog(current),

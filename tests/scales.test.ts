@@ -113,8 +113,12 @@ describe("beat grid", () => {
     expect(gridStepSeconds(120, "1/8")).toBeCloseTo(0.25, 9);
     expect(gridStepSeconds(120, "1/16")).toBeCloseTo(0.125, 9);
     expect(gridStepSeconds(60, "1/4")).toBeCloseTo(1, 9);
-    expect(gridStepSeconds(BPM_MAX + 500, "1/4")).toBeCloseTo(60 / BPM_MAX, 9);
+    // --- review fix (uncap-all) --- a tempo past the slider's BPM_MAX runs as typed (it stopped there before); below
+    // BPM_MIN – and a non-finite one – the grid stays at BPM_MIN
+    expect(gridStepSeconds(BPM_MAX + 500, "1/4")).toBeCloseTo(60 / (BPM_MAX + 500), 9);
+    expect(gridStepSeconds(6000, "1/16")).toBeCloseTo(60 / 6000 / 4, 12);
     expect(gridStepSeconds(0, "1/4")).toBeCloseTo(60 / BPM_MIN, 9);
+    expect(gridStepSeconds(Number.NaN, "1/4")).toBeCloseTo(60 / BPM_MIN, 9);
     expect(QUANTIZE_GRIDS).toEqual(["1/4", "1/8", "1/16"]);
     expect(isQuantizeGrid("1/8")).toBe(true);
     expect(isQuantizeGrid("1/32")).toBe(false);

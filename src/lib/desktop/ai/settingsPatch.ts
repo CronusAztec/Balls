@@ -104,12 +104,12 @@ export const CATALOG: readonly [key: string, description: string][] = [
 
 const ranges = RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>;
 
-// --- unlimited --- with No limits on, the settings that go past their slider take any valid value from their minimum up
-// here too (as links, presets and project files do); with the switch off the slider ranges apply as before
+// --- unlimited --- the settings that go past their slider take any valid value from their minimum up here too (as links,
+// presets and project files do) – --- review fix (uncap-all) --- whatever the Wide sliders switch (`unlimited`), which only
+// widens the panel's slider tracks: the slider range is a comfort range, never a limit, for the assistant as for the page
 let unlimitedKeySet: ReadonlySet<string> | null = null;
-/** True when `key` goes past its slider range on a page with No limits on (`unlimited`). */
-function liftedKey(unlimited: boolean, key: string): boolean {
-  if (!unlimited) return false;
+/** True when `key` is uncapped: any valid value from its minimum up (none for a signed one), past its slider too. */
+function liftedKey(key: string): boolean {
   unlimitedKeySet ??= new Set(unlimitedSettingKeys());
   return unlimitedKeySet.has(key);
 }
@@ -129,20 +129,21 @@ export function describeSetting(key: string, current: SimulatorSettings, descrip
   const options = SETTING_OPTIONS[key];
   let type: string = Array.isArray(value) ? "list" : typeof value;
   if (options) type = `one of ${options.map((o) => JSON.stringify(o)).join("|")}`;
-  else if (range && liftedKey(current.unlimited, key)) type = `number ${describeUnlimited(key, range)}, slider ${range.min}–${range.max}, step ${range.step}`; // --- unlimited ---
+  else if (range && liftedKey(key)) type = `number ${describeUnlimited(key, range)}, slider ${range.min}–${range.max}, step ${range.step}`; // --- unlimited --- (--- review fix (uncap-all) --- whatever the switch)
   else if (range) type = `number ${range.min}–${range.max}, step ${range.step}`;
   else if (typeof value === "string" && isColorKey(key)) type = "colour #rrggbb";
   return `${key} (${type}) = ${JSON.stringify(value)}${description ? ` — ${description}` : ""}`;
 }
 
 /**
- * --- unlimited --- The bounds of a setting with the switch on, for the prompt: `from 50, no upper limit`, `any value`.
- * (--- uncap-all --- the switch is now called Wide sliders; nothing but a list index has an upper bound any more.)
+ * --- unlimited --- The bounds of an uncapped setting, for the prompt: `from 50, no upper limit`, `any value`. (--- uncap-all
+ * --- nothing but a list index has an upper bound any more, and --- review fix (uncap-all) --- the Wide sliders switch has no
+ * say in it: the slider range that follows in the prompt is a comfort range only.)
  */
 function describeUnlimited(key: string, range: { min: number; max: number; step: number }): string {
   const { min, max } = unlimitedBounds(key, range);
   const from = Number.isFinite(min) ? `from ${min}` : "any value";
-  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit (Wide sliders is on)`;
+  return Number.isFinite(max) ? `${from} up to ${max}` : `${from}, no upper limit`;
 }
 
 /** The prefix of the settings that belong to a mode (its block of the panel), so the assistant can tune the mode on the page. */
@@ -194,12 +195,13 @@ export interface SettingChange {
   value: number | boolean | string;
 }
 
-function valueSchema(key: string, value: unknown, unlimited = false): JsonSchema | null {
+function valueSchema(key: string, value: unknown): JsonSchema | null {
   const options = SETTING_OPTIONS[key];
   const range = ranges[key];
   if (options) return { enum: options };
-  // --- unlimited --- with No limits on: the setting's minimum (none for a signed one) and its semantic end, if it has one
-  if (typeof value === "number" && range && liftedKey(unlimited, key)) {
+  // --- unlimited --- an uncapped setting: its minimum (none for a signed one) and its semantic end, if it has one (--- review
+  // fix (uncap-all) --- whatever the switch)
+  if (typeof value === "number" && range && liftedKey(key)) {
     const { min, max } = unlimitedBounds(key, range);
     return { type: "number", ...(Number.isFinite(min) ? { minimum: min } : {}), ...(Number.isFinite(max) ? { maximum: max } : {}) };
   }
@@ -218,7 +220,7 @@ function valueSchema(key: string, value: unknown, unlimited = false): JsonSchema
 export function changesSchema(current: SimulatorSettings, keys: readonly (readonly [string, string])[] = assistantSettings(current)): JsonSchema {
   const alternatives: JsonSchema[] = [];
   for (const [key] of keys) {
-    const schema = valueSchema(key, (current as unknown as Settings)[key], current.unlimited === true); // --- unlimited ---
+    const schema = valueSchema(key, (current as unknown as Settings)[key]); // --- unlimited --- (--- review fix (uncap-all) --- whatever the switch)
     if (schema) alternatives.push({ type: "object", properties: { setting: { const: key }, value: schema }, required: ["setting", "value"], additionalProperties: false });
   }
   return { type: "array", minItems: 1, maxItems: MAX_PATCH_KEYS, items: { oneOf: alternatives } };
@@ -243,8 +245,6 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
   const mode = isModeId((raw as Settings).mode) ? ((raw as Settings).mode as SimulatorSettings["mode"]) : current.mode;
   const defaults = defaultSettings(mode) as unknown as Settings;
   const patch: Settings = {};
-  // --- unlimited --- the switch as the patch leaves it (a patch may turn No limits on or off itself)
-  const unlimited = ((raw as Settings).unlimited ?? current.unlimited) === true;
   for (const [key, value] of entries) {
     if (!(key in defaults)) {
       errors.push(`"${key}" is not a setting`);
@@ -280,13 +280,14 @@ export function validateSettingsPatch(current: SimulatorSettings, raw: unknown):
       }
       const range = ranges[key];
       if (range && (value < range.min - 1e-9 || value > range.max + 1e-9)) {
-        // --- unlimited --- with No limits on a value past the slider is kept when it is valid (finite, from the minimum up)
-        const lifted = liftedKey(unlimited, key) ? parseUnlimitedValue(key, value, range) : null;
+        // --- unlimited --- a value past the slider is kept when it is valid (finite, from the minimum up) – --- review fix
+        // (uncap-all) --- whatever the Wide sliders switch
+        const lifted = liftedKey(key) ? parseUnlimitedValue(key, value, range) : null;
         if (lifted !== null) {
           patch[key] = lifted;
           continue;
         }
-        errors.push(liftedKey(unlimited, key) ? `"${key}" must be a number ${describeUnlimited(key, range)} (got ${value})` : `"${key}" must be between ${range.min} and ${range.max} (got ${value})`);
+        errors.push(liftedKey(key) ? `"${key}" must be a number ${describeUnlimited(key, range)} (got ${value})` : `"${key}" must be between ${range.min} and ${range.max} (got ${value})`);
         continue;
       }
       patch[key] = range ? snap(value, range) : value;

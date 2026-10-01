@@ -11,6 +11,7 @@ import {
   CROWD_BALL_CEILING,
   IDLE_FIELD,
   INDEX_KEYS,
+  LIST_CEILING_KEYS,
   MEMORY_CEILINGS,
   RING_CEILING,
   bouncierIncrementOf,
@@ -26,6 +27,7 @@ import {
 import {
   RANGES,
   defaultSettings,
+  engineSettingKeys,
   numericUrlKeyFields,
   pastAnyMemoryCeiling,
   presetToSettings,
@@ -37,9 +39,22 @@ import {
 } from "@/lib/settings";
 import { buildProject, resolveProjectSettings, serializeProject } from "@/lib/project";
 import { decodeShareCode, encodeShareCode } from "@/lib/shareCode";
-import { findSimulation, type FinderRequest } from "@/lib/simulation/finder";
+import { createEngineForSettings, findSimulation, neverEndsHorizonSec, type FinderRequest } from "@/lib/simulation/finder";
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { glassGravity } from "@/lib/physics/modes/glass";
+import { journeyGravity } from "@/lib/physics/modes/journey";
+import { raceGravityFactor, raceTempo } from "@/lib/physics/modes/race";
+import { runnerGravityFactor, runnerPhysics } from "@/lib/physics/modes/runner";
+import { paddleBallFits, paddleBallRadius, paddleGravityFactor } from "@/lib/physics/modes/paddle";
+import { battleSquareHalf, battleSquaresFit } from "@/lib/physics/modes/battle";
+import { ctfSquareHalf, ctfSquaresFit } from "@/lib/physics/modes/ctf";
+import { buildArenaField } from "@/lib/physics/modes/arenaGames";
+import { COLOR_MATCH_COLORS, colorMatchColor } from "@/lib/physics/modes/colorMatch";
+import { shakeAmplitude, slowMoTimeScale } from "@/lib/simulation/camera";
+import { OnBeatController } from "@/lib/physics/onBeat";
+import { gridStepSeconds } from "@/lib/audio/scales";
+import { HitSampler } from "@/lib/audio/sampler";
 
 // Whole runs of the engine at extreme values: generous timeouts, so a busy machine does not fail them.
 vi.setConfig({ testTimeout: 120_000 });
@@ -112,6 +127,21 @@ describe("uncap-all: the number field", () => {
     expect(numberFieldReduce({ draft: "2.5M", error: null }, { type: "cancel" }, 400, range, rules)).toEqual({ state: IDLE_FIELD });
   });
 
+  // --- review fix (uncap-all) --- the optional variant (bounce math's min / max): an emptied field clears the value
+  it("clears an optional value left empty, and refuses an empty required one", () => {
+    const range = { min: 0, max: 10, step: 0.1 };
+    const emptied = { draft: "  ", error: null };
+    expect(numberFieldReduce(emptied, { type: "commit" }, 4, range, { optional: true })).toEqual({ state: IDLE_FIELD, clear: true });
+    expect(numberFieldReduce(emptied, { type: "blur" }, 4, range, { optional: true })).toEqual({ state: IDLE_FIELD, clear: true });
+    const required = numberFieldReduce(emptied, { type: "commit" }, 4, range, {});
+    expect(required.clear).toBeUndefined();
+    expect(required.commit).toBeUndefined();
+    expect(required.state.error).toMatchObject({ reason: "empty" });
+    // An optional field still takes any number (no minimum, no maximum), and steps from the range's start without a value.
+    expect(numberFieldReduce({ draft: "-1e9", error: null }, { type: "commit" }, Number.NaN, range, { optional: true }).commit).toBe(-1e9);
+    expect(numberFieldReduce(IDLE_FIELD, { type: "step", direction: 1 }, Number.NaN, range, { optional: true }).commit).toBe(0.1);
+  });
+
   it("steps with the arrow keys: the slider step in the range, a tenth of the value's size beyond it", () => {
     const range = ranges.ballSpeed; // 50–800 by 10
     const rules = { min: range.min };
@@ -179,6 +209,19 @@ describe("uncap-all: every value past its slider travels exactly", () => {
     expect(presetToSettings({ mode: "shatter", forcedWinner: 5000 }).forcedWinner).toBe(-1);
     // The race's staged winner is a racer on a grid without a maximum: any racer may win.
     expect(settingsFromSearchParams(new URLSearchParams("mode=race&rcn=40&rcw=30")).rcWinner).toBe(30);
+  });
+
+  it("keeps a valid list index through project files, presets and links (the Rigged forced winner's team slot)", () => {
+    // --- review fix (uncap-all) --- a project file lifted every list index onto its minimum (-1, off): a rigged file lost its winner
+    const settings: SimulatorSettings = { ...defaultSettings("shatter"), ballCount: 3, forcedWinner: 2 };
+    const file = JSON.parse(serializeProject(buildProject({ name: "rigged", settings })));
+    expect(file.settings.forcedWinner).toBe(2);
+    expect(resolveProjectSettings(file.settings).forcedWinner).toBe(2);
+    expect(presetToSettings(JSON.parse(JSON.stringify(settings))).forcedWinner).toBe(2);
+    expect(settingsFromSearchParams(settingsToSearchParams(settings)).forcedWinner).toBe(2);
+    for (const slot of [0, 1, 2]) expect(resolveProjectSettings({ ...file.settings, forcedWinner: slot }).forcedWinner).toBe(slot);
+    // A slot past the team list, below the minimum or not a whole number is still invalid in a file: off.
+    for (const bad of [5000, 6, -7, 1.5]) expect([bad, resolveProjectSettings({ ...file.settings, forcedWinner: bad }).forcedWinner]).toEqual([bad, -1]);
   });
 
   for (const factor of [10, 1000, 1e9]) {
@@ -371,27 +414,267 @@ describe("uncap-all: the engine at extreme speeds", () => {
   });
 });
 
+/* ------------------------------------------------------------------ the modes run gravity, speed and size as typed */
+
+describe("uncap-all review fixes: every mode runs Gravity, Ball Speed and Ball Size as typed", () => {
+  /** `steps` 60 Hz steps of `mode` with `patch`, through the page's own path; the first ball's state and the fastest speed seen. */
+  function runMode(mode: SimulatorSettings["mode"], patch: Partial<SimulatorSettings>, steps = 120, seed = 7) {
+    const s = { ...defaultSettings(mode), ...patch } as SimulatorSettings;
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), mode, modeSettingsOfSettings(s), seed);
+    let top = 0;
+    for (let i = 0; i < steps; i++) {
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      for (const b of engine.getBalls()) top = Math.max(top, Math.hypot(b.vx, b.vy));
+    }
+    const b = engine.getBalls()[0];
+    return { engine, top, state: b ? [b.x, b.y, b.vx, b.vy, b.radius] : [], elapsed: engine.getElapsedMs() };
+  }
+
+  it("scales gravity, tempo and sizes with no maximum (the helpers keep their floors only)", () => {
+    expect(glassGravity(9e9, 1000)).toBeGreaterThan(glassGravity(900, 1000) * 1e6);
+    expect(glassGravity(0, 1000)).toBe(glassGravity(90, 1000)); // (the floor: 0.3×)
+    expect(journeyGravity(9e7, 1000)).toBeGreaterThan(journeyGravity(9e5, 1000) * 50);
+    expect(raceTempo(80_000)).toBe(200);
+    expect(raceGravityFactor(9e7)).toBe(3e5);
+    expect(runnerGravityFactor(9e7)).toBe(3e5);
+    expect(paddleGravityFactor(9e7)).toBe(3e5);
+    expect(paddleBallRadius(800)).toBeCloseTo(100 * paddleBallRadius(8), 9);
+    // The squares grow with the Ball Size past the old 2.5× / 2× – as far as their field holds them.
+    const field = buildArenaField(800, 800, "box");
+    expect(battleSquareHalf(field, 20, 28)).toBeGreaterThan(battleSquareHalf(field, 20, 20));
+    expect(ctfSquareHalf(field, 30)).toBeGreaterThan(ctfSquareHalf(field, 16));
+    expect([battleSquaresFit(field, 8, 1000), ctfSquaresFit(field, 1000)]).toEqual([false, false]);
+  });
+
+  it("Glass Smash, the Journey, the race, the runner and the paddle play differently at g = 9e5 and 9e7", () => {
+    // (Glass Smash a few steps in: by 120 both balls have long fallen home – it was 120 identical steps at 9e5, 9e7 and 9e9
+    // before; the race just past its countdown)
+    for (const [mode, steps] of [["glass", 6], ["race", 120], ["paddle", 6]] as const) {
+      const a = runMode(mode, { gravity: 9e5 }, steps);
+      const b = runMode(mode, { gravity: 9e7 }, steps);
+      expect([mode, a.state.every(Number.isFinite), b.state.every(Number.isFinite)]).toEqual([mode, true, true]);
+      expect([mode, a.state]).not.toEqual([mode, b.state]);
+      expect([mode, b.top > a.top]).toEqual([mode, true]);
+    }
+    // The Journey's own gravity (a peg field and glass, no rings – where Classic's gravity pins the ball to the ring).
+    const journey = (g: number) => runMode("journey", { gravity: g, journeyStages: "pegs,glass,home" });
+    expect(journey(9e5).state).not.toEqual(journey(9e7).state);
+    // The runner's jumps: a flight that much shorter.
+    expect(runnerPhysics({ speed: 9, jumpHeight: 2.5 }, 9e7).flatFlight).toBeLessThan(runnerPhysics({ speed: 9, jumpHeight: 2.5 }, 9e5).flatFlight / 5);
+    // The race at 200 × the Ball Speed runs that much faster than at the old 2×.
+    expect(runMode("race", { ballSpeed: 80_000 }).top).toBeGreaterThan(runMode("race", { ballSpeed: 800 }).top * 10);
+  });
+
+  it("ends the run with the ate-the-arena finish when the Ball Size gives a body the field cannot hold", () => {
+    expect(paddleBallFits(paddleBallRadius(8))).toBe(true);
+    expect(paddleBallFits(paddleBallRadius(1000))).toBe(false);
+    const paddle = runMode("paddle", { ballRadius: 1000 }, 5);
+    expect([paddle.engine.isSimulationFinished(), paddle.engine.getMultiplierRuntime().isOutgrown()]).toEqual([true, true]);
+    for (const ilType of ["nested", "whitespace"] as const) {
+      const big = runMode("illusion", { ilType, ballRadius: 1000 }, 5);
+      expect([ilType, big.engine.getMultiplierRuntime().isOutgrown()]).toEqual([ilType, true]);
+      const fine = runMode("illusion", { ilType, ballRadius: 40 }, 5);
+      expect([ilType, fine.engine.getMultiplierRuntime().isOutgrown()]).toEqual([ilType, false]);
+    }
+    // A nested Ball Size past the old 0.2 cap nests a bigger innermost circle.
+    const nested = (r: number) => {
+      const run = runMode("illusion", { ilType: "nested", ballRadius: r }, 1);
+      const v = run.engine.getIllusionView();
+      return v.layerR[v.layerCount - 1] / v.layerR[0];
+    };
+    expect(nested(40)).toBeGreaterThan(nested(16) * 2);
+  });
+
+  it("caps no user-driven speed per step: Collision Playground orbs and the Journey's fall keep gaining speed", () => {
+    // --- review fix (uncap-all) --- cpe=3 held every orb at exactly 8 × the Ball Speed (3,200 px/s)
+    const orbs = runMode("collide", { cpRestitution: 3, cpCount: 10, ballSpeed: 400, cpGravity: 0 }, 300);
+    expect(orbs.top).toBeGreaterThan(1e6);
+    expect(orbs.state.every(Number.isFinite)).toBe(true);
+    const calm = runMode("collide", { cpRestitution: 1, cpCount: 10, ballSpeed: 400, cpGravity: 0 }, 300);
+    expect(calm.top).toBeLessThan(8 * 400); // (an elastic run never reaches the old cap: it replays as before)
+    // The Journey: past the old terminal speed (4.2 view heights a second) under a strong gravity, differently for 3e5 and 3e7.
+    const fall = (g: number) => runMode("journey", { gravity: g, journeyStages: "pegs,glass,home" }, 600);
+    const a = fall(3e5);
+    const b = fall(3e7);
+    const field = a.engine.getJourneyView().field!;
+    expect(a.top).toBeGreaterThan(4.2 * field.height);
+    expect(b.top).not.toBe(a.top);
+  });
+});
+
+/* ------------------------------------------------------------------ only what a run reads engages it */
+
+describe("uncap-all review fixes: only the settings a run's engine reads engage it (and its badges)", () => {
+  /** The settings no mode's engine reads: the clip's, the text's, the sound's and the picture's. */
+  const NOT_ENGINE = new Set(["wallThickness", "trailThickness", "backgroundDim", "textSize", "recordingDuration", "hitSampleVolume", "sliceMs", "sliceFadeMs", "musicVolume", "musicDucking", "musicDuckRelease", "musicStartOffset", "rootNote", "bpm", "ballSquash", "cameraZoom", "screenShake", "slowMoFactor", "slowMoMs", "fastExportFps", "beatDownbeat", "videoBgOpacity"]);
+
+  it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {
+    const read = new Set<string>();
+    for (const mode of MODE_IDS) for (const key of engineSettingKeys(mode)) read.add(key);
+    const unclassified = unlimitedSettingKeys().filter((key) => read.has(key) === NOT_ENGINE.has(key));
+    expect(unclassified).toEqual([]);
+    expect(engineSettingKeys("classic")).toEqual(expect.arrayContaining(["ballSpeed", "gravity", "wallCount", "bounciness", "bumperBoost", "obstacles"]));
+    expect(engineSettingKeys("classic")).not.toEqual(expect.arrayContaining(["glassRows"]));
+    expect(engineSettingKeys("glass")).toEqual(expect.arrayContaining(["glassRows", "glassHp", "ballSpeed"]));
+  });
+
+  it("engages nothing and says no ARENA FULL for a clip length, a text size, a sound, a plain Bouncier or another mode's count", () => {
+    const classic = defaultSettings("classic");
+    const patches: Partial<SimulatorSettings>[] = [{ recordingDuration: 180 }, { textSize: 4 }, { bounciness: BOUNCIER_ON, bouncierEnabled: true }, { glassRows: 2000 }, { bpm: 400 }, { screenShake: 5 }, { musicVolume: 3 }];
+    for (const patch of patches) {
+      const s = { ...classic, ...patch };
+      expect([patch, uncappedEngaged(s), pastAnyMemoryCeiling(s), physicsConfigOfSettings(s).unlimited]).toEqual([patch, false, false, undefined]);
+    }
+    expect(uncappedEngaged(settingsFromSearchParams(new URLSearchParams("mode=classic&bounce=1")))).toBe(false);
+    // In its own mode the same count does both.
+    const glass = { ...defaultSettings("glass"), glassRows: 2000 };
+    expect([uncappedEngaged(glass), pastAnyMemoryCeiling(glass)]).toEqual([true, true]);
+  });
+
+  it("draws the speed readout only once a run is extreme: never for a plain Bouncier run, past ×3 for a Bounciness of 3", () => {
+    const run = (bounciness: number, seconds: number) => {
+      const s = { ...defaultSettings("lines"), gravity: 0, bounciness, bouncierEnabled: bounciness > 1 };
+      const engine = createEngineForSettings(physicsConfigOfSettings(s), "lines", modeSettingsOfSettings(s), 11);
+      let shown = false;
+      for (let i = 0; i < seconds * 60; i++) {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+        if (engine.getUnlimitedView().on) shown = true;
+      }
+      return { shown, bounce: engine.getBounceSpeedMultiplier() };
+    };
+    const plain = run(BOUNCIER_ON, 20);
+    expect(plain.bounce).toBeGreaterThan(1);
+    expect(plain.bounce).toBeLessThanOrEqual(3);
+    expect(plain.shown).toBe(false);
+    expect(run(3, 10).shown).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ the last clamps of user parameters */
+
+describe("uncap-all review fixes: the camera, the sound and Color Match take values past their sliders", () => {
+  it("shakes, slows (or speeds) time and stretches On beat flights past the sliders' ends", () => {
+    expect(shakeAmplitude(10, 1000)).toBeCloseTo(10 * shakeAmplitude(1, 1000), 9);
+    expect(shakeAmplitude(-1, 1000)).toBe(0);
+    // A slow-motion factor past 1 is a burst of fast motion; the floor stays.
+    expect(slowMoTimeScale(500, 1000, 3)).toBeCloseTo(3, 9);
+    expect(slowMoTimeScale(500, 1000, 0.001)).toBeCloseTo(0.05, 9);
+    const onBeat = new OnBeatController();
+    onBeat.setConfig({ range: 5 });
+    expect(onBeat.getConfig().range).toBe(5);
+    onBeat.setConfig({ range: 0.0001 });
+    expect(onBeat.getConfig().range).toBe(0.05);
+  });
+
+  it("quantizes to the beat of any BPM past the slider's 200", () => {
+    expect(gridStepSeconds(600, "1/4")).toBeCloseTo(0.1, 12);
+    expect(gridStepSeconds(1e6, "1/16")).toBeCloseTo(60 / 1e6 / 4, 15);
+    expect(gridStepSeconds(10, "1/4")).toBe(1); // (the floor: BPM_MIN 60)
+  });
+
+  it("amplifies a hit sample past a volume of 1 (the master bus guards the output)", async () => {
+    const levels: number[] = [];
+    const param = () => ({ value: 0, setValueAtTime: () => undefined, linearRampToValueAtTime: (v: number) => void levels.push(v), cancelScheduledValues: () => undefined });
+    const ctx = {
+      currentTime: 0,
+      createGain: () => ({ gain: param(), connect: () => undefined, disconnect: () => undefined }),
+      createBufferSource: () => ({ buffer: null, playbackRate: param(), connect: () => undefined, disconnect: () => undefined, start: () => undefined, stop: () => undefined, onended: null }),
+      decodeAudioData: async () => ({ duration: 0.2, numberOfChannels: 1, sampleRate: 48000, length: 9600 }),
+    };
+    vi.stubGlobal("fetch", async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
+    try {
+      const sampler = new HitSampler(ctx as unknown as AudioContext, { connect: () => undefined } as unknown as AudioNode);
+      await sampler.load("/hitSounds/click.wav");
+      sampler.setVolume(4);
+      expect(sampler.play(1, 0, 1.5)).toBe(true);
+      expect(Math.max(...levels)).toBeCloseTo(6, 9);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("plays Color Match with any number of colours: the palette's seven, then hues of their own (ARENA FULL past the ceiling)", () => {
+    const colors = Array.from({ length: 40 }, (_, i) => colorMatchColor(i));
+    expect(colors.slice(0, COLOR_MATCH_COLORS.length)).toEqual(COLOR_MATCH_COLORS);
+    expect(new Set(colors.map((c) => c.color)).size).toBe(40);
+    for (const c of colors) expect(c.color).toMatch(/^#[0-9a-f]{6}$/);
+    const s = settingsFromSearchParams(new URLSearchParams("mode=colorMatch&cmc=20"));
+    expect(s.colorMatchColorCount).toBe(20);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "colorMatch", modeSettingsOfSettings(s), 4);
+    expect(engine.getColorMatchColorCount()).toBe(20);
+    const segments = engine.getColorMatchSegments();
+    expect(new Set(segments.map((seg) => seg.color)).size).toBe(Math.min(20, segments.length));
+    for (let i = 0; i < 600; i++) engine.update(1000 / 60, 0);
+    expect(colorMatchColor(-1).color).toMatch(/^#[0-9a-f]{6}$/);
+    const far = settingsFromSearchParams(new URLSearchParams("mode=colorMatch&cmc=1000000"));
+    expect([far.colorMatchColorCount, pastAnyMemoryCeiling(far)]).toEqual([1e6, true]);
+    const farEngine = createEngineForSettings(physicsConfigOfSettings(far), "colorMatch", modeSettingsOfSettings(far), 4);
+    expect(farEngine.getColorMatchColorCount()).toBe(MEMORY_CEILINGS.colorMatchColorCount);
+  });
+});
+
 /* ------------------------------------------------------------------ Find Simulation on a run that never ends */
 
 describe("uncap-all: Find Simulation says when a run never ends", () => {
-  function request(maxSimTimeSec: number, patch: Partial<SimulatorSettings> = {}): FinderRequest {
-    const s = { ...defaultSettings("classic"), ...patch };
+  function request(maxSimTimeSec: number, patch: Partial<SimulatorSettings> = {}, mode: SimulatorSettings["mode"] = "classic"): FinderRequest {
+    const s = { ...defaultSettings(mode), ...patch };
     return { targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 4, maxSimTimeSec, physicsConfig: { ...physicsConfigOfSettings(s), unlimited: uncappedEngaged(s) }, mode: s.mode, modeSettings: modeSettingsOfSettings(s) };
   }
 
-  it("reports neverEnded when no seed ends within the horizon (plain and time-sliced searches)", async () => {
+  it("reports neverEnded only for a run that still has not ended far past the horizon (plain and time-sliced searches)", async () => {
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
     try {
-      const plain = await findSimulation(request(0.5), () => {});
+      // --- review fix (uncap-all) --- panes of a billion hit points never break: Glass Smash never gets home. Every seed
+      // outlives the 0.5 s horizon, and the best one is followed on to 600 s before the search says so.
+      expect(neverEndsHorizonSec(30)).toBe(600);
+      const endless = request(0.5, { glassHp: 1e9 }, "glass");
+      const plain = await findSimulation(endless, () => {});
       expect(plain).toMatchObject({ found: false, neverEnded: true, seedsTested: 4 });
-      const sliced = await findSimulationBudgeted(request(0.5, { ballSpeed: 1e6, bounciness: 3, bouncierEnabled: true }), () => {}, undefined, () => performance.now(), (fn) => setTimeout(fn, 0));
+      const sliced = await findSimulationBudgeted(endless, () => {}, undefined, () => performance.now(), (fn) => setTimeout(fn, 0));
       expect(sliced).toMatchObject({ found: false, neverEnded: true });
-      // A search that sees runs end does not say so. (The seeds come from Date.now(): with only two, both can run past
-      // even a 120 s horizon – a classic ball can bounce that long before it finds a gap – which failed CI once; a dozen
-      // seeds always include a run that ends.)
-      const normal = await findSimulation({ ...request(120), maxSeeds: 12 }, () => {});
-      expect(normal.neverEnded).toBeUndefined();
+      // A short horizon alone proves nothing: classic runs outlive half a second, then end – the search names the length
+      // the best seed really has instead of claiming the run never ends.
+      const short = await findSimulation(request(0.5), () => {});
+      expect(short.neverEnded).toBeUndefined();
+      expect(short.duration).toBeGreaterThan(0.5);
+      const shortSliced = await findSimulationBudgeted(request(0.5, { ballSpeed: 1e6, bounciness: 3, bouncierEnabled: true }), () => {}, undefined, () => performance.now(), (fn) => setTimeout(fn, 0));
+      expect(shortSliced.neverEnded).toBeUndefined();
     } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("says nothing of a never-ending run for defaults whose runs end past the page's horizon (Paint, Target)", async () => {
+    // --- review fix (uncap-all) --- Paint's defaults last ~100–310 s: the page's 30 s search (a 60 s horizon) said they never end
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
+    const now = vi.spyOn(Date, "now").mockReturnValue(424_242);
+    try {
+      for (const mode of ["paint", "target"] as const) {
+        const result = await findSimulation({ ...request(60, {}, mode), maxSeeds: 6 }, () => {});
+        expect([mode, result.found, result.neverEnded]).toEqual([mode, false, undefined]);
+        expect(result.duration).toBeGreaterThan(60);
+      }
+    } finally {
+      now.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a search that sees runs end never says so – deterministically (fixed seeds, runs that always end inside the horizon)", async () => {
+    // --- review fix (uncap-all) --- the seeds came from Date.now(): two Classic seeds both outlived a 120 s horizon 16–20 % of
+    // the time and failed the deploy gate; Shatter's default runs last 4–28 s, and the seed base is fixed
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_234_567);
+    try {
+      const normal = await findSimulation({ ...request(120, {}, "shatter"), maxSeeds: 2 }, () => {});
+      expect(normal.neverEnded).toBeUndefined();
+      expect(normal.duration).toBeGreaterThan(0);
+      expect(normal.duration).toBeLessThan(120);
+      expect(await findSimulation({ ...request(120, {}, "shatter"), maxSeeds: 2 }, () => {})).toEqual(normal);
+    } finally {
+      now.mockRestore();
       vi.unstubAllGlobals();
     }
   });
@@ -465,15 +748,94 @@ describe("uncap-all: the guard", () => {
   });
 
   it("keeps the memory-safety ceilings at memory-safe values, far past every slider", () => {
-    // (--- review fix (unlimited) --- but the race's racers: its per-racer state and roster are sized for the slider's 16,
-    // so its ceiling is the slider's end – a grid past it builds 16 and says ARENA FULL)
-    const atSliderEnd = new Set(["rcRacers"]);
-    atSliderEnd.add("tyTeams"); // --- odd-territory --- (Territory's teams: halves or quadrants, the per-team state sized for four)
+    // (--- review fix (uncap-all) --- the race's racers too: its per-racer state and roster are sized for the grid at init now.
+    // The list settings – the editor's obstacles, the captions – lie far past their old design counts.)
+    const oldListCounts: Record<string, number> = { obstacles: 24, captions: 8 };
+    // --- odd-territory --- but Territory's teams: halves or quadrants, the per-team state sized for four – a count past them plays four
+    const atSliderEnd = new Set(["tyTeams"]);
     for (const [key, ceiling] of Object.entries(MEMORY_CEILINGS)) {
+      if (LIST_CEILING_KEYS.has(key)) {
+        expect([key, ceiling >= 40 * oldListCounts[key]]).toEqual([key, true]);
+        continue;
+      }
       const range = ranges[key];
       expect([key, range !== undefined]).toEqual([key, true]);
-      expect([key, atSliderEnd.has(key) ? ceiling === range.max : ceiling > range.max]).toEqual([key, true]);
+      expect([key, ceiling > range.max]).toEqual([key, !atSliderEnd.has(key)]);
     }
     expect(MEMORY_CEILINGS.ballCount).toBe(1_000_000);
+  });
+
+  /**
+   * --- review fix (uncap-all) --- The whole-number settings that size no allocation, each with what it counts instead. Every
+   * other whole-number setting sizes one (bodies, rings, typed arrays, entities…) and must have a memory-safety ceiling: a new
+   * count fails here until it gets a `MEMORY_CEILINGS` entry or a line below (a nested-circle depth without one built a billion
+   * bodies and crashed the tab).
+   */
+  const SIZES_NOTHING: Readonly<Record<string, string>> = {
+    ballRadius: "a size in px",
+    splitMinRadius: "a size in px",
+    wallThickness: "a width in px",
+    accumulationTime: "seconds",
+    growRate: "a growth rate",
+    boxCountdown: "seconds",
+    pwBaseOscillations: "oscillations a cycle (a bob's sound events per step are bounded: EVENTS_PER_WINDOW)",
+    pwCycleSeconds: "seconds",
+    pwAmplitude: "degrees",
+    pwCycles: "cycles of a run",
+    prBaseBpm: "a tempo",
+    prAccentEvery: "an accent period",
+    prCycles: "cycles of a run",
+    cpAntiCollisionAt: "seconds",
+    glassHp: "hit points",
+    recordingDuration: "seconds (an export's frames stop at EXPORT_FRAME_CEILING)",
+    sliceFadeMs: "milliseconds",
+    rootNote: "a note",
+    bpm: "a tempo",
+    mpCap: "a multiplier cap",
+    wallSmashThreshold: "a multiplier threshold",
+    pickupLifetime: "seconds",
+    maxBalls: "a split limit (the balls a run holds stop at objectLimitFor(); past it they join the crowd)",
+    dpAngle1: "degrees",
+    dpAngle2: "degrees",
+    dpAngle3: "degrees",
+    dpOctaves: "octaves (the harp's notes are read by index)",
+    ilCycles: "cycles of a run",
+    sbLives: "lives",
+    rcLaps: "laps (every lap's rows together stop at RACE_SCREEN_CEILING: raceLapsWithin())",
+    rcWinner: "a racer's index",
+    btHp: "hit points",
+    ctfScoreToWin: "a score",
+    pdMisses: "misses allowed (the HUD draws at most ten hearts)",
+    byPerfect: "a shot's index",
+    beatDownbeat: "a beat's index",
+    tyRadius: "a reach in tiles (a blast visits at most the board's tiles, a whirl walks at most its diagonal: whirlReach())", // --- odd-territory ---
+  };
+
+  it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {
+    const unclassified: string[] = [];
+    for (const key of unlimitedSettingKeys()) {
+      const r = ranges[key];
+      if (!(r.step === 1 && Number.isInteger(r.min))) continue;
+      const ceiled = MEMORY_CEILINGS[key] !== undefined;
+      if (ceiled === (key in SIZES_NOTHING)) unclassified.push(`${key}${ceiled ? " (both)" : ""}`);
+    }
+    expect(unclassified).toEqual([]);
+    for (const key of Object.keys(SIZES_NOTHING)) expect([key, ranges[key] !== undefined]).toEqual([key, true]);
+  });
+
+  it("builds at most the nested circles' ceiling for a billion-deep Circle Illusion link and says ARENA FULL", () => {
+    // --- review fix (uncap-all) --- ild=1000000000 built ten typed arrays of a billion entries and got the tab OOM-killed
+    const s = settingsFromSearchParams(new URLSearchParams("mode=illusion&ilt=nested&ild=1000000000"));
+    expect([s.ilType, s.ilDepth, pastAnyMemoryCeiling(s)]).toEqual(["nested", 1e9, true]);
+    const engine = createEngineForSettings(physicsConfigOfSettings(s), "illusion", modeSettingsOfSettings(s), 7);
+    expect(engine.getIllusionSettings().depth).toBe(MEMORY_CEILINGS.ilDepth);
+    expect(engine.getIllusionView().count).toBe(MEMORY_CEILINGS.ilDepth);
+    expect(engine.getBalls().length).toBe(MEMORY_CEILINGS.ilDepth);
+    engine.update(1000 / 60, 0);
+    expect(engine.getUnlimitedView().full).toBe(true);
+    // Inside the ceiling the depth runs as typed, and nothing is full.
+    const deep = settingsFromSearchParams(new URLSearchParams("mode=illusion&ilt=nested&ild=40"));
+    const deepEngine = createEngineForSettings(physicsConfigOfSettings(deep), "illusion", modeSettingsOfSettings(deep), 7);
+    expect([deepEngine.getIllusionView().count, pastAnyMemoryCeiling(deep)]).toEqual([40, false]);
   });
 });

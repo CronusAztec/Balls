@@ -824,14 +824,14 @@ describe("Glass Smash with multipliers", () => {
     expect(new Set(all).size).toBeGreaterThan(1);
   }, 60000);
 
-  it("never grows the ball past the room the panes below leave, and stacks through the multipliers cap", () => {
+  it("grows the ball by a size gate's whole factor – past the room the panes below leave – and stacks through the multipliers cap", () => {
+    // --- review fix (uncap-all) --- a size gate stopped at the room below (at most 15 % of the shaft): now it is an uncapped growth path
     const engine = glassEngine({ stages: 1, gates: true, holes: false, moving: false }, 5, { ballRadius: 20 });
     const level = engine.getGlassView().level!;
     const row = level.gates[0];
     const size = row.slots.findIndex((g) => g.kind === "size");
     const room = glassMaxBallRadius(level, 0);
-    expect(room).toBeGreaterThan(20 * 1.25);
-    expect(room).toBeLessThan(20 * 1.25 * 1.25);
+    expect(room).toBeLessThan(20 * 1.25 * GLASS_GATE_FACTORS.size);
     const ball = engine.getBalls()[0];
     engine.applyBallMultiplier(ball, "size", 1.25);
     ball.x = (row.slots[size].x0 + row.slots[size].x1) / 2;
@@ -840,12 +840,31 @@ describe("Glass Smash with multipliers", () => {
     ball.vy = 150;
     engine.update(1000 / 60, 0);
     expect(row.passedSlot).toBe(size);
-    expect(row.applied).toBeGreaterThan(1);
-    expect(row.applied).toBeLessThan(GLASS_GATE_FACTORS.size);
-    expect(ball.radius).toBeCloseTo(room, 9);
-    // Grown to its limit, it still gets between the panes and home.
+    expect(row.applied).toBe(GLASS_GATE_FACTORS.size);
+    expect(ball.radius).toBeCloseTo(20 * 1.25 * GLASS_GATE_FACTORS.size, 9);
+    expect(ball.radius).toBeGreaterThan(room);
+    // Grown past it, it smashes its way down and home.
     runUntil(engine, () => engine.isSimulationFinished(), 120);
     expect(engine.isSimulationFinished()).toBe(true);
+    expect(engine.getMultiplierRuntime().isOutgrown()).toBe(false);
+    // A ball the gate grows past the shaft has eaten the arena: the run ends with the engine's finish. (A ball that big only
+    // reaches the middle slot – made a size gate here – and the panes below are cleared out of its way.)
+    const big = glassEngine({ stages: 1, gates: true, holes: false, moving: false }, 5, { ballRadius: 20 });
+    const bigLevel = big.getGlassView().level!;
+    const bigRow = bigLevel.gates[0];
+    bigRow.slots[1] = { ...bigRow.slots[1], kind: "size", factor: GLASS_GATE_FACTORS.size };
+    for (const pane of bigLevel.panes) pane.shattered = true;
+    const bigBall = big.getBalls()[0];
+    const shaft = bigLevel.field.right - bigLevel.field.left;
+    big.applyBallMultiplier(bigBall, "size", (0.42 * shaft) / 20);
+    bigBall.x = (bigRow.slots[1].x0 + bigRow.slots[1].x1) / 2;
+    bigBall.y = bigRow.y - 1;
+    bigBall.vx = 0;
+    bigBall.vy = 150;
+    expect(2 * bigBall.radius * GLASS_GATE_FACTORS.size).toBeGreaterThan(shaft);
+    big.update(1000 / 60, 0);
+    expect(bigRow.passedSlot).toBe(1);
+    expect([big.getMultiplierRuntime().isOutgrown(), big.isSimulationFinished()]).toEqual([true, true]);
     // A cap of x1 (Unlimited off) keeps every stat where it was.
     const capped = glassEngine({ stages: 2, gates: true }, 6, { mpUnlimited: false, mpCap: 1 });
     runUntil(capped, () => capped.isSimulationFinished(), 180);

@@ -24,7 +24,7 @@ import { CAMERA_RANGES, DEFAULT_CAMERA_SETTINGS, cameraSettingsOf, resolveCamera
 import { DEFAULT_MULTIPLIER_CONFIG, MULTIPLIER_RANGES, multiplierConfigOf, resolveMultiplierConfig, sanitizePickupTypes } from "@/lib/physics/multipliers";
 import { DEFAULT_MULTIPLIERS_SETTINGS, MULTIPLIERS_RANGES, multipliersSettingFields, multipliersSettingsOf, resolveMultipliersSettings, sanitizeGateMix } from "@/lib/physics/modes/multipliers";
 // --- obstacle-editor ---
-import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, readObstacleParams, resolveObstacleSettings, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
+import { OBSTACLE_EDITOR_RANGES, defaultObstacleSettings, obstacleBeyondSliders, readObstacleParams, resolveObstacleSettings, supportsObstacles, writeObstacleParams, type EditorObstacle } from "@/lib/physics/obstacleEditor";
 import { CAPTION_RANGES, defaultCaptionSettings, readCaptionParams, resolveCaptionSettings, writeCaptionParams, type Caption } from "@/lib/captions"; // --- captions ---
 import { DEFAULT_RIGGED, RIGGED_RANGES, resolveRiggedConfig } from "@/lib/physics/rigged"; // --- rigged ---
 import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTimelineSettings, writeTimelineParams, type Keyframe } from "@/lib/simulation/timeline"; // --- timeline ---
@@ -387,7 +387,7 @@ export interface SimulatorSettings {
   pickupLifetime: number;
   /** Multipliers board: rows of gates, 4–20 (URL `mprw`). */
   mpRows: number;
-  /** Weights of count / speed / size / damage / reverse / release gates, six digits (URL `mpgm`). */
+  /** Weights of count / speed / size / damage / reverse / release gates, comma-separated numbers ≥ 0, no maximum (URL `mpgm=4,2,1,1,1,1`; the old six digits still read). */
   mpGateMix: string;
   /** Balls released at the top, 1–10 (URL `mpsb`). */
   mpStartBalls: number;
@@ -1497,19 +1497,86 @@ export function bouncinessPatch(value: number): Pick<SimulatorSettings, "bouncin
 /** The Bounciness the old switch meant, for callers that still flip it (1.03 on, 1 off). */
 export const BOUNCIER_SWITCH_VALUE = BOUNCIER_ON;
 
+/** --- review fix (uncap-all) --- The keys of a `RANGES` group (those starting with one of `prefixes`, when given). */
+function rangeKeys(group: object, ...prefixes: string[]): string[] {
+  return Object.keys(group).filter((key) => prefixes.length === 0 || prefixes.some((prefix) => key.startsWith(prefix)));
+}
+
 /**
- * True when any uncapped setting sits past its slider's comfort range (the engine then runs its extreme-values
- * machinery: planned sub-steps, the crowd, time-slicing – `PhysicsConfig.unlimited`), or a Bounciness can grow the
- * rebounds past the old Bouncier's ×3.
+ * --- review fix (uncap-all) --- The settings every run's engine reads, whatever the mode: the physics config – the core
+ * values, the extras, the ball interaction, the Bounciness – and the split-screen arenas it builds.
+ */
+const CORE_ENGINE_KEYS: readonly string[] = ["ballSpeed", "ballRadius", "gravity", "wallCount", "gapSize", "rotationSpeed", "ballCount", "bounciness", ...PHYSICS_EXTRA_KEYS, ...rangeKeys(BALL_INTERACTION_RANGES), "arenaCount"];
+/** What the ring modes' engines read on top: the obstacle editor (its layout and bumper boost), the multiplier pickups, On beat's flight range. */
+const RING_ENGINE_KEYS: readonly string[] = [...rangeKeys(OBSTACLE_EDITOR_RANGES), "obstacles", ...rangeKeys(MULTIPLIER_RANGES), "onBeatRange"];
+/** Each mode's own settings its engine reads (a key of another mode, or of the recording, the text, the sound or the picture, never). */
+const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
+  classic: [],
+  accumulation: ["accumulationTime", "spikeCount"],
+  multiply: ["multiplySpawnCount"],
+  lines: [],
+  paint: rangeKeys(PICTURE_PAINT_RANGES),
+  target: ["targetCount"],
+  portal: [],
+  shatter: [],
+  colorMatch: ["colorMatchColorCount"],
+  grow: ["growRate"],
+  drop: rangeKeys(DROP_RANGES),
+  box: rangeKeys(BOX_RANGES),
+  pendulum: rangeKeys(PENDULUM_RANGES),
+  polyrhythm: rangeKeys(POLYRHYTHM_RANGES),
+  collide: [...rangeKeys(COLLIDE_RANGES), ...rangeKeys(WOBBLE_RANGES)],
+  glass: [...rangeKeys(GLASS_RANGES), ...rangeKeys(MULTIPLIER_RANGES)],
+  multipliers: [...rangeKeys(MULTIPLIERS_RANGES), ...rangeKeys(MULTIPLIER_RANGES)],
+  doublePendulum: rangeKeys(DOUBLE_PENDULUM_RANGES),
+  illusion: [...rangeKeys(ILLUSION_RANGES), ...rangeKeys(WOBBLE_RANGES)],
+  stringBattle: rangeKeys(STRING_BATTLE_RANGES),
+  powerLayers: rangeKeys(POWER_LAYERS_RANGES),
+  race: rangeKeys(RACE_RANGES),
+  battle: rangeKeys(ARENA_GAME_RANGES, "bt", "arena"),
+  ctf: rangeKeys(ARENA_GAME_RANGES, "ctf", "arena"),
+  runner: rangeKeys(JDM_RHYTHM_RANGES, "runner"),
+  paddle: rangeKeys(JDM_RHYTHM_RANGES, "pd"),
+  vortex: rangeKeys(VORTEX_RANGES),
+  journey: rangeKeys(JOURNEY_RANGES),
+  bullseye: rangeKeys(BULLSEYE_RANGES),
+  beatDrop: rangeKeys(BEAT_DROP_RANGES),
+  territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
+  maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
+};
+
+const engineKeyCache = new Map<ModeId, readonly string[]>();
+
+/**
+ * --- review fix (uncap-all) --- The settings a run of `mode` hands its engine: the physics config, the ring modes' obstacle
+ * editor, pickups and On beat, and the mode's own settings – never the recording (a clip length), the text, the sound or the
+ * picture (a camera, a theme). Only these engage the extreme-values machinery and ARENA FULL (`uncappedEngaged()`,
+ * `pastAnyMemoryCeiling()`): a 180 s clip, a big caption or a Glass Smash row count in a Classic run changes nothing in it.
+ */
+export function engineSettingKeys(mode: ModeId): readonly string[] {
+  let keys = engineKeyCache.get(mode);
+  if (!keys) {
+    keys = [...new Set([...CORE_ENGINE_KEYS, ...(supportsObstacles(mode) ? RING_ENGINE_KEYS : []), ...(MODE_ENGINE_KEYS[mode] ?? [])])];
+    engineKeyCache.set(mode, keys);
+  }
+  return keys;
+}
+
+/**
+ * True when a setting the mode's engine reads (`engineSettingKeys()`) sits past its slider's comfort range (the engine
+ * then runs its extreme-values machinery: planned sub-steps, the crowd, time-slicing – `PhysicsConfig.unlimited`).
+ * --- review fix (uncap-all) --- A setting the run never reads – the clip length, the text size, a sound, another mode's
+ * setting – engages nothing (it burned the ⚡ speed badge into Classic clips).
  */
 export function uncappedEngaged(settings: SimulatorSettings): boolean {
   const record = settings as unknown as UnlimitedRecord;
-  for (const key of unlimitedSettingKeys()) {
+  for (const key of engineSettingKeys(settings.mode)) {
     const range = UNLIMITED_RANGES[key];
     const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value) && beyondRange(key, value, range)) return true;
+    if (range && typeof value === "number" && Number.isFinite(value) && beyondRange(key, value, range)) return true;
   }
-  return false;
+  // An obstacle of the editor's layout past its row's sliders (a 1,000 rpm spinner) is a value past its slider too.
+  return supportsObstacles(settings.mode) && Array.isArray(settings.obstacles) && settings.obstacles.some(obstacleBeyondSliders);
 }
 
 /** The core numeric URL keys (key → setting), for tools and the uncapped round-trip test. */
@@ -1517,10 +1584,14 @@ export function numericUrlKeyFields(): Readonly<Record<string, string>> {
   return NUMERIC_URL_KEYS;
 }
 
-/** True when a setting that sizes an allocation is past its memory-safety ceiling (the run builds less: ARENA FULL). */
+/**
+ * True when a setting the mode's engine reads (`engineSettingKeys()`) and that sizes an allocation is past its
+ * memory-safety ceiling – or a list setting of it is full (`pastMemoryCeiling()`) – so the run builds less: ARENA FULL.
+ * (--- review fix (uncap-all) --- another mode's count, a Glass Smash row count in a Classic run, says nothing.)
+ */
 export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
-  const record = settings as unknown as UnlimitedRecord;
-  for (const key of unlimitedSettingKeys()) if (pastMemoryCeiling(key, record[key])) return true;
+  const record = settings as unknown as Record<string, unknown>;
+  for (const key of engineSettingKeys(settings.mode)) if (pastMemoryCeiling(key, record[key])) return true;
   return false;
 }
 // --- end uncap-all ---
