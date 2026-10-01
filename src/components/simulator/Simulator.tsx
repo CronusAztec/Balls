@@ -2823,7 +2823,7 @@ export default function Simulator() {
           {!isStarted && !isSearching && !(searchResult && !searchResult.found) && !obstacleEditing && (
             <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-bg/40 p-3 sm:p-4">
               <div className="flex max-w-sm flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 text-center ring-1 ring-line">
-                <p className="eyebrow text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
+                <p className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
               </div>
             </div>
@@ -2832,7 +2832,7 @@ export default function Simulator() {
           {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
             <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3" data-testid="obstacle-ready-bar">
               <div className="flex flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 ring-1 ring-line">
-                <span className="eyebrow text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</span>
+                <span className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</span>
                 {/* A found seed holds only while nothing changes – moving an obstacle included (it drops the seed). */}
                 {searchResult?.found && (
                   <p className="max-w-sm text-center text-xs font-medium leading-snug text-warn" data-testid="obstacle-ready-warning">
