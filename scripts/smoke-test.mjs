@@ -6708,6 +6708,61 @@ const bdInstrument = () =>
 }
 // --- end pwa ---
 
+// --- review fix (audio) ---
+// Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its
+// AudioContext – the music bed and the keep-alive oscillator stop instead of playing on under the landing page with nothing
+// there to stop them – and coming back and starting again runs one new context, not a second one next to the first.
+{
+  const p = await ctx.newPage();
+  p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  p.on("console", (m) => {
+    if (m.type() === "error") errors.push(`console: ${m.text()}`);
+  });
+  await p.addInitScript(() => {
+    const Native = window.AudioContext;
+    const made = (window.__acMade = []);
+    window.__acClosed = 0;
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        made.push(this);
+      }
+      close() {
+        window.__acClosed++;
+        return super.close();
+      }
+    };
+  });
+  const contexts = () => p.evaluate(() => ({ made: window.__acMade.length, closed: window.__acClosed, states: window.__acMade.map((c) => c.state) }));
+  await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await p.getByRole("button", { name: /Custom Sound/ }).click();
+  await p.locator("#music-file-input").setInputFiles({ name: "smoke-bed.wav", mimeType: "audio/wav", buffer: makeWav(4) });
+  const listed = await p.getByTestId("music-track").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+  await p.getByRole("button", { name: /Start Simulator/ }).click();
+  const bedOn = await p.getByTestId("music-playing").waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+  await p.waitForTimeout(2000);
+  const running = await contexts();
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.locator("header a", { hasText: "Back" }).first().click();
+  await p.waitForURL(/\/en\/$/, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  const left = await contexts();
+  const leftTo = new URL(p.url()).pathname;
+  const sameDocument = await p.evaluate(() => Array.isArray(window.__acMade));
+  await p.goBack({ waitUntil: "networkidle" }).catch(() => null);
+  await p.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  const back = await contexts();
+  const backTo = new URL(p.url()).pathname;
+  check(
+    "leaving the simulator by an in-app link closes its AudioContext (the music bed stops) and coming back runs one new context",
+    listed && bedOn && running.states.includes("running") && sameDocument && /\/en\/$/.test(leftTo) && left.closed >= 1 && left.states.every((st) => st === "closed") && /\/simulator\/$/.test(backTo) && back.states.filter((st) => st !== "closed").length === 1,
+    `(bed ${listed ? "loaded" : "missing"}${bedOn ? ", playing" : ""}; running ${JSON.stringify(running)}; after Back to ${leftTo}: ${JSON.stringify(left)}; back to ${backTo} and started again: ${JSON.stringify(back)})`,
+  );
+  await p.close();
+}
+// --- end review fix (audio) ---
+
 // --- bounce-math ---
 // Bounce math: a rule from the link fills the "Bounce math" block of the Ball & Physics section; an edit in the panel (the
 // trigger, the amount, a formula – an invalid one shows its error and stays out of the link) lands in the link (`bmr`); the

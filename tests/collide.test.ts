@@ -761,6 +761,7 @@ describe("Collision Playground settings", () => {
 describe("ToneGenerator soft hits", () => {
   const gains: number[] = [];
   const oscillators: number[] = [];
+  let setTime = (t: number) => void t;
   beforeEach(async () => {
     gains.length = 0;
     oscillators.length = 0;
@@ -783,6 +784,7 @@ describe("ToneGenerator soft hits", () => {
       createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, copyToChannel: () => undefined }),
     };
     vi.stubGlobal("window", { AudioContext: function FakeAudioContext() { return ctx; } });
+    setTime = (t) => void (ctx.currentTime = t);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -794,6 +796,7 @@ describe("ToneGenerator soft hits", () => {
     tone.playWallHit(0, 440);
     expect(heard(0.25)).toBe(true);
     gains.length = 0;
+    setTime(1); // a later frame (hits of one frame on one pitch share their loudness: toneGenerator.test.ts)
     tone.playWallHit(0, 440, false, undefined, 0.3);
     expect(heard(0.25 * 0.3)).toBe(true);
     expect(heard(0.25)).toBe(false);

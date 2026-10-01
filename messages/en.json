@@ -365,6 +365,7 @@
     "musicRemove": "Remove music",
     "musicPlaying": "Playing",
     "musicDecodeError": "Could not decode this audio file. Try an MP3, OGG, WAV or M4A file.",
+    "wallBreakDecodeError": "Could not decode this audio file – the wall breaks keep their default sound. Try an MP3, OGG, WAV or M4A file.",
     "musicDuckMeter": "Music level (dips on every bounce)",
     "musicVolume": "Music Volume",
     "musicVolumeTip": "How loud the music plays under the bounce sounds – in the speakers and in the exported video.",
