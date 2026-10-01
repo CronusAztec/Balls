@@ -270,16 +270,29 @@ export interface FinderRequest {
   // --- rigged ---
   /** What the found run must do (see outcomes.ts); absent or "duration": last `targetDurationSec` ± `toleranceSec`. */
   outcome?: FinderOutcome;
+  // --- finder-depth ---
+  /**
+   * Wall-clock ms the whole run-length search may take when its first `maxSeeds` seeds found nothing (the page and the
+   * desktop studio pass `FINDER_DEPTH_BUDGET_MS`): it goes on past them, frame by frame in the same seed order, until a seed
+   * matches, the search has taken this long or it is cancelled. Absent or 0: exactly `maxSeeds` seeds (a reproducible
+   * search – the tests). Only the plain run-length search goes deeper (not the count or outcome searches, not the time-sliced
+   * No limits search, which has its own budget), and only when the runs seen so far ended on both sides of the target's window.
+   */
+  depthBudgetMs?: number;
 }
 
 export interface FinderProgress {
   seedsTested: number;
+  /** The seeds the search tests at most – while it goes deeper, the seeds it will have tested when its budget runs out at its pace so far (seeds / max is then the share of the budget spent). */
   maxSeeds: number;
   currentSeed: number;
   bestDuration: number;
   bestSeed: number;
   // --- gerald-multipliers --- a count search (multipliers board with a target): the closest final count so far
   bestCount?: number;
+  // --- finder-depth ---
+  /** Set while the search goes on past its first `maxSeeds` seeds (`FinderRequest.depthBudgetMs`): the wall-clock ms it may still take. */
+  depthLeftMs?: number;
 }
 
 export interface FinderResult {
@@ -550,10 +563,28 @@ export function simulateMultipliersSeed(seed: number, request: FinderRequest, ma
  */
 export const FINDER_FRAME_BUDGET_MS = 30;
 
+// --- finder-depth ---
+/**
+ * Wall-clock ms a run-length search may take in all when its first `maxSeeds` seeds found nothing – the budget the page's
+ * Find Simulation and the desktop studio's search pass (`FinderRequest.depthBudgetMs`). A cheap mode goes on past them: a
+ * default Classic seed simulates in a few ms, so the page's 1,000 seeds take ~7 s, and with about 0.2 % of the seeds lasting
+ * 30 s ± 0.5 s they missed that target about one search in ten; 25 s holds ~3,600 seeds, fewer than one miss in a thousand
+ * searches (still several times fewer misses on a machine twice as slow), and a cheap search that cannot find its run still
+ * answers within 25 s. A heavy mode whose first `maxSeeds` seeds took longer than this stops after them, as before; the
+ * time-sliced No limits search keeps its own budget (`FINDER_TIME_BUDGET_MS`, unlimitedFinder.ts).
+ */
+export const FINDER_DEPTH_BUDGET_MS = 25_000;
+
+/**
+ * The run-length search (and the gate to the count and outcome searches). `now` and `schedule` are the clock and the frame
+ * scheduler (injectable for tests; the page's are `performance.now()` and requestAnimationFrame).
+ */
 export function findSimulation(
   request: FinderRequest,
   onProgress: (p: FinderProgress) => void,
   signal?: AbortSignal,
+  now: () => number = () => performance.now(),
+  schedule: FrameSchedule = nextFrame,
 ): Promise<FinderResult> {
   return new Promise((resolve) => {
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length
@@ -598,6 +629,14 @@ export function findSimulation(
     let unfinished = 0; // --- uncap-all --- seeds that ran to the horizon without ending
     const base = Date.now() | 0;
     const seedAt = (i: number) => (base + 0x9e3779b1 * i) | 0;
+    // --- finder-depth --- past the first `maxSeeds` seeds the search goes on (the same seed order, the same frame slices)
+    // while its wall-clock budget lasts – once runs were seen both ending before the target's window and going on past it:
+    // with a target out of reach, or runs that all outlive the horizon, more seeds would only spend the budget
+    const depthBudgetMs = request.depthBudgetMs !== undefined && request.depthBudgetMs > 0 ? request.depthBudgetMs : 0;
+    const began = depthBudgetMs > 0 ? now() : 0;
+    let shorter = false;
+    let longer = false;
+    let deeper = false; // past the first pass
 
     const runBatch = () => {
       if (signal?.aborted) {
@@ -605,8 +644,8 @@ export function findSimulation(
         return;
       }
       // Seeds until the frame's time budget is spent (at most `batchSize`): a slice of ~30 ms, whatever a seed costs.
-      const start = performance.now();
-      const end = Math.min(tested + batchSize, request.maxSeeds);
+      const start = now();
+      const end = deeper ? tested + batchSize : Math.min(tested + batchSize, request.maxSeeds); // --- finder-depth --- (deeper: no cap)
       let i = tested;
       while (i < end) {
         const seed = seedAt(i);
@@ -623,25 +662,36 @@ export function findSimulation(
           resolve({ found: true, seed, duration: durationMs / 1000, seedsTested: i, ...beatCoverage(seed, request, durationMs) }); // --- video-beats ---
           return;
         }
-        if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
+        if (durationMs < targetMs) shorter = true; // --- finder-depth ---
+        else longer = true;
+        if (now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
       tested = i;
-      onProgress({
-        seedsTested: tested,
-        maxSeeds: request.maxSeeds,
-        currentSeed: seedAt(tested - 1),
-        bestDuration: bestDuration === Infinity ? 0 : bestDuration / 1000,
-        bestSeed,
-      });
-      if (tested >= request.maxSeeds) {
+      // --- finder-depth --- the first pass is over: deeper while the budget lasts (the clock is read only when it may)
+      const wasDeeper = deeper;
+      const elapsedMs = depthBudgetMs > 0 && tested >= request.maxSeeds && shorter && longer ? now() - began : Infinity;
+      deeper = elapsedMs < depthBudgetMs;
+      // (a search that went deeper and is out of time reports nothing more: its result follows with the seeds it tested)
+      if (deeper || !wasDeeper) {
+        onProgress({
+          seedsTested: tested,
+          // deeper: the seeds tested by the end of the budget at this pace, so seeds / max is the share of the budget spent
+          maxSeeds: deeper ? Math.max(tested, Math.round((tested * depthBudgetMs) / Math.max(1, elapsedMs))) : request.maxSeeds,
+          currentSeed: seedAt(tested - 1),
+          bestDuration: bestDuration === Infinity ? 0 : bestDuration / 1000,
+          bestSeed,
+          ...(deeper ? { depthLeftMs: depthBudgetMs - elapsedMs } : {}),
+        });
+      }
+      if (!deeper && tested >= request.maxSeeds) {
         // --- uncap-all --- (a run that never ends says so – --- review fix (uncap-all) --- once its best seed, followed far past
         // the horizon, still has not ended: the page's horizon is only the target + 30 s)
-        settleUnfound({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested }, unfinished === tested, request, signal).then(resolve);
+        settleUnfound({ found: false, seed: bestSeed, duration: bestDuration === Infinity ? 0 : bestDuration / 1000, seedsTested: tested }, unfinished === tested, request, signal, FINDER_FRAME_BUDGET_MS, now, schedule).then(resolve);
       } else {
-        requestAnimationFrame(runBatch);
+        schedule(runBatch);
       }
     };
-    requestAnimationFrame(runBatch);
+    schedule(runBatch);
   });
 }
 
