@@ -174,6 +174,26 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
 const FAST_PROGRESS_MS = 120;
 // --- end fast-render ---
 
+/**
+ * --- review fix (performance) --- The FPS badge's number, twice a second. It re-renders only itself: as page state it
+ * re-rendered the whole simulator and its settings panel (~600 components) on almost every tick.
+ */
+function FpsReadout({ canvasRef, label, className }: { canvasRef: React.RefObject<CanvasHandle | null>; label: string; className: string }) {
+  const [fps, setFps] = useState(60);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const fpsRef = canvasRef.current?.fpsRef;
+      if (fpsRef) setFps(Math.round(fpsRef.current));
+    }, 500);
+    return () => clearInterval(id);
+  }, [canvasRef]);
+  return (
+    <span className={className} data-testid="fps-readout">
+      {fps} {label}
+    </span>
+  );
+}
+
 export default function Simulator() {
   const t = useTranslations();
   const searchParams = useSearchParams();
@@ -205,7 +225,6 @@ export default function Simulator() {
   const [isRecording, setIsRecording] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [simSpeed, setSimSpeed] = useState(1);
-  const [fps, setFps] = useState(60);
   const [finished, setFinished] = useState(false);
   const [ballImage, setBallImage] = useState<string | null>(null);
   const [ballEmoji, setBallEmoji] = useState<string | null>(null);
@@ -1474,14 +1493,6 @@ export default function Simulator() {
     return () => cancelAnimationFrame(raf);
   }, [isStarted, isPaused, audioEnabled]);
 
-  // FPS readout.
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (canvasRef.current?.fpsRef) setFps(Math.round(canvasRef.current.fpsRef.current));
-    }, 500);
-    return () => clearInterval(id);
-  }, []);
-
   // Elapsed time readout (written directly to the DOM to avoid re-renders).
   useEffect(() => {
     if (!isStarted || isPaused || finished) return;
@@ -1597,6 +1608,7 @@ export default function Simulator() {
       resolution,
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
+      sourceFrames: () => canvasRef.current?.framesDrawn() ?? -1, // --- review fix (performance) --- each frame the canvas drew, copied once
       // --- themes: the letterbox bars of the export continue the gradient / picture background
       backgroundColor: settings.backgroundColors[0],
       drawBackground: (c, width, height, crop) => canvasRef.current?.paintRecordingBackground(c, width, height, crop),
@@ -1661,6 +1673,20 @@ export default function Simulator() {
   useEffect(() => setFastSupported(fastRenderSupported()), []);
   const fastAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => fastAbortRef.current?.abort(), []); // an export stops with the page
+  // --- review fix (performance) --- a recording in progress stops with the page too (a client-side navigation keeps the window,
+  // its timers and the MediaRecorder alive): its clip timer is cleared and the clip is discarded – no download from a page
+  // that is gone. (The audio closes in the effect next to the engine's.)
+  useEffect(
+    () => () => {
+      if (recordTimerRef.current) {
+        clearTimeout(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      const recorder = recorderRef.current;
+      if (recorder?.isRecording()) void recorder.stopRecording();
+    },
+    [],
+  );
   const fastRunning = fastExport.status === "running";
   // --- batch-render --- a batch job for the next export: its seed, and the file handed back instead of downloaded (useBatchRender.ts)
   const batchExportRef = useRef<BatchExportRequest | null>(null);
@@ -2739,9 +2765,7 @@ export default function Simulator() {
                 />
               )}
               <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-900/60 backdrop-blur-md rounded-xl font-bold text-sm border border-slate-700/50 shadow-lg shadow-cyan-500/10 flex items-center gap-1.5">
-                <span className={gradientText}>
-                  {fps} {t("Simulator.fps")}
-                </span>
+                <FpsReadout canvasRef={canvasRef} label={t("Simulator.fps")} className={gradientText} />
               </div>
               {isRecording && (
                 <button

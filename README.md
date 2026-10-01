@@ -878,6 +878,16 @@ The owner's direction: *"make all parameters uncapped … so it goes so fast it 
 - **Tests and smoke**: `tests/uncap.test.ts` – the number field (parsing, commit rules, arrow steps, beyond-range display, invalid input), a table test that walks every setting with a range and every core URL key and round-trips 10×, 1000× and 1e9× its slider maximum through links, presets, project files and share codes, exact decimals, invalid values, nothing engaged at the defaults, Bounciness (old links and presets, a Bounciness-3 ball faster every second for 60 s, deterministic replay, the old ×3 replayed exactly), no ball leaving a sealed ring at 1e6, 1e12 and 1e100 px/s, the ceilings that are left, ARENA FULL, Find Simulation on runs that never end and **the guard** – a scan of the sources that fails on any clamp against a slider's maximum outside a short allow-list of memory-safety ceilings; `tests/unlimited.test.ts` keeps the No limits machinery's tests (crowd, time-slicing, rendering, the budgeted finder). The smoke test types 100× the Ball Speed's maximum into its field and sees the link carry it, types a Bounciness of 3 and watches the speed readout pass the old cap within 10 s, types a 1e6 Ball Count and sees ARENA FULL instead of a crash, and counts a number field next to every slider of every section.
 - **Add a setting**: nothing to do for a numeric setting with a range – it is uncapped and gets its number field from `Slider`. Never `Math.min(…, range.max)` a value (the guard test fails); if the value sizes an allocation, give it a `MEMORY_CEILINGS` entry and apply `memoryCeiling(key, value)` where the mode builds.
 
+### Runtime budgets
+
+`src/components/simulator/renderBudget.ts` keeps the canvas loop's cost flat over long runs and on any display: the loop
+draws at most 60 frames a second on the rAF timestamps (`FrameGate`; a 75 / 90 / 144 Hz display draws 60, a late 60 Hz
+callback is not dropped), and Record Video copies each drawn frame once (`captureStream(0)` + `requestFrame()`); ball sprites
+are cached per colour and power-of-two size, one glow sprite per colour, at most 64 each; classic Paint strokes only the new
+points into a trail layer (a finished run records no more), and the Lines / Grow strings go out in one path per colour.
+Leaving the simulator (an in-app link) stops a recording and closes the audio. The pages hand the client only the message
+namespaces their client components read (`src/i18n/clientMessages.ts`; the simulator page gets the whole catalogue).
+
 ## Browser support
 
 Chrome, Edge and Safari export MP4; Firefox exports WebM. Recording uses `canvas.captureStream()` and
