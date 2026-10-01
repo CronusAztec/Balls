@@ -55,6 +55,7 @@ import { MULTI_BALL_MODES } from "@/lib/physics/ballStats";
 import { effectiveBallCount, teamCarryOver, teamRenderOptions } from "@/lib/teams";
 import { uncapConfigOf } from "@/lib/physics/limits"; // --- unlimited --- (--- uncap-all --- engaged by the values, not a switch)
 import { findSimulationBudgeted } from "@/lib/simulation/unlimitedFinder"; // --- unlimited ---
+import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
 import { visualValue } from "@/lib/unlimited"; // --- unlimited ---
 import { pastAnyMemoryCeiling, uncappedEngaged } from "@/lib/settings"; // --- uncap-all ---
 import NumberField from "./NumberField"; // --- uncap-all --- (the Find Simulation length has a number field too)
@@ -1102,9 +1103,11 @@ export default function Simulator() {
       if (s.mode !== "paddle" || !canvas) return;
       const rect = canvas.getBoundingClientRect();
       const f = engine.getPaddleView().field;
-      // --- split-screen --- during a race the first arena is drawn scaled into its viewport
+      // --- world --- the pointer in world px (the canvas draws the fixed world at the frame's scale)
+      const px = (e.clientX - rect.left) / Math.max(1e-6, liveWorldOf(rect).scale);
+      // --- split-screen --- during a race the first arena is drawn scaled into its viewport (world px)
       const vp = splitRunnerRef.current?.isActive() ? splitRunnerRef.current.viewports()[0] : undefined;
-      const x = vp ? (e.clientX - rect.left - vp.x) / vp.scale : e.clientX - rect.left;
+      const x = vp ? (px - vp.x) / vp.scale : px;
       engine.setPaddleInput({ target: (x - f.left) / Math.max(1, f.width) });
     };
     const onPointerLeave = () => engine.setPaddleInput({ target: null });

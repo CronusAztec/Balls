@@ -386,8 +386,10 @@ describe("uncap-all: Find Simulation says when a run never ends", () => {
       expect(plain).toMatchObject({ found: false, neverEnded: true, seedsTested: 4 });
       const sliced = await findSimulationBudgeted(request(0.5, { ballSpeed: 1e6, bounciness: 3, bouncierEnabled: true }), () => {}, undefined, () => performance.now(), (fn) => setTimeout(fn, 0));
       expect(sliced).toMatchObject({ found: false, neverEnded: true });
-      // A search that sees runs end does not say so.
-      const normal = await findSimulation({ ...request(120), maxSeeds: 2 }, () => {});
+      // A search that sees runs end does not say so. (The seeds come from Date.now(): with only two, both can run past
+      // even a 120 s horizon – a classic ball can bounce that long before it finds a gap – which failed CI once; a dozen
+      // seeds always include a run that ends.)
+      const normal = await findSimulation({ ...request(120), maxSeeds: 12 }, () => {});
       expect(normal.neverEnded).toBeUndefined();
     } finally {
       vi.unstubAllGlobals();

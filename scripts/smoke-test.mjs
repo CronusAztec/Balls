@@ -3109,10 +3109,12 @@ const instrumentOscillators = () =>
   const pixels = await page.evaluate(() => {
     const c = document.querySelector("main canvas");
     const g = c.getContext("2d");
-    const dpr = c.width / c.getBoundingClientRect().width;
+    // --- world --- the probe points are world px (the engine's); the canvas draws the world at its own scale (data-world)
+    const worldW = Number((c.dataset.world || "").split("x")[0]) || c.getBoundingClientRect().width;
+    const k = c.width / worldW;
     const at = (s) => {
       const [x, y] = (s || "0,0").split(",").map(Number);
-      return Array.from(g.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data).slice(0, 3);
+      return Array.from(g.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data).slice(0, 3);
     };
     return { picture: at(c.dataset.illusionProbe), paint: at(c.dataset.illusionPaper) };
   });
@@ -3807,6 +3809,46 @@ const instrumentOscillators = () =>
 }
 // --- end odd-string-battle ---
 
+// --- world --- the simulation world does not follow the screen: 800 × 450 world px in every 16:9 frame (450 × 450 in a
+// phone's square one), drawn at the canvas' scale (data-world on the canvas), so a seed, a preset, a daily challenge and a
+// found run play the same on a laptop, a big monitor and in the export – and a window resize only rescales the drawing
+// (a found seed survives it; the frame's shape changing is what drops it).
+{
+  const worlds = [];
+  for (const size of [{ width: 1400, height: 900 }, { width: 1920, height: 1080 }, { width: 1100, height: 760 }]) {
+    await page.setViewportSize(size);
+    await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(300);
+    const info = await page.evaluate(() => {
+      const c = document.querySelector("main canvas");
+      const r = c.getBoundingClientRect();
+      return { world: c.dataset.world ?? "", css: `${Math.round(r.width)}x${Math.round(r.height)}`, backing: `${c.width}x${c.height}` };
+    });
+    worlds.push(`${size.width}x${size.height}: world ${info.world}, canvas ${info.css} css / ${info.backing} px`);
+  }
+  await page.setViewportSize({ width: 1400, height: 900 });
+  check("the simulation world is 800×450 at every desktop window size (the stage scales it to the canvas)", worlds.length === 3 && worlds.every((w) => /world 800x450,/.test(w)), `(${worlds.join("; ")})`);
+  // A found seed survives a window resize: the world stayed, only the drawing rescaled. (A 30 s classic search can miss
+  // its 1000 seeds now and then – the seeds come from Date.now() – so it gets up to three tries.)
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  let foundReady = false;
+  for (let attempt = 0; attempt < 3 && !foundReady; attempt++) {
+    if (attempt > 0) await page.getByRole("button", { name: /Try Again|Search Again|Try again/ }).first().click().catch(() => page.getByRole("button", { name: /Find 30s Simulation/ }).click());
+    else await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    foundReady = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  }
+  const foundSeed = (await canvasData()).seed;
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.waitForTimeout(500);
+  const stillReady = await page.getByText(/Ready to start simulation for/).first().isVisible().catch(() => false);
+  const seedAfter = (await canvasData()).seed;
+  const worldAfter = await page.locator("main canvas").evaluate((c) => c.dataset.world ?? "");
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.waitForTimeout(300);
+  check("a found seed survives a window resize (the world is the same, the drawing rescaled)", foundReady && stillReady && !!foundSeed && seedAfter === foundSeed && worldAfter === "800x450", `(found ${foundReady} seed ${foundSeed}, after the resize ready ${stillReady} seed ${seedAfter}, world ${worldAfter})`);
+}
+// --- end world ---
+
 // --- odd-power-layers ---
 // 27. Power Layers: the preview image and the card; URL → the Power layers block of the Mode row (layers, sequence, drift,
 // bounce speed, corner badge, rule pills), controls → URL and the search box; the finder (the default run's fixed 8.8 s –
@@ -4466,17 +4508,30 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 {
   const found = await page.getByText(/Ready to start simulation for (29\.[5-9]|30\.[0-5])/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
   check("finder finds a 30 s race", found);
-  // --- review fix (modes-rhythm) --- another canvas size can play a race out differently (float rounding), so a resize after
-  // Find drops the found run – its "Ready to start simulation for …" promise and the Found! line go with it
+  // --- review fix (modes-rhythm) --- another world can play a race out differently (float rounding). --- world --- The frame's
+  // shape decides the world (lib/simulation/world.ts): a resize that keeps it (16:9 → 16:9) keeps the found race – the drawing
+  // rescales, the run is the same – and a resize into the square frame (a narrow window) changes the world, so it drops the
+  // found run: its "Ready to start simulation for …" promise and the Found! line go with it
   if (found) {
+    const fmt = (b) => (b ? `${Math.round(b.width)}×${Math.round(b.height)}` : "?");
     const box0 = await page.locator("main canvas").boundingBox();
     await page.setViewportSize({ width: 800, height: 1300 });
     await page.waitForTimeout(600);
     const box1 = await page.locator("main canvas").boundingBox();
+    const keptReady = await page.getByText(/Ready to start simulation for/).count();
+    const keptWorld = await page.locator("main canvas").evaluate((c) => c.dataset.world ?? "");
+    await page.setViewportSize({ width: 600, height: 900 });
+    await page.waitForTimeout(600);
+    const box2 = await page.locator("main canvas").boundingBox();
     const ready = await page.getByText(/Ready to start simulation for/).count();
     const foundLine = await page.getByText(/Found! [\d.]+s/).count();
+    const squareWorld = await page.locator("main canvas").evaluate((c) => c.dataset.world ?? "");
     const resized = !!box0 && !!box1 && (Math.abs(box0.width - box1.width) > 20 || Math.abs(box0.height - box1.height) > 20);
-    check("a resize after Find drops a found race", resized && ready === 0 && foundLine === 0, `(canvas ${box0 ? `${Math.round(box0.width)}×${Math.round(box0.height)}` : "?"} → ${box1 ? `${Math.round(box1.width)}×${Math.round(box1.height)}` : "?"}, ready ${ready}, found ${foundLine})`);
+    check(
+      "a resize that keeps the frame's shape keeps a found race; one into the square frame changes the world and drops it",
+      resized && keptReady === 1 && keptWorld === "800x450" && squareWorld === "450x450" && ready === 0 && foundLine === 0,
+      `(canvas ${fmt(box0)} → ${fmt(box1)}: ready ${keptReady}, world ${keptWorld}; → ${fmt(box2)}: world ${squareWorld}, ready ${ready}, found line ${foundLine})`,
+    );
     await page.setViewportSize({ width: 1400, height: 900 });
   }
 }
@@ -5481,7 +5536,10 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   const before = await canvasData();
   const box = await page.locator("main canvas").first().boundingBox();
   const side = box ? Math.min(box.width, box.height) : 0;
-  const vps = (before.splitViewports || "").split(";").map((v) => v.split(",").map(Number));
+  // --- world --- the viewports are world px (data-world: the page's fixed world); the stage draws them at the canvas' scale
+  const worldW = Number((before.world || "").split("x")[0]) || 0;
+  const kWorld = box && worldW > 0 ? box.width / worldW : 1;
+  const vps = (before.splitViewports || "").split(";").map((v) => v.split(",").map((n) => Number(n) * kWorld));
   const covered = vps.reduce((sum, v) => sum + v[2] * v[3], 0);
   const inside = !!box && vps.every(([x, y, w, h]) => x >= (box.width - side) / 2 - 1 && y >= (box.height - side) / 2 - 1 && x + w <= (box.width + side) / 2 + 1 && y + h <= (box.height + side) / 2 + 1);
   check(
@@ -5504,7 +5562,9 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   const lit = await page.evaluate(() => {
     const c = document.querySelector("main canvas");
     const g = c.getContext("2d");
-    const k = c.width / c.getBoundingClientRect().width;
+    // --- world --- the viewports are world px; the canvas draws the world at its own scale (data-world)
+    const worldW = Number((c.dataset.world || "").split("x")[0]) || c.getBoundingClientRect().width;
+    const k = c.width / worldW;
     return c.dataset.splitViewports.split(";").map((v) => {
       const [x, y, w, h] = v.split(",").map(Number);
       const d = g.getImageData(Math.round(x * k), Math.round(y * k), Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))).data;
