@@ -6,6 +6,7 @@ import { ACCENT } from "@/lib/site";
 import { nameLabelSize } from "./faceRenderer";
 import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { TY_PALETTE, type TerritoryView } from "@/lib/physics/modes/territory"; // --- odd-territory ---
+import { MZ_PALETTE, mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 
 /**
  * Drawing of the "Team balls with scoreboard" feature (lib/teams.ts, physics/ballStats.ts), created once with
@@ -163,6 +164,10 @@ export class TeamLayer {
   private readonly territoryLive: BallStats[] = Array.from({ length: MAX_TEAMS }, emptyStats);
   /** --- review fix (modes-gerald-odd) --- the roster plays a String Battle: its kills and its win head the scoreboard and fill the banner. */
   private battle = false;
+  // --- odd-maze --- the roster as the Maze plays it (padded to its first six balls), rebuilt when an input changes
+  private mazeSource: CanvasTeamOptions | null = null;
+  private mazeKey = "";
+  private mazeOptions: CanvasTeamOptions | null = null;
 
   isActive() {
     return this.active;
@@ -200,6 +205,11 @@ export class TeamLayer {
     const territory = !battle && next && next.roster.length > 0 && engine.isTerritoryMode() ? engine.getTerritoryView() : null;
     if (territory && next) next = this.territoryTeams(next, territory.teams, territory.settings.hud);
     this.territory = territory;
+    // --- odd-maze --- the Maze plays the roster too: one team per ball (its first six), the maze palette beyond the roster; its
+    // distance HUD takes the scoreboard's place (its winner banner at the end of the run is this layer's)
+    const maze = next && next.roster.length > 0 && engine.isMazeMode() ? engine.getMazeView() : null;
+    if (maze && next) next = this.mazeTeams(next, maze.teamCount, maze.settings.hud);
+    // --- end odd-maze ---
     if (next !== this.options) {
       this.options = next;
       this.layout = null;
@@ -214,8 +224,8 @@ export class TeamLayer {
     this.labelled = 0;
     this.labelsDrawn = 0;
     const mode = engine.getCurrentModeName();
-    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory); // --- odd-string-battle --- (battle) --- odd-territory --- (territory)
-    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : startBallCount(engine.config, mode)) : 0;
+    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory || !!maze); // --- odd-string-battle --- (battle) --- odd-territory --- (territory) --- odd-maze --- (maze)
+    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : maze ? maze.teamCount : startBallCount(engine.config, mode)) : 0;
     if (count !== this.count) {
       this.count = count;
       this.layout = null;
@@ -272,6 +282,19 @@ export class TeamLayer {
     return this.territoryLive;
   }
   // --- end odd-territory ---
+  // --- odd-maze ---
+  /** The roster padded to `count` teams with the Maze's palette, the scoreboard off while its HUD shows (the same object while nothing changed). */
+  private mazeTeams(options: CanvasTeamOptions, count: number, hud: boolean): CanvasTeamOptions {
+    const key = `${count}|${hud ? 1 : 0}`;
+    if (this.mazeOptions && this.mazeSource === options && this.mazeKey === key) return this.mazeOptions;
+    const roster = options.roster.slice(0, count).map((t) => ({ ...t }));
+    for (let i = roster.length; i < count; i++) roster.push({ name: mazeBallName(i), color: MZ_PALETTE[i % MZ_PALETTE.length].color, emoji: "" });
+    this.mazeSource = options;
+    this.mazeKey = key;
+    this.mazeOptions = { ...options, roster, showScoreboard: options.showScoreboard && !hud };
+    return this.mazeOptions;
+  }
+  // --- end odd-maze ---
 
   private rebuildTexts() {
     const o = this.options;
@@ -391,6 +414,8 @@ export class TeamLayer {
       const live = engine.getTeamStats();
       for (let i = 0; i < MAX_TEAMS; i++) Object.assign(this.frozen[i], live[i]);
       this.result = teamResult(this.frozen, this.count);
+      // --- odd-maze --- a maze race won by a ball past the six teams (its seventh or eighth ball) has no team winner: the maze's banner stays
+      if (engine.isMazeMode() && engine.getMazeView().winner >= this.count) this.result = { winner: -1, tie: false, leaders: [] };
       this.bannerMs = 0;
       this.makeBannerTexts();
       this.confettiPending = this.result.winner >= 0;

@@ -102,6 +102,8 @@ export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MO
 // --- odd-territory --- Territory: its balls hit each other in the engine's pair pass, and a bomber's blast plays the wall-break sound
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("territory");
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("territory");
+// --- odd-maze --- the Maze's winner breaks out through the exit with the wall-break sound
+(BOUNCE_MATH_BREAK_MODES as ModeId[]).push("maze");
 
 /**
  * Whether `trigger` ever fires in `mode` (the panel marks a rule whose trigger the mode never sets off). Every mode reports

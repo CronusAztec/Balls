@@ -275,7 +275,7 @@ describe("string battle settings", () => {
     expect(MODE_CARD_ORDER).toContain("stringBattle");
     expect(MODE_CATEGORIES.stringBattle).toBe("battle");
     expect(MODE_CATEGORY_IDS).toContain("battle");
-    // --- odd-territory --- (Territory joins the battle family after it: the String Battle opens it)
+    // --- odd-territory --- --- odd-maze --- (Territory and the Maze join the battle family after it: the String Battle opens it)
     expect(modesInCategory("battle")[0]).toBe("stringBattle");
     expect(MODE_CATEGORY_IDS.flatMap((c) => modesInCategory(c)).sort()).toEqual([...MODE_CARD_ORDER].sort());
   });

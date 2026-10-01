@@ -68,6 +68,8 @@ import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, reso
 import { UNLIMITED_URL_KEY, beyondRange, discoverUrlKeys, isIntegerRange, readUnlimitedParams, restoreUnlimitedValues, unlimitedKeysOf, writeUnlimitedParams } from "@/lib/unlimited";
 // --- uncap-all --- Uncapped everything: the numeric Bounciness (the uncapped Bouncier) and the memory-safety ceilings
 import { BOUNCIER_ON, BOUNCINESS_OFF, BOUNCINESS_RANGE, atLeastMin, bouncinessOf, pastMemoryCeiling } from "@/lib/uncap";
+// --- odd-maze --- the Maze escape mode (oddplayground)
+import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writeMazeParams, type MazeBrain, type MazeHand } from "@/lib/physics/modes/maze";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -700,6 +702,36 @@ export interface SimulatorSettings {
   // ceiling (1 = off, 1.03 = the old switch; URL `bnc`, the old boolean `bounce` still works); `bouncierEnabled` follows it
   bounciness: number;
   // --- end uncap-all ---
+  // --- odd-maze --- Maze escape (lib/physics/modes/maze.ts, lib/physics/mazeGrid.ts): balls race through a seeded maze
+  /** Columns of the maze, 6–40; the rows follow the portrait field (URL `mzc`). */
+  mzCols: number;
+  /** Balls in the maze, 1–8 (URL `mzn`). */
+  mzBalls: number;
+  /** bounce | wallFollow | explorer (URL `mzb`). */
+  mzBrain: MazeBrain;
+  /** The wall follower's hand: left | right | alternate (URL `mzh`). */
+  mzHand: MazeHand;
+  /** 0–1: the downward pull (URL `mzg`). */
+  mzGravity: number;
+  /** 0.25–3: how fast the balls travel (URL `mzs`). */
+  mzSpeed: number;
+  /** 0–1: opacity of the painted trail (URL `mzt`). */
+  mzTrail: number;
+  /** The trail's colour, blood red by default (URL `mztc`). */
+  mzTrailColor: string;
+  /** Every ball paints in its own colour (URL `mzto`). */
+  mzTrailOwn: boolean;
+  /** 0–1: fog over the cells no ball has visited yet (URL `mzf`). */
+  mzFog: number;
+  /** The glowing walls' colour (URL `mzwc`). */
+  mzWallColor: string;
+  /** Seconds the run lasts at most (URL `mzd`). */
+  mzDuration: number;
+  /** The "FLASHING LIGHTS" warning badge (URL `mzbg`). */
+  mzBadge: boolean;
+  /** The distance-to-exit HUD (URL `mzhud`). */
+  mzHud: boolean;
+  // --- end odd-maze ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -823,6 +855,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
     unlimited: false, // --- unlimited ---
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
+    ...defaultMazeFields(), // --- odd-maze ---
   };
 }
 
@@ -895,6 +928,7 @@ export const RANGES = {
   ...TERRITORY_RANGES, // --- odd-territory ---
   bounciness: BOUNCINESS_RANGE, // --- uncap-all --- (the comfort range; the number field takes any value from 1 up)
   ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
+  ...MAZE_RANGES, // --- odd-maze ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1138,6 +1172,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   writeTerritoryParams(settings, base, params); // --- odd-territory ---: tyc, tyt, tyb, typ, tye, tyr, tyd, typg, tybg, tyh
+  writeMazeParams(settings, base, params); // --- odd-maze ---: mzc, mzn, mzb, mzh, mzg, mzs, mzt, mztc, mzto, mzf, mzwc, mzd, mzbg, mzhud
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1294,6 +1329,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
+  readMazeParams(params, settings); // --- odd-maze --- (clamped onto the sliders; unknown options and bad colours fall back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1632,6 +1668,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans
+  Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- clamped numbers on their steps, known options, real colours and booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

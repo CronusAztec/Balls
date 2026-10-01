@@ -67,6 +67,7 @@ import JourneySection, { JOURNEY_KEYS } from "./sections/JourneySection"; // ---
 import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // --- gerald-bullseye --- the Bullseye block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
+import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
 import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
@@ -241,6 +242,8 @@ SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
 // --- odd-territory --- the Territory block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...TERRITORY_KEYS);
+// --- odd-maze --- the Maze block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...MAZE_KEYS);
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -345,6 +348,8 @@ export default function Controls(props: ControlsProps) {
     beatDrop: t("modeBeatDrop"),
     // --- odd-territory ---
     territory: t("modeTerritory"),
+    // --- odd-maze ---
+    maze: t("modeMaze"),
   };
 
   // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
@@ -438,6 +443,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
       {/* --- odd-territory --- */}
       {s.mode === "territory" && !!search && <TerritorySection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- odd-maze --- */}
+      {s.mode === "maze" && !!search && <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
@@ -518,8 +525,8 @@ export default function Controls(props: ControlsProps) {
   );
 
   const wallSection = () => {
-    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory" /* --- odd-territory --- */].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
-    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop", "territory" /* --- odd-territory --- */].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
+    const hasWallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory" /* --- odd-territory --- */, "maze" /* --- odd-maze --- */].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
+    const hasGapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop", "territory" /* --- odd-territory --- */, "maze" /* --- odd-maze --- */].includes(s.mode) && !isArenaGameMode(s.mode) && !isJdmRhythmMode(s.mode); // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop)
     // --- review fix (ui-i18n) --- Grow builds one gapless ring and Portal's gaps come only from used-up portals: no Gap Size there
     // (their Rotation toggle still applies – Grow's Spin extra, Portal's rotating gaps).
     const hasGapSize = hasGapControls && s.mode !== "grow" && s.mode !== "portal";
@@ -1268,6 +1275,9 @@ export default function Controls(props: ControlsProps) {
       // --- odd-territory ---
       case "territory":
         return <TerritorySection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- odd-maze ---
+      case "maze":
+        return <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

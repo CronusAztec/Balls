@@ -7,6 +7,7 @@ import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory ---
+import { mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
@@ -44,12 +45,14 @@ function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territ
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number }, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */ }, name: (kind: "team" | "ball", n: number) => string): string[] {
   const count = effectiveBallCount(settings);
   // --- odd-string-battle --- the String Battle's balls go by the roster's names, then by their palette names (HOTPINK, AQUA…)
   if (settings.mode === "stringBattle") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : stringBattleBallName(i)));
   // --- odd-territory --- Territory's teams go by the roster's names, then by their palette names (PINK, CYAN, LIME, GOLD)
   if (settings.mode === "territory") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : TY_PALETTE[i % TY_PALETTE.length].name));
+  // --- odd-maze --- the Maze's balls go by the roster's names, then by their palette names (SNOW, AQUA…)
+  if (settings.mode === "maze") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : mazeBallName(i)));
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     if (settings.teams.length > 0) out.push(settings.teams[i]?.name || name("team", i + 1));

@@ -352,6 +352,8 @@ export const SLOW_VIEW_MODES: readonly ModeId[] = ["classic", "accumulation", "m
 (SLOW_VIEW_MODES as ModeId[]).push("stringBattle");
 // --- odd-territory --- Territory slows down when the lead flips in its finale (the near-miss hook): its balls glide between steps too
 (SLOW_VIEW_MODES as ModeId[]).push("territory");
+// --- odd-maze --- the Maze slows down when the first ball reaches the exit (the near-miss hook): its balls glide between steps too
+(SLOW_VIEW_MODES as ModeId[]).push("maze");
 
 export function slowViewEligible(mode: ModeId | null | undefined): boolean {
   return !!mode && SLOW_VIEW_MODES.includes(mode);

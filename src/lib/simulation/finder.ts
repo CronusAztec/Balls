@@ -42,6 +42,7 @@ import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- ger
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
+import type { MazeSettings } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -153,6 +154,12 @@ export interface ModeSettings {
   // --- odd-territory ---
   /** Territory: board, teams, balls, powers and the countdown (see modes/territory.ts); the defaults when left out. Every run lasts the countdown, so the finder searches its winner. */
   territory?: Partial<TerritorySettings>;
+  // --- odd-maze ---
+  /**
+   * Maze escape: columns, balls, brain, hand, pull, speed and the clip limit (see modes/maze.ts); the defaults when left out.
+   * Every run ends – every ball out, or the clip limit – so the finder searches it by length or by winner.
+   */
+  maze?: Partial<MazeSettings>;
 }
 
 // --- odd-string-battle ---
@@ -173,6 +180,10 @@ export const ILLUSION_FINDER_BATCH = 4;
 // --- review fix (modes-rhythm) ---
 /** Seeds of Paint simulated per animation frame (a seed paints for a minute or more before it covers the circle). */
 export const PAINT_FINDER_BATCH = 2;
+
+// --- odd-maze ---
+/** Seeds of the Maze simulated per animation frame (a seed runs until every ball is out, up to the clip limit). */
+export const MAZE_FINDER_BATCH = 6;
 
 // --- review fix (modes-rhythm) ---
 /**
@@ -365,6 +376,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- gerald-bullseye ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
+  if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -494,7 +506,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : request.mode === "maze" ? MAZE_FINDER_BATCH /* --- odd-maze --- */ : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -597,6 +609,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const horizonMs = outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode);
   // --- odd-string-battle --- the chosen ball of a battle's winner search (−1: none to watch)
   const battleTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "stringBattle" ? (outcome.team ?? -1) : -1;
+  const mazeTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "maze" ? (outcome.team ?? -1) : -1; // --- odd-maze ---
   const step = 1000 / 60;
   let elapsed = 0;
   let firstEscape = -1;
@@ -609,8 +622,10 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode)) break;
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
+    // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
+    if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
   }
-  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
+  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
   return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
 }

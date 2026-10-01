@@ -63,6 +63,8 @@ export const MODE_IDS = [
   "beatDrop",
   // --- odd-territory --- Territory (pong-wars teams painting a tile map)
   "territory",
+  // --- odd-maze --- Maze escape (oddplayground: balls race through a seeded maze, leaving a red trail)
+  "maze",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

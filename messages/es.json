@@ -1505,7 +1505,53 @@
     "tyBadge": "Insignia de aviso",
     "tyBadgeTip": "La insignia «LUCES INTERMITENTES – EL FINAL SE PONE INTENSO» en la esquina superior izquierda del clip.",
     "tyHud": "Marcador de porcentajes",
-    "tyHudTip": "La franja sobre el tablero: ELIGE UN BANDO, la cuenta atrás, la línea VS con la parte de cada equipo y la barra de porcentajes en directo. Con una plantilla de equipos también sustituye al marcador."
+    "tyHudTip": "La franja sobre el tablero: ELIGE UN BANDO, la cuenta atrás, la línea VS con la parte de cada equipo y la barra de porcentajes en directo. Con una plantilla de equipos también sustituye al marcador.",
+    "modeMaze": "Escape del laberinto",
+    "mzDesc": "Los laberintos de oddplayground: un laberinto perfecto aleatorio con una ranura de entrada roja arriba y una salida abajo. Las bolas caen una tras otra, se abren paso rebotando y pintan cada celda por la que pasan; gana la primera que sale, y las notas suben a medida que se acercan a la salida.",
+    "mzBrain": "Cerebro",
+    "mzBrainTip": "Cómo encuentran el camino las bolas. Rebote: física pura; simplemente rebotan por los pasillos. Mano en la pared: en cada cruce mantiene una mano en la pared; siempre encuentra la salida. Exploradora: prefiere los pasillos que aún no ha recorrido y retrocede desde los callejones sin salida. La dirección empuja a la bola cuando cruza el centro de una celda.",
+    "mzBrainBounce": "Rebote",
+    "mzBrainWallFollow": "Mano en la pared",
+    "mzBrainExplorer": "Exploradora",
+    "mzHintBounce": "Física pura: las bolas rebotan por los pasillos y pueden tardar mucho en encontrar la salida.",
+    "mzHintWallFollow": "Mantiene una mano en la pared en cada cruce; lenta pero segura: siempre sale.",
+    "mzHintExplorer": "Prefiere los pasillos que aún no ha visitado y retrocede desde los callejones sin salida (una búsqueda en profundidad).",
+    "mzHand": "Qué mano",
+    "mzHandTip": "Qué mano mantiene la bola en la pared. Alternar da a las bolas manos distintas, así que en una carrera toman rutas diferentes.",
+    "mzHandLeft": "Izquierda",
+    "mzHandRight": "Derecha",
+    "mzHandAlternate": "Alternar",
+    "mzBalls": "Bolas del laberinto",
+    "mzBallsTip": "Cuántas bolas compiten por el laberinto, 1–8. Entran por la ranura con un momento de separación y se atraviesan entre sí. Una plantilla en Equipos y marcador da a las primeras (hasta seis) sus colores y nombres.",
+    "mzRosterNote": "Las primeras bolas ({count} de {balls}) llevan la plantilla de Equipos y marcador; las demás usan la paleta neón.",
+    "mzPaletteNote": "Paleta: {names}; o crea una plantilla en Equipos y marcador.",
+    "mzCols": "Tamaño del laberinto",
+    "mzColsTip": "Columnas del laberinto, 6–40; las filas se deducen de la forma vertical. Un laberinto más grande tiene pasillos más estrechos (las bolas se encogen para caber) y cuesta más resolverlo.",
+    "mzSpeed": "Velocidad en el laberinto",
+    "mzSpeedTip": "La rapidez con la que viajan las bolas, relativa al ancho del laberinto (el control Velocidad de la bola no se aplica aquí).",
+    "mzGravity": "Atracción",
+    "mzGravityTip": "Una atracción hacia abajo, 0–1: las bolas caen por los pasillos verticales y tienen que volver a subir (la dirección le da a la bola velocidad suficiente para subir una celda).",
+    "mzGravityOff": "No",
+    "mzTrail": "Rastro",
+    "mzTrailTip": "Cada celda que visita una bola queda pintada, así que el laberinto se va llenando de «sangre». Esto ajusta la opacidad de la pintura; 0 la desactiva.",
+    "mzTrailOff": "No",
+    "mzTrailOwn": "Pintar con el color de cada bola",
+    "mzTrailOwnTip": "Cada bola pinta sus pasillos con su propio color en lugar del color del rastro.",
+    "mzTrailColor": "Color del rastro",
+    "mzTrailColorTip": "El color de los pasillos pintados (rojo sangre por defecto).",
+    "mzFog": "Niebla",
+    "mzFogTip": "Oculta las celdas que ninguna bola ha visitado aún, salvo un círculo despejado alrededor de cada bola, para dar suspense. 0 la desactiva.",
+    "mzFogOff": "No",
+    "mzWallColor": "Color de las paredes del laberinto",
+    "mzWallColorTip": "El color de las paredes brillantes del laberinto.",
+    "mzWallColorReset": "Restablecer",
+    "mzDuration": "Límite del clip del laberinto",
+    "mzDurationTip": "La partida termina cuando todas las bolas han salido o tras estos segundos; si para entonces ninguna ha salido, gana la bola más cercana a la salida.",
+    "mzBadge": "Insignia de aviso del laberinto",
+    "mzBadgeTip": "La insignia «LUCES INTERMITENTES – EL FINAL SE PONE INTENSO» en la esquina superior izquierda del clip.",
+    "mzHud": "Marcador de distancia",
+    "mzHudTip": "Una fila por bola en la esquina superior derecha: su color, su nombre y una barra que se llena a medida que se acerca a la salida, con los pasos que le faltan (o su puesto cuando ya ha salido).",
+    "mzRunInfo": "Un laberinto de {cols} × {rows} ({cells} celdas, uno nuevo para cada semilla); la partida termina cuando todas las bolas han salido, como muy tarde a los {seconds} s."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -1599,6 +1645,10 @@
     "territory": {
       "name": "Territorio",
       "description": "Simulación de física al estilo pong wars: 2 o 4 equipos de bolas que rebotan pintan el mapa de casillas de su color y la barra de porcentajes en directo muestra quién va ganando. Vórtice contra bombardero: un rebote puede darle la vuelta al tablero."
+    },
+    "maze": {
+      "name": "Escape del laberinto",
+      "description": "¿A alguien más le pareció sangre? Las bolas caen por una ranura roja en un laberinto aleatorio que brilla en verde y rebotan hasta la salida, pintando de rojo cada pasillo por el que pasan. Cada golpe en una pared es una nota que sube a medida que la bola se acerca a la salida; gana la primera bola que sale."
     }
   },
   "FAQ": {
@@ -1680,7 +1730,8 @@
     "modeJourney": "El formato del trayecto de geraldbounces –«Gerald bounces through his commute», «let him out!»–: una columna de etapas que la bola supera una tras otra mientras la cámara baja. Anillos es una huida compacta como en Clásico (de 3 a 9 anillos con huecos que giran; la bola cae por un tubo hasta el centro), Cristal unos cuantos paneles de Rompecristales que se agrietan en cada aterrizaje y estallan, Clavos un campo de clavos de Caída de pelotas cuyas filas tocan una escala ascendente, Multiplicadores dos o tres filas de puertas (x2 DMG, x1.5 SPEED, x1.25 SIZE) que potencian la bola para el resto del camino, Embudo un embudo que se estrecha, Diana un blanco de aterrizaje que puntúa de 10 a 100 antes de que se abra su trampilla, y CASA la puerta con confeti y el tiempo total. Cada cambio de etapa muestra un cartel y suena un zumbido, un minimapa junto a la columna muestra cuánto ha avanzado Gerald y cada nota pasa por tu instrumento, tu escala, la sincronización con el ritmo, las muestras de golpe y la melodía. Construye la ruta en el bloque Viaje (tamaños, orden, añadir y quitar) o deja que la semilla sortee una; cada recorrido es determinista y siempre llega a CASA, así que Buscar simulación puede elegir una semilla para la duración de tu clip.",
     "modeBullseye": "El formato «bulleye!!» de geraldbounces, sin anillos de los que escapar: un campo vertical con una diana de dardos – de 3 a 10 anillos concéntricos con los colores de una diana – tumbada abajo. Un lanzador arriba dispara de 1 a 30 bolas una tras otra por un corto campo de clavijas y rebotadores (el Caos decide cuántos se interponen). El anillo donde cae una bola puntúa – 10 el centro, menos cuanto más lejos, nada fuera de la diana – con un marcador emergente y un total acumulado, y la bola se queda clavada donde cae, así que los tiros siguientes pueden rebotar en los anteriores. Las clavijas tocan notas de tu escala como un teclado de izquierda a derecha, los aterrizajes suenan más graves cuanto más lejos del centro, y un tiro al centro es ¡DIANA! con confeti, fanfarria y medio segundo de cámara lenta. La diana puede deslizarse a los lados, un Tiro perfecto amañado va directo al centro y el cartel final muestra el total y el mejor tiro. Con semilla y determinista, así que Buscar simulación puede encontrar una partida con la duración de tu clip.",
     "modeBeatDrop": "Un modo rítmico sin anillos, pensado para ediciones musicales: una escena vertical sobre un degradado oscuro en la que una pelota cae y rebota de obstáculo en obstáculo, y cada obstáculo entra volando desde fuera de la pantalla –por la izquierda, la derecha, arriba o abajo, nunca por el lado del que llega la pelota– con una desaceleración suave y se detiene un instante antes de su pulso, así que la pelota aterriza sobre él exactamente en el pulso. El recorrido se planifica de antemano a partir del pulso que sigue (el pulso detectado de la canción cargada o el BPM configurado): la velocidad de salida de cada vuelo se calcula para que el vuelo dure exactamente el tiempo entre dos pulsos, a cualquier tempo y con rejillas irregulares, así que cada aterrizaje queda a una fracción de milisegundo de su pulso. Seis tipos de obstáculo –tablas, bloques, muelles (un rebote más alto con un «boing»), cuñas (desvían la pelota de lado), barras giratorias (planas justo en el pulso) y grandes tambores– se aplastan con el impacto, brillan con el pulso y se deslizan fuera desvaneciéndose cuando la pelota ya se ha ido; la pelota se aplasta y se estira y deja una estela, y cada aterrizaje lanza una onda y una nube de partículas. Los aterrizajes tocan batería sintetizada –bombo en los tiempos 1 y 3, caja en el 2 y el 4, charles a contratiempo y el acento propio de cada obstáculo–, la siguiente nota de la melodía o ambas cosas. El desplazamiento infinito sigue a la pelota hacia abajo sin fin; la arena la mantiene dentro del encuadre. Nunca falla un pulso, así que Buscar simulación simplemente elige una semilla y ajusta el clip a los pulsos que cubre.",
-    "modeTerritory": "El pong wars de oddplayground: un mapa de casillas dividido en 2 o 4 zonas de equipo, con las bolas de cada equipo rebotando dentro de su color. Una bola atraviesa las casillas de su color y rebota en las de cualquier otro, convirtiendo la casilla que golpea, así que cada rebote empuja la frontera y la barra de porcentajes bajo ELIGE UN BANDO oscila con ella. Cada equipo puede tener un poder: el vórtice curva su trayectoria y arrastra un remolino cuyos brazos en espiral convierten casillas rivales; el bombardero se arma cada pocos segundos y explota en su siguiente rebote contra una casilla rival, quedándose con todas las casillas a su alcance (con onda expansiva, escombros y una sacudida del tablero); el pintor atraviesa en línea recta el territorio rival dejando un rastro pintado; y el fantasma atraviesa las casillas rivales y convierte un bloque de 3×3 en cada rebote contra la pared. Las bolas chocan entre sí, la rejilla de puntos opcional las desvía, los últimos cinco segundos lo aceleran todo y, cuando se acaba la cuenta atrás, gana el equipo con más casillas, con cámara lenta cuando el liderato cambia en el final si la cámara lenta está activada. Cada semilla se reproduce exactamente, Buscar simulación busca una partida que gane el equipo elegido, el Ganador forzado la amaña y una plantilla de equipos presta a los equipos sus colores y nombres."
+    "modeTerritory": "El pong wars de oddplayground: un mapa de casillas dividido en 2 o 4 zonas de equipo, con las bolas de cada equipo rebotando dentro de su color. Una bola atraviesa las casillas de su color y rebota en las de cualquier otro, convirtiendo la casilla que golpea, así que cada rebote empuja la frontera y la barra de porcentajes bajo ELIGE UN BANDO oscila con ella. Cada equipo puede tener un poder: el vórtice curva su trayectoria y arrastra un remolino cuyos brazos en espiral convierten casillas rivales; el bombardero se arma cada pocos segundos y explota en su siguiente rebote contra una casilla rival, quedándose con todas las casillas a su alcance (con onda expansiva, escombros y una sacudida del tablero); el pintor atraviesa en línea recta el territorio rival dejando un rastro pintado; y el fantasma atraviesa las casillas rivales y convierte un bloque de 3×3 en cada rebote contra la pared. Las bolas chocan entre sí, la rejilla de puntos opcional las desvía, los últimos cinco segundos lo aceleran todo y, cuando se acaba la cuenta atrás, gana el equipo con más casillas, con cámara lenta cuando el liderato cambia en el final si la cámara lenta está activada. Cada semilla se reproduce exactamente, Buscar simulación busca una partida que gane el equipo elegido, el Ganador forzado la amaña y una plantilla de equipos presta a los equipos sus colores y nombres.",
+    "modeMaze": "Los laberintos de oddplayground («¿a alguien más le pareció sangre?»): un laberinto perfecto aleatorio con paredes verdes brillantes sobre un fondo casi negro, una ranura de entrada roja en la pared superior y una salida en la inferior. De 1 a 8 bolas caen una tras otra y se abren paso físicamente (una atracción hacia abajo, paredes perfectamente elásticas), guiadas por un cerebro: rebote puro, mano en la pared o una exploradora que prefiere los pasillos sin visitar. Cada celda por la que pasa una bola se pinta de rojo, cada golpe en una pared es una nota que sube a medida que la bola se acerca a la salida, y gana la primera bola que sale, con una barra de distancia a la salida por bola en el marcador y niebla opcional sobre las celdas sin visitar para dar suspense. Buscar simulación ajusta la duración de la partida o elige a la ganadora."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -3155,5 +3206,16 @@
     "prose": {
       "onThisPage": "En esta página"
     }
+  },
+  "Maze": {
+    "canvasTitle": "LABERINTO",
+    "canvasBadgeTop": "LUCES INTERMITENTES",
+    "canvasBadgeBottom": "EL FINAL SE PONE INTENSO",
+    "canvasOut": "[place].º",
+    "canvasWins": "[name] ESCAPÓ",
+    "canvasTime": "en [seconds] s",
+    "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!",
+    "canvasClosest": "[name] quedó más cerca",
+    "canvasCaption": "¿a alguien más le pareció sangre?"
   }
 }

@@ -31,6 +31,7 @@ import { vortexSettingFields } from "@/lib/physics/modes/vortex";
 import { journeySettingFields } from "@/lib/physics/modes/journey";
 import { bullseyeSettingFields, ringScore } from "@/lib/physics/modes/bullseye";
 import { territorySettingFields } from "@/lib/physics/modes/territory"; // --- odd-territory ---
+import { mazeSettingFields } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { fixedRunDurationSec } from "@/lib/simulation/finder";
 import { MAX_RACERS, RACE_SCREEN_CEILING, resolveRaceTrackSettings } from "@/lib/physics/raceTrack";
 import { resolveProjectSettings } from "@/lib/project";
@@ -598,6 +599,7 @@ describe("No limits: the engine", () => {
         ...journeySettingFields(engine.getJourneySettings()),
         ...bullseyeSettingFields(engine.getBullseyeSettings()),
         ...territorySettingFields(engine.getTerritorySettings()), // --- odd-territory ---
+        ...mazeSettingFields(engine.getMazeSettings()), // --- odd-maze ---
         rcRacers: race.racers,
         rcTrackLength: race.trackLength,
         rcLaps: race.laps,

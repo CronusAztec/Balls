@@ -81,6 +81,8 @@ import { EXTRA_BALL_COLORS } from "@/lib/physics/ballStats";
 // --- uncap-all --- the speed readout (the fastest ball, short numbers) and NUMBERS OVERFLOWED
 import { DEFAULT_UNCAP_LABELS, drawUncapHud, fastestSpeed, writeUncapDataset, type UncapInfo, type UncapLabels } from "./uncapRenderer";
 import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (recording-export) --- rings past the slider drawn at about one per pixel
+// --- odd-maze --- the Maze: the field, the painted trail, the glowing walls, the fog, the halos, the badge, the HUD and the banner
+import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type MazeLabels, type MazeRenderOptions } from "./mazeRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -185,6 +187,9 @@ export interface CanvasLabels {
   // --- uncap-all ---
   /** Uncapped everything: the speed readout and NUMBERS OVERFLOWED. */
   uncap?: UncapLabels;
+  // --- odd-maze ---
+  /** Maze: the HUD title, the badge, the distances, the places and the verdict banner with its caption. */
+  maze?: MazeLabels;
 }
 
 export interface CanvasHandle {
@@ -358,6 +363,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
   uncap: DEFAULT_UNCAP_LABELS, // --- uncap-all ---
+  maze: DEFAULT_MAZE_LABELS, // --- odd-maze ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -835,6 +841,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
     const unlimitedLayer = new UnlimitedLayer();
     const crowdPalette: string[] = [];
+    // --- odd-maze --- the Maze's layer (cached walls, trail and fog) and its per-frame options
+    const mazeLayer = new MazeLayer();
+    const mazeRender: MazeRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showWallGlow: true, labels: DEFAULT_MAZE_LABELS, nowMs: 0, width: 0, height: 0 };
+    const mazeBodyColor = (ball: Ball) => {
+      const first = engine.getMazeView().runners[0]?.id ?? 0;
+      return mazeLayer.colorOf(ball.id - first);
+    };
     /** Writes a data-* attribute only when it changed (the HUD state is mirrored onto the element for tools and tests). */
     const setCanvasData = (key: string, value: string) => {
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
@@ -1432,6 +1445,20 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         tyLayer.drawStage(ctx, tyView, drawnBalls, tyRender);
       }
 
+      // --- odd-maze --- Maze: the near-black field, the painted trail, the glowing walls (flaring where hit) and the fog.
+      const mazeView = engine.isMazeMode() ? engine.getMazeView() : null;
+      if (mazeView) {
+        const tr = teamsRef.current;
+        mazeRender.roster = tr ? tr.roster : NO_ROSTER;
+        mazeRender.showNames = !!tr && tr.showNames;
+        mazeRender.showWallGlow = p.showWallGlow;
+        mazeRender.labels = (labelsRef.current ?? DEFAULT_LABELS).maze ?? DEFAULT_MAZE_LABELS;
+        mazeRender.nowMs = engine.getElapsedMs();
+        mazeRender.width = size.width;
+        mazeRender.height = size.height;
+        mazeLayer.drawStage(ctx, mazeView, drawnBalls, mazeRender);
+      }
+
       // --- jdm-arena-games --- Battle Royale / Capture the Flag: the box or circle (and the shrinking zone), power-ups, bases and flags.
       const arenaView = engine.getArenaView();
       if (arenaView) {
@@ -1940,6 +1967,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
       else if (tyView) tyLayer.drawBodies(ctx, tyView, balls, tyRender); // --- odd-territory --- trails, halos, bodies by power, charge rings, names
+      else if (mazeView) mazeLayer.drawBodies(ctx, mazeView, mazeRender); // --- odd-maze --- halos, glossy bodies, names
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
@@ -2141,6 +2169,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
       if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
+      if (faces.isActive() && mazeView) faces.drawOverlays(ctx, balls, mazeBodyColor, null); // --- odd-maze --- faces on the maze runners
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
@@ -2322,6 +2351,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (tyView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         modeTopHud = Math.max(modeTopHud, tyLayer.drawOverlay(ctx, tyView, tyRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+      }
+      // --- odd-maze --- the warning badge, the distance-to-exit HUD and the verdict banner (with a roster the teams banner takes over at the end;
+      // the badge moves to the top-right corner when the scoreboard – the HUD off – sits in the top-left one; the captions start below them)
+      if (mazeView) {
+        const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
+        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
       }
 
       // HUD: mode counters in the centre
@@ -3062,6 +3097,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- beat-drop --- landings (measured times and their beats), error, tempo, pads alive, drums, camera, finish (data-bd-*)
       if (bdView) writeBeatDropDataset(bdView, bdLayer, setCanvasData);
       else if (canvas.dataset.bdLanded !== undefined) for (const key of BEAT_DROP_DATA_KEYS) delete canvas.dataset[key];
+      // --- odd-maze --- the maze, the runners' distances and places, the paint, the notes, containment, the verdict (data-mz-*)
+      if (mazeView) writeMazeDataset(mazeView, mazeLayer, setCanvasData);
+      else if (canvas.dataset.mzBalls !== undefined) for (const key of MAZE_DATA_KEYS) delete canvas.dataset[key];
       // --- video-beats --- On beat: how the timed wall hits land on the grid (data-onbeat-*)
       const onBeat = engine.getOnBeatStats();
       if (onBeat.active) {

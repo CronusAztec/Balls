@@ -109,6 +109,7 @@ import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-j
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
+import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -338,6 +339,7 @@ export default function Simulator() {
     engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- gerald-bullseye ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
+    engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -726,6 +728,25 @@ export default function Simulator() {
   }, [s.sbStyle, s.sbWobble, s.sbBadge, s.sbHud]);
   const battleFinishAtRef = useRef<number | null>(null);
   // --- end odd-string-battle ---
+  // --- odd-maze --- Maze: a new maze or race (columns, balls, brain, hand, clip limit) restarts the run and drops a found seed;
+  // the pull and the speed follow live (and drop the seed: they change the run); the trail, fog, colours, badge and HUD follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setMazeSettings(mazeSettingsOf(s));
+    if (s.mode === "maze" && engine.getCurrentModeName() === "maze") {
+      engine.initMaze();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.mzCols, s.mzBalls, s.mzBrain, s.mzHand, s.mzDuration]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.mzCols, s.mzBalls, s.mzBrain, s.mzHand, s.mzDuration, s.mzGravity, s.mzSpeed]);
+  useEffect(() => {
+    engineRef.current?.setMazeSettings({ gravity: s.mzGravity, speed: s.mzSpeed, trail: s.mzTrail, trailColor: s.mzTrailColor, trailOwn: s.mzTrailOwn, fog: s.mzFog, wallColor: s.mzWallColor, badge: s.mzBadge, hud: s.mzHud });
+  }, [s.mzGravity, s.mzSpeed, s.mzTrail, s.mzTrailColor, s.mzTrailOwn, s.mzFog, s.mzWallColor, s.mzBadge, s.mzHud]);
+  // --- end odd-maze ---
   // --- odd-power-layers --- Power Layers: a change of the stack or the flight (layers, sequence, drift, bounce speed – and the
   // Gravity, which shapes the arcs) restarts the run and drops a found seed; the badge, the pills and the Sound section's
   // scale and root (the notes of the levels) follow live.
@@ -1242,6 +1263,7 @@ export default function Simulator() {
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
+        engine.setMazeSettings({ trail: arena.mzTrail, trailColor: arena.mzTrailColor, trailOwn: arena.mzTrailOwn, fog: arena.mzFog, wallColor: arena.mzWallColor, badge: arena.mzBadge, hud: arena.mzHud }); // --- odd-maze --- (the drawing follows live; the maze and the race wait for a restart)
       },
     }),
     [initEngineForMode],
@@ -2417,6 +2439,7 @@ export default function Simulator() {
           bullseye: bullseyeSettingsOf(settings), // --- gerald-bullseye ---
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
+          maze: mazeSettingsOf(settings), // --- odd-maze ---
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2637,6 +2660,19 @@ export default function Simulator() {
         finalTitle: (total) => fill("Bullseye.canvasFinal", { total }),
         finalSub: (shot, score, bullseyes) => fill("Bullseye.canvasFinalSub", { shot, score, bullseyes }),
       },
+      // --- odd-maze ---
+      maze: {
+        title: t("Maze.canvasTitle"),
+        badgeTop: t("Maze.canvasBadgeTop"),
+        badgeBottom: t("Maze.canvasBadgeBottom"),
+        out: (place) => fill("Maze.canvasOut", { place }),
+        wins: (name) => t("Maze.canvasWins").replace("[name]", () => name), // a name may hold "$&"
+        time: (seconds) => fill("Maze.canvasTime", { seconds }),
+        timeUp: t("Maze.canvasTimeUp"),
+        closest: (name) => t("Maze.canvasClosest").replace("[name]", () => name),
+        caption: t("Maze.canvasCaption"),
+        team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+      },
       // --- beat-drop ---
       beatDrop: {
         title: t("BeatDrop.canvasTitle"),
@@ -2712,7 +2748,7 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.teams, s.showBallNames, s.showScoreboard, s.scoreboardPosition, t]);
   useEffect(() => {
-    teamsPlayRef.current = settings.teams.length > 0 && MULTI_BALL_MODES.includes(settings.mode);
+    teamsPlayRef.current = settings.teams.length > 0 && (MULTI_BALL_MODES.includes(settings.mode) || settings.mode === "maze"); // --- odd-maze --- (its roster's winner banner holds too)
   }, [settings.teams, settings.mode]);
   // --- end teams ---
 
@@ -3046,7 +3082,7 @@ export default function Simulator() {
               <Tooltip text={t("Controls.findSimulationTip")} />
             </span>
             {/* --- rigged --- the outcome to search for */}
-            {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
+            {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
             <div className="flex min-w-[16rem] flex-1 items-center gap-2">
               <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-duration">
                 {t("Controls.duration")}
@@ -3067,7 +3103,7 @@ export default function Simulator() {
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}
-          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode)} /* --- odd-string-battle --- */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
           {isSearching && searchProgress && (
             <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
               <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">

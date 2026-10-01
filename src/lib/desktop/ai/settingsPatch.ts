@@ -167,6 +167,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   bullseye: "by",
   beatDrop: "bd",
   territory: "ty", // --- odd-territory ---
+  maze: "mz", // --- odd-maze ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

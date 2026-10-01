@@ -129,6 +129,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   beatDrop: { samples: [[509120,544774],[262528,780382],[289034,985198],[319796,1232829]], broken: [], walls: [] },
   // --- odd-territory --- Territory: its own tile map, no rings; recorded when the mode was added (seed 12345, defaults: 24 columns, 2 teams of 2 balls, vortex VS bomber).
   territory: { samples: [[490997,360852],[264975,224258],[446681,376908],[510269,176275],[465347,427006],[222808,115611],[262458,516181],[128799,306878]], broken: [], walls: [] },
+  // --- odd-maze --- Maze escape: its own grid, no rings; recorded when the mode was added (seed 12345, defaults: a 12 × 17 maze, three
+  // explorer balls released 0.26 s apart – by 10 s every one of them is out, so the last sample has no ball).
+  maze: { samples: [[425996,102290],[551684,311625],[553877,319523],[480143,193547],[317671,157286],[274837,181753]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

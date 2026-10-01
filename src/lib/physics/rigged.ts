@@ -89,6 +89,9 @@ export const WINNER_MODES: readonly ModeId[] = MULTI_BALL_MODES.filter((m) => RI
 export const BATTLE_WINNER_MODES: readonly ModeId[] = ["stringBattle"];
 // --- odd-territory --- Territory: the team with the most tiles at the countdown wins (the mode absorbs a conversion that would put a rival ahead)
 (BATTLE_WINNER_MODES as ModeId[]).push("territory");
+// --- odd-maze --- the Maze's winner is the first ball out (the mode's own verdict): its forced winner steers the shortest way
+// and the exit stays closed to the others until it is out
+(BATTLE_WINNER_MODES as ModeId[]).push("maze");
 
 /** Modes whose run never ends: there the other teams stay in for good, so the chosen team keeps the lead. */
 const LOCKED_FOR_GOOD: readonly ModeId[] = ["multiply"];
