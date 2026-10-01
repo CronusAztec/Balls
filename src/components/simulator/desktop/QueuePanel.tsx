@@ -28,7 +28,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
   const [list, setList] = useState("");
   const [count, setCount] = useState(3);
   const [resolutions, setResolutions] = useState<string[]>([page.settings.recordingResolution]);
-  const [fps, setFps] = useState<(30 | 60)[]>([60]);
+  const [fps, setFps] = useState<number[]>([60]); // --- uncap-all --- (the queue takes any rate from 30 up; the panel offers 30 and 60)
   const [codecs, setCodecs] = useState<VideoCodec[]>(["h264"]);
   const [presets, setPresets] = useState<OutputPreset[]>(["native"]);
   const [adding, setAdding] = useState(false);

@@ -962,8 +962,8 @@ src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, 
   answer (clips with name, title, hook, caption and 5–15 hashtags per platform, only for plans it really made) goes into the
   render queue with the platform's preset. **Captions & hashtags** writes per-platform copy for the Publish block (copy
   buttons, "use hook as top text"). **Settings assistant** returns a patch checked by `validateSettingsPatch()` (known
-  settings, types, `RANGES` – with No limits on, the unlimited settings take any valid value from their minimum up, as
-  links and presets do, and the prompt and the schema say so –, options, colours, and the settings loader's final word)
+  settings, types, `RANGES` – every uncapped setting takes any valid value from its minimum up, whatever the Wide
+  sliders switch, as links and presets do, and the prompt and the schema say so –, options, colours, and the settings loader's final word)
   and applies it with **Undo**. **Ideas**
   is grounded in `docs/virality-playbook.md` (bundled; `selectPlaybookContext()` picks the recipe section and the chunks
   closest to the request). The model: node-llama-cpp in the main process (`getLlama({ gpu: "auto" })` – CUDA, Vulkan or the

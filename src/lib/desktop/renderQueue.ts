@@ -39,9 +39,9 @@ export interface QueueJobSpec {
   source: QueueSource;
   settings: SimulatorSettings;
   seed: number;
-  /** Fast export size ("1080x1920"…) and frame rate. */
+  /** Fast export size ("1080x1920"…) and frame rate (--- uncap-all --- any rate from 30 up, like the fast export's own). */
   resolution: string;
-  fps: 30 | 60;
+  fps: number;
   codec: VideoCodec;
   preset: OutputPreset;
   meta: Omit<LibraryMeta, "queueJobId" | "seed" | "mode" | "link"> & { link?: string };
@@ -245,10 +245,13 @@ export interface BatchClipSource {
 
 export interface QueueBatchOptions {
   resolutions: readonly string[];
-  fps: readonly (30 | 60)[];
+  fps: readonly number[]; // --- uncap-all --- (any rate from 30 up)
   codecs: readonly VideoCodec[];
   presets: readonly OutputPreset[];
 }
+
+/** --- uncap-all --- The lowest frame rate a queued render takes (the fast export's own minimum); there is no highest. */
+const MIN_QUEUE_FPS = 30;
 
 const EMPTY_META: QueueJobSpec["meta"] = { title: "", platform: null, hook: null, caption: null, hashtags: [] };
 
@@ -259,7 +262,7 @@ const EMPTY_META: QueueJobSpec["meta"] = { title: "", platform: null, hook: null
  */
 export function expandBatch(clips: readonly BatchClipSource[], options: QueueBatchOptions): QueueJobSpec[] {
   const resolutions = options.resolutions.filter((r) => (RESOLUTIONS as readonly string[]).includes(r));
-  const fpsList = options.fps.filter((f) => f === 30 || f === 60);
+  const fpsList = options.fps.filter((f, i, all) => Number.isFinite(f) && f >= MIN_QUEUE_FPS && all.indexOf(f) === i); // --- uncap-all --- (any rate from 30 up, each once)
   const codecs = options.codecs.filter((c) => (VIDEO_CODECS as readonly string[]).includes(c));
   const presets = options.presets.filter((p) => (OUTPUT_PRESETS as readonly string[]).includes(p));
   if (!resolutions.length || !fpsList.length || !codecs.length || !presets.length) return [];
@@ -355,7 +358,7 @@ function restoreJob(raw: unknown, now: number): QueueJob | null {
     settings: resolveProjectSettings(raw.settings),
     seed: seed >= 0 && seed <= MAX_SEED ? seed : 1,
     resolution: (RESOLUTIONS as readonly string[]).includes(raw.resolution as string) ? (raw.resolution as string) : "1080x1920",
-    fps: raw.fps === 30 ? 30 : 60,
+    fps: typeof raw.fps === "number" && Number.isFinite(raw.fps) && raw.fps >= MIN_QUEUE_FPS ? raw.fps : 60, // --- uncap-all --- (any valid rate from 30 up; anything else the default)
     codec: (VIDEO_CODECS as readonly string[]).includes(raw.codec as string) ? (raw.codec as VideoCodec) : "h264",
     preset: (OUTPUT_PRESETS as readonly string[]).includes(raw.preset as string) ? (raw.preset as OutputPreset) : "native",
     meta: restoreMeta(raw.meta, name),

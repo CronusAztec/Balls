@@ -59,7 +59,7 @@ export function transcodeSpecFor(preset: OutputPreset, codec: VideoCodec, render
 }
 
 /** The render size and frame rate a preset renders at before ffmpeg: a platform preset renders vertical at its frame rate (4K upscales a 1080×1920 render). */
-export function renderFormatFor(preset: OutputPreset, resolution: string, fps: number): { resolution: string; fps: 30 | 60 } {
-  if (preset === "native") return { resolution, fps: fps === 30 ? 30 : 60 };
+export function renderFormatFor(preset: OutputPreset, resolution: string, fps: number): { resolution: string; fps: number } {
+  if (preset === "native") return { resolution, fps: Number.isFinite(fps) && fps >= 30 ? fps : 60 }; // --- uncap-all --- (any rate from 30 up, as the fast export takes it)
   return { resolution: "1080x1920", fps: PLATFORM_PRESETS[preset].fps === 30 ? 30 : 60 };
 }

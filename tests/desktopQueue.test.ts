@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "@/lib/settings";
+import { renderFormatFor } from "@/lib/desktop/presets"; // --- uncap-all ---
 import {
   EMPTY_QUEUE,
   MAX_ATTEMPTS,
@@ -142,6 +143,10 @@ describe("render queue state machine", () => {
     const platform = expandBatch(clips.slice(0, 1), { resolutions: ["1080x1920", "1920x1080"], fps: [30, 60], codecs: ["h264", "hevc"], presets: ["tiktok"] });
     expect(platform.map((s) => s.name)).toEqual(["ring-h264-tiktok", "ring-hevc-tiktok"]);
     expect(expandBatch(clips, { resolutions: ["999x1"], fps: [60], codecs: ["h264"], presets: ["native"] })).toEqual([]);
+    // --- uncap-all --- any frame rate from 30 up renders as asked (the fast export's own rule); below 30 or not a number is dropped
+    const fast = expandBatch(clips.slice(0, 1), { resolutions: ["1080x1920"], fps: [24, 120, Number.NaN, 120, 240], codecs: ["h264"], presets: ["native"] });
+    expect(fast.map((s) => s.fps)).toEqual([120, 240]);
+    expect(renderFormatFor("native", "1080x1920", 120)).toEqual({ resolution: "1080x1920", fps: 120 });
   });
 });
 
@@ -207,7 +212,7 @@ describe("render journal", () => {
     expect(job.status).toBe("queued"); // "done" without an output
     expect(job).toMatchObject({ seed: 1, resolution: "1080x1920", fps: 60, codec: "h264", preset: "native" });
     expect(job.settings.mode).toBe("portal");
-    expect(job.settings.ballSpeed).toBe(800); // clamped by the project loader
+    expect(job.settings.ballSpeed).toBe(99999); // --- uncap-all --- kept exactly by the project loader (no setting has a maximum)
   });
 });
 
