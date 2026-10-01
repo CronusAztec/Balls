@@ -3,6 +3,7 @@ import { applyMultiplier, copyMultipliers, effectiveBounce, effectiveCap, hitDam
 import { circleObstacle, resolveBallObstacle, segmentBetween, segmentObstacle, type Obstacle } from "../obstacles";
 import { SpatialHash, createPairBuffer, type PairBuffer } from "../spatialHash";
 import type { Ball, GameMode, ModeContext } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Multipliers ("multipliers" mode, the geraldbounces "Gerald uses the multipliers to get home" format): a tall vertical
@@ -74,7 +75,7 @@ export interface MultipliersSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Six weight digits (missing ones 0, extra characters dropped); a mix without any weight falls back to the default. */
@@ -96,10 +97,10 @@ export function parseGateMix(value: string): Record<GateKind, number> {
 export function resolveMultipliersSettings(config: Partial<MultipliersSettings> | null | undefined): MultipliersSettings {
   const out = { ...DEFAULT_MULTIPLIERS_SETTINGS };
   if (!config) return out;
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, MULTIPLIERS_RANGES.mpRows, out.rows));
+  if (config.rows !== undefined) out.rows = memoryCeiling("mpRows", Math.round(clampNumber(config.rows, MULTIPLIERS_RANGES.mpRows, out.rows)));
   if (config.gateMix !== undefined) out.gateMix = sanitizeGateMix(config.gateMix);
-  if (config.startBalls !== undefined) out.startBalls = Math.round(clampNumber(config.startBalls, MULTIPLIERS_RANGES.mpStartBalls, out.startBalls));
-  if (config.maxBalls !== undefined) out.maxBalls = Math.round(clampNumber(config.maxBalls, MULTIPLIERS_RANGES.mpMaxBalls, out.maxBalls));
+  if (config.startBalls !== undefined) out.startBalls = memoryCeiling("mpStartBalls", Math.round(clampNumber(config.startBalls, MULTIPLIERS_RANGES.mpStartBalls, out.startBalls)));
+  if (config.maxBalls !== undefined) out.maxBalls = memoryCeiling("mpMaxBalls", Math.round(clampNumber(config.maxBalls, MULTIPLIERS_RANGES.mpMaxBalls, out.maxBalls)));
   if (config.target !== undefined) out.target = Math.round(clampNumber(config.target, MULTIPLIERS_RANGES.mpTarget, out.target));
   return out;
 }

@@ -374,7 +374,7 @@ describe("multipliers board settings", () => {
 
   it("clamp URL parameters and presets; a gate mix without any weight falls back", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mode=multipliers&mprw=99&mpsb=0.4&mpmb=10&mptg=-5&mpgm=00x0"));
-    expect(s.mpRows).toBe(MULTIPLIERS_RANGES.mpRows.max);
+    expect(s.mpRows).toBe(99); // --- uncap-all --- (kept; the board builds at most its memory-safety ceiling)
     expect(s.mpStartBalls).toBe(1);
     expect(s.mpMaxBalls).toBe(MULTIPLIERS_RANGES.mpMaxBalls.min);
     expect(s.mpTarget).toBe(0);
@@ -385,7 +385,7 @@ describe("multipliers board settings", () => {
     const p = presetToSettings({ mode: "multipliers", mpRows: 3, mpGateMix: "abc", mpMaxBalls: 1e9 });
     expect(p.mpRows).toBe(4);
     expect(p.mpGateMix).toBe("421111");
-    expect(p.mpMaxBalls).toBe(2000);
+    expect(p.mpMaxBalls).toBe(1e9); // --- uncap-all --- (kept; the board holds at most its memory-safety ceiling)
   });
 });
 

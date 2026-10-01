@@ -127,10 +127,10 @@ describe("race settings", () => {
   it("fills in the defaults and clamps every value", () => {
     expect(resolveRaceSettings(null)).toEqual(DEFAULT_RACE_SETTINGS);
     const r = resolveRaceSettings({ racers: 40, trackLength: 1.4, laps: 9, winner: 99, shape: "hexagon" as never, feature: "lava" as never, camera: "drone" as never, cup: "yes" as never });
-    expect(r.racers).toBe(RACE_RANGES.rcRacers.max);
+    expect(r.racers).toBe(40); // --- uncap-all --- (no maximum; the grid builds at most its memory-safety ceiling)
     expect(r.trackLength).toBe(RACE_RANGES.rcTrackLength.min);
-    expect(r.laps).toBe(RACE_RANGES.rcLaps.max);
-    expect(r.winner).toBe(RACE_RANGES.rcWinner.max);
+    expect(r.laps).toBe(9);
+    expect(r.winner).toBe(99); // a staged winner past the grid stages nobody (favouredRacer)
     expect(r.shape).toBe("square");
     expect(r.feature).toBe("mixed");
     expect(r.camera).toBe("leader");
@@ -160,7 +160,7 @@ describe("race settings", () => {
   it("falls back on bad URL values and cleans the cup title", () => {
     const fields = defaultRaceFields();
     readRaceParams(new URLSearchParams("rcn=abc&rcl=99&rclp=0&rcs=blob&rcf=nope&rccam=x&rccup=2&rcct=%20A%0A%20cup\u0000%20&rcw=-9"), fields);
-    expect(fields).toMatchObject({ rcRacers: DEFAULT_RACE_SETTINGS.racers, rcTrackLength: 20, rcLaps: 1, rcShape: "square", rcFeature: "mixed", rcCamera: "leader", rcCup: false, rcCupTitle: "A cup", rcWinner: -1 });
+    expect(fields).toMatchObject({ rcRacers: DEFAULT_RACE_SETTINGS.racers, rcTrackLength: 99 /* --- uncap-all --- kept */, rcLaps: 1, rcShape: "square", rcFeature: "mixed", rcCamera: "leader", rcCup: false, rcCupTitle: "A cup", rcWinner: -1 });
     expect(sanitizeCupTitle("x".repeat(80))).toHaveLength(32);
     expect(sanitizeCupTitle(42)).toBe("");
     const params = new URLSearchParams();
@@ -170,7 +170,7 @@ describe("race settings", () => {
 
   it("validates presets", () => {
     const loaded = presetToSettings({ mode: "race", rcRacers: 99, rcShape: "blob", rcLaps: -3, rcCup: "on", rcCupTitle: 7, rcStandings: "no" } as never);
-    expect(loaded).toMatchObject({ rcRacers: 16, rcShape: "square", rcLaps: 1, rcCup: false, rcCupTitle: "", rcStandings: true });
+    expect(loaded).toMatchObject({ rcRacers: 99, rcShape: "square", rcLaps: 1, rcCup: false, rcCupTitle: "", rcStandings: true }); // --- uncap-all --- (rcRacers 99 kept)
     expect(resolveRaceFields({})).toEqual(defaultRaceFields());
   });
 });

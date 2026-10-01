@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 import Tooltip from "../Tooltip";
-import { ResetButton, Searchable, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import { TimelineSliderValue, timelineLive, useTimelineSlider, useTimelineTime, useTimelineValue } from "../timelineLive";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { supportsObstacles } from "@/lib/physics/obstacleEditor";
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 import {
   MAX_KEYFRAMES,
   TIMELINE_KEYS,
@@ -25,6 +26,8 @@ import {
   type Keyframe,
   type TimelineKey,
 } from "@/lib/simulation/timeline";
+import UncapNumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control (this section has its own NumberField for the keyframe time)
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 export interface TimelineSectionProps {
   t: Translate;
@@ -81,7 +84,7 @@ function NumberField({ value, range, ariaLabel, onCommit, className, testId }: {
       }}
       aria-label={ariaLabel}
       data-testid={testId}
-      className={`${className} px-1.5 py-1 bg-zinc-900 text-white text-xs tabular-nums rounded-md border border-zinc-700 focus:border-cyan-600 focus:outline-none`}
+      className={`${className} px-1.5 py-1 bg-surface-1 text-ink text-xs tabular-nums rounded-md border border-line-strong focus:border-accent-dim `}
     />
   );
 }
@@ -90,16 +93,16 @@ function NumberField({ value, range, ariaLabel, onCommit, className, testId }: {
 function KeyframeRow({ t, keyframe, index, unused, onChange, onRemove }: { t: Translate; keyframe: Keyframe; index: number; unused: string | null; onChange: (patch: Partial<Pick<Keyframe, "time" | "value">>) => void; onRemove: () => void }) {
   const n = index + 1;
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 px-2 py-1.5" data-testid="timeline-row" data-key={keyframe.key}>
+    <div className="flex items-center gap-1.5 rounded-lg border border-line-strong/60 bg-surface-2/40 px-2 py-1.5" data-testid="timeline-row" data-key={keyframe.key}>
       <span className="w-2 h-2 shrink-0 rotate-45 rounded-[1px]" style={{ background: TIMELINE_KEY_COLORS[keyframe.key] }} aria-hidden="true" />
-      <span className={`flex-1 min-w-0 truncate text-xs ${unused ? "text-zinc-500 line-through" : "text-zinc-200"}`} title={unused ?? t(timelineKeyLabel(keyframe.key))}>
+      <span className={`flex-1 min-w-0 truncate text-xs ${unused ? "text-ink-3 line-through" : "text-ink"}`} title={unused ?? t(timelineKeyLabel(keyframe.key))}>
         {t(timelineKeyLabel(keyframe.key))}
       </span>
       <NumberField value={keyframe.time} range={TIMELINE_RANGES.keyframeTime} ariaLabel={t("timelineTimeOf", { n })} onCommit={(time) => onChange({ time })} className="w-14" testId="timeline-time" />
-      <span className="text-[10px] text-zinc-500">s</span>
+      <span className="text-xs text-ink-3">s</span>
       <NumberField value={keyframe.value} range={RANGES[keyframe.key]} ariaLabel={t("timelineValueOf", { n })} onCommit={(value) => onChange({ value })} className="w-16" testId="timeline-value" />
-      <button type="button" onClick={onRemove} aria-label={t("timelineRemove", { n })} className="shrink-0 px-1 py-0.5 text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer">
-        ✕
+      <button type="button" onClick={onRemove} aria-label={t("timelineRemove", { n })} className="shrink-0 px-1 py-0.5 text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer">
+        <IconClose size={14} />
       </button>
     </div>
   );
@@ -111,27 +114,30 @@ function ValueControl({ t, settingKey, value, onChange }: { t: Translate; settin
   const live = useTimelineValue(settingKey);
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-zinc-400 flex items-center justify-between" htmlFor="timeline-value-slider">
+      <label className="text-xs font-medium text-ink-2 flex items-center justify-between" htmlFor="timeline-value-slider">
         <span>
           {t("timelineValue")}
           <Tooltip text={t("timelineValueTip")} />
         </span>
-        <span className="text-zinc-300 tabular-nums">{formatTimelineValue(settingKey, value)}</span>
+        <span className="text-ink-2 tabular-nums">{formatTimelineValue(settingKey, value)}</span>
       </label>
-      <input
-        id="timeline-value-slider"
-        type="range"
-        min={range.min}
-        max={range.max}
-        step={range.step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        data-testid="timeline-value-slider"
-        className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-        style={sliderStyle(value, range.min, range.max)}
-      />
+      <div className="flex items-center gap-2">
+        <input
+          id="timeline-value-slider"
+          type="range"
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          data-testid="timeline-value-slider"
+          className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
+          style={sliderStyle(value, range.min, range.max)}
+        />
+        <UncapNumberField value={value} onCommit={onChange} label={t("timelineValue")} range={range} rules={rulesForRange(range)} settingKey={`keyframe:${settingKey}`} /* --- uncap-all --- */ />
+      </div>
       {live !== null && (
-        <p className="text-[11px] text-zinc-500 text-right">
+        <p className="text-xs text-ink-3 text-right">
           {t("timelineNow")} <TimelineSliderValue t={t} live={{ key: settingKey, value: live }} fallback={null} />
         </p>
       )}
@@ -145,7 +151,7 @@ function ValueControl({ t, settingKey, value, onChange }: { t: Translate; settin
  * (lib/simulation/timeline.ts); the panel's sliders of automated settings show the live value with an AUTO badge and the
  * bar under the canvas (TimelineBar.tsx) shows the keyframes and the playhead.
  */
-export default function TimelineSection({ t, search, matches, settings: s, update, onReset }: TimelineSectionProps) {
+export default function TimelineSection({ t, search, matches, settings: s, update }: TimelineSectionProps) {
   const obstacles = supportsObstacles(s.mode);
   const offered = TIMELINE_KEYS.filter((key) => timelineKeyShown(key, s.mode, obstacles));
   const [picked, setPicked] = useState<TimelineKey>("gravity");
@@ -163,15 +169,14 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
   };
   return (
     <div className="space-y-4" data-testid="timeline-section">
-      <ResetButton search={search} t={t} section="timeline" onReset={onReset} />
-      <p className="text-xs text-zinc-400 leading-relaxed">
+      <p className="text-xs text-ink-2 leading-relaxed">
         {t("timelineDesc")}
         <Tooltip text={t("timelineTip")} />
       </p>
       <Searchable search={search} matches={matches} labelKey="timelineSetting">
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-300" htmlFor="timeline-setting">
+            <label className="text-sm font-medium text-ink-2" htmlFor="timeline-setting">
               {t("timelineSetting")}
               <Tooltip text={t("timelineSettingTip")} />
             </label>
@@ -194,19 +199,19 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
             disabled={full}
             title={t("timelineAddTip")}
             data-testid="timeline-add"
-            className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-zinc-800 text-[#93d119] border border-dashed border-[#93d119]/40 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
+            className="w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-surface-2 text-accent border border-dashed border-accent/40 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
           >
-            ＋ <AddLabel t={t} />
+            <AddLabel t={t} />
           </button>
-          {full && <p className="text-xs text-amber-500/90">{t("timelineLimit", { max: MAX_KEYFRAMES })}</p>}
+          {full && <p className="text-xs text-warn/90">{t("timelineLimit", { max: MAX_KEYFRAMES })}</p>}
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="timelineKeyframes">
         <div className="space-y-1.5" data-testid="timeline-list">
-          <label className="text-sm font-medium text-zinc-300">
-            {t("timelineKeyframes")} <span className="text-zinc-500 text-xs">({keyframes.length})</span>
+          <label className="text-sm font-medium text-ink-2">
+            {t("timelineKeyframes")} <span className="text-ink-3 text-xs">({keyframes.length})</span>
           </label>
-          {keyframes.length === 0 && <p className="text-xs text-zinc-500 text-center py-2">{t("timelineEmpty")}</p>}
+          {keyframes.length === 0 && <p className="text-xs text-ink-3 text-center py-2">{t("timelineEmpty")}</p>}
           {keyframes.map((keyframe, i) => (
             <KeyframeRow
               key={`${keyframe.key}@${keyframe.time}`}
@@ -218,7 +223,7 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
               onRemove={() => setKeyframes(removeKeyframe(keyframes, i))}
             />
           ))}
-          {keyframes.length > 0 && <p className="text-xs text-zinc-500 leading-relaxed">{t("timelineClipNote", { duration: s.recordingDuration })}</p>}
+          {keyframes.length > 0 && <p className="text-xs text-ink-3 leading-relaxed">{t("timelineClipNote", { duration: s.recordingDuration })}</p>}
         </div>
       </Searchable>
     </div>
@@ -229,7 +234,7 @@ export default function TimelineSection({ t, search, matches, settings: s, updat
 export function TimelineValueText({ t, labelKey, fallback }: { t: Translate; labelKey: string; fallback: string }) {
   const live = useTimelineSlider(labelKey);
   return (
-    <span className="text-zinc-500">
+    <span className="text-ink-3">
       <TimelineSliderValue t={t} live={live} fallback={fallback} />
     </span>
   );
@@ -240,17 +245,21 @@ export function TimelineRangeInput({ labelKey, value, range, onChange, className
   const live = useTimelineSlider(labelKey);
   const shown = live ? live.value : value;
   return (
-    <input
-      type="range"
-      min={range.min}
-      max={range.max}
-      step={range.step}
-      value={shown}
-      disabled={!!live}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className={`${className} disabled:opacity-50 disabled:cursor-not-allowed`}
-      style={sliderStyle(shown, range.min, range.max)}
-      aria-label={ariaLabel}
-    />
+    <span className="flex w-full items-center gap-2">
+      <input
+        type="range"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={shown}
+        disabled={!!live}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`${className} disabled:opacity-50 disabled:cursor-not-allowed`}
+        style={sliderStyle(shown, range.min, range.max)}
+        aria-label={ariaLabel}
+      />
+      {/* --- uncap-all --- the number field (any value; the track pins at its end beyond it) */}
+      <UncapNumberField value={shown} onCommit={onChange} label={ariaLabel} range={range} rules={rulesForRange(range)} disabled={!!live} settingKey={labelKey} />
+    </span>
   );
 }

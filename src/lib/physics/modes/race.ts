@@ -14,6 +14,7 @@ import {
 } from "../raceTrack";
 import { LeaderClock, rankRacers } from "../raceStandings";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Square Racing Grand Prix ("race" mode, the project.jdm marble-race format with cups): 2–16 racers – squares or
@@ -96,7 +97,7 @@ export const MAX_CUP_TITLE_LENGTH = 32;
 
 function clampInt(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, Math.round(n))) : fallback;
+  return Number.isFinite(n) ? atLeastMin(Math.round(n), range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value (whole numbers in range, known options, real booleans). */
@@ -104,9 +105,9 @@ export function resolveRaceSettings(config: Partial<RaceSettings> | null | undef
   const out = { ...DEFAULT_RACE_SETTINGS };
   if (!config) return out;
   const R = RACE_RANGES;
-  if (config.racers !== undefined) out.racers = clampInt(config.racers, R.rcRacers, out.racers);
+  if (config.racers !== undefined) out.racers = memoryCeiling("rcRacers", clampInt(config.racers, R.rcRacers, out.racers));
   if (isRaceShape(config.shape)) out.shape = config.shape;
-  if (config.trackLength !== undefined) out.trackLength = clampInt(config.trackLength, R.rcTrackLength, out.trackLength);
+  if (config.trackLength !== undefined) out.trackLength = memoryCeiling("rcTrackLength", clampInt(config.trackLength, R.rcTrackLength, out.trackLength));
   if (config.laps !== undefined) out.laps = clampInt(config.laps, R.rcLaps, out.laps);
   if (isRaceFeature(config.feature)) out.feature = config.feature;
   if (isRaceCamera(config.camera)) out.camera = config.camera;

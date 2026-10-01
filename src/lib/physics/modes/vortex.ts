@@ -1,5 +1,6 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Sound Vortex ("vortex" mode, feature gerald-vortex – the geraldbounces "sound vortex, pew" clips). No rings to escape:
@@ -90,7 +91,7 @@ export interface VortexFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Rounds onto a slider's step (whole numbers stay whole). */
@@ -103,9 +104,9 @@ export function resolveVortexSettings(config: Partial<VortexSettings> | null | u
   const out = { ...DEFAULT_VORTEX_SETTINGS };
   if (!config) return out;
   const R = VORTEX_RANGES;
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.vxBalls, out.balls));
+  if (config.balls !== undefined) out.balls = memoryCeiling("vxBalls", Math.round(clampNumber(config.balls, R.vxBalls, out.balls)));
   if (config.stagger !== undefined) out.stagger = Math.round(onStep(clampNumber(config.stagger, R.vxStagger, out.stagger), 0.05) * 100) / 100;
-  if (config.rings !== undefined) out.rings = Math.round(clampNumber(config.rings, R.vxRings, out.rings));
+  if (config.rings !== undefined) out.rings = memoryCeiling("vxRings", Math.round(clampNumber(config.rings, R.vxRings, out.rings)));
   if (config.duration !== undefined) out.duration = onStep(clampNumber(config.duration, R.vxDuration, out.duration), 0.5);
   if (config.gravity !== undefined) out.gravity = Math.round(onStep(clampNumber(config.gravity, R.vxGravity, out.gravity), 0.05) * 100) / 100;
   if (typeof config.loop === "boolean") out.loop = config.loop;

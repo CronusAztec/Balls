@@ -177,8 +177,8 @@ describe("interpolation", () => {
 describe("validation", () => {
   it("clamps a keyframe into its setting's range and snaps value and time to their steps", () => {
     expect(sanitizeKeyframe({ key: "gravity", time: 1.234, value: 1234 }, RANGES)).toEqual({ key: "gravity", time: 1.2, value: 1250 });
-    expect(sanitizeKeyframe({ key: "gravity", time: -3, value: 99999 }, RANGES)).toEqual({ key: "gravity", time: 0, value: 2000 });
-    expect(sanitizeKeyframe({ key: "gapSize", time: 500, value: 0.337 }, RANGES)).toEqual({ key: "gapSize", time: 120, value: 0.35 });
+    expect(sanitizeKeyframe({ key: "gravity", time: -3, value: 99999 }, RANGES)).toEqual({ key: "gravity", time: 0, value: 99999 }); // --- uncap-all --- (no maximum)
+    expect(sanitizeKeyframe({ key: "gapSize", time: 500, value: 0.337 }, RANGES)).toEqual({ key: "gapSize", time: 500, value: 0.35 });
     expect(sanitizeKeyframe({ key: "windX", time: "2.5", value: "-0.254" }, RANGES)).toEqual({ key: "windX", time: 2.5, value: -0.25 });
     expect(sanitizeKeyframe({ key: "airDrag", time: 1, value: 0.0123 }, RANGES)).toEqual({ key: "airDrag", time: 1, value: 0.012 });
     expect(snapKeyframeTime(12.3456)).toBe(12.3);
@@ -271,7 +271,7 @@ describe("URL form and presets", () => {
     expect(settingsFromSearchParams(params).keyframes).toEqual(s.keyframes);
     expect(settingsToSearchParams(defaultSettings("classic")).has("kf")).toBe(false);
     expect(defaultSettings("shatter").keyframes).toEqual([]);
-    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&kf=g_0_99999_200_-5*nope_1_1")).keyframes).toEqual([kf("gravity", 0, 2000), kf("gravity", 120, 0)]);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=classic&kf=g_0_99999_200_-5*nope_1_1")).keyframes).toEqual([kf("gravity", 0, 99999), kf("gravity", 200, 0)]); // --- uncap-all --- (no maximum)
   });
 
   it("is validated in presets and carried over a mode change", () => {

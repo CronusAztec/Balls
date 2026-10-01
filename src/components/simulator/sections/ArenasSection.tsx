@@ -1,10 +1,11 @@
 "use client";
 
 import Tooltip from "../Tooltip";
-import { ResetButton, Searchable, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
+import { Searchable, onBtn, selectClass, sliderStyle, type Matcher, type Translate } from "../ControlPrimitives";
 import type { ControlSection } from "../Controls";
 import type { SimulatorSettings } from "@/lib/settings";
 import { MODE_IDS, isModeId, type ModeId } from "@/lib/physics/types";
+import { IconClose, IconRestart } from "@/components/ui/icons"; // --- site-redesign ---
 import {
   ARENA_COUNTS,
   ARENA_LAYOUTS,
@@ -18,6 +19,8 @@ import {
   type ArenaOverride,
   type SoundArena,
 } from "@/lib/splitScreen";
+import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
+import { rulesForRange } from "../unlimitedSlider"; // --- uncap-all ---
 
 export interface ArenasSectionProps {
   t: Translate;
@@ -34,15 +37,15 @@ export interface ArenasSectionProps {
 export const SPLIT_SCREEN_KEYS = ["splitArenaCount", "splitLayout", "splitSound", "splitArenas", "splitArenaLabel", "splitArenaMode", "splitArenaSeed", "splitArenaGravity", "splitArenaBallSpeed", "splitArenaBallColor"];
 const EDITOR_KEYS = SPLIT_SCREEN_KEYS.slice(3);
 
-const LAYOUT_LABELS: Record<ArenaLayout, { icon: string; key: string }> = { row: { icon: "▥", key: "splitLayoutRow" }, grid: { icon: "▦", key: "splitLayoutGrid" } };
-const SOUND_LABELS: Record<SoundArena, { icon: string; key: string }> = { first: { icon: "🔈", key: "splitSoundFirst" }, all: { icon: "🔊", key: "splitSoundAll" } };
+const LAYOUT_LABELS: Record<ArenaLayout, { key: string }> = { row: { key: "splitLayoutRow" }, grid: { key: "splitLayoutGrid" } };
+const SOUND_LABELS: Record<SoundArena, { key: string }> = { first: { key: "splitSoundFirst" }, all: { key: "splitSoundAll" } };
 
-const pick = (active: boolean) => `px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
-const smallBtn = "px-2 py-1 rounded-md text-[11px] font-medium cursor-pointer bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700";
+const pick = (active: boolean) => `px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
+const smallBtn = "px-2 py-1 rounded-md text-xs font-medium cursor-pointer bg-surface-2 text-ink-2 hover:bg-surface-3 border border-line-strong";
 
 function Heading({ t, labelKey, tipKey }: { t: Translate; labelKey: string; tipKey?: string }) {
   return (
-    <span className="text-sm font-medium text-zinc-300 flex items-center">
+    <span className="text-sm font-medium text-ink-2 flex items-center">
       {t(labelKey)}
       {tipKey && <Tooltip text={t(tipKey)} />}
     </span>
@@ -70,17 +73,17 @@ function OverrideSlider({
   return (
     <div className="space-y-1" data-testid={testId}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-zinc-400">{t(labelKey)}</span>
+        <span className="text-xs font-medium text-ink-2">{t(labelKey)}</span>
         {value === undefined ? (
           <span className="flex items-center gap-2">
-            <span className="text-[11px] text-zinc-500">{t("splitShared", { value: shared })}</span>
+            <span className="text-xs text-ink-3">{t("splitShared", { value: shared })}</span>
             <button type="button" className={smallBtn} onClick={() => onChange(shared)}>
               {t("splitOverride")}
             </button>
           </span>
         ) : (
           <span className="flex items-center gap-2">
-            <span className="text-[11px] text-zinc-300 tabular-nums">{value}</span>
+            <span className="text-xs text-ink-2 tabular-nums">{value}</span>
             <button type="button" className={smallBtn} onClick={() => onChange(undefined)}>
               {t("splitUseShared")}
             </button>
@@ -88,17 +91,20 @@ function OverrideSlider({
         )}
       </div>
       {value !== undefined && (
-        <input
-          type="range"
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-          style={sliderStyle(value, range.min, range.max)}
-          aria-label={t(labelKey)}
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer"
+            style={sliderStyle(value, range.min, range.max)}
+            aria-label={t(labelKey)}
+          />
+          <NumberField value={value} onCommit={onChange} label={t(labelKey)} range={range} rules={rulesForRange(range)} settingKey={`arena:${labelKey}`} /* --- uncap-all --- */ />
+        </div>
       )}
     </div>
   );
@@ -110,14 +116,13 @@ function OverrideSlider({
  * colour and (from the second arena on) mode. The values live in SimulatorSettings (`arenaCount`, `arenaLayout`,
  * `soundArena`, `arenas`); Simulator.tsx hands them to the runner (lib/simulation/multi.ts) and the canvas.
  */
-export default function ArenasSection({ t, search, matches, settings: s, update, onReset, modeNames }: ArenasSectionProps) {
+export default function ArenasSection({ t, search, matches, settings: s, update, modeNames }: ArenasSectionProps) {
   const arenas = resolvedArenas(s);
   const setArena = (index: number, patch: Partial<ArenaOverride>) => update({ arenas: patchArena(s.arenas, index, patch) });
   const showEditor = s.arenaCount > 1 && (!search || EDITOR_KEYS.some(matches));
   return (
     <div className="space-y-4" data-testid="split-screen-section">
-      <ResetButton search={search} t={t} section="arenas" onReset={onReset} />
-      {!search && <p className="text-xs text-zinc-500 leading-relaxed">{t("splitIntro")}</p>}
+      {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("splitIntro")}</p>}
       <Searchable search={search} matches={matches} labelKey="splitArenaCount">
         <div className="space-y-2">
           <Heading t={t} labelKey="splitArenaCount" tipKey="splitArenaCountTip" />
@@ -136,7 +141,7 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("splitLayout")}>
             {ARENA_LAYOUTS.map((id) => (
               <button type="button" key={id} disabled={s.arenaCount < 2} onClick={() => update({ arenaLayout: id })} aria-pressed={s.arenaLayout === id} className={pick(s.arenaLayout === id)}>
-                <span aria-hidden="true">{LAYOUT_LABELS[id].icon}</span> {t(LAYOUT_LABELS[id].key)}
+                {t(LAYOUT_LABELS[id].key)}
               </button>
             ))}
           </div>
@@ -148,7 +153,7 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("splitSound")}>
             {SOUND_ARENAS.map((id) => (
               <button type="button" key={id} disabled={s.arenaCount < 2} onClick={() => update({ soundArena: id })} aria-pressed={s.soundArena === id} className={pick(s.soundArena === id)}>
-                <span aria-hidden="true">{SOUND_LABELS[id].icon}</span> {t(SOUND_LABELS[id].key)}
+                {t(SOUND_LABELS[id].key)}
               </button>
             ))}
           </div>
@@ -160,31 +165,31 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
           {arenas.map((arena, i) => {
             const color = arena.ballColor ?? s.ballColor;
             return (
-              <div key={i} className="rounded-xl border border-zinc-700/60 bg-zinc-900/40 p-3 space-y-3" data-testid={`split-arena-${i}`}>
+              <div key={i} className="rounded-xl border border-line-strong/60 bg-surface-1/40 p-3 space-y-3" data-testid={`split-arena-${i}`}>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-3 h-3 rounded-full border border-zinc-600" style={{ background: color }} aria-hidden="true" />
-                  <span className="text-xs font-semibold text-zinc-200">{t("splitArenaN", { n: i + 1 })}</span>
+                  <span className="inline-block w-3 h-3 rounded-full border border-line-strong" style={{ background: color }} aria-hidden="true" />
+                  <span className="text-xs font-semibold text-ink">{t("splitArenaN", { n: i + 1 })}</span>
                 </div>
                 <Searchable search={search} matches={matches} labelKey="splitArenaLabel">
                   <label className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-zinc-400">{t("splitArenaLabel")}</span>
+                    <span className="text-xs font-medium text-ink-2">{t("splitArenaLabel")}</span>
                     <input
                       type="text"
                       value={s.arenas[i]?.label ?? ""}
                       maxLength={MAX_ARENA_LABEL}
                       placeholder={DEFAULT_ARENA_LABELS[i]}
                       onChange={(e) => setArena(i, { label: e.target.value })}
-                      className="w-32 px-2 py-1 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 focus:border-cyan-600 focus:outline-none"
+                      className="w-32 px-2 py-1 bg-surface-2 text-ink text-sm rounded-md border border-line-strong focus:border-accent-dim"
                       aria-label={`${t("splitArenaN", { n: i + 1 })} – ${t("splitArenaLabel")}`}
                     />
                   </label>
                 </Searchable>
                 <Searchable search={search} matches={matches} labelKey="splitArenaMode">
                   {i === 0 ? (
-                    <p className="text-[11px] text-zinc-500 leading-snug">{t("splitArenaModeFirst")}</p>
+                    <p className="text-xs text-ink-3 leading-snug">{t("splitArenaModeFirst")}</p>
                   ) : (
                     <label className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-zinc-400">{t("splitArenaMode")}</span>
+                      <span className="text-xs font-medium text-ink-2">{t("splitArenaMode")}</span>
                       <select
                         value={arena.mode ?? ""}
                         onChange={(e) => setArena(i, { mode: isModeId(e.target.value) ? e.target.value : undefined })}
@@ -203,7 +208,7 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
                 </Searchable>
                 <Searchable search={search} matches={matches} labelKey="splitArenaSeed">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-zinc-400 flex items-center">
+                    <span className="text-xs font-medium text-ink-2 flex items-center">
                       {t("splitArenaSeed")}
                       <Tooltip text={t("splitArenaSeedTip")} />
                     </span>
@@ -220,15 +225,15 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
                           const n = Number(raw);
                           setArena(i, { seed: raw === "" || !Number.isFinite(n) ? undefined : Math.round(n) | 0 });
                         }}
-                        className="w-28 px-2 py-1 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 focus:border-cyan-600 focus:outline-none tabular-nums"
+                        className="w-28 px-2 py-1 bg-surface-2 text-ink text-sm rounded-md border border-line-strong focus:border-accent-dim tabular-nums"
                         aria-label={`${t("splitArenaN", { n: i + 1 })} – ${t("splitArenaSeed")}`}
                       />
                       <button type="button" className={smallBtn} title={t("splitArenaSeedDice")} aria-label={t("splitArenaSeedDice")} onClick={() => setArena(i, { seed: Math.floor(Math.random() * 0x7fffffff) })}>
-                        🎲
+                        <IconRestart size={14} />
                       </button>
                       {arena.seed !== undefined && (
                         <button type="button" className={smallBtn} title={t("splitArenaSeedClear")} aria-label={t("splitArenaSeedClear")} onClick={() => setArena(i, { seed: undefined })}>
-                          ✕
+                          <IconClose size={14} />
                         </button>
                       )}
                     </span>
@@ -242,13 +247,13 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
                 </Searchable>
                 <Searchable search={search} matches={matches} labelKey="splitArenaBallColor">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-zinc-400">{t("splitArenaBallColor")}</span>
+                    <span className="text-xs font-medium text-ink-2">{t("splitArenaBallColor")}</span>
                     <span className="flex items-center gap-2">
                       <input
                         type="color"
                         value={color}
                         onChange={(e) => setArena(i, { ballColor: e.target.value.toLowerCase() })}
-                        className="w-10 h-7 bg-zinc-800 rounded-md cursor-pointer border border-zinc-700"
+                        className="w-10 h-7 bg-surface-2 rounded-md cursor-pointer border border-line-strong"
                         aria-label={`${t("splitArenaN", { n: i + 1 })} – ${t("splitArenaBallColor")}`}
                       />
                       {arena.ballColor !== undefined ? (
@@ -256,7 +261,7 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
                           {t("splitUseShared")}
                         </button>
                       ) : (
-                        <span className="text-[11px] text-zinc-500">{t("splitSharedColor")}</span>
+                        <span className="text-xs text-ink-3">{t("splitSharedColor")}</span>
                       )}
                     </span>
                   </div>
@@ -267,13 +272,13 @@ export default function ArenasSection({ t, search, matches, settings: s, update,
         </div>
       )}
       {!search && s.arenaCount > 1 && (
-        <div className="space-y-1.5 text-[11px] leading-snug text-zinc-500" data-testid="split-notes">
-          <p>🏁 {t("splitRaceNote")}</p>
-          <p>🔍 {t("splitFinderNote")}</p>
-          <p className="text-amber-300/80">⚡ {t("splitFastExportNote")}</p>
+        <div className="space-y-1.5 text-xs leading-snug text-ink-3" data-testid="split-notes">
+          <p>{t("splitRaceNote")}</p>
+          <p>{t("splitFinderNote")}</p>
+          <p className="text-warn/80">{t("splitFastExportNote")}</p>
         </div>
       )}
-      {!search && s.arenaCount < 2 && <p className="text-[11px] text-zinc-500">{t("splitSingleNote")}</p>}
+      {!search && s.arenaCount < 2 && <p className="text-xs text-ink-3">{t("splitSingleNote")}</p>}
     </div>
   );
 }

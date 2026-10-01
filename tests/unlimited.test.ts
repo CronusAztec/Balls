@@ -13,6 +13,7 @@ import { EFFECT_RENDER_CAP, ateSizeLabel, cappedEffects } from "@/components/sim
 import { FINDER_MIN_SEEDS, findSimulationBudgeted, seedsWithinBudget, usesBudgetedSearch } from "@/lib/simulation/unlimitedFinder";
 import type { FinderRequest, ModeSettings } from "@/lib/simulation/finder";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, unlimitedSettingKeys, type SimulatorSettings } from "@/lib/settings";
+import { ENTITY_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { resolveProjectSettings } from "@/lib/project";
 import { decodeShareCode, encodeShareCode, supportsShareCodes } from "@/lib/shareCode";
 import {
@@ -22,7 +23,6 @@ import {
   LIVE_WALL_LIMIT,
   OBJECT_BALL_LIMIT,
   UNLIMITED_SLIDER_CEILING,
-  clampUnlimitedPatch,
   formatHuge,
   isUnlimitedKey,
   parseUnlimitedValue,
@@ -85,7 +85,8 @@ describe("No limits: parsing", () => {
       expect(s.ballRadius).toBe(d.ballRadius);
       expect(s.ballCount).toBe(d.ballCount);
       expect(s.wallCount).toBe(d.wallCount);
-      expect(s.cpCount).toBe(d.cpCount);
+      // --- uncap-all --- the switch no longer gates parsing: a finite count below the minimum is lifted to it, as a link always did
+      expect(s.cpCount).toBe(bad === "-5" ? ranges.cpCount.min : d.cpCount);
     }
     expect(parseUnlimitedValue("ballSpeed", -5, ranges.ballSpeed)).toBeNull();
     expect(parseUnlimitedValue("ballSpeed", Number.NaN, ranges.ballSpeed)).toBeNull();
@@ -94,22 +95,27 @@ describe("No limits: parsing", () => {
     expect(parseUnlimitedValue("wallCount", 12.6, ranges.wallCount)).toBe(13); // counts are whole
   });
 
-  it("keeps the old clamping with the switch off", () => {
+  // --- uncap-all --- the switch no longer gates anything but the slider tracks (Wide sliders)
+  it("takes big values whatever the switch (it only widens the sliders now)", () => {
     const off = settingsFromSearchParams(new URLSearchParams("mode=collide&cpn=50000&nb=50000"));
     expect(off.unlimited).toBe(false);
-    expect(off.cpCount).toBe(RANGES.cpCount.max);
-    expect(off.ballCount).toBe(RANGES.ballCount.max);
+    expect(off.cpCount).toBe(50000);
+    expect(off.ballCount).toBe(50000);
     const on = settingsFromSearchParams(new URLSearchParams("mode=collide&inf=1&cpn=50000&nb=50000"));
     expect(on.cpCount).toBe(50000);
     expect(on.ballCount).toBe(50000);
   });
 
-  it("leaves bounded settings (fractions, volumes, the recording) on their ranges", () => {
-    for (const key of ["gapSize", "musicVolume", "recordingDuration", "fastExportFps", "cameraZoom", "textSize"]) expect(BOUNDED_KEYS.has(key)).toBe(true);
-    expect(isUnlimitedKey("musicVolume", ranges.musicVolume)).toBe(false);
-    expect(unlimitedSettingKeys()).not.toContain("musicVolume");
-    const s = settingsFromSearchParams(new URLSearchParams("mode=classic&inf=1&mv=50"));
-    expect(s.musicVolume).toBe(RANGES.musicVolume.max);
+  it("uncaps fractions, volumes and the recording too (--- uncap-all --- no bounded settings left)", () => {
+    expect([...BOUNDED_KEYS]).toEqual(["forcedWinner"]); // a team slot past the team colours is invalid, not capped
+    expect(unlimitedSettingKeys()).not.toContain("forcedWinner");
+    expect(unlimitedSettingKeys()).toContain("rcWinner");
+    for (const key of ["gapSize", "musicVolume", "recordingDuration", "fastExportFps", "cameraZoom", "textSize"]) {
+      expect(isUnlimitedKey(key, ranges[key])).toBe(true);
+      expect(unlimitedSettingKeys()).toContain(key);
+    }
+    const s = settingsFromSearchParams(new URLSearchParams("mode=classic&mv=50&dur=600&gap=3"));
+    expect([s.musicVolume, s.recordingDuration, s.gapSize]).toEqual([50, 600, 3]);
   });
 
   it("round-trips every unlimited setting through the link, far past its range", () => {
@@ -136,14 +142,14 @@ describe("No limits: parsing", () => {
     expect([loaded.ballSpeed, loaded.wallCount, loaded.ballCount, loaded.cpCount]).toEqual([1e6, 1e5, 1e7, 50_000]);
     expect(loaded.ballRadius).toBe(defaultSettings("classic").ballRadius);
     expect(loaded.gravity).toBe(defaultSettings("classic").gravity);
-    // Without the switch the preset is clamped as before.
+    // --- uncap-all --- without the switch the preset keeps its values too.
     const off = presetToSettings({ ...preset, unlimited: false });
-    expect(off.cpCount).toBe(RANGES.cpCount.max);
+    expect(off.cpCount).toBe(50_000);
     // A project file: the numbers survive the file's own clamp too.
     const project = resolveProjectSettings({ mode: "classic", unlimited: true, ballSpeed: 1e6, wallCount: 1e5, cpCount: 50_000 });
     expect([project.unlimited, project.ballSpeed, project.wallCount, project.cpCount]).toEqual([true, 1e6, 1e5, 50_000]);
     const plain = resolveProjectSettings({ mode: "classic", cpCount: 50_000 });
-    expect(plain.cpCount).toBe(RANGES.cpCount.max);
+    expect(plain.cpCount).toBe(50_000);
   });
 
   it.runIf(supportsShareCodes())("keeps big values in short share codes", async () => {
@@ -157,10 +163,10 @@ describe("No limits: parsing", () => {
     expect([back.unlimited, back.ballSpeed, back.ballCount, back.plLayers]).toEqual([true, 1e21, 50_000, 1e6]);
   });
 
-  it("clamps every value back into its range when the switch goes off", () => {
-    const s = { ...defaultSettings("classic"), unlimited: true, ballSpeed: 1e9, wallCount: 1e5, windX: -1e6 } as unknown as Record<string, unknown>;
-    const patch = clampUnlimitedPatch(s, unlimitedSettingKeys(), ranges);
-    expect(patch).toEqual({ ballSpeed: RANGES.ballSpeed.max, wallCount: RANGES.wallCount.max, windX: RANGES.windX.min });
+  it("keeps every value when the switch goes off (--- uncap-all --- it only narrows the slider tracks again)", () => {
+    const s = { ...defaultSettings("classic"), unlimited: true, ballSpeed: 1e9, wallCount: 1e5, windX: -1e6 };
+    const off = settingsFromSearchParams(settingsToSearchParams({ ...s, unlimited: false }));
+    expect([off.unlimited, off.ballSpeed, off.wallCount, off.windX]).toEqual([false, 1e9, 1e5, -1e6]);
   });
 });
 
@@ -174,8 +180,8 @@ describe("No limits: the slider and the numbers", () => {
       const back = sliderValue("ballSpeed", sliderPosition("ballSpeed", v, r), r);
       expect(Math.abs(back - v) / v).toBeLessThan(0.06);
     }
-    // A setting with a meaning that ends (a drag of 1 stops the ball) ends its slider there.
-    expect(sliderValue("airDrag", 1000, ranges.airDrag)).toBe(1);
+    // --- uncap-all --- no setting's meaning ends any more: a drag past 1 gets the whole wide track too.
+    expect(sliderValue("airDrag", 1000, ranges.airDrag)).toBe(UNLIMITED_SLIDER_CEILING);
   });
 
   it("formats huge numbers short", () => {
@@ -183,34 +189,38 @@ describe("No limits: the slider and the numbers", () => {
     expect(formatHuge(2_500_000)).toBe("2.5M");
     expect(formatHuge(12_345)).toBe("12.3K");
     expect(formatHuge(42)).toBe("42");
-    expect(formatHuge(1e21)).toBe("1.0e21");
+    expect(formatHuge(1e21)).toBe("1e21");
     expect(formatRealTime(0.4)).toBe("0.4");
     expect(formatRealTime(0.0123)).toBe("0.01");
   });
 
-  it("knows the soft ceilings the engine runs", () => {
+  it("knows the memory-safety ceilings the engine builds at (--- uncap-all --- nothing else)", () => {
     expect(softCeiling("wallCount", ranges.wallCount)).toBe(LIVE_WALL_LIMIT);
     expect(softCeiling("ballCount", ranges.ballCount)).toBe(CROWD_LIMIT);
-    expect(softCeiling("cpCount", ranges.cpCount)).toBe(RANGES.cpCount.max); // its mode runs it at its own maximum
-    expect(visualValue(true, "wallThickness", 1e9)).toBe(400);
-    expect(visualValue(false, "wallThickness", 1e9)).toBe(1e9);
+    expect(softCeiling("cpCount", ranges.cpCount)).toBeGreaterThan(RANGES.cpCount.max);
+    expect(softCeiling("ballSpeed", ranges.ballSpeed)).toBe(Infinity);
+    // A width is drawn as typed – no wider than any canvas, the same picture.
+    expect(visualValue(1e3)).toBe(1e3);
+    expect(visualValue(1e9)).toBe(1e5);
   });
 
   it("builds the engine config: the crowd is the ball count past the team balls", () => {
-    expect(unlimitedConfigOf({ unlimited: true, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: true, crowdCount: 49_994 });
+    expect(unlimitedConfigOf({ unlimited: true, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: true, crowdCount: 49_994, memoryFull: false });
     expect(unlimitedConfigOf({ unlimited: true, ballCount: 1e12 }, 6, true).crowdCount).toBe(CROWD_LIMIT);
     expect(unlimitedConfigOf({ unlimited: true, ballCount: 50_000 }, 1, false).crowdCount).toBe(0);
-    expect(unlimitedConfigOf({ unlimited: false, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: false, crowdCount: 0 });
+    // --- uncap-all --- a Ball Count past the team balls is a crowd whatever the switch (and engages the runtime)
+    expect(unlimitedConfigOf({ unlimited: false, ballCount: 50_000 }, 6, true)).toEqual({ unlimited: true, crowdCount: 49_994, memoryFull: false });
+    expect(unlimitedConfigOf({ unlimited: false, ballCount: 3 }, 3, true)).toEqual({ unlimited: false, crowdCount: 0, memoryFull: false });
     expect(unlimitedExtrasOf({ ...config, unlimited: true, wallBounciness: 1e6 })).toEqual({ wallBounciness: 1e6 });
     expect(unlimitedExtrasOf({ ...config, wallBounciness: 1e6 })).toEqual({});
   });
 });
 
 describe("No limits: the engine", () => {
-  it("runs at its soft ceilings and lifts the extras past their ranges", () => {
+  it("runs every value as typed (--- uncap-all --- only the rings stop at their memory-safety ceiling) and lifts the extras past their ranges", () => {
     const engine = engineFor("classic", { wallCount: 1e5, ballSpeed: 1e20, wallBounciness: 1e6, maxBalls: 1e9, windX: -1e6 });
     expect(engine.getCircularWalls().length).toBe(LIVE_WALL_LIMIT);
-    expect(engine.config.ballSpeed).toBe(1e12);
+    expect(engine.config.ballSpeed).toBe(1e20);
     expect(engine.getPhysicsExtras().wallBounciness).toBe(1e6);
     expect(engine.getPhysicsExtras().windX).toBe(-1e6);
     expect(engine.getBallInteraction().maxBalls).toBe(OBJECT_BALL_LIMIT);
@@ -298,7 +308,9 @@ describe("No limits: the engine", () => {
     expect(ball.mult!.speed).toBeCloseTo(1e12, -3);
     expect(ball.mult!.damage).toBeCloseTo(1e12, -3);
     expect(effectiveBounce(ball, Infinity)).toBeCloseTo(1e12, -3);
-    expect(effectiveBounce(ball)).toBe(MAX_EFFECTIVE_BOUNCE);
+    // --- uncap-all --- no restitution cap by default any more
+    expect(MAX_EFFECTIVE_BOUNCE).toBe(Infinity);
+    expect(effectiveBounce(ball)).toBeCloseTo(1e12, -3);
     for (let i = 0; i < 90; i++) {
       engine.update(1000 / 60, 0);
       engine.consumeSoundEvents();
@@ -484,7 +496,7 @@ describe("No limits: the engine", () => {
         }
         expect([mode, bigBall, allFinite(engine)]).toEqual([mode, bigBall, true]);
         expect(engine.getCircularWalls().length).toBeLessThanOrEqual(LIVE_WALL_LIMIT);
-        expect(engine.getBalls().length).toBeLessThanOrEqual(OBJECT_BALL_LIMIT);
+        expect(engine.getBalls().length).toBeLessThanOrEqual(Math.max(OBJECT_BALL_LIMIT, ENTITY_CEILING)); // --- uncap-all --- (a mode's own entities stop at their memory-safety ceiling)
         expect(engine.getCrowd().count).toBeLessThanOrEqual(CROWD_LIMIT);
       }
     }

@@ -17,13 +17,13 @@ export interface MultipliersSectionProps {
 export const MULTIPLIER_KEYS = ["multiplierPickups", "pickupRate", "pickupTypes", "pickupLifetime", "mpUnlimited", "mpCap", "wallSmashThreshold"];
 
 /** Label key and icon of every pickup kind. */
-const KIND_OPTIONS: Record<PickupKind, { labelKey: string; icon: string }> = {
-  speed: { labelKey: "pickupKindSpeed", icon: "⚡" },
-  size: { labelKey: "pickupKindSize", icon: "🎈" },
-  damage: { labelKey: "pickupKindDamage", icon: "💥" },
-  balls: { labelKey: "pickupKindBalls", icon: "🟢" },
-  bounce: { labelKey: "pickupKindBounce", icon: "🏀" },
-  gravity: { labelKey: "pickupKindGravity", icon: "🪨" },
+const KIND_OPTIONS: Record<PickupKind, { labelKey: string }> = {
+  speed: { labelKey: "pickupKindSpeed" },
+  size: { labelKey: "pickupKindSize" },
+  damage: { labelKey: "pickupKindDamage" },
+  balls: { labelKey: "pickupKindBalls" },
+  bounce: { labelKey: "pickupKindBounce" },
+  gravity: { labelKey: "pickupKindGravity" },
 };
 
 /**
@@ -48,11 +48,11 @@ export default function MultipliersSection({ t, search, matches, settings: s, up
     update({ pickupTypes: PICKUP_KINDS.filter((k) => next.includes(k)).join(",") });
   };
   return (
-    <div className="space-y-3 pt-2 border-t border-zinc-800/60" data-testid="multipliers-section">
+    <div className="space-y-3 pt-2 border-t border-line/60" data-testid="multipliers-section">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("mpTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("mpDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("mpTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("mpDesc")}</p>
         </div>
       )}
       {pickupMode && (
@@ -62,10 +62,10 @@ export default function MultipliersSection({ t, search, matches, settings: s, up
       )}
       {pickupMode && (s.multiplierPickups || !!search) && (
         <>
-          <Slider t={t} search={search} matches={matches} labelKey="pickupRate" tipKey="pickupRateTip" value={s.pickupRate} range={RANGES.pickupRate} onChange={(v) => update({ pickupRate: v })} display={t("pickupRateValue", { rate: s.pickupRate.toFixed(1) })} left="🫧" right="🎁" />
+          <Slider t={t} search={search} matches={matches} labelKey="pickupRate" tipKey="pickupRateTip" value={s.pickupRate} range={RANGES.pickupRate} onChange={(v) => update({ pickupRate: v })} display={t("pickupRateValue", { rate: s.pickupRate.toFixed(1) })} />
           <Searchable search={search} matches={matches} labelKey="pickupTypes">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">
+              <label className="text-sm font-medium text-ink-2">
                 {t("pickupTypes")}
                 <Tooltip text={t("pickupTypesTip")} />
               </label>
@@ -81,27 +81,27 @@ export default function MultipliersSection({ t, search, matches, settings: s, up
                       aria-pressed={on}
                       disabled={unavailable}
                       title={unavailable ? t("pickupBallsUnavailable") : undefined}
-                      className={`px-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${on ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                      className={`px-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${on ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
                       style={on ? { boxShadow: `inset 0 0 0 2px ${MULTIPLIER_COLORS[kind]}` } : undefined}
                     >
-                      <span aria-hidden="true">{KIND_OPTIONS[kind].icon}</span> x{PICKUP_FACTORS[kind]} {t(KIND_OPTIONS[kind].labelKey)}
+                      x{PICKUP_FACTORS[kind]} {t(KIND_OPTIONS[kind].labelKey)}
                     </button>
                   );
                 })}
               </div>
             </div>
           </Searchable>
-          <Slider t={t} search={search} matches={matches} labelKey="pickupLifetime" tipKey="pickupLifetimeTip" value={s.pickupLifetime} range={RANGES.pickupLifetime} onChange={(v) => update({ pickupLifetime: v })} display={`${s.pickupLifetime}s`} left="⏱️" right="⌛" />
+          <Slider t={t} search={search} matches={matches} labelKey="pickupLifetime" tipKey="pickupLifetimeTip" value={s.pickupLifetime} range={RANGES.pickupLifetime} onChange={(v) => update({ pickupLifetime: v })} display={`${s.pickupLifetime}s`} />
         </>
       )}
       <Searchable search={search} matches={matches} labelKey="mpUnlimited">
         <Toggle t={t} labelKey="mpUnlimited" tipKey="mpUnlimitedTip" value={s.mpUnlimited} onChange={(v) => update(v ? { mpUnlimited: true } : { mpUnlimited: false, mpCap: s.mpCap > 0 ? s.mpCap : 32 })} />
       </Searchable>
       {(!s.mpUnlimited || !!search) && (
-        <Slider t={t} search={search} matches={matches} labelKey="mpCap" tipKey="mpCapTip" value={s.mpCap} range={RANGES.mpCap} onChange={(v) => update({ mpCap: v })} display={s.mpCap === 0 ? t("mpCapOff") : `x${s.mpCap}`} left="🔒" right="∞" />
+        <Slider t={t} search={search} matches={matches} labelKey="mpCap" tipKey="mpCapTip" value={s.mpCap} range={RANGES.mpCap} onChange={(v) => update({ mpCap: v })} display={s.mpCap === 0 ? t("mpCapOff") : `x${s.mpCap}`} />
       )}
       {(SMASH_MODES.includes(s.mode) || !!search) && (
-        <Slider t={t} search={search} matches={matches} labelKey="wallSmashThreshold" tipKey="wallSmashThresholdTip" value={s.wallSmashThreshold} range={RANGES.wallSmashThreshold} onChange={(v) => update({ wallSmashThreshold: v })} display={`x${s.wallSmashThreshold}`} left="🧱" right="💥" />
+        <Slider t={t} search={search} matches={matches} labelKey="wallSmashThreshold" tipKey="wallSmashThresholdTip" value={s.wallSmashThreshold} range={RANGES.wallSmashThreshold} onChange={(v) => update({ wallSmashThreshold: v })} display={`x${s.wallSmashThreshold}`} />
       )}
     </div>
   );

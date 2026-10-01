@@ -161,8 +161,8 @@ describe("camera settings", () => {
 
   it("resolve: clamps numbers, falls back on bad values and only accepts real booleans", () => {
     expect(resolveCameraSettings(null)).toEqual(DEFAULT_CAMERA_SETTINGS);
-    expect(resolveCameraSettings({ cameraZoom: 5, screenShake: -2, slowMoFactor: 0.01, slowMoMs: 99999 })).toMatchObject({ cameraZoom: 1, screenShake: 0, slowMoFactor: 0.2, slowMoMs: 1500 });
-    expect(resolveCameraSettings({ cameraZoom: NaN, slowMoMs: 333.4, slowMoFactor: 0.95 })).toMatchObject({ cameraZoom: 0, slowMoMs: 333, slowMoFactor: 0.8 });
+    expect(resolveCameraSettings({ cameraZoom: 5, screenShake: -2, slowMoFactor: 0.01, slowMoMs: 99999 })).toMatchObject({ cameraZoom: 5, screenShake: 0, slowMoFactor: 0.2, slowMoMs: 99999 }); // --- uncap-all --- (no maximum)
+    expect(resolveCameraSettings({ cameraZoom: NaN, slowMoMs: 333.4, slowMoFactor: 0.95 })).toMatchObject({ cameraZoom: 0, slowMoMs: 333, slowMoFactor: 0.95 }); // --- uncap-all --- (no maximum)
     const junk = { cameraZoom: "x", slowMoOnNearMiss: "yes", replayOnEscape: 1 } as unknown as Partial<CameraSettings>;
     expect(resolveCameraSettings(junk)).toEqual(DEFAULT_CAMERA_SETTINGS);
     expect(resolveCameraSettings({ slowMoOnNearMiss: true, replayOnEscape: true })).toMatchObject({ slowMoOnNearMiss: true, replayOnEscape: true });
@@ -185,9 +185,9 @@ describe("camera settings", () => {
 
   it("clamp hand-edited URLs and presets", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=portal&cz=7&shake=-1&slowf=0.01&slowms=5&slow=2"));
-    expect(cameraSettingsOf(fromUrl)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 1, screenShake: 0, slowMoFactor: 0.2, slowMoMs: 200 });
+    expect(cameraSettingsOf(fromUrl)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 7, screenShake: 0, slowMoFactor: 0.2, slowMoMs: 200 }); // --- uncap-all --- (cz=7 kept)
     const preset = presetToSettings({ mode: "classic", cameraZoom: 3, slowMoMs: 50, replayOnEscape: "1" as unknown as boolean });
-    expect(cameraSettingsOf(preset)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 1, slowMoMs: 200 });
+    expect(cameraSettingsOf(preset)).toEqual({ ...DEFAULT_CAMERA_SETTINGS, cameraZoom: 3, slowMoMs: 200 }); // --- uncap-all --- (cameraZoom 3 kept)
     // A preset saved before the camera existed loads with the camera off.
     expect(cameraSettingsOf(presetToSettings({ mode: "shatter", gravity: 500 }))).toEqual(DEFAULT_CAMERA_SETTINGS);
   });
@@ -200,7 +200,7 @@ describe("camera zoom and follow", () => {
     expect(zoomScale(0)).toBe(1);
     expect(zoomScale(1)).toBeCloseTo(MAX_CAMERA_SCALE, 12);
     expect(zoomScale(0.5)).toBeCloseTo(1 + 0.5 * (MAX_CAMERA_SCALE - 1), 12);
-    expect(zoomScale(4)).toBeCloseTo(MAX_CAMERA_SCALE, 12);
+    expect(zoomScale(4)).toBeCloseTo(1 + 4 * (MAX_CAMERA_SCALE - 1), 12); // --- uncap-all --- past 1 zooms further in
     expect(zoomScale(-1)).toBe(1);
     expect(zoomScale(NaN)).toBe(1);
     expect(followLimit(100, 1)).toBe(50);

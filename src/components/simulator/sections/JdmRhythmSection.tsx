@@ -28,18 +28,18 @@ export const RUNNER_KEYS = ["rrAutoJump", "rrObstacles", "rrSpeed", "rrJump", "r
 export const PADDLE_KEYS = ["pdAuto", "pdSkill", "pdMisses", "pdWidth", "pdSpin", "pdSpeedUp"];
 export const JDM_RHYTHM_KEYS = [...RUNNER_KEYS, ...PADDLE_KEYS];
 
-const MIX_OPTIONS: Record<RunnerMix, { icon: string; labelKey: string }> = {
-  mixed: { icon: "🎲", labelKey: "rrMixMixed" },
-  spikes: { icon: "🔺", labelKey: "rrMixSpikes" },
-  blocks: { icon: "🧱", labelKey: "rrMixBlocks" },
-  gaps: { icon: "🕳️", labelKey: "rrMixGaps" },
+const MIX_OPTIONS: Record<RunnerMix, { labelKey: string }> = {
+  mixed: { labelKey: "rrMixMixed" },
+  spikes: { labelKey: "rrMixSpikes" },
+  blocks: { labelKey: "rrMixBlocks" },
+  gaps: { labelKey: "rrMixGaps" },
 };
-const SOURCE_OPTIONS: Record<RunnerBeatSource, { icon: string; labelKey: string }> = {
-  song: { icon: "🎵", labelKey: "rrBeatSong" },
-  bpm: { icon: "🥁", labelKey: "rrBeatBpm" },
+const SOURCE_OPTIONS: Record<RunnerBeatSource, { labelKey: string }> = {
+  song: { labelKey: "rrBeatSong" },
+  bpm: { labelKey: "rrBeatBpm" },
 };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 /** The run in numbers for the summary line: obstacles, tempo and about how long an auto run lasts (a mid seed's course). */
 export function runnerRunInfo(s: SimulatorSettings, beat?: PaintBeatInfo | null): { obstacles: number; bpm: number; seconds: number } {
@@ -63,27 +63,27 @@ export function RunnerSection({ t, search, matches, settings: s, update, beat }:
     <div className="space-y-3 pt-2" data-testid="runner-section">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("rrTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("rrDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("rrTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("rrDesc")}</p>
         </div>
       )}
       <Searchable search={search} matches={matches} labelKey="rrAutoJump">
         <Toggle t={t} labelKey="rrAutoJump" tipKey="rrAutoJumpTip" value={s.runnerAutoJump} onChange={(v) => update({ runnerAutoJump: v })} />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="rrObstacles" tipKey="rrObstaclesTip" value={s.runnerObstacles} range={RANGES.runnerObstacles} onChange={(v) => update({ runnerObstacles: v })} display={String(s.runnerObstacles)} left="🔺" right="🔺🔺🔺" />
-      <Slider t={t} search={search} matches={matches} labelKey="rrSpeed" tipKey="rrSpeedTip" value={s.runnerSpeed} range={RANGES.runnerSpeed} onChange={(v) => update({ runnerSpeed: v })} display={`${s.runnerSpeed} ▪/s`} left="🐢" right="🚀" />
-      <Slider t={t} search={search} matches={matches} labelKey="rrJump" tipKey="rrJumpTip" value={s.runnerJump} range={RANGES.runnerJump} onChange={(v) => update({ runnerJump: v })} display={`${s.runnerJump.toFixed(1)} ▪`} left="⤴" right="⏫" />
-      <Slider t={t} search={search} matches={matches} labelKey="rrDensity" tipKey="rrDensityTip" value={s.runnerDensity} range={RANGES.runnerDensity} onChange={(v) => update({ runnerDensity: v })} display={`${Math.round(100 * s.runnerDensity)}%`} left="·" right="⁝" />
+      <Slider t={t} search={search} matches={matches} labelKey="rrObstacles" tipKey="rrObstaclesTip" value={s.runnerObstacles} range={RANGES.runnerObstacles} onChange={(v) => update({ runnerObstacles: v })} display={String(s.runnerObstacles)} />
+      <Slider t={t} search={search} matches={matches} labelKey="rrSpeed" tipKey="rrSpeedTip" value={s.runnerSpeed} range={RANGES.runnerSpeed} onChange={(v) => update({ runnerSpeed: v })} display={`${s.runnerSpeed} ▪/s`} />
+      <Slider t={t} search={search} matches={matches} labelKey="rrJump" tipKey="rrJumpTip" value={s.runnerJump} range={RANGES.runnerJump} onChange={(v) => update({ runnerJump: v })} display={`${s.runnerJump.toFixed(1)} ▪`} />
+      <Slider t={t} search={search} matches={matches} labelKey="rrDensity" tipKey="rrDensityTip" value={s.runnerDensity} range={RANGES.runnerDensity} onChange={(v) => update({ runnerDensity: v })} display={`${Math.round(100 * s.runnerDensity)}%`} />
       <Searchable search={search} matches={matches} labelKey="rrMix">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("rrMix")}
             <Tooltip text={t("rrMixTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("rrMix")}>
             {RUNNER_MIXES.map((id) => (
               <button type="button" key={id} onClick={() => update({ runnerMix: id })} aria-pressed={s.runnerMix === id} className={pick(s.runnerMix === id)}>
-                <span aria-hidden="true">{MIX_OPTIONS[id].icon}</span> {t(MIX_OPTIONS[id].labelKey)}
+                {t(MIX_OPTIONS[id].labelKey)}
               </button>
             ))}
           </div>
@@ -91,26 +91,26 @@ export function RunnerSection({ t, search, matches, settings: s, update, beat }:
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="rrBeatSource">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("rrBeatSource")}
             <Tooltip text={t("rrBeatSourceTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("rrBeatSource")}>
             {RUNNER_BEAT_SOURCES.map((id) => (
               <button type="button" key={id} onClick={() => update({ runnerBeatSource: id })} aria-pressed={s.runnerBeatSource === id} className={pick(s.runnerBeatSource === id)}>
-                <span aria-hidden="true">{SOURCE_OPTIONS[id].icon}</span> {t(SOURCE_OPTIONS[id].labelKey)}
+                {t(SOURCE_OPTIONS[id].labelKey)}
               </button>
             ))}
           </div>
           {!search && (
-            <p className="text-[11px] text-zinc-500 leading-relaxed tabular-nums" data-testid="runner-beat">
+            <p className="text-xs text-ink-3 leading-relaxed tabular-nums" data-testid="runner-beat">
               {beatLine}
             </p>
           )}
         </div>
       </Searchable>
       {info && (
-        <p className="text-xs text-zinc-400 leading-relaxed tabular-nums" data-testid="runner-run">
+        <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="runner-run">
           {s.runnerAutoJump ? t("rrRunInfo", { obstacles: info.obstacles, bpm: info.bpm, seconds: info.seconds.toFixed(1) }) : t("rrManualInfo", { obstacles: info.obstacles })}
         </p>
       )}
@@ -123,22 +123,22 @@ export function PaddleSection({ t, search, matches, settings: s, update }: JdmRh
     <div className="space-y-3 pt-2" data-testid="paddle-section">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("pdTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("pdDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("pdTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("pdDesc")}</p>
         </div>
       )}
       <Searchable search={search} matches={matches} labelKey="pdAuto">
         <Toggle t={t} labelKey="pdAuto" tipKey="pdAutoTip" value={s.pdAuto} onChange={(v) => update({ pdAuto: v })} />
       </Searchable>
       {(s.pdAuto || !!search) && (
-        <Slider t={t} search={search} matches={matches} labelKey="pdSkill" tipKey="pdSkillTip" value={s.pdSkill} range={RANGES.pdSkill} onChange={(v) => update({ pdSkill: v })} display={`${Math.round(100 * s.pdSkill)}%`} left="🥴" right="🎯" />
+        <Slider t={t} search={search} matches={matches} labelKey="pdSkill" tipKey="pdSkillTip" value={s.pdSkill} range={RANGES.pdSkill} onChange={(v) => update({ pdSkill: v })} display={`${Math.round(100 * s.pdSkill)}%`} />
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="pdMisses" tipKey="pdMissesTip" value={s.pdMisses} range={RANGES.pdMisses} onChange={(v) => update({ pdMisses: v })} display={String(s.pdMisses)} left="💀" right="♥" />
-      <Slider t={t} search={search} matches={matches} labelKey="pdWidth" tipKey="pdWidthTip" value={s.pdWidth} range={RANGES.pdWidth} onChange={(v) => update({ pdWidth: v })} display={`${Math.round(100 * s.pdWidth)}%`} left="▬" right="▬▬▬" />
-      <Slider t={t} search={search} matches={matches} labelKey="pdSpin" tipKey="pdSpinTip" value={s.pdSpin} range={RANGES.pdSpin} onChange={(v) => update({ pdSpin: v })} display={s.pdSpin.toFixed(2)} left="⏺" right="🌀" />
-      <Slider t={t} search={search} matches={matches} labelKey="pdSpeedUp" tipKey="pdSpeedUpTip" value={s.pdSpeedUp} range={RANGES.pdSpeedUp} onChange={(v) => update({ pdSpeedUp: v })} display={`+${(100 * s.pdSpeedUp).toFixed(1)}%`} left="🐢" right="🐇" />
+      <Slider t={t} search={search} matches={matches} labelKey="pdMisses" tipKey="pdMissesTip" value={s.pdMisses} range={RANGES.pdMisses} onChange={(v) => update({ pdMisses: v })} display={String(s.pdMisses)} />
+      <Slider t={t} search={search} matches={matches} labelKey="pdWidth" tipKey="pdWidthTip" value={s.pdWidth} range={RANGES.pdWidth} onChange={(v) => update({ pdWidth: v })} display={`${Math.round(100 * s.pdWidth)}%`} />
+      <Slider t={t} search={search} matches={matches} labelKey="pdSpin" tipKey="pdSpinTip" value={s.pdSpin} range={RANGES.pdSpin} onChange={(v) => update({ pdSpin: v })} display={s.pdSpin.toFixed(2)} />
+      <Slider t={t} search={search} matches={matches} labelKey="pdSpeedUp" tipKey="pdSpeedUpTip" value={s.pdSpeedUp} range={RANGES.pdSpeedUp} onChange={(v) => update({ pdSpeedUp: v })} display={`+${(100 * s.pdSpeedUp).toFixed(1)}%`} />
       {!search && (
-        <p className="text-xs text-zinc-400 leading-relaxed" data-testid="paddle-info">
+        <p className="text-xs text-ink-2 leading-relaxed" data-testid="paddle-info">
           {!s.pdAuto ? t("pdInfoManual") : s.pdSkill >= 1 ? t("pdInfoPerfect") : t("pdInfoAuto", { lives: s.pdMisses + 1 })}
         </p>
       )}

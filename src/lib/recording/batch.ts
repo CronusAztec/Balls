@@ -3,6 +3,7 @@ import { SITE_SLUG } from "@/lib/site";
 import { isModeId, type ModeId } from "@/lib/physics/types";
 import { RANGES, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { SHARE_CODE_PARAM, decodeShareCode, mergeShareParams } from "@/lib/shareCode";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /*
  * --- batch-render --- The pure side of the batch render (the "Batch" block of the Recording section): what a batch is
@@ -19,6 +20,11 @@ export const MAX_BATCH_JOBS = 50;
 export const BATCH_COUNT_RANGE = { min: 1, max: MAX_BATCH_JOBS, step: 1 } as const;
 /** Steps of a sweep (both ends included). */
 export const SWEEP_STEPS_RANGE = { min: 2, max: 12, step: 1 } as const;
+/**
+ * --- uncap-all --- The steps a sweep may take: any number up to the clips a batch holds (`MAX_BATCH_JOBS`, the memory-safety
+ * ceiling of the ZIP kept in memory); the slider's 12 is a comfort range.
+ */
+export const SWEEP_STEPS_LIMIT = { min: 2, max: MAX_BATCH_JOBS } as const;
 /** The pasted list is cut here. */
 export const BATCH_LIST_MAX_CHARS = 20_000;
 /** Seeds are positive 31-bit integers, like the engine's own (`engine.setSeed()`). */
@@ -87,7 +93,7 @@ export function parseBatchDefinition(raw: unknown): BatchDefinition {
   const sweepKey = isSweepKey(r.sweepKey) ? r.sweepKey : d.sweepKey;
   const ends = sweepDefaults(sweepKey);
   const range = sweepRange(sweepKey);
-  const end = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? Math.max(range.min, Math.min(range.max, value)) : fallback);
+  const end = (value: unknown, fallback: number) => (typeof value === "number" && Number.isFinite(value) ? atLeastMin(value, range) : fallback); // --- uncap-all --- (no maximum)
   const modes = Array.isArray(r.modes) ? [...new Set(r.modes.filter(isModeId))] : d.modes;
   return {
     source: r.source === "list" ? "list" : "random",
@@ -98,7 +104,7 @@ export function parseBatchDefinition(raw: unknown): BatchDefinition {
     sweepKey,
     sweepFrom: end(r.sweepFrom, ends.sweepFrom),
     sweepTo: end(r.sweepTo, ends.sweepTo),
-    sweepSteps: clampInt(r.sweepSteps, SWEEP_STEPS_RANGE, d.sweepSteps),
+    sweepSteps: clampInt(r.sweepSteps, SWEEP_STEPS_LIMIT, d.sweepSteps), // --- uncap-all --- (the slider's 12 is a comfort bound)
     downloadEach: typeof r.downloadEach === "boolean" ? r.downloadEach : d.downloadEach,
   };
 }
@@ -221,17 +227,20 @@ const decimals = (step: number) => {
   return s.includes(".") ? s.length - s.indexOf(".") - 1 : 0;
 };
 
-/** `value` on the setting's slider: clamped to its range, snapped to its step (counted from the minimum, like a range input). */
+/**
+ * `value` on the setting's slider: snapped to its step (counted from the minimum, like a range input) – --- uncap-all ---
+ * from the minimum up, with no maximum: a sweep past the slider's end runs as typed.
+ */
 export function snapToRange(value: number, range: { min: number; max: number; step: number }): number {
-  const clamped = Math.max(range.min, Math.min(range.max, Number.isFinite(value) ? value : range.min));
-  const snapped = range.min + Math.round((clamped - range.min) / range.step) * range.step;
-  return Number(Math.min(range.max, snapped).toFixed(decimals(range.step)));
+  const floored = Number.isFinite(value) ? atLeastMin(value, range) : range.min;
+  const snapped = range.min + Math.round((floored - range.min) / range.step) * range.step;
+  return Number(snapped.toFixed(decimals(range.step)));
 }
 
 /** The values of a sweep from `from` to `to` in `steps` steps (both ends included), on the setting's slider, without repeats. */
 export function sweepValues(key: SweepKey, from: number, to: number, steps: number): number[] {
   const range = sweepRange(key);
-  const count = clampInt(steps, SWEEP_STEPS_RANGE, SWEEP_STEPS_RANGE.min);
+  const count = clampInt(steps, SWEEP_STEPS_LIMIT, SWEEP_STEPS_RANGE.min); // --- uncap-all --- (up to the batch's clip ceiling)
   const values: number[] = [];
   for (let i = 0; i < count; i++) {
     const v = snapToRange(from + ((to - from) * i) / (count - 1), range);

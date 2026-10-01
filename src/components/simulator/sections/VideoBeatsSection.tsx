@@ -11,6 +11,7 @@ import { BEAT_SOURCE_KINDS, addMarker, markerIndexNear, markersBpm, moveMarker, 
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { ACCENT } from "@/lib/site";
 
+import { IconClose, IconUpload, IconVideo, IconWave } from "@/components/ui/icons"; // --- site-redesign ---
 /**
  * --- video-beats --- "Beats from a video" block of the Sound section: the beat source picker (BPM | Song | Media |
  * Manual), the video / audio import with its progress, the waveform strip with the beat markers (click to add or remove,
@@ -23,7 +24,7 @@ import { ACCENT } from "@/lib/site";
 export const VIDEO_BEATS_KEYS = ["vbSource", "vbMedia", "vbMarkers", "vbVideoBg", "vbVideoOpacity", "vbOnBeat", "vbOnBeatRange"];
 
 const SOURCE_LABELS: Record<BeatSourceKind, string> = { bpm: "sourceBpm", song: "sourceSong", media: "sourceMedia", manual: "sourceManual" };
-const smallBtn = "px-2 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
+const smallBtn = "px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
 
 interface WaveformEditorProps {
   peaks: Float32Array | null;
@@ -185,7 +186,7 @@ function WaveformEditor({ peaks, duration, markers, onsets, detected, downbeat, 
 
   return (
     <div className="space-y-1.5">
-      <div ref={wrapRef} className="w-full rounded-md overflow-hidden border border-zinc-700/60">
+      <div ref={wrapRef} className="w-full rounded-md overflow-hidden border border-line-strong/60">
         <canvas
           ref={canvasRef}
           role="img"
@@ -212,12 +213,12 @@ function WaveformEditor({ peaks, duration, markers, onsets, detected, downbeat, 
           onChange={(e) => setStart(Number(e.target.value))}
           disabled={viewSpan >= total}
           aria-label={scrollLabel}
-          className="flex-1 h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer disabled:opacity-40"
+          className="flex-1 h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-40"
         />
         <button type="button" className={`${smallBtn} ${offBtn}`} onClick={() => zoom(0.5)} aria-label={zoomInLabel} title={zoomInLabel}>
           +
         </button>
-        <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+        <span className="text-xs font-mono text-ink-3 tabular-nums">
           {formatSongTime(viewStart)}–{formatSongTime(viewStart + viewSpan)}
         </span>
       </div>
@@ -238,7 +239,7 @@ function OnBeatReadout({ get, t }: { get: VideoBeatsPanelProps["getOnBeatStats"]
     return () => clearInterval(id);
   }, [get, t]);
   return (
-    <p className="text-[11px] text-zinc-500 font-mono" data-testid="vb-onbeat-stats">
+    <p className="text-xs text-ink-3 font-mono" data-testid="vb-onbeat-stats">
       {text}
     </p>
   );
@@ -267,7 +268,7 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
 
   return (
     <div
-      className={search ? "space-y-3" : "space-y-3 border-t border-zinc-800 pt-3"}
+      className={search ? "space-y-3" : "space-y-3 border-t border-line pt-3"}
       data-testid="video-beats"
       data-vb-state={status.phase}
       data-vb-source={panel.effective}
@@ -278,13 +279,13 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
     >
       <Searchable search={search} matches={matches} labelKey="vbSource">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+          <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
             <span>
-              🎬 {t("vbSource")}
+              {t("vbSource")}
               <Tooltip text={t("vbSourceTip")} />
             </span>
           </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{vb("desc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{vb("desc")}</p>
           <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("vbSource")}>
             {BEAT_SOURCE_KINDS.map((kind) => (
               <button
@@ -298,34 +299,32 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-zinc-400" data-testid="vb-following">
+          <p className="text-xs text-ink-2" data-testid="vb-following">
             {vb("following", { source: vb(SOURCE_LABELS[panel.effective]), bpm: bpmText(gridBpm), beats: panel.grid?.beats.length ?? 0 })}
-            {panel.effective !== s.beatSource && <span className="text-amber-400/90"> · {vb("fallback", { source: vb(SOURCE_LABELS[s.beatSource]) })}</span>}
+            {panel.effective !== s.beatSource && <span className="text-warn/90"> · {vb("fallback", { source: vb(SOURCE_LABELS[s.beatSource]) })}</span>}
           </p>
         </div>
       </Searchable>
 
       <Searchable search={search} matches={matches} labelKey="vbMedia">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
-            📼 {t("vbMedia")}
+          <label className="text-sm font-medium text-ink-2">
+            {t("vbMedia")}
             <Tooltip text={t("vbMediaTip")} />
           </label>
           {media ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/60 rounded-lg border border-zinc-700/60" data-testid="vb-media">
-              <span className="text-lg" aria-hidden="true">
-                {media.isVideo ? "🎞️" : "🎵"}
-              </span>
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface-2/60 rounded-lg border border-line-strong/60" data-testid="vb-media">
+              {media.isVideo ? <IconVideo size={18} className="text-ink-3" /> : <IconWave size={18} className="text-ink-3" />}
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-zinc-200 truncate" title={media.name}>
+                <p className="text-sm text-ink truncate" title={media.name}>
                   {media.name}
                 </p>
-                <p className="text-[11px] text-zinc-500 font-mono">
+                <p className="text-xs text-ink-3 font-mono">
                   {formatSongTime(media.duration)} · {media.method === "capture" ? vb("methodCapture") : vb("methodDecode")}
                 </p>
               </div>
-              <button type="button" onClick={panel.onRemove} aria-label={vb("remove")} title={vb("remove")} className="text-zinc-500 hover:text-red-400 transition-colors text-sm cursor-pointer px-1">
-                ✕
+              <button type="button" onClick={panel.onRemove} aria-label={vb("remove")} title={vb("remove")} className="text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer px-1">
+                <IconClose size={14} />
               </button>
             </div>
           ) : (
@@ -342,10 +341,10 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
                 if (file) panel.onImport(file);
               }}
               className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-                drag ? "bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg" : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+                drag ? "bg-accent/10 border-accent text-accent scale-[1.02]" : "bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3"
               } ${busy ? "opacity-60 pointer-events-none" : ""}`}
             >
-              <span className="text-lg">{drag ? "📥" : "🎬"}</span>
+              <IconUpload size={20} className={drag ? "text-accent" : "text-ink-3"} />
               <span className="font-semibold">{drag ? vb("dropHere") : vb("choose")}</span>
               <input
                 id="video-beats-file-input"
@@ -365,25 +364,25 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
           )}
           {busy && (
             <div className="space-y-1" role="status">
-              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+              <div className="flex items-center justify-between text-xs text-ink-2">
                 <span>{vb(`phase_${status.phase}`)}</span>
                 <button type="button" onClick={panel.onCancel} className={`${smallBtn} ${offBtn}`}>
                   {vb("cancel")}
                 </button>
               </div>
-              <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-label={vb("progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(100 * status.progress)}>
-                <div className="h-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-[#93d119] transition-all duration-150" style={{ width: `${Math.round(100 * Math.max(0.03, status.progress))}%` }} />
+              <div className="w-full bg-surface-2 rounded-full h-1.5 overflow-hidden" role="progressbar" aria-label={vb("progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(100 * status.progress)}>
+                <div className="h-1.5 rounded-full bg-accent transition-all duration-150" style={{ width: `${Math.round(100 * Math.max(0.03, status.progress))}%` }} />
               </div>
-              {status.phase === "capturing" && <p className="text-[10px] text-zinc-500 leading-relaxed">{vb("captureNote")}</p>}
+              {status.phase === "capturing" && <p className="text-xs text-ink-3 leading-relaxed">{vb("captureNote")}</p>}
             </div>
           )}
-          {status.phase === "error" && <p className="text-xs text-red-400">{vb(errorKey)}</p>}
+          {status.phase === "error" && <p className="text-xs text-danger">{vb(errorKey)}</p>}
           {analysis && (
-            <p className="text-[11px] text-zinc-400" data-testid="vb-detected">
+            <p className="text-xs text-ink-2" data-testid="vb-detected">
               {analysis.beats.bpm > 0 ? vb("detected", { bpm: bpmText(analysis.beats.bpm), beats: analysis.beats.beatTimes.length, downbeat: analysis.downbeat + 1 }) : vb("noBeat")}
             </p>
           )}
-          {!media && !busy && <p className="text-[10px] text-zinc-500 leading-relaxed">{vb("limits")}</p>}
+          {!media && !busy && <p className="text-xs text-ink-3 leading-relaxed">{vb("limits")}</p>}
         </div>
       </Searchable>
 
@@ -393,20 +392,20 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
             <Toggle t={t} labelKey="vbVideoBg" tipKey="vbVideoBgTip" value={s.videoBackground} onChange={(v) => update({ videoBackground: v })} caseStyle="title" />
           </Searchable>
           {s.videoBackground && (
-            <Slider t={t} search={search} matches={matches} labelKey="vbVideoOpacity" value={s.videoBgOpacity} range={RANGES.videoBgOpacity} onChange={(v) => update({ videoBgOpacity: v })} display={`${Math.round(100 * s.videoBgOpacity)}%`} left="🌑" right="🌕" />
+            <Slider t={t} search={search} matches={matches} labelKey="vbVideoOpacity" value={s.videoBgOpacity} range={RANGES.videoBgOpacity} onChange={(v) => update({ videoBgOpacity: v })} display={`${Math.round(100 * s.videoBgOpacity)}%`} />
           )}
-          {panel.exportSkippedVideo && <p className="text-[11px] text-amber-400/90">{vb("exportSkipped")}</p>}
+          {panel.exportSkippedVideo && <p className="text-xs text-warn/90">{vb("exportSkipped")}</p>}
         </>
       )}
 
       <Searchable search={search} matches={matches} labelKey="vbMarkers">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300 flex items-center justify-between">
+          <label className="text-sm font-medium text-ink-2 flex items-center justify-between">
             <span>
-              🥁 {t("vbMarkers")}
+              {t("vbMarkers")}
               <Tooltip text={t("vbMarkersTip")} />
             </span>
-            <span className="text-[11px] text-zinc-500 font-mono" data-testid="vb-marker-count">
+            <span className="text-xs text-ink-3 font-mono" data-testid="vb-marker-count">
               {vb("markerCount", { count: panel.markers.length, bpm: bpmText(markerBpm) })}
             </span>
           </label>
@@ -425,15 +424,15 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
             zoomOutLabel={vb("zoomOut")}
             scrollLabel={vb("scroll")}
           />
-          <p className="text-[10px] text-zinc-500 leading-relaxed">{vb("editHint")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{vb("editHint")}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             <button type="button" onClick={panel.onPreviewToggle} disabled={!media} className={`${smallBtn} ${panel.previewPlaying ? onBtn : offBtn}`}>
-              {panel.previewPlaying ? `⏸ ${vb("pause")}` : `▶ ${vb("play")}`}
+              {panel.previewPlaying ? `${vb("pause")}` : `▶ ${vb("play")}`}
             </button>
             <button type="button" onClick={panel.onTap} className={`${smallBtn} ${offBtn}`} title={vb("tapTip")} data-testid="vb-tap">
-              👆 {vb("tap")}
+              {vb("tap")}
             </button>
-            <span className="text-[11px] text-zinc-400 font-mono" data-testid="vb-tap-result">
+            <span className="text-xs text-ink-2 font-mono" data-testid="vb-tap-result">
               {panel.tap ? vb("tapResult", { bpm: bpmText(panel.tap.bpm), taps: panel.tap.taps }) : vb("tapCount", { taps: panel.tapCount })}
             </span>
             <button type="button" onClick={panel.onApplyTaps} disabled={!panel.tap} className={`${smallBtn} ${offBtn}`}>
@@ -467,7 +466,7 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
             <button type="button" onClick={panel.onCycleDownbeat} className={`${smallBtn} ${offBtn}`} title={vb("downbeatTip")}>
               {s.beatDownbeat >= 0 ? vb("downbeatN", { n: s.beatDownbeat + 1 }) : vb("downbeatAuto")}
             </button>
-            <button type="button" onClick={panel.onClear} disabled={panel.markers.length === 0} className={`${smallBtn} ${offBtn} hover:text-red-400`}>
+            <button type="button" onClick={panel.onClear} disabled={panel.markers.length === 0} className={`${smallBtn} ${offBtn} hover:text-danger`}>
               {vb("clear")}
             </button>
           </div>
@@ -481,7 +480,7 @@ export default function VideoBeatsSection({ t, search, matches, showAdvanced, se
         </div>
       </Searchable>
       {(s.onBeat || !!search) && showAdvanced && (
-        <Slider t={t} search={search} matches={matches} labelKey="vbOnBeatRange" tipKey="vbOnBeatRangeTip" value={s.onBeatRange} range={RANGES.onBeatRange} onChange={(v) => update({ onBeatRange: v })} display={`×${(1 + s.onBeatRange).toFixed(2)}`} left="🎯" right="🎢" />
+        <Slider t={t} search={search} matches={matches} labelKey="vbOnBeatRange" tipKey="vbOnBeatRangeTip" value={s.onBeatRange} range={RANGES.onBeatRange} onChange={(v) => update({ onBeatRange: v })} display={`×${(1 + s.onBeatRange).toFixed(2)}`} />
       )}
     </div>
   );

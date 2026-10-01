@@ -777,7 +777,7 @@ describe("settings, URL and presets", () => {
   });
 
   it("resolve clamps onto the sliders and drops bad values", () => {
-    expect(resolveBeatDropSettings({ drift: 7, bounceHeight: 0, anticipation: 2 })).toMatchObject({ drift: 1, bounceHeight: 0.1, anticipation: 1 });
+    expect(resolveBeatDropSettings({ drift: 7, bounceHeight: 0, anticipation: 2 })).toMatchObject({ drift: 7, bounceHeight: 0.1, anticipation: 2 }); // --- uncap-all --- (no maximum)
     expect(resolveBeatDropSettings({ drift: 0.333, anticipation: 0.42 })).toMatchObject({ drift: 0.35, anticipation: 0.4 });
     const junk = { scroll: "sideways", sound: "loud", colorMode: "plaid", trail: "yes", kinds: 5 } as unknown as Partial<BeatDropSettings>;
     expect(resolveBeatDropSettings(junk)).toEqual(DEFAULT_BEAT_DROP_SETTINGS);
@@ -798,7 +798,7 @@ describe("settings, URL and presets", () => {
     expect(params.get("bdt")).toBe("0");
     expect(settingsFromSearchParams(params)).toEqual(s);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=beatDrop&bdk=lava&bdd=9&bds=up&bdh=abc&bda=0.1&bdsn=x&bdc=y&bdt=2"));
-    expect(resolveBeatDropFields(bad)).toEqual({ ...defaultBeatDropFields(), bdDrift: 1, bdAnticipation: 0.3 });
+    expect(resolveBeatDropFields(bad)).toEqual({ ...defaultBeatDropFields(), bdDrift: 9, bdAnticipation: 0.3 }); // --- uncap-all --- (9 is kept)
     const preset = presetToSettings({ mode: "beatDrop", bdKinds: "wedge,wedge", bdDrift: -1, bdTrail: "no", bdSound: "melody" } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveBeatDropFields(preset)).toMatchObject({ bdKinds: "wedge", bdDrift: 0, bdTrail: true, bdSound: "melody" });
   });

@@ -12,6 +12,7 @@ import { isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket, type BotPla
 import { localIsoDate, parseIsoDate, planDaySteps, rerollClipSteps, type ClipPlan, type PlanOptions } from "@/lib/bot/planner";
 import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, saveBotState, type BotOptions, type BotState, type BotStoredPlan } from "@/lib/bot/store";
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
+import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 /*
@@ -166,7 +167,8 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       abortRef.current = controller;
       const opts = stateRef.current.options;
       const platform: BotPlatform = request?.platform && isBotPlatform(request.platform) ? request.platform : opts.platform;
-      const count = Math.max(BOT_COUNT_RANGE.min, Math.min(BOT_COUNT_RANGE.max, Math.round(request?.count ?? opts.count)));
+      const wanted = Math.round(request?.count ?? opts.count);
+      const count = !(wanted >= BOT_COUNT_RANGE.min) ? BOT_COUNT_RANGE.min : wanted > CLIP_CEILING ? CLIP_CEILING : wanted; // --- uncap-all --- (the clips' memory-safety ceiling, not the slider's 20)
       const date = request?.date && parseIsoDate(request.date) ? request.date : localIsoDate(new Date());
       const custom = kind === "custom";
       const family = request?.family !== undefined ? (isBotFamily(request.family) ? request.family : "all") : custom ? opts.family : "all";

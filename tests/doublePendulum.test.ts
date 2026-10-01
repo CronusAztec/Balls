@@ -876,7 +876,7 @@ describe("Double Pendulum settings", () => {
   it("resolve to the defaults, clamp the numbers to their ranges and reject unknown options", () => {
     expect(resolveDoublePendulumSettings(null)).toEqual(DEFAULT_DOUBLE_PENDULUM_SETTINGS);
     const r = resolveDoublePendulumSettings({ count: 9, segments: 7, length1: 0, mass2: 99, gravity: -1, angle1: 999.4, angle2: -12.6, damping: 1, trailSeconds: 30, strings: 99.6, octaves: 0, clipSeconds: 0.2, rootNote: 14 });
-    expect(r).toMatchObject({ count: 4, segments: 3, length1: 0.2, mass2: 5, gravity: 0.2, angle1: 180, angle2: -13, damping: 0.01, trailSeconds: 10, strings: 24, octaves: 1, clipSeconds: 1, rootNote: 2 });
+    expect(r).toMatchObject({ count: 9, segments: 7, length1: 0.2, mass2: 99, gravity: 0.2, angle1: 999, angle2: -13, damping: 1, trailSeconds: 30, strings: 100, octaves: 1, clipSeconds: 1, rootNote: 2 }); // --- uncap-all --- (no maximum)
     const junk = { stringLayout: "spiral", scale: "dorian", spar: "yes", endless: 1, randomStart: null, count: "x" } as unknown as Partial<DoublePendulumSettings>;
     expect(resolveDoublePendulumSettings(junk)).toEqual(DEFAULT_DOUBLE_PENDULUM_SETTINGS);
     for (const key of Object.keys(DOUBLE_PENDULUM_RANGES) as (keyof typeof DOUBLE_PENDULUM_RANGES)[]) expect(RANGES[key]).toEqual(DOUBLE_PENDULUM_RANGES[key]);
@@ -907,9 +907,9 @@ describe("Double Pendulum settings", () => {
 
   it("fall back for bad URL values and presets", () => {
     const s = settingsFromSearchParams(new URLSearchParams("mode=doublePendulum&dpn=12&dpsg=abc&dpd=-3&dpsl=zigzag&dprs=maybe&dpst=&dpa1=720&dpo=2.6"));
-    expect(s).toMatchObject({ dpCount: 4, dpSegments: 2, dpDamping: 0, dpStringLayout: "vertical", dpRandomStart: true, dpStrings: 15, dpAngle1: 180, dpOctaves: 3 });
+    expect(s).toMatchObject({ dpCount: 12, dpSegments: 2, dpDamping: 0, dpStringLayout: "vertical", dpRandomStart: true, dpStrings: 15, dpAngle1: 720, dpOctaves: 3 }); // --- uncap-all --- (dpn=12 and dpa1=720 kept)
     const p = presetToSettings({ mode: "doublePendulum", dpMass1: 50, dpTrailSeconds: -2, dpSpar: "on" as unknown as boolean, dpStringLayout: "radial" });
-    expect(p).toMatchObject({ dpMass1: 5, dpTrailSeconds: 0, dpSpar: false, dpStringLayout: "radial" });
+    expect(p).toMatchObject({ dpMass1: 50, dpTrailSeconds: 0, dpSpar: false, dpStringLayout: "radial" }); // --- uncap-all --- (50 kept)
   });
 });
 

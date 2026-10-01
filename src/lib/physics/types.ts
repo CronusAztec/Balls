@@ -379,6 +379,8 @@ export interface ModeContext {
   /** Credits `ball` with a broken wall segment in the per-ball stats only (no split): Color Match's segment breaks. */
   creditWallBreak?(ball: Ball): void;
   isBouncierEnabled(): boolean;
+  /** --- uncap-all --- The rebound gain per bounce of the Bounciness (0.03 = the old Bouncier), with no ceiling. */
+  getBouncierIncrement?(): number;
   getBounceSpeedMultiplier(): number;
   setBounceSpeedMultiplier(value: number): void;
   setDestructionMode(enabled: boolean): void;

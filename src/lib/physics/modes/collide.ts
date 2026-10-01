@@ -3,6 +3,7 @@ import { advanceRing, contactArc, createRingTrack, renormalizeRing, resolveRingC
 import { SpatialHash, createPairBuffer, type PairBuffer } from "../spatialHash";
 import type { Ball, GameMode, ModeContext } from "../types";
 import { wobbleStrength } from "../wobble";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Collision Playground ("collide" mode, the project.jdm "1247 varied bouncing orbs" formats): no rings. Hundreds
@@ -95,14 +96,14 @@ export interface CollideSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range (the count and the anti-collision time become whole numbers; an unknown container, non-boolean flags and bad numbers fall back to the defaults). */
 export function resolveCollideSettings(config: Partial<CollideSettings> | null | undefined): CollideSettings {
   const out = { ...DEFAULT_COLLIDE_SETTINGS };
   if (!config) return out;
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, COLLIDE_RANGES.cpCount, out.count));
+  if (config.count !== undefined) out.count = memoryCeiling("cpCount", Math.round(clampNumber(config.count, COLLIDE_RANGES.cpCount, out.count)));
   if (config.sizeSpread !== undefined) out.sizeSpread = clampNumber(config.sizeSpread, COLLIDE_RANGES.cpSizeSpread, out.sizeSpread);
   if (isCollideContainer(config.container)) out.container = config.container;
   if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, COLLIDE_RANGES.cpGravity, out.gravity);

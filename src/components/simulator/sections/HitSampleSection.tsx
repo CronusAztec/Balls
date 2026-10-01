@@ -5,6 +5,7 @@ import { Searchable, Slider, Toggle, selectClass, type Matcher, type Translate }
 import { CUSTOM_HIT_SAMPLE_ID, HIT_SAMPLES, type HitSampleStatus } from "@/lib/audio/sampler";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 
+import { IconUpload } from "@/components/ui/icons"; // --- site-redesign ---
 export interface HitSampleSectionProps {
   t: Translate;
   search: string;
@@ -38,10 +39,10 @@ function AudioDropZone({ inputId, idleText, dragText, onFile }: { inputId?: stri
         if (file) onFile(file);
       }}
       className={`flex items-center justify-center gap-2 w-full px-4 py-3 rounded-lg font-medium transition-all text-xs cursor-pointer border border-dashed ${
-        drag ? `bg-[#93d119]/10 border-[#93d119] text-[#93d119] scale-[1.02] shadow-lg` : "bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-500"
+        drag ? `bg-accent/10 border-accent text-accent scale-[1.02]` : "bg-surface-2 border-line-strong text-ink-2 hover:bg-surface-3 hover:border-ink-3"
       }`}
     >
-      <span className="text-lg">{drag ? "📥" : "📁"}</span>
+      <IconUpload size={20} className={drag ? "text-accent" : "text-ink-3"} />
       <span className="font-semibold">{drag ? dragText : idleText}</span>
       <input
         id={inputId}
@@ -72,10 +73,10 @@ export default function HitSampleSection({ t, search, matches, settings: s, upda
     <>
       <Searchable search={search} matches={matches} labelKey="hitSample">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="hit-sample-select">
+          <label className="text-sm font-medium text-ink-2" htmlFor="hit-sample-select">
             {t("hitSample")}
           </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("hitSampleDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("hitSampleDesc")}</p>
           <select id="hit-sample-select" value={s.hitSampleId} onChange={(e) => update({ hitSampleId: e.target.value })} className={selectClass}>
             {HIT_SAMPLES.map((sample) => (
               <option key={sample.id} value={sample.id}>
@@ -85,28 +86,28 @@ export default function HitSampleSection({ t, search, matches, settings: s, upda
             {customHitSampleName && <option value={CUSTOM_HIT_SAMPLE_ID}>{t("hitSampleCustomOption", { name: customHitSampleName })}</option>}
           </select>
           {hitSampleStatus === "loading" && (
-            <div className="flex items-center gap-2 text-xs text-zinc-400" role="status">
-              <div className="w-3.5 h-3.5 border-2 border-[#93d119] border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center gap-2 text-xs text-ink-2" role="status">
+              <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
               {t("hitSampleLoading")}
             </div>
           )}
           {hitSampleStatus === "error" && (
-            <p className="text-[11px] text-red-400 leading-relaxed" role="alert" data-testid="hit-sample-error">
-              ⚠️ {t("hitSampleDecodeError")}
+            <p className="text-xs text-danger leading-relaxed" role="alert" data-testid="hit-sample-error">
+              {t("hitSampleDecodeError")}
             </p>
           )}
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="importHitSample">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">{t("importHitSample")}</label>
+          <label className="text-sm font-medium text-ink-2">{t("importHitSample")}</label>
           <AudioDropZone inputId="hit-sample-input" idleText={t("chooseHitSampleFile")} dragText={t("dropHitSampleHere")} onFile={onUpload} />
         </div>
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="hitSamplePitchByWall">
         <Toggle t={t} labelKey="hitSamplePitchByWall" tipKey="hitSamplePitchByWallTip" value={s.hitSamplePitchByWall} onChange={(v) => update({ hitSamplePitchByWall: v })} caseStyle="title" />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="hitSampleVolume" tipKey="hitSampleVolumeTip" value={s.hitSampleVolume} range={RANGES.hitSampleVolume} onChange={(v) => update({ hitSampleVolume: v })} display={`${Math.round(s.hitSampleVolume * 100)}%`} left="🔈" right="🔊" />
+      <Slider t={t} search={search} matches={matches} labelKey="hitSampleVolume" tipKey="hitSampleVolumeTip" value={s.hitSampleVolume} range={RANGES.hitSampleVolume} onChange={(v) => update({ hitSampleVolume: v })} display={`${Math.round(s.hitSampleVolume * 100)}%`} />
     </>
   );
 }

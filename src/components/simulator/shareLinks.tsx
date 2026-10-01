@@ -5,6 +5,7 @@ import type { useTranslations } from "next-intl";
 import { SHARE_CODE_PARAM, decodeShareCode, encodeShareCode, mergeShareParams, shareCodeUrl } from "@/lib/shareCode";
 import { settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
+import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 /**
  * --- project-files --- The page's side of the short share codes (lib/shareCode.ts): the share button copies
  * `?c=<code>` (kept ready for the current settings, so the copy happens inside the click), and a link that arrives with
@@ -88,10 +89,10 @@ export function useShareCodeLoader(initialSearch: string, apply: (settings: Simu
 export function ShareCodeNotice({ t, notice, onDismiss }: { t: ReturnType<typeof useTranslations>; notice: ShareCodeNoticeKind | null; onDismiss: () => void }) {
   if (!notice) return null;
   return (
-    <p className="mt-1.5 flex items-start gap-2 text-[11px] text-amber-400/90 leading-relaxed" role="status" data-testid="share-code-notice">
-      <span className="flex-1">⚠️ {t(notice === "invalid" ? "Simulator.shareCodeInvalid" : "Simulator.shareCodeUnsupported")}</span>
-      <button type="button" onClick={onDismiss} aria-label={t("Simulator.shareCodeDismiss")} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
-        ✕
+    <p className="mt-1.5 flex items-start gap-2 text-xs text-warn/90 leading-relaxed" role="status" data-testid="share-code-notice">
+      <span className="flex-1">{t(notice === "invalid" ? "Simulator.shareCodeInvalid" : "Simulator.shareCodeUnsupported")}</span>
+      <button type="button" onClick={onDismiss} aria-label={t("Simulator.shareCodeDismiss")} className="text-ink-3 hover:text-ink-2 cursor-pointer">
+        <IconClose size={14} />
       </button>
     </p>
   );

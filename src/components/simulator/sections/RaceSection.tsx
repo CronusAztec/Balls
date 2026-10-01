@@ -20,14 +20,14 @@ export interface RaceSectionProps {
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const RACE_KEYS = ["rcRacers", "rcShape", "rcTrackLength", "rcLaps", "rcFeature", "rcCamera", "rcStandings", "rcMiniMap", "rcCup", "rcCupTitle", "rcCupReset", "rcWinner"];
 
-const SHAPE_OPTIONS: Record<RaceShape, { icon: string; labelKey: string }> = {
-  square: { icon: "■", labelKey: "rcShapeSquare" },
-  circle: { icon: "●", labelKey: "rcShapeCircle" },
+const SHAPE_OPTIONS: Record<RaceShape, { labelKey: string }> = {
+  square: { labelKey: "rcShapeSquare" },
+  circle: { labelKey: "rcShapeCircle" },
 };
 
-const CAMERA_OPTIONS: Record<RaceCamera, { icon: string; labelKey: string }> = {
-  leader: { icon: "🥇", labelKey: "rcCameraLeader" },
-  pack: { icon: "👥", labelKey: "rcCameraPack" },
+const CAMERA_OPTIONS: Record<RaceCamera, { labelKey: string }> = {
+  leader: { labelKey: "rcCameraLeader" },
+  pack: { labelKey: "rcCameraPack" },
 };
 
 const FEATURE_LABELS: Record<RaceFeature, string> = {
@@ -41,10 +41,10 @@ const FEATURE_LABELS: Record<RaceFeature, string> = {
   gates: "rcFeatureGates",
 };
 
-const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`;
+const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
 function GroupTitle({ children }: { children: string }) {
-  return <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{children}</p>;
+  return <p className="pt-1 text-xs font-bold uppercase tracking-[0.16em] text-ink-3">{children}</p>;
 }
 
 /** The cup kept in this browser (lib/raceCup.ts), re-rendering when a race is scored or the cup is reset. */
@@ -80,22 +80,22 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
     <div className="space-y-3 pt-2" data-testid="race-section">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("rcTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("rcDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("rcTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("rcDesc")}</p>
         </div>
       )}
       {!search && <GroupTitle>{t("rcGroupGrid")}</GroupTitle>}
-      <Slider t={t} search={search} matches={matches} labelKey="rcRacers" tipKey="rcRacersTip" value={s.rcRacers} range={RANGES.rcRacers} onChange={(v) => update({ rcRacers: v, rcWinner: s.rcWinner >= v ? -1 : s.rcWinner })} display={String(s.rcRacers)} left="2" right="16" />
+      <Slider t={t} search={search} matches={matches} labelKey="rcRacers" tipKey="rcRacersTip" value={s.rcRacers} range={RANGES.rcRacers} onChange={(v) => update({ rcRacers: v, rcWinner: s.rcWinner >= v ? -1 : s.rcWinner })} display={String(s.rcRacers)} />
       <Searchable search={search} matches={matches} labelKey="rcShape">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("rcShape")}
             <Tooltip text={t("rcShapeTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("rcShape")}>
             {RACE_SHAPES.map((shape) => (
               <button type="button" key={shape} onClick={() => update({ rcShape: shape })} aria-pressed={s.rcShape === shape} className={pick(s.rcShape === shape)}>
-                <span aria-hidden="true">{SHAPE_OPTIONS[shape].icon}</span> {t(SHAPE_OPTIONS[shape].labelKey)}
+                {t(SHAPE_OPTIONS[shape].labelKey)}
               </button>
             ))}
           </div>
@@ -104,21 +104,21 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
       {!search && (
         <div className="flex flex-wrap gap-1" data-testid="race-roster">
           {roster.names.slice(0, s.rcRacers).map((name, i) => (
-            <span key={i} className="inline-flex items-center gap-1 rounded-md bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-300">
+            <span key={i} className="inline-flex items-center gap-1 rounded-md bg-surface-2/80 px-1.5 py-0.5 text-xs text-ink-2">
               <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: roster.colors[i] }} />
               {roster.emoji[i] ? `${roster.emoji[i]} ` : ""}
               {name}
             </span>
           ))}
-          <p className="w-full text-[11px] text-zinc-500 leading-relaxed">{t("rcRosterNote")}</p>
+          <p className="w-full text-xs text-ink-3 leading-relaxed">{t("rcRosterNote")}</p>
         </div>
       )}
       {!search && <GroupTitle>{t("rcGroupTrack")}</GroupTitle>}
-      <Slider t={t} search={search} matches={matches} labelKey="rcTrackLength" tipKey="rcTrackLengthTip" value={s.rcTrackLength} range={RANGES.rcTrackLength} onChange={(v) => update({ rcTrackLength: v })} display={t("rcScreens", { count: s.rcTrackLength })} left="🏁" right="🛣️" />
-      <Slider t={t} search={search} matches={matches} labelKey="rcLaps" tipKey="rcLapsTip" value={s.rcLaps} range={RANGES.rcLaps} onChange={(v) => update({ rcLaps: v })} display={String(s.rcLaps)} left="1" right="🔁" />
+      <Slider t={t} search={search} matches={matches} labelKey="rcTrackLength" tipKey="rcTrackLengthTip" value={s.rcTrackLength} range={RANGES.rcTrackLength} onChange={(v) => update({ rcTrackLength: v })} display={t("rcScreens", { count: s.rcTrackLength })} />
+      <Slider t={t} search={search} matches={matches} labelKey="rcLaps" tipKey="rcLapsTip" value={s.rcLaps} range={RANGES.rcLaps} onChange={(v) => update({ rcLaps: v })} display={String(s.rcLaps)} />
       <Searchable search={search} matches={matches} labelKey="rcFeature">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="race-feature">
+          <label className="text-sm font-medium text-ink-2" htmlFor="race-feature">
             {t("rcFeature")}
             <Tooltip text={t("rcFeatureTip")} />
           </label>
@@ -134,14 +134,14 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
       {!search && <GroupTitle>{t("rcGroupView")}</GroupTitle>}
       <Searchable search={search} matches={matches} labelKey="rcCamera">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300">
+          <label className="text-sm font-medium text-ink-2">
             {t("rcCamera")}
             <Tooltip text={t("rcCameraTip")} />
           </label>
           <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("rcCamera")}>
             {RACE_CAMERAS.map((camera) => (
               <button type="button" key={camera} onClick={() => update({ rcCamera: camera })} aria-pressed={s.rcCamera === camera} className={pick(s.rcCamera === camera)}>
-                <span aria-hidden="true">{CAMERA_OPTIONS[camera].icon}</span> {t(CAMERA_OPTIONS[camera].labelKey)}
+                {t(CAMERA_OPTIONS[camera].labelKey)}
               </button>
             ))}
           </div>
@@ -161,7 +161,7 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
         <>
           <Searchable search={search} matches={matches} labelKey="rcCupTitle">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300" htmlFor="race-cup-title">
+              <label className="text-sm font-medium text-ink-2" htmlFor="race-cup-title">
                 {t("rcCupTitle")}
                 <Tooltip text={t("rcCupTitleTip")} />
               </label>
@@ -173,16 +173,16 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
                 onChange={(e) => update({ rcCupTitle: Array.from(e.target.value).slice(0, MAX_CUP_TITLE_LENGTH).join("") })}
                 placeholder={t(CUP_TITLE_KEYS[s.rcFeature])}
                 aria-label={t("rcCupTitle")}
-                className="w-full px-3 py-2 bg-zinc-800 text-white rounded-lg border border-zinc-700 focus:border-cyan-600 focus:outline-none placeholder-zinc-500 text-sm"
+                className="w-full px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
               />
             </div>
           </Searchable>
           <Searchable search={search} matches={matches} labelKey="rcCupReset">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] text-zinc-500 leading-relaxed" data-testid="race-cup-summary">
+              <p className="text-xs text-ink-3 leading-relaxed" data-testid="race-cup-summary">
                 {cupHere && cupHere.races > 0 && leader >= 0 ? t("rcCupSummary", { races: cupHere.races, name: roster.names[leader], points: cupHere.points[leader] }) : t("rcCupEmpty")}
               </p>
-              <button type="button" onClick={() => raceCupStore.reset()} disabled={!cup} className="shrink-0 px-2.5 py-1 rounded-md text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+              <button type="button" onClick={() => raceCupStore.reset()} disabled={!cup} className="shrink-0 px-2.5 py-1 rounded-md text-xs font-medium bg-surface-2 text-ink-2 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
                 {t("rcCupReset")}
               </button>
             </div>
@@ -192,7 +192,7 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
       {!search && <GroupTitle>{t("rcGroupRig")}</GroupTitle>}
       <Searchable search={search} matches={matches} labelKey="rcWinner">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-zinc-300" htmlFor="race-winner">
+          <label className="text-sm font-medium text-ink-2" htmlFor="race-winner">
             {t("rcWinner")}
             <Tooltip text={t("rcWinnerTip")} />
           </label>
@@ -205,8 +205,8 @@ export default function RaceSection({ t, search, matches, settings: s, update }:
             ))}
           </select>
           {rigged && (
-            <p className="text-[11px] text-amber-500/90 leading-relaxed" data-testid="race-rig-warning">
-              🎭 {t("rcWinnerWarning")}
+            <p className="text-xs text-warn/90 leading-relaxed" data-testid="race-rig-warning">
+              {t("rcWinnerWarning")}
             </p>
           )}
         </div>

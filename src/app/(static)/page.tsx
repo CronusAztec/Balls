@@ -30,10 +30,10 @@ export default function RootRedirect() {
     <>
       <meta httpEquiv="refresh" content={`0;url=${fallback}`} />
       <script dangerouslySetInnerHTML={{ __html: redirectScript }} />
-      <main className="min-h-screen bg-slate-950 text-slate-50 font-sans flex items-center justify-center px-4">
-        <p className="text-center text-zinc-400">
-          <span className="block text-2xl font-extrabold text-white mb-3">{SITE_NAME}</span>
-          <a href={fallback} className="text-cyan-400 underline">
+      <main className="min-h-screen bg-bg text-ink font-sans flex items-center justify-center px-4">
+        <p className="text-center text-ink-2">
+          <span className="block text-2xl font-extrabold text-ink mb-3">{SITE_NAME}</span>
+          <a href={fallback} className="text-accent underline">
             Continue to {SITE_NAME}
           </a>
         </p>

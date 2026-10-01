@@ -584,7 +584,7 @@ describe("Bouncing Shapes settings", () => {
   it("resolve to the defaults, clamp the numbers and reject unknown shapes and ratios", () => {
     expect(resolveBoxSettings(undefined)).toEqual(DEFAULT_BOX_SETTINGS);
     const r = resolveBoxSettings({ shapeCount: 99, shape: "triangle" as BoxSettings["shape"], aspect: 9, gravity: -1, countdown: 12.4, growPerHit: 7, speedRatio: "7:11" as BoxSettings["speedRatio"] });
-    expect(r).toEqual({ shapeCount: 12, shape: "square", aspect: 2, gravity: 0, countdown: 12, growPerHit: 3, speedRatio: "3:4:5" });
+    expect(r).toEqual({ shapeCount: 99, shape: "square", aspect: 9, gravity: 0, countdown: 12, growPerHit: 7, speedRatio: "3:4:5" }); // --- uncap-all --- (no maximum)
     expect(resolveBoxSettings({ shapeCount: Number.NaN }).shapeCount).toBe(DEFAULT_BOX_SETTINGS.shapeCount);
     for (const key of Object.keys(BOX_RANGES) as (keyof typeof BOX_RANGES)[]) expect(RANGES[key]).toEqual(BOX_RANGES[key]);
   });
@@ -613,8 +613,8 @@ describe("Bouncing Shapes settings", () => {
 
   it("fall back for bad URL values and presets", () => {
     const fromUrl = settingsFromSearchParams(new URLSearchParams("mode=box&bxn=40&bxs=hexagon&bxa=0.1&bxg=5&bxc=-3&bxgr=abc&bxr=9:8"));
-    expect(boxSettingsOf(fromUrl)).toEqual({ shapeCount: 12, shape: "square", aspect: 0.5, gravity: 1, countdown: 0, growPerHit: 1, speedRatio: "3:4:5" });
+    expect(boxSettingsOf(fromUrl)).toEqual({ shapeCount: 40, shape: "square", aspect: 0.5, gravity: 5, countdown: 0, growPerHit: 1, speedRatio: "3:4:5" }); // --- uncap-all --- (40 and 5 are kept)
     const preset = presetToSettings({ mode: "box", boxShapeCount: 0, boxShape: "circle", boxSpeedRatio: "4:5:6", boxCountdown: 999 } as Partial<SimulatorSettings>);
-    expect(boxSettingsOf(preset)).toEqual({ shapeCount: 1, shape: "circle", aspect: 0.56, gravity: 0, countdown: 99, growPerHit: 1, speedRatio: "4:5:6" });
+    expect(boxSettingsOf(preset)).toEqual({ shapeCount: 1, shape: "circle", aspect: 0.56, gravity: 0, countdown: 999, growPerHit: 1, speedRatio: "4:5:6" }); // --- uncap-all --- (999 kept)
   });
 });

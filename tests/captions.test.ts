@@ -117,7 +117,7 @@ describe("caption settings", () => {
   it("reads bad links safely: unknown types skipped, bad fields fall back, numbers clamped, at most eight", () => {
     const parsed = parseCaptions("zz*t*0*0*p,cd*x*-5*999*?*9*nothex*alsobad,q,tx*c*2.3*abc*s*0.74*ABC*def*  Hi  there  ");
     expect(parsed).toHaveLength(3);
-    expect(parsed[0]).toEqual({ ...defaultCaption("countdown"), start: 0, end: 120, style: { size: 3, color: "#ffffff", background: "#000000" } });
+    expect(parsed[0]).toEqual({ ...defaultCaption("countdown"), start: 0, end: 999, style: { size: 9, color: "#ffffff", background: "#000000" } }); // --- uncap-all --- (no maximum)
     expect(parsed[1]).toEqual(defaultCaption("question"));
     expect(parsed[2]).toMatchObject({ type: "text", position: "center", start: 2.5, end: 0, animation: "slide", text: "Hi there", style: { size: 0.7, color: "#aabbcc", background: "#ddeeff" } });
     expect(parseCaptions(Array.from({ length: 12 }, () => "tx*b*0*0*f*1*ffffff**x").join(","))).toHaveLength(MAX_CAPTIONS);
@@ -141,7 +141,7 @@ describe("caption settings", () => {
     const saved = JSON.parse(JSON.stringify({ ...defaultSettings("shatter"), captions })) as Partial<SimulatorSettings>;
     expect(presetToSettings(saved).captions).toEqual(captions);
     const bad = { mode: "classic", captions: [{ type: "countdown", start: "x", end: -3, animation: "spin", position: "left", style: { size: 99, color: "red", background: 7 } }, { type: "bogus" }] } as unknown as Partial<SimulatorSettings>;
-    expect(presetToSettings(bad).captions).toEqual([{ ...defaultCaption("countdown"), style: { size: 3, color: "#ffffff", background: "#000000" } }]);
+    expect(presetToSettings(bad).captions).toEqual([{ ...defaultCaption("countdown"), style: { size: 99, color: "#ffffff", background: "#000000" } }]); // --- uncap-all --- (no maximum)
     // A preset saved before captions existed has none.
     expect(presetToSettings({ mode: "classic" }).captions).toEqual([]);
   });

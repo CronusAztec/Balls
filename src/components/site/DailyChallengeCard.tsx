@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { assetPath } from "@/lib/site";
+import { buttonClass } from "@/components/ui/Button";
+import { IconCalendar, IconCheck, IconFlame, IconPlay } from "@/components/ui/icons";
 import { DAILY_PARAM, dailyStreak, formatRunSeconds, loadDailyHistory, msUntilNextChallenge, todaysChallenge, type DailyChallenge } from "@/lib/daily";
 
 /*
@@ -48,64 +50,63 @@ export default function DailyChallengeCard() {
 
   const c = state?.challenge;
   const date = c ? new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${c.date}T00:00:00Z`)) : "";
+  // --- site-redesign --- one horizontal band on the desk: the mode's picture, the challenge, its seed and streak, the play button
   return (
-    <section className="w-full max-w-5xl mx-auto -mt-4 sm:-mt-8 mb-4 px-4" aria-labelledby="daily-heading">
+    <section className="border-b border-line bg-surface-1" aria-labelledby="daily-heading">
       <div
-        className="relative overflow-hidden rounded-3xl border border-[#93d119]/25 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-[#1e260a]/60 shadow-xl shadow-[#93d119]/5"
+        className="site-container flex flex-col gap-5 py-6 md:flex-row md:items-center md:gap-8"
         data-testid="daily-card"
         data-daily-date={c?.date ?? ""}
         data-daily-mode={c?.mode ?? ""}
         data-daily-seed={c?.seed ?? ""}
       >
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <div className="relative aspect-video md:aspect-auto md:min-h-full bg-slate-800/50 overflow-hidden">
-            {c ? (
-              // A background picture, not an <img>: the mode cards below stay the page's only <img> of each mode preview.
-              <div
-                role="img"
-                aria-label={t("cardImageAlt", { mode: modes(`${c.mode}.name`) })}
-                className="absolute inset-0 bg-cover bg-center"
-                style={{ backgroundImage: `url("${assetPath(`/modes/${c.mode}.webp`)}")` }}
-                data-testid="daily-image"
-              />
-            ) : (
-              <div className="absolute inset-0 animate-pulse bg-slate-800/60" aria-hidden="true" />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent md:bg-gradient-to-r md:from-transparent md:to-slate-950/40" aria-hidden="true" />
-            {c && <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-950/80 border border-[#93d119]/40 text-[11px] font-black font-mono text-[#b0f02a]">#{c.number}</span>}
-          </div>
-          <div className="p-6 sm:p-8 flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <span className="inline-flex items-center gap-2 font-bold uppercase tracking-[0.2em] text-[#93d119]">
-                <span aria-hidden="true">📅</span>
-                {t("cardBadge")}
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-line bg-black">
+          {c ? (
+            // A background picture, not an <img>: the mode cards below stay the page's only <img> of each mode preview.
+            <div
+              role="img"
+              aria-label={t("cardImageAlt", { mode: modes(`${c.mode}.name`) })}
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url("${assetPath(`/modes/${c.mode}.webp`)}")` }}
+              data-testid="daily-image"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-surface-2" aria-hidden="true" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="eyebrow flex flex-wrap items-center gap-x-2 text-ink-3">
+            <IconCalendar size={14} className="text-accent" />
+            <span>{t("cardBadge")}</span>
+            {c && <span className="num">#{c.number}</span>}
+            {date && <span className="normal-case tracking-normal">· {date}</span>}
+          </p>
+          <h2 id="daily-heading" className="mt-1 text-xl font-bold text-ink">
+            {c ? t("cardTitle", { mode: modes(`${c.mode}.name`) }) : t("cardLoading")}
+          </h2>
+          <p className="mt-1 max-w-[62ch] text-sm text-ink-2">{t("cardText")}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            {c && <span className="num rounded-md border border-line bg-surface-2 px-2 py-1 text-ink-2">{t("cardSeed", { seed: c.seed })}</span>}
+            {state && state.streak > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-warn/30 px-2 py-1 font-medium text-warn">
+                <IconFlame size={14} />
+                {t("streak", { days: state.streak })}
               </span>
-              {date && <span className="font-medium text-slate-400">· {date}</span>}
-            </div>
-            <h2 id="daily-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-50">
-              {c ? t("cardTitle", { mode: modes(`${c.mode}.name`) }) : t("cardLoading")}
-            </h2>
-            <p className="text-sm text-slate-400 leading-relaxed">{t("cardText")}</p>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {c && <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 font-mono text-slate-300">{t("cardSeed", { seed: c.seed })}</span>}
-              {state && state.streak > 0 && <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-semibold">🔥 {t("streak", { days: state.streak })}</span>}
-              {state && state.todayMs !== null && (
-                <span className="px-2.5 py-1 rounded-lg bg-[#93d119]/10 border border-[#93d119]/30 text-[#b0f02a] font-semibold" data-testid="daily-played">
-                  ✅ {t("cardPlayed", { seconds: formatRunSeconds(state.todayMs) })}
-                </span>
-              )}
-            </div>
-            <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3">
-              <Link
-                href={`/simulator?${DAILY_PARAM}=1`}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-cyan-600 to-cyan-500 shadow-lg shadow-cyan-600/20 hover:scale-105 active:scale-95 transition-all"
-                data-testid="daily-play"
-              >
-                ▶ {t("play")}
-              </Link>
-              {state && <span className="text-xs text-slate-500 font-mono tabular-nums">{t("nextIn", { time: countdown(state.nextMs) })}</span>}
-            </div>
+            )}
+            {state && state.todayMs !== null && (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-accent/30 px-2 py-1 font-medium text-accent" data-testid="daily-played">
+                <IconCheck size={14} />
+                {t("cardPlayed", { seconds: formatRunSeconds(state.todayMs) })}
+              </span>
+            )}
           </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-start gap-2 md:items-end">
+          <Link href={`/simulator?${DAILY_PARAM}=1`} className={buttonClass({ variant: "secondary", size: "md" })} data-testid="daily-play">
+            <IconPlay size={16} />
+            {t("play")}
+          </Link>
+          {state && <span className="num text-xs text-ink-3">{t("nextIn", { time: countdown(state.nextMs) })}</span>}
         </div>
       </div>
     </section>

@@ -30,11 +30,11 @@ export default function CameraSection({ t, search, matches, settings: s, update 
     <>
       {!search && (
         <div className="space-y-1">
-          <label className="text-sm font-medium text-zinc-300">
-            🎥 {t("cameraGroup")}
+          <label className="text-sm font-medium text-ink-2">
+            {t("cameraGroup")}
             <Tooltip text={t("cameraGroupTip")} />
           </label>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("cameraGroupDesc")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("cameraGroupDesc")}</p>
         </div>
       )}
       <Slider
@@ -47,8 +47,6 @@ export default function CameraSection({ t, search, matches, settings: s, update 
         range={RANGES.cameraZoom}
         onChange={(v) => update({ cameraZoom: v })}
         display={s.cameraZoom > 0 ? pct(s.cameraZoom) : t("cameraOff")}
-        left="🔭"
-        right="🔍"
       />
       <Slider
         t={t}
@@ -60,8 +58,6 @@ export default function CameraSection({ t, search, matches, settings: s, update 
         range={RANGES.screenShake}
         onChange={(v) => update({ screenShake: v })}
         display={s.screenShake > 0 ? pct(s.screenShake) : t("cameraOff")}
-        left="🧘"
-        right="💥"
       />
       <Searchable search={search} matches={matches} labelKey="slowMoOnNearMiss">
         <Toggle t={t} labelKey="slowMoOnNearMiss" tipKey="slowMoOnNearMissTip" value={s.slowMoOnNearMiss} onChange={(v) => update({ slowMoOnNearMiss: v })} caseStyle="title" />
@@ -78,8 +74,6 @@ export default function CameraSection({ t, search, matches, settings: s, update 
             range={RANGES.slowMoFactor}
             onChange={(v) => update({ slowMoFactor: v })}
             display={`${s.slowMoFactor.toFixed(2)}×`}
-            left="🐌"
-            right="🐇"
           />
           <Slider
             t={t}
@@ -91,15 +85,13 @@ export default function CameraSection({ t, search, matches, settings: s, update 
             range={RANGES.slowMoMs}
             onChange={(v) => update({ slowMoMs: v })}
             display={`${s.slowMoMs} ms`}
-            left="⏱️"
-            right="⏳"
           />
         </>
       )}
       <Searchable search={search} matches={matches} labelKey="replayOnEscape">
         <div className="space-y-1">
           <Toggle t={t} labelKey="replayOnEscape" tipKey="replayOnEscapeTip" value={s.replayOnEscape} onChange={(v) => update({ replayOnEscape: v })} caseStyle="title" />
-          {s.replayOnEscape && !replayEligible(s.mode) && <p className="text-xs text-amber-500/90">{t("replayOnEscapeModes")}</p>}
+          {s.replayOnEscape && !replayEligible(s.mode) && <p className="text-xs text-warn/90">{t("replayOnEscapeModes")}</p>}
         </div>
       </Searchable>
     </>
@@ -108,7 +100,7 @@ export default function CameraSection({ t, search, matches, settings: s, update 
   return search ? (
     body
   ) : (
-    <div className="space-y-4 pt-3 border-t border-zinc-800" data-testid="camera-section">
+    <div className="space-y-4 pt-3 border-t border-line" data-testid="camera-section">
       {body}
     </div>
   );

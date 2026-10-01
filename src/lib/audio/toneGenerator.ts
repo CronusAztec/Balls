@@ -255,7 +255,7 @@ export class ToneGenerator {
   }
 
   setHitSampleVolume(volume: number) {
-    this.hitSampleVolume = Math.max(0, Math.min(1, volume));
+    this.hitSampleVolume = Math.max(0, Number.isFinite(volume) ? volume : 1); // --- uncap-all --- past 1 amplifies the clip (it may clip)
     this.sampler?.setVolume(this.hitSampleVolume);
   }
 

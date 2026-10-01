@@ -158,7 +158,7 @@ describe("ball interaction maths", () => {
     expect(resolveBallInteraction(undefined)).toEqual(DEFAULT_BALL_INTERACTION);
     expect(resolveBallInteraction({ ballInteraction: "explode" as BallInteraction, splitMinRadius: 99, maxBalls: 0 })).toEqual({
       ballInteraction: "bounce",
-      splitMinRadius: BALL_INTERACTION_RANGES.splitMinRadius.max,
+      splitMinRadius: 99, // --- uncap-all --- (no maximum)
       maxBalls: BALL_INTERACTION_RANGES.maxBalls.min,
     });
     expect(resolveBallInteraction({ ballInteraction: "merge", splitMinRadius: 6.4, maxBalls: Number.NaN })).toEqual({ ballInteraction: "merge", splitMinRadius: 6, maxBalls: 16 });

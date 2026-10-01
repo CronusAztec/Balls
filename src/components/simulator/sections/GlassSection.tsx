@@ -40,13 +40,13 @@ export default function GlassSection({ t, search, matches, settings: s, update }
     <div className="space-y-3 pt-2" data-testid="glass-smash">
       {!search && (
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{t("glassTitle")}</p>
-          <p className="text-xs text-zinc-500 leading-relaxed">{t("glassDesc")}</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("glassTitle")}</p>
+          <p className="text-xs text-ink-3 leading-relaxed">{t("glassDesc")}</p>
         </div>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="glassRows" tipKey="glassRowsTip" value={s.glassRows} range={RANGES.glassRows} onChange={(v) => update({ glassRows: v })} display={String(s.glassRows)} left="▭" right="☰" />
-      <Slider t={t} search={search} matches={matches} labelKey="glassHp" tipKey="glassHpTip" value={s.glassHp} range={RANGES.glassHp} onChange={(v) => update({ glassHp: v })} display={String(s.glassHp)} left="🫧" right="🧊" />
-      <Slider t={t} search={search} matches={matches} labelKey="glassStages" tipKey="glassStagesTip" value={s.glassStages} range={RANGES.glassStages} onChange={(v) => update({ glassStages: v })} display={String(s.glassStages)} left="1" right="🏠" />
+      <Slider t={t} search={search} matches={matches} labelKey="glassRows" tipKey="glassRowsTip" value={s.glassRows} range={RANGES.glassRows} onChange={(v) => update({ glassRows: v })} display={String(s.glassRows)} />
+      <Slider t={t} search={search} matches={matches} labelKey="glassHp" tipKey="glassHpTip" value={s.glassHp} range={RANGES.glassHp} onChange={(v) => update({ glassHp: v })} display={String(s.glassHp)} />
+      <Slider t={t} search={search} matches={matches} labelKey="glassStages" tipKey="glassStagesTip" value={s.glassStages} range={RANGES.glassStages} onChange={(v) => update({ glassStages: v })} display={String(s.glassStages)} />
       <Searchable search={search} matches={matches} labelKey="glassMoving">
         <Toggle t={t} labelKey="glassMoving" tipKey="glassMovingTip" value={s.glassMoving} onChange={(v) => update({ glassMoving: v })} />
       </Searchable>
@@ -58,7 +58,7 @@ export default function GlassSection({ t, search, matches, settings: s, update }
         <Toggle t={t} labelKey="glassGates" tipKey="glassGatesTip" value={s.glassGates} onChange={(v) => update({ glassGates: v })} />
       </Searchable>
       {!search && (
-        <p className="text-xs text-zinc-500 leading-relaxed" data-testid="glass-run-size">
+        <p className="text-xs text-ink-3 leading-relaxed" data-testid="glass-run-size">
           {t("glassRunSize", { panes: size.panes, hits: size.hits, stages: s.glassStages })}
         </p>
       )}

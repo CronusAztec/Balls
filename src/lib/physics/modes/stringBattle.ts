@@ -4,6 +4,7 @@ import type { Ball, GameMode, ModeContext } from "../types";
 import { TWO_PI, arenaRadius } from "../types";
 import { wobbleStrength } from "../wobble";
 import { teamResult } from "@/lib/teams";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * String Battle ("stringBattle" mode, battle family – feature odd-string-battle): the oddplayground "WEB DOMINION"
@@ -117,7 +118,7 @@ export interface StringBattleSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value (counts and the duration whole, the finale speed on its 0.1 steps); unknown options and non-boolean flags fall back to the defaults. */
@@ -125,9 +126,9 @@ export function resolveStringBattleSettings(config: Partial<StringBattleSettings
   const out = { ...DEFAULT_STRING_BATTLE_SETTINGS };
   if (!config) return out;
   const R = STRING_BATTLE_RANGES;
-  if (config.balls !== undefined) out.balls = Math.round(clampNumber(config.balls, R.sbBalls, out.balls));
+  if (config.balls !== undefined) out.balls = memoryCeiling("sbBalls", Math.round(clampNumber(config.balls, R.sbBalls, out.balls)));
   if (config.lives !== undefined) out.lives = Math.round(clampNumber(config.lives, R.sbLives, out.lives));
-  if (config.maxStrings !== undefined) out.maxStrings = Math.round(clampNumber(config.maxStrings, R.sbMaxStrings, out.maxStrings));
+  if (config.maxStrings !== undefined) out.maxStrings = memoryCeiling("sbMaxStrings", Math.round(clampNumber(config.maxStrings, R.sbMaxStrings, out.maxStrings)));
   if (isSbRule(config.rule)) out.rule = config.rule;
   if (isSbStyle(config.style)) out.style = config.style;
   if (config.duration !== undefined) out.duration = Math.round(clampNumber(config.duration, R.sbDuration, out.duration));

@@ -24,15 +24,19 @@ export const DEFAULT_FAST_EXPORT_FPS: FastExportFps = 60;
 export const FAST_EXPORT_RANGES = { fastExportFps: { min: 30, max: 60, step: 30 } } as const;
 export const DEFAULT_FAST_EXPORT_SETTINGS: { fastExportFps: number } = { fastExportFps: DEFAULT_FAST_EXPORT_FPS };
 
-/** A supported frame rate: 30 or 60, whichever is nearer (anything that is not a number is the default). */
-export function resolveFastExportFps(value: unknown): FastExportFps {
-  const n = typeof value === "number" ? value : Number(value);
+/**
+ * The export's frame rate: --- uncap-all --- any finite rate from 30 up, as typed (the panel's 30 and 60 are its buttons,
+ * the number field takes any other); anything that is not a number is the default. Past 60 the simulation's frames are
+ * held for several export frames (the simulation runs at 60 Hz), between 30 and 60 some are dropped.
+ */
+export function resolveFastExportFps(value: unknown): number {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
   if (!Number.isFinite(n)) return DEFAULT_FAST_EXPORT_FPS;
-  return n < 45 ? 30 : 60;
+  return n < FAST_EXPORT_RANGES.fastExportFps.min ? FAST_EXPORT_RANGES.fastExportFps.min : n;
 }
 
 /** The fast-export settings of a settings object, validated (links and presets). */
-export function resolveFastExportSettings(settings: { fastExportFps?: unknown }): { fastExportFps: FastExportFps } {
+export function resolveFastExportSettings(settings: { fastExportFps?: unknown }): { fastExportFps: number } {
   return { fastExportFps: resolveFastExportFps(settings.fastExportFps) };
 }
 
@@ -50,8 +54,20 @@ export function simFrameTimeMs(simFrame: number): number {
 
 /** Index of the exported frame simulation frame `j` becomes, or −1 when it is skipped (30 fps keeps every second one). */
 export function exportFrameIndex(simFrame: number, fps: number): number {
-  const step = simFramesPerExportFrame(fps);
-  return simFrame % step === 0 ? simFrame / step : -1;
+  const [first, end] = exportFrameRange(simFrame, fps);
+  return end > first ? first : -1;
+}
+
+/**
+ * --- uncap-all --- The exported frames simulation frame `j` becomes, `[first, end)`: frame i shows the simulation frame of
+ * its own time (⌊i · 60 / fps⌋), so at 60 fps every simulation frame is one export frame, at 30 every second one, at 45
+ * three of every four and at 240 each is held for four – any rate, the simulation's 60 Hz untouched.
+ */
+export function exportFrameRange(simFrame: number, fps: number): [number, number] {
+  if (!(fps > 0)) return [0, 0];
+  if (fps === SIM_FPS) return [simFrame, simFrame + 1];
+  if (fps === SIM_FPS / 2) return simFrame % 2 === 0 ? [simFrame / 2, simFrame / 2 + 1] : [0, 0];
+  return [Math.ceil((simFrame * fps) / SIM_FPS - 1e-9), Math.ceil(((simFrame + 1) * fps) / SIM_FPS - 1e-9)];
 }
 
 /** Presentation time of exported frame `i` in µs (rounded per frame, so a long clip never drifts). */

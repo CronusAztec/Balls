@@ -1,4 +1,5 @@
 import type { PhysicsExtras } from "./types";
+import { SIGNED_KEYS, atLeastMin, signedUncapped } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * "Physics extras": air drag, wind, spin (with a Magnus-style curve force), wall bounciness,
@@ -49,15 +50,15 @@ const TWO_PI = 2 * Math.PI;
 
 function clamp(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
-/** Fills in the defaults for missing extras and clamps every value to its range (bad input falls back to the default). */
+/** Fills in the defaults for missing extras and validates every value (bad input falls back to the default; --- uncap-all --- no maximum). */
 export function resolvePhysicsExtras(config: Partial<PhysicsExtras> | null | undefined): PhysicsExtras {
   const out = { ...DEFAULT_PHYSICS_EXTRAS };
   if (!config) return out;
   for (const key of PHYSICS_EXTRA_KEYS) {
-    if (config[key] !== undefined) out[key] = clamp(config[key], PHYSICS_EXTRA_RANGES[key], DEFAULT_PHYSICS_EXTRAS[key]);
+    if (config[key] !== undefined) out[key] = SIGNED_KEYS.has(key) ? signedUncapped(config[key], DEFAULT_PHYSICS_EXTRAS[key]) : clamp(config[key], PHYSICS_EXTRA_RANGES[key], DEFAULT_PHYSICS_EXTRAS[key]); // --- uncap-all --- (the winds blow either way, as hard as typed)
   }
   return out;
 }

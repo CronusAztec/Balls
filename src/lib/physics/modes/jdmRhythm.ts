@@ -1,5 +1,6 @@
 import { SCALE_INTERVALS, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { ModeId } from "../types";
+import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Shared bits of the feature jdm-rhythm-runner (the project.jdm "Added realistic gravity to Geometry Dash" rhythm runner
@@ -58,7 +59,7 @@ export function mulberry32(seed: number): () => number {
 /** Clamps a number-like value to a range; the fallback for anything that is not a finite number. */
 export function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number): number {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Rounds to a slider step (so URL and preset values land on the slider). */

@@ -1,5 +1,6 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, ModeId, SoundEvent } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Power Layers ("powerLayers" mode, feature odd-power-layers – the oddplayground "It starts tiny and gets out of
@@ -96,7 +97,7 @@ export interface PowerLayersFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value (layers whole, drift and speed on their 0.05 steps); unknown options fall back to the defaults. */
@@ -104,7 +105,7 @@ export function resolvePowerLayersSettings(config: Partial<PowerLayersSettings> 
   const out = { ...DEFAULT_POWER_LAYERS_SETTINGS };
   if (!config) return out;
   const R = POWER_LAYERS_RANGES;
-  if (config.layers !== undefined) out.layers = Math.round(clampNumber(config.layers, R.plLayers, out.layers));
+  if (config.layers !== undefined) out.layers = memoryCeiling("plLayers", Math.round(clampNumber(config.layers, R.plLayers, out.layers)));
   if (isPlSequence(config.sequence)) out.sequence = config.sequence;
   if (config.drift !== undefined) out.drift = Math.round(20 * clampNumber(config.drift, R.plDrift, out.drift)) / 20;
   if (config.speed !== undefined) out.speed = Math.round(20 * clampNumber(config.speed, R.plSpeed, out.speed)) / 20;
@@ -321,7 +322,7 @@ export const BIG_HIT_LAYERS = 10;
 
 /** Seconds from one hit to the next. */
 export function bouncePeriodSec(speed: number): number {
-  const s = Number.isFinite(speed) ? Math.max(POWER_LAYERS_RANGES.plSpeed.min, Math.min(POWER_LAYERS_RANGES.plSpeed.max, speed)) : 1;
+  const s = Number.isFinite(speed) ? atLeastMin(speed, POWER_LAYERS_RANGES.plSpeed) : 1; // --- uncap-all --- (no maximum)
   return BASE_PERIOD_SEC / s;
 }
 

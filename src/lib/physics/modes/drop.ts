@@ -1,5 +1,6 @@
 import { circleObstacle, segmentBetween, segmentObstacle, type Obstacle } from "../obstacles";
 import type { Ball, GameMode, ModeContext, ObstacleHitResult } from "../types";
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Ball Drop ("symphony" mode): no rings. A tall board of pegs and short bars in a staggered pattern
@@ -61,17 +62,17 @@ export interface DropSettingFields {
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.max(range.min, Math.min(range.max, n)) : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) /* --- uncap-all --- never a maximum */ : fallback;
 }
 
 /** Fills in the defaults and clamps every value to its range (counts become whole numbers; bad input falls back to the default). */
 export function resolveDropSettings(config: Partial<DropSettings> | null | undefined): DropSettings {
   const out = { ...DEFAULT_DROP_SETTINGS };
   if (!config) return out;
-  if (config.ballCount !== undefined) out.ballCount = Math.round(clampNumber(config.ballCount, DROP_RANGES.dropBallCount, out.ballCount));
+  if (config.ballCount !== undefined) out.ballCount = memoryCeiling("dropBallCount", Math.round(clampNumber(config.ballCount, DROP_RANGES.dropBallCount, out.ballCount)));
   if (config.sizeVariation !== undefined) out.sizeVariation = clampNumber(config.sizeVariation, DROP_RANGES.dropSizeVariation, out.sizeVariation);
   if (config.gravityVariation !== undefined) out.gravityVariation = clampNumber(config.gravityVariation, DROP_RANGES.dropGravityVariation, out.gravityVariation);
-  if (config.rows !== undefined) out.rows = Math.round(clampNumber(config.rows, DROP_RANGES.dropRows, out.rows));
+  if (config.rows !== undefined) out.rows = memoryCeiling("dropRows", Math.round(clampNumber(config.rows, DROP_RANGES.dropRows, out.rows)));
   if (config.spawnInterval !== undefined) out.spawnInterval = clampNumber(config.spawnInterval, DROP_RANGES.dropSpawnInterval, out.spawnInterval);
   if (typeof config.loop === "boolean") out.loop = config.loop;
   return out;

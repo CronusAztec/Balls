@@ -253,6 +253,15 @@ const loadNote = () => {
 /** --- review fix (ui-i18n) --- the panel's ON/OFF toggles are switches named by their label: a name that starts with `label`. */
 const switchName = (label) => new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
 
+/**
+ * --- site-redesign --- the mode cards live in the studio's mode picker: open it from the stage strip's mode button, then
+ * click the card (the picker closes on a pick).
+ */
+const pickModeCard = async (name) => {
+  await page.getByTestId("stage-strip").getByRole("button").first().click();
+  await page.locator('dialog [role="button"]', { hasText: name }).first().click();
+};
+
 /** Sets a React-controlled range input the way a user drag would (runs in the page). */
 const setRangeValue = (el, value) => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -1169,7 +1178,7 @@ check("language switch to Spanish", page.url().includes("/es/simulator/"), `(${p
 
 // 8. Mode card on the simulator page switches the mode in place
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
-await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+await pickModeCard("Portal");
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
 
@@ -2348,7 +2357,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const targetTexts = (await canvasData()).captionTexts ?? "";
   check("a question answered at the finish holds the end screen until the answer is seen", answered && heldAtReveal && endScreen && targetTexts.includes("Done? → YES!"), `(revealed=${answered}, held=${heldAtReveal}, end screen=${endScreen}, "${targetTexts}")`);
   await page.goto(`${BASE}/en/simulator/?mode=classic&cap=${encodeURIComponent(cap)}`, { waitUntil: "networkidle" });
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   const after = new URL(page.url()).searchParams;
   check("captions carry over a mode change", after.get("mode") === "portal" && after.get("cap") === cap, `(mode=${after.get("mode")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
@@ -2441,7 +2450,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const at = (ax, ay) => ({ x: box.x + box.width / 2 + ax * R, y: box.y + box.height / 2 + ay * R });
   /** Lets the page commit a change (React state → URL) and the canvas draw a frame or two. */
   const settle = () => page.waitForTimeout(250);
-  const sectionButtonsClassic = await page.getByRole("button", { name: /^🚧/ }).count();
+  const sectionButtonsClassic = await page.getByRole("button", { name: "Obstacles", exact: true }).count();
   await page.getByRole("button", { name: /Obstacles/ }).first().click();
   const rows = await page.getByTestId("obstacle-row").count();
   const boost = await sliderValue("Bumper Boost");
@@ -2556,7 +2565,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   // Outside the ring modes the section is not offered and nothing is drawn (the layout stays in the link).
   await page.goto(`${BASE}/en/simulator/?mode=drop&obs=${encodeURIComponent(layout)}`, { waitUntil: "networkidle" });
   await settle();
-  const offered = await page.getByRole("button", { name: /^🚧/ }).count();
+  const offered = await page.getByRole("button", { name: "Obstacles", exact: true }).count();
   check(
     "no Obstacles section and no obstacles outside the ring modes (the layout stays in the link)",
     sectionButtonsClassic === 1 && offered === 0 && (await canvasData()).obstacles === undefined && obsParam() === layout,
@@ -2697,7 +2706,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   );
   await page.screenshot({ path: path.join(outDir, "sim-obstacles-captions.png") });
   await page.goto(link, { waitUntil: "networkidle" });
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   const after = new URL(page.url()).searchParams;
   check("obstacles and captions both carry over a mode change", after.get("mode") === "portal" && after.get("obs") === layout && after.get("cap") === cap, `(mode=${after.get("mode")}, obs=${after.get("obs")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
@@ -3176,7 +3185,7 @@ const instrumentOscillators = () =>
     check("a Forced Winner race is won by the chosen team", won && data.teamWinner === "Green" && data.rigWinner === "2" && /Green wins/.test(winnerNote), `(winner=${data.teamWinner}, rig winner=${data.rigWinner}, stats=${data.teamStats}, note="${winnerNote}")`);
   }
   // The story carries over a mode change, with the roster it belongs to.
-  await page.locator('[role="button"]', { hasText: "Shatter" }).first().click();
+  await pickModeCard("Shatter");
   await page.waitForTimeout(500);
   {
     const after = rigQuery();
@@ -3220,7 +3229,7 @@ const instrumentOscillators = () =>
     await page.getByRole("button", { name: /Start Simulator/ }).click();
     await page.waitForTimeout(800);
     const data = await canvasData();
-    await page.locator('[role="button"]', { hasText: "Classic" }).first().click();
+    await pickModeCard("Classic");
     await page.waitForTimeout(500);
     const classicNote = await page.getByTestId("rigged-note").innerText().catch(() => "");
     const whyInClassic = await page.getByTestId("forced-winner-never-escape").isVisible().catch(() => false);
@@ -3349,7 +3358,7 @@ const instrumentOscillators = () =>
   await page.getByPlaceholder("Search settings...").fill("");
   check("the search box finds the Timeline section", found, `(visible=${found})`);
   await page.goto(`${BASE}/en/simulator/?mode=classic&kf=${kf}`, { waitUntil: "networkidle" });
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   const after = new URL(page.url()).searchParams;
   const markersAfter = await page.getByTestId("timeline-marker").count();
@@ -4558,7 +4567,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const finished = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.arenaFinished === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
   const data = await canvasData();
   check("the Teams roster names the squares (colour names for the rest)", finished && ["Alpha", "Beta", "Green"].includes(data.arenaWinner), `(winner=${data.arenaWinner})`);
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.waitForTimeout(500);
   check("the arena data leaves with the mode", (await canvasData()).arenaGame === undefined);
 }
@@ -5571,7 +5580,7 @@ const splitNums = (value) => (value || "").split(",").map(Number);
     `(reached arena B=${cancelled.reached}, idle=${idle}, found shown=${/Found!/.test(cancelText)}, ar=${cancelAr}, modes ${cancelData.splitModes})`,
   );
   const switched = await searchSecondArena();
-  await page.locator('[role="button"]', { hasText: "Portal" }).first().click();
+  await pickModeCard("Portal");
   await page.getByRole("button", { name: /Find 30s Simulation/ }).waitFor({ timeout: 30000 }).catch(() => {});
   // the aborted search ends within a batch or two (before the fix, its "found" result then put arena A back into Classic)
   await page.waitForTimeout(Math.min(20000, 2 * switched.batchMs + 1500));
@@ -7159,7 +7168,7 @@ const bdInstrument = () =>
   const worstClick = Math.max(...latencies);
   // The Ball & Physics section is open (odd number of clicks): the switch is on and the speed input holds the typed value.
   const toggleOn = (await page.getByTestId("unlimited-toggle").getAttribute("aria-pressed").catch(() => null)) === "true";
-  const speedInput = await page.locator('input[data-unlimited-input="ballSpeed"]').inputValue().catch(() => "");
+  const speedInput = await page.locator('input[data-number-field="ballSpeed"]').inputValue().catch(() => ""); // --- uncap-all --- the number field next to every slider
   check(
     "no limits: an extreme link (50,000 balls, huge speed) runs time-sliced with the real-time badge and stays responsive",
     spawned && Number(first.unlimitedBalls) >= 45000 && sliced && Number(data.unlimitedRealtime) < 0.9 && latencies.length === 3 && worstClick < 300 && toggleOn && speedInput === "1000000",
@@ -7194,6 +7203,112 @@ const bdInstrument = () =>
   check("no limits: a ball bigger than the arena eats it (the run ends with its banner)", ate && ateData.multOutgrew === "1", `(ate=${ate}, outgrew ${ateData.multOutgrew})`);
 }
 // --- end unlimited ---
+
+// --- uncap-all --- Uncapped everything: every slider has a number field next to it; a value typed past the slider goes
+// into the link exactly (and invalid text never does); a Bounciness of 3 grows the rebounds with no ceiling (the canvas
+// speed readout climbs); a Ball Count of a million runs to its memory-safety ceiling (ARENA FULL) without a crash.
+{
+  const panelSection = async (name) => {
+    const button = page.getByRole("button", { name, exact: false }).first();
+    if ((await button.getAttribute("aria-expanded").catch(() => null)) !== "true") await button.click();
+  };
+  const canvasData = () => page.evaluate(() => ({ ...(document.querySelector("main canvas")?.dataset ?? {}) }));
+  const typeInto = async (selector, text) => {
+    const field = page.locator(selector).first();
+    await field.fill(text);
+    await field.press("Enter");
+    await page.waitForTimeout(400);
+    return field;
+  };
+  const query = () => page.url().split("?")[1] || "";
+
+  // (A) 80,000 typed into the Ball Speed field: exact in the link, the field tinted "beyond the slider"; text is refused.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await panelSection(/Ball & Physics/);
+  const speedField = await typeInto('input[data-number-field="ballSpeed"]', "80000");
+  const typedQuery = query();
+  const beyond = await speedField.getAttribute("data-beyond").catch(() => null);
+  const typedValue = await speedField.inputValue();
+  const refused = await typeInto('input[data-number-field="ballSpeed"]', "fast");
+  const invalidShown = (await refused.getAttribute("aria-invalid").catch(() => null)) === "true";
+  const keptQuery = query();
+  await refused.press("Escape");
+  check(
+    "uncap: 80000 typed into the Ball Speed field goes into the link exactly; text is refused",
+    /(^|&)s=80000(&|$)/.test(typedQuery) && beyond === "1" && typedValue === "80000" && invalidShown && /(^|&)s=80000(&|$)/.test(keptQuery),
+    `(${typedQuery}, beyond=${beyond}, field "${typedValue}", invalid shown=${invalidShown})`,
+  );
+
+  // (B) Bounciness 3 (typed into its field; 1.03 is the old Bouncier switch): bnc=3 in the link and the ball keeps
+  // getting faster – the canvas speed readout passes 1300 px/s within 10 s (no gravity, so only the bounces speed it up).
+  await page.goto(`${BASE}/en/simulator/?mode=lines&g=0`, { waitUntil: "networkidle" });
+  await page.getByLabel("Show Advanced Options").check();
+  await panelSection(/Ball & Physics/);
+  await typeInto('input[data-number-field="bounciness"]', "3");
+  const bounceQuery = query();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const faster = await page
+    .waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.uncapSpeed) > 1300, null, { timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  const bounceData = await canvasData();
+  check(
+    "uncap: Bounciness 3 travels as bnc=3 and the speed readout climbs past 1300 px/s within 10 s",
+    /(^|&)bnc=3(&|$)/.test(bounceQuery) && faster && bounceData.uncapShow === "1",
+    `(${bounceQuery}, speed ${bounceData.uncapSpeed} px/s, bounce x${bounceData.uncapBounce}, shown ${bounceData.uncapShow}${loadNote()})`,
+  );
+  await page.getByLabel("Show Advanced Options").uncheck();
+
+  // (C) A Ball Count of 1e6 typed into its field: the link keeps it, the run starts, the crowd fills to its
+  // memory-safety ceiling (ARENA FULL) and the page neither crashes nor stops answering.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  await panelSection(/Ball & Physics/);
+  await typeInto('input[data-number-field="ballCount"]', "1e6");
+  const crowdQuery = query();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const full = await page
+    .waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedFull === "1", null, { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  const crowdData = await canvasData();
+  const answers = await Promise.race([page.evaluate(() => document.querySelectorAll("main canvas").length), new Promise((r) => setTimeout(() => r(-1), 5000))]);
+  check(
+    "uncap: a Ball Count of 1e6 runs to the memory-safety ceiling (ARENA FULL) without a crash",
+    /(^|&)nb=1000000(&|$)/.test(crowdQuery) && full && answers >= 1,
+    `(${crowdQuery}, full=${crowdData.unlimitedFull}, balls ${crowdData.unlimitedBalls}, crowd ${crowdData.unlimitedCrowd}, page answers=${answers !== -1}${loadNote()})`,
+  );
+
+  // (D) Every slider of every panel section (advanced options on) has a number field next to it.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByLabel("Show Advanced Options").check();
+  const sectionNames = [/Ball & Physics/, /Wall Settings/, /Visual Effects/, /Custom Sound/, /Recording/, /Teams & Scoreboard/, /Obstacles/, /Captions/, /Timeline/, /Arenas & Split Screen/];
+  let sliders = 0;
+  const missing = [];
+  for (const name of sectionNames) {
+    const button = page.getByRole("button", { name }).first();
+    if (!(await button.isVisible().catch(() => false))) continue;
+    await panelSection(name);
+    await page.waitForTimeout(200);
+    const found = await page.evaluate(() => {
+      const out = { sliders: 0, missing: [] };
+      for (const range of document.querySelectorAll('input[type="range"]')) {
+        // Visible sliders only, and not the view controls (scrolling a waveform is not a setting)
+        if (!range.offsetParent || /^Scroll/.test(range.getAttribute("aria-label") || "")) continue;
+        out.sliders++;
+        let box = range.parentElement;
+        let has = false;
+        for (let up = 0; up < 4 && box && !has; up++, box = box.parentElement) has = !!box.querySelector("input[data-number-field]");
+        if (!has) out.missing.push(range.getAttribute("aria-label") || range.getAttribute("data-unlimited-slider") || "?");
+      }
+      return out;
+    });
+    sliders += found.sliders;
+    for (const label of found.missing) if (!missing.includes(label)) missing.push(label);
+  }
+  await page.getByLabel("Show Advanced Options").uncheck();
+  check("uncap: every slider of every panel section has a number field", sliders > 30 && missing.length === 0, `(${sliders} sliders seen, without a field: ${missing.slice(0, 12).join(", ") || "none"})`);
+}
+// --- end uncap-all ---
 
 // --- review fix (audio) ---
 // Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its

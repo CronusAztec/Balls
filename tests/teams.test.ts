@@ -187,7 +187,7 @@ describe("team settings: URL, presets and the ball count", () => {
     const back = settingsToSearchParams(five);
     expect(back.get("nb")).toBe("5");
     expect(settingsFromSearchParams(back)).toEqual(five);
-    expect(settingsFromSearchParams(new URLSearchParams("nb=40")).ballCount).toBe(MAX_TEAMS);
+    expect(settingsFromSearchParams(new URLSearchParams("nb=40")).ballCount).toBe(40); // --- uncap-all --- (kept; teams past MAX_TEAMS share its colours)
     expect(settingsFromSearchParams(new URLSearchParams("nb=abc&two=0")).ballCount).toBe(1);
     // A roster sets the count to its size.
     expect(settingsFromSearchParams(new URLSearchParams(`nb=5&teams=${encodeURIComponent("A*ff0000*,B*00ff00*")}`)).ballCount).toBe(2);
