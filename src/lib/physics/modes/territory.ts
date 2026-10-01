@@ -1,5 +1,6 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import { circleObstacle, resolveBallCircle } from "../obstacles";
+import { maxMovePerSubStep } from "../multipliers";
 import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // uncap-all: no maximum, the memory-safety ceilings only
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
@@ -32,10 +33,15 @@ import { TWO_PI } from "../types";
  * it off the frame with a seeded scatter, off the optional pegs (`pegs`: the reels' faint dotted grid, a dot every
  * `TY_PEG_STEP` tiles, resolved with the obstacle layer's `resolveBallCircle()`), and runs the tile probe: eight points on
  * the ball's rim; every point moving into an enemy tile converts it, and the ball reflects once about the sum of their
- * directions. No side and no ball order is favoured: the reflection is the same for every heading, the conversions of a
- * sub-step apply at its end (every ball judges the board as it stood when the sub-step began), and the teams' balls join
- * the engine's ball list in turns. Everything random – the spawn, the headings, the curve of a vortex, the power phases,
- * every frame bounce's scatter – comes from `ctx.random()`, so a seed replays exactly and Find Simulation can search it.
+ * directions. The Ball Size has no maximum (uncap-all): a ball bigger than `TY_PROBE_RADIUS` tiles – the old size cap –
+ * tests the tiles under its contact edge instead (`edgeTiles()`: every enemy tile there flips, it reflects about the
+ * depth-weighted directions of the ones it moves into, and a hit takes a dent the shape of its front a tile deep), big balls
+ * crowding the board past `TY_CROWD_FILL` pass through each other (ARENA FULL), and a ball too wide for the board has eaten
+ * the arena (the engine's outgrow finish, as in Classic). No side and no ball order is favoured: the reflection is the
+ * same for every heading, the conversions of a sub-step apply at its end (every ball judges the board as it stood when the
+ * sub-step began), and the teams' balls join the engine's ball list in turns. Everything random – the spawn, the headings,
+ * the curve of a vortex, the power phases, every frame bounce's scatter – comes from `ctx.random()`, so a seed replays
+ * exactly and Find Simulation can search it.
  *
  * The tiles live in a `Uint8Array` (row-major, the owner per tile) with running counts per team; the canvas keeps an
  * offscreen copy and repaints only the tiles that changed. Recent flips go into a fixed ring (`flipTile` …) for the
@@ -125,9 +131,10 @@ export interface TerritorySettingFields {
   tyHud: boolean;
 }
 
-function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
+/** A typed number: a finite value lifted onto the slider's minimum – never held to its maximum (uncap-all) –, else `fallback`. */
+function typedNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
-  return Number.isFinite(n) ? atLeastMin(n, range) /* uncap-all: never a maximum */ : fallback;
+  return Number.isFinite(n) ? atLeastMin(n, range) : fallback;
 }
 
 /** The four slots' powers from a comma list (or an array); unknown entries and missing slots take the defaults. */
@@ -153,16 +160,16 @@ export function resolveTerritorySettings(config: Partial<Omit<TerritorySettings,
   const out: TerritorySettings = { ...DEFAULT_TERRITORY_SETTINGS, powers: [...DEFAULT_TY_POWERS] };
   if (!config) return out;
   const R = TERRITORY_RANGES;
-  if (config.cols !== undefined) out.cols = memoryCeiling("tyCols", Math.round(clampNumber(config.cols, R.tyCols, out.cols)));
+  if (config.cols !== undefined) out.cols = memoryCeiling("tyCols", Math.round(typedNumber(config.cols, R.tyCols, out.cols)));
   if (config.teams !== undefined) {
     const n = Number(config.teams);
     if (Number.isFinite(n)) out.teams = memoryCeiling("tyTeams", n) >= 3 ? 4 : 2;
   }
-  if (config.ballsPerTeam !== undefined) out.ballsPerTeam = memoryCeiling("tyBallsPerTeam", Math.round(clampNumber(config.ballsPerTeam, R.tyBallsPerTeam, out.ballsPerTeam)));
+  if (config.ballsPerTeam !== undefined) out.ballsPerTeam = memoryCeiling("tyBallsPerTeam", Math.round(typedNumber(config.ballsPerTeam, R.tyBallsPerTeam, out.ballsPerTeam)));
   if (config.powers !== undefined) out.powers = parseTyPowers(config.powers);
-  if (config.powerEvery !== undefined) out.powerEvery = Math.round(2 * clampNumber(config.powerEvery, R.tyPowerEvery, out.powerEvery)) / 2;
-  if (config.radius !== undefined) out.radius = Math.round(clampNumber(config.radius, R.tyRadius, out.radius));
-  if (config.duration !== undefined) out.duration = Math.round(clampNumber(config.duration, R.tyDuration, out.duration));
+  if (config.powerEvery !== undefined) out.powerEvery = Math.round(2 * typedNumber(config.powerEvery, R.tyPowerEvery, out.powerEvery)) / 2;
+  if (config.radius !== undefined) out.radius = Math.round(typedNumber(config.radius, R.tyRadius, out.radius));
+  if (config.duration !== undefined) out.duration = Math.round(typedNumber(config.duration, R.tyDuration, out.duration));
   if (typeof config.pegs === "boolean") out.pegs = config.pegs;
   if (typeof config.badge === "boolean") out.badge = config.badge;
   if (typeof config.hud === "boolean") out.hud = config.hud;
@@ -280,10 +287,33 @@ export const TY_HUD_BAND = 0.16;
 export const TY_MARGIN = 0.03;
 /** Cruising speed: this fraction of the square's side per second at Ball Speed 400 (a ball crosses the field in about three seconds). */
 export const TY_SPEED = 0.8;
-/** A ball's radius is this fraction of a tile at Ball Size 8 (pong wars: a ball about a tile wide), kept within [TY_MIN_RADIUS, TY_MAX_RADIUS] tiles. */
+/**
+ * A ball's radius is this fraction of a tile at Ball Size 8 (pong wars: a ball about a tile wide), at least TY_MIN_RADIUS
+ * tiles – uncap-all: no maximum, the Ball Size applies however big (`territoryBallRadius()`; it used to stop at 0.9 tiles).
+ */
 export const TY_BALL_SCALE = 0.42;
 export const TY_MIN_RADIUS = 0.2;
-export const TY_MAX_RADIUS = 0.9;
+/**
+ * The biggest ball (radius, tiles) the eight rim probes test: the old size cap, reached at Ball Size ≈ 17, so every run up
+ * to it replays exactly. A bigger ball tests the tiles under its contact edge (`edgeTiles()`) – past it the gaps between
+ * the probes on the rim grow towards a tile, and enemy tiles would slip under the ball between them.
+ */
+export const TY_PROBE_RADIUS = 0.9;
+/** A big ball's contact edge: the tiles its disc overlaps within this many tiles of its rim (plus how far the rim moved since its last test). */
+export const TY_EDGE_DEPTH = 1;
+/**
+ * A memory-safety ceiling: the tiles the big balls' tile tests visit in one sub-step, all of them together – so the
+ * conversions they queue for the sub-step's end stay below it too. A test that reaches it stops for that sub-step. A
+ * ball's edge costs about 2π × its radius tiles: only hundreds of balls hundreds of tiles wide (a board of near a
+ * thousand columns) get there.
+ */
+export const TY_TILE_VISITS = 1 << 20;
+/**
+ * A work ceiling: a big ball's tile test respects the ground of at most this many other teams' balls overlapping it (the
+ * first found around it) – thousands of big balls piled on each other would otherwise check every tile of every edge
+ * against all of them.
+ */
+export const TY_NEAR_BUDGET = 8;
 /** Largest random turn (radians) added to a bounce off the frame. */
 export const TY_SCATTER = 0.14;
 /** A heading is kept at least this far (radians) from both axes, so no ball runs a straight line forever. */
@@ -291,6 +321,14 @@ export const TY_MIN_AXIS = 0.35;
 /** The pegs: a dot every TY_PEG_STEP tiles (the frame lines excluded), TY_PEG_RADIUS tiles in radius. */
 export const TY_PEG_STEP = 3;
 export const TY_PEG_RADIUS = 0.1;
+/** A ball at least this big (radius, tiles) cannot pass between two dots of the grid: it rolls over the dots instead of jamming between them. */
+export const TY_PEG_FIT = (TY_PEG_STEP - 2 * TY_PEG_RADIUS) / 2;
+/**
+ * Big balls covering more than this share of the board together (their discs' area) have no room left to bounce apart –
+ * past about 0.6 they jam against each other and the frame, every ball bouncing off the frame at every sub-step – so they
+ * pass through each other instead (each keeping the ground it stands on), and the run says ARENA FULL.
+ */
+export const TY_CROWD_FILL = 0.6;
 /** Vortex: its path curves at this rate (rad/s), and a whirl sweeps its two arms out over TY_WHIRL_MS, TY_WHIRL_TURNS turns each. */
 export const TY_VORTEX_CURVE = 0.9;
 export const TY_WHIRL_MS = 900;
@@ -376,6 +414,22 @@ export function territoryField(width: number, height: number, cols: number): Ter
   const gridH = rows * tile;
   const availH = side - hud - margin;
   return { width, height, side, sqLeft, sqTop, hudTop: sqTop, hudHeight: hud, gx: sqLeft + margin, gy: sqTop + hud + (availH - gridH) / 2, tile, cols: c, rows, gridW, gridH };
+}
+
+/**
+ * A ball's radius (px) on a board of `tile` px tiles at Ball Size `ballSize` (px; 8 is a pong-wars ball about a tile wide):
+ * `TY_BALL_SCALE` of a tile per 8 px, at least `TY_MIN_RADIUS` tiles – uncap-all: no maximum, the Ball Size applies however big.
+ */
+export function territoryBallRadius(ballSize: number, tile: number): number {
+  return tile * Math.max(TY_MIN_RADIUS, TY_BALL_SCALE * ((ballSize || 8) / 8));
+}
+
+/**
+ * Whether a ball of `radius` px still moves on the board: narrower than its shorter side. A wider one has eaten the arena –
+ * the run ends with the engine's outgrow finish (THE BALL ATE THE ARENA and the gulp), as a ball bigger than Classic's rings does.
+ */
+export function territoryBallFits(radius: number, field: Pick<TerritoryField, "gridW" | "gridH">): boolean {
+  return 2 * radius < Math.min(field.gridW, field.gridH);
 }
 
 /**
@@ -554,6 +608,77 @@ export function pegLast(tiles: number): number {
   return Math.floor((tiles - 1) / TY_PEG_STEP);
 }
 
+/**
+ * How far (tiles from its centre) a ball's whirl or blast reaches: the Power Reach – and for a ball bigger than
+ * `TY_PROBE_RADIUS` tiles (uncap-all) as much again as it outgrew that, so a power always reaches past the ball that fires it
+ * (the old sizes keep the Power Reach exactly).
+ */
+export function territoryReach(reach: number, radiusTiles: number): number {
+  return radiusTiles > TY_PROBE_RADIUS ? reach + (radiusTiles - TY_PROBE_RADIUS) : reach;
+}
+
+/** Row spans of tiles (`discSpans()`): (row, first column, last column) triples, grown as needed. */
+export interface TileSpans {
+  spans: Int32Array;
+}
+
+/**
+ * The tiles of a `cols` × `rows` board a disc overlaps – centred at (cu, cv), radius `r`, in tile units from the grid's
+ * corner – as row spans: all of them, or with `inner` > 0 only those that do not reach within `inner` of (iu, iv) – by
+ * default its centre: the band under its rim; another centre cuts a crescent. A tile overlaps a disc when a point of it
+ * lies strictly inside. Writes (row, first column, last column) triples into `out.spans` (grown when too short) and returns
+ * their number; the work is the disc's rows (at most the board's) plus its spans, so a band or a crescent costs about its
+ * length however big the disc.
+ */
+export function discSpans(cu: number, cv: number, r: number, inner: number, cols: number, rows: number, out: TileSpans, iu = cu, iv = cv): number {
+  if (!(r > 0) || !Number.isFinite(cu) || !Number.isFinite(cv)) return 0;
+  // Row j overlaps when the disc reaches its strip [j, j + 1]: cv − r − 1 < j < cv + r.
+  const j0 = Math.max(0, Math.floor(cv - r));
+  const j1 = Math.min(rows - 1, Math.ceil(cv + r) - 1);
+  if (j1 < j0) return 0;
+  const need = 6 * (j1 - j0 + 1);
+  if (out.spans.length < need) out.spans = new Int32Array(Math.max(need, 2 * out.spans.length));
+  const s = out.spans;
+  const r2 = r * r;
+  const i2 = inner > 0 ? inner * inner : 0;
+  let n = 0;
+  for (let row = j0; row <= j1; row++) {
+    const dy = row > cv ? row - cv : cv > row + 1 ? cv - row - 1 : 0;
+    const dy2 = dy * dy;
+    if (dy2 >= r2) continue;
+    // Column i overlaps when its strip lies within the disc's half-width there: cu − hw − 1 < i < cu + hw.
+    const hw = Math.sqrt(r2 - dy2);
+    const c0 = Math.max(0, Math.floor(cu - hw));
+    const c1 = Math.min(cols - 1, Math.ceil(cu + hw) - 1);
+    if (c1 < c0) continue;
+    const dyi = row > iv ? row - iv : iv > row + 1 ? iv - row - 1 : 0;
+    if (dyi * dyi < i2) {
+      // The tiles reaching within `inner` of (iu, iv) are left out: what lies either side of them is kept.
+      const hi = Math.sqrt(i2 - dyi * dyi);
+      const e0 = Math.floor(iu - hi);
+      const e1 = Math.ceil(iu + hi) - 1;
+      if (e0 - 1 >= c0) {
+        s[3 * n] = row;
+        s[3 * n + 1] = c0;
+        s[3 * n + 2] = Math.min(c1, e0 - 1);
+        n++;
+      }
+      if (e1 + 1 <= c1) {
+        s[3 * n] = row;
+        s[3 * n + 1] = Math.max(c0, e1 + 1);
+        s[3 * n + 2] = c1;
+        n++;
+      }
+    } else {
+      s[3 * n] = row;
+      s[3 * n + 1] = c0;
+      s[3 * n + 2] = c1;
+      n++;
+    }
+  }
+  return n;
+}
+
 /* ------------------------------------------------------------------ state and view */
 
 /** A team ball: its engine id, team and power, and the power's state. */
@@ -575,11 +700,15 @@ export interface TyBall {
   whirlMs: number;
   whirlAngle: number;
   whirlDone: number;
+  /** Vortex: how far (tiles) its whirl reaches – the Power Reach, past the ball when it is a big one (`territoryReach()`). */
+  reach: number;
   /** Painter: the dash runs until this simulation time (ms). */
   dashUntilMs: number;
-  /** Where it is (tile units from the grid's corner), for the canvas' effects. */
+  /** Where it is (tile units from the grid's corner), for the canvas' effects – and where a big ball's last tile test saw it. */
   u: number;
   v: number;
+  /** A big ball's radius (tiles) at its last tile test (`edgeTiles()`; 0 before the first, which takes its whole disc). */
+  scanR: number;
 }
 
 /** A bomber's blast: where (tile units), how far (tiles), whose, when (ms) and the seed its debris flies from. */
@@ -644,6 +773,8 @@ export interface TerritoryView {
   winner: number;
   tie: boolean;
   leaders: number[];
+  /** A ball too wide for the board ate the arena (`territoryBallFits()`): the engine's outgrow finish ended the run, no verdict. */
+  ate: boolean;
 }
 
 function createView(): TerritoryView {
@@ -687,6 +818,7 @@ function createView(): TerritoryView {
     winner: -1,
     tie: false,
     leaders: [],
+    ate: false,
   };
 }
 
@@ -719,6 +851,34 @@ export class TerritoryMode implements GameMode {
   private qRow = new Int32Array(256);
   private qSound = new Uint8Array(256);
   private qLen = 0;
+  /** --- uncap-all --- The big balls' tile tests: the tiles visited this sub-step (`TY_TILE_VISITS`), the spans' buffer, the ball that ate the arena. */
+  private visits = 0;
+  private readonly band: TileSpans = { spans: new Int32Array(96) };
+  private eaterId = -1;
+  /** --- uncap-all --- A ball bigger than `TY_PROBE_RADIUS` tiles plays: where every ball stood (`snapshot()`, tile units) and the neighbours of a test. */
+  private big = false;
+  /** --- uncap-all --- The big balls fill more than `TY_CROWD_FILL` of the board: they pass through each other (`ballsPassThrough`). */
+  private crowded = false;
+  private occN = 0;
+  private occU = new Float64Array(8);
+  private occV = new Float64Array(8);
+  private occR = new Float64Array(8);
+  private occTeam = new Int32Array(8);
+  private occCell = new Int32Array(8);
+  private occMaxR = 0;
+  /** --- uncap-all --- The snapshot filed by grid cell (`snapshot()`): the cells' size (tiles) and count, each cell's first ball in `gridItems`. */
+  private gridCell = 1;
+  private gridCols = 1;
+  private gridRows = 1;
+  private gridStart = new Int32Array(2);
+  private gridFill = new Int32Array(2);
+  private gridItems = new Int32Array(8);
+  private readonly nearIdx = new Int32Array(TY_NEAR_BUDGET);
+
+  /** --- uncap-all --- Big balls too many or too big for the board to keep apart pass through each other (`TY_CROWD_FILL`); never at the old sizes. */
+  get ballsPassThrough(): boolean {
+    return this.crowded;
+  }
 
   getSettings(): TerritorySettings {
     return { ...this.settings, powers: [...this.settings.powers] };
@@ -786,7 +946,13 @@ export class TerritoryMode implements GameMode {
     v.winner = -1;
     v.tie = false;
     v.leaders.length = 0;
+    v.ate = false;
     v.balls.length = 0;
+    this.visits = 0;
+    this.eaterId = -1;
+    this.big = false;
+    this.crowded = false;
+    this.occN = 0;
     this.notesThisStep = 0;
     this.lastNoteMs = -Infinity;
     this.lastBoomMs = -Infinity;
@@ -795,8 +961,10 @@ export class TerritoryMode implements GameMode {
     this.qLen = 0;
     this.firstId = ctx.getNextId();
     const f = v.field;
-    const radius = f.tile * Math.max(TY_MIN_RADIUS, Math.min(TY_MAX_RADIUS, TY_BALL_SCALE * ((cfg.ballRadius || 8) / 8)));
+    const radius = territoryBallRadius(cfg.ballRadius, f.tile); // (uncap-all: the Ball Size however big)
     const radiusScale = radius / (cfg.ballRadius || 8);
+    // A ball starts its radius clear of its region's edges (a tile for the old sizes – their draws stay the same), at its middle when the region is narrower.
+    const margin = Math.max(1, radius / f.tile);
     const speed = this.cruise(cfg.ballSpeed);
     // The balls join in rounds – one ball of every team a round, the first team of a round turning (from a seeded start) –
     // so no team's balls always move first in the engine's ball loop (a tile two teams reach in the same sub-step goes to
@@ -821,9 +989,11 @@ export class TerritoryMode implements GameMode {
         // A few seeded tries for a spot clear of the team's other balls (the last try is taken anyway).
         let x = 0;
         let y = 0;
+        const mu = Math.min(margin, (c1 - c0) / 2);
+        const mv = Math.min(margin, (r1 - r0) / 2);
         for (let attempt = 0; attempt < 8; attempt++) {
-          const cu = c0 + 1 + ctx.random() * Math.max(0, c1 - c0 - 2);
-          const cv = r0 + 1 + ctx.random() * Math.max(0, r1 - r0 - 2);
+          const cu = c0 + mu + ctx.random() * Math.max(0, c1 - c0 - 2 * mu);
+          const cv = r0 + mv + ctx.random() * Math.max(0, r1 - r0 - 2 * mv);
           x = f.gx + cu * f.tile;
           y = f.gy + cv * f.tile;
           let clear = true;
@@ -852,13 +1022,101 @@ export class TerritoryMode implements GameMode {
           whirlMs: -Infinity,
           whirlAngle: 0,
           whirlDone: 0,
+          reach: s.radius,
           dashUntilMs: -Infinity,
           u: (x - f.gx) / f.tile,
           v: (y - f.gy) / f.tile,
+          scanR: 0,
         });
       }
     }
     this.engineBalls = new Array<Ball | null>(v.balls.length).fill(null);
+  }
+
+  /**
+   * --- uncap-all --- Whether a ball bigger than the probes' size plays now – then every sub-step notes where the balls stand
+   * (`snapshot()`) – and whether the balls crowd the board past `TY_CROWD_FILL` (they pass through each other: ARENA FULL).
+   */
+  private noteBig(ctx: ModeContext) {
+    const f = this.view.field;
+    const limit = TY_PROBE_RADIUS * f.tile;
+    const balls = ctx.getBalls();
+    let big = false;
+    let area = 0;
+    for (let i = 0; i < balls.length; i++) {
+      const r = balls[i].radius;
+      if (r > limit) big = true;
+      area += r * r;
+    }
+    this.big = big;
+    this.crowded = big && Math.PI * area > TY_CROWD_FILL * f.gridW * f.gridH;
+    if (this.crowded) ctx.noteArenaFull?.();
+    if (big) this.snapshot(ctx);
+  }
+
+  /**
+   * --- uncap-all --- A ball wider than the board (`territoryBallFits()`: a Ball Size past it, a live change, a merge) has
+   * eaten the arena – checked when a step begins, so the first step of a run with such a Ball Size ends it, as a ball bigger
+   * than Classic's arena does: the engine's outgrow finish – everything stops, the biggest ball fills the board from its
+   * middle (every ball at most that big), confetti, the wall-break sound and, with the extreme runtime engaged (as a Ball
+   * Size past the slider engages it), THE BALL ATE THE ARENA with the ball's size and the gulp at the step's end. (A ball
+   * past half the canvas' diagonal is eaten by the runtime itself when the step begins – the same finish.) No verdict. True
+   * when it happened (now or before).
+   */
+  private eatArena(ctx: ModeContext): boolean {
+    const v = this.view;
+    if (v.ate) return true;
+    const f = v.field;
+    const balls = ctx.getBalls();
+    let eater: Ball | null = null;
+    for (let i = 0; i < balls.length; i++) if (!territoryBallFits(balls[i].radius, f) && (!eater || balls[i].radius > eater.radius)) eater = balls[i];
+    if (!eater) return false;
+    v.ate = true;
+    this.eaterId = eater.id;
+    const fill = Math.min(f.gridW, f.gridH) / 2;
+    eater.x = f.gx + f.gridW / 2;
+    eater.y = f.gy + f.gridH / 2;
+    ctx.getMultipliers?.().outgrow(ctx, eater, fill);
+    for (const b of balls) {
+      if (!(b.radius <= fill)) b.radius = fill;
+      b.vx = 0;
+      b.vy = 0;
+    }
+    return true;
+  }
+
+  /** --- uncap-all --- The ball that ate the arena stays in the board's middle (the step it happened in still ran the pair pass). */
+  private centreEater(ctx: ModeContext) {
+    const f = this.view.field;
+    for (const b of ctx.getBalls()) {
+      if (b.id !== this.eaterId) continue;
+      b.x = f.gx + f.gridW / 2;
+      b.y = f.gy + f.gridH / 2;
+    }
+  }
+
+  /**
+   * --- uncap-all --- A ball bigger than the probes' size moves at most a tile per sub-step: where the board's tiles are
+   * smaller than the engine's planned move (`maxMovePerSubStep()`: half a radius, at most 4 px – a board far past its
+   * slider's columns), the mode reports the speed that plans the step that way (more sub-steps, time dilation past 64), so a
+   * hit dents the enemy border a tile deep on any board. 0 – nothing to plan – while every ball is within the old size cap,
+   * so those runs replay exactly.
+   */
+  stepSpeedBound(ctx: ModeContext): number {
+    const v = this.view;
+    if (v.ate) return 0;
+    const tile = v.field.tile;
+    const balls = ctx.getBalls();
+    let bound = 0;
+    for (let i = 0; i < balls.length; i++) {
+      const b = balls[i];
+      if (!(b.radius > TY_PROBE_RADIUS * tile)) continue;
+      const move = maxMovePerSubStep(b.radius);
+      if (!(move > tile)) continue;
+      const s = (Math.hypot(b.vx, b.vy) * move) / tile;
+      if (s > bound) bound = s;
+    }
+    return Number.isFinite(bound) ? bound : 0;
   }
 
   /** The cruising speed (px/s) at Ball Speed `ballSpeed`, before the finale and a ball's own factors. */
@@ -892,6 +1150,9 @@ export class TerritoryMode implements GameMode {
       const k = balls[i].id - this.firstId;
       if (k >= 0 && k < eb.length && v.balls[k].id === balls[i].id) eb[k] = balls[i];
     }
+    // --- uncap-all --- a ball grown wider than the board since the last step (a live Ball Size, a merge) ate the arena
+    if (this.eatArena(ctx)) return;
+    this.noteBig(ctx);
     if (v.finished) return;
     const every = 1000 * v.settings.powerEvery;
     for (let k = 0; k < v.balls.length; k++) {
@@ -920,6 +1181,7 @@ export class TerritoryMode implements GameMode {
       tb.whirlMs = now;
       tb.whirlAngle = Math.atan2(ball.vy, ball.vx);
       tb.whirlDone = 0;
+      tb.reach = territoryReach(v.settings.radius, ball.radius / v.field.tile); // (past a big ball: uncap-all)
       tb.curve = -tb.curve;
       v.whirls++;
       ctx.addPendingSoundEvent({ type: "multiplier", wallIndex: 0, multiplier: 3 });
@@ -939,7 +1201,7 @@ export class TerritoryMode implements GameMode {
     tb.lastPowerMs = now;
     tb.armedMs = -Infinity;
     tb.nextPowerMs = now + 1000 * v.settings.powerEvery;
-    const R = v.settings.radius;
+    const R = territoryReach(v.settings.radius, ball.radius / f.tile); // (past a big ball: uncap-all)
     const cu = (ball.x - f.gx) / f.tile;
     const cv = (ball.y - f.gy) / f.tile;
     const c0 = Math.max(0, Math.floor(cu - R));
@@ -979,6 +1241,7 @@ export class TerritoryMode implements GameMode {
 
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     const v = this.view;
+    if (v.ate) return; // (--- uncap-all --- the ball ate the arena: everything stands still)
     this.deferring = true;
     const tb = this.ballOf(ball);
     const team = tb ? tb.team : Math.max(0, Math.min(v.teams - 1, ball.team ?? 0));
@@ -1042,9 +1305,17 @@ export class TerritoryMode implements GameMode {
       ctx.noteBounce?.(ball); // a bounce-math trigger (the frame is the mode's own wall)
       if (tb && tb.power === "ghost" && !v.finished) this.ghostBlock(ctx, ball, team, now);
     }
-    if (v.settings.pegs) this.pegs(ctx, ball, dtSec);
-    if (dashing) this.paintTrail(ctx, ball, team, now);
-    else if (!(tb && tb.power === "ghost")) this.probeTiles(ctx, ball, tb, team, now);
+    // (--- uncap-all --- a ball too big to pass between two dots rolls over the dotted grid)
+    if (v.settings.pegs && ball.radius < TY_PEG_FIT * f.tile) this.pegs(ctx, ball, dtSec);
+    // (--- uncap-all --- a ball bigger than the probes' size tests the tiles under its contact edge: `edgeTiles()`)
+    const big = ball.radius > TY_PROBE_RADIUS * f.tile;
+    if (dashing) {
+      if (big) this.edgeTiles(ctx, ball, tb, team, now, false);
+      else this.paintTrail(ctx, ball, team, now);
+    } else if (!(tb && tb.power === "ghost")) {
+      if (big) this.edgeTiles(ctx, ball, tb, team, now, true);
+      else this.probeTiles(ctx, ball, tb, team, now);
+    }
     if (tb) {
       if (tb.whirlMs > -Infinity) this.stepWhirl(ctx, ball, tb, now);
       tb.u = (ball.x - f.gx) / f.tile;
@@ -1103,6 +1374,218 @@ export class TerritoryMode implements GameMode {
     if (live && tb && tb.armedMs > -Infinity) this.blast(ctx, ball, tb, now); // one bounce can flip the board
   }
 
+  /**
+   * --- uncap-all --- The tile test of a ball bigger than `TY_PROBE_RADIUS` tiles, through its contact edge: the tiles its
+   * disc overlaps within `TY_EDGE_DEPTH` tiles of its rim – the band deepened by how far the rim moved since the ball's last
+   * test, so every tile it newly overlaps is in it (its whole disc on the first test). Every one of another team turns its
+   * team's (unless the battle is over) and – `bounce`; a dashing painter paints a trail as wide as itself instead – the
+   * ball reflects once about the sum of the directions to the enemy tiles it moves into, each weighted by how deep the tile
+   * reaches into the disc (a flat border sends it straight back, a concave corner back the way it came, no heading or side
+   * favoured). A hit also takes the enemy tiles it would overlap a tile further along its way – a dent the shape of its
+   * front, a tile deep, as a pong-wars ball's hit takes the tile in front of it. Enemy tiles deeper under the ball (a blast
+   * engulfed it) turn as they pass through its edge, so it never sits stuck in enemy ground; ground another team's ball
+   * stands on (`occupied()`: where the balls stood when the sub-step began) is that ball's – the two meet as balls, in the
+   * engine's pair pass, instead of flipping tiles to and fro. An armed bomber blows on the bounce. Visits at most
+   * `TY_TILE_VISITS` tiles a sub-step (all the big balls together).
+   */
+  private edgeTiles(ctx: ModeContext, ball: Ball, tb: TyBall | null, team: number, now: number, bounce: boolean) {
+    const v = this.view;
+    const f = v.field;
+    const tile = f.tile;
+    const r = ball.radius;
+    // How deep the band reaches under the rim: its depth plus how far the rim may have moved since the last test – the
+    // centre's way there (its moves, a collision's push, the frame) and a growth (a live Ball Size); the whole disc without one.
+    let depth = r;
+    if (tb && tb.scanR > 0) {
+      const moved = Math.hypot(ball.x - (f.gx + tb.u * tile), ball.y - (f.gy + tb.v * tile));
+      const grown = r - tb.scanR * tile;
+      depth = TY_EDGE_DEPTH * tile + moved + (grown > 0 ? grown : 0);
+    }
+    if (tb) tb.scanR = r / tile;
+    const inv = 1 / tile;
+    const cu = (ball.x - f.gx) * inv;
+    const cv = (ball.y - f.gy) * inv;
+    const rt = r * inv;
+    const near = this.neighbours(ctx, ball, team, rt + TY_EDGE_DEPTH);
+    const tiles = v.tiles;
+    const cols = v.cols;
+    const live = !v.finished;
+    const vx = ball.vx;
+    const vy = ball.vy;
+    let sx = 0;
+    let sy = 0;
+    let n = discSpans(cu, cv, rt, (r - depth) * inv, cols, v.rows, this.band);
+    let spans = this.band.spans;
+    for (let k = 0; k < n; k++) {
+      const row = spans[3 * k];
+      const last = spans[3 * k + 2];
+      for (let col = spans[3 * k + 1]; col <= last && this.visits < TY_TILE_VISITS; col++) {
+        this.visits++;
+        const idx = row * cols + col;
+        if (tiles[idx] === team || (near > 0 && this.occupied(col, row, near))) continue;
+        if (live) this.convert(ctx, idx, team, now, row, true);
+        if (!bounce) continue;
+        // The way to the tile's nearest point (tile units): a contact when the ball moves into it.
+        const px = (cu < col ? col : cu > col + 1 ? col + 1 : cu) - cu;
+        const py = (cv < row ? row : cv > row + 1 ? row + 1 : cv) - cv;
+        if (vx * px + vy * py <= 0) continue;
+        const d = Math.sqrt(px * px + py * py);
+        const w = (rt - d) / d;
+        sx += px * w;
+        sy += py * w;
+      }
+    }
+    if (!bounce) return;
+    // Every contact moves into its tile (v · n > 0), so their sum does too: one reflection about its direction.
+    const len = Math.hypot(sx, sy);
+    if (!(len > 0)) return;
+    const nx = sx / len;
+    const ny = sy / len;
+    const vn = vx * nx + vy * ny;
+    if (!(vn > 0)) return;
+    if (live) {
+      // The dent: the enemy tiles of the disc a tile further along the ball's way, past its rim.
+      const sp = Math.hypot(vx, vy);
+      n = discSpans(cu + (TY_EDGE_DEPTH * vx) / sp, cv + (TY_EDGE_DEPTH * vy) / sp, rt, rt, cols, v.rows, this.band, cu, cv);
+      spans = this.band.spans;
+      for (let k = 0; k < n; k++) {
+        const row = spans[3 * k];
+        const last = spans[3 * k + 2];
+        for (let col = spans[3 * k + 1]; col <= last && this.visits < TY_TILE_VISITS; col++) {
+          this.visits++;
+          const idx = row * cols + col;
+          if (tiles[idx] !== team && !(near > 0 && this.occupied(col, row, near))) this.convert(ctx, idx, team, now, row, true);
+        }
+      }
+    }
+    ball.vx = vx - 2 * vn * nx;
+    ball.vy = vy - 2 * vn * ny;
+    v.tileBounces++;
+    ctx.noteBounce?.(ball); // a bounce-math trigger
+    if (live && tb && tb.armedMs > -Infinity) this.blast(ctx, ball, tb, now); // one bounce can flip the board
+  }
+
+  /**
+   * --- uncap-all --- The balls of other teams near `ball` – their discs within `reach` tiles of its centre – where they
+   * stood when the sub-step began (`snapshot()`), into `nearIdx`, at most `TY_NEAR_BUDGET` of them (in the grid's order);
+   * returns how many.
+   */
+  private neighbours(ctx: ModeContext, ball: Ball, team: number, reach: number): number {
+    if (!this.big) {
+      // (a ball grew big mid-step – a merge: from here on the balls' places are noted at every sub-step's end)
+      this.big = true;
+      this.snapshot(ctx);
+    }
+    const f = this.view.field;
+    const cu = (ball.x - f.gx) / f.tile;
+    const cv = (ball.y - f.gy) / f.tile;
+    const cell = this.gridCell;
+    const gc = this.gridCols;
+    const R = reach + this.occMaxR;
+    const x0 = Math.max(0, Math.min(gc - 1, Math.floor((cu - R) / cell)));
+    const x1 = Math.max(0, Math.min(gc - 1, Math.floor((cu + R) / cell)));
+    const y0 = Math.max(0, Math.min(this.gridRows - 1, Math.floor((cv - R) / cell)));
+    const y1 = Math.max(0, Math.min(this.gridRows - 1, Math.floor((cv + R) / cell)));
+    // The ball's own cell first (the nearest balls), then the others around it.
+    const home = Math.max(0, Math.min(this.gridRows - 1, Math.floor(cv / cell))) * gc + Math.max(0, Math.min(gc - 1, Math.floor(cu / cell)));
+    let n = this.nearIn(home, team, cu, cv, reach, 0);
+    for (let gy = y0; gy <= y1 && n < TY_NEAR_BUDGET; gy++) {
+      for (let gx = x0; gx <= x1 && n < TY_NEAR_BUDGET; gx++) {
+        const c = gy * gc + gx;
+        if (c !== home) n = this.nearIn(c, team, cu, cv, reach, n);
+      }
+    }
+    return n;
+  }
+
+  /** --- uncap-all --- `neighbours()` in one grid cell: appends the balls found from `n` on, up to the budget; returns the new count. */
+  private nearIn(c: number, team: number, cu: number, cv: number, reach: number, n: number): number {
+    const end = this.gridStart[c + 1];
+    for (let k = this.gridStart[c]; k < end && n < TY_NEAR_BUDGET; k++) {
+      const i = this.gridItems[k];
+      if (this.occTeam[i] === team) continue;
+      const du = this.occU[i] - cu;
+      const dv = this.occV[i] - cv;
+      const sum = reach + this.occR[i];
+      if (du * du + dv * dv < sum * sum) this.nearIdx[n++] = i;
+    }
+    return n;
+  }
+
+  /** --- uncap-all --- Whether tile (col, row) lies under one of the first `count` neighbours (`neighbours()`): their ground. */
+  private occupied(col: number, row: number, count: number): boolean {
+    for (let k = 0; k < count; k++) {
+      const i = this.nearIdx[k];
+      const u = this.occU[i];
+      const w = this.occV[i];
+      const du = (u < col ? col : u > col + 1 ? col + 1 : u) - u;
+      const dv = (w < row ? row : w > row + 1 ? row + 1 : w) - w;
+      const r = this.occR[i];
+      if (du * du + dv * dv < r * r) return true;
+    }
+    return false;
+  }
+
+  /**
+   * --- uncap-all --- Notes where every ball stands (tile units) and its team while a big ball plays – at a step's start and
+   * every sub-step's end – and files them in a uniform grid over the board (cells at least a ball's reach wide, about one a
+   * ball at most): the big balls' tile tests judge the ground under the others from there, so the order the engine moves
+   * the balls in changes nothing, and a test looks only at the balls in the cells around it.
+   */
+  private snapshot(ctx: ModeContext) {
+    const v = this.view;
+    const f = v.field;
+    const balls = ctx.getBalls();
+    const n = balls.length;
+    if (this.occU.length < n) {
+      const size = Math.max(n, 2 * this.occU.length);
+      this.occU = new Float64Array(size);
+      this.occV = new Float64Array(size);
+      this.occR = new Float64Array(size);
+      this.occTeam = new Int32Array(size);
+      this.occCell = new Int32Array(size);
+      this.gridItems = new Int32Array(size);
+    }
+    const inv = 1 / f.tile;
+    let maxR = 0;
+    for (let i = 0; i < n; i++) {
+      const b = balls[i];
+      const tb = this.ballOf(b);
+      this.occU[i] = (b.x - f.gx) * inv;
+      this.occV[i] = (b.y - f.gy) * inv;
+      this.occR[i] = b.radius * inv;
+      this.occTeam[i] = tb ? tb.team : Math.max(0, Math.min(v.teams - 1, b.team ?? 0));
+      if (this.occR[i] > maxR) maxR = this.occR[i];
+    }
+    this.occN = n;
+    this.occMaxR = maxR;
+    const cell = Math.max(2 * (maxR + TY_EDGE_DEPTH), Math.sqrt((v.cols * v.rows) / Math.max(1, n)));
+    const gc = Math.max(1, Math.ceil(v.cols / cell));
+    const gr = Math.max(1, Math.ceil(v.rows / cell));
+    const cells = gc * gr;
+    this.gridCell = cell;
+    this.gridCols = gc;
+    this.gridRows = gr;
+    if (this.gridStart.length < cells + 1) {
+      const size = Math.max(cells + 1, 2 * this.gridStart.length);
+      this.gridStart = new Int32Array(size);
+      this.gridFill = new Int32Array(size);
+    }
+    const start = this.gridStart;
+    start.fill(0, 0, cells + 1);
+    for (let i = 0; i < n; i++) {
+      const gx = Math.max(0, Math.min(gc - 1, Math.floor(this.occU[i] / cell)));
+      const gy = Math.max(0, Math.min(gr - 1, Math.floor(this.occV[i] / cell)));
+      const c = gy * gc + gx;
+      this.occCell[i] = c;
+      start[c + 1]++;
+    }
+    for (let c = 0; c < cells; c++) start[c + 1] += start[c];
+    const fill = this.gridFill;
+    fill.set(start.subarray(0, cells));
+    for (let i = 0; i < n; i++) this.gridItems[fill[this.occCell[i]]++] = i;
+  }
+
   /** The painter's dash: no bounces off enemy tiles, the tile under the ball turns its team's – a one-tile trail. */
   private paintTrail(ctx: ModeContext, ball: Ball, team: number, now: number) {
     const v = this.view;
@@ -1124,6 +1607,21 @@ export class TerritoryMode implements GameMode {
     for (let rr = Math.max(0, row - 1); rr <= Math.min(v.rows - 1, row + 1); rr++) {
       for (let cc = Math.max(0, col - 1); cc <= Math.min(v.cols - 1, col + 1); cc++) if (this.convert(ctx, rr * v.cols + cc, team, now, rr, false)) converted++;
     }
+    // --- uncap-all --- a ghost bigger than the probes' size takes every tile its disc covers too – not the ground another
+    // team's ball stands on (at most `TY_TILE_VISITS` tiles a sub-step)
+    if (ball.radius > TY_PROBE_RADIUS * f.tile) {
+      const near = this.neighbours(ctx, ball, team, ball.radius / f.tile);
+      const n = discSpans((ball.x - f.gx) / f.tile, (ball.y - f.gy) / f.tile, ball.radius / f.tile, 0, v.cols, v.rows, this.band);
+      const spans = this.band.spans;
+      for (let k = 0; k < n; k++) {
+        const rr = spans[3 * k];
+        const last = spans[3 * k + 2];
+        for (let cc = spans[3 * k + 1]; cc <= last && this.visits < TY_TILE_VISITS; cc++) {
+          this.visits++;
+          if (!(near > 0 && this.occupied(cc, rr, near)) && this.convert(ctx, rr * v.cols + cc, team, now, rr, false)) converted++;
+        }
+      }
+    }
     if (converted > 0) {
       v.ghostBlocks++;
       ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: flipFrequency(team, row, v.rows), accent: true });
@@ -1135,7 +1633,7 @@ export class TerritoryMode implements GameMode {
     const v = this.view;
     const f = v.field;
     // (the arms' part on the board: a reach past it sweeps the board at once, in work bounded by the board)
-    const w = whirlReach(v.settings.radius, v.cols, v.rows, this.whirl);
+    const w = whirlReach(tb.reach, v.cols, v.rows, this.whirl);
     const p = Math.min(1, (now - tb.whirlMs) / TY_WHIRL_MS);
     const upTo = v.finished ? tb.whirlDone : whirlSwept(p, w.samples, w.span);
     const R = w.reach * f.tile;
@@ -1213,6 +1711,7 @@ export class TerritoryMode implements GameMode {
   /** Applies the conversions the sub-step queued, in order (a tile two teams took in the same sub-step goes to the first). */
   private flush(ctx: ModeContext, now: number) {
     this.deferring = false;
+    this.visits = 0; // (a new sub-step: the big balls' tile tests start counting again)
     const n = this.qLen;
     this.qLen = 0;
     for (let k = 0; k < n; k++) this.apply(ctx, this.qIdx[k], this.qTeam[k], now, this.qRow[k], this.qSound[k] === 1);
@@ -1266,12 +1765,19 @@ export class TerritoryMode implements GameMode {
       if (b.y < f.gy + r) b.y = f.gy + r;
       else if (b.y > f.gy + f.gridH - r) b.y = f.gy + f.gridH - r;
     }
+    if (this.view.ate) this.centreEater(ctx); // (--- uncap-all --- the ball that ate the arena fills it from the middle)
+    else if (this.big) this.snapshot(ctx); // (--- uncap-all --- where the balls stand when the next sub-step begins)
   }
 
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
     this.flush(ctx, now);
+    if (v.ate) {
+      // (--- uncap-all --- the ball ate the arena: the run ended without a verdict)
+      this.centreEater(ctx);
+      return;
+    }
     if (!v.finished) {
       const leader = tileLeader(v.counts, v.teams);
       if (leader >= 0 && this.lastLeader >= 0 && leader !== this.lastLeader) {
@@ -1348,6 +1854,7 @@ export class TerritoryMode implements GameMode {
       b.radiusScale = b.radius / (ctx.config.ballRadius || 8);
     }
     v.field = next;
+    if (this.big) this.snapshot(ctx); // (--- uncap-all --- the balls' places on the new board)
     return true;
   }
 

@@ -1260,6 +1260,63 @@ await page.waitForTimeout(100);
 const found = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
 const resultText = found ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
 check("find simulation completes", found, `(${resultText})`);
+// --- finder-depth --- A 30 s Classic search whose first 1000 seeds all miss goes on – the same seeds, in order – for up to 25 s
+// in all: the progress line says so ("Seed n · searching deeper, up to Ns more") and the result counts every seed tested. The
+// seed base is pinned (Date.now() while the click is dispatched: the finder's seeds are base + 0x9e3779b1 · i) to one whose
+// first match is its 1,485th seed (573517014, 30.0 s). A change that moves the default Classic runs needs a new base: from a
+// search that went deeper ("Seed: S (N tested)"), base = (S - 0x9e3779b1 * (N - 1)) | 0. Reaching the 1,485th seed within
+// the budget is the timing part (a busy machine may run out of time first: then the search must still have gone past 1000).
+{
+  const DEEP_BASE = -124141878;
+  const DEEP_FOUND = "found 573517014 (1485 tested)";
+  const deepSearch = async () => {
+    await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Find 30s Simulation/ }).evaluate((button, base) => {
+      const real = Date.now;
+      const pinned = base + 2 ** 32 * Math.round((real.call(Date) - base) / 2 ** 32);
+      Date.now = () => pinned;
+      try {
+        button.click();
+      } finally {
+        Date.now = real;
+      }
+    }, DEEP_BASE);
+    const lines = new Set();
+    let result = "timeout";
+    const t0 = Date.now();
+    while (Date.now() - t0 < 90_000) {
+      const text = await page.locator("body").innerText().catch(() => "");
+      for (const m of text.matchAll(/Seed \d+(?:\/\d+| · [^\n]*)/g)) lines.add(m[0]);
+      const hit = /Seed: (-?\d+) \((\d+) tested\)/.exec(text);
+      if (hit && /Ready to start simulation for 30\.0s/.test(text)) {
+        result = `found ${hit[1]} (${hit[2]} tested)`;
+        break;
+      }
+      const miss = /Tested (\d+) seeds\. Closest/.exec(text);
+      if (miss) {
+        result = `missed (${miss[1]} tested)`;
+        break;
+      }
+      await page.waitForTimeout(100);
+    }
+    const deeper = [...lines].filter((l) => l.includes(" · "));
+    const firstPass = [...lines].some((l) => /^Seed \d+\/1000$/.test(l));
+    const deeperOk = deeper.length > 0 && deeper.every((l) => /^Seed \d{4,} · searching deeper, up to ([1-9]|1\d|2[0-5])s more$/.test(l));
+    return { result, firstPass, deeper, deeperOk };
+  };
+  const deep = await deepSearch();
+  const outOfTime = Number((/^missed \((\d+) tested\)$/.exec(deep.result) || [])[1]);
+  await timingCheck(
+    "Find Simulation searches deeper when its first 1000 seeds miss (Seed n/1000, then 'searching deeper, up to Ns more') and finds the 1,485th",
+    deep.firstPass && deep.deeperOk && (deep.result === DEEP_FOUND || (outOfTime > 1000 && outOfTime < 1485)),
+    deep.result === DEEP_FOUND,
+    `(${deep.result}; ${deep.deeper.length} deeper lines: ${[deep.deeper[0], deep.deeper.at(-1)].join(" … ")})`,
+    async () => {
+      const again = await deepSearch();
+      return { timingOk: again.result === DEEP_FOUND && again.deeperOk, extra: `(${again.result})` };
+    },
+  );
+}
 
 // 7. Language switcher
 await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
@@ -3828,8 +3885,9 @@ const instrumentOscillators = () =>
   }
   await page.setViewportSize({ width: 1400, height: 900 });
   check("the simulation world is 800×450 at every desktop window size (the stage scales it to the canvas)", worlds.length === 3 && worlds.every((w) => /world 800x450,/.test(w)), `(${worlds.join("; ")})`);
-  // A found seed survives a window resize: the world stayed, only the drawing rescaled. (A 30 s classic search can miss
-  // its 1000 seeds now and then – the seeds come from Date.now() – so it gets up to three tries.)
+  // A found seed survives a window resize: the world stayed, only the drawing rescaled. (A 30 s classic search searches
+  // deeper than its 1000 seeds for up to 25 s and practically never misses now, but the seeds still come from Date.now(),
+  // so it keeps up to three tries.)
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
   let foundReady = false;
   for (let attempt = 0; attempt < 3 && !foundReady; attempt++) {
@@ -8713,6 +8771,8 @@ const bdInstrument = () =>
 // (OscillatorNode.start instrumented), the badge and the HUD, percentages adding up to 100, the offscreen board repainted
 // only where tiles flipped – and ends at its countdown with a verdict held before the end screen; a roster whose rigged
 // Blue wins under the teams banner; and Find Simulation's winner outcome (also for a countdown past the search's horizon).
+// --- uncap-all --- And the Ball Size past its slider: applied as typed (it stopped at 0.9 tiles), several tiles a hit inside
+// the field at 30+ fps, and a ball wider than the board that eats the arena.
 {
   const res = await page.request.get(`${BASE}/modes/territory.webp`);
   check("asset /modes/territory.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -8775,6 +8835,40 @@ const bdInstrument = () =>
     fpsOk(fr, 8, 30),
     `(${JSON.stringify({ balls: data.tyBalls, conversions: data.tyConversions, repaints: data.tyRepaints, counts: data.tyCounts })}, ${fpsNote(fr)}, floor 30${loadNote()})`,
     fpsRetry(4000, 6, 30),
+  );
+}
+{
+  // --- uncap-all --- Ball Size 100, more than three times the slider's end, one ball a team: balls of 5.25 tiles (the old
+  // code stopped them at 0.9), each hit taking a dent the shape of the ball's front – several tiles –, every ball's whole disc
+  // on the board, at 30+ fps (a 60 s countdown: still running for the retry).
+  await page.goto(`${BASE}/en/simulator/?mode=territory&r=100&tyb=1&tyd=60`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const fr = await pageFrameRates(5000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory-big-balls.png") });
+  const perHit = Number(data.tyConversions) / Math.max(1, Number(data.tyTileBounces));
+  await timingCheck(
+    "simulator mode=territory runs Ball Size 100 as typed (5.25-tile balls), flipping several tiles a hit inside the field at 30+ fps",
+    data.tyBallTiles === "5.25" && data.tyBalls === "2" && Number(data.tyTileBounces) >= 10 && perHit >= 2 && data.tyInField === "1" && data.unlimited === "1" && data.unlimitedAte !== "1" && data.tyFinished === "0",
+    fpsOk(fr, 8, 30),
+    `(${JSON.stringify({ ballTiles: data.tyBallTiles, conversions: data.tyConversions, tileBounces: data.tyTileBounces, inField: data.tyInField, extreme: data.unlimited, ate: data.unlimitedAte })}, ${perHit.toFixed(2)} tiles a hit, ${fpsNote(fr)}, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
+  );
+}
+{
+  // --- uncap-all --- Ball Size 200: balls of 10.5 tiles on a board 20 tiles tall – wider than it: the run's first step eats
+  // the arena (the engine's outgrow finish, as a ball bigger than Classic's rings: THE BALL ATE THE ARENA and the gulp, no verdict).
+  await page.goto(`${BASE}/en/simulator/?mode=territory&r=200`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const ate = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedAte === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-territory-ate-arena.png") });
+  check(
+    "a Territory ball wider than the board eats the arena: THE BALL ATE THE ARENA ends the run, no verdict",
+    ate && data.multOutgrew === "1" && data.tyFinished === "0" && data.tyWinner === "-1" && data.tyConversions === "0" && data.tyInField === "1",
+    `(ate=${ate}, outgrew=${data.multOutgrew}, verdict=${data.tyFinished}/${data.tyWinner}, conversions=${data.tyConversions}, in field=${data.tyInField}, ball ${data.tyBallTiles} tiles)`,
   );
 }
 {

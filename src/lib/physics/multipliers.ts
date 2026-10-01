@@ -486,6 +486,8 @@ export interface MultiplierView {
   /** A ball outgrew the arena: the run is over (at `outgrewAt`, simulation ms). */
   outgrown: boolean;
   outgrewAt: number;
+  /** --- uncap-all --- The radius (px) of the ball that outgrew it, before it was fitted into the arena for the finish (0 before). */
+  outgrewRadius: number;
   /** The kind of the last orb taken and when (for the HUD flash). */
   lastPickup: PickupKind | null;
   lastPickupAt: number;
@@ -548,6 +550,7 @@ export class MultiplierRuntime {
     subSteps: 0,
     outgrown: false,
     outgrewAt: -Infinity,
+    outgrewRadius: 0,
     lastPickup: null,
     lastPickupAt: -Infinity,
   };
@@ -592,6 +595,7 @@ export class MultiplierRuntime {
     v.subSteps = 0;
     v.outgrown = false;
     v.outgrewAt = -Infinity;
+    v.outgrewRadius = 0;
     v.lastPickup = null;
     v.lastPickupAt = -Infinity;
   }
@@ -867,6 +871,7 @@ export class MultiplierRuntime {
     if (v.outgrown) return;
     v.outgrown = true;
     v.outgrewAt = ctx.getElapsedMs();
+    v.outgrewRadius = ball.radius;
     v.orbs.length = 0;
     this.touched = true;
     for (const b of ctx.getBalls()) {

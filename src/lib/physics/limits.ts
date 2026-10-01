@@ -447,6 +447,8 @@ export class UnlimitedRuntime {
   private noteAte(ctx: ModeContext, mult: MultiplierRuntime) {
     if (!mult.isOutgrown() || this.ate) return;
     this.ate = true;
+    // --- uncap-all --- a mode's own outgrow inside a step (Territory's ball wider than its board) names the size too
+    if (!(this.ateRadius > 0)) this.ateRadius = mult.getView().outgrewRadius;
     ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0, ate: true });
   }
 
