@@ -7974,6 +7974,258 @@ const bdInstrument = () =>
 }
 // --- end review fix (ui-i18n) ---
 
+// --- review fix (performance) ---
+// Runtime budgets. (1) Leaving the simulator by an in-app link mid-recording stops the recorder – no download from a page that
+// is gone – and the audio: every AudioContext closed, the music bed's looping source stopped. (2) On 75 Hz and 144 Hz displays
+// (a rAF cadence emulated with exact timestamps) the canvas draws ~60 fps, not 37–50, and a recording captures each drawn
+// frame once (requestFrame ~60 times a second, not once per display frame). (3) Grow with glow at 8× keeps a few MB of
+// sprite canvases (one per integer radius held ~290 MB). (4) Classic Paint's trail layer is drawn again after a resize.
+{
+  const watch = (pg) => {
+    pg.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+    pg.on("console", (m) => {
+      if (m.type() === "error") errors.push(`console: ${m.text()}`);
+    });
+  };
+  const fpsBadge = async (pg) => Number(((await pg.getByTestId("fps-readout").innerText().catch(() => "")) || "").replace(/[^\d].*$/, "")) || 0;
+
+  // (1) mid-recording navigation
+  {
+    const p = await ctx.newPage();
+    watch(p);
+    await p.addInitScript(() => {
+      const NativeAC = window.AudioContext;
+      const contexts = (window.__perfAc = []);
+      window.AudioContext = class extends NativeAC {
+        constructor(...args) {
+          super(...args);
+          contexts.push(this);
+        }
+      };
+      const beds = (window.__perfBeds = []);
+      const start = AudioBufferSourceNode.prototype.start;
+      const stop = AudioBufferSourceNode.prototype.stop;
+      AudioBufferSourceNode.prototype.start = function (...args) {
+        if (this.loop) {
+          const bed = { stopped: false, ended: false };
+          beds.push(bed);
+          this.__perfBed = bed;
+          this.addEventListener("ended", () => (bed.ended = true));
+        }
+        return start.apply(this, args);
+      };
+      AudioBufferSourceNode.prototype.stop = function (...args) {
+        if (this.__perfBed) this.__perfBed.stopped = true;
+        return stop.apply(this, args);
+      };
+      const NativeMR = window.MediaRecorder;
+      const recorders = (window.__perfRecorders = []);
+      window.MediaRecorder = class extends NativeMR {
+        constructor(...args) {
+          super(...args);
+          recorders.push(this);
+        }
+      };
+    });
+    let downloads = 0;
+    p.on("download", () => downloads++);
+    await p.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: /Custom Sound/ }).click();
+    await p.locator("#music-file-input").setInputFiles({ name: "perf-bed.wav", mimeType: "audio/wav", buffer: makeWav(4) });
+    const bedLoaded = await p.getByTestId("music-track").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
+    await p.getByRole("button", { name: /Recording/ }).click();
+    await p.locator("#resolution-select").selectOption("500x500");
+    await p.getByRole("button", { name: /Start Simulator/ }).click();
+    await p.getByTestId("music-playing").waitFor({ timeout: 5000 }).catch(() => {});
+    await p.getByRole("button", { name: /Record Video/ }).click();
+    const recording = await p.waitForFunction(() => window.__perfRecorders.some((r) => r.state === "recording"), null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await p.waitForTimeout(1500);
+    await p.evaluate(() => window.scrollTo(0, 0));
+    await p.locator("header a", { hasText: "Back" }).first().click();
+    await p.waitForURL(/\/en\/$/, { timeout: 10000 }).catch(() => {});
+    await p.waitForTimeout(1500);
+    const left = await p.evaluate(() => ({
+      sameDocument: Array.isArray(window.__perfAc),
+      recorders: window.__perfRecorders.map((r) => r.state),
+      contexts: window.__perfAc.map((c) => c.state),
+      beds: window.__perfBeds.map((b) => ({ ...b })),
+    }));
+    await p.waitForTimeout(10000); // past the clip's 10 s: a timer left running would download it now
+    check(
+      "leaving the simulator mid-recording stops the recorder (no download) and the audio (contexts closed, the bed stopped)",
+      bedLoaded && recording && left.sameDocument && left.recorders.length > 0 && left.recorders.every((st) => st === "inactive") && left.contexts.length > 0 && left.contexts.every((st) => st === "closed") && left.beds.length > 0 && left.beds.every((b) => b.stopped || b.ended) && downloads === 0,
+      `(bed ${bedLoaded}, recording ${recording}, after Back: ${JSON.stringify(left)}, downloads ${downloads})`,
+    );
+    await p.close();
+  }
+
+  // (2) 75 Hz / 144 Hz displays: rAF with exact vsync timestamps, flushed by a timer; requestFrame() counted on that clock
+  const emulateDisplay = (hz) => {
+    const period = 1000 / hz;
+    let t = performance.now();
+    let pending = new Map();
+    let nextId = 1;
+    const perf = (window.__perfDisplay = { requests: [], now: () => t });
+    window.requestAnimationFrame = (cb) => {
+      const id = nextId++;
+      pending.set(id, cb);
+      return id;
+    };
+    window.cancelAnimationFrame = (id) => {
+      pending.delete(id);
+    };
+    const tick = () => {
+      t += period;
+      const batch = pending;
+      pending = new Map();
+      for (const cb of batch.values()) {
+        try {
+          cb(t);
+        } catch (e) {
+          setTimeout(() => {
+            throw e;
+          });
+        }
+      }
+      setTimeout(tick, period);
+    };
+    setTimeout(tick, period);
+    const Track = window.CanvasCaptureMediaStreamTrack;
+    if (Track?.prototype?.requestFrame) {
+      const native = Track.prototype.requestFrame;
+      Track.prototype.requestFrame = function () {
+        perf.requests.push(t);
+        return native.call(this);
+      };
+    }
+  };
+  const displayFps = {};
+  let capture = null;
+  for (const hz of [75, 144]) {
+    const p = await ctx.newPage();
+    watch(p);
+    await p.addInitScript(emulateDisplay, hz);
+    await p.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: /Start Simulator/ }).click();
+    await p.waitForTimeout(4000);
+    displayFps[hz] = await fpsBadge(p);
+    if (hz === 144) {
+      await p.getByRole("button", { name: /Recording/ }).click();
+      await p.locator("#resolution-select").selectOption("500x500");
+      const [download] = await Promise.all([
+        p.waitForEvent("download", { timeout: 40000 }).catch(() => null),
+        (async () => {
+          await p.getByRole("button", { name: /Record Video/ }).click();
+          // two seconds on the display's own clock (a busy machine runs its timer slower than real time)
+          const from = await p.evaluate(() => window.__perfDisplay.now());
+          await p.waitForFunction((t0) => window.__perfDisplay.now() - t0 >= 2000, from, { timeout: 30000 }).catch(() => {});
+          await p.getByRole("button", { name: /Stop & Export/ }).click();
+        })(),
+      ]);
+      let bytes = 0;
+      if (download) {
+        const file = path.join(outDir, `perf-144hz-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        bytes = fs.statSync(file).size;
+      }
+      const requests = await p.evaluate(() => window.__perfDisplay.requests.slice());
+      const span = requests.length > 1 ? (requests[requests.length - 1] - requests[0]) / 1000 : 0;
+      capture = { requests: requests.length, perSecond: span > 0 ? Math.round((10 * (requests.length - 1)) / span) / 10 : 0, bytes };
+    }
+    await p.close();
+  }
+  check(
+    "a 75 Hz and a 144 Hz display draw ~60 fps (the FPS badge), not every other frame",
+    displayFps[75] >= 55 && displayFps[75] <= 75 && displayFps[144] >= 55 && displayFps[144] <= 75,
+    `(${JSON.stringify(displayFps)})`,
+  );
+  check(
+    "a recording on a 144 Hz display captures each drawn frame once (~60 a second) and downloads a clip",
+    !!capture && capture.requests >= 80 && capture.perSecond >= 50 && capture.perSecond <= 64 && capture.bytes > 10000,
+    `(${JSON.stringify(capture)})`,
+  );
+
+  // (3) Grow with glow at 8×: the sprite canvases stay small
+  {
+    const big = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+    try {
+      const p = await big.newPage();
+      watch(p);
+      await p.addInitScript(() => {
+        const refs = (window.__perfCanvases = []);
+        const create = Document.prototype.createElement;
+        Document.prototype.createElement = function (tag, ...rest) {
+          const el = create.call(this, tag, ...rest);
+          if (String(tag).toLowerCase() === "canvas") refs.push(new WeakRef(el));
+          return el;
+        };
+      });
+      await p.goto(`${BASE}/en/simulator/?mode=grow&glow=1`, { waitUntil: "networkidle" });
+      await p.getByRole("button", { name: /Start Simulator/ }).click();
+      await p.getByRole("button", { name: "8x", exact: true }).click();
+      const simSeconds = async () => {
+        const text = await p.locator("span.tabular-nums").first().innerText().catch(() => "0");
+        const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)s?$/.exec(text.trim());
+        return m ? 60 * Number(m[1] ?? 0) + Number(m[2]) : 0;
+      };
+      const until = Date.now() + 30000;
+      let sim = 0;
+      while (Date.now() < until && (sim = await simSeconds()) < 90) await p.waitForTimeout(1000);
+      const cdp = await big.newCDPSession(p);
+      await cdp.send("HeapProfiler.collectGarbage");
+      await p.waitForTimeout(300);
+      const live = await p.evaluate(() => {
+        let count = 0;
+        let bytes = 0;
+        let detached = 0;
+        for (const ref of window.__perfCanvases) {
+          const c = ref.deref();
+          if (!c) continue;
+          count++;
+          const b = c.width * c.height * 4;
+          bytes += b;
+          if (!c.isConnected) detached += b;
+        }
+        return { count, mb: Math.round(bytes / 2 ** 17) / 8, offscreenMb: Math.round(detached / 2 ** 17) / 8 };
+      });
+      check("Grow with glow at 8× keeps a few MB of sprite canvases (not one per radius)", sim >= 40 && live.offscreenMb < 8, `(${sim}s simulated, ${JSON.stringify(live)})`);
+    } finally {
+      await big.close().catch(() => {});
+    }
+  }
+
+  // (4) classic Paint: the trail layer is drawn again (restamped) after a resize
+  {
+    const p = await ctx.newPage();
+    watch(p);
+    await p.goto(`${BASE}/en/simulator/?mode=paint`, { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: /Start Simulator/ }).click();
+    await p.getByRole("button", { name: "4x", exact: true }).click();
+    await p.waitForTimeout(4000);
+    await p.getByRole("button", { name: /Pause$/ }).first().click();
+    await p.waitForTimeout(300);
+    const colourful = () =>
+      p.evaluate(() => {
+        const c = document.querySelector("main canvas");
+        const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 16) {
+          const max = Math.max(d[i], d[i + 1], d[i + 2]);
+          const min = Math.min(d[i], d[i + 1], d[i + 2]);
+          if (max > 120 && max - min > 80) n++;
+        }
+        return n;
+      });
+    const before = await colourful();
+    await p.setViewportSize({ width: 1200, height: 820 });
+    await p.waitForTimeout(800);
+    const after = await colourful();
+    check("classic Paint draws its trail (one layer, stamped incrementally) and again after a resize", before > 1000 && after > 0.35 * before, `(colourful samples ${before} → ${after} after the resize)`);
+    await p.close();
+  }
+}
+// --- end review fix (performance) ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

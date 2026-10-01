@@ -860,6 +860,16 @@ it still offers the third and explains the other two in a line each.
   ticked, sends to relay and YouTube accounts in one click, re-sends a failed account's own clip after another clip arrived
   (Try again), and offers a fast export's clip to the block.
 
+### Runtime budgets
+
+`src/components/simulator/renderBudget.ts` keeps the canvas loop's cost flat over long runs and on any display: the loop
+draws at most 60 frames a second on the rAF timestamps (`FrameGate`; a 75 / 90 / 144 Hz display draws 60, a late 60 Hz
+callback is not dropped), and Record Video copies each drawn frame once (`captureStream(0)` + `requestFrame()`); ball sprites
+are cached per colour and power-of-two size, one glow sprite per colour, at most 64 each; classic Paint strokes only the new
+points into a trail layer (a finished run records no more), and the Lines / Grow strings go out in one path per colour.
+Leaving the simulator (an in-app link) stops a recording and closes the audio. The pages hand the client only the message
+namespaces their client components read (`src/i18n/clientMessages.ts`; the simulator page gets the whole catalogue).
+
 ### No limits
 The philosophy: **allowed to melt, not allowed to crash**. With the switch on (`unlimited`, URL `inf=1`) nothing a setting can hold is refused for being too big – only for being invalid – and whatever the values do to the physics, the tab keeps responding, the recording keeps rolling and the run keeps going, slower and cheaper to draw if it has to.
 

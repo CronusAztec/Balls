@@ -12,6 +12,7 @@ import PwaRegister from "@/components/site/PwaRegister";
 import { PWA_ICON_FILES, PWA_THEME_COLOR } from "@/lib/pwa";
 import { assetPath } from "@/lib/site";
 // --- end pwa ---
+import { SHARED_CLIENT_NAMESPACES, pickMessages } from "@/i18n/clientMessages"; // --- review fix (performance) ---
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -55,7 +56,8 @@ export default async function LocaleLayout({ children, params }: { children: Rea
         <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased">
-        <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+        {/* --- review fix (performance) --- only what the shared client components read (pages add their own: i18n/clientMessages.ts) */}
+        <NextIntlClientProvider messages={pickMessages(messages, SHARED_CLIENT_NAMESPACES)}>{children}</NextIntlClientProvider>
         <Analytics />
         <PwaRegister />
       </body>
