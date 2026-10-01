@@ -30,6 +30,7 @@ import { paddleSettingFields } from "@/lib/physics/modes/paddle";
 import { vortexSettingFields } from "@/lib/physics/modes/vortex";
 import { journeySettingFields } from "@/lib/physics/modes/journey";
 import { bullseyeSettingFields, ringScore } from "@/lib/physics/modes/bullseye";
+import { territorySettingFields } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { fixedRunDurationSec } from "@/lib/simulation/finder";
 import { MAX_RACERS, RACE_SCREEN_CEILING, resolveRaceTrackSettings } from "@/lib/physics/raceTrack";
 import { resolveProjectSettings } from "@/lib/project";
@@ -596,6 +597,7 @@ describe("No limits: the engine", () => {
         ...vortexSettingFields(engine.getVortexSettings()),
         ...journeySettingFields(engine.getJourneySettings()),
         ...bullseyeSettingFields(engine.getBullseyeSettings()),
+        ...territorySettingFields(engine.getTerritorySettings()), // --- odd-territory ---
         rcRacers: race.racers,
         rcTrackLength: race.trackLength,
         rcLaps: race.laps,
@@ -668,6 +670,7 @@ describe("No limits: the engine", () => {
     // Every ceiling lies past its slider – but the race's racers: its per-racer state and its roster are sized for the slider's
     // 16 (RACER_CEILING = MAX_RACERS), so a grid past it builds 16 and says ARENA FULL.
     const atSliderEnd = new Set(["rcRacers"]);
+    atSliderEnd.add("tyTeams"); // --- odd-territory --- (Territory's teams: halves or quadrants, the per-team state sized for four)
     for (const key of keys) expect([key, softCeiling(key, ranges[key]) > ranges[key].max]).toEqual([key, !atSliderEnd.has(key)]);
     expect([RACER_CEILING, MEMORY_CEILINGS.rcRacers, RANGES.rcRacers.max]).toEqual([MAX_RACERS, MAX_RACERS, MAX_RACERS]);
     const bigGrid = settingsFromSearchParams(new URLSearchParams("mode=race&rcn=40"));

@@ -60,6 +60,8 @@ import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
 // --- video-beats --- the beat source picker, hand-placed beat markers, On beat and the video background
 import { VIDEO_BEATS_RANGES, defaultVideoBeatsFields, readVideoBeatsParams, resolveVideoBeatsFields, writeVideoBeatsParams } from "@/lib/simulation/videoBeatsSettings";
 import type { BeatSourceKind } from "@/lib/simulation/beatSource";
+// --- odd-territory --- the Territory mode (oddplayground's pong-wars battle)
+import { TERRITORY_RANGES, defaultTerritoryFields, readTerritoryParams, resolveTerritoryFields, territoryModeDefaults, writeTerritoryParams } from "@/lib/physics/modes/territory";
 // --- bounce-math --- rules that change a parameter by a mathematical step on every bounce, pass, collision, break, beat, bar or second
 import { BOUNCE_MATH_RANGES, defaultBounceMathFields, readBounceMathParams, resolveBounceMathFields, writeBounceMathParams, type BounceRule } from "@/lib/simulation/bounceMath";
 // --- unlimited --- No limits: every numeric setting past its slider range (parsing, links, presets)
@@ -662,6 +664,28 @@ export interface SimulatorSettings {
   videoBackground: boolean;
   videoBgOpacity: number;
   // --- end video-beats ---
+  // --- odd-territory --- Territory (lib/physics/modes/territory.ts): pong-wars teams painting a tile map
+  /** Tile columns, 12–48 on the slider (any number from 12 typed; a run builds at most 1,000); the rows follow the field's aspect (URL `tyc`). */
+  tyCols: number;
+  /** Teams: 2 (top / bottom) or 4 (quadrants; any count from 3 plays them) (URL `tyt`). */
+  tyTeams: number;
+  /** Balls per team, 1–8 on the slider (any number from 1 typed; a run builds at most 500) (URL `tyb`). */
+  tyBallsPerTeam: number;
+  /** The four team slots' powers, comma-separated: none | vortex | bomber | painter | ghost (URL `typ`). */
+  tyPowers: string;
+  /** Seconds between two triggers of a timed power, 1–10 on the slider, any number from 1 typed (URL `tye`). */
+  tyPowerEvery: number;
+  /** Reach of the whirl and the blast in tiles, 1–8 on the slider, any number from 1 typed (URL `tyr`). */
+  tyRadius: number;
+  /** The countdown in seconds, 10–120 on the slider, any number from 10 typed (URL `tyd`). */
+  tyDuration: number;
+  /** The dotted grid whose dots deflect the balls (URL `typg`). */
+  tyPegs: boolean;
+  /** The "FLASHING LIGHTS" warning badge (URL `tybg`). */
+  tyBadge: boolean;
+  /** The HUD: percentages, the bar, PICK A SIDE, the countdown (URL `tyh`). */
+  tyHud: boolean;
+  // --- end odd-territory ---
   // --- bounce-math --- Bounce math (lib/simulation/bounceMath.ts, lib/physics/bounceMathRuntime.ts)
   /** The rules, applied in list order (URL `bmr`: param.trigger.every.op.amount[.min][.max][.scope] joined by ";"). */
   bounceMath: BounceRule[];
@@ -793,6 +817,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultBeatDropFields(),
     ...beatDropModeDefaults(mode),
     ...defaultVideoBeatsFields(), // --- video-beats ---
+    // --- odd-territory --- the feature's fields, and a clip that covers the default countdown and its verdict in Territory only
+    ...defaultTerritoryFields(),
+    ...territoryModeDefaults(mode),
     ...defaultBounceMathFields(), // --- bounce-math --- (no rules; Show values on)
     unlimited: false, // --- unlimited ---
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
@@ -865,6 +892,7 @@ export const RANGES = {
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
+  ...TERRITORY_RANGES, // --- odd-territory ---
   bounciness: BOUNCINESS_RANGE, // --- uncap-all --- (the comfort range; the number field takes any value from 1 up)
   ...BOUNCE_MATH_RANGES, // --- bounce-math --- (slider comfort ranges only: the number inputs take any finite value)
 } as const;
@@ -1109,6 +1137,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
+  writeTerritoryParams(settings, base, params); // --- odd-territory ---: tyc, tyt, tyb, typ, tye, tyr, tyd, typg, tybg, tyh
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1264,6 +1293,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
+  readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1601,6 +1631,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
+  Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

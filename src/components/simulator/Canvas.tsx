@@ -72,6 +72,8 @@ import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LA
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
+// --- odd-territory --- Territory: the tile map (offscreen, repainted where tiles flip), pops, blasts, whirls, bodies, the HUD band and the banner
+import { DEFAULT_TERRITORY_LABELS, TERRITORY_DATA_KEYS, TerritoryLayer, writeTerritoryDataset, type TerritoryLabels, type TerritoryRenderOptions } from "./territoryRenderer";
 // --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
 import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
 import { FrameBudget } from "@/lib/simulation/frameBudget";
@@ -171,6 +173,9 @@ export interface CanvasLabels {
   // --- beat-drop ---
   /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
   beatDrop?: BeatDropLabels;
+  // --- odd-territory ---
+  /** Territory: VS, PICK A SIDE, the warning badge, the power names, the winner banner, DRAW and the share of the board. */
+  territory?: TerritoryLabels;
   // --- bounce-math ---
   /** Bounce math: the words of the "Show values" badge (bounciness, speed, size, gravity, a rule's fire count). */
   bounceMath?: BounceMathHudLabels;
@@ -820,6 +825,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bmLayer = new BounceMathLayer(); // --- bounce-math ---
     const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
     let bdTeams: CanvasTeamOptions | null | undefined;
+    // --- odd-territory --- Territory's layer (the offscreen tile map, sprites, the bar's easing) and its per-frame options
+    const tyLayer = new TerritoryLayer();
+    const tyRender: TerritoryRenderOptions = { dpr, roster: NO_ROSTER, showNames: false, showTrails: true, trailThickness: 0.8, wallThickness: 2, labels: DEFAULT_TERRITORY_LABELS, nowMs: 0 };
+    const tyBodyColor = (ball: Ball) => tyLayer.colorOf(ball.team ?? 0);
+    const tyJolt = { x: 0, y: 0 }; // a bomber blast's jolt of the board this frame
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
     const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
@@ -1081,6 +1091,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           cam.view.scale = 1;
         }
       }
+      // --- odd-territory --- a bomber's blast jolts the board (the camera's own Screen Shake shakes it instead while that is on)
+      if (engine.isTerritoryMode() && !(cam.settings.screenShake > 0) && tyLayer.blastJolt(engine.getTerritoryView(), engine.getElapsedMs(), Math.min(size.width, size.height), tyJolt)) ctx.translate(tyJolt.x, tyJolt.y);
       // --- gerald-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
       // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
       const glassView = engine.isGlassMode() ? engine.getGlassView() : null;
@@ -1405,6 +1417,19 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         sbRender.width = size.width;
         sbRender.height = size.height;
         sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
+      }
+      // --- odd-territory --- Territory: the tile map, the pops of flipped tiles, the pegs, the frame, the blasts and the whirls.
+      const tyView = engine.isTerritoryMode() ? engine.getTerritoryView() : null;
+      if (tyView) {
+        const tr = teamsRef.current;
+        tyRender.roster = tr ? tr.roster : NO_ROSTER;
+        tyRender.showNames = !!tr && tr.showNames;
+        tyRender.showTrails = p.showTrails;
+        tyRender.trailThickness = p.trailThickness;
+        tyRender.wallThickness = p.wallThickness;
+        tyRender.labels = (labelsRef.current ?? DEFAULT_LABELS).territory ?? DEFAULT_TERRITORY_LABELS;
+        tyRender.nowMs = engine.getElapsedMs();
+        tyLayer.drawStage(ctx, tyView, drawnBalls, tyRender);
       }
 
       // --- jdm-arena-games --- Battle Royale / Capture the Flag: the box or circle (and the shrinking zone), power-ups, bases and flags.
@@ -1914,6 +1939,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
+      else if (tyView) tyLayer.drawBodies(ctx, tyView, balls, tyRender); // --- odd-territory --- trails, halos, bodies by power, charge rings, names
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
@@ -2114,6 +2140,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
       // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
+      if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
@@ -2289,6 +2316,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (sbView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+      }
+      // --- odd-territory --- the HUD band (badge, PICK A SIDE, countdown, the VS line, the bar) and – without a roster (the teams banner takes over) – the winner
+      // banner; the badge takes the top-right corner when the teams scoreboard sits in the top-left one, and the band is what the top captions start below
+      if (tyView) {
+        const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
+        modeTopHud = Math.max(modeTopHud, tyLayer.drawOverlay(ctx, tyView, tyRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
       }
 
       // HUD: mode counters in the centre
@@ -2878,6 +2911,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbBadgeRight", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
+      // --- odd-territory --- Territory (data-ty-*): the board, counts and percentages, the powers' work, the verdict, the rig and what was drawn
+      if (tyView) writeTerritoryDataset(tyView, tyLayer, engine.getBalls(), setCanvasData);
+      else if (canvas.dataset.tyTeams !== undefined) for (const key of TERRITORY_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
       // score, the flags, captures / drops / returns, notes and the result, for tools and the smoke test
       if (arenaView) {

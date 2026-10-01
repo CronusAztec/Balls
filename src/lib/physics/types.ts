@@ -61,6 +61,8 @@ export const MODE_IDS = [
   "bullseye",
   // --- beat-drop --- Beat Drop (a ball landing on obstructions that fly in on the beat)
   "beatDrop",
+  // --- odd-territory --- Territory (pong-wars teams painting a tile map)
+  "territory",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

@@ -118,6 +118,14 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   byRings: ENTITY_CEILING,
   journeyAutoStages: JOURNEY_STAGE_CEILING,
   arenaCount: ARENA_CEILING,
+  // --- odd-territory --- Territory: the board's columns (a byte a tile, the rows follow the board's shape – 1,000 columns
+  // are under a million tiles, repainted only where they flip), the teams (the start regions are halves or quadrants and the
+  // per-team state is sized for four, `TY_MAX_TEAMS` of lib/physics/modes/territory.ts – a test keeps them equal – so a
+  // count past them plays four) and the balls of a team (four teams of them fill the board's full-physics balls)
+  tyCols: 1_000,
+  tyTeams: 4,
+  tyBallsPerTeam: BOARD_BALL_CEILING / 4,
+  // --- end odd-territory ---
 };
 
 /** The most a run builds of an allocating setting `key` (its memory-safety ceiling), the value itself otherwise. */

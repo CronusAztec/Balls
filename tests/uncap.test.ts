@@ -466,6 +466,7 @@ describe("uncap-all: the guard", () => {
     // (--- review fix (unlimited) --- but the race's racers: its per-racer state and roster are sized for the slider's 16,
     // so its ceiling is the slider's end – a grid past it builds 16 and says ARENA FULL)
     const atSliderEnd = new Set(["rcRacers"]);
+    atSliderEnd.add("tyTeams"); // --- odd-territory --- (Territory's teams: halves or quadrants, the per-team state sized for four)
     for (const [key, ceiling] of Object.entries(MEMORY_CEILINGS)) {
       const range = ranges[key];
       expect([key, range !== undefined]).toEqual([key, true]);
