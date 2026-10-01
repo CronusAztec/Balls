@@ -3109,10 +3109,12 @@ const instrumentOscillators = () =>
   const pixels = await page.evaluate(() => {
     const c = document.querySelector("main canvas");
     const g = c.getContext("2d");
-    const dpr = c.width / c.getBoundingClientRect().width;
+    // --- world --- the probe points are world px (the engine's); the canvas draws the world at its own scale (data-world)
+    const worldW = Number((c.dataset.world || "").split("x")[0]) || c.getBoundingClientRect().width;
+    const k = c.width / worldW;
     const at = (s) => {
       const [x, y] = (s || "0,0").split(",").map(Number);
-      return Array.from(g.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data).slice(0, 3);
+      return Array.from(g.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data).slice(0, 3);
     };
     return { picture: at(c.dataset.illusionProbe), paint: at(c.dataset.illusionPaper) };
   });
@@ -3826,10 +3828,15 @@ const instrumentOscillators = () =>
   }
   await page.setViewportSize({ width: 1400, height: 900 });
   check("the simulation world is 800×450 at every desktop window size (the stage scales it to the canvas)", worlds.length === 3 && worlds.every((w) => /world 800x450,/.test(w)), `(${worlds.join("; ")})`);
-  // A found seed survives a window resize: the world stayed, only the drawing rescaled.
+  // A found seed survives a window resize: the world stayed, only the drawing rescaled. (A 30 s classic search can miss
+  // its 1000 seeds now and then – the seeds come from Date.now() – so it gets up to three tries.)
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
-  const foundReady = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  let foundReady = false;
+  for (let attempt = 0; attempt < 3 && !foundReady; attempt++) {
+    if (attempt > 0) await page.getByRole("button", { name: /Try Again|Search Again|Try again/ }).first().click().catch(() => page.getByRole("button", { name: /Find 30s Simulation/ }).click());
+    else await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    foundReady = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  }
   const foundSeed = (await canvasData()).seed;
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.waitForTimeout(500);
@@ -5555,7 +5562,9 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   const lit = await page.evaluate(() => {
     const c = document.querySelector("main canvas");
     const g = c.getContext("2d");
-    const k = c.width / c.getBoundingClientRect().width;
+    // --- world --- the viewports are world px; the canvas draws the world at its own scale (data-world)
+    const worldW = Number((c.dataset.world || "").split("x")[0]) || c.getBoundingClientRect().width;
+    const k = c.width / worldW;
     return c.dataset.splitViewports.split(";").map((v) => {
       const [x, y, w, h] = v.split(",").map(Number);
       const d = g.getImageData(Math.round(x * k), Math.round(y * k), Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))).data;
