@@ -59,6 +59,7 @@ import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
 import type { PhysicsEngine } from "@/lib/physics/engine";
+import { isBoundedKey } from "@/lib/unlimited"; // --- No limits ---
 
 /**
  * Maze escape (lib/physics/mazeGrid.ts, lib/physics/modes/maze.ts; feature odd-maze): the seeded perfect maze (n − 1
@@ -592,6 +593,26 @@ describe("the maze in the engine", () => {
     const far = pitches.filter((p) => p.d >= (3 * view.entranceDist) / 4).map((p) => p.f);
     if (near.length && far.length) expect(Math.min(...near)).toBeGreaterThan(Math.max(...far));
     expect(view.notes).toBe(pitches.length);
+  });
+
+  it("a bounce-math pitch rule shifts the ball's notes (an octave up: every note on the ladder × 2)", () => {
+    const engine = engineFor({ balls: 1, brain: "wallFollow" }, 5);
+    const ladder = Array.from({ length: MZ_NOTE_STEPS }, (_, k) => midiToFrequency(mazeNoteMidi(k)));
+    const notes: number[] = [];
+    for (let t = 0; t < 20_000 && !engine.isSimulationFinished(); t += 1000 / 60) {
+      for (const b of engine.getBalls()) b.pitchShift = 12;
+      engine.update(1000 / 60, 0);
+      for (const e of engine.consumeSoundEvents()) if (e.type === "hit" && !e.accent) notes.push(e.frequency ?? 0);
+    }
+    expect(notes.length).toBeGreaterThan(5);
+    for (const f of notes) expect(ladder.some((l) => Math.abs(2 * l - f) < 1e-6)).toBe(true);
+  });
+
+  it("No limits keeps the trail and fog opacities on their 0–1 range (the other maze numbers run at the maze's maximum)", () => {
+    expect(isBoundedKey("mzTrail")).toBe(true);
+    expect(isBoundedKey("mzFog")).toBe(true);
+    expect(isBoundedKey("mzCols")).toBe(false);
+    expect(resolveMazeSettings({ cols: 1e9, balls: 1e9, speed: 1e9, gravity: 1e9 })).toMatchObject({ cols: 40, balls: 8, speed: 3, gravity: 1 });
   });
 
   it("the first ball out wins – an escape in the team stats, the wall-break sound – and the run finishes after the hold", { timeout: 30_000 }, () => {

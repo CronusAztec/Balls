@@ -107,6 +107,9 @@ export const BOUNDED_KEYS: ReadonlySet<string> = new Set([
   "onBeatRange",
   "videoBgOpacity",
   "textSize",
+  // --- odd-maze --- the Maze's trail and fog opacities (0–1 by meaning)
+  "mzTrail",
+  "mzFog",
 ]);
 
 /** Settings whose meaning ends somewhere even without limits: a drag of 1 stops the ball dead, walls breathing by ±95 % nearly vanish. */

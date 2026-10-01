@@ -2135,7 +2135,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
       // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
-      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
       if (faces.isActive() && mazeView) faces.drawOverlays(ctx, balls, mazeBodyColor, null); // --- odd-maze --- faces on the maze runners
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
@@ -2304,9 +2303,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
       }
-      if (sbView) sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
-      // --- odd-maze --- the warning badge, the distance-to-exit HUD and the verdict banner (with a roster the teams banner takes over at the end)
-      if (mazeView) mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive() });
+      // --- odd-maze --- the warning badge, the distance-to-exit HUD and the verdict banner (with a roster the teams banner takes over at the end;
+      // the badge moves to the top-right corner when the scoreboard – the HUD off – sits in the top-left one; the captions start below them)
+      if (mazeView) {
+        const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
+        modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+      }
 
       // HUD: mode counters in the centre
       {

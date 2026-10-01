@@ -2,6 +2,7 @@ import type { Ball } from "@/lib/physics/types";
 import { MZ_E, MZ_N, MZ_S, MZ_W, mazeWallH, mazeWallV } from "@/lib/physics/mazeGrid";
 import { MZ_PALETTE, mazeBallName, mazeProgress, type MazeView } from "@/lib/physics/modes/maze";
 import type { TeamEntry } from "@/lib/teams";
+import { inCaptionColumn } from "@/lib/captions";
 
 /**
  * Canvas drawing of the Maze escape mode (feature odd-maze; lib/physics/modes/maze.ts), one `MazeLayer` per draw loop,
@@ -134,6 +135,13 @@ export class MazeLayer {
   /** The widest palette name at the HUD's font size (the cap of the name column), for the size it was measured at. */
   private paletteWidth = 0;
   private paletteWidthKey = -1;
+  /** Where the badge and the HUD were drawn this frame (CSS px), for the captions that start below them. */
+  private badgeX = 0;
+  private badgeW = 0;
+  private badgeBottom = 0;
+  private hudX = 0;
+  private hudW = 0;
+  private hudBottom = 0;
   // Mirrored onto the canvas as data-mz-* for tools and the smoke test.
   badgeDrawn = false;
   hudDrawn = false;
@@ -564,9 +572,11 @@ export class MazeLayer {
   /**
    * Screen space, inside the square the recorder exports: the warning badge (top left), the HUD (top right) and the verdict
    * banner – until the run is over when a roster is on (`teamBanner`: the teams banner announces the winner then). `inset`
-   * moves the corner items below the page's overlay buttons.
+   * moves the corner items below the page's overlay buttons; `badgeRight` – the teams scoreboard takes the top-left corner
+   * (the HUD is off then) – moves the badge to the top-right one. Returns the screen y of the lowest top item that reaches
+   * into the captions' centred column (0: none), which the top captions start below.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: MazeView, o: MazeRenderOptions, frame: { inset: number; teamBanner: boolean }) {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: MazeView, o: MazeRenderOptions, frame: { inset: number; teamBanner: boolean; badgeRight?: boolean }): number {
     const side = Math.min(o.width, o.height);
     const sx = (o.width - side) / 2;
     const sy = (o.height - side) / 2;
@@ -575,18 +585,25 @@ export class MazeLayer {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     this.badgeDrawn = view.settings.badge;
-    if (view.settings.badge) this.drawBadge(ctx, sx + margin, sy + frame.inset + margin, side, o.labels);
+    const badgeRight = !!frame.badgeRight;
+    if (view.settings.badge) this.drawBadge(ctx, badgeRight ? sx + side - margin : sx + margin, sy + frame.inset + margin, side, o.labels, badgeRight);
     this.hudDrawn = view.settings.hud;
     if (view.settings.hud) this.drawHud(ctx, view, sx + side - margin, sy + frame.inset + margin, side, o.labels);
+    // The corner items the top captions have to start below.
+    let topBottom = 0;
+    if (this.badgeDrawn && inCaptionColumn(this.badgeX, this.badgeW, sx + side / 2, side)) topBottom = this.badgeBottom;
+    if (this.hudDrawn && inCaptionColumn(this.hudX, this.hudW, sx + side / 2, side)) topBottom = Math.max(topBottom, this.hudBottom);
     this.bannerDrawn = false;
     if (view.verdict !== "" && !(frame.teamBanner && view.finished) && o.nowMs - view.verdictMs >= BANNER_DELAY_MS) {
       this.drawBanner(ctx, view, sx + side / 2, sy + side * 0.46, side, o);
       this.bannerDrawn = true;
     }
     ctx.restore();
+    return topBottom;
   }
 
-  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: MazeLabels) {
+  /** The warning badge with its top-left corner at (x, y) – or, `right`, its top-right corner. */
+  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: MazeLabels, right = false) {
     const fs = Math.max(7, 0.016 * side);
     const small = 0.78 * fs;
     ctx.font = this.font(fs, 900);
@@ -597,6 +614,10 @@ export class MazeLayer {
     const pad = 0.55 * fs;
     const w = pad * 3 + icon + Math.max(w1, w2);
     const h = pad * 2 + fs + 1.15 * small;
+    if (right) x -= w;
+    this.badgeX = x;
+    this.badgeW = w;
+    this.badgeBottom = y + h;
     ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
     roundRect(ctx, x, y, w, h, 0.35 * fs);
     ctx.fill();
@@ -663,6 +684,9 @@ export class MazeLayer {
     const w = pad * 2 + Math.max(rowW, titleW);
     const h = pad * 2 + 1.5 * titleFs + view.count * rowH;
     const x = right - w;
+    this.hudX = x;
+    this.hudW = w;
+    this.hudBottom = top + h;
     ctx.fillStyle = "rgba(0, 0, 0, 0.58)";
     roundRect(ctx, x, top, w, h, 0.45 * fs);
     ctx.fill();

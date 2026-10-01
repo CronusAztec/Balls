@@ -1,5 +1,6 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import { MAX_TEAMS } from "../ballStats";
+import { shiftedObstacleFrequency } from "../bounceMathRuntime";
 import type { Ball, GameMode, ModeContext } from "../types";
 import {
   MZ_BIT,
@@ -835,7 +836,8 @@ export class MazeMode implements GameMode {
     r.lastNoteMs = now;
     this.lastNoteMs = now;
     v.notes++;
-    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: mazeNoteFrequency(r.dist, v.entranceDist) });
+    // (a bounce-math pitch rule shifts the ball's notes: `ball.pitchShift` semitones)
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: shiftedObstacleFrequency(mazeNoteFrequency(r.dist, v.entranceDist), ball) });
   }
 
   private logHit(cell: number, col: number, row: number, dir: number, x: number, y: number, t: number) {
