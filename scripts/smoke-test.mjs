@@ -1260,6 +1260,63 @@ await page.waitForTimeout(100);
 const found = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
 const resultText = found ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
 check("find simulation completes", found, `(${resultText})`);
+// --- finder-depth --- A 30 s Classic search whose first 1000 seeds all miss goes on – the same seeds, in order – for up to 25 s
+// in all: the progress line says so ("Seed n · searching deeper, up to Ns more") and the result counts every seed tested. The
+// seed base is pinned (Date.now() while the click is dispatched: the finder's seeds are base + 0x9e3779b1 · i) to one whose
+// first match is its 1,485th seed (573517014, 30.0 s). A change that moves the default Classic runs needs a new base: from a
+// search that went deeper ("Seed: S (N tested)"), base = (S - 0x9e3779b1 * (N - 1)) | 0. Reaching the 1,485th seed within
+// the budget is the timing part (a busy machine may run out of time first: then the search must still have gone past 1000).
+{
+  const DEEP_BASE = -124141878;
+  const DEEP_FOUND = "found 573517014 (1485 tested)";
+  const deepSearch = async () => {
+    await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Find 30s Simulation/ }).evaluate((button, base) => {
+      const real = Date.now;
+      const pinned = base + 2 ** 32 * Math.round((real.call(Date) - base) / 2 ** 32);
+      Date.now = () => pinned;
+      try {
+        button.click();
+      } finally {
+        Date.now = real;
+      }
+    }, DEEP_BASE);
+    const lines = new Set();
+    let result = "timeout";
+    const t0 = Date.now();
+    while (Date.now() - t0 < 90_000) {
+      const text = await page.locator("body").innerText().catch(() => "");
+      for (const m of text.matchAll(/Seed \d+(?:\/\d+| · [^\n]*)/g)) lines.add(m[0]);
+      const hit = /Seed: (-?\d+) \((\d+) tested\)/.exec(text);
+      if (hit && /Ready to start simulation for 30\.0s/.test(text)) {
+        result = `found ${hit[1]} (${hit[2]} tested)`;
+        break;
+      }
+      const miss = /Tested (\d+) seeds\. Closest/.exec(text);
+      if (miss) {
+        result = `missed (${miss[1]} tested)`;
+        break;
+      }
+      await page.waitForTimeout(100);
+    }
+    const deeper = [...lines].filter((l) => l.includes(" · "));
+    const firstPass = [...lines].some((l) => /^Seed \d+\/1000$/.test(l));
+    const deeperOk = deeper.length > 0 && deeper.every((l) => /^Seed \d{4,} · searching deeper, up to ([1-9]|1\d|2[0-5])s more$/.test(l));
+    return { result, firstPass, deeper, deeperOk };
+  };
+  const deep = await deepSearch();
+  const outOfTime = Number((/^missed \((\d+) tested\)$/.exec(deep.result) || [])[1]);
+  await timingCheck(
+    "Find Simulation searches deeper when its first 1000 seeds miss (Seed n/1000, then 'searching deeper, up to Ns more') and finds the 1,485th",
+    deep.firstPass && deep.deeperOk && (deep.result === DEEP_FOUND || (outOfTime > 1000 && outOfTime < 1485)),
+    deep.result === DEEP_FOUND,
+    `(${deep.result}; ${deep.deeper.length} deeper lines: ${[deep.deeper[0], deep.deeper.at(-1)].join(" … ")})`,
+    async () => {
+      const again = await deepSearch();
+      return { timingOk: again.result === DEEP_FOUND && again.deeperOk, extra: `(${again.result})` };
+    },
+  );
+}
 
 // 7. Language switcher
 await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
@@ -3828,8 +3885,9 @@ const instrumentOscillators = () =>
   }
   await page.setViewportSize({ width: 1400, height: 900 });
   check("the simulation world is 800×450 at every desktop window size (the stage scales it to the canvas)", worlds.length === 3 && worlds.every((w) => /world 800x450,/.test(w)), `(${worlds.join("; ")})`);
-  // A found seed survives a window resize: the world stayed, only the drawing rescaled. (A 30 s classic search can miss
-  // its 1000 seeds now and then – the seeds come from Date.now() – so it gets up to three tries.)
+  // A found seed survives a window resize: the world stayed, only the drawing rescaled. (A 30 s classic search searches
+  // deeper than its 1000 seeds for up to 25 s and practically never misses now, but the seeds still come from Date.now(),
+  // so it keeps up to three tries.)
   await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
   let foundReady = false;
   for (let attempt = 0; attempt < 3 && !foundReady; attempt++) {
