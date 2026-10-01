@@ -52,9 +52,12 @@ export function BallCountControl({ t, search, matches, settings: s, update }: Om
   if (search && !matches("ballCount") && !matches("twoBalls")) return null;
   const count = effectiveBallCount(s);
   const range = { ...RANGES.ballCount, max: Math.min(RANGES.ballCount.max, modeBallCap(s.mode)) };
+  // --- unlimited --- with No limits on the count goes past the team balls (the rest are crowd balls): the plain ball-count range, unclamped
+  const crowd = s.unlimited;
+  const shown = crowd ? Math.max(count, Math.floor(s.ballCount)) : count;
   const body = (
     <div className="space-y-3">
-      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={count} range={range} onChange={(v) => update(ballCountPatch(s, v, defaultTeamNames(t)))} display={String(count)} left="⚪" right="🎱" />
+      <Slider t={t} search="" matches={matches} labelKey="ballCount" tipKey="ballCountTip" value={shown} range={crowd ? RANGES.ballCount : range} onChange={(v) => update(crowd && v > range.max ? { ballCount: v, twoBalls: true } : ballCountPatch(s, v, defaultTeamNames(t)))} display={String(shown)} left="⚪" right="🎱" />
       {count >= 2 && !s.rainbowBall && s.teams.length === 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-zinc-300">{t("ballColor2")}</label>

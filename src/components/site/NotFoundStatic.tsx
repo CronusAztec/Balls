@@ -12,11 +12,11 @@ import es from "../../../messages/es.json";
 // --- review fix (site-static) --- only the namespaces the 404 page renders (NotFoundContent, Navbar, Footer, InstallAppButton), read
 // by static property access so webpack's JSON tree-shaking leaves the rest of the catalogs (the simulator's ~1,900 keys) out of
 // the /404 chunk. A namespace a component of this page starts to use must be added here.
-type StaticMessages = Pick<typeof en, "NotFound" | "Navbar" | "Footer" | "Pwa"> & { Gallery: Pick<typeof en.Gallery, "navLabel"> };
+type StaticMessages = Pick<typeof en, "NotFound" | "Navbar" | "Footer" | "Pwa"> & { Gallery: Pick<typeof en.Gallery, "navLabel"> } & Pick<typeof en, "DesktopLink">; // --- desktop-exe --- (the navbar's and footer's Windows app link)
 const MESSAGES: Record<Locale, StaticMessages> = {
-  en: { NotFound: en.NotFound, Navbar: en.Navbar, Footer: en.Footer, Gallery: { navLabel: en.Gallery.navLabel }, Pwa: en.Pwa },
-  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Footer: pl.Footer, Gallery: { navLabel: pl.Gallery.navLabel }, Pwa: pl.Pwa },
-  es: { NotFound: es.NotFound, Navbar: es.Navbar, Footer: es.Footer, Gallery: { navLabel: es.Gallery.navLabel }, Pwa: es.Pwa },
+  en: { NotFound: en.NotFound, Navbar: en.Navbar, Footer: en.Footer, Gallery: { navLabel: en.Gallery.navLabel }, DesktopLink: en.DesktopLink, Pwa: en.Pwa },
+  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Footer: pl.Footer, Gallery: { navLabel: pl.Gallery.navLabel }, DesktopLink: pl.DesktopLink, Pwa: pl.Pwa },
+  es: { NotFound: es.NotFound, Navbar: es.Navbar, Footer: es.Footer, Gallery: { navLabel: es.Gallery.navLabel }, DesktopLink: es.DesktopLink, Pwa: es.Pwa },
 };
 
 /** Reads the locale from the URL the static host failed to serve (/<base>/<locale>/...). */
