@@ -96,14 +96,19 @@ Every platform wants an app of yours, with the relay's callback URL registered. 
 6. Until TikTok **audits** the app, it can be used only by the accounts added as **target users** in the sandbox, and it may
    only post **privately** (“Only me”). The relay then posts privately and says so on the account's result
    (`TIKTOK_PRIVATE_FALLBACK=0` makes it fail instead). Submit the app for review to post publicly.
-7. The relay uploads the file in chunks (`FILE_UPLOAD`). With `TIKTOK_SOURCE=pull`, TikTok downloads the clip from
+7. The relay uploads the file (`FILE_UPLOAD`): whole up to 64 MB, bigger files in 10 MB chunks with the remainder in the
+   last one, as TikTok's Media Transfer Guide asks. With `TIKTOK_SOURCE=pull`, TikTok downloads the clip from
    `<relay>/media/…` instead – verify the relay's domain as a **URL prefix** in the developer portal first.
+8. TikTok has no "unlisted": a send with `visibility=unlisted` posts for mutual friends (Friends) and says so on the
+   account's result; `private` posts as Only me.
 
 ### Instagram (Meta app)
 
 Instagram publishes **Reels** from a public video URL – the relay serves the uploaded clip for it. The account must be an
 Instagram **professional** account (Business or Creator). Reels want **MP4 (H.264 + AAC)**, 9:16, 3–90 s (Chrome and Safari
-export MP4; a WebM clip is refused with a note). About 50 API posts per account per 24 hours.
+export MP4; a WebM clip is refused with a note). Reels are always **public**: a send with `visibility` `unlisted` or
+`private` is refused for the Instagram accounts (the site does not send it either) instead of being posted for everyone.
+About 50 API posts per account per 24 hours.
 
 **Facebook Login for Business** (default, `IG_LOGIN=facebook`):
 

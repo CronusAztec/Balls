@@ -390,8 +390,8 @@ export class PhysicsEngine {
       spawnCrowd: (count, x, y, speed, radius, angle, slot) => this.limits.overflow(count, x, y, speed, radius, angle, slot),
       noteArenaFull: () => this.limits.noteFull(),
     };
-    // --- bounce-math --- a mode's own bounces (String Battle's credits, Bouncing Shapes' and Glass Smash's `noteBounce()`) and
-    // the wall breaks it credits are bounce-math triggers too
+    // --- bounce-math --- a mode's own bounces (String Battle's credits, the `noteBounce()` of the modes that resolve their own
+    // walls, pegs and arcs), its own ball-to-ball hits (`noteCollide()`) and the wall breaks it credits are bounce-math triggers too
     const creditBounce = this.ctx.creditBounce;
     const creditWallBreak = this.ctx.creditWallBreak;
     Object.assign(this.ctx, {
@@ -407,6 +407,9 @@ export class PhysicsEngine {
         if (!this.bounceMath.on) return;
         if (rebound && ball.restitution !== undefined) this.scaleModeRebound(ball);
         this.bounceMath.note(BM_BOUNCE, ball);
+      },
+      noteCollide: (a: Ball, b: Ball) => {
+        if (this.bounceMath.on) this.bounceMath.note(BM_COLLIDE, a, b);
       },
     });
     // --- end bounce-math ---
@@ -1611,7 +1614,8 @@ export class PhysicsEngine {
    */
   private handleEditorObstacles(ball: Ball, dtSec: number) {
     const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- unlimited --- (no cap with No limits on)
-    const restitution = ball.restitution !== undefined ? scale * ball.restitution : scale; // --- bounce-math --- the ball's bounciness
+    const bounciness = ball.restitution ?? 1; // --- bounce-math --- the ball's bounciness (see handleObstacleCollisions())
+    const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
     const hitsBefore = this.editorObstacles.hitCount; // --- bounce-math ---
     const baseSpeed = this._config.ballSpeed || 400;
     // A ball pressed onto a bar by gravity meets it at about one sub-step of gravity: only clearly faster contacts are hits.
@@ -1619,7 +1623,7 @@ export class PhysicsEngine {
     const cx = this._config.width / 2;
     const cy = this._config.height / 2;
     const before = Math.hypot(ball.x - cx, ball.y - cy);
-    this.editorObstacles.collide(ball, dtSec, restitution, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents);
+    this.editorObstacles.collide(ball, dtSec, scale, resting > OBSTACLE_HIT_SPEED ? resting : OBSTACLE_HIT_SPEED, baseSpeed, this._elapsedMs, this.pendingSoundEvents, bounciness, lift);
     if (this.bounceMath.on && this.editorObstacles.hitCount > hitsBefore) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
     if (this.circularWalls.length > 0) this.keepRingSide(ball, before, cx, cy);
   }
@@ -2027,6 +2031,15 @@ export class PhysicsEngine {
     ball.vx *= k;
     ball.vy *= k;
   }
+
+  /**
+   * The most a bounciness above 1 may lift an obstacle rebound to (obstacles.ts `rebound()`): the ball's cruising speed ×
+   * the restitution scale × the bounciness – what a ring rebound sets – so a ball bouncing between pegs settles there
+   * instead of gaining speed hit after hit (`reboundSpeedBound()` plans the sub-steps for it).
+   */
+  private obstacleLiftSpeed(ball: Ball, scale: number, bounciness: number): number {
+    return cruiseSpeed(ball, this._config.ballSpeed || 400) * scale * bounciness;
+  }
   // --- end bounce-math ---
 
   /** Direction (radians, screen coordinates: π/2 = straight down) of the gravity in the last step – rotating gravity turns it. */
@@ -2324,10 +2337,13 @@ export class PhysicsEngine {
 
   /** The fastest rebound the rings may give a ×1 ball this step (0 in modes without the engine's ring rebounds). */
   private reboundSpeedBound() {
-    if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return 0;
+    // --- bounce-math --- an obstacle rebound may lift a bouncy ball to its cruising speed × its bounciness (planStep() multiplies them in)
+    const lift = this.bounceMath.on && (this.obstacles.length > 0 || this.editorObstaclesLive()) ? (this._config.ballSpeed || 400) * this.extras.wallBounciness : 0;
+    if (this.circularWalls.length === 0 || this.currentMode?.ballsMayRest) return lift;
     // --- uncap-all --- no ceiling: the next few bounces' gain on top of the multiplier (0.3 for the old switch's 0.03 steps)
     const bouncier = this.bouncierEnabled ? this.bounceSpeedMultiplier + Math.max(0.3, 2 * this.bouncierIncrement) : 1;
-    return (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
+    const ring = (this._config.ballSpeed || 400) * bouncier * 1.25 * this.extras.wallBounciness;
+    return ring > lift ? ring : lift;
   }
 
   /** A ring breaks for good under a ball (a smash from damage, or a grown ball bursting it): effect, sound, split, director. */
@@ -2352,12 +2368,14 @@ export class PhysicsEngine {
   private handleObstacleCollisions(ball: Ball, dtSec: number) {
     const obstacles = this.obstacles;
     const scale = ball.mult ? this.extras.wallBounciness * effectiveBounce(ball, this.multipliers.bounceCap) : this.extras.wallBounciness; // --- gerald-multipliers --- bounce multiplier (--- unlimited --- no cap with No limits on)
-    const restitution = ball.restitution !== undefined ? scale * ball.restitution : scale; // --- bounce-math --- the ball's bounciness
+    // --- bounce-math --- the ball's bounciness multiplies the capped restitution (no upper limit), lifting at most to the cruising speed × it
+    const bounciness = ball.restitution ?? 1;
+    const lift = bounciness > 1 ? this.obstacleLiftSpeed(ball, scale, bounciness) : Infinity;
     // A resting ball meets its support at the speed one sub-step of (its own) gravity gave it: only clearly faster contacts are hits.
     const restingSpeed = 3 * this.subStepGravity * (ball.gravityScale ?? 1);
     const hitSpeed = restingSpeed > OBSTACLE_HIT_SPEED ? restingSpeed : OBSTACLE_HIT_SPEED;
     for (let i = 0; i < obstacles.length; i++) {
-      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, restitution);
+      const impact = resolveBallObstacle(ball, obstacles[i], dtSec, scale, undefined, bounciness, lift);
       if (impact < hitSpeed) continue; // no contact (−1) or a soft, resting one
       if (this.bounceMath.on) this.bounceMath.note(BM_BOUNCE, ball); // --- bounce-math ---
       const result = this.currentMode?.onObstacleHit?.(this.ctx, ball, obstacles[i], i, impact);

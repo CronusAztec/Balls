@@ -227,7 +227,8 @@ export default function ThemeSection({ t, search, matches, settings: s, update, 
       {showTrail && (
         <Searchable search={search} matches={matches} labelKey="themeTrail">
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            {/* --- review fix (ui-i18n) --- the buttons wrap under a long label (es "Colores del rastro") on a narrow panel */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="text-sm font-medium text-zinc-300">
                 {t("themeTrail")}
                 <Tooltip text={t("themeTrailTip")} />

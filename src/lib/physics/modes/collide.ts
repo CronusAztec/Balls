@@ -427,6 +427,8 @@ export class CollideMode implements GameMode {
   private bodyOf = EMPTY_I32;
   // Ring variant.
   private ring: RingTrack | null = null;
+  /** The engine ball of each ring body (refreshed every sub-step; bounce math's ball hits). */
+  private ringBalls: (Ball | null)[] = [];
   private ringX = EMPTY_F64;
   private ringY = EMPTY_F64;
   // Clock and live-change tracking.
@@ -666,6 +668,7 @@ export class CollideMode implements GameMode {
     }
     sortRingOrder(track);
     this.ring = track;
+    this.ringBalls = new Array<Ball | null>(n).fill(null);
     this.ringX = new Float64Array(n);
     this.ringY = new Float64Array(n);
     this.placeRing(field);
@@ -773,7 +776,7 @@ export class CollideMode implements GameMode {
         ball.vx -= (1 + e) * vn * nx;
         ball.vy -= (1 + e) * vn * ny;
         if (report) {
-          this.wallImpact(k, r, nx, ny, vn);
+          this.wallImpact(k, r, nx, ny, vn, ball, ctx);
           // A real impact (not an orb resting on the wall or pressed against it by the pile) makes the wall wobble.
           if (ctx && vn >= this.minSoundSpeed) ctx.recordWallContact?.(0, Math.atan2(ny, nx), wobbleStrength(vn, this.ballSpeed));
         }
@@ -785,14 +788,14 @@ export class CollideMode implements GameMode {
       if (ball.vx < 0) {
         const vn = -ball.vx;
         ball.vx = vn * e;
-        if (report) this.wallImpact(k, r, 1, 0, vn);
+        if (report) this.wallImpact(k, r, 1, 0, vn, ball, ctx);
       }
     } else if (ball.x + r > field.right) {
       ball.x = field.right - r;
       if (ball.vx > 0) {
         const vn = ball.vx;
         ball.vx = -vn * e;
-        if (report) this.wallImpact(k, r, 1, 0, vn);
+        if (report) this.wallImpact(k, r, 1, 0, vn, ball, ctx);
       }
     }
     if (ball.y - r < field.top) {
@@ -800,20 +803,22 @@ export class CollideMode implements GameMode {
       if (ball.vy < 0) {
         const vn = -ball.vy;
         ball.vy = vn * e;
-        if (report) this.wallImpact(k, r, 0, 1, vn);
+        if (report) this.wallImpact(k, r, 0, 1, vn, ball, ctx);
       }
     } else if (ball.y + r > field.bottom) {
       ball.y = field.bottom - r;
       if (ball.vy > 0) {
         const vn = ball.vy;
         ball.vy = -vn * e;
-        if (report) this.wallImpact(k, r, 0, 1, vn);
+        if (report) this.wallImpact(k, r, 0, 1, vn, ball, ctx);
       }
     }
   }
 
-  private wallImpact(k: number, radius: number, nx: number, ny: number, speed: number) {
+  /** A wall impact of body k: counted, squashed and offered as a note – and, with `ctx`, a bounce-math bounce of `ball`. */
+  private wallImpact(k: number, radius: number, nx: number, ny: number, speed: number, ball: Ball, ctx?: ModeContext) {
     if (speed < this.minSoundSpeed) return;
+    ctx?.noteBounce?.(ball); // --- bounce-math --- a real wall impact (not a resting or squeezed orb) is a bounce
     const v = this.view;
     v.wallHits++;
     v.lastWallHitTick = v.tick;
@@ -882,7 +887,7 @@ export class CollideMode implements GameMode {
         const p = forward ? q : count - 1 - q;
         const i = pairs[2 * p];
         const j = pairs[2 * p + 1];
-        this.resolvePair(balls[i], balls[j], bodyOf[i], bodyOf[j]);
+        this.resolvePair(balls[i], balls[j], bodyOf[i], bodyOf[j], ctx);
       }
       // The push-outs may have nudged an orb through the wall: put it back (silently), so the next pass pushes its neighbours instead.
       if (count > 0) for (let i = 0; i < m; i++) this.containerBounce(balls[i], bodyOf[i], field, false);
@@ -890,7 +895,7 @@ export class CollideMode implements GameMode {
   }
 
   /** One contact: push the overlap apart (split by inverse mass, minus the slop) and, while approaching, exchange momentum. */
-  private resolvePair(a: Ball, b: Ball, ka: number, kb: number) {
+  private resolvePair(a: Ball, b: Ball, ka: number, kb: number, ctx: ModeContext) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const minD = a.radius + b.radius;
@@ -918,16 +923,17 @@ export class CollideMode implements GameMode {
     a.vy -= j * ima * ny;
     b.vx += j * imb * nx;
     b.vy += j * imb * ny;
-    this.bodyImpact(ka, kb, a.radius, b.radius, nx, ny, -rel, 1 / sum);
+    if (this.bodyImpact(ka, kb, a.radius, b.radius, nx, ny, -rel, 1 / sum)) ctx.noteCollide?.(a, b); // --- bounce-math --- a ball hit
   }
 
-  /** A body–body impact: count it, squash both, offer the note of the smaller body. */
-  private bodyImpact(ka: number, kb: number, ra: number, rb: number, nx: number, ny: number, speed: number, reducedMass: number) {
-    if (speed < this.minSoundSpeed) return;
+  /** A body–body impact: count it, squash both, offer the note of the smaller body. False when it was too soft to count. */
+  private bodyImpact(ka: number, kb: number, ra: number, rb: number, nx: number, ny: number, speed: number, reducedMass: number): boolean {
+    if (speed < this.minSoundSpeed) return false;
     this.view.collisions++;
     if (ka >= 0) this.markImpact(ka, nx, ny, speed);
     if (kb >= 0) this.markImpact(kb, nx, ny, speed);
     this.offerSound(0.5 * reducedMass * speed * speed, collidePitch(Math.min(ra, rb), this.minRadius, this.maxRadius), collideLevel(speed, this.ballSpeed));
+    return true;
   }
 
   /** The lollipops: integrate the arc positions, resolve the 1-D contacts (unless anti-collision is on) and place the discs. */
@@ -937,9 +943,18 @@ export class CollideMode implements GameMode {
     if (!track || !field) return;
     const run = this.view.settings;
     advanceRing(track, this.subSec, run.gravity > 0 ? this.gravityAccel(ctx) : 0);
-    if (!this.view.antiActive) resolveRingContacts(track, run.restitution, 4, this.onRingImpact);
-    this.placeRing(field);
     const balls = ctx.getBalls();
+    if (!this.view.antiActive) {
+      // --- bounce-math --- the engine ball of every body, so a contact of the ring solver can be reported as a ball hit
+      const of = this.ringBalls;
+      of.fill(null);
+      for (let i = 0; i < balls.length; i++) {
+        const k = balls[i].id - this.firstId;
+        if (k >= 0 && k < of.length) of[k] = balls[i];
+      }
+      resolveRingContacts(track, run.restitution, 4, this.onRingImpact);
+    }
+    this.placeRing(field);
     for (let i = 0; i < balls.length; i++) {
       const k = balls[i].id - this.firstId;
       if (k < 0 || k >= this.n) continue;
@@ -954,7 +969,10 @@ export class CollideMode implements GameMode {
     if (!track) return;
     const angle = track.s[a] / track.radius;
     const im = track.invMass[a] + track.invMass[b];
-    this.bodyImpact(a, b, track.r[a], track.r[b], -Math.sin(angle), Math.cos(angle), speed, im > 0 ? 1 / im : 0);
+    if (!this.bodyImpact(a, b, track.r[a], track.r[b], -Math.sin(angle), Math.cos(angle), speed, im > 0 ? 1 / im : 0)) return;
+    const ba = this.ringBalls[a];
+    const bb = this.ringBalls[b];
+    if (ba && bb) this.ctx?.noteCollide?.(ba, bb); // --- bounce-math --- a ball hit
   };
 
   /**

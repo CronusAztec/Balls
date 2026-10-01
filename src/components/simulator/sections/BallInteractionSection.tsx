@@ -39,14 +39,15 @@ export default function BallInteractionSection({ t, search, matches, settings: s
             {t("ballInteraction")}
             <Tooltip text={t("ballInteractionTip")} />
           </label>
-          <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("ballInteraction")}>
+          {/* --- review fix (ui-i18n) --- a wrapping row (not 4 fixed columns): longer labels (pl "Przenikanie") are never clipped */}
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("ballInteraction")}>
             {BALL_INTERACTIONS.map((mode) => (
               <button
                 type="button"
                 key={mode}
                 onClick={() => update({ ballInteraction: mode })}
                 aria-pressed={s.ballInteraction === mode}
-                className={`px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.ballInteraction === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                className={`flex-auto whitespace-nowrap px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${s.ballInteraction === mode ? onBtn : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
               >
                 <span aria-hidden="true">{OPTIONS[mode].icon}</span> {t(OPTIONS[mode].labelKey)}
               </button>

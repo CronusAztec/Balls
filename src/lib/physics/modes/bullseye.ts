@@ -978,10 +978,13 @@ export class BullseyeMode implements GameMode {
     // Earlier shots stuck in the target deflect it (the perfect shot flies past them).
     if (!perfect) {
       const bounciness = ctx.getPhysicsExtras().wallBounciness;
+      // --- bounce-math --- the ball's own bounciness on top (after the restitution cap), lifting at most to the ball speed × it
+      const ballBounce = ball.restitution ?? 1;
+      const lift = ballBounce > 1 ? (ctx.config.ballSpeed || 400) * bounciness * ballBounce * this.timeScale : Infinity;
       for (let i = 0; i < this.stuck.length; i++) {
         const o = this.stuck[i];
         const approach = Math.hypot(ball.vx, ball.vy) / this.timeScale;
-        const impact = resolveBallCircle(ball, o, dtSec, bounciness);
+        const impact = resolveBallCircle(ball, o, dtSec, bounciness, undefined, ballBounce, lift);
         if (impact < 0) continue;
         this.touchMs[k] = this.worldMs;
         // A slow drop onto a stuck ball sticks to it (a dart in a dart); a fast one is deflected.
@@ -989,6 +992,7 @@ export class BullseyeMode implements GameMode {
           this.land(ctx, ball, k);
           return;
         }
+        if (impact >= 40 * this.timeScale) ctx.noteBounce?.(ball); // --- bounce-math --- a deflection off a stuck ball is a bounce
         if (impact >= 40 * this.timeScale && this.notesThisStep < MAX_NOTES_PER_STEP) {
           this.notesThisStep++;
           v.notes++;

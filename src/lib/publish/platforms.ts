@@ -16,9 +16,15 @@ export function isPublishPlatform(value: unknown): value is PublishPlatform {
   return typeof value === "string" && (PUBLISH_PLATFORMS as readonly string[]).includes(value);
 }
 
-/** Who can see a sent clip. Instagram Reels are always public; TikTok maps these onto its privacy levels. */
+/**
+ * Who can see a sent clip. Instagram Reels are always public (the page refuses to send them anything else, and so does the
+ * relay); TikTok maps these onto its privacy levels – it has no "unlisted", so unlisted posts to mutual friends (Friends).
+ */
 export const VISIBILITIES = ["public", "unlisted", "private"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
+
+/** The platforms that only post publicly: a send there with another visibility is refused, not quietly made public. */
+export const PUBLIC_ONLY_PLATFORMS: readonly PublishPlatform[] = ["instagram"];
 
 export function isVisibility(value: unknown): value is Visibility {
   return typeof value === "string" && (VISIBILITIES as readonly string[]).includes(value);

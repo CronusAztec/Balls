@@ -101,6 +101,9 @@ const loadNote = () => {
   return load > cpus ? `, load ${load.toFixed(1)} on ${cpus} cores` : "";
 };
 
+/** --- review fix (ui-i18n) --- the panel's ON/OFF toggles are switches named by their label: a name that starts with `label`. */
+const switchName = (label) => new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+
 /** Sets a React-controlled range input the way a user drag would (runs in the page). */
 const setRangeValue = (el, value) => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -214,8 +217,8 @@ check("hit sample controls appear in sample mode", await hitSampleSelect.isVisib
 await hitSampleSelect.selectOption("kick");
 await page.waitForTimeout(1500);
 check("hit sample settings mirrored into the URL", page.url().includes("hsm=sample") && page.url().includes("hs=kick"), `(${page.url().split("?")[1]})`);
-// The "Pitch by Wall" toggle is the button right after its label (other toggles in the section read "On" as well).
-await page.locator('label:has-text("Pitch by Wall") + button').click();
+// The "Pitch by Wall" toggle is the switch named by its label (other toggles in the section read "On" as well).
+await page.getByRole("switch", { name: switchName("Pitch by Wall") }).click();
 await page.waitForTimeout(200);
 check("pitch-by-wall toggle mirrored into the URL", page.url().includes("hspw=0"), `(${page.url().split("?")[1]})`);
 await page.getByRole("button", { name: /Synth tones/ }).click();
@@ -381,12 +384,12 @@ await page.evaluate(() => {
 });
 {
   const values = { dbc: await sliderValue("Ball Count"), drows: await sliderValue("Peg Rows"), dsi: await sliderValue("Release Interval") };
-  const rain = await page.locator('label:has-text("Rain (Loop)") + button').getAttribute("aria-pressed");
+  const rain = await page.getByRole("switch", { name: switchName("Rain (Loop)") }).getAttribute("aria-checked");
   const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
   check("ball drop loads from URL", values.dbc === "6" && values.drows === "4" && values.dsi === "0" && rain === "true" && finderHidden, `(${JSON.stringify(values)}, rain=${rain}, finder hidden=${finderHidden})`);
 }
 await page.locator('input[aria-label="Peg Rows"]').evaluate(setRangeValue, "6");
-await page.locator('label:has-text("Rain (Loop)") + button').click();
+await page.getByRole("switch", { name: switchName("Rain (Loop)") }).click();
 await page.waitForTimeout(300);
 {
   const query = page.url().split("?")[1] || "";
@@ -703,10 +706,10 @@ check("R restarts the music bed from the start offset", !!bedThirdStart && bedTh
 // playhead is (start + elapsed) % duration, so the bed has to resume from that wrapped position (below the track
 // length) instead of treating the track as finished. The run restarted from 0 with R a moment ago.
 await page.waitForTimeout(4400); // the 4 s track wraps
-const loopToggle = page.locator('label:has-text("Loop Music") + button');
+const loopToggle = page.getByRole("switch", { name: switchName("Loop Music") });
 await loopToggle.click();
 await page.waitForTimeout(300);
-const loopOff = (await loopToggle.getAttribute("aria-pressed")) === "false";
+const loopOff = (await loopToggle.getAttribute("aria-checked")) === "false";
 const soundingAfterLoopOff = await page.getByTestId("music-playing").isVisible(); // the source had not ended
 await page.evaluate(() => document.activeElement?.blur());
 await page.keyboard.press("Space");
@@ -816,7 +819,7 @@ check(
 );
 check("picture paint HUD shows the schedule and the beat", ["onSchedule", "behind", "ahead"].includes(paintData2.paintPace) && paintData2.paintBeat === "120", `(pace=${paintData2.paintPace}, beat=${paintData2.paintBeat} BPM)`);
 await page.locator('input[aria-label="Brush Size"]').evaluate(setRangeValue, "2");
-await page.locator('label:has-text("Guided Coverage") + button').click();
+await page.getByRole("switch", { name: switchName("Guided Coverage") }).click();
 await page.waitForTimeout(300);
 {
   const query = page.url().split("?")[1] || "";
@@ -981,7 +984,7 @@ check("find simulation completes", found, `(${resultText})`);
 // 7. Language switcher
 await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /English/ }).click();
-await page.getByRole("menuitem", { name: /Español/ }).click();
+await page.getByRole("button", { name: /Español/ }).click(); // --- review fix (ui-i18n) --- a disclosure list of buttons, not an ARIA menu
 await page.waitForURL(/\/es\/simulator\//);
 check("language switch to Spanish", page.url().includes("/es/simulator/"), `(${page.url()})`);
 
@@ -1035,7 +1038,7 @@ await page.waitForTimeout(1200);
 await page.getByRole("button", { name: "🏀", exact: true }).click();
 await page.waitForTimeout(400);
 const faceOnEmojiBefore = (await canvasData()).faceCount;
-await page.locator('label:has-text("Face on Image / Emoji") + button').click();
+await page.getByRole("switch", { name: switchName("Face on Image / Emoji") }).click();
 await page.waitForTimeout(400);
 {
   const after = await canvasData();
@@ -1279,7 +1282,7 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
   await page.getByRole("group", { name: "Tempos", exact: true }).getByRole("button", { name: "Harmonic", exact: true }).click();
   await page.locator('input[aria-label="Voices"]').evaluate(setRangeValue, "24");
   await page.locator('input[aria-label="Cycles"]').evaluate(setRangeValue, "2");
-  await page.locator('label:has-text("Polygons") + button').click();
+  await page.getByRole("switch", { name: switchName("Polygons") }).click();
   await page.waitForTimeout(300);
   {
     const query = page.url().split("?")[1] || "";
@@ -1368,12 +1371,12 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
   check("asset /modes/collide.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
 }
 /** The On/Off button of a toggle in the Collision playground block, by the start of its label (tooltips mention other toggles). */
-const collideToggle = (label) => page.getByTestId("collision-playground").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+const collideToggle = (label) => page.getByTestId("collision-playground").getByRole("switch", { name: switchName(label) });
 await page.goto(`${BASE}/en/simulator/?mode=collide&cpn=120&cpc=box&cpsq=1&cpac=3&cpe=0.9`, { waitUntil: "networkidle" });
 {
   const values = { cpn: await sliderValue("Orbs"), cpe: await sliderValue("Bounciness"), cpac: await sliderValue("Anti-Collision At") };
   const box = await page.getByRole("group", { name: "Container" }).getByRole("button", { name: /Box/ }).getAttribute("aria-pressed");
-  const squishy = await collideToggle("Squishy").getAttribute("aria-pressed");
+  const squishy = await collideToggle("Squishy").getAttribute("aria-checked");
   const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
   const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
   check("collision playground loads from URL", values.cpn === "120" && values.cpe === "0.9" && values.cpac === "3" && box === "true" && squishy === "true" && finderHidden && noRingControls, `(${JSON.stringify(values)}, box=${box}, squishy=${squishy}, finder hidden=${finderHidden})`);
@@ -1687,14 +1690,14 @@ const findAndRecordTeams = async (query, name) => {
 // escape recorded at 8× replays its last 2 s at half speed with the REPLAY badge while the recording keeps going,
 // and only then do the export and the end screen follow.
 {
-  const cameraToggle = (label) => page.getByTestId("camera-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const cameraToggle = (label) => page.getByTestId("camera-section").getByRole("switch", { name: switchName(label) });
   const cameraPhase = () => page.evaluate(() => document.querySelector("main canvas")?.dataset.cameraReplay ?? "");
   await page.goto(`${BASE}/en/simulator/?mode=classic&cz=0.6&shake=0.5&slow=1&slowf=0.3&slowms=900&replay=1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Visual Effects/ }).click();
   {
     const values = { cz: await sliderValue("Camera Zoom"), shake: await sliderValue("Screen Shake"), slowf: await sliderValue("Slow-Mo Speed"), slowms: await sliderValue("Slow-Mo Length") };
-    const slow = await cameraToggle("Slow-Mo on Near Miss").getAttribute("aria-pressed");
-    const replay = await cameraToggle("Replay on Escape").getAttribute("aria-pressed");
+    const slow = await cameraToggle("Slow-Mo on Near Miss").getAttribute("aria-checked");
+    const replay = await cameraToggle("Replay on Escape").getAttribute("aria-checked");
     check("camera settings load from URL into the Camera group", values.cz === "0.6" && values.shake === "0.5" && values.slowf === "0.3" && values.slowms === "900" && slow === "true" && replay === "true", `(${JSON.stringify(values)}, slow=${slow}, replay=${replay})`);
   }
   await page.locator('input[aria-label="Camera Zoom"]').evaluate(setRangeValue, "0.8");
@@ -1820,12 +1823,12 @@ for (const asset of ["/modes/glass.webp", "/wallBreak/glass.wav"]) {
   check(`asset ${asset}`, res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
 }
 /** The On/Off button of a toggle in the Glass block, by the start of its label. */
-const glassToggle = (label) => page.getByTestId("glass-smash").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+const glassToggle = (label) => page.getByTestId("glass-smash").getByRole("switch", { name: switchName(label) });
 await page.goto(`${BASE}/en/simulator/?mode=glass&glr=9&glhp=3&gls=5&glm=0`, { waitUntil: "networkidle" });
 {
   const values = { glr: await sliderValue("Panes per Stage"), glhp: await sliderValue("Hits per Pane"), gls: await sliderValue("Stages") };
-  const moving = await glassToggle("Sliding Panes").getAttribute("aria-pressed");
-  const holes = await glassToggle("Panes with Holes").getAttribute("aria-pressed");
+  const moving = await glassToggle("Sliding Panes").getAttribute("aria-checked");
+  const holes = await glassToggle("Panes with Holes").getAttribute("aria-checked");
   const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
   const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
   const runSize = await page.getByTestId("glass-run-size").innerText().catch(() => "");
@@ -1921,7 +1924,7 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 // 8× –, so read at 8× "after the first row" often held both rows already.
 await page.goto(`${BASE}/en/simulator/?mode=glass&glg=1&gls=2&glr=4`, { waitUntil: "networkidle" });
 {
-  const gates = await glassToggle("Multiplier Gates").getAttribute("aria-pressed").catch(() => null);
+  const gates = await glassToggle("Multiplier Gates").getAttribute("aria-checked").catch(() => null);
   await page.getByRole("button", { name: /Ball & Physics/ }).click();
   const group = await page.getByTestId("multipliers-section").isVisible().catch(() => false);
   check("glass smash multiplier gates load from the URL, with the Multipliers group in the Ball section", gates === "true" && group, `(gates=${gates}, multipliers group=${group})`);
@@ -2520,14 +2523,14 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
 }
 {
   /** The On/Off button of a toggle in the Double pendulum block, by the start of its label (tooltips mention other toggles). */
-  const dpToggle = (label) => page.getByTestId("double-pendulum").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const dpToggle = (label) => page.getByTestId("double-pendulum").getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpn=3&dpsg=3&dprs=0&dpa1=100&dpa3=-45&dpst=16&dpsl=radial&dpo=3&dptr=6&dpd=0.0015&dpen=1`, { waitUntil: "networkidle" });
   {
     const values = { dpn: await sliderValue("Pendulums"), dpa1: await sliderValue("Start Angle 1"), dpa3: await sliderValue("Start Angle 3"), dpst: await sliderValue("Harp Strings"), dpo: await sliderValue("Harp Octaves"), dptr: await sliderValue("Trail Length"), dpd: await sliderValue("Friction") };
     const triple = await page.getByRole("group", { name: "Arms", exact: true }).getByRole("button", { name: "Triple", exact: true }).getAttribute("aria-pressed");
     const radial = await page.getByRole("group", { name: "String Layout", exact: true }).getByRole("button", { name: /Radial/ }).getAttribute("aria-pressed");
-    const endless = await dpToggle("Endless").getAttribute("aria-pressed");
-    const randomStart = await dpToggle("Random Start").getAttribute("aria-pressed");
+    const endless = await dpToggle("Endless").getAttribute("aria-checked");
+    const randomStart = await dpToggle("Random Start").getAttribute("aria-checked");
     const finderHidden = (await page.getByRole("button", { name: /Find 30s Simulation/ }).count()) === 0;
     check(
       "double pendulum loads from URL",
@@ -2702,14 +2705,14 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("the Circle Illusion card is on the landing page", (await page.locator('img[src$="/modes/illusion.webp"]').count()) === 1);
 }
 {
-  const illusionToggle = (label) => page.getByTestId("illusion-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const illusionToggle = (label) => page.getByTestId("illusion-section").getByRole("switch", { name: switchName(label) });
   const typeButton = (name) => page.getByRole("group", { name: "Illusion", exact: true }).getByRole("button", { name: new RegExp(name) });
   await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=rings&ilr=6&ils=1.5&ilc=2&iltr=0&ilrv=1&wob=0.5`, { waitUntil: "networkidle" });
   {
     const values = { ilr: await sliderValue("Rings"), ils: await sliderValue("Illusion Speed"), ilc: await sliderValue("Cycles") };
     const rings = await typeButton("Rings").getAttribute("aria-pressed");
-    const tracks = await illusionToggle("Tracks").getAttribute("aria-pressed");
-    const reveal = await illusionToggle("Reveal").getAttribute("aria-pressed");
+    const tracks = await illusionToggle("Tracks").getAttribute("aria-checked");
+    const reveal = await illusionToggle("Reveal").getAttribute("aria-checked");
     const cycle = await page.getByTestId("illusion-cycle").innerText();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Balls"]').count()) === 0;
     await page.getByRole("button", { name: /Visual Effects/ }).click();
@@ -2930,10 +2933,10 @@ const instrumentOscillators = () =>
   await page.getByLabel("Show advanced options").check();
   await page.getByRole("button", { name: /Visual Effects/ }).click();
   const section = page.getByTestId("rigged-section");
-  const neverToggle = section.locator('label:has-text("Never Escape") + button');
+  const neverToggle = section.getByRole("switch", { name: switchName("Never Escape") });
   {
     const shown = await section.isVisible();
-    const pressed = await neverToggle.getAttribute("aria-pressed").catch(() => null);
+    const pressed = await neverToggle.getAttribute("aria-checked").catch(() => null);
     const warning = await page.getByTestId("rigged-warning").isVisible();
     const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
     check("rigged outcomes load from the URL", shown && pressed === "true" && warning && /no ball can escape/.test(note), `(section=${shown}, never escape=${pressed}, warning=${warning}, note="${note}")`);
@@ -3278,12 +3281,12 @@ const instrumentOscillators = () =>
   await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=5&sbl=6&sbm=20&sbr=touch&sbst=neon&sbd=60&sbf=2.4&sbw=0.3&sbb=0`, { waitUntil: "networkidle" });
   const section = page.getByTestId("string-battle-section");
   const pick = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name: new RegExp(name) });
-  const toggle = (label) => section.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
   {
     const values = { sbn: await sliderValue("Fighters"), sbl: await sliderValue("Lives"), sbm: await sliderValue("Threads per Ball"), sbd: await sliderValue("Clip Limit"), sbf: await sliderValue("Finale Speed"), sbw: await sliderValue("Ring Wobble") };
     const touch = await pick("Combat Rule", "Touch").getAttribute("aria-pressed");
     const neon = await pick("Style", "Neon").getAttribute("aria-pressed");
-    const badge = await toggle("Warning Badge").getAttribute("aria-pressed");
+    const badge = await toggle("Warning Badge").getAttribute("aria-checked");
     const noHudToggle = (await toggle("WEB DOMINION HUD").count()) === 0;
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
     const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
@@ -3549,14 +3552,14 @@ const plFrameRates = async (ms) => {
   return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
 };
 {
-  const plToggle = (label) => page.getByTestId("power-layers").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const plToggle = (label) => page.getByTestId("power-layers").getByRole("switch", { name: switchName(label) });
   const seqButton = (name) => page.getByRole("group", { name: "Power Sequence", exact: true }).getByRole("button", { name: new RegExp(name) });
   await page.goto(`${BASE}/en/simulator/?mode=powerLayers&pll=300&plq=fibonacci&pld=0.5&plsp=1.5&plb=warning&plp=0`, { waitUntil: "networkidle" });
   {
     const values = { pll: await sliderValue("Layers"), pld: await sliderValue("Drift"), plsp: await sliderValue("Bounce Speed") };
     const fib = await seqButton("Fibonacci").getAttribute("aria-pressed");
     const badge = await page.locator("#power-layers-badge").inputValue();
-    const pills = await plToggle("Rule Badges").getAttribute("aria-pressed");
+    const pills = await plToggle("Rule Badges").getAttribute("aria-checked");
     const run = await page.getByTestId("power-layers-run").innerText();
     const hint = await page.getByTestId("power-layers-sequence").innerText();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Balls"]').count()) === 0;
@@ -3961,16 +3964,16 @@ const plFrameRates = async (ms) => {
 }
 {
   /** The On/Off button of a toggle in the Race block, by the start of its label. */
-  const raceToggle = (label) => page.getByTestId("race-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const raceToggle = (label) => page.getByTestId("race-section").getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=race&rcn=12&rcs=circle&rcl=5&rclp=2&rcf=turbo&rccam=pack&rccup=1&rcct=Neon%20Cup&rcw=3&rcst=0&rcmm=0`, { waitUntil: "networkidle" });
   {
     const values = { rcn: await sliderValue("Racers"), rcl: await sliderValue("Track Length"), rclp: await sliderValue("Laps") };
     const circles = await page.getByRole("group", { name: "Racer Shape", exact: true }).getByRole("button", { name: /Circles/ }).getAttribute("aria-pressed");
     const pack = await page.getByRole("group", { name: "Camera", exact: true }).getByRole("button", { name: /Pack/ }).getAttribute("aria-pressed");
     const mix = await page.locator("#race-feature").inputValue();
-    const standings = await raceToggle("Live Standings").getAttribute("aria-pressed");
-    const miniMap = await raceToggle("Mini-map").getAttribute("aria-pressed");
-    const cup = await raceToggle("Cup").first().getAttribute("aria-pressed");
+    const standings = await raceToggle("Live Standings").getAttribute("aria-checked");
+    const miniMap = await raceToggle("Mini-map").getAttribute("aria-checked");
+    const cup = await raceToggle("Cup").first().getAttribute("aria-checked");
     const title = await page.locator("#race-cup-title").inputValue();
     const winner = await page.locator("#race-winner").inputValue();
     const warned = (await page.getByTestId("race-rig-warning").isVisible()) && (await page.getByTestId("race-rigged-note").isVisible());
@@ -4187,13 +4190,13 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   check("the Battle Royale and Capture the Flag cards are on the landing page", cards === 2, `(${cards})`);
 }
 {
-  const arenaToggle = (label) => page.getByTestId("arena-games-section").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const arenaToggle = (label) => page.getByTestId("arena-games-section").getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=battle&btn=12&bthp=6&btd=1.5&bta=circle&bts=0&btp=0&arn=0.8`, { waitUntil: "networkidle" });
   {
     const values = { btn: await sliderValue("Squares"), bthp: await sliderValue("Hit Points"), btd: await sliderValue("Damage"), arn: await sliderValue("Director Nudge") };
     const circle = await page.getByRole("group", { name: "Arena", exact: true }).getByRole("button", { name: /Circle/ }).getAttribute("aria-pressed");
-    const shrink = await arenaToggle("Shrinking Zone").getAttribute("aria-pressed");
-    const powerUps = await arenaToggle("Power-ups").getAttribute("aria-pressed");
+    const shrink = await arenaToggle("Shrinking Zone").getAttribute("aria-checked");
+    const powerUps = await arenaToggle("Power-ups").getAttribute("aria-checked");
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
     check(
       "battle royale loads from URL",
@@ -4446,14 +4449,14 @@ const jrInstrumentTones = () =>
       return start.apply(this, arguments);
     };
   });
-const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch", { name: switchName(label) });
 {
   // The runner's block: from the URL into the controls, from the controls into the URL, and the search box.
   await page.goto(`${BASE}/en/simulator/?mode=runner&rrn=40&rrsp=12&rrj=3.2&rrd=0.8&rrm=blocks&rrbs=bpm&rra=0`, { waitUntil: "networkidle" });
   const values = { rrn: await sliderValue("Obstacles"), rrsp: await sliderValue("Run Speed"), rrj: await sliderValue("Jump Height"), rrd: await sliderValue("Density") };
   const blocks = await page.getByRole("group", { name: "Obstacle Mix", exact: true }).getByRole("button", { name: /Blocks/ }).getAttribute("aria-pressed");
   const bpm = await page.getByRole("group", { name: "Beat", exact: true }).getByRole("button", { name: /BPM/ }).getAttribute("aria-pressed");
-  const auto = await jrToggle("runner-section", "Auto Jump").getAttribute("aria-pressed");
+  const auto = await jrToggle("runner-section", "Auto Jump").getAttribute("aria-checked");
   const run = await page.getByTestId("runner-run").innerText();
   const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
   check(
@@ -4553,7 +4556,7 @@ const jrToggle = (testId, label) => page.getByTestId(testId).locator(`xpath=.//l
   // Paddle Keep-Up: the block from the URL; a perfect controller hides the finder.
   await page.goto(`${BASE}/en/simulator/?mode=paddle&pdsk=0.85&pdm=4&pdw=0.3&pdsp=0.4&pdu=0.05`, { waitUntil: "networkidle" });
   const values = { pdsk: await sliderValue("Skill"), pdm: await sliderValue("Misses Allowed"), pdw: await sliderValue("Platform Width"), pdsp: await sliderValue("Spin"), pdu: await sliderValue("Speed-Up") };
-  const auto = await jrToggle("paddle-section", "Auto Platform").getAttribute("aria-pressed");
+  const auto = await jrToggle("paddle-section", "Auto Platform").getAttribute("aria-checked");
   const info = await page.getByTestId("paddle-info").innerText();
   const finderBefore = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
   await page.locator('input[aria-label="Skill"]').evaluate(setRangeValue, "1");
@@ -5432,11 +5435,11 @@ const vxFrameRates = async (ms) => {
   return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
 };
 {
-  const vxToggle = (label) => page.getByTestId("sound-vortex").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const vxToggle = (label) => page.getByTestId("sound-vortex").getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=6&vxs=0.5&vxr=16&vxd=8&vxg=2&vxds=0.8`, { waitUntil: "networkidle" });
   {
     const values = { vxn: await sliderValue("Vortex Balls"), vxs: await sliderValue("Entry Stagger"), vxr: await sliderValue("Sound Rings"), vxd: await sliderValue("Spiral Time"), vxg: await sliderValue("Central Pull"), vxds: await sliderValue("Depth Cue") };
-    const loop = await vxToggle("Respawn Loop").getAttribute("aria-pressed");
+    const loop = await vxToggle("Respawn Loop").getAttribute("aria-checked");
     const run = await page.getByTestId("sound-vortex-run").innerText();
     const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
@@ -5695,8 +5698,8 @@ const vxFrameRates = async (ms) => {
     // On beat: the timed wall hits of the classic run land on the grid.
     await page.evaluate(() => {
       const root = document.querySelector('[data-testid="video-beats"]');
-      const label = [...(root?.querySelectorAll("label") ?? [])].find((l) => /^On beat(?! range)/.test(l.textContent ?? ""));
-      const button = label?.parentElement?.querySelector("button[aria-pressed]");
+      // --- review fix (ui-i18n) --- the toggle is a switch named by its label (aria-labelledby)
+      const button = [...(root?.querySelectorAll('[role="switch"]') ?? [])].find((b) => /^On beat(?! range)/.test(document.getElementById(b.getAttribute("aria-labelledby") ?? "")?.textContent ?? ""));
       button?.click();
     });
     await page.waitForTimeout(300);
@@ -6127,12 +6130,12 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
 }
 {
   const block = page.getByTestId("bullseye");
-  const byToggle = (label) => block.locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const byToggle = (label) => block.getByRole("switch", { name: switchName(label) });
   const bySlider = (label) => block.locator(`input[aria-label="${label}"]`);
   await page.goto(`${BASE}/en/simulator/?mode=bullseye&bys=6&byi=0.6&byc=0.25&byr=6&byp=2`, { waitUntil: "networkidle" });
   {
     const values = { bys: await bySlider("Shots").inputValue(), byi: await bySlider("Launch Interval").inputValue(), byc: await bySlider("Chaos").inputValue(), byr: await bySlider("Target Rings").inputValue(), byp: await bySlider("Perfect Shot").inputValue() };
-    const moving = await byToggle("Moving Target").getAttribute("aria-pressed");
+    const moving = await byToggle("Moving Target").getAttribute("aria-checked");
     const runText = await page.getByTestId("bullseye-run").innerText();
     const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
@@ -6386,7 +6389,7 @@ const bdInstrument = () =>
   });
 {
   const bdPressed = (name) => page.getByTestId("beat-drop").getByRole("button", { name, exact: false }).first().getAttribute("aria-pressed");
-  const bdToggle = (label) => page.getByTestId("beat-drop").locator(`xpath=.//label[starts-with(normalize-space(.), "${label}")]/following-sibling::button[1]`);
+  const bdToggle = (label) => page.getByTestId("beat-drop").getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bdk=spring,drum&bdd=0.8&bds=arena&bdh=0.33&bda=0.85&bdsn=drums&bdc=rainbow&bdt=0`, { waitUntil: "networkidle" });
   {
     const values = { bdd: await sliderValue("Drift"), bdh: await sliderValue("Bounce Height"), bda: await sliderValue("Fly-in Time") };
@@ -6398,7 +6401,7 @@ const bdInstrument = () =>
       drums: await bdPressed(/^Drums$/),
       rainbow: await bdPressed(/Rainbow/),
     };
-    const trail = await bdToggle("Motion Trail").getAttribute("aria-pressed");
+    const trail = await bdToggle("Motion Trail").getAttribute("aria-checked");
     const run = await page.getByTestId("beat-drop-run").innerText();
     const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
@@ -7217,6 +7220,31 @@ const bdInstrument = () =>
     dt >= 3.5 && Math.abs(perSecond - 2) < 0.35 && Math.abs(Number(b1.bmFires) - expected) <= 1,
     `(${b0.bmFires} → ${b1.bmFires} fires over ${dt.toFixed(2)} s: ${perSecond.toFixed(2)}/s; at ${b1.bmTime} s expected ≈${expected})`,
   );
+
+  // A colour shift turns the default white ball (white has no hue of its own: it turns from a saturated colour).
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bmr=hue.bounce.1.add.30`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= 2, null, { timeout: 30000 }).catch(() => {});
+  const hue = await bmData();
+  const rgb = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hue.bmColor ?? "");
+  const channels = rgb ? rgb.slice(1).map((h) => parseInt(h, 16)) : [];
+  check("bounce math: a colour shift turns the default white ball", Number(hue.bmFires) >= 2 && channels.length === 3 && Math.max(...channels) - Math.min(...channels) > 80, `(fires ${hue.bmFires}, colour ${hue.bmColor})`);
+
+  // Every mode reports its bounces – the Collision Playground's container too – and the panel names a trigger the mode
+  // never sets off (no ring gaps to pass on the Ball Drop board) instead of silently never firing it.
+  await page.goto(`${BASE}/en/simulator/?mode=collide&bmr=hue.bounce.1.add.5;hue.collide.1.add.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.bmFires ?? "0,0").split(",").every((n) => Number(n) > 0), null, { timeout: 30000 }).catch(() => {});
+  const collideFires = (await bmData()).bmFires ?? "";
+  await page.goto(`${BASE}/en/simulator/?mode=drop&bmr=hue.pass.1.add.5;hue.bounce.1.add.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  await page.getByTestId("bm-rule").first().waitFor({ timeout: 10000 }).catch(() => {});
+  const marks = await page.getByTestId("bm-rule").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-trigger")}:${e.getAttribute("data-applies")}:${e.querySelector('[data-testid="bm-trigger-note"]') ? "note" : "-"}`));
+  check(
+    "bounce math: bounce and ball-hit rules fire in the Collision Playground; a trigger Ball Drop never sets off is marked",
+    collideFires.split(",").length === 2 && collideFires.split(",").every((n) => Number(n) > 0) && marks.join(" ") === "pass:0:note bounce:1:-",
+    `(collide fires ${collideFires}; drop rows ${JSON.stringify(marks)})`,
+  );
 }
 // --- end bounce-math ---
 // --- social-publish --- Publish (the block after the Viral video bot block of the Recording section): with nothing set up
@@ -7377,9 +7405,19 @@ const bdInstrument = () =>
     const channel = await block.locator('[data-publish-account="yt:UCsmoke"]').innerText().catch(() => "");
     check("publish: Connect YouTube asks the Google token client for youtube.upload and lists the channel", connected && gis.length === 1 && gis[0].clientId === "1234567890-smoke.apps.googleusercontent.com" && gis[0].scope.includes("youtube.upload") && gis[0].prompt === "select_account" && channel.includes("Smoke Channel"), `(${JSON.stringify(gis)}, "${channel.replace(/\s+/g, " ")}")`);
 
-    // 5. One click: the YouTube channel and the three relay accounts, unlisted; the YouTube progress is watched.
+    // 5. One click: the YouTube channel and the three relay accounts; the YouTube progress is watched. Unlisted first: an
+    // Instagram Reel is always public, so the block holds the send back and says so (and that TikTok's unlisted is Friends)
+    // instead of posting the Reel publicly; Public sends.
     for (const id of ["a_tt1", "a_tt2", "a_ig1"]) await block.locator(`[data-publish-account$=":${id}"] input[type=checkbox]`).check();
     await p1.locator("#publish-visibility").selectOption("unlisted");
+    const heldBack = {
+      publicOnly: await p1.getByTestId("publish-public-only").isVisible().catch(() => false),
+      friends: await p1.getByTestId("publish-tiktok-friends").isVisible().catch(() => false),
+      sendOff: await p1.getByTestId("publish-send").isDisabled(),
+    };
+    await p1.locator("#publish-visibility").selectOption("public");
+    const released = { publicOnly: await p1.getByTestId("publish-public-only").isVisible().catch(() => false), sendOff: await p1.getByTestId("publish-send").isDisabled() };
+    check("publish: an Instagram Reel is never sent unlisted or private – the block says Reels are always public (and TikTok's unlisted is Friends)", heldBack.publicOnly && heldBack.friends && heldBack.sendOff && !released.publicOnly && !released.sendOff, `(${JSON.stringify({ heldBack, released })})`);
     const sendLabel = await p1.getByTestId("publish-send").innerText();
     await p1.evaluate(() => {
       window.__ytProgress = [];
@@ -7403,7 +7441,7 @@ const bdInstrument = () =>
     const initBody = yt.init?.body ? JSON.parse(yt.init.body) : null;
     check(
       "publish: a connected YouTube channel uploads to the (stubbed) resumable endpoint – a 308 resume, the progress, the Short's link",
-      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "unlisted" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
+      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "public" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
       `(${JSON.stringify(ytItem)}, puts ${JSON.stringify(yt.puts)}, progress ${JSON.stringify(progress)})`,
     );
     const form = relay.forms[0] ?? "";
@@ -7412,6 +7450,20 @@ const bdInstrument = () =>
       "publish: Send to selected sends to every ticked account in one click – YouTube direct plus two TikTok and one Instagram account through one relay upload – with per-account results",
       settled && /\(4\)/.test(sendLabel) && relay.forms.length === 1 && form.includes("a_tt1,a_tt2,a_ig1") && form.includes('name="posts"') && form.includes("#fyp") && form.includes("#reels") && form.includes('filename="smoke-clip.mp4"') && items.find((i) => i.key.endsWith(":a_tt1"))?.link === "https://www.tiktok.com/@smoketok/video/1" && items.find((i) => i.key.endsWith(":a_ig1"))?.status === "failed" && recent === 5,
       `(${JSON.stringify(items)}, ${relay.forms.length} upload(s), recent ${recent}, "${sendLabel}")`,
+    );
+
+    // "Try again" on the failed Instagram row after another clip became the one on show: the relay gets the clip that row
+    // was sent with (and its words), not the new one.
+    await p1.locator("#publish-file-input").setInputFiles({ name: "smoke-other.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(300 * 1024, 3) });
+    const switched = await p1.waitForFunction(() => document.querySelector("[data-publish-clip-source]")?.getAttribute("data-publish-clip-name") === "smoke-other.mp4", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await block.locator('[data-publish-send$=":a_ig1"]').getByRole("button", { name: /Try again/ }).click();
+    const retried = await p1.waitForFunction(() => document.querySelector('[data-publish-send$=":a_ig1"]')?.getAttribute("data-publish-status") === "failed", null, { timeout: 15000 }).then(() => true).catch(() => false);
+    await p1.waitForTimeout(300);
+    const again = relay.forms[1] ?? "";
+    check(
+      "publish: Try again re-sends the failed account's own clip and words, not the clip on show now",
+      switched && retried && relay.forms.length === 2 && again.includes('filename="smoke-clip.mp4"') && !again.includes("smoke-other") && /name="accounts"\r?\n\r?\na_ig1\r?\n/.test(again) && again.includes("#reels"),
+      `(switched=${switched}, retried=${retried}, ${relay.forms.length} upload(s), second form ${again.length} bytes, file ${/filename="([^"]+)"/.exec(again)?.[1]})`,
     );
 
     // 6. A fast export's clip is offered to the block.
@@ -7473,6 +7525,180 @@ const bdInstrument = () =>
   check("publish: no page errors in the Publish checks", pubHard.length === 0, pubHard.length ? `\n   ${pubHard.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end social-publish ---
+
+// --- review fix (ui-i18n) --- the settings search finds the escape modes' Mode-row controls, Wall Count / Gap Size only
+// where they act, named switches, the collapsed mobile menu out of the tab order, the language list closes on Escape,
+// reduced motion, the slider focus ring, the narrow-panel button rows, keyboard-placed obstacles, the localised alt
+// text / footer label / 404 title and the mode count taken from the code.
+{
+  const search = page.getByPlaceholder("Search settings...");
+  const noResults = page.getByText("No settings match your search.");
+  const found = {};
+  for (const [mode, query, control] of [
+    ["accumulation", "Spikes", () => page.getByRole("switch", { name: "Spikes" })],
+    ["grow", "Growth Rate", () => page.locator('input[aria-label="Growth Rate"]')],
+    ["target", "Number of Targets", () => page.locator('input[aria-label="Number of Targets"]')],
+    ["multiply", "Spawn Count", () => page.locator('input[aria-label="Spawn Count"]')],
+    ["colorMatch", "Number of Colors", () => page.locator('input[aria-label="Number of Colors"]')],
+  ]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}`, { waitUntil: "networkidle" });
+    await search.fill(query);
+    found[`${mode}:${query}`] = (await control().first().isVisible().catch(() => false)) && !(await noResults.isVisible().catch(() => false));
+  }
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await search.fill("Spikes");
+  const classicNone = await noResults.isVisible().catch(() => false);
+  await search.fill("");
+  check("settings search finds the escape modes' Mode-row controls (and still says no results in Classic)", Object.values(found).every(Boolean) && classicNone, `(${JSON.stringify(found)}, classic "Spikes" → no results: ${classicNone})`);
+
+  // Toggles are switches named by their label (not "ON"/"OFF").
+  await page.getByRole("button", { name: /Wall Settings/ }).click();
+  const rotation = page.getByRole("switch", { name: "Rotation" });
+  const rotationOk = (await rotation.count()) === 1 && (await rotation.getAttribute("aria-checked")) !== null && (await page.getByRole("button", { name: /^(ON|OFF)$/ }).count()) === 0;
+  check("ON/OFF toggles are switches named by their label (Rotation)", rotationOk, `(switches named Rotation: ${await rotation.count()}, aria-checked=${await rotation.getAttribute("aria-checked").catch(() => null)})`);
+
+  // Wall Count and Gap Size are left out where the mode builds one gapless ring (Grow, Portal); Rotation stays.
+  await page.evaluate(() => localStorage.setItem("jumpingballslive_advanced_options", "true"));
+  const wallSliders = {};
+  for (const mode of ["classic", "grow", "portal"]) {
+    await page.goto(`${BASE}/en/simulator/?mode=${mode}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Wall Settings/ }).click();
+    const labels = await page.locator('input[type="range"][aria-label]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    wallSliders[mode] = { count: labels.includes("Wall Count"), gap: labels.includes("Gap Size"), thickness: labels.includes("Wall Thickness"), rotation: (await page.getByRole("switch", { name: "Rotation" }).count()) === 1 };
+  }
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_advanced_options"));
+  check(
+    "Wall Count and Gap Size are offered in Classic but not in Grow or Portal (Rotation and Wall Thickness stay)",
+    wallSliders.classic.count && wallSliders.classic.gap && ["grow", "portal"].every((m) => !wallSliders[m].count && !wallSliders[m].gap && wallSliders[m].thickness && wallSliders[m].rotation),
+    `(${JSON.stringify(wallSliders)})`,
+  );
+
+  // A slider reached with Tab shows a focus ring.
+  await page.goto(`${BASE}/en/simulator/?mode=accumulation`, { waitUntil: "networkidle" });
+  await search.click();
+  let ring = null;
+  for (let i = 0; i < 30 && !ring; i++) {
+    await page.keyboard.press("Tab");
+    const onRange = await page.evaluate(() => document.activeElement instanceof HTMLInputElement && document.activeElement.type === "range");
+    if (!onRange) continue;
+    await page.waitForTimeout(400); // the sliders' transition-all eases the outline in
+    ring = await page.evaluate(() => {
+      const el = document.activeElement;
+      const cs = getComputedStyle(el);
+      return { label: el.getAttribute("aria-label"), focusVisible: el.matches(":focus-visible"), outline: cs.outlineStyle, width: cs.outlineWidth };
+    });
+  }
+  check("a slider reached with the keyboard shows a focus ring", !!ring && ring.focusVisible && ring.outline === "solid" && ring.width !== "0px", `(${JSON.stringify(ring)})`);
+
+  // Obstacles can be placed from the keyboard: the row's x / y sliders move them.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&obs=${encodeURIComponent("p:0.5,0,6")}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Obstacles/ }).first().click();
+  const xSlider = page.locator('input[aria-label="Horizontal position of obstacle 1"]');
+  const ySlider = page.locator('input[aria-label="Vertical position of obstacle 1"]');
+  const hasXY = (await xSlider.count()) === 1 && (await ySlider.count()) === 1;
+  if (hasXY) {
+    await xSlider.focus();
+    for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowLeft");
+    await ySlider.focus();
+    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(300);
+  }
+  const moved = (new URL(page.url()).searchParams.get("obs") ?? "").split(":")[1]?.split(",").map(Number) ?? [];
+  check("an obstacle can be moved with the keyboard (its x / y sliders)", hasXY && Math.abs(moved[0] - 0.45) < 0.001 && Math.abs(moved[1] - 0.03) < 0.001, `(obs=${new URL(page.url()).searchParams.get("obs")})`);
+
+  // Narrow panel (phone width, Polish / Spanish): the button rows wrap instead of clipping their labels.
+  const narrow = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  try {
+    const np = await narrow.newPage();
+    const clipped = async (group) =>
+      np.evaluate(
+        (label) =>
+          [...document.querySelectorAll(`main [role="group"][aria-label="${label}"] button`)]
+            .filter((b) => b.offsetParent !== null && b.scrollWidth > b.clientWidth + 1)
+            .map((b) => b.textContent.trim()),
+        group,
+      );
+    await np.goto(`${BASE}/pl/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    await np.getByRole("button", { name: /Piłka i fizyka/ }).click();
+    const plClipped = await clipped("Interakcja piłek");
+    const plPass = await np.getByRole("button", { name: /Przenikanie/ }).count();
+    await np.goto(`${BASE}/es/simulator/?mode=polyrhythm`, { waitUntil: "networkidle" });
+    const esClipped = await clipped("Tempos");
+    check("narrow panel: Polish / Spanish option buttons are not clipped (interaction, tempos)", plPass === 1 && plClipped.length === 0 && esClipped.length === 0, `(pl pass=${plPass}, pl clipped ${JSON.stringify(plClipped)}, es clipped ${JSON.stringify(esClipped)})`);
+
+    // The collapsed mobile menu is out of the tab order; opened, it is reachable and Escape closes it.
+    await np.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+    const stops = [];
+    for (let i = 0; i < 3; i++) {
+      await np.keyboard.press("Tab");
+      stops.push(await np.evaluate(() => ({ text: (document.activeElement?.textContent ?? "").trim().slice(0, 30), inMenu: !!document.activeElement?.closest('[data-testid="mobile-menu"]') })));
+    }
+    const inertClosed = await np.getByTestId("mobile-menu").evaluate((el) => el.hasAttribute("inert"));
+    const burger = np.getByRole("button", { name: "Open menu" });
+    await burger.click();
+    const controls = await np.getByRole("button", { name: "Close menu" }).getAttribute("aria-controls");
+    const openedInert = await np.getByTestId("mobile-menu").evaluate((el) => el.hasAttribute("inert"));
+    await np.keyboard.press("Tab");
+    const intoMenu = await np.evaluate(() => !!document.activeElement?.closest('[data-testid="mobile-menu"]'));
+    await np.keyboard.press("Escape");
+    const closedByEscape = (await np.getByRole("button", { name: "Open menu" }).getAttribute("aria-expanded")) === "false";
+    const menuId = await np.getByTestId("mobile-menu").getAttribute("id");
+    check(
+      "mobile menu: closed it is inert (Tab skips it), opened it is reachable, Escape closes it",
+      stops.every((s) => !s.inMenu) && inertClosed && !openedInert && intoMenu && closedByEscape && !!controls && controls === menuId,
+      `(${JSON.stringify(stops)}, inert closed=${inertClosed} open=${openedInert}, into menu=${intoMenu}, escape=${closedByEscape}, aria-controls=${controls}/${menuId})`,
+    );
+  } finally {
+    await narrow.close().catch(() => {});
+  }
+
+  // Desktop language list: Escape closes it and returns focus to the trigger.
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const trigger = page.locator("header").getByRole("button", { name: /English/ }).first(); // (the open list has an English option too)
+  await trigger.click();
+  const listOpen = (await page.getByRole("button", { name: /Español/ }).count()) === 1 && (await trigger.getAttribute("aria-expanded")) === "true";
+  const noMenuRoles = (await page.locator('header [role="menu"], header [role="menuitem"]').count()) === 0;
+  await page.keyboard.press("Escape");
+  const closed = (await page.getByRole("button", { name: /Español/ }).count()) === 0;
+  const focusBack = await page.evaluate(() => document.activeElement?.getAttribute("aria-expanded") === "false" && /English/.test(document.activeElement?.textContent ?? ""));
+  check("language list: a disclosure that Escape closes, focus back on the trigger", listOpen && noMenuRoles && closed && focusBack, `(open=${listOpen}, no menu roles=${noMenuRoles}, closed=${closed}, focus back=${focusBack})`);
+
+  // The mode count in the hero is the number of mode cards.
+  const cards = await page.locator('#modes img[src*="/modes/"]').count();
+  const subtitle = await page.locator("section p").first().innerText();
+  check("the hero's mode count matches the mode cards", cards >= 26 && subtitle.includes(`one of ${cards} modes`), `(${cards} cards, "${subtitle.slice(0, 120)}")`);
+
+  // Localised alt text and footer landmark (Polish), localised 404 title.
+  await page.goto(`${BASE}/pl/`, { waitUntil: "networkidle" });
+  const alt = await page.locator('img[src$="/modes/classic.webp"]').first().getAttribute("alt");
+  const footerLabel = await page.locator("footer nav").first().getAttribute("aria-label");
+  const plSubtitle = await page.locator("section p").first().innerText();
+  await page.goto(`${BASE}/pl/this-page-does-not-exist/`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => document.documentElement.lang === "pl", null, { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const title404 = await page.title();
+  check(
+    "Polish pages: localised mode-card alt text, footer label, hero mode count and 404 title",
+    alt === "Podgląd trybu Klasyczny" && footerLabel === "Stopka" && plSubtitle.includes(`z ${cards} trybów`) && title404 === "Nie znaleziono strony – JumpingBallsLive",
+    `(alt="${alt}", footer="${footerLabel}", title="${title404}")`,
+  );
+
+  // Reduced motion: no bouncing logo, no smooth scrolling.
+  const calm = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
+  try {
+    const cp = await calm.newPage();
+    await cp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    const motion = await cp.evaluate(() => {
+      const dot = document.querySelector("header a span");
+      const cs = dot ? getComputedStyle(dot) : null;
+      return { anim: cs?.animationName, iter: cs?.animationIterationCount, scroll: getComputedStyle(document.documentElement).scrollBehavior };
+    });
+    check("prefers-reduced-motion: the logo stops bouncing and scrolling is not smooth", motion.anim === "none" && motion.scroll === "auto", `(${JSON.stringify(motion)})`);
+  } finally {
+    await calm.close().catch(() => {});
+  }
+}
+// --- end review fix (ui-i18n) ---
 
 const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "./Tooltip";
 import type { ControlSection } from "./Controls";
@@ -151,19 +151,23 @@ export function Toggle({
   onClass?: string;
   caseStyle?: "upper" | "title";
 }) {
+  // --- review fix (ui-i18n) --- a switch named by its label (not "ON"/"OFF"); the tooltip stays outside the name
+  const labelId = useId();
   return (
     <div className="flex items-center justify-between">
-      <label className="text-sm font-medium text-zinc-300">
-        {t(labelKey)}
+      <span className="text-sm font-medium text-zinc-300">
+        <span id={labelId}>{t(labelKey)}</span>
         {tipKey && <Tooltip text={t(tipKey)} />}
-      </label>
+      </span>
       <button
         type="button"
+        role="switch"
         onClick={() => onChange(!value)}
-        aria-pressed={value}
+        aria-checked={value}
+        aria-labelledby={labelId}
         className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${value ? onClass : offBtn}`}
       >
-        {value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}
+        <span aria-hidden="true">{value ? t(caseStyle === "upper" ? "onText" : "onTextCase") : t(caseStyle === "upper" ? "offText" : "offTextCase")}</span>
       </button>
     </div>
   );

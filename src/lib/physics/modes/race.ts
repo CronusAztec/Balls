@@ -704,6 +704,7 @@ export class RaceMode implements GameMode {
         if (impact < 0) continue;
         if (o.role === "bumper" && impact > 0) this.kick(ball, o.shape.x, o.shape.y);
         if (impact < this.hitSpeed) continue;
+        ctx.noteBounce?.(ball); // --- bounce-math --- an obstacle hit is a bounce
         o.lastHitMs = nowMs;
         o.lastRacer = i;
         v.hitAtMs[i] = nowMs;

@@ -735,6 +735,7 @@ export class VortexMode implements GameMode {
       v.ringHitMs[next] = this.clockMs;
       this.stepAngle = st.theta;
       v.notes++;
+      ctx.noteBounce?.(ball); // --- bounce-math --- a sound ring the ball sinks past (its note) counts as its bounce
       if (next > v.deepestRing) v.deepestRing = next;
       next++;
     }

@@ -1048,11 +1048,21 @@ export function hslToHex(h: number, s: number, l: number): string {
   return hex(255 * channel(hue + 1 / 3), 255 * channel(hue), 255 * channel(hue - 1 / 3));
 }
 
-/** `color` with its hue turned by `degrees` (a colour this cannot read comes back as it is). */
+/** Below this saturation a colour is (nearly) grey: turning its hue would change nothing you could see. */
+export const ACHROMATIC_SATURATION = 0.1;
+
+/**
+ * `color` with its hue turned by `degrees` (a colour this cannot read comes back as it is). White, black and the greys have
+ * no hue to turn (the default ball is white), so they turn from a saturated colour of a similar lightness instead – red at
+ * 0°, kept between 45 % and 65 % lightness so it reads on the dark background: a colour shift always shows. A turn of 0
+ * keeps the colour as it is.
+ */
 export function rotateHue(color: string, degrees: number): string {
   if (!Number.isFinite(degrees) || degrees === 0) return color;
   const hsl = parseColorHsl(color);
-  return hsl ? hslToHex(hsl.h + degrees, hsl.s, hsl.l) : color;
+  if (!hsl) return color;
+  if (hsl.s < ACHROMATIC_SATURATION) return hslToHex(hsl.h + degrees, 1, Math.min(0.65, Math.max(0.45, hsl.l)));
+  return hslToHex(hsl.h + degrees, hsl.s, hsl.l);
 }
 
 /* ------------------------------------------------------------------ the readout */
