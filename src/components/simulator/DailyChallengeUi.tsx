@@ -24,7 +24,7 @@ export function DailyBar({ active, busy, disabled, onPlay }: { active: DailyChal
         type="button"
         onClick={onPlay}
         disabled={disabled || busy}
-        className="shrink-0 px-2.5 py-1 rounded-md bg-accent/10 border border-accent/25 text-accent hover:bg-accent/20 hover:border-accent/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        className="inline-flex h-8 shrink-0 items-center px-3 rounded-md bg-accent/10 border border-accent/25 text-accent hover:bg-accent/20 hover:border-accent/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed [@media(pointer:coarse)]:min-h-11" /* --- review fix (site-redesign) --- a 32 px target (44 px on touch) */
       >
         {t("play")}
       </button>

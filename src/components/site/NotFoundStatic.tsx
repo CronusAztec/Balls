@@ -15,22 +15,17 @@ import es from "../../../messages/es.json";
 // --- site-redesign --- the header, the footer and the language list read their labels from SiteRedesign (navigation,
 // footer columns, mode families, the search hint), the footer's family headings from Headings, the gallery link from
 // Gallery; --- desktop-exe --- the navbar's and footer's Windows app link from DesktopLink.
+// --- review fix (site-redesign) --- every field is written out per locale: a catalog handed to a function (or spread) is
+// used whole, and webpack then ships all three catalogs in the /404 chunk (tests/siteStatic.test.ts rejects it).
 type SiteChrome = Pick<typeof en.SiteRedesign, "nav" | "footer" | "lang" | "families"> & { studio: Pick<typeof en.SiteRedesign.studio, "search"> };
 type StaticMessages = Pick<typeof en, "NotFound" | "Navbar" | "Footer" | "Pwa" | "Headings" | "DesktopLink"> & {
   Gallery: Pick<typeof en.Gallery, "navLabel">;
   SiteRedesign: SiteChrome;
 };
-const chrome = (c: typeof en): SiteChrome => ({
-  nav: c.SiteRedesign.nav,
-  footer: c.SiteRedesign.footer,
-  lang: c.SiteRedesign.lang,
-  families: c.SiteRedesign.families,
-  studio: { search: c.SiteRedesign.studio.search },
-});
 const MESSAGES: Record<Locale, StaticMessages> = {
-  en: { NotFound: en.NotFound, Navbar: en.Navbar, Footer: en.Footer, Gallery: { navLabel: en.Gallery.navLabel }, DesktopLink: en.DesktopLink, Pwa: en.Pwa, Headings: en.Headings, SiteRedesign: chrome(en) },
-  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Footer: pl.Footer, Gallery: { navLabel: pl.Gallery.navLabel }, DesktopLink: pl.DesktopLink, Pwa: pl.Pwa, Headings: pl.Headings, SiteRedesign: chrome(pl) },
-  es: { NotFound: es.NotFound, Navbar: es.Navbar, Footer: es.Footer, Gallery: { navLabel: es.Gallery.navLabel }, DesktopLink: es.DesktopLink, Pwa: es.Pwa, Headings: es.Headings, SiteRedesign: chrome(es) },
+  en: { NotFound: en.NotFound, Navbar: en.Navbar, Footer: en.Footer, Gallery: { navLabel: en.Gallery.navLabel }, DesktopLink: en.DesktopLink, Pwa: en.Pwa, Headings: en.Headings, SiteRedesign: { nav: en.SiteRedesign.nav, footer: en.SiteRedesign.footer, lang: en.SiteRedesign.lang, families: en.SiteRedesign.families, studio: { search: en.SiteRedesign.studio.search } } },
+  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Footer: pl.Footer, Gallery: { navLabel: pl.Gallery.navLabel }, DesktopLink: pl.DesktopLink, Pwa: pl.Pwa, Headings: pl.Headings, SiteRedesign: { nav: pl.SiteRedesign.nav, footer: pl.SiteRedesign.footer, lang: pl.SiteRedesign.lang, families: pl.SiteRedesign.families, studio: { search: pl.SiteRedesign.studio.search } } },
+  es: { NotFound: es.NotFound, Navbar: es.Navbar, Footer: es.Footer, Gallery: { navLabel: es.Gallery.navLabel }, DesktopLink: es.DesktopLink, Pwa: es.Pwa, Headings: es.Headings, SiteRedesign: { nav: es.SiteRedesign.nav, footer: es.SiteRedesign.footer, lang: es.SiteRedesign.lang, families: es.SiteRedesign.families, studio: { search: es.SiteRedesign.studio.search } } },
 };
 
 /** Reads the locale from the URL the static host failed to serve (/<base>/<locale>/...). */

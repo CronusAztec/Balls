@@ -67,6 +67,38 @@ const fold = (text: string) =>
     .replace(/[̀-ͯ]/g, "")
     .replace(/ł/g, "l");
 
+/** --- review fix (site-redesign) --- A group of the palette's controls: a rail item and the search keys of the controls it shows. */
+export interface PaletteGroup {
+  section: string;
+  label: string;
+  keys: readonly string[];
+}
+
+/**
+ * --- review fix (site-redesign) --- The palette's control entries, group by group: every key with a label, once (the first
+ * group that lists it keeps it), and one entry per label within a group – two keys named alike there (a search alias, a
+ * block's heading and its control) would offer the same thing twice, and a control named like its group is the group's own
+ * entry. `labelOf` gives a key's label, or null for none.
+ */
+export function paletteControlEntries(groups: readonly PaletteGroup[], labelOf: (key: string) => string | null): PaletteEntry[] {
+  const keys = new Set<string>();
+  const out: PaletteEntry[] = [];
+  for (const group of groups) {
+    const labels = new Set<string>([fold(group.label.trim())]);
+    for (const key of group.keys) {
+      if (keys.has(key)) continue;
+      const label = labelOf(key)?.trim();
+      if (!label) continue;
+      keys.add(key);
+      const folded = fold(label);
+      if (labels.has(folded)) continue;
+      labels.add(folded);
+      out.push({ kind: "control", section: group.section, key, label, sectionLabel: group.label });
+    }
+  }
+  return out;
+}
+
 /**
  * The palette's matches for a query, best first: every word of the query must start a word of the label (or of its
  * section's name, or the label key); a label that starts with the query ranks above one that only contains its words,

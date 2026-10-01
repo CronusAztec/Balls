@@ -42,7 +42,12 @@ export { selectClass } from "@/components/ui/Field";
 export function Searchable({ search, matches, labelKey, children }: { search: string; matches: Matcher; labelKey: string; children: ReactNode }) {
   if (!search) return <>{children}</>;
   if (!matches(labelKey)) return null;
-  return <div className="rounded-lg border border-line bg-surface-2/60 p-3">{children}</div>;
+  // --- review fix (site-redesign) --- the card names its key: the command palette finds the control it jumped to by it
+  return (
+    <div className="rounded-lg border border-line bg-surface-2/60 p-3" data-search-key={labelKey}>
+      {children}
+    </div>
+  );
 }
 
 export function Slider({

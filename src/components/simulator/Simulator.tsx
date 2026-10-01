@@ -18,6 +18,7 @@ import Tooltip from "./Tooltip";
 import StageStrip from "./studio/StageStrip";
 import ModePicker from "./studio/ModePicker";
 import Button from "@/components/ui/Button";
+import Segmented from "@/components/ui/Segmented"; // --- review fix (site-redesign) --- the playback speeds (32 px targets, 44 px on touch)
 import { IconCheck, IconClose, IconLink, IconPause, IconPlay, IconRecord, IconRestart, IconStop, IconTarget, IconWarning } from "@/components/ui/icons";
 import { PhysicsEngine } from "@/lib/physics/engine"; // --- teams --- (the two-ball switch became the ball count: MULTI_BALL_MODES below)
 import { physicsExtrasOf } from "@/lib/physics/extras";
@@ -133,6 +134,8 @@ import {
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
 
 const SPEEDS = [1, 2, 4, 8];
+/** --- review fix (site-redesign) --- the transport bar's speed choices (the kit's Segmented control). */
+const SPEED_OPTIONS = SPEEDS.map((speed) => ({ value: speed, label: `${speed}x` }));
 /** --- gerald-multipliers --- who makes it home when the ball has no name. */
 const DEFAULT_GERALD_NAME = "Gerald";
 /** Picture Paint: how long the finished picture stays crisp on screen before the end screen covers it. */
@@ -2949,20 +2952,8 @@ export default function Simulator() {
             </Button>
           )}
         </div>
-        <div className={isStarted ? "flex items-center" : "invisible hidden items-center @[40rem]:flex"} role="group" aria-label={t("SiteRedesign.studio.speed")}>
-          <div className="inline-flex items-center gap-0.5 rounded-md border border-line bg-surface-1 p-0.5">
-            {SPEEDS.map((speed) => (
-              <button
-                type="button"
-                key={speed}
-                onClick={() => setSimSpeed(speed)}
-                aria-pressed={simSpeed === speed}
-                className={`num inline-flex h-7 min-w-8 items-center justify-center rounded-[5px] px-1.5 text-xs cursor-pointer ${simSpeed === speed ? "bg-accent text-accent-ink" : "text-ink-2 hover:bg-surface-3 hover:text-ink"}`}
-              >
-                {speed}x
-              </button>
-            ))}
-          </div>
+        <div className={isStarted ? "flex items-center" : "invisible hidden items-center @[40rem]:flex"}>
+          <Segmented label={t("SiteRedesign.studio.speed")} size="xs" mono options={SPEED_OPTIONS} value={simSpeed} onChange={setSimSpeed} />
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           {finderShown && (
@@ -3036,7 +3027,7 @@ export default function Simulator() {
                 <p className="text-xs font-medium text-danger">{t("Controls.didNotFind")}</p>
                 <p className="text-xs text-ink-2">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
               </div>
-              <button type="button" onClick={() => setSearchResult(null)} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer" aria-label={t("Controls.clearSearch")}>
+              <button type="button" onClick={() => setSearchResult(null)} className="-my-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={t("Controls.clearSearch")}>
                 <IconClose size={14} />
               </button>
             </div>
@@ -3066,7 +3057,7 @@ export default function Simulator() {
                   </p>
                 )}
               </div>
-              <button type="button" onClick={() => setSearchResult(null)} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer" aria-label={t("Controls.clearSearch")}>
+              <button type="button" onClick={() => setSearchResult(null)} className="-my-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={t("Controls.clearSearch")}>
                 <IconClose size={14} />
               </button>
             </div>
@@ -3111,8 +3102,10 @@ export default function Simulator() {
     </div>
   );
 
+  // --- review fix (site-redesign) --- scroll-mt-14: a scroll to the studio (a mode picked in the picker, Play today's seed,
+  // a bot clip opened) stops below the 56 px sticky header instead of sliding the stage strip and the search under it
   return (
-    <main id="simulator" ref={mainRef} className="studio-main">
+    <main id="simulator" ref={mainRef} className="studio-main scroll-mt-14">
       <ProjectDropZone label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} disabled={projectFiles.panel.importLocked} lockedLabel={t("Controls.projectImportLocked")} /* --- project-files --- (the whole studio takes a dropped project file; --- review fix (recording-export) --- not while a render runs) */>
         <Controls
           settings={settings}

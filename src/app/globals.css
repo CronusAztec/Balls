@@ -483,6 +483,9 @@ dialog.ui-dialog[open] {
   .studio-rail-tip {
     display: none;
   }
+  .studio-scrim {
+    display: none;
+  }
 
   /* The panel. */
   .studio-panel {
@@ -566,6 +569,15 @@ dialog.ui-dialog[open] {
       bottom: var(--studio-rail-h);
       z-index: 20;
     }
+    /* --- review fix (site-redesign) --- the open sheet's scrim: the stage dims a little, and a tap on it puts the sheet away
+       (the header stays above it) */
+    .studio-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 29;
+      display: block;
+      background: rgb(5 5 6 / 0.4);
+    }
   }
 
   /* Desktop: rail | stage | panel. */
@@ -588,7 +600,9 @@ dialog.ui-dialog[open] {
       flex-direction: column;
       align-items: stretch;
       gap: 4px;
-      overflow-x: visible;
+      /* --- review fix (site-redesign) --- (the hover labels are drawn outside the rail now, so nothing needs to show past it
+         sideways – and the 48 px items with their padding no longer scroll it by a pixel) */
+      overflow-x: hidden;
       overflow-y: auto;
       border-block: 0;
       border-right: 1px solid var(--color-line);
@@ -626,11 +640,10 @@ dialog.ui-dialog[open] {
       width: 2px;
       height: auto;
     }
+    /* --- review fix (site-redesign) --- the hover label of the icon rail, drawn by TabStrip in a fixed layer on <body> at
+       the button's right edge (the rail's own scroll box clipped it sideways) */
     .studio-rail-tip {
       display: block;
-      left: calc(100% + 8px);
-      top: 50%;
-      transform: translateY(-50%);
     }
     .studio-panel {
       grid-area: panel;
@@ -679,6 +692,34 @@ dialog.ui-dialog[open] {
     }
     .studio-rail-tip {
       display: none;
+    }
+  }
+
+  /* --- review fix (site-redesign) --- hit targets: every button of the panel is at least 32 px tall – the choice rows
+     (Face, Rainbow, the modes' option buttons), the small list and icon buttons – and an icon-only one as wide; on touch
+     screens 44 px, the panel's pickers and fields too, and the rail's and the tab strip's items (the phone's strip grows
+     to hold them). The kit's buttons and fields carry these sizes themselves. */
+  .studio-panel-body button {
+    min-height: 32px;
+  }
+  .studio-panel-body button:has(> svg:only-child) {
+    min-width: 32px;
+  }
+  @media (pointer: coarse) {
+    .studio {
+      --studio-rail-h: 56px;
+    }
+    .studio-rail-item {
+      height: 44px;
+    }
+    .studio-panel-body button,
+    .studio-panel-body select,
+    .studio-panel-body input:not([type="range"], [type="checkbox"], [type="radio"], [type="file"], [type="hidden"]) {
+      min-height: 44px;
+    }
+    .studio-panel-body button:has(> svg:only-child),
+    .studio-panel-body input[type="color"] {
+      min-width: 44px;
     }
   }
 
