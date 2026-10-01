@@ -8754,7 +8754,8 @@ const bdInstrument = () =>
 // default race (three explorers) at 1× then 4× – the frame rate, the notes on the pentatonic ladder climbing toward the exit
 // (OscillatorNode.start instrumented), the painted trail, nobody through a wall, the badge, the HUD, the verdict banner and
 // then the end screen; fog and own-colour paint; a roster whose rigged Gold wins under the teams banner; Find Simulation's
-// winner outcome played back; and a 1080×1920 recording of the default race.
+// winner outcome played back; a 150-column maze the balls get into; explorers that climb at the slowest Speed under the
+// strongest Pull; and a 1080×1920 recording of the default race.
 {
   const res = await page.request.get(`${BASE}/modes/maze.webp`);
   check("asset /modes/maze.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -8897,6 +8898,42 @@ const bdInstrument = () =>
     data = await canvasData();
   }
   check("Find Simulation finds a maze race the chosen ball wins, and it plays back", labelled && /Found! AQUA wins/.test(text) && data.mzFinished === "1" && data.mzWinner === "1" && data.mzWinnerName === "AQUA", `("${text}", played: ${JSON.stringify({ finished: data.mzFinished, winner: data.mzWinner, name: data.mzWinnerName })})`);
+}
+{
+  // A typed Maze Size of 150 columns (under the 200-column ceiling): the maze sits in the world's 450 px square, a cell is
+  // 1.68 world px, and the wall and the ball shrink with it – the explorers get out of the chute and spread through the
+  // corridors (with a 1 px wall and a 0.5 px ball no ball fitted a corridor: data-mz-visited stayed 0, a solid green block).
+  await page.goto(`${BASE}/en/simulator/?mode=maze&mzc=150`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.mzVisited) >= 300, null, { timeout: 20_000 }).catch(() => {});
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-maze-150.png") });
+  check(
+    "a 150-column maze lets the balls in: the explorers spread through its 1.68 px cells",
+    data.mzCols === "150" && Number(data.mzVisited) >= 300 && data.mzLeaks === "0",
+    `(${JSON.stringify({ world: data.world, cols: data.mzCols, rows: data.mzRows, visited: data.mzVisited, dist: data.mzDist, contacts: data.mzContacts, leaks: data.mzLeaks })})`,
+  );
+}
+{
+  // The slowest Speed under the strongest Pull: lifting a ball one cell takes more than four times its cruising speed, and
+  // the speed caps admit that climb – a ball gets out of a 6-column maze within the clip (capped, the steered balls bounced
+  // at the foot of every upward corridor and these races ended TIME'S UP at 60 s). At 8×.
+  const runs = [];
+  for (const seed of [1, 2]) {
+    await page.goto(`${BASE}/en/simulator/?mode=maze&mzc=6&mzs=0.25&mzg=1&seed=${seed}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.mzVerdict, null, { timeout: 30_000 }).catch(() => {});
+    const data = await canvasData();
+    runs.push({ seed, run: data.seed, world: data.world, verdict: data.mzVerdict, at: data.mzVerdictMs, exited: data.mzExited, visited: data.mzVisited, leaks: data.mzLeaks });
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-maze-climb.png") });
+  check(
+    "maze explorers climb at Speed 0.25 and Pull 1: a ball gets out of a 6-column maze within the clip",
+    runs.every((r) => r.run === String(r.seed) && r.verdict === "exit" && r.leaks === "0"),
+    `(${JSON.stringify(runs)})`,
+  );
 }
 {
   // A 1080×1920 recording (the default resolution) of the default race.

@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  MZ_BALL_FRACTION,
   MZ_BIT,
   MZ_E,
   MZ_GAP_ENTRANCE,
   MZ_GAP_EXIT,
+  MZ_MAX_WALL_FRACTION,
   MZ_MICRO_STEP,
+  MZ_MIN_WALL,
   MZ_N,
   MZ_OPPOSITE,
   MZ_S,
   MZ_W,
+  MZ_WALL_FRACTION,
   buildMazeField,
   carveMaze,
   emptyMazeContact,
@@ -61,6 +65,7 @@ import { slowViewEligible } from "@/lib/simulation/camera";
 import { effectiveBallCount, teamResult } from "@/lib/teams";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { MEMORY_CEILINGS } from "@/lib/uncap"; // --- uncap-all ---
+import { liveWorldOf } from "@/lib/simulation/world";
 
 /**
  * Maze escape (lib/physics/mazeGrid.ts, lib/physics/modes/maze.ts; feature odd-maze): the seeded perfect maze (n − 1
@@ -68,11 +73,20 @@ import { MEMORY_CEILINGS } from "@/lib/uncap"; // --- uncap-all ---
  * brains' choices, the settings (resolve, URL, presets), and the mode in the engine: containment at any speed and canvas
  * size, determinism, the notes rising toward the exit, the winner (first out, the clip limit's nearest), the rig and the
  * finder (duration and winner).
+ *
+ * The runs play in the worlds the page simulates (lib/simulation/world.ts): 800 × 450 in a 16:9 frame – the default here –
+ * and 450 × 450 in a phone's square one. The maze sits in the world's 450 px square, so the columns' ceiling makes cells of
+ * 1.26 px there (a bigger test canvas hid corridors narrower than a ball).
  */
 
+/** The page's worlds: a 16:9 frame's and a square frame's (world px). */
+const WIDE = liveWorldOf({ width: 1600, height: 900 });
+const SQUARE = liveWorldOf({ width: 900, height: 900 });
+const WORLDS = [WIDE, SQUARE].map(({ width, height }) => ({ width, height }));
+
 const config: PhysicsConfig = {
-  width: 800,
-  height: 600,
+  width: WIDE.width,
+  height: WIDE.height,
   gravity: 300,
   bounce: 1,
   damping: 0,
@@ -250,6 +264,29 @@ describe("the field and the cell collision", () => {
     expect(mazeBallRadius(Number.NaN, 100)).toBe(8);
     // A ball at its largest still leaves room in a corridor.
     expect(2 * (mazeBallRadius(30, f.cell) + f.wall / 2)).toBeLessThan(f.cell);
+  });
+
+  it("keeps every corridor wider than a ball in the page's worlds, up to the columns' memory-safety ceiling", () => {
+    // The maze sits in the world's 450 px square: a cell is 252 / cols px. With a 1 px wall and a 0.5 px ball the contact
+    // distance (radius + half the wall) outgrew half a cell from about 116 columns on, and no ball got out of the chute.
+    const share = MZ_BALL_FRACTION + MZ_MAX_WALL_FRACTION / 2;
+    for (const world of WORLDS) {
+      for (const cols of [6, 12, 40, 50, 51, 80, 116, 150, MEMORY_CEILINGS.mzCols]) {
+        const f = buildMazeField(world.width, world.height, cols, mazeRowsFor(cols));
+        expect(f.side).toBe(450);
+        for (const size of [0.01, 0.5, 8, 30, 1e6]) {
+          const contact = mazeBallRadius(size, f.cell) + f.wall / 2;
+          expect(contact, `${world.width}×${world.height}, ${cols} columns, Ball Size ${size}`).toBeLessThanOrEqual(share * f.cell + 1e-9);
+          expect(2 * contact).toBeLessThan(f.cell);
+          expect(mazeBallRadius(size, f.cell)).toBeGreaterThan(0);
+        }
+        // Nothing changes where the pixel minimums fit (up to about 50 columns): the wall and the ball as before.
+        if (cols <= 50) {
+          expect(f.wall).toBe(Math.max(MZ_MIN_WALL, MZ_WALL_FRACTION * f.cell));
+          expect(mazeBallRadius(8, f.cell)).toBe(Math.max(0.5, Math.min(8, MZ_BALL_FRACTION * f.cell)));
+        }
+      }
+    }
   });
 
   const grid: MazeGrid = generateMaze(6, 9, rng(9));
@@ -538,6 +575,11 @@ describe("the maze in the engine", () => {
       [{ cols: 6, speed: 3, gravity: 1, brain: "bounce", balls: 8 }, { width: 1920, height: 1080, ballRadius: 30 }],
       [{ cols: 25, speed: 3, gravity: 0, brain: "wallFollow", balls: 8 }, { width: 300, height: 300, ballRadius: 4 }],
       [{ cols: 9, speed: 2.5, gravity: 1, brain: "bounce", balls: 5 }, { width: 1080, height: 1920, ballRadius: 30, windX: 0.5, windY: 0.5 }],
+      // The columns' ceiling in the page's worlds: cells of 1.26 px, a ball of any size still fits its corridor.
+      [{ cols: MEMORY_CEILINGS.mzCols, speed: 3, gravity: 1, brain: "bounce", balls: 8 }, { ...WORLDS[0], ballRadius: 30 }],
+      [{ cols: 150, speed: 1, gravity: 0.35, brain: "explorer", balls: 8 }, { ...WORLDS[1], ballRadius: 0.1 }],
+      // The slowest speed under the strongest pull: the steering's climb runs past MZ_MAX_SPEED × the cruising speed.
+      [{ cols: 6, speed: 0.25, gravity: 1, brain: "wallFollow", balls: 8 }, { ...WORLDS[0], ballRadius: 30 }],
     ];
     for (const [maze, patch] of cases) {
       const engine = engineFor({ ...maze, duration: 180 }, 17, patch);
@@ -644,23 +686,34 @@ describe("the maze in the engine", () => {
       expect(resolveMazeSettings(mazeSettingsOf(s))).toMatchObject({ cols: MEMORY_CEILINGS.mzCols, balls: MEMORY_CEILINGS.mzBalls, speed: 1e9, gravity: 1e9, duration: 1e9, trail: 5, fog: 5 });
     }
     expect(pastAnyMemoryCeiling(defaultSettings("maze"))).toBe(false);
-    // A race of 32 explorers in a maze of the columns' ceiling: every ball paints (a bit each in the paint masks), each
-    // cell and passage at most once per ball, and nothing goes through a wall.
-    const engine = engineFor({ cols: 1e9, balls: 1e9, brain: "explorer" }, 3, { width: 1080, height: 1920 });
-    const view = engine.getMazeView();
-    expect(view.grid.cols).toBe(MEMORY_CEILINGS.mzCols);
-    expect(view.count).toBe(MEMORY_CEILINGS.mzBalls);
-    run(engine, 12_000); // (the last of the 32 drops in after 31 × MZ_RELEASE_MS)
-    const painters = new Set<number>();
-    for (let i = 0; i < view.paintCount; i++) painters.add(view.paint[3 * i + 2]);
-    expect(painters.size).toBe(MEMORY_CEILINGS.mzBalls);
-    expect(view.paintCount).toBeLessThanOrEqual(MEMORY_CEILINGS.mzBalls * 2 * view.grid.cells);
-    expect(view.leaks).toBe(0);
-    // An absurd pull and speed melt (the balls slow down in their cells) but never leave the maze.
-    const wild = engineFor({ speed: 1e9, gravity: 1e9, balls: 4, brain: "bounce" }, 5, { width: 1080, height: 1920 });
-    run(wild, 3_000);
-    expect(wild.getMazeView().leaks).toBe(0);
-    for (const b of wild.getBalls()) expect([b.x, b.y, b.vx, b.vy].every(Number.isFinite)).toBe(true);
+    // A race of 32 explorers in a maze of the columns' ceiling, in the page's worlds (the maze in their 450 px square:
+    // cells of 1.26 px): every ball gets in, explores and paints (a bit each in the paint masks), each cell and passage
+    // at most once per ball, and nothing goes through a wall.
+    for (const world of WORLDS) {
+      const where = `${world.width}×${world.height}`;
+      const engine = engineFor({ cols: 1e9, balls: 1e9, brain: "explorer" }, 3, world);
+      const view = engine.getMazeView();
+      expect(view.grid.cols).toBe(MEMORY_CEILINGS.mzCols);
+      expect(view.count).toBe(MEMORY_CEILINGS.mzBalls);
+      run(engine, 12_000); // (the last of the 32 drops in after 31 × MZ_RELEASE_MS)
+      const painters = new Set<number>();
+      for (let i = 0; i < view.paintCount; i++) painters.add(view.paint[3 * i + 2]);
+      expect(painters.size, where).toBe(MEMORY_CEILINGS.mzBalls);
+      expect(view.runners.filter((r) => r.entered).length, where).toBe(MEMORY_CEILINGS.mzBalls);
+      expect(Math.min(...view.runners.map((r) => r.visited)), `${where}: cells the least travelled ball visited`).toBeGreaterThanOrEqual(50);
+      expect(view.paintCount).toBeLessThanOrEqual(MEMORY_CEILINGS.mzBalls * 2 * view.grid.cells);
+      expect(view.leaks).toBe(0);
+    }
+    // An absurd pull and speed melt (the balls slow down in their cells) but never leave the maze – an absurd pull at an
+    // ordinary speed too (its climb speed is far past MZ_MAX_SPEED × the cruising speed).
+    for (const world of WORLDS) {
+      for (const [speed, gravity, brain] of [[1e9, 1e9, "bounce"], [1, 1e9, "explorer"]] as const) {
+        const wild = engineFor({ speed, gravity, balls: 4, brain }, 5, world);
+        run(wild, 3_000);
+        expect(wild.getMazeView().leaks).toBe(0);
+        for (const b of wild.getBalls()) expect([b.x, b.y, b.vx, b.vy].every(Number.isFinite)).toBe(true);
+      }
+    }
   });
 
   it("the first ball out wins – an escape in the team stats, the wall-break sound – and the run finishes after the hold", { timeout: 30_000 }, () => {
@@ -696,6 +749,28 @@ describe("the maze in the engine", () => {
         expect(view.endMs, `seed ${seed}, pull ${gravity}`).toBeLessThan(180_000);
       }
     }
+  });
+
+  it("explorers climb against the strongest pull at the slowest speed: the speed caps admit the climb (Speed 0.25, Pull 1)", { timeout: 60_000 }, () => {
+    // There the speed that lifts a steered ball one cell against the pull is more than MZ_MAX_SPEED × its cruising speed
+    // (12 columns: 181 px/s against a cap of 156). Capped, the explorers bounced at the foot of every upward corridor: a ball
+    // got out of 3 of 12 six-column mazes within the clip, and of 2 of 12 default ones within 180 s.
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = engineFor({ cols: 6, balls: 3, brain: "explorer", speed: 0.25, gravity: 1 }, seed);
+      const view = engine.getMazeView();
+      run(engine, 70_000);
+      expect(view.verdict, `6 columns, seed ${seed}`).toBe("exit");
+      expect(view.leaks).toBe(0);
+    }
+    let out = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const engine = engineFor({ balls: 3, brain: "explorer", speed: 0.25, gravity: 1, duration: 180 }, seed);
+      run(engine, 190_000);
+      if (engine.getMazeView().verdict === "exit") out++;
+      expect(engine.getMazeView().leaks).toBe(0);
+    }
+    // (10 of 12 – as many as at that speed's default Pull of 0.35)
+    expect(out, "default mazes a ball got out of within 180 s").toBeGreaterThanOrEqual(9);
   });
 
   it("the rig: at the clip limit the forced winner takes the verdict even when another ball is nearer the exit", () => {
