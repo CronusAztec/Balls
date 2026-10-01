@@ -7789,8 +7789,9 @@ const bdInstrument = () =>
 
   const FAKE_BRIDGE = `(() => {
     const listeners = {};
+    // --- uncap-all --- the first reply is out of range below the Ball Speed's minimum (50): a big value is valid now, nothing is capped
     const replies = [
-      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":5000},{"setting":"rainbowBall","value":true}],"summary":"x"}}',
+      '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":10},{"setting":"rainbowBall","value":true}],"summary":"x"}}',
       '{"action":"final","result":{"changes":[{"setting":"ballSpeed","value":800},{"setting":"rainbowBall","value":true},{"setting":"gravity","value":0}],"summary":"Twice as fast, rainbow, no gravity"}}',
     ];
     const state = {
