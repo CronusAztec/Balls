@@ -2757,6 +2757,8 @@
     "sendSelected": "Enviar a los seleccionados ({count})",
     "overLimit": "Demasiado largo para {platforms}: acorta el texto (mira los contadores).",
     "instagramMp4": "Instagram acepta MP4 (H.264 + AAC) y este clip es WebM: expórtalo en Chrome o Safari, o conviértelo.",
+    "instagramPublicOnly": "Los Reels de Instagram siempre son públicos: elige Público o desmarca las cuentas de Instagram.",
+    "tiktokUnlisted": "TikTok no tiene «oculto»: en su lugar publica el clip para amigos mutuos (Amigos).",
     "sendNeedsClip": "Graba o elige un clip para enviar.",
     "progress": "Progreso del envío",
     "relaySettings": "Relay",
@@ -2785,6 +2787,10 @@
         "server": "El relay ha fallado: revisa su registro e inténtalo de nuevo.",
         "timeout": "El relay sigue publicando: revisa los envíos recientes más tarde.",
         "badUrl": "La URL del relay no es una dirección http(s) válida."
+      },
+      "page": {
+        "clipGone": "El clip de este envío ya no está en la lista: elígelo o grábalo de nuevo y envíalo.",
+        "otherProfile": "Esta cuenta pertenece a otro perfil de relay: vuelve a ese relay para reintentarlo."
       }
     }
   }

@@ -802,7 +802,18 @@ it still offers the third and explains the other two in a line each.
   `useSyncExternalStore`), so a send keeps going and its progress stays when the Recording section closes: every ticked
   account at once – each direct YouTube channel uploads on its own, the relay accounts of the relay in use go in one job –
   with per-account progress, result links, **Try again** and **Sign in again**; each finished account lands in the **recent
-  sends** (localStorage, the last 50, with links). What the browser remembers (`lib/publish/store.ts`, one localStorage key:
+  sends** (localStorage, the last 50, with links). **Try again** re-sends what that account was sent with – its clip, words
+  and visibility, kept per account until the next send – whichever clip is on show by then (a recording, a fast export or a
+  batch may have offered new ones, or another may be picked); a clip that has left the list, or a relay account of another
+  relay profile than the one in use, gets a message instead (`Publish.errors.page`). **Sign in again** carries on with an
+  upload only while its send row is on show and waiting for it: a new send (which replaces the rows), removing the channel or
+  removing the clip forgets it, so renewing a channel from its account row never uploads a clip of an earlier, abandoned
+  send. **Visibility**: Instagram Reels are always public, so with *Unlisted* or *Private* chosen and Instagram accounts
+  ticked the block holds the send back and says so (`Publish.instagramPublicOnly`: choose Public or untick them) – and the
+  relay refuses such a Reel too (code `visibility`), for the CLI and any other client; TikTok has no unlisted, so *Unlisted*
+  posts for mutual friends (Friends), which the block says before the send (`Publish.tiktokUnlisted`) and the relay's result
+  note after it. The relay uploads a TikTok clip whole up to 64 MB and in 10 MB chunks above that (the remainder in the last
+  one), as TikTok's Media Transfer Guide asks. What the browser remembers (`lib/publish/store.ts`, one localStorage key:
   the client ID, the YouTube accounts and their tokens, the relay profiles and keys, the visibility, the ticks, the log) is
   validated on load and never put in the URL, presets or project files; a client secret never reaches the page.
 - **The bot CLI** – `node scripts/viral-bot.mjs --relay https://my-relay.example --relay-key $KEY --accounts a_1,a_2`
@@ -817,17 +828,21 @@ it still offers the third and explains the other two in a line each.
   resumable upload – session, chunked PUTs, resume after a 308 and after a dropped connection or a 503 –, the stored state,
   the clip inbox, a whole Send to selected through the controller, a relay sign-in popup with a fake window – the accounts it
   added ticked, a reload when the page gets the focus back (a sign-in page whose Cross-Origin-Opener-Policy cuts the popup
-  off never reports back), a failed sign-in's message kept – the thumbnail read only for the clip on show, the CLI's
-  `--relay` options and posting);
+  off never reports back), a failed sign-in's message kept – the thumbnail read only for the clip on show, **Try again**
+  re-sending the failed account's own clip, words and visibility after a new clip arrived (and saying so when the clip has
+  left the list or the relay profile changed), **Sign in again** from the account row never uploading a clip of an earlier
+  send, the Instagram public-only rule and TikTok's unlisted note, the CLI's `--relay` options and posting);
   `relay/relay.test.mjs` (run by `npx vitest run relay`: the key / account store, the one-time OAuth states, the multipart
-  parser, TikTok's chunking, the words per platform, the Instagram request builders against `instagram.ts`, the callback page,
+  parser, TikTok's chunking (whole up to 64 MB – a 7 MB clip is one chunk –, 10 MB chunks above, the guide's rules for every
+  size), the words per platform, the Instagram request builders against `instagram.ts`, the callback page,
   CORS and keys over HTTP, the TikTok / Instagram / YouTube sign-ins, a publish to all three – TikTok's unaudited fallback,
-  one Instagram account failing, a YouTube resume – with the clip served at its public URL, an expired refresh token, WebM for
-  Instagram and the upload limit). The smoke test renders the block with nothing configured (the three paths explained),
+  one Instagram account failing, a YouTube resume – with the clip served at its public URL, an unlisted / private send – the
+  Reel refused, TikTok's Friends with its note –, an expired refresh token, WebM for Instagram and the upload limit). The smoke test renders the block with nothing configured (the three paths explained),
   shares a clip to a stubbed `navigator.share` on a phone, downloads it and opens the upload page on a computer, lists a
   relay profile's accounts from a stubbed relay, connects a YouTube channel through a stubbed token client and uploads to a
-  stubbed endpoint with a 308 resume and progress, sends to relay and YouTube accounts in one click, and offers a fast
-  export's clip to the block.
+  stubbed endpoint with a 308 resume and progress, holds the send back while Unlisted is chosen with an Instagram account
+  ticked, sends to relay and YouTube accounts in one click, re-sends a failed account's own clip after another clip arrived
+  (Try again), and offers a fast export's clip to the block.
 
 ## Browser support
 

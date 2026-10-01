@@ -6979,9 +6979,19 @@ const bdInstrument = () =>
     const channel = await block.locator('[data-publish-account="yt:UCsmoke"]').innerText().catch(() => "");
     check("publish: Connect YouTube asks the Google token client for youtube.upload and lists the channel", connected && gis.length === 1 && gis[0].clientId === "1234567890-smoke.apps.googleusercontent.com" && gis[0].scope.includes("youtube.upload") && gis[0].prompt === "select_account" && channel.includes("Smoke Channel"), `(${JSON.stringify(gis)}, "${channel.replace(/\s+/g, " ")}")`);
 
-    // 5. One click: the YouTube channel and the three relay accounts, unlisted; the YouTube progress is watched.
+    // 5. One click: the YouTube channel and the three relay accounts; the YouTube progress is watched. Unlisted first: an
+    // Instagram Reel is always public, so the block holds the send back and says so (and that TikTok's unlisted is Friends)
+    // instead of posting the Reel publicly; Public sends.
     for (const id of ["a_tt1", "a_tt2", "a_ig1"]) await block.locator(`[data-publish-account$=":${id}"] input[type=checkbox]`).check();
     await p1.locator("#publish-visibility").selectOption("unlisted");
+    const heldBack = {
+      publicOnly: await p1.getByTestId("publish-public-only").isVisible().catch(() => false),
+      friends: await p1.getByTestId("publish-tiktok-friends").isVisible().catch(() => false),
+      sendOff: await p1.getByTestId("publish-send").isDisabled(),
+    };
+    await p1.locator("#publish-visibility").selectOption("public");
+    const released = { publicOnly: await p1.getByTestId("publish-public-only").isVisible().catch(() => false), sendOff: await p1.getByTestId("publish-send").isDisabled() };
+    check("publish: an Instagram Reel is never sent unlisted or private – the block says Reels are always public (and TikTok's unlisted is Friends)", heldBack.publicOnly && heldBack.friends && heldBack.sendOff && !released.publicOnly && !released.sendOff, `(${JSON.stringify({ heldBack, released })})`);
     const sendLabel = await p1.getByTestId("publish-send").innerText();
     await p1.evaluate(() => {
       window.__ytProgress = [];
@@ -7005,7 +7015,7 @@ const bdInstrument = () =>
     const initBody = yt.init?.body ? JSON.parse(yt.init.body) : null;
     check(
       "publish: a connected YouTube channel uploads to the (stubbed) resumable endpoint – a 308 resume, the progress, the Short's link",
-      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "unlisted" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
+      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "public" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
       `(${JSON.stringify(ytItem)}, puts ${JSON.stringify(yt.puts)}, progress ${JSON.stringify(progress)})`,
     );
     const form = relay.forms[0] ?? "";
@@ -7014,6 +7024,20 @@ const bdInstrument = () =>
       "publish: Send to selected sends to every ticked account in one click – YouTube direct plus two TikTok and one Instagram account through one relay upload – with per-account results",
       settled && /\(4\)/.test(sendLabel) && relay.forms.length === 1 && form.includes("a_tt1,a_tt2,a_ig1") && form.includes('name="posts"') && form.includes("#fyp") && form.includes("#reels") && form.includes('filename="smoke-clip.mp4"') && items.find((i) => i.key.endsWith(":a_tt1"))?.link === "https://www.tiktok.com/@smoketok/video/1" && items.find((i) => i.key.endsWith(":a_ig1"))?.status === "failed" && recent === 5,
       `(${JSON.stringify(items)}, ${relay.forms.length} upload(s), recent ${recent}, "${sendLabel}")`,
+    );
+
+    // "Try again" on the failed Instagram row after another clip became the one on show: the relay gets the clip that row
+    // was sent with (and its words), not the new one.
+    await p1.locator("#publish-file-input").setInputFiles({ name: "smoke-other.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(300 * 1024, 3) });
+    const switched = await p1.waitForFunction(() => document.querySelector("[data-publish-clip-source]")?.getAttribute("data-publish-clip-name") === "smoke-other.mp4", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await block.locator('[data-publish-send$=":a_ig1"]').getByRole("button", { name: /Try again/ }).click();
+    const retried = await p1.waitForFunction(() => document.querySelector('[data-publish-send$=":a_ig1"]')?.getAttribute("data-publish-status") === "failed", null, { timeout: 15000 }).then(() => true).catch(() => false);
+    await p1.waitForTimeout(300);
+    const again = relay.forms[1] ?? "";
+    check(
+      "publish: Try again re-sends the failed account's own clip and words, not the clip on show now",
+      switched && retried && relay.forms.length === 2 && again.includes('filename="smoke-clip.mp4"') && !again.includes("smoke-other") && /name="accounts"\r?\n\r?\na_ig1\r?\n/.test(again) && again.includes("#reels"),
+      `(switched=${switched}, retried=${retried}, ${relay.forms.length} upload(s), second form ${again.length} bytes, file ${/filename="([^"]+)"/.exec(again)?.[1]})`,
     );
 
     // 6. A fast export's clip is offered to the block.

@@ -2980,6 +2980,8 @@
     "sendSelected": "Send to selected ({count})",
     "overLimit": "Too long for {platforms} – shorten the words (see the counters).",
     "instagramMp4": "Instagram takes MP4 (H.264 + AAC) and this clip is WebM – export it in Chrome or Safari, or convert it.",
+    "instagramPublicOnly": "Instagram Reels are always public – choose Public or untick the Instagram accounts.",
+    "tiktokUnlisted": "TikTok has no unlisted – it posts the clip for mutual friends (Friends) instead.",
     "sendNeedsClip": "Record or pick a clip to send.",
     "progress": "Sending progress",
     "relaySettings": "Relay",
@@ -3008,6 +3010,10 @@
         "server": "The relay failed – see its log, then try again.",
         "timeout": "The relay is still publishing – check the recent sends later.",
         "badUrl": "The relay URL is not a valid http(s) address."
+      },
+      "page": {
+        "clipGone": "The clip of this send is no longer in the list – pick or record it again and send it.",
+        "otherProfile": "This account belongs to another relay profile – switch back to that relay to try again."
       }
     }
   }

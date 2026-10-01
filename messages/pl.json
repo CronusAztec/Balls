@@ -2757,6 +2757,8 @@
     "sendSelected": "Wyślij do zaznaczonych ({count})",
     "overLimit": "Za długie dla: {platforms} – skróć tekst (zobacz liczniki).",
     "instagramMp4": "Instagram przyjmuje MP4 (H.264 + AAC), a ten klip to WebM – wyeksportuj go w Chrome lub Safari albo przekonwertuj.",
+    "instagramPublicOnly": "Rolki na Instagramie są zawsze publiczne – wybierz „Publiczny” albo odznacz konta Instagrama.",
+    "tiktokUnlisted": "TikTok nie ma opcji „niepubliczny” – zamiast tego opublikuje klip dla wzajemnych obserwujących (Znajomi).",
     "sendNeedsClip": "Nagraj lub wybierz klip do wysłania.",
     "progress": "Postęp wysyłania",
     "relaySettings": "Relay",
@@ -2785,6 +2787,10 @@
         "server": "Relay zgłosił błąd – sprawdź jego log i spróbuj ponownie.",
         "timeout": "Relay wciąż publikuje – sprawdź ostatnie wysyłki później.",
         "badUrl": "Adres relaya nie jest poprawnym adresem http(s)."
+      },
+      "page": {
+        "clipGone": "Klipu z tej wysyłki nie ma już na liście – wybierz lub nagraj go ponownie i wyślij.",
+        "otherProfile": "To konto należy do innego profilu relaya – przełącz się z powrotem na ten relay, aby spróbować ponownie."
       }
     }
   }
