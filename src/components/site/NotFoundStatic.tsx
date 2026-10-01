@@ -9,7 +9,15 @@ import en from "../../../messages/en.json";
 import pl from "../../../messages/pl.json";
 import es from "../../../messages/es.json";
 
-const MESSAGES: Record<Locale, typeof en> = { en, pl, es };
+// --- review fix (performance) --- only the namespaces this page renders (NOT_FOUND_CLIENT_NAMESPACES in i18n/clientMessages.ts:
+// NotFound, the navbar, the footer), each read by name so the bundler leaves the rest of the three catalogues out of the
+// chunk (it shipped all three whole: ~510 KB)
+type NotFoundMessages = Pick<typeof en, "NotFound" | "Navbar" | "Gallery" | "Pwa" | "Footer">;
+const MESSAGES: Record<Locale, NotFoundMessages> = {
+  en: { NotFound: en.NotFound, Navbar: en.Navbar, Gallery: en.Gallery, Pwa: en.Pwa, Footer: en.Footer },
+  pl: { NotFound: pl.NotFound, Navbar: pl.Navbar, Gallery: pl.Gallery, Pwa: pl.Pwa, Footer: pl.Footer },
+  es: { NotFound: es.NotFound, Navbar: es.Navbar, Gallery: es.Gallery, Pwa: es.Pwa, Footer: es.Footer },
+};
 
 /** Reads the locale from the URL the static host failed to serve (/<base>/<locale>/...). */
 function localeFromLocation(): Locale {

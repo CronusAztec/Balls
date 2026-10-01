@@ -30,6 +30,13 @@ export interface RecordingOptions {
   // --- themes: paints the frame's background (gradient / picture) before the cropped canvas, so the letterbox bars continue it
   drawBackground?: (ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => void;
   // --- end themes
+  /**
+   * --- review fix (performance) --- The number of frames the source canvas has drawn so far. With it the recorder copies
+   * each drawn frame exactly once (checked on every animation frame) and hands it to the stream itself (`requestFrame()`),
+   * so a clip recorded on a 75 / 144 Hz display holds no repeated or skipped frames; without it every animation frame is
+   * copied into a 60 fps stream, as before.
+   */
+  sourceFrames?: () => number;
 }
 
 // --- themes
@@ -154,6 +161,12 @@ export class VideoRecorder {
     return typeof window !== "undefined" && typeof MediaRecorder !== "undefined";
   }
 
+  /** --- review fix (performance) --- Whether a canvas stream's frames can be captured on request (captureStream(0) + requestFrame()). */
+  static supportsRequestFrame() {
+    const Track = (globalThis as { CanvasCaptureMediaStreamTrack?: { prototype: { requestFrame?: unknown } } }).CanvasCaptureMediaStreamTrack;
+    return typeof Track?.prototype?.requestFrame === "function";
+  }
+
   async startRecording(options: RecordingOptions = {}): Promise<boolean> {
     if (!this.sourceCanvas) throw new Error("Canvas not available");
     this.chunks = [];
@@ -167,14 +180,24 @@ export class VideoRecorder {
     const bg = options.backgroundColor ?? "#0a0a0a";
     const textLayout = recordingTextLayout(width, height, options.textOverlay?.textSize ?? 1);
 
+    // --- review fix (performance) --- with the source's frame count, a frame is captured on request, once per drawn frame
+    const sourceFrames = options.sourceFrames;
+    const manual = !!sourceFrames && VideoRecorder.supportsRequestFrame();
+    const videoStream = this.recordingCanvas.captureStream(manual ? 0 : 60);
+    const track = videoStream.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
+    let copied = Number.NaN;
     const drawFrame = () => {
       if (!this.sourceCanvas || !this.recordingCanvas || !ctx) return;
-      drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout); // --- fast-render --- (shared with the fast export)
+      const drawn = sourceFrames ? sourceFrames() : Number.NaN;
+      if (!sourceFrames || drawn !== copied) {
+        copied = drawn;
+        if (manual) track?.requestFrame?.();
+        drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout); // --- fast-render --- (shared with the fast export)
+      }
       this.animationFrameId = requestAnimationFrame(drawFrame);
     };
-    this.animationFrameId = requestAnimationFrame(drawFrame);
+    drawFrame(); // the stream's first frame now (the source already shows the run)
 
-    const videoStream = this.recordingCanvas.captureStream(60);
     const stream =
       options.audioStream && options.audioStream.getAudioTracks().length > 0
         ? new MediaStream([...videoStream.getVideoTracks(), ...options.audioStream.getAudioTracks()])
