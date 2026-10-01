@@ -227,11 +227,12 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
  * finder does not search a fixed length that misses the target: it resolves at once with `fixedDuration`
  * set and the page says what to change instead.
  */
-export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">): number | null {
+export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "pendulum" | "polyrhythm" | "doublePendulum" | "illusion">, unlimited = false): number | null {
+  // --- unlimited --- `unlimited`: the run's No limits switch – its engine resolves the settings past their sliders, so this does too
   // --- jdm-polyrhythm --- (cycles × the cycle length, the seed only picks the direction)
   if (mode === "polyrhythm") {
-    const p = resolvePolyrhythmSettings(settings.polyrhythm);
-    return p.cycles > 0 ? p.cycles * polyrhythmCycleSeconds(p) : null;
+    const p = resolvePolyrhythmSettings(settings.polyrhythm, unlimited);
+    return p.cycles > 0 ? p.cycles * polyrhythmCycleSeconds(p, unlimited) : null;
   }
   // --- jdm-double-pendulum --- (it finishes at the clip length, whatever the seed)
   if (mode === "doublePendulum") {
@@ -239,11 +240,11 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
     return dp.endless ? null : dp.clipSeconds;
   }
   // --- jdm-illusions --- lines and rings: cycles × the cycle length, whatever the seed
-  if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
+  if (mode === "illusion") return illusionFixedDurationSec(settings.illusion, unlimited);
   // --- odd-power-layers --- every sequence but chaos: the plan's hit count × the bounce period (+ the celebration), whatever the seed
-  if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers);
+  if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers, unlimited);
   if (mode !== "pendulum") return null;
-  const p = resolvePendulumSettings(settings.pendulum);
+  const p = resolvePendulumSettings(settings.pendulum, unlimited);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
 }
 
@@ -474,7 +475,7 @@ export function findSimulation(
       resolve(findBeatDropRun(request));
       return;
     }
-    const fixed = fixedRunDurationSec(request.mode, request.modeSettings);
+    const fixed = fixedRunDurationSec(request.mode, request.modeSettings, request.physicsConfig.unlimited === true); // --- unlimited ---
     if (fixed !== null && Math.abs(fixed - request.targetDurationSec) > request.toleranceSec) {
       resolve({ found: false, seed: 0, duration: fixed, seedsTested: 0, fixedDuration: true });
       return;

@@ -1,6 +1,7 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Pendulum Wave ("pendulum" mode, the project.jdm pendulum-wave / phasing formats): no rings. A set of
@@ -132,24 +133,25 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value to its range (counts become whole numbers, a polygon of 1–2 sides is the circle; unknown layouts / options and bad numbers fall back to the defaults). */
-export function resolvePendulumSettings(config: Partial<PendulumSettings> | null | undefined): PendulumSettings {
+export function resolvePendulumSettings(config: Partial<PendulumSettings> | null | undefined, unlimited = false): PendulumSettings {
   const out = { ...DEFAULT_PENDULUM_SETTINGS };
   if (!config) return out;
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, PENDULUM_RANGES.pwCount, out.count));
-  if (config.baseOscillations !== undefined) out.baseOscillations = Math.round(clampNumber(config.baseOscillations, PENDULUM_RANGES.pwBaseOscillations, out.baseOscillations));
-  if (config.cycleSeconds !== undefined) out.cycleSeconds = Math.round(clampNumber(config.cycleSeconds, PENDULUM_RANGES.pwCycleSeconds, out.cycleSeconds));
-  if (config.amplitude !== undefined) out.amplitude = clampNumber(config.amplitude, PENDULUM_RANGES.pwAmplitude, out.amplitude);
+  const R = rangesFor(PENDULUM_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
+  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.pwCount, out.count));
+  if (config.baseOscillations !== undefined) out.baseOscillations = Math.round(clampNumber(config.baseOscillations, R.pwBaseOscillations, out.baseOscillations));
+  if (config.cycleSeconds !== undefined) out.cycleSeconds = Math.round(clampNumber(config.cycleSeconds, R.pwCycleSeconds, out.cycleSeconds));
+  if (config.amplitude !== undefined) out.amplitude = clampNumber(config.amplitude, R.pwAmplitude, out.amplitude);
   if (isPendulumLayout(config.layout)) out.layout = config.layout;
   if (config.polygon !== undefined) {
-    const p = Math.round(clampNumber(config.polygon, PENDULUM_RANGES.pwPolygon, out.polygon));
+    const p = Math.round(clampNumber(config.polygon, R.pwPolygon, out.polygon));
     out.polygon = p < 3 ? 0 : p;
   }
   if (typeof config.phasing === "boolean") out.phasing = config.phasing;
-  if (config.trails !== undefined) out.trails = clampNumber(config.trails, PENDULUM_RANGES.pwTrails, out.trails);
+  if (config.trails !== undefined) out.trails = clampNumber(config.trails, R.pwTrails, out.trails);
   if (isPendulumSoundOn(config.soundOn)) out.soundOn = config.soundOn;
   if (isPendulumPitchDirection(config.pitchDirection)) out.pitchDirection = config.pitchDirection;
   if (typeof config.waveChord === "boolean") out.waveChord = config.waveChord;
-  if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, PENDULUM_RANGES.pwCycles, out.cycles));
+  if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, R.pwCycles, out.cycles));
   return out;
 }
 
@@ -658,9 +660,10 @@ export class PendulumMode implements GameMode {
   /**
    * Applied on the next init (the Simulator re-inits the mode when a Pendulum Wave setting changes), except the
    * trails: they only change how the canvas draws the run, so they follow at once without restarting it.
+   * --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings.
    */
-  setSettings(patch: Partial<PendulumSettings>) {
-    this.settings = resolvePendulumSettings({ ...this.settings, ...patch });
+  setSettings(patch: Partial<PendulumSettings>, unlimited = false) {
+    this.settings = resolvePendulumSettings({ ...this.settings, ...patch }, unlimited);
     this.view.settings.trails = this.settings.trails;
   }
   /** Live state for the canvas and the HUD; the same object every call. */

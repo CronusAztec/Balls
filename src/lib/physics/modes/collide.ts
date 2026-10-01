@@ -3,6 +3,7 @@ import { advanceRing, contactArc, createRingTrack, renormalizeRing, resolveRingC
 import { SpatialHash, createPairBuffer, type PairBuffer } from "../spatialHash";
 import type { Ball, GameMode, ModeContext } from "../types";
 import { wobbleStrength } from "../wobble";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Collision Playground ("collide" mode, the project.jdm "1247 varied bouncing orbs" formats): no rings. Hundreds
@@ -99,17 +100,18 @@ function clampNumber(value: unknown, range: { min: number; max: number }, fallba
 }
 
 /** Fills in the defaults and clamps every value to its range (the count and the anti-collision time become whole numbers; an unknown container, non-boolean flags and bad numbers fall back to the defaults). */
-export function resolveCollideSettings(config: Partial<CollideSettings> | null | undefined): CollideSettings {
+export function resolveCollideSettings(config: Partial<CollideSettings> | null | undefined, unlimited = false): CollideSettings {
   const out = { ...DEFAULT_COLLIDE_SETTINGS };
   if (!config) return out;
-  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, COLLIDE_RANGES.cpCount, out.count));
-  if (config.sizeSpread !== undefined) out.sizeSpread = clampNumber(config.sizeSpread, COLLIDE_RANGES.cpSizeSpread, out.sizeSpread);
+  const R = rangesFor(COLLIDE_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
+  if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.cpCount, out.count));
+  if (config.sizeSpread !== undefined) out.sizeSpread = clampNumber(config.sizeSpread, R.cpSizeSpread, out.sizeSpread);
   if (isCollideContainer(config.container)) out.container = config.container;
-  if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, COLLIDE_RANGES.cpGravity, out.gravity);
-  if (config.restitution !== undefined) out.restitution = clampNumber(config.restitution, COLLIDE_RANGES.cpRestitution, out.restitution);
+  if (config.gravity !== undefined) out.gravity = clampNumber(config.gravity, R.cpGravity, out.gravity);
+  if (config.restitution !== undefined) out.restitution = clampNumber(config.restitution, R.cpRestitution, out.restitution);
   if (typeof config.squishy === "boolean") out.squishy = config.squishy;
   if (typeof config.syncStart === "boolean") out.syncStart = config.syncStart;
-  if (config.antiCollisionAt !== undefined) out.antiCollisionAt = Math.round(clampNumber(config.antiCollisionAt, COLLIDE_RANGES.cpAntiCollisionAt, out.antiCollisionAt));
+  if (config.antiCollisionAt !== undefined) out.antiCollisionAt = Math.round(clampNumber(config.antiCollisionAt, R.cpAntiCollisionAt, out.antiCollisionAt));
   if (typeof config.ring === "boolean") out.ring = config.ring;
   return out;
 }
@@ -175,6 +177,12 @@ export const POSITION_SLOP = 0.25;
 export const POSITION_CORRECTION = 0.8;
 /** Passes over the contact pairs per sub-step. */
 export const COLLISION_ITERATIONS = 3;
+/**
+ * --- unlimited --- Contact pairs a sub-step resolves at most with No limits on: thousands of orbs crushed into one corner by
+ * a billion-strong wind or gravity touch millions of pairs; past this many the rest wait for the next sub-step (the pile
+ * melts into itself, the step stays bounded). A free-flying 5,000-orb playground has a fraction of it.
+ */
+export const COLLIDE_PAIR_BUDGET = 40_000;
 /**
  * Speed cap (× the Ball Speed; raised under strong gravity to what a fall across the container gives): a safety net
  * against a crowded pile squeezing an orb out at an absurd speed. It sits far above the speeds small orbs reach by
@@ -449,9 +457,9 @@ export class CollideMode implements GameMode {
   getSettings(): CollideSettings {
     return this.settings;
   }
-  /** Applied on the next init (the Simulator re-inits the mode when a Collision Playground setting changes). */
-  setSettings(patch: Partial<CollideSettings>) {
-    this.settings = resolveCollideSettings({ ...this.settings, ...patch });
+  /** Applied on the next init (the Simulator re-inits the mode when a Collision Playground setting changes). --- unlimited --- With `unlimited` (No limits on) the unlimited settings run past their sliders, up to their soft ceilings. */
+  setSettings(patch: Partial<CollideSettings>, unlimited = false) {
+    this.settings = resolveCollideSettings({ ...this.settings, ...patch }, unlimited);
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): CollideView {
@@ -877,7 +885,7 @@ export class CollideMode implements GameMode {
     }
     const margin = Math.max(0.5, 0.2 * maxR);
     this.hash.build(xs, ys, m, 2 * maxR + margin, field.left - maxR, field.top - maxR, field.right + maxR, field.bottom + maxR);
-    const count = this.hash.collectContacts(xs, ys, rs, margin, this.pairs);
+    const count = this.hash.collectContacts(xs, ys, rs, margin, this.pairs, ctx.config.unlimited ? COLLIDE_PAIR_BUDGET : Infinity); // --- unlimited --- (a bounded pile)
     const pairs = this.pairs.pairs;
     // Alternate the direction of the passes, so a push travels through a pile both ways.
     for (let it = 0; it < COLLISION_ITERATIONS; it++) {

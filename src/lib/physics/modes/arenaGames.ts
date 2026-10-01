@@ -1,5 +1,6 @@
 import { midiToFrequency } from "@/lib/audio/scales";
 import type { ModeId } from "../types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Arena games (feature jdm-arena-games; the project.jdm "Bouncing Square BATTLE Royale" and "capture the flag 2-2"
@@ -103,10 +104,10 @@ function onStep(value: number, step: number) {
 }
 
 /** Fills in the defaults and clamps every battle value (counts whole, the damage and the nudge on their steps); unknown options fall back. */
-export function resolveBattleSettings(config: Partial<BattleSettings> | null | undefined): BattleSettings {
+export function resolveBattleSettings(config: Partial<BattleSettings> | null | undefined, unlimited = false): BattleSettings {
   const out = { ...DEFAULT_BATTLE_SETTINGS };
   if (!config) return out;
-  const R = ARENA_GAME_RANGES;
+  const R = rangesFor(ARENA_GAME_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.count !== undefined) out.count = Math.round(clampNumber(config.count, R.btCount, out.count));
   if (config.hp !== undefined) out.hp = Math.round(clampNumber(config.hp, R.btHp, out.hp));
   if (config.damage !== undefined) out.damage = onStep(clampNumber(config.damage, R.btDamage, out.damage), R.btDamage.step);
@@ -118,10 +119,10 @@ export function resolveBattleSettings(config: Partial<BattleSettings> | null | u
 }
 
 /** Fills in the defaults and clamps every capture-the-flag value; the clip length to the recording duration's range. */
-export function resolveCtfSettings(config: Partial<CtfSettings> | null | undefined): CtfSettings {
+export function resolveCtfSettings(config: Partial<CtfSettings> | null | undefined, unlimited = false): CtfSettings {
   const out = { ...DEFAULT_CTF_SETTINGS };
   if (!config) return out;
-  const R = ARENA_GAME_RANGES;
+  const R = rangesFor(ARENA_GAME_RANGES, unlimited); // --- unlimited --- (past the sliders up to the soft ceilings with No limits on)
   if (config.perTeam !== undefined) out.perTeam = Math.round(clampNumber(config.perTeam, R.ctfPerTeam, out.perTeam));
   if (config.scoreToWin !== undefined) out.scoreToWin = Math.round(clampNumber(config.scoreToWin, R.ctfScoreToWin, out.scoreToWin));
   if (config.nudge !== undefined) out.nudge = Math.round(100 * onStep(clampNumber(config.nudge, R.arenaNudge, out.nudge), R.arenaNudge.step)) / 100;

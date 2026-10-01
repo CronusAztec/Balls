@@ -22,7 +22,9 @@ vi.mock("electron", () => ({
 
 describe("preload bridge", () => {
   it("exposes window.desktop with every contract method on its channel", async () => {
+    vi.stubGlobal("location", { protocol: "app:" }); // the app's own page (app://jumpingballslive/…)
     await import("../src/preload");
+    vi.unstubAllGlobals();
     expect(exposed).toHaveLength(1);
     const { name, api } = exposed[0];
     expect(name).toBe("desktop");
@@ -45,6 +47,19 @@ describe("preload bridge", () => {
     expect(() => api.on("nope" as never, () => {})).toThrow(/Unknown desktop event/);
     // Nothing of Electron or Node leaks into the page.
     expect(Object.keys(api).sort()).toEqual(["ai", "apiVersion", "dialogs", "gpu", "info", "journal", "library", "log", "on", "openLogs", "prefs", "render", "update"]);
+  });
+
+  // --- review fix (desktop-exe) --- a sign-in popup (blank, then the relay's or Google's site) never gets the bridge
+  it("serves the bridge to the app's own pages only", async () => {
+    const { servesBridge } = await import("../src/preload");
+    expect(servesBridge("app:")).toBe(true);
+    for (const protocol of ["https:", "http:", "about:", "file:", undefined]) expect(servesBridge(protocol)).toBe(false);
+    vi.resetModules();
+    exposed.length = 0;
+    vi.stubGlobal("location", { protocol: "https:" });
+    await import("../src/preload");
+    vi.unstubAllGlobals();
+    expect(exposed).toHaveLength(0);
   });
 });
 

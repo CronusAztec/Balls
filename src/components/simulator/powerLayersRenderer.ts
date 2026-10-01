@@ -128,13 +128,17 @@ export class PowerLayersLayer {
     const g = canvas.getContext("2d");
     if (!g) return null;
     const L = Math.max(1, view.layers);
-    const spacing = h / L;
+    // --- unlimited --- more layers than the stack has pixel rows (No limits): one band per pixel row, in the hue of its
+    // middle layer – the same picture as drawing each sub-pixel layer, at a cost of the stack's height instead of 100,000 rects
+    const bands = Math.min(L, h);
+    const spacing = h / bands;
     const core = Math.max(1, 0.55 * spacing);
     const halo = Math.max(core + 1, 1.8 * spacing);
     g.clearRect(0, 0, w, h);
-    for (let i = 0; i < L; i++) {
+    for (let b = 0; b < bands; b++) {
+      const i = bands === L ? b : Math.min(L - 1, Math.floor(((b + 0.5) * L) / bands));
       const hue = Math.round(layerHue(i, L));
-      const y = (i + 0.5) * spacing;
+      const y = (b + 0.5) * spacing;
       g.fillStyle = `hsla(${hue}, 100%, 58%, 0.22)`;
       g.fillRect(0, y - halo / 2, w, halo);
       g.fillStyle = `hsl(${hue}, 100%, 62%)`;

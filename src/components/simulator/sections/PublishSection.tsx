@@ -12,6 +12,7 @@ import { accountViews, getPublishController, sendPlan, type AccountView, type Pu
 import { defaultDraft } from "@/lib/publish/copy";
 import { PUBLISH_PLATFORMS, VISIBILITIES, type PublishPlatform, type Visibility } from "@/lib/publish/platforms";
 import { SITE_NAME } from "@/lib/site";
+import { isDesktopApp } from "@/lib/desktop/bridge"; // --- desktop-exe ---
 
 /*
  * --- social-publish --- The "Publish" block of the Recording section (after the Viral video bot block): the clip to send
@@ -211,7 +212,7 @@ function AccountRow({ a, s, p }: { a: AccountView; s: PublishSnapshot; p: Transl
   );
 }
 
-function Accounts({ s, p, now }: { s: PublishSnapshot; p: Translate; now: number }) {
+function Accounts({ s, p, now, inApp }: { s: PublishSnapshot; p: Translate; now: number; inApp: boolean }) {
   const c = getPublishController();
   const accounts = accountViews(s, now);
   const profile = s.stored.relayProfiles.find((x) => x.id === s.relay.profileId) ?? null;
@@ -237,7 +238,8 @@ function Accounts({ s, p, now }: { s: PublishSnapshot; p: Translate; now: number
               </span>
               <span className="text-[10px] text-zinc-500">{p("accountCount", { count: list.length })}</span>
               <span className="ml-auto flex gap-1 flex-wrap">
-                {platform === "youtube" && (
+                {/* --- desktop-exe --- Google's sign-in needs a web origin it accepts; app:// is not one: in the app YouTube goes through the relay */}
+                {platform === "youtube" && !inApp && (
                   <button type="button" onClick={() => void c.connectYouTube()} disabled={!hasClientId || s.youtube.status !== "idle"} title={hasClientId ? undefined : p("needsClientId")} className={`${smallBtn} border border-[#93d119]/50 text-[#93d119] hover:bg-[#93d119]/10`} data-publish-connect="youtube-direct">
                     + {s.youtube.status === "idle" ? p("connectGoogle") : p("connecting")}
                   </button>
@@ -460,6 +462,9 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
   const s = useSyncExternalStore(c.subscribe, c.getSnapshot, c.getServerSnapshot);
   const locale = useLocale();
   const [now, setNow] = useState(() => Date.now());
+  // --- desktop-exe --- inside the Windows app (no direct YouTube sign-in there: app:// is no origin Google accepts)
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => setInApp(isDesktopApp()), []);
   useEffect(() => {
     c.start();
     const id = window.setInterval(() => setNow(Date.now()), 30000);
@@ -527,12 +532,17 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
         </span>
         {nothingSetUp && (
           <ul className="space-y-1 text-[11px] text-zinc-500 leading-snug list-disc pl-4" data-testid="publish-paths">
-            <li>{p("pathDirect")}</li>
+            {!inApp && <li>{p("pathDirect")}</li>}
             <li>{p("pathRelay")}</li>
             <li>{p("pathShare")}</li>
           </ul>
         )}
-        <Accounts s={s} p={p} now={now} />
+        <Accounts s={s} p={p} now={now} inApp={inApp} />
+        {inApp && (
+          <p className="text-[11px] text-zinc-500 leading-snug" data-testid="publish-app-youtube">
+            {p("appYouTube")}
+          </p>
+        )}
         <label className="flex items-center justify-between gap-2 text-[11px] text-zinc-400">
           <span>{p("visibility")}</span>
           <select value={s.stored.visibility} onChange={(e) => c.setVisibility(e.target.value as Visibility)} className={`${selectClass} text-xs px-2 py-1 w-auto`} aria-label={p("visibility")} id="publish-visibility">
@@ -574,12 +584,14 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
           <RelaySettings s={s} p={p} />
         </div>
       </details>
-      <details className="text-xs" data-testid="publish-yt-settings">
-        <summary className="cursor-pointer text-zinc-300 select-none">⚙️ {p("ytSetup")}</summary>
-        <div className="mt-2">
-          <YouTubeSetup s={s} p={p} />
-        </div>
-      </details>
+      {!inApp && (
+        <details className="text-xs" data-testid="publish-yt-settings">
+          <summary className="cursor-pointer text-zinc-300 select-none">⚙️ {p("ytSetup")}</summary>
+          <div className="mt-2">
+            <YouTubeSetup s={s} p={p} />
+          </div>
+        </details>
+      )}
       <RecentSends s={s} p={p} locale={locale} />
     </div>
   );

@@ -990,7 +990,7 @@ export default function Simulator() {
     const engine = engineRef.current;
     if (!engine) return;
     engine.setRunnerSettings(runnerSettingsOf(s, rhythmBeat));
-    const plan = runnerPlanOf(engine.getRunnerSettings(), s.gravity);
+    const plan = runnerPlanOf(engine.getRunnerSettings(), s.gravity, s.unlimited); // --- unlimited --- (as the engine resolved them)
     const before = runnerPlanRef.current;
     runnerPlanRef.current = plan;
     // The engine was created with these settings, or nothing the course is planned from changed.
@@ -999,7 +999,7 @@ export default function Simulator() {
     if (!sameBeatSchedule(before.beat, plan.beat)) engine.setSeed(null);
     restartRunRef.current(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, rhythmBeat]);
+  }, [s.runnerAutoJump, s.runnerObstacles, s.runnerSpeed, s.runnerJump, s.runnerDensity, s.runnerMix, s.runnerBeatSource, s.bpm, s.gravity, s.unlimited, rhythmBeat]);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;

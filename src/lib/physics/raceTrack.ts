@@ -1,4 +1,5 @@
 import { circleObstacle, segmentBetween, segmentObstacle, type Obstacle, type SegmentObstacle } from "./obstacles";
+import { ENGINE_CEILINGS } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * The track of the Square Racing Grand Prix ("race" mode, modes/race.ts): a long vertical corridor generated
@@ -233,13 +234,17 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
   return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : fallback;
 }
 
-/** The track-relevant settings, filled in and clamped (whole racers 2–16, 3–20 screens, 1–5 laps, a known mix). */
-export function resolveRaceTrackSettings(settings: Partial<RaceTrackSettings> | null | undefined): RaceTrackSettings {
+/**
+ * The track-relevant settings, filled in and clamped (whole racers 2–16, 3–20 screens, 1–5 laps, a known mix) – --- unlimited ---
+ * with No limits on the screens and laps go up to their soft ceilings (`ENGINE_CEILINGS`; the racers' per-racer state is
+ * sized for MAX_RACERS, so they stay at 16).
+ */
+export function resolveRaceTrackSettings(settings: Partial<RaceTrackSettings> | null | undefined, unlimited = false): RaceTrackSettings {
   const s = settings ?? {};
   return {
     racers: clampInt(s.racers, MIN_RACERS, MAX_RACERS, 8),
-    trackLength: clampInt(s.trackLength, 3, 20, 8),
-    laps: clampInt(s.laps, 1, 5, 1),
+    trackLength: clampInt(s.trackLength, 3, unlimited ? Math.max(20, ENGINE_CEILINGS.rcTrackLength) : 20, 8),
+    laps: clampInt(s.laps, 1, unlimited ? Math.max(5, ENGINE_CEILINGS.rcLaps) : 5, 1),
     feature: isRaceFeature(s.feature) ? s.feature : "mixed",
   };
 }
@@ -459,8 +464,8 @@ function cloneObstacle(o: Obstacle, dy: number): Obstacle {
  * Builds the whole track for a canvas of `width` × `height` with racers of the Ball Size `ballRadius`. `random` is the
  * engine's seeded generator (see the module comment for the order the numbers are drawn in).
  */
-export function buildRaceTrack(width: number, height: number, settingsIn: Partial<RaceTrackSettings>, ballRadius: number, random: () => number): RaceTrack {
-  const settings = resolveRaceTrackSettings(settingsIn);
+export function buildRaceTrack(width: number, height: number, settingsIn: Partial<RaceTrackSettings>, ballRadius: number, random: () => number, unlimited = false): RaceTrack {
+  const settings = resolveRaceTrackSettings(settingsIn, unlimited); // --- unlimited --- (as the mode resolved them)
   const field = buildRaceField(width, height);
   const S = field.size;
   const left = field.left + TRACK_X0 * S;

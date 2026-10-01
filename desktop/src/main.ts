@@ -8,7 +8,7 @@ import electronUpdater from "electron-updater";
 import ffmpegStatic from "ffmpeg-static";
 import { DESKTOP_EVENTS, IPC, type BenchmarkResult, type DesktopInfo, type DesktopPrefs, type EncoderProbe, type GpuStatus, type MediaKind, type MenuAction, type PickedFile, type VideoCodec } from "@/lib/desktop/contract";
 import { appLocations } from "./paths";
-import { APP_HOST, APP_ORIGIN, APP_SCHEME, contentType, isAppUrl, isExternalWebUrl, resolveSiteRequest, startUrl } from "./protocol";
+import { APP_HOST, APP_ORIGIN, APP_SCHEME, contentType, isAppUrl, isExternalWebUrl, popupMayNavigate, resolveSiteRequest, startUrl, windowOpenAction } from "./protocol";
 import { gpuStatusOf, gpuSwitches, preferredVendor } from "./gpu";
 import { DEFAULT_PREFS, DEFAULT_WINDOW, resolvePrefs, restoreWindowState, sanitizePrefs, type WindowState } from "./prefs";
 import { Logger } from "./logger";
@@ -19,7 +19,7 @@ import { probeEncoders } from "./ffmpeg/encoders";
 import { buildBenchmarkArgs } from "./ffmpeg/args";
 import { bundledFfmpegPath, ffmpegRunner, resolveFfmpeg, runFfmpeg } from "./ffmpeg/run";
 import { ModelManager } from "./models/manager";
-import { LocalModelRunner, type LlamaModuleLike } from "./ai/local";
+import { LocalModelRunner, checkLocalAi, type LlamaModuleLike } from "./ai/local";
 import { SecretBox } from "./ai/secrets";
 import { AiService, DEFAULT_CLOUD, type CloudSettings } from "./ai/service";
 import { UpdateController } from "./updater";
@@ -415,9 +415,33 @@ function start() {
       win = null;
     });
     const contents = win.webContents;
-    contents.setWindowOpenHandler(({ url }) => {
-      if (isExternalWebUrl(url)) void shell.openExternal(url);
+    // --- review fix (desktop-exe) --- the Publish block's sign-in popups (the relay's, Google's) open as child windows the page
+    // keeps a handle on – a small sandboxed window without the app's bridge (the preload only serves app:// pages) – every
+    // other web link opens in the system browser, as before
+    contents.setWindowOpenHandler(({ url, frameName }) => {
+      const action = windowOpenAction(url, frameName);
+      if (action === "popup") {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: { width: 520, height: 760, autoHideMenuBar: true, backgroundColor: "#0b0b0f", webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } },
+        };
+      }
+      if (action === "external") void shell.openExternal(url);
       return { action: "deny" };
+    });
+    contents.on("did-create-window", (child) => {
+      const popup = child.webContents;
+      // A sign-in popup stays a web page: no app:// (or file:) navigation, and its own popups go to the system browser.
+      popup.on("will-navigate", (event, url) => {
+        if (!popupMayNavigate(url)) event.preventDefault();
+      });
+      popup.on("will-redirect", (event, url) => {
+        if (!popupMayNavigate(url)) event.preventDefault();
+      });
+      popup.setWindowOpenHandler(({ url }) => {
+        if (isExternalWebUrl(url)) void shell.openExternal(url);
+        return { action: "deny" };
+      });
     });
     contents.on("will-navigate", (event, url) => {
       if (isAppUrl(url)) return;
@@ -486,6 +510,11 @@ function start() {
       const encoders = await probe();
       out.encoders = { ffmpeg: encoders.ffmpeg, chosen: encoders.chosen, working: encoders.encoders.filter((e) => e.works).map((e) => e.id), error: encoders.error };
       out.ai = await ai.status();
+      // --- review fix (desktop-exe) --- the local AI must be able to start in the package: node-llama-cpp imports (its llama/
+      // files shipped), its CPU backend loads and it builds a grammar. ai.status() alone never imports it.
+      const llama = await checkLocalAi(() => import("node-llama-cpp"));
+      out.localAi = llama;
+      if (!llama.ok) ok = false;
       out.update = updater.status;
     } catch (err) {
       out.error = err instanceof Error ? err.message : String(err);

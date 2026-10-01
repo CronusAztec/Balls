@@ -1,4 +1,5 @@
 import type { Ball, CircularWall, ModeContext, ModeId, SoundEvent } from "./types";
+import { rangesFor } from "@/lib/unlimited"; // --- unlimited ---
 
 /**
  * Stat multipliers (the geraldbounces "multipliers" formats: "the ball gets faster to unlimited, and size and damage
@@ -224,6 +225,7 @@ export const MULTIPLIER_RANGES = {
   pickupRate: { min: 0, max: 3, step: 0.1 },
   pickupLifetime: { min: 2, max: 30, step: 1 },
 } as const;
+const MULTIPLIER_SLIDER_RANGES = MULTIPLIER_RANGES; // --- unlimited ---
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
   const n = Number(value);
@@ -245,9 +247,10 @@ export function parsePickupTypes(value: string): PickupKind[] {
 }
 
 /** Fills in the defaults and clamps every value (the cap and the threshold become whole numbers; bad input falls back). */
-export function resolveMultiplierConfig(config: Partial<MultiplierConfig> | null | undefined): MultiplierConfig {
+export function resolveMultiplierConfig(config: (Partial<MultiplierConfig> & { unlimited?: boolean }) | null | undefined): MultiplierConfig {
   const out = { ...DEFAULT_MULTIPLIER_CONFIG };
   if (!config) return out;
+  const MULTIPLIER_RANGES = rangesFor(MULTIPLIER_SLIDER_RANGES, config.unlimited); // --- unlimited --- (a physics config with No limits on: past the sliders up to the soft ceilings)
   if (typeof config.mpUnlimited === "boolean") out.mpUnlimited = config.mpUnlimited;
   if (config.mpCap !== undefined) out.mpCap = Math.round(clampNumber(config.mpCap, MULTIPLIER_RANGES.mpCap, out.mpCap));
   if (config.wallSmashThreshold !== undefined) out.wallSmashThreshold = Math.round(clampNumber(config.wallSmashThreshold, MULTIPLIER_RANGES.wallSmashThreshold, out.wallSmashThreshold));
@@ -541,7 +544,7 @@ export class MultiplierRuntime {
     lastPickupAt: -Infinity,
   };
 
-  setConfig(config: Partial<MultiplierConfig> | null | undefined) {
+  setConfig(config: (Partial<MultiplierConfig> & { unlimited?: boolean }) | null | undefined) {
     const next = resolveMultiplierConfig(config);
     const wasOn = this.config.multiplierPickups;
     this.config = next;

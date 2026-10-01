@@ -9,6 +9,8 @@ import { MEDIA_EXTENSIONS, dialogFilters, filesInArgv, mediaKindOf, mimeOf } fro
 import { Library, uniquePath } from "../src/library";
 import { RenderSaver } from "../src/render";
 import { bundledFfmpegPath } from "../src/ffmpeg/run";
+import { JSON_GBNF, checkLocalAi, jsonGrammar } from "../src/ai/local";
+import { createRequire } from "module";
 import type { EncoderProbe, RenderProgressEvent, SaveRenderRequest, UpdateStatus } from "@/lib/desktop/contract";
 
 /* --- desktop-exe --- preferences, window state, the updater (never fails offline), menu, media, library and saving renders */
@@ -161,5 +163,95 @@ describe("saving renders and the library", () => {
     const noHevc = new RenderSaver({ outputFolder: () => dir, ffmpeg: () => "ffmpeg", probe: async () => probe, run: async () => ({ code: 0, stdout: "", stderr: "" }), library, emit: () => {}, log: () => {} });
     await expect(noHevc.save(request({ transcode: spec }))).rejects.toThrow(/No working HEVC encoder/);
     expect(fs.readdirSync(path.join(dir, "out"))).toEqual([]);
+  });
+
+  // --- review fix (desktop-exe) --- a transcode that never finishes leaves no half-written MP4 that looks like a clip
+  it("removes the half-written MP4 when the transcode is cancelled, times out or cannot start", async () => {
+    const library = new Library(path.join(dir, "library.json"), path.join(dir, "thumbs"));
+    const spec = { codec: "h264" as const, width: 1080, height: 1920, fps: 60, videoKbps: 1, maxKbps: 1, audioKbps: 128, sampleRate: 48000 };
+    let started: () => void = () => {};
+    const transcoding = new Promise<void>((resolve) => (started = resolve));
+    const saver = new RenderSaver({
+      outputFolder: () => dir,
+      ffmpeg: () => "ffmpeg",
+      probe: async () => probe,
+      // ffmpeg writes part of the output, then the job is cancelled: the run rejects with an AbortError (as runFfmpeg does).
+      run: (_bin, args, options) =>
+        new Promise((_resolve, reject) => {
+          fs.writeFileSync(args[args.length - 1], "half an mp4");
+          options?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("ffmpeg cancelled"), { name: "AbortError" })));
+          started();
+        }),
+      library,
+      emit: () => {},
+      log: () => {},
+    });
+    const saving = saver.save(request({ jobId: "job-1", name: "clip", transcode: spec }));
+    await transcoding;
+    expect(fs.readdirSync(path.join(dir, "out")).filter((f) => !f.startsWith("."))).toEqual(["clip.mp4"]);
+    saver.cancel("job-1");
+    await expect(saving).rejects.toThrow(/cancelled/);
+    expect(fs.readdirSync(path.join(dir, "out"))).toEqual([]); // neither the partial clip nor the intermediate file
+    // A timeout or a failed spawn rejects the same way: nothing is left either, and a retry saves under the clip's own name.
+    const failing = new RenderSaver({ outputFolder: () => dir, ffmpeg: () => "ffmpeg", probe: async () => probe, run: async (_bin, args) => { fs.writeFileSync(args[args.length - 1], "x"); throw new Error("ffmpeg timed out"); }, library, emit: () => {}, log: () => {} });
+    await expect(failing.save(request({ name: "clip", transcode: spec }))).rejects.toThrow(/timed out/);
+    expect(fs.readdirSync(path.join(dir, "out"))).toEqual([]);
+    expect(await library.list()).toEqual([]);
+  });
+});
+
+// --- review fix (desktop-exe) --- the packaged app keeps node-llama-cpp's small llama/ files, and the smoke run checks the local AI starts
+describe("packaging the local AI", () => {
+  const builder = createRequire(import.meta.url)("../electron-builder.config.cjs") as { files: string[]; asarUnpack: string[] };
+
+  it("ships llama/*.json and llama/grammars, leaving out only the source-build parts", () => {
+    const llamaRules = builder.files.filter((f) => f.includes("node-llama-cpp/llama"));
+    // node-llama-cpp's index reads llama/binariesGithubRelease.json while it loads: the whole folder must never be excluded.
+    expect(llamaRules).not.toContain("!node_modules/node-llama-cpp/llama/**");
+    expect(llamaRules.sort()).toEqual(
+      ["!node_modules/node-llama-cpp/llama/gitRelease.bundle", "!node_modules/node-llama-cpp/llama/llama.cpp/**", "!node_modules/node-llama-cpp/llama/localBuilds/**", "!node_modules/node-llama-cpp/llama/xpack/**"].sort(),
+    );
+    for (const kept of ["binariesGithubRelease.json", "llama.cpp.info.json", "package.json", "grammars/json.gbnf"]) {
+      const file = `node_modules/node-llama-cpp/llama/${kept}`;
+      expect(llamaRules.some((rule) => file.startsWith(rule.slice(1).replace(/\*\*$/, ""))), file).toBe(false);
+    }
+  });
+
+  it("reports the local AI ready when the module loads, its CPU backend starts and a grammar builds", async () => {
+    const calls: string[] = [];
+    const llama = {
+      gpu: false as const,
+      createGrammarForJsonSchema: async () => void calls.push("schema grammar"),
+      getGrammarFor: async (t: string) => void calls.push(`grammar ${t}`),
+      dispose: async () => void calls.push("dispose"),
+    };
+    const ok = await checkLocalAi(async () => ({ getLlama: async (o: unknown) => (calls.push(`getLlama ${JSON.stringify(o)}`), llama) }));
+    expect(ok).toEqual({ ok: true, backend: "cpu", error: null });
+    expect(calls).toEqual(['getLlama {"gpu":false,"build":"never"}', "schema grammar", "grammar json", "dispose"]);
+  });
+
+  it("builds the plain-JSON grammar from its own text where node-llama-cpp's grammars folder is out of reach (the asar archive)", async () => {
+    const built: string[] = [];
+    const llama = {
+      getGrammarFor: async () => Promise.reject(new Error("Grammars folder not found")),
+      createGrammar: async (o: { grammar: string }) => (built.push(o.grammar), { __grammar: true as const }),
+    };
+    await expect(jsonGrammar(llama)).resolves.toEqual({ __grammar: true });
+    expect(built).toEqual([JSON_GBNF]);
+    expect(built[0]).toMatch(/^root\s+::= object/);
+    // The same text as node-llama-cpp's own json.gbnf, rule for rule (where the app's dependencies are installed).
+    const ownPath = path.join(__dirname, "../node_modules/node-llama-cpp/llama/grammars/json.gbnf");
+    const rules = (g: string) => g.replace(/#.*$/gm, "").replace(/\s+/g, " ").trim();
+    if (fs.existsSync(ownPath)) expect(rules(JSON_GBNF)).toBe(rules(fs.readFileSync(ownPath, "utf8")));
+  });
+
+  it("fails the smoke check when the module cannot load (a package without llama/binariesGithubRelease.json)", async () => {
+    const missing = await checkLocalAi(async () => {
+      throw new Error("ENOENT, node_modules/node-llama-cpp/llama/binariesGithubRelease.json not found in app.asar");
+    });
+    expect(missing.ok).toBe(false);
+    expect(missing.error).toMatch(/binariesGithubRelease\.json/);
+    const noBackend = await checkLocalAi(async () => ({ getLlama: async () => Promise.reject(new Error("no prebuilt binary")) }));
+    expect(noBackend).toEqual({ ok: false, backend: null, error: "no prebuilt binary" });
   });
 });
