@@ -16,7 +16,6 @@ import { COLLIDE_RANGES, DEFAULT_COLLIDE_SETTINGS, collideSettingFields, collide
 import { DEFAULT_GLASS_SETTINGS, GLASS_RANGES, glassSettingFields, glassSettingsOf, resolveGlassSettings } from "@/lib/physics/modes/glass";
 import { DEFAULT_PICTURE_PAINT, PICTURE_PAINT_RANGES, isPaintBeatSource, picturePaintOf, resolvePicturePaintSettings, type PaintBeatSource } from "@/lib/physics/picturePaint";
 import { isBallInteraction, isModeId, WALL_BREAK_STYLES } from "@/lib/physics/types";
-import { SITE_DOMAIN } from "@/lib/site";
 import { CHARACTER_RANGES, DEFAULT_CHARACTER, characterOf, isFaceStyle, resolveCharacterSettings, type FaceStyle } from "@/lib/character/character"; // --- gerald-faces ---
 import { THEME_RANGES, defaultThemeSettings, readThemeParams, resolveThemeSettings, writeThemeParams, type BackgroundType, type ParticleStyle } from "@/lib/themes"; // --- themes
 import { TEAM_RANGES, defaultTeamSettings, readTeamParams, resolveTeamSettings, writeTeamParams, type ScoreboardPosition, type TeamEntry } from "@/lib/teams"; // --- teams ---
@@ -738,7 +737,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- gerald-glass ---
     ...glassSettingFields(DEFAULT_GLASS_SETTINGS),
     ...DEFAULT_PICTURE_PAINT,
-    watermarkText: SITE_DOMAIN,
+    watermarkText: "", // --- review fix (site-static) --- no mark burned into the clips unless the user adds one (the TikTok page's promise)
     topText: "",
     bottomText: "",
     textSize: 1,
@@ -1118,7 +1117,42 @@ function formatNumber(n: number) {
   return Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
-/** Reads settings from a URL; unknown or invalid values fall back to the defaults. */
+// --- review fix (recording-export) --- the numbers of links, share codes, batch lists, presets and project files
+/** The most characters of the Top / Bottom Text and the watermark a link keeps (and so a preset or a project file too). */
+const MAX_URL_TEXT = 60;
+/**
+ * Numbers whose slider range is a range of meaning, kept inside it at both ends: the gap is a fraction of the ring,
+ * Color Match has seven colours, the text has to fit the frame, the slicer's lengths are audio grains. Every other
+ * number only has a floor: a value past its slider's maximum is kept as it is – extreme values are a feature, and the
+ * page degrades gracefully under them – while one below its minimum (a negative ball size, no rings at all) is invalid.
+ */
+const RANGE_BOUNDED_FIELDS: ReadonlySet<string> = new Set(["gapSize", "colorMatchColorCount", "textSize", "sliceMs", "sliceFadeMs"]);
+/**
+ * The core numbers of `NUMERIC_URL_KEYS`: no feature's own resolver checks them again (the music bed, the physics extras,
+ * the modes' and features' numbers keep their own rules), so `clampToRange()` is their check.
+ */
+const CORE_NUMERIC_FIELDS: readonly NumericKey[] = ["gravity", "ballSpeed", "ballRadius", "wallCount", "wallThickness", "gapSize", "rotationSpeed", "trailThickness", "accumulationTime", "spikeCount", "multiplySpawnCount", "targetCount", "colorMatchColorCount", "growRate", "textSize", "sliceMs", "sliceFadeMs"];
+const CORE_NUMERIC_FIELD_SET: ReadonlySet<string> = new Set(CORE_NUMERIC_FIELDS);
+
+/**
+ * A number for `field` from a link or a stored preset: not a finite number → `fallback`; below the field's slider
+ * minimum → that minimum; above its maximum → kept (clamped only for `RANGE_BOUNDED_FIELDS`); whole numbers for a
+ * whole-number slider step (counts). A field without a range is taken as it is.
+ */
+export function clampToRange(field: string, value: number, fallback: number): number {
+  const range = (RANGES as unknown as Record<string, { min: number; max: number; step: number } | undefined>)[field];
+  if (!Number.isFinite(value)) return fallback;
+  if (!range) return value;
+  let v = Math.max(range.min, value);
+  if (RANGE_BOUNDED_FIELDS.has(field)) v = Math.min(range.max, v);
+  return Number.isInteger(range.step) ? Math.round(v) : v;
+}
+// --- end review fix (recording-export) ---
+
+/**
+ * Reads settings from a URL; unknown or invalid values fall back to the defaults, and a number below its slider's minimum
+ * is lifted onto it (`clampToRange()`: a link with `r=-5` or `wc=0` cannot crash the page; big values stay big).
+ */
 export function settingsFromSearchParams(params: URLSearchParams): SimulatorSettings {
   const modeParam = params.get("mode");
   const mode: ModeId = isModeId(modeParam) ? modeParam : "classic";
@@ -1126,8 +1160,12 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   for (const [key, field] of Object.entries(NUMERIC_URL_KEYS)) {
     const raw = params.get(key);
     if (raw === null) continue;
-    const value = Number(raw);
-    if (Number.isFinite(value)) (settings as unknown as Record<string, number>)[field] = value;
+    // --- review fix (recording-export) --- a core number through clampToRange(); the others as before (their features check them)
+    if (CORE_NUMERIC_FIELD_SET.has(field)) (settings as unknown as Record<string, number>)[field] = clampToRange(field, raw.trim() === "" ? NaN : Number(raw), settings[field]);
+    else {
+      const value = Number(raw);
+      if (Number.isFinite(value)) (settings as unknown as Record<string, number>)[field] = value;
+    }
   }
   for (const [key, field] of Object.entries(BOOLEAN_URL_KEYS)) {
     const raw = params.get(key);
@@ -1136,7 +1174,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   }
   for (const [key, field] of Object.entries(STRING_URL_KEYS)) {
     const raw = params.get(key);
-    if (raw !== null) (settings as unknown as Record<string, string>)[field] = raw.slice(0, 60);
+    if (raw !== null) (settings as unknown as Record<string, string>)[field] = raw.slice(0, MAX_URL_TEXT);
   }
   const rw = params.get("rwmode");
   if (rw === "pulse" || rw === "gradient") settings.rainbowWallMode = rw;
@@ -1430,6 +1468,12 @@ export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
 export const PRESETS_STORAGE_KEY = "jumpingballslive_saved_settings";
 export const ADVANCED_STORAGE_KEY = "jumpingballslive_advanced_options";
 
+/**
+ * --- review fix (recording-export) --- The default watermark before the rename (the old SITE_DOMAIN): presets and project
+ * files saved back then store it, and loading one puts today's default watermark in its place (a custom one stays).
+ */
+const LEGACY_DEFAULT_WATERMARKS: readonly string[] = ["viralballs.com", "jumpingballslive.com" /* --- review fix (site-static) --- the post-rename default, a domain nobody serves */];
+
 /** Browser-storage keys written before the rename to JumpingBallsLive, and the keys that replaced them. */
 const LEGACY_STORAGE_KEYS: Record<string, string> = {
   viralballs_saved_settings: PRESETS_STORAGE_KEY,
@@ -1486,6 +1530,21 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   const mode: ModeId = isModeId(preset.mode) ? preset.mode : "classic";
   const defaults = defaultSettings(mode);
   const merged = { ...defaults, ...preset, mode, wallBreakSound: normalizeWallBreakSound(preset.wallBreakSound) };
+  // --- review fix (recording-export) --- the core numbers like a link's (`clampToRange()`), the enumerations the URL reader
+  // checks too, the texts at a link's length (a share link made after loading keeps them whole) and no pre-rename watermark
+  for (const field of CORE_NUMERIC_FIELDS) {
+    const value = merged[field] as unknown;
+    (merged as unknown as Record<string, number>)[field] = clampToRange(field, typeof value === "number" ? value : NaN, defaults[field]);
+  }
+  merged.recordingResolution = (RESOLUTIONS as readonly string[]).includes(preset.recordingResolution as string) ? (preset.recordingResolution as string) : defaults.recordingResolution;
+  merged.wallBreakStyle = (WALL_BREAK_STYLES as readonly string[]).includes(preset.wallBreakStyle as string) ? (preset.wallBreakStyle as WallBreakStyle) : defaults.wallBreakStyle;
+  merged.rainbowWallMode = preset.rainbowWallMode === "pulse" || preset.rainbowWallMode === "gradient" ? preset.rainbowWallMode : defaults.rainbowWallMode;
+  for (const key of ["topText", "bottomText", "watermarkText"] as const) {
+    const text = preset[key] as unknown;
+    merged[key] = typeof text === "string" ? text.slice(0, MAX_URL_TEXT) : defaults[key];
+  }
+  if (LEGACY_DEFAULT_WATERMARKS.includes(merged.watermarkText.trim().toLowerCase())) merged.watermarkText = defaults.watermarkText;
+  // --- end review fix (recording-export) ---
   merged.hitSoundMode = isHitSoundMode(preset.hitSoundMode) ? preset.hitSoundMode : defaults.hitSoundMode;
   merged.hitSampleId = normalizeHitSampleId(preset.hitSampleId);
   merged.hitSampleVolume = clampRange(Number(merged.hitSampleVolume), RANGES.hitSampleVolume, defaults.hitSampleVolume);
@@ -1560,7 +1619,9 @@ export function presetToLiveSettings(preset: Partial<SimulatorSettings>, uploads
   return loaded;
 }
 
+/** The export frame of a resolution setting; anything but one of `RESOLUTIONS` gives the default 1080×1920 (never a bogus size for the recorder). */
 export function resolutionToSize(resolution: string): { width: number; height: number } {
+  if (!(RESOLUTIONS as readonly string[]).includes(resolution)) return { width: 1080, height: 1920 }; // --- review fix (recording-export) ---
   const [w, h] = resolution.split("x").map(Number);
   return { width: w || 1080, height: h || 1920 };
 }

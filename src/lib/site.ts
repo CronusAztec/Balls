@@ -1,6 +1,5 @@
-/** Central place for branding. Change these two values to rebrand the whole site. */
+/** Central place for branding. Change SITE_NAME (and the accent colours below) to rebrand the whole site. */
 export const SITE_NAME = "JumpingBallsLive";
-export const SITE_DOMAIN = "jumpingballslive.com";
 
 /**
  * Sub-folder the site is served from ("" for the domain root, "/Balls" for a GitHub Pages
@@ -11,6 +10,13 @@ export const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$
 
 /** Absolute public URL of the site, including the base path (no trailing slash). */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || `http://localhost:3000${BASE_PATH}`).replace(/\/+$/, "");
+
+/**
+ * --- review fix (site-static) --- The address the site is served from, as the legal pages name it: derived from the deploy URL
+ * (cronusaztec.github.io/Balls on GitHub Pages; a custom domain set in the Pages settings switches NEXT_PUBLIC_SITE_URL in
+ * deploy.yml and so this too), never a hard-coded domain nobody serves. NEXT_PUBLIC_SITE_DOMAIN overrides it.
+ */
+export const SITE_DOMAIN = (process.env.NEXT_PUBLIC_SITE_DOMAIN || SITE_URL.replace(/^https?:\/\//, "")).replace(/\/+$/, "");
 
 /** Prefixes a `/public` asset path with the base path: assetPath("/notes/x.mid"). */
 export function assetPath(path: string): string {

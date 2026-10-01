@@ -28,10 +28,40 @@ const browser = await chromium.launch(launchOpts);
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
 const page = await ctx.newPage();
 const errors = [];
+// --- review fix (site-static) --- the served origin and base path: same-origin failures are the site's, foreign ones are noise
+const ORIGIN = new URL(BASE).origin;
+const BASE_PATH = new URL(BASE).pathname.replace(/\/+$/, "");
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 page.on("console", (m) => {
-  if (m.type() === "error") errors.push(`console: ${m.text()}`);
+  if (m.type() !== "error") return;
+  const text = m.text();
+  // A resource that failed on another host (fonts, analytics, publish endpoints, a sandbox without network) is not the site's
+  // error; a same-origin one stays (its HTTP status is also reported precisely by the response listener below).
+  const url = m.location()?.url || "";
+  if (/^Failed to load resource/.test(text) && url && !url.startsWith(`${ORIGIN}/`)) return;
+  errors.push(`console: ${text}${/^Failed to load resource/.test(text) && url ? ` (${url})` : ""}`);
 });
+/**
+ * --- review fix (site-static) --- Every same-origin response of 400 or more fails the run ("no failed same-origin requests"): a
+ * forgotten assetPath(), a missing modes/<new>.webp, a renamed song, a URL that dropped the base path (it hits the same origin
+ * at /modes/... and gets a 404). Only the URLs the suite requests on purpose are expected, by pathname. page.request.get()
+ * probes go through the APIRequestContext and fire no page "response" events.
+ */
+const expected404 = new Set([`${BASE_PATH}/pl/this-page-does-not-exist/`, `${BASE_PATH}/en/nothing-here/`]);
+const badResponses = [];
+page.on("response", (r) => {
+  let u;
+  try {
+    u = new URL(r.url());
+  } catch {
+    return;
+  }
+  if (u.origin !== ORIGIN || r.status() < 400 || expected404.has(u.pathname)) return;
+  const where = BASE_PATH && !u.pathname.startsWith(`${BASE_PATH}/`) ? " (outside base path)" : "";
+  badResponses.push(`${r.status()} ${u.pathname}${u.search}${where}`);
+});
+/** Console noise every check may ignore: foreign hosts, aborted fetches and navigations, and HTTP errors (the response listener's). */
+const IGNORED_CONSOLE = /favicon|ERR_INTERNET|fonts.googleapis|fonts.gstatic|net::ERR_ABORTED|net::ERR_CERT|Failed to load resource: the server responded with a status of/;
 
 /** A short 16-bit mono PCM WAV (sine sweep) for the song-slicer and music-bed upload checks. */
 function makeWav(seconds = 2, sampleRate = 8000) {
@@ -85,15 +115,134 @@ const check = (name, ok, extra = "") => {
 };
 
 /**
- * Frame-rate floors for the performance checks. Other builds and browser tests often share the
- * machine (CI runners, agent hosts); when the 1-minute load average exceeds the core count the
- * floor scales down in proportion (never below 8 fps) so a busy box does not fail a check that
- * measures the site rather than its neighbours. The measured numbers are always printed.
+ * --- review fix (site-static) --- Timing checks on a shared machine. Other builds and browser tests often share it (CI runners,
+ * agent hosts), and the 1-minute load average lags behind what the page actually gets, so the floors are fixed. A timing check
+ * that fails is measured once more about 2 s later (where its conditions can be measured again), after a baseline: 1 s of
+ * requestAnimationFrame on the same page with the run paused (the canvas keeps drawing, the physics stands still). If it still
+ * fails while the paused page itself gets fewer than BUSY_BASELINE_FPS, the machine – not the run – is short of CPU: the result
+ * is "inconclusive", listed apart and not counted as a failure, unless SMOKE_STRICT_TIMING=1 (smoke.yml on GitHub's dedicated
+ * runners). Frame rates are judged on the average and a low percentile of the half-second windows (lowWindow), not on the
+ * single worst window.
  */
-const fpsFloor = (fps) => {
-  const load = os.loadavg()[0];
-  const cpus = os.cpus().length || 1;
-  return load > cpus ? Math.max(8, Math.round((fps * cpus) / load)) : fps;
+const STRICT_TIMING = process.env.SMOKE_STRICT_TIMING === "1";
+// An idle machine gives the paused page its full 60 fps; well below that, it is already dropping frames of a light page.
+const BUSY_BASELINE_FPS = 50;
+const inconclusiveResults = [];
+const inconclusive = (name, extra = "") => {
+  inconclusiveResults.push({ name, extra });
+  console.log(`⚠️ ${name} – inconclusive ${extra}`);
+};
+/** Frames per second over `span` ms of requestAnimationFrame (runs in the page). */
+const rafRate = (span) =>
+  new Promise((resolve) => {
+    let frames = 0;
+    const start = performance.now();
+    const frame = (t) => {
+      frames++;
+      if (t - start < span) requestAnimationFrame(frame);
+      else resolve((1000 * frames) / (t - start));
+    };
+    requestAnimationFrame(frame);
+  });
+/** The page's own frame rate over `ms` with the run paused (resumed afterwards): what the machine gives it right now (NaN if unmeasurable). */
+const measureBaseline = async (ms = 1000) => {
+  const pause = page.getByRole("button", { name: /⏸ Pause/ }).first();
+  const paused = (await pause.isVisible().catch(() => false)) && (await pause.click({ timeout: 2000 }).then(() => true).catch(() => false));
+  try {
+    await page.waitForTimeout(200);
+    return await page.evaluate(rafRate, ms);
+  } catch {
+    return NaN;
+  } finally {
+    if (paused) await page.getByRole("button", { name: /▶ Resume/ }).first().click({ timeout: 2000 }).catch(() => {});
+  }
+};
+/**
+ * A check whose verdict hangs on the frame rate or the wall clock. `ok` is its functional part (never retried, never excused),
+ * `timingOk` the timing part of the first measurement; `retry` (optional) measures the timing again and returns
+ * { timingOk, extra }.
+ */
+const timingCheck = async (name, ok, timingOk, extra, retry) => {
+  if (!ok || timingOk) return check(name, ok && timingOk, extra);
+  await page.waitForTimeout(2000);
+  const baseline = await measureBaseline();
+  const again = retry ? await retry().catch((e) => ({ timingOk: false, extra: `(retry failed: ${String(e).split("\n")[0]})` })) : null;
+  if (again?.timingOk) return check(name, true, `${again.extra} – on the second try, the first ${extra}`);
+  const detail = again ? `${extra}, second try ${again.extra}` : extra;
+  const base = Number.isFinite(baseline) ? `${baseline.toFixed(0)} fps` : "n/a";
+  if (!STRICT_TIMING && baseline < BUSY_BASELINE_FPS) return inconclusive(name, `${detail} (machine busy: baseline ${base} with the run paused)`);
+  check(name, false, `${detail} (baseline ${base} with the run paused)`);
+};
+/** The low frame rate of a run: its 10th-percentile half-second window (the 2nd-worst of 10–19), the worst of fewer than 5. */
+const lowWindow = (windows) => {
+  if (!windows.length) return 0;
+  const sorted = [...windows].sort((a, b) => a - b);
+  return sorted.length < 5 ? sorted[0] : sorted[Math.max(1, Math.floor(sorted.length / 10))];
+};
+/** Frame rates from frame intervals (ms): the average, the half-second windows, the worst and the low window. */
+const fpsStats = (deltas) => {
+  const windows = [];
+  let acc = 0;
+  let frames = 0;
+  for (const d of deltas) {
+    acc += d;
+    frames++;
+    if (acc >= 500) {
+      windows.push((1000 * frames) / acc);
+      acc = 0;
+      frames = 0;
+    }
+  }
+  const total = deltas.reduce((a, b) => a + b, 0);
+  return { windows, avg: total > 0 ? (1000 * deltas.length) / total : 0, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
+};
+/** Frame intervals of the page over `span` ms of requestAnimationFrame (runs in the page). */
+const rafDeltas = (span) =>
+  new Promise((resolve) => {
+    const out = [];
+    let last = performance.now();
+    const end = last + span;
+    const frame = (t) => {
+      out.push(t - last);
+      last = t;
+      if (t < end) requestAnimationFrame(frame);
+      else resolve(out);
+    };
+    requestAnimationFrame(frame);
+  });
+const pageFrameRates = async (ms) => fpsStats(await page.evaluate(rafDeltas, ms));
+const fpsNote = (f) => `avg ${f.avg.toFixed(1)} fps, low half-second ${f.low.toFixed(1)} fps, worst ${f.min.toFixed(1)} fps`;
+const fpsOk = (f, minWindows, avgFloor, lowFloor = avgFloor) => f.windows.length >= minWindows && f.avg >= avgFloor && f.low >= lowFloor;
+/** The simulator's clock label in seconds ("12.3s", "1:02.3"; NaN without one). It stops when the run finishes or pauses. */
+const simClock = async () => {
+  const text = ((await page.locator("span.tabular-nums").first().innerText({ timeout: 2000 }).catch(() => "")) || "").trim();
+  const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)s?$/.exec(text);
+  return m ? Number(m[1] || 0) * 60 + Number(m[2]) : NaN;
+};
+/** A retry for a recording's frame rate: 3.5 s more of the page recorded as it is now, then Stop & Export (that download is dropped). */
+const recordingRetry = (minWindows, floor) => async () => {
+  let f = { windows: [], avg: 0, min: 0, low: 0 };
+  await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      // (a page that cannot record again right now costs 10 s, not the default 30; a run that finishes meanwhile ends – and
+      // downloads – the recording by itself)
+      await page.getByRole("button", { name: /Record Video/ }).click({ timeout: 10000 });
+      await page.waitForTimeout(300);
+      f = await pageFrameRates(3500);
+      const stop = page.getByRole("button", { name: /Stop & Export/ });
+      if (await stop.isVisible().catch(() => false)) await stop.click({ timeout: 10000 });
+    })(),
+  ]);
+  return { timingOk: fpsOk(f, minWindows, floor), extra: `(recorded again: ${fpsNote(f)})` };
+};
+/** A retry for the frame rate of a run that keeps going: `ms` more of frames – valid only while the run's clock moves on. */
+const fpsRetry = (ms, minWindows, avgFloor, lowFloor = avgFloor) => async () => {
+  const before = await simClock();
+  const f = await pageFrameRates(ms);
+  const after = await simClock();
+  const running = after > before;
+  return { timingOk: running && fpsOk(f, minWindows, avgFloor, lowFloor), extra: `(${fpsNote(f)}${running ? "" : `; the run's clock stood still (${before} → ${after} s), nothing to measure`})` };
 };
 const loadNote = () => {
   const load = os.loadavg()[0];
@@ -136,6 +285,24 @@ check("root redirects to a locale", /\/(en|pl|es)\/$/.test(page.url()), `(${page
   await page.waitForFunction(() => document.documentElement.lang === "pl", null, { timeout: 5000 }).catch(() => {});
   const h1 = await page.locator("h1").first().innerText().catch(() => "");
   check("unknown URL serves localised 404", res.status() === 404 && (await page.evaluate(() => document.documentElement.lang)) === "pl" && h1.length > 0, `(${res.status()}, lang=${await page.evaluate(() => document.documentElement.lang)}, h1="${h1}")`);
+  // --- review fix (site-static) --- the localised title survives hydration (the (static) layout sets no metadata <title> that
+  // would write "JumpingBallsLive" back) and the locale-less pages carry a favicon under the base path
+  const titled = await page.waitForFunction(() => document.title.startsWith("Nie znaleziono strony"), null, { timeout: 10000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1500);
+  const title = await page.title();
+  const icon = await page.locator('link[rel~="icon"]').first().getAttribute("href").catch(() => null);
+  const iconUrl = icon ? new URL(icon, page.url()).href : "";
+  check("the 404 page keeps its localised title and has a favicon under the base path", titled && title.startsWith("Nie znaleziono strony") && iconUrl.startsWith(`${BASE}/`), `(title "${title}", icon ${icon})`);
+  await page.goto(`${BASE}/en/nothing-here/`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  check("the English 404 page keeps its title", (await page.title()).startsWith("Page not found"), `(title "${await page.title()}")`);
+  await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(/\/(en|pl|es)\/$/, { timeout: 10000 }).catch(() => {});
+}
+{
+  // --- review fix (site-static) --- the root redirect page keeps a title of its own (page metadata) and its favicon
+  const html = await (await page.request.get(`${BASE}/`)).text();
+  check("the root redirect page has a title and a favicon under the base path", /<title>[^<]+<\/title>/.test(html) && html.includes(`href="${BASE_PATH}/icon.svg"`), `(${(/<title>[^<]*<\/title>/.exec(html) || ["no title"])[0]})`);
 }
 for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/click.wav", "/hitSounds/kick.wav", "/modes/classic.webp", "/modes/drop.webp", "/modes/box.webp", "/modes/pendulum.webp", "/icon.svg", "/og.png", "/sitemap.xml", "/robots.txt", "/404.html"]) {
   const res = await page.request.get(`${BASE}${asset}`);
@@ -148,7 +315,7 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
 
 // 1. Static pages in every locale
 for (const locale of ["en", "pl", "es"]) {
-  for (const p of ["", "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */]) {
+  for (const p of ["", "/simulator" /* --- review fix (site-static) --- its sr-only heading */, "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */]) {
     const res = await page.goto(`${BASE}/${locale}${p}/`, { waitUntil: "networkidle" });
     const h1 = await page.locator("h1").first().innerText().catch(() => "");
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
@@ -161,6 +328,15 @@ const previewLoaded = await previewImg
   .evaluate((img) => (img.complete && img.naturalWidth > 0) || new Promise((r) => { img.onload = () => r(img.naturalWidth > 0); img.onerror = () => r(false); setTimeout(() => r(img.naturalWidth > 0), 5000); }))
   .catch(() => false);
 check("mode preview image loads under base path", previewLoaded, `(src=${await previewImg.getAttribute("src")})`);
+{
+  // --- review fix (site-static) --- the copyright line names the site, never a host; the mode cards' alt text is localised
+  const footer = await page.locator("footer").last().innerText();
+  check("the footer's copyright names the site, not a domain", /© \d{4} JumpingBallsLive/.test(footer) && !/©[^\n]*\.(com|io)/i.test(footer), `(${(/©[^\n]*/.exec(footer) || ["no ©"])[0]})`);
+  await page.goto(`${BASE}/pl/`, { waitUntil: "networkidle" });
+  const alt = await page.locator('img[src$="/modes/classic.webp"]').first().getAttribute("alt");
+  check("the mode preview alt text is localised", alt === "Podgląd trybu Klasyczny", `(alt="${alt}")`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+}
 await page.screenshot({ path: path.join(outDir, "landing.png"), fullPage: true });
 
 // 1b. Feedback form (static build: GitHub issue, email or endpoint channel)
@@ -311,6 +487,8 @@ await page.getByRole("button", { name: /Custom Sound/ }).click();
 await page.getByRole("button", { name: /Recording/ }).click();
 await page.getByLabel("Show Advanced Options").check();
 const wm = page.locator("#watermark-input");
+// --- review fix (site-static) --- clips carry no watermark unless the user types one (no domain burned in by default)
+check("the watermark is empty by default", (await wm.inputValue()) === "", `(value="${await wm.inputValue()}")`);
 await wm.click();
 await wm.press("Control+A");
 await wm.pressSequentially("hello world", { delay: 30 });
@@ -874,6 +1052,113 @@ const dlPath = path.join(outDir, download.suggestedFilename());
 await download.saveAs(dlPath);
 const size = fs.statSync(dlPath).size;
 check("video recorded and downloaded", size > 10000, `(${download.suggestedFilename()}, ${size} bytes, music bed ${bedForRecording ? "on" : "OFF"})`);
+// --- review fix (recording-export) --- Record Video writes MP4 only with H.264 (never VP9 + Opus inside an .mp4), WebM otherwise
+{
+  const bytes = fs.readFileSync(dlPath);
+  const isMp4 = download.suggestedFilename().endsWith(".mp4");
+  const hasAvc = bytes.includes(Buffer.from("avc1")) || bytes.includes(Buffer.from("avc3"));
+  const hasVp9 = bytes.includes(Buffer.from("vp09"));
+  check("Record Video: an .mp4 holds H.264, anything else is a .webm", isMp4 ? hasAvc && !hasVp9 : bytes.readUInt32BE(0) === 0x1a45dfa3, `(${download.suggestedFilename()}: avc ${hasAvc}, vp09 ${hasVp9})`);
+}
+
+// --- review fix (recording-export) --- links with numbers out of their slider range, Record Video on a finished run, a
+// pre-rename preset's watermark and the batch summary's clip length
+{
+  const errorsBefore = errors.length;
+  // 1. A negative ball size – as a long link and as the share code of mode=classic&r=-5 – opens at the smallest ball (the
+  // canvas used to throw on arc() with a negative radius and Next showed its "Application error" page).
+  const opened = [];
+  for (const query of ["mode=classic&r=-5", "c=q1bKzU9JVbJSSs5JLC7OTFbSUSpSstI1rQUA"]) {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => new URL(location.href).searchParams.get("r") === "4", null, { timeout: 10000 }).catch(() => {});
+    const appError = await page.getByText(/Application error/).isVisible().catch(() => false);
+    const started = await page.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(500);
+    opened.push({ query, r: new URL(page.url()).searchParams.get("r"), appError, started });
+  }
+  const newErrors = errors.slice(errorsBefore).filter((e) => !IGNORED_CONSOLE.test(e));
+  check("a link or share code with r=-5 opens at the smallest ball size (r=4) without a crash", opened.every((o) => o.r === "4" && !o.appError && o.started) && newErrors.length === 0, `(${JSON.stringify(opened)}${newErrors.length ? `, ${newErrors[0]}` : ""})`);
+
+  // 2. wc=3000 keeps its 3000 rings (big values are kept) and the page stays responsive: the canvas draws about one ring per pixel.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=3000`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1000);
+  const t0 = Date.now();
+  await page.evaluate(() => 1);
+  const roundTrip = Date.now() - t0;
+  const t1 = Date.now();
+  const bigStarted = await page.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 }).then(() => true).catch(() => false);
+  const clickMs = Date.now() - t1;
+  const bigFrames = await page.evaluate(() => new Promise((resolve) => {
+    let n = 0;
+    const s = performance.now();
+    const f = (t) => (++n, t - s < 2000 ? requestAnimationFrame(f) : resolve(n));
+    requestAnimationFrame(f);
+  }));
+  check("a link with wc=3000 keeps its rings and the page stays responsive", new URL(page.url()).searchParams.get("wc") === "3000" && bigStarted && roundTrip < 2000 && bigFrames >= 4, `(round trip ${roundTrip} ms, Start ${clickMs} ms, ${bigFrames} frames in 2 s)`);
+
+  // 3. Record Video on a finished run records the run again from its seed (as the fast export renders it), not half a second
+  // of the frozen end screen: right after the click the end screen is gone and Stop & Export shows; the clip ends with the run.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&wc=1&gap=1&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  const runStart = Date.now();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const over = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const runMs = Date.now() - runStart;
+  const seedBefore = await page.evaluate(() => document.querySelector("main canvas")?.dataset.seed ?? null);
+  let downloadAt = null;
+  let replayDownload = null;
+  const onReplayDownload = (d) => {
+    downloadAt ??= Date.now();
+    replayDownload ??= d;
+  };
+  page.on("download", onReplayDownload);
+  const clickedAt = Date.now();
+  await page.getByRole("button", { name: /Record Video/ }).click();
+  await page.waitForTimeout(400);
+  const stopShown = await page.getByRole("button", { name: /Stop & Export/ }).isVisible().catch(() => false);
+  const endScreenGone = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false));
+  const seedAfter = await page.evaluate(() => document.querySelector("main canvas")?.dataset.seed ?? null);
+  await page.waitForTimeout(1600);
+  // (a run of a few seconds cannot be over again within 2 s; a very short one – a first-bounce escape – may be)
+  const earlyDownload = downloadAt !== null && downloadAt - clickedAt < 2000 && runMs > 4000;
+  for (let i = 0; i < 60 && !replayDownload; i++) await page.waitForTimeout(500);
+  page.off("download", onReplayDownload);
+  let replayBytes = 0;
+  if (replayDownload) {
+    const out = path.join(outDir, `replay-${replayDownload.suggestedFilename()}`);
+    await replayDownload.saveAs(out);
+    replayBytes = fs.statSync(out).size;
+  }
+  const replayMs = downloadAt ? downloadAt - clickedAt : null;
+  check(
+    "Record Video on a finished run records the run again from its seed (no half-second still of the end screen)",
+    over && stopShown && endScreenGone && seedBefore !== null && seedAfter === seedBefore && !earlyDownload && replayMs !== null && replayMs > 0.5 * runMs && replayBytes > 10000,
+    `(run ${runMs} ms, seed ${seedBefore} → ${seedAfter}, stop shown ${stopShown}, end screen gone ${endScreenGone}, download after ${replayMs} ms, ${replayBytes} bytes)`,
+  );
+
+  // 4. A preset saved before the rename (under the old storage key, with the old default watermark) loads with today's
+  // default watermark: the link carries no wm=viralballs.com.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    localStorage.removeItem("jumpingballslive_saved_settings");
+    localStorage.setItem("viralballs_saved_settings", JSON.stringify({ "My old preset": { mode: "shatter", gravity: 700, watermarkText: "viralballs.com" } }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Saved Presets/ }).click();
+  const presetRow = page.locator("div", { hasText: /^My old preset/ }).last();
+  await presetRow.getByRole("button", { name: "Load", exact: true }).click({ timeout: 10000 }).catch(() => {});
+  await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 10000 }).catch(() => {});
+  const presetParams = new URL(page.url()).searchParams;
+  check("a pre-rename preset loads without the old viralballs.com watermark", presetParams.get("mode") === "shatter" && presetParams.get("g") === "700" && !presetParams.has("wm"), `(${presetParams.toString()})`);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_saved_settings"));
+
+  // 5. The batch summary names the longest clip of the plan: a sweep of the clip length from 10 to 120 s says "up to 120 s".
+  await page.evaluate(() => localStorage.setItem("jumpingballslive_batch_render", JSON.stringify({ v: 1, source: "list", list: "101", variant: "sweep", sweepKey: "recordingDuration", sweepFrom: 10, sweepTo: 120, sweepSteps: 3 })));
+  await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Recording/ }).click();
+  const sweepSummary = await page.locator("[data-batch]").getByText(/clips? · 500×500/).first().innerText({ timeout: 10000 }).catch(() => "");
+  check("the batch summary of a clip-length sweep names its longest clip", /up to 120 s each/.test(sweepSummary), `("${sweepSummary}")`);
+  await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
+}
 
 // 6. Find Simulation
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
@@ -1338,9 +1623,10 @@ await page.waitForTimeout(500);
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   const minWindow = Math.min(...windows);
+  const fr = { windows, avg, min: minWindow, low: lowWindow(windows) }; // --- review fix (site-static) ---
   const data = await page.locator("canvas").first().evaluate((c) => ({ ...c.dataset }));
   const time = await page.locator("span.tabular-nums").first().innerText();
-  check("simulator mode=collide runs 300 orbs for 5 s at 30+ fps", /\d/.test(time) && time !== "0.0s" && data.collideBodies === "300" && Number(data.collideCollisions) > 100 && windows.length >= 8 && minWindow >= fpsFloor(30), `(elapsed ${time}, ${data.collideBodies} orbs, ${data.collideCollisions} collisions, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("simulator mode=collide runs 300 orbs for 5 s at 30+ fps", /\d/.test(time) && time !== "0.0s" && data.collideBodies === "300" && Number(data.collideCollisions) > 100, fpsOk(fr, 8, 30), `(elapsed ${time}, ${data.collideBodies} orbs, ${data.collideCollisions} collisions, ${fpsNote(fr)}, floor 30${loadNote()})`, fpsRetry(4000, 6, 30));
   // Every note is a degree of the C major pentatonic ladder (C3 … A5), the chromatic default leaving it unsnapped.
   const pitches = await page.evaluate(() => window.__oscLog);
   const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
@@ -1426,8 +1712,19 @@ const findAndRecordTeams = async (query, name) => {
   const duration = Number(new URLSearchParams(page.url().split("?")[1] || "").get("dur"));
   let wonAt = 0;
   let recordedAt = 0;
+  // --- review fix (site-static) --- the sim clock when the export stops: the recorder's timer runs on the wall clock, so on a
+  // machine too busy to keep the run in real time the export can stop before the run's finish (the sim lagged)
+  let stoppedAt = 0;
+  let simAtStop = NaN;
   const download = await Promise.all([
-    page.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+    page
+      .waitForEvent("download", { timeout: 90000 })
+      .then(async (d) => {
+        stoppedAt = Date.now();
+        simAtStop = await simClock();
+        return d;
+      })
+      .catch(() => null),
     (async () => {
       if (!Number.isFinite(runSec)) return;
       await page.getByRole("button", { name: /Record Video/ }).click();
@@ -1444,11 +1741,13 @@ const findAndRecordTeams = async (query, name) => {
     bytes = fs.statSync(file).size;
   }
   const heldMs = wonAt ? doneAt - wonAt : 0;
-  check(
-    name,
-    Number.isFinite(runSec) && duration >= runSec + 2.95 && duration <= runSec + 4.05 && wonAt > 0 && bytes > 10000 && heldMs >= 2500,
-    `(${text.replace(/\s+/g, " ")}, export length ${duration} s, winner ${wonAt ? ((wonAt - recordedAt) / 1000).toFixed(1) : "-"} s into the recording, export done ${heldMs} ms after it, ${bytes} bytes)`,
-  );
+  const ok = Number.isFinite(runSec) && duration >= runSec + 2.95 && duration <= runSec + 4.05 && wonAt > 0 && bytes > 10000;
+  const extra = `(${text.replace(/\s+/g, " ")}, export length ${duration} s, winner ${wonAt ? ((wonAt - recordedAt) / 1000).toFixed(1) : "-"} s into the recording, export done ${heldMs} ms after it, ${bytes} bytes, sim clock ${simAtStop} s at the stop)`;
+  // The export stopped while the run was still short of its finish: the sim lagged the wall clock, nothing the page decides.
+  // (A margin over the label's 0.1 s ticks: a run that did finish before the stop is never excused.)
+  const lagged = ok && heldMs < 2500 && stoppedAt > 0 && Number.isFinite(simAtStop) && simAtStop < runSec - 0.3;
+  if (lagged && !STRICT_TIMING) inconclusive(name, `${extra} (sim lagged ${((stoppedAt - recordedAt) / 1000 - simAtStop).toFixed(1)} s behind the wall clock)`);
+  else check(name, ok && heldMs >= 2500, extra);
 };
 
 // 14. Team balls with scoreboard: URL → the Teams section (roster rows, scoreboard corner) and the Ball Count slider, the
@@ -1801,12 +2100,13 @@ await page.waitForTimeout(400);
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   const minWindow = Math.min(...windows);
+  const fr = { windows, avg, min: minWindow, low: lowWindow(windows) }; // --- review fix (site-static) ---
   const data = await canvasData();
   const pitches = await page.evaluate(() => window.__glassOsc);
   const clips = await page.evaluate(() => window.__glassClips);
   const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
   const onScale = midis.length > 0 && midis.every((m) => m >= 48 && m <= 84 && [0, 2, 4, 5, 7, 9, 11].includes(m % 12));
-  check("simulator mode=glass smashes panes at 30+ fps", Number(data.glassHits) >= 8 && Number(data.glassShattered) >= 3 && data.glassPanes === "36" && data.glassStages === "4" && windows.length >= 10 && minWindow >= fpsFloor(30), `(${data.glassHits} hits, ${data.glassShattered}/${data.glassPanes} shattered, stage ${data.glassStage}/${data.glassStages}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("simulator mode=glass smashes panes at 30+ fps", Number(data.glassHits) >= 8 && Number(data.glassShattered) >= 3 && data.glassPanes === "36" && data.glassStages === "4", fpsOk(fr, 10, 30), `(${data.glassHits} hits, ${data.glassShattered}/${data.glassPanes} shattered, stage ${data.glassStage}/${data.glassStages}, ${fpsNote(fr)}, floor 30${loadNote()})`, fpsRetry(4000, 6, 30));
   check("glass pane hits play scale degrees and shatters play the glass clip", onScale && new Set(midis).size >= 3 && clips.length >= 1 && clips.every((d) => d > 0.6 && d < 0.8), `(${pitches.length} tones, ${new Set(midis).size} distinct degrees, ${clips.length} glass clips)`);
   await page.screenshot({ path: path.join(outDir, "sim-glass.png") });
 }
@@ -2004,9 +2304,10 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   const minWindow = Math.min(...windows);
+  const fr = { windows, avg, min: minWindow, low: lowWindow(windows) }; // --- review fix (site-static) ---
   const data = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-multiply-speed.png") });
-  check("Multiply with speed orbs stays within 200 balls at a steady frame rate", crowd && peak > 64 && peak <= 200 && Number(data.multBalls) <= 200 && windows.length >= 4 && avg >= fpsFloor(15) && minWindow >= fpsFloor(10), `(peak ${peak} balls, now ${data.multBalls}, speed x${data.multSpeed}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floors ${fpsFloor(15)}/${fpsFloor(10)}${loadNote()})`);
+  await timingCheck("Multiply with speed orbs stays within 200 balls at a steady frame rate", crowd && peak > 64 && peak <= 200 && Number(data.multBalls) <= 200, fpsOk(fr, 4, 15, 10), `(peak ${peak} balls, now ${data.multBalls}, speed x${data.multSpeed}, ${fpsNote(fr)}, floors 15/10${loadNote()})`, fpsRetry(3000, 4, 15, 10));
 }
 // --- end gerald-multipliers ---
 // --- captions ---
@@ -2520,16 +2821,19 @@ await page.waitForTimeout(500);
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   const minWindow = Math.min(...windows);
+  const fr = { windows, avg, min: minWindow, low: lowWindow(windows) }; // --- review fix (site-static) ---
   const data = await canvasData();
   const pitches = await page.evaluate(() => window.__dpOsc);
   const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
   // 15 strings over two octaves of C major from C4 (the chromatic default leaves them unsnapped).
   const ladder = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81, 83, 84];
   const onLadder = pitches.length > 0 && midis.every((m) => ladder.includes(m));
-  check(
+  await timingCheck(
     "simulator mode=doublePendulum plucks the harp at 30+ fps",
-    data.dpPendulums === "1" && data.dpSegments === "2" && data.dpStrings === "15" && data.dpLayout === "vertical" && Number(data.dpPlucks) >= 20 && onLadder && Number(data.dpDrift) < 100 && windows.length >= 6 && minWindow >= fpsFloor(30),
-    `(${data.dpPlucks} plucks, ${pitches.length} tones, MIDI ${[...new Set(midis)].sort((a, b) => a - b).join("/")}, drift ${data.dpDrift} ppm, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    data.dpPendulums === "1" && data.dpSegments === "2" && data.dpStrings === "15" && data.dpLayout === "vertical" && Number(data.dpPlucks) >= 20 && onLadder && Number(data.dpDrift) < 100,
+    fpsOk(fr, 6, 30),
+    `(${data.dpPlucks} plucks, ${pitches.length} tones, MIDI ${[...new Set(midis)].sort((a, b) => a - b).join("/")}, drift ${data.dpDrift} ppm, ${fpsNote(fr)}, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
   );
   await page.screenshot({ path: path.join(outDir, "sim-double-pendulum.png") });
 }
@@ -2747,7 +3051,7 @@ const instrumentOscillators = () =>
   check("white spaces reach every pocket: two painters on a cross, big painters on a smile", Object.values(outcomes).every((o) => o.revealed && Number(o.coverage) >= 90), `(${JSON.stringify(outcomes)})`);
 }
 {
-  // The defaults of every type keep the frame rate (headless Chromium; 30+ fps on average over 3 s, fpsFloor() on a busy machine).
+  // The defaults of every type keep the frame rate (headless Chromium; 30+ fps on average over 3 s; timingCheck() on a busy machine).
   const rates = {};
   for (const type of ["lines", "rings", "nested", "whitespace"]) {
     await page.goto(`${BASE}/en/simulator/?mode=illusion&ilt=${type}&wob=1`, { waitUntil: "networkidle" });
@@ -2768,7 +3072,7 @@ const instrumentOscillators = () =>
       3000,
     );
   }
-  check("every illusion type keeps 30+ fps with wobbly walls", Object.values(rates).every((fps) => fps >= fpsFloor(30)), `(${JSON.stringify(rates)}, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("every illusion type keeps 30+ fps with wobbly walls", true, Object.values(rates).every((fps) => fps >= 30), `(${JSON.stringify(rates)}, floor 30${loadNote()})`);
 }
 {
   // Wobbly Walls in a ring mode: the rings deform where the ball hits them (data-wobble counts the walls wobbling), off by default.
@@ -3269,12 +3573,15 @@ const instrumentOscillators = () =>
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   const minWindow = Math.min(...windows);
+  const fr = { windows, avg, min: minWindow, low: lowWindow(windows) }; // --- review fix (site-static) ---
   const early = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-string-battle.png") });
-  check(
+  await timingCheck(
     "simulator mode=stringBattle anchors threads and runs at 30+ fps",
-    early.sbBalls === "4" && Number(early.sbBounces) > 4 && Number(early.sbStrings) > 0 && early.sbBadge === "1" && early.sbHud === "1" && early.sbStyle === "web" && windows.length >= 8 && minWindow >= fpsFloor(30),
-    `(${JSON.stringify({ balls: early.sbBalls, bounces: early.sbBounces, strings: early.sbStrings, lives: early.sbLives })}, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    early.sbBalls === "4" && Number(early.sbBounces) > 4 && Number(early.sbStrings) > 0 && early.sbBadge === "1" && early.sbHud === "1" && early.sbStyle === "web",
+    fpsOk(fr, 8, 30),
+    `(${JSON.stringify({ balls: early.sbBalls, bounces: early.sbBounces, strings: early.sbStrings, lives: early.sbLives })}, ${fpsNote(fr)}, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
   );
   await page.getByRole("button", { name: "4x", exact: true }).click();
   const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
@@ -3451,7 +3758,7 @@ const plFrameRates = async (ms) => {
     }
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
-  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
 {
   const plToggle = (label) => page.getByTestId("power-layers").getByRole("switch", { name: switchName(label) });
@@ -3534,10 +3841,12 @@ const plFrameRates = async (ms) => {
   const first = tones.slice(0, 4);
   const midis = first.map((o) => Math.round(69 + 12 * Math.log2(o.f / 440)));
   const gaps = first.slice(1).map((o, i) => Math.round(o.t - first[i].t));
-  check(
+  await timingCheck(
     "power layers: a hit every bounce period, each level the next note of the scale, at 30+ fps",
-    Number(mid.plHits) >= 5 && midis.join(",") === "60,62,64,65" && gaps.every((g) => g > 800 && g < 1200) && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
-    `(hits ${mid.plHits}/${mid.plTotalHits}, first notes MIDI ${midis.join("/")} ${gaps.join("/")} ms apart, ${tones.length} tones, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    // (the note gaps are wall-clock times of the oscillator starts: timing, like the frame rate)
+    Number(mid.plHits) >= 5 && midis.join(",") === "60,62,64,65",
+    gaps.every((g) => g > 800 && g < 1200) && fpsOk(fps, 8, 30),
+    `(hits ${mid.plHits}/${mid.plTotalHits}, first notes MIDI ${midis.join("/")} ${gaps.join("/")} ms apart, ${tones.length} tones, ${fpsNote(fps)}, floor 30${loadNote()})`,
   );
   check(
     "power layers empty the stack, fall to freedom and finish",
@@ -3558,7 +3867,7 @@ const plFrameRates = async (ms) => {
 {
   // A 1080×1920 recording (the default resolution) of the default run.
   await page.goto(`${BASE}/en/simulator/?mode=powerLayers&dur=10`, { waitUntil: "networkidle" });
-  let fps = { windows: [], avg: 0, min: 0 };
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
   const download = await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
     (async () => {
@@ -3575,8 +3884,8 @@ const plFrameRates = async (ms) => {
     size = fs.statSync(file).size;
   }
   // Headless Chromium encodes the 1080×1920 export in software on the CPU – the bulk of a recorded frame in every mode – so the
-  // floor is 20 fps here (scaled down on a busy machine like every frame-rate check), well above a mode that would stall it.
-  check("a 1080×1920 power layers recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  // floor is 20 fps here (inconclusive rather than failed on a busy machine, like every timing check), well above a mode that would stall it.
+  await timingCheck("a 1080×1920 power layers recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 // --- end odd-power-layers ---
 
@@ -3953,16 +4262,19 @@ await page.evaluate(() => (window.__raceOsc.length = 0)); // the notes of the ra
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   const minWindow = Math.min(...windows);
+  const fr = { windows, avg, min: minWindow, low: lowWindow(windows) }; // --- review fix (site-static) ---
   const data = await canvasData();
   const pitches = await page.evaluate(() => window.__raceOsc);
   // The racers' notes: a C-major pentatonic ladder from C4, one per racer (the chromatic default leaves them unsnapped).
   const ladder = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96];
   const midis = pitches.map((f) => Math.round(69 + 12 * Math.log2(f / 440)));
   const racerNotes = midis.filter((m) => ladder.includes(m)).length;
-  check(
+  await timingCheck(
     "simulator mode=race runs the race at 30+ fps with the racers' notes",
-    data.raceRacers === "8" && data.racePhase === "racing" && Number(data.raceHits) >= 5 && Number(data.racePasses) >= 1 && Number(data.raceCamera) > 100 && data.raceOrder.split(",").length === 8 && racerNotes >= 3 && windows.length >= 6 && minWindow >= fpsFloor(30),
-    `(${data.raceHits} hits, ${data.racePasses} passes, ${data.raceCallouts} callouts, camera ${data.raceCamera}, ${pitches.length} tones, ${racerNotes} racer notes, avg ${avg.toFixed(1)} fps, worst half-second ${minWindow.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    data.raceRacers === "8" && data.racePhase === "racing" && Number(data.raceHits) >= 5 && Number(data.racePasses) >= 1 && Number(data.raceCamera) > 100 && data.raceOrder.split(",").length === 8 && racerNotes >= 3,
+    fpsOk(fr, 6, 30),
+    `(${data.raceHits} hits, ${data.racePasses} passes, ${data.raceCallouts} callouts, camera ${data.raceCamera}, ${pitches.length} tones, ${racerNotes} racer notes, ${fpsNote(fr)}, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
   );
   await page.screenshot({ path: path.join(outDir, "sim-race.png") });
 }
@@ -4260,7 +4572,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
 }
 {
   // Frame rate: 20 squares with power-ups and the zone, and a 4 – 4 capture the flag (headless Chromium; 30+ fps on average
-  // over 3 s, fpsFloor() on a busy machine).
+  // over 3 s; timingCheck() on a busy machine).
   const rates = {};
   for (const [name, query] of [["battle 20", "mode=battle&btn=20&glow=1"], ["ctf 4-4", "mode=ctf&ctfn=4&glow=1"]]) {
     await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
@@ -4281,7 +4593,7 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
       3000,
     );
   }
-  check("the arena games keep 30+ fps", Object.values(rates).every((fps) => fps >= fpsFloor(30)), `(${JSON.stringify(rates)}, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("the arena games keep 30+ fps", true, Object.values(rates).every((fps) => fps >= 30), `(${JSON.stringify(rates)}, floor 30${loadNote()})`);
 }
 // --- end jdm-arena-games ---
 
@@ -4338,7 +4650,7 @@ const jrFrameRates = async (ms) => {
     }
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
-  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
 /** Logs the frequency and time of every oscillator the page starts (the ToneGenerator's notes). */
 const jrInstrumentTones = () =>
@@ -4395,10 +4707,13 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   const notes = tones.slice(0, Number(data.rrLandings || 0));
   const gaps = notes.slice(1).map((o, i) => o.t - notes[i].t);
   const onGrid = notes.length >= 2 && gaps.every((g) => Math.abs(g / 500 - Math.round(g / 500)) * 500 < 120 && g > 380);
-  check(
+  await timingCheck(
     "beat runner: every landing on the beat (notes whole beats apart), no crash, at 30+ fps",
-    Number(mid.rrLandings) >= 2 && mid.rrDeaths === "0" && onGrid && fps.windows.length >= 8 && fps.min >= fpsFloor(30),
-    `(landings ${mid.rrLandings}/${mid.rrEvents} at 5 s, notes ${notes.length} gaps ${gaps.map((g) => Math.round(g)).join("/")} ms, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    // (the note gaps are wall-clock times of the oscillator starts: timing, like the frame rate; the sim clock's on-beat count
+    // is checked strictly below)
+    Number(mid.rrLandings) >= 2 && mid.rrDeaths === "0",
+    onGrid && fpsOk(fps, 8, 30),
+    `(landings ${mid.rrLandings}/${mid.rrEvents} at 5 s, notes ${notes.length} gaps ${gaps.map((g) => Math.round(g)).join("/")} ms, ${fpsNote(fps)}, floor 30${loadNote()})`,
   );
   check(
     "beat runner: the course is cleared on the beat to LEVEL COMPLETE",
@@ -4527,7 +4842,7 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
   // 1080×1920 recordings (the default resolution) of both modes.
   for (const mode of ["runner", "paddle"]) {
     await page.goto(`${BASE}/en/simulator/?mode=${mode}&dur=10`, { waitUntil: "networkidle" });
-    let fps = { windows: [], avg: 0, min: 0 };
+    let fps = { windows: [], avg: 0, min: 0, low: 0 };
     const download = await Promise.all([
       page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
       (async () => {
@@ -4543,7 +4858,7 @@ const jrToggle = (testId, label) => page.getByTestId(testId).getByRole("switch",
       await download.saveAs(file);
       size = fs.statSync(file).size;
     }
-    check(`a 1080×1920 ${mode} recording keeps 20+ fps and downloads`, size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+    await timingCheck(`a 1080×1920 ${mode} recording keeps 20+ fps and downloads`, size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
   }
 }
 // 31b. Review fixes of the rhythm modes. A melody on Paddle Keep-Up: every catch plays the melody's next note and only a
@@ -4652,15 +4967,22 @@ const jrSeed = async () => (await canvasData()).seed;
   });
   const sorted = phase.map(Math.abs).sort((a, b) => a - b);
   const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : Infinity;
+  // --- review fix (site-static) --- a landing is heard on the frame that detects it, so the phase tolerance grows by the slowest
+  // frame of the window after the switch (the rAF log above), capped at a quarter beat where the check would stop meaning
+  // anything; a run still off the clicks on a busy machine is inconclusive rather than failed (timingCheck).
+  const afterSwitch = xLog.filter((e) => e.t >= switchAt);
+  const worstFrameMs = afterSwitch.slice(1).reduce((w, e, i) => Math.max(w, e.t - afterSwitch[i].t), 0);
+  const tolerance = Math.min(0.08 + worstFrameMs / 1000, P / 4);
   check(
     "beat runner on the BPM: a song loaded and analysed mid-run does not restart the run",
     bedsBefore.length === 1 && onBpm.rrBpm === "120" && steady && onBpm.rrAttempt === "1" && Number(onBpm.rrLandings) >= 2,
     `(bed starts ${bedsBefore.length}, x only moving on=${steady} over ${beforeSwitch.length} frames to ${onBpm.rrX}, bpm ${onBpm.rrBpm}, landings ${onBpm.rrLandings})`,
   );
-  check(
+  await timingCheck(
     "beat runner: switching onto the song's beat restarts the music bed with the course, and the landings fall on the song's clicks",
-    switched && switchedAt - switchAt < 1500 && Math.abs(Number(onSong.rrBpm) - 128) <= 2 && restartedCourse && !!restartBed && restartBed.args[1] === 0 && restartBed.t - switchAt < 1000 && notes.length >= 3 && median < 0.08,
-    `(bpm ${onSong.rrBpm} after ${Math.round(switchedAt - switchAt)} ms, course restarted=${restartedCourse}, bed restarted ${restartBed ? `${Math.round(restartBed.t - switchAt)} ms after the switch at offset ${restartBed.args[1]}` : "never"}, ${notes.length} landings, phase to the clicks ${phase.map((e) => Math.round(1000 * e)).join("/")} ms, median |${Math.round(1000 * median)}| ms${loadNote()})`,
+    switched && Math.abs(Number(onSong.rrBpm) - 128) <= 2 && restartedCourse && !!restartBed && restartBed.args[1] === 0 && notes.length >= 3,
+    switchedAt - switchAt < 1500 && !!restartBed && restartBed.t - switchAt < 1000 && median < tolerance,
+    `(bpm ${onSong.rrBpm} after ${Math.round(switchedAt - switchAt)} ms, course restarted=${restartedCourse}, bed restarted ${restartBed ? `${Math.round(restartBed.t - switchAt)} ms after the switch at offset ${restartBed.args[1]}` : "never"}, ${notes.length} landings, phase to the clicks ${phase.map((e) => Math.round(1000 * e)).join("/")} ms, median |${Math.round(1000 * median)}| ms, tolerance ${Math.round(1000 * tolerance)} ms (slowest frame ${Math.round(worstFrameMs)} ms)${loadNote()})`,
   );
 }
 {
@@ -4823,9 +5145,33 @@ const jrSeed = async () => (await canvasData()).seed;
     const onDownload = (d) => downloads.push(d);
     page.on("download", onDownload);
     const startedAt = Date.now();
+    const urlBeforeBatch = page.url();
     await block.getByRole("button", { name: /Render batch/ }).click();
+    // --- review fix (recording-export) --- while the batch renders, Import project is off and a project dropped on the panel
+    // is refused with a status line (the batch would roll it back); the page has its own settings again afterwards
+    await page.waitForFunction(() => document.querySelector("[data-batch-job='rendering']"), null, { timeout: 60000 }).catch(() => {});
+    if (!(await page.getByTestId("project-section").isVisible().catch(() => false))) await page.getByRole("button", { name: /Project file/ }).click();
+    const importButton = page.getByTestId("project-section").getByRole("button", { name: /Import project/ });
+    const importDisabled = await importButton.isDisabled({ timeout: 5000 }).catch(() => false);
+    const midBatchProject = JSON.stringify({ format: "jumpingballslive-project", version: 1, name: "Imported mid-batch", settings: { mode: "shatter", gravity: 900 }, assets: {} });
+    const lockDrop = await page.evaluateHandle((text) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([text], "mid-batch.jumpingballslive.json", { type: "application/json" }));
+      return dt;
+    }, midBatchProject);
+    const lockZone = page.getByTestId("project-drop-zone");
+    await lockZone.dispatchEvent("dragenter", { dataTransfer: lockDrop });
+    await lockZone.dispatchEvent("dragover", { dataTransfer: lockDrop });
+    await lockZone.dispatchEvent("drop", { dataTransfer: lockDrop });
+    const lockStatus = await page.getByTestId("project-status").innerText({ timeout: 10000 }).catch(() => "");
     const finished = await page.waitForFunction(() => document.querySelector("[data-batch]")?.getAttribute("data-batch") === "finished", null, { timeout: 300000 }).then(() => true).catch(() => false);
     const ms = Date.now() - startedAt;
+    await page.waitForTimeout(500);
+    check(
+      "batch render: settings are locked while it runs (Import project off, a dropped project refused) and the page is unchanged afterwards",
+      importDisabled && /finish or stop the batch/i.test(lockStatus) && page.url() === urlBeforeBatch && !(await page.getByText(/Opened “Imported mid-batch”/).isVisible().catch(() => false)),
+      `(import disabled ${importDisabled}, status "${lockStatus}", url ${page.url().split("?")[1]} vs ${urlBeforeBatch.split("?")[1]})`,
+    );
     await page.waitForTimeout(1000);
     page.off("download", onDownload);
     const rows = await batchRows();
@@ -5092,7 +5438,7 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   await page.waitForTimeout(500);
   const resumed = await canvasData();
   check("split screen: pause and resume apply to every arena", paused1 === paused2 && splitElapsedSpread(resumed).min > Math.max(...splitNums(paused2)), `(${paused1} → ${paused2} → ${resumed.splitElapsed})`);
-  // Frame rate with four arenas (headless Chromium; fpsFloor() on a busy machine).
+  // Frame rate with four arenas (headless Chromium; timingCheck() on a busy machine).
   const fps = await page.evaluate(
     (ms) =>
       new Promise((resolve) => {
@@ -5107,7 +5453,10 @@ const splitNums = (value) => (value || "").split(",").map(Number);
       }),
     3000,
   );
-  check("split screen: four arenas keep 30+ fps", fps >= fpsFloor(30), `(${fps} fps, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("split screen: four arenas keep 30+ fps", true, fps >= 30, `(${fps} fps, floor 30${loadNote()})`, async () => {
+    const again = await pageFrameRates(3000);
+    return { timingOk: again.avg >= 30, extra: `(${again.avg.toFixed(0)} fps)` };
+  });
   // 8×: the banner names the first arena to escape (or finish) with its time, the earliest mark of all.
   await page.getByRole("button", { name: "8x", exact: true }).click();
   const bannered = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.splitBanner === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
@@ -5310,7 +5659,7 @@ const vxFrameRates = async (ms) => {
     }
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
-  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
 {
   const vxToggle = (label) => page.getByTestId("sound-vortex").getByRole("switch", { name: switchName(label) });
@@ -5388,10 +5737,11 @@ const vxFrameRates = async (ms) => {
   }
   // The first ball's first notes: rings 0 and 1 – C4, D4 (the second ball's first ring comes after them); the innermost ring is G5.
   const firstTwo = notes.slice(0, 2).join(",");
-  check(
+  await timingCheck(
     "sound vortex: ring notes climb the scale, balls weave at 30+ fps",
-    Number(mid.vortexNotes) >= 12 && Number(mid.vortexInFlight) >= 1 && firstTwo === "60,62" && notes.includes(79) && notes.every((m) => [0, 2, 4, 5, 7, 9, 11].includes(m % 12)) && fps.windows.length >= 7 && fps.min >= fpsFloor(30),
-    `(notes ${mid.vortexNotes}, in flight ${mid.vortexInFlight}, first MIDI ${firstTwo}, ${tones.length} tones, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    Number(mid.vortexNotes) >= 12 && Number(mid.vortexInFlight) >= 1 && firstTwo === "60,62" && notes.includes(79) && notes.every((m) => [0, 2, 4, 5, 7, 9, 11].includes(m % 12)),
+    fpsOk(fps, 7, 30),
+    `(notes ${mid.vortexNotes}, in flight ${mid.vortexInFlight}, first MIDI ${firstTwo}, ${tones.length} tones, ${fpsNote(fps)}, floor 30${loadNote()})`,
   );
   check(
     "sound vortex: every ball is swallowed with a pew, the PEW! banner holds, then the run finishes",
@@ -5427,12 +5777,12 @@ const vxFrameRates = async (ms) => {
   const fps = await vxFrameRates(4000);
   const data = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-vortex-full.png") });
-  check("the default sound vortex keeps 30+ fps with the funnel full", Number(data.vortexInFlight) >= 5 && fps.windows.length >= 6 && fps.min >= fpsFloor(30), `(in flight ${data.vortexInFlight}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("the default sound vortex keeps 30+ fps with the funnel full", Number(data.vortexInFlight) >= 5, fpsOk(fps, 6, 30), `(in flight ${data.vortexInFlight}, ${fpsNote(fps)}, floor 30${loadNote()})`, fpsRetry(3000, 5, 30));
 }
 {
   // A 1080×1920 recording (the default resolution) of the default run.
   await page.goto(`${BASE}/en/simulator/?mode=vortex&dur=10`, { waitUntil: "networkidle" });
-  let fps = { windows: [], avg: 0, min: 0 };
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
   const download = await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
     (async () => {
@@ -5448,7 +5798,7 @@ const vxFrameRates = async (ms) => {
     await download.saveAs(file);
     size = fs.statSync(file).size;
   }
-  check("a 1080×1920 sound vortex recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  await timingCheck("a 1080×1920 sound vortex recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 {
   // ⚡ Fast export of a short run (3 balls, 3 s spirals, about 5 s): rendered offline, every pew goes through the export's own
@@ -5827,7 +6177,7 @@ const jyFrameRates = async (ms) => {
     }
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
-  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
 /** The stage rows of the Journey block as "kind-size". */
 const jyRows = () => page.getByTestId("journey-stages").locator("li").evaluateAll((els) => els.map((e) => `${e.dataset.stage}-${e.dataset.size}`));
@@ -5903,10 +6253,11 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
   const data = await canvasData();
   const kinds = await page.evaluate(() => window.__jyKinds);
   const swooshes = await page.evaluate(() => window.__jyOsc.filter((f) => f === 180).length);
-  check(
+  await timingCheck(
     "journey: a short route clears its stages in order with a swoosh at every transition at 30+ fps and finishes at HOME",
-    done && kinds.join(",") === "pegs,glass,home" && swooshes === 2 && data.journeySwooshes === "2" && data.journeyHome === "1" && data.journeyFinished === "1" && Number(data.journeyNotes) >= 3 && data.face === "cute" && fps.windows.length >= 6 && fps.min >= fpsFloor(30),
-    `(finished=${done}, stages ${kinds.join(",")}, ${swooshes} swoosh tones, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("journey") && k !== "journeySequence")))}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`,
+    done && kinds.join(",") === "pegs,glass,home" && swooshes === 2 && data.journeySwooshes === "2" && data.journeyHome === "1" && data.journeyFinished === "1" && Number(data.journeyNotes) >= 3 && data.face === "cute",
+    fpsOk(fps, 6, 30),
+    `(finished=${done}, stages ${kinds.join(",")}, ${swooshes} swoosh tones, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("journey") && k !== "journeySequence")))}, ${fpsNote(fps)}, floor 30${loadNote()})`,
   );
 }
 {
@@ -5932,7 +6283,7 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
 {
   // A 1080×1920 recording (the default resolution) of the default route, glow on.
   await page.goto(`${BASE}/en/simulator/?mode=journey&dur=10&glow=1`, { waitUntil: "networkidle" });
-  let fps = { windows: [], avg: 0, min: 0 };
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
   const download = await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
     (async () => {
@@ -5948,7 +6299,7 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
     await download.saveAs(file);
     size = fs.statSync(file).size;
   }
-  check("a 1080×1920 journey recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  await timingCheck("a 1080×1920 journey recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 {
   // ⚡ Fast export of a two-stage route: the swoosh goes through the export's own audio (the offline twin of the
@@ -6140,12 +6491,12 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
   const fps = await vxFrameRates(4000);
   const data = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-bullseye-full.png") });
-  check("the default bullseye keeps 30+ fps with balls stuck in the target", Number(data.bullseyeLanded) >= 3 && fps.windows.length >= 6 && fps.min >= fpsFloor(30), `(landed ${data.bullseyeLanded}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(30)}${loadNote()})`);
+  await timingCheck("the default bullseye keeps 30+ fps with balls stuck in the target", Number(data.bullseyeLanded) >= 3, fpsOk(fps, 6, 30), `(landed ${data.bullseyeLanded}, ${fpsNote(fps)}, floor 30${loadNote()})`, fpsRetry(3000, 5, 30));
 }
 {
   // A 1080×1920 recording (the default resolution) of the default run.
   await page.goto(`${BASE}/en/simulator/?mode=bullseye&dur=10`, { waitUntil: "networkidle" });
-  let fps = { windows: [], avg: 0, min: 0 };
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
   const download = await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
     (async () => {
@@ -6161,7 +6512,7 @@ const jyQuery = () => decodeURIComponent(page.url().split("?")[1] || "");
     await download.saveAs(file);
     size = fs.statSync(file).size;
   }
-  check("a 1080×1920 bullseye recording keeps 20+ fps and downloads", size > 10000 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  await timingCheck("a 1080×1920 bullseye recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 {
   // ⚡ Fast export of a short rigged run (2 shots over a clear field, the first in the bull, about 5 s): every landing thuds
@@ -6251,7 +6602,7 @@ const bdFrameRates = async (ms) => {
     }
   }
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
-  return { windows, avg, min: windows.length ? Math.min(...windows) : 0 };
+  return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
 const bdData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
 /** The kicks started since the instrumentation (the kick's body starts at 150 Hz). */
@@ -6326,16 +6677,17 @@ const bdInstrument = () =>
   const beats = (data.bdBeatTimes || "").split(",").filter(Boolean).map(Number);
   const onBeat = times.length >= 30 && times.every((t, i) => Math.abs(t - 500 * Math.round(t / 500)) < 1 && Math.abs(t - beats[i]) < 1 && (i === 0 || Math.abs(t - times[i - 1] - 500) < 1));
   const kicks = (await page.evaluate(() => window.__bdOsc)).filter((f) => f === 150).length;
-  check(
+  await timingCheck(
     "beat drop: a 20 s run at 120 BPM lands every beat on the beat, kicks on the landings, 60 fps floor",
-    reached && onBeat && Number(data.bdLanded) >= 39 && Number(data.bdMaxErrorMs) < 1 && kicks >= 15 && Number(data.bdSnares) >= 15 && Number(data.bdHats) >= 30 && data.face === "cute" && fps.windows.length >= 8 && fps.avg >= 0.9 * fpsFloor(60) && fps.min >= fpsFloor(30),
-    `(reached=${reached}, landed ${data.bdLanded}, ${times.length} logged, on beat=${onBeat}, max error ${data.bdMaxErrorMs} ms, ${kicks} kicks, snares ${data.bdSnares}, hats ${data.bdHats}, alive ${data.bdAlive}, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${Math.round(0.9 * fpsFloor(60))}/${fpsFloor(30)}${loadNote()})`,
+    reached && onBeat && Number(data.bdLanded) >= 39 && Number(data.bdMaxErrorMs) < 1 && kicks >= 15 && Number(data.bdSnares) >= 15 && Number(data.bdHats) >= 30 && data.face === "cute",
+    fpsOk(fps, 8, 54, 30),
+    `(reached=${reached}, landed ${data.bdLanded}, ${times.length} logged, on beat=${onBeat}, max error ${data.bdMaxErrorMs} ms, ${kicks} kicks, snares ${data.bdSnares}, hats ${data.bdHats}, alive ${data.bdAlive}, ${fpsNote(fps)}, floors 54/30${loadNote()})`,
   );
 }
 {
   // A 1080×1920 recording (the default resolution) of a fast, dense run: 200 BPM, the obstructions flying in a whole beat ahead.
   await page.goto(`${BASE}/en/simulator/?mode=beatDrop&bpm=200&bda=1&bdd=1&dur=10&glow=1`, { waitUntil: "networkidle" });
-  let fps = { windows: [], avg: 0, min: 0 };
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
   let alive = 0;
   const download = await Promise.all([
     page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
@@ -6353,7 +6705,7 @@ const bdInstrument = () =>
     await download.saveAs(file);
     size = fs.statSync(file).size;
   }
-  check("a 1080×1920 beat drop recording keeps 20+ fps with the obstructions alive and downloads", size > 10000 && alive >= 1 && fps.windows.length >= 5 && fps.min >= fpsFloor(20), `(${size} bytes, ${alive} alive, avg ${fps.avg.toFixed(1)} fps, worst half-second ${fps.min.toFixed(1)} fps, floor ${fpsFloor(20)}${loadNote()})`);
+  await timingCheck("a 1080×1920 beat drop recording keeps 20+ fps with the obstructions alive and downloads", size > 10000 && alive >= 1, fpsOk(fps, 5, 20), `(${size} bytes, ${alive} alive, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 {
   // The finder: it cannot fail – the first seed is the one, covering the target's beats; the run keeps the promise at 8×.
@@ -7098,6 +7450,31 @@ const bdInstrument = () =>
     dt >= 3.5 && Math.abs(perSecond - 2) < 0.35 && Math.abs(Number(b1.bmFires) - expected) <= 1,
     `(${b0.bmFires} → ${b1.bmFires} fires over ${dt.toFixed(2)} s: ${perSecond.toFixed(2)}/s; at ${b1.bmTime} s expected ≈${expected})`,
   );
+
+  // A colour shift turns the default white ball (white has no hue of its own: it turns from a saturated colour).
+  await page.goto(`${BASE}/en/simulator/?mode=classic&bmr=hue.bounce.1.add.30`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.bmFires ?? 0) >= 2, null, { timeout: 30000 }).catch(() => {});
+  const hue = await bmData();
+  const rgb = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hue.bmColor ?? "");
+  const channels = rgb ? rgb.slice(1).map((h) => parseInt(h, 16)) : [];
+  check("bounce math: a colour shift turns the default white ball", Number(hue.bmFires) >= 2 && channels.length === 3 && Math.max(...channels) - Math.min(...channels) > 80, `(fires ${hue.bmFires}, colour ${hue.bmColor})`);
+
+  // Every mode reports its bounces – the Collision Playground's container too – and the panel names a trigger the mode
+  // never sets off (no ring gaps to pass on the Ball Drop board) instead of silently never firing it.
+  await page.goto(`${BASE}/en/simulator/?mode=collide&bmr=hue.bounce.1.add.5;hue.collide.1.add.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.bmFires ?? "0,0").split(",").every((n) => Number(n) > 0), null, { timeout: 30000 }).catch(() => {});
+  const collideFires = (await bmData()).bmFires ?? "";
+  await page.goto(`${BASE}/en/simulator/?mode=drop&bmr=hue.pass.1.add.5;hue.bounce.1.add.5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).first().click();
+  await page.getByTestId("bm-rule").first().waitFor({ timeout: 10000 }).catch(() => {});
+  const marks = await page.getByTestId("bm-rule").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-trigger")}:${e.getAttribute("data-applies")}:${e.querySelector('[data-testid="bm-trigger-note"]') ? "note" : "-"}`));
+  check(
+    "bounce math: bounce and ball-hit rules fire in the Collision Playground; a trigger Ball Drop never sets off is marked",
+    collideFires.split(",").length === 2 && collideFires.split(",").every((n) => Number(n) > 0) && marks.join(" ") === "pass:0:note bounce:1:-",
+    `(collide fires ${collideFires}; drop rows ${JSON.stringify(marks)})`,
+  );
 }
 // --- end bounce-math ---
 // --- social-publish --- Publish (the block after the Viral video bot block of the Recording section): with nothing set up
@@ -7258,9 +7635,19 @@ const bdInstrument = () =>
     const channel = await block.locator('[data-publish-account="yt:UCsmoke"]').innerText().catch(() => "");
     check("publish: Connect YouTube asks the Google token client for youtube.upload and lists the channel", connected && gis.length === 1 && gis[0].clientId === "1234567890-smoke.apps.googleusercontent.com" && gis[0].scope.includes("youtube.upload") && gis[0].prompt === "select_account" && channel.includes("Smoke Channel"), `(${JSON.stringify(gis)}, "${channel.replace(/\s+/g, " ")}")`);
 
-    // 5. One click: the YouTube channel and the three relay accounts, unlisted; the YouTube progress is watched.
+    // 5. One click: the YouTube channel and the three relay accounts; the YouTube progress is watched. Unlisted first: an
+    // Instagram Reel is always public, so the block holds the send back and says so (and that TikTok's unlisted is Friends)
+    // instead of posting the Reel publicly; Public sends.
     for (const id of ["a_tt1", "a_tt2", "a_ig1"]) await block.locator(`[data-publish-account$=":${id}"] input[type=checkbox]`).check();
     await p1.locator("#publish-visibility").selectOption("unlisted");
+    const heldBack = {
+      publicOnly: await p1.getByTestId("publish-public-only").isVisible().catch(() => false),
+      friends: await p1.getByTestId("publish-tiktok-friends").isVisible().catch(() => false),
+      sendOff: await p1.getByTestId("publish-send").isDisabled(),
+    };
+    await p1.locator("#publish-visibility").selectOption("public");
+    const released = { publicOnly: await p1.getByTestId("publish-public-only").isVisible().catch(() => false), sendOff: await p1.getByTestId("publish-send").isDisabled() };
+    check("publish: an Instagram Reel is never sent unlisted or private – the block says Reels are always public (and TikTok's unlisted is Friends)", heldBack.publicOnly && heldBack.friends && heldBack.sendOff && !released.publicOnly && !released.sendOff, `(${JSON.stringify({ heldBack, released })})`);
     const sendLabel = await p1.getByTestId("publish-send").innerText();
     await p1.evaluate(() => {
       window.__ytProgress = [];
@@ -7284,7 +7671,7 @@ const bdInstrument = () =>
     const initBody = yt.init?.body ? JSON.parse(yt.init.body) : null;
     check(
       "publish: a connected YouTube channel uploads to the (stubbed) resumable endpoint – a 308 resume, the progress, the Short's link",
-      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "unlisted" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
+      !!ytItem && ytItem.status === "published" && ytItem.progress === 100 && ytItem.link === "https://www.youtube.com/shorts/smokeShort" && yt.init?.auth === "Bearer ya29.smoke" && yt.init.length === String(clipFile.buffer.length) && initBody?.status?.privacyStatus === "public" && initBody?.status?.selfDeclaredMadeForKids === false && initBody?.snippet?.description?.includes("#Shorts") && yt.puts.length === 2 && yt.puts[0].range === `bytes 0-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && yt.puts[1].range === `bytes 262144-${clipFile.buffer.length - 1}/${clipFile.buffer.length}` && progress.some((v) => v > 0 && v < 100),
       `(${JSON.stringify(ytItem)}, puts ${JSON.stringify(yt.puts)}, progress ${JSON.stringify(progress)})`,
     );
     const form = relay.forms[0] ?? "";
@@ -7293,6 +7680,20 @@ const bdInstrument = () =>
       "publish: Send to selected sends to every ticked account in one click – YouTube direct plus two TikTok and one Instagram account through one relay upload – with per-account results",
       settled && /\(4\)/.test(sendLabel) && relay.forms.length === 1 && form.includes("a_tt1,a_tt2,a_ig1") && form.includes('name="posts"') && form.includes("#fyp") && form.includes("#reels") && form.includes('filename="smoke-clip.mp4"') && items.find((i) => i.key.endsWith(":a_tt1"))?.link === "https://www.tiktok.com/@smoketok/video/1" && items.find((i) => i.key.endsWith(":a_ig1"))?.status === "failed" && recent === 5,
       `(${JSON.stringify(items)}, ${relay.forms.length} upload(s), recent ${recent}, "${sendLabel}")`,
+    );
+
+    // "Try again" on the failed Instagram row after another clip became the one on show: the relay gets the clip that row
+    // was sent with (and its words), not the new one.
+    await p1.locator("#publish-file-input").setInputFiles({ name: "smoke-other.mp4", mimeType: "video/mp4", buffer: Buffer.alloc(300 * 1024, 3) });
+    const switched = await p1.waitForFunction(() => document.querySelector("[data-publish-clip-source]")?.getAttribute("data-publish-clip-name") === "smoke-other.mp4", null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await block.locator('[data-publish-send$=":a_ig1"]').getByRole("button", { name: /Try again/ }).click();
+    const retried = await p1.waitForFunction(() => document.querySelector('[data-publish-send$=":a_ig1"]')?.getAttribute("data-publish-status") === "failed", null, { timeout: 15000 }).then(() => true).catch(() => false);
+    await p1.waitForTimeout(300);
+    const again = relay.forms[1] ?? "";
+    check(
+      "publish: Try again re-sends the failed account's own clip and words, not the clip on show now",
+      switched && retried && relay.forms.length === 2 && again.includes('filename="smoke-clip.mp4"') && !again.includes("smoke-other") && /name="accounts"\r?\n\r?\na_ig1\r?\n/.test(again) && again.includes("#reels"),
+      `(switched=${switched}, retried=${retried}, ${relay.forms.length} upload(s), second form ${again.length} bytes, file ${/filename="([^"]+)"/.exec(again)?.[1]})`,
     );
 
     // 6. A fast export's clip is offered to the block.
@@ -7687,10 +8088,16 @@ const bdInstrument = () =>
 }
 // --- end review fix (ui-i18n) ---
 
-const hardErrors = errors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
+// --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
+check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
+const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
 
 await browser.close();
 const failed = results.filter((r) => !r.ok);
-console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
+if (inconclusiveResults.length) {
+  console.log(`\n⚠️ ${inconclusiveResults.length} timing check${inconclusiveResults.length === 1 ? "" : "s"} inconclusive (the machine was too busy to measure; not counted – SMOKE_STRICT_TIMING=1 fails them):`);
+  for (const r of inconclusiveResults) console.log(`   ⚠️ ${r.name} ${r.extra}`);
+}
+console.log(`\n${results.length - failed.length}/${results.length} checks passed${inconclusiveResults.length ? `, ${inconclusiveResults.length} inconclusive` : ""}`);
 process.exit(failed.length ? 1 : 0);

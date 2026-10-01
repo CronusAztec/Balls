@@ -255,14 +255,14 @@ input[type="range"]:disabled::-webkit-slider-thumb {
 /* --- review fix (ui-i18n) --- a visible keyboard focus ring on the sliders (WCAG 2.4.7): the track gets an accent outline
    and the thumb a wider halo, only for keyboard focus (:focus-visible), not for a mouse drag. */
 input[type="range"]:focus-visible {
-  outline: 2px solid #93d119;
+  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
 input[type="range"]:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px rgba(147, 209, 25, 0.6);
+  box-shadow: 0 0 0 4px rgb(176 240 42 / 0.5);
 }
 input[type="range"]:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 4px rgba(147, 209, 25, 0.6);
+  box-shadow: 0 0 0 4px rgb(176 240 42 / 0.5);
 }
 
 input[type="color"] {

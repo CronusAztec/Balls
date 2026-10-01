@@ -480,7 +480,7 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
   const plan = sendPlan(s, now);
   const accounts = accountViews(s, now);
   const nothingSetUp = accounts.length === 0 && s.stored.relayProfiles.length === 0 && !s.stored.youtubeClientId && !s.envClientId;
-  const canSend = !!clip && plan.targets.length > 0 && plan.blocked.length === 0 && !s.sending;
+  const canSend = !!clip && plan.targets.length > 0 && plan.blocked.length === 0 && plan.publicOnly.length === 0 && !s.sending;
   const status = s.sending ? "sending" : !clip ? "empty" : "ready";
 
   return (
@@ -543,6 +543,16 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
           {s.sending ? p("sending") : p("sendSelected", { count: plan.targets.length })}
         </button>
         {plan.blocked.length > 0 && <p className="text-xs text-danger leading-snug">{p("overLimit", { platforms: plan.blocked.map((x) => PLATFORM_NAMES[x]).join(", ") })}</p>}
+        {plan.publicOnly.includes("instagram") && (
+          <p className="text-xs text-danger leading-snug" data-testid="publish-public-only">
+            {p("instagramPublicOnly")}
+          </p>
+        )}
+        {plan.tiktokFriends && (
+          <p className="text-xs text-warn leading-snug" data-testid="publish-tiktok-friends">
+            {p("tiktokUnlisted")}
+          </p>
+        )}
         {plan.instagramNeedsMp4 && <p className="text-xs text-warn leading-snug">{p("instagramMp4")}</p>}
         {!clip && plan.targets.length > 0 && <p className="text-xs text-ink-3">{p("sendNeedsClip")}</p>}
         {s.sends.length > 0 && (

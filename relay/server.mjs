@@ -470,7 +470,9 @@ export const TIKTOK = {
   scopes: ["user.info.basic", "video.publish"],
 };
 
+/** TikTok's privacy levels for the page's visibilities. TikTok has no "unlisted": it posts for mutual friends and says so. */
 const TIKTOK_PRIVACY = { public: "PUBLIC_TO_EVERYONE", unlisted: "MUTUAL_FOLLOW_FRIENDS", private: "SELF_ONLY" };
+export const TIKTOK_UNLISTED_NOTE = "TikTok has no unlisted – the clip was posted for mutual friends (Friends).";
 
 /** A clear message for a TikTok error code. */
 export function tiktokErrorMessage(code, message) {
@@ -544,9 +546,15 @@ async function tiktokRefresh(ctx, account) {
   return { ...account.tokens, ...tiktokTokens(res.json, ctx.now()) };
 }
 
-/** How TikTok wants the file cut: one chunk under 5 MB, else 10 MB chunks with the remainder in the last one. */
+/**
+ * How TikTok wants the file cut (Content Posting API, Media Transfer Guide): a file of up to 64 MB goes up whole, as one
+ * chunk; a bigger one in chunks of 5–64 MB (10 MB here), `total_chunk_count` = video_size / chunk_size rounded down, the
+ * remainder riding in the last chunk (which may be up to 128 MB). A 5–10 MB clip is one whole chunk – never a 10 MB
+ * chunk_size bigger than the video with a chunk count that should round down to 0.
+ */
+export const TIKTOK_WHOLE_MAX = 64 * MB;
 export function tiktokChunks(size, preferred = 10 * MB) {
-  if (size <= 5 * MB) return { chunkSize: size, total: 1, ranges: [[0, size - 1]] };
+  if (size <= TIKTOK_WHOLE_MAX) return { chunkSize: size, total: 1, ranges: [[0, size - 1]] };
   const chunkSize = Math.min(64 * MB, Math.max(5 * MB, preferred));
   const total = Math.max(1, Math.floor(size / chunkSize));
   const ranges = [];
@@ -607,7 +615,7 @@ async function tiktokPublish(ctx, account, post, media, visibility, update) {
       const postId = Array.isArray(data.publicaly_available_post_id) ? data.publicaly_available_post_id[0] : null;
       const handle = account.handle ? account.handle.replace(/^@/, "") : null;
       const link = postId && handle ? `https://www.tiktok.com/@${handle}/video/${postId}` : handle ? `https://www.tiktok.com/@${handle}` : null;
-      return { link, note: note ?? (privacy === "SELF_ONLY" && visibility !== "private" ? "Posted as private (Only me)." : null) };
+      return { link, note: note ?? (privacy === "SELF_ONLY" && visibility !== "private" ? "Posted as private (Only me)." : privacy === "MUTUAL_FOLLOW_FRIENDS" && visibility === "unlisted" ? TIKTOK_UNLISTED_NOTE : null) };
     }
     if (data.status === "FAILED") throw new PlatformError(`TikTok could not publish the video: ${data.fail_reason || "unknown reason"}.`, { code: data.fail_reason || "failed" });
     if (data.status === "SEND_TO_USER_INBOX") return { link: null, note: "Sent to the TikTok app's inbox – finish the post in the app." };
@@ -740,7 +748,9 @@ async function instagramRefresh(ctx, account) {
   return { ...account.tokens, access: res.json.access_token, expiresAt: ctx.now() + 1000 * Number(res.json.expires_in || 60 * 86400), obtainedAt: ctx.now() };
 }
 
-async function instagramPublish(ctx, account, post, media, _visibility, update) {
+async function instagramPublish(ctx, account, post, media, visibility, update) {
+  // Reels are always public: a private or unlisted send is refused rather than quietly posted for everyone.
+  if (visibility && visibility !== "public") throw new PlatformError("Instagram Reels are always public – send with visibility public.", { code: "visibility" });
   if (media.ext === "webm") throw new PlatformError("Instagram takes MP4 (H.264 + AAC) and this clip is WebM – export it as MP4 (Chrome or Safari) or convert it.", { code: "format" });
   const config = { userId: account.meta?.igUserId || account.providerId, accessToken: account.tokens.access, base: igBase(ctx.cfg) };
   update({ status: "uploading", progress: 0.2 });

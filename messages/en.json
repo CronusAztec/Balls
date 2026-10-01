@@ -15,6 +15,7 @@
     "closeMenu": "Close menu"
   },
   "SimulatorPage": {
+    "heading": "Ball Physics Simulator",
     "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",
     "metaDescription": "Free browser-based ball physics simulator with {count} modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
   },
@@ -423,6 +424,7 @@
     "saveBtn": "Save",
     "noSavedPresets": "No saved presets yet",
     "loadBtn": "Load",
+    "presetLoadLocked": "Finish or stop the batch render before loading a preset.",
     "deletePreset": "Delete preset",
     "ballPhysicsTab": "Ball & Physics",
     "wallSettingsTab": "Wall Settings",
@@ -1147,6 +1149,7 @@
     "projectImporting": "Opening the project…",
     "projectExported": "Saved {file} ({size}).",
     "projectImported": "Opened “{name}”.",
+    "projectImportLocked": "A render is running – finish or stop the batch (or the fast export) before opening a project.",
     "projectImportedSkipped": "Opened “{name}”, but {count} damaged media file(s) were left out.",
     "projectErrorNotJson": "This file is not a project file (it is not valid JSON).",
     "projectErrorNotProject": "This file is not a JumpingBallsLive project.",
@@ -1837,7 +1840,7 @@
     },
     "intellectual": {
       "title": "5. Intellectual Property",
-      "content": "The Service, including its code, design and branding, belongs to {siteDomain}. Videos and images you create with it are yours."
+      "content": "The Service, including its code, design and branding, belongs to the operator of {siteName}. Videos and images you create with it are yours."
     },
     "warranties": {
       "title": "6. Disclaimer of Warranties",
@@ -1845,7 +1848,7 @@
     },
     "liability": {
       "title": "7. Limitation of Liability",
-      "content": "To the fullest extent permitted by law, {siteDomain} is not liable for any indirect, incidental, special or consequential damages arising from your use of the Service, including loss of data, revenue or profits."
+      "content": "To the fullest extent permitted by law, the operator of {siteName} is not liable for any indirect, incidental, special or consequential damages arising from your use of the Service, including loss of data, revenue or profits."
     },
     "changes": {
       "title": "8. Changes to These Terms",
@@ -2099,6 +2102,7 @@
       "recordingDuration": "Clip length (s)"
     },
     "summary": "{count, plural, =0 {Nothing to render yet} one {# clip} other {# clips}} · {resolution} · {fps} fps · up to {seconds} s each",
+    "summaryPerJob": "{count, plural, =0 {Nothing to render yet} one {# clip} other {# clips}} · {resolution} · {fps} fps · each as long as its link says",
     "truncated": "Only the first {max} clips are rendered – a batch holds at most {max}.",
     "start": "Render batch",
     "unsupported": "Batch render uses the fast export, which needs WebCodecs – this browser doesn't have it.",
@@ -2127,6 +2131,7 @@
     "downloadAll": "Download all as ZIP",
     "zipping": "Packing the ZIP…",
     "zipFailed": "The ZIP could not be built (too big for this browser?) – download the clips one by one with ⬇ instead.",
+    "settingsChanged": "The settings were changed during the batch, so it stopped there and kept them.",
     "clear": "Clear list",
     "progressLabel": "Batch clip progress"
   },
@@ -2689,6 +2694,7 @@
     "scopeAll": "All balls",
     "scopeTip": "This ball: only the ball involved (both balls of a collision; the ball that bounced last for beats, bars and seconds). All balls: every ball. World values (gravity, spin, gap…) always apply to the whole scene.",
     "notInMode": "This mode does not use this value – the rule is ignored here.",
+    "triggerNotInMode": "Nothing in this mode sets this trigger off – the rule never fires here.",
     "formulaExample": "Example: v * (1 + 0.1 * sin(n / 3)) – v value, n times fired, t seconds, b beats, r random 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Type a formula, e.g. v * 1.05.",
@@ -2841,6 +2847,8 @@
     "sendSelected": "Send to selected ({count})",
     "overLimit": "Too long for {platforms} – shorten the words (see the counters).",
     "instagramMp4": "Instagram takes MP4 (H.264 + AAC) and this clip is WebM – export it in Chrome or Safari, or convert it.",
+    "instagramPublicOnly": "Instagram Reels are always public – choose Public or untick the Instagram accounts.",
+    "tiktokUnlisted": "TikTok has no unlisted – it posts the clip for mutual friends (Friends) instead.",
     "sendNeedsClip": "Record or pick a clip to send.",
     "progress": "Sending progress",
     "relaySettings": "Relay",
@@ -2869,6 +2877,10 @@
         "server": "The relay failed – see its log, then try again.",
         "timeout": "The relay is still publishing – check the recent sends later.",
         "badUrl": "The relay URL is not a valid http(s) address."
+      },
+      "page": {
+        "clipGone": "The clip of this send is no longer in the list – pick or record it again and send it.",
+        "otherProfile": "This account belongs to another relay profile – switch back to that relay to try again."
       }
     }
   },

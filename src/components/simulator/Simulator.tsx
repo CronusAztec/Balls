@@ -362,12 +362,18 @@ export default function Simulator() {
    * bed starts from its start offset when it resumes.
    */
   const restartRun = useCallback(
-    (keepPaused: boolean) => {
+    (keepPaused: boolean, opts?: { sameSeed?: boolean }) => {
       const engine = engineRef.current;
       if (!engine) return;
       const paused = keepPaused && isPaused;
       setFinished(false);
       if (!paused) setIsPaused(false);
+      // --- review fix (recording-export) --- the end-screen holds start over with the run (the frame loop sets them again)
+      paintFinishedAtRef.current = null;
+      winnerShownAtRef.current = null;
+      illusionRevealAtRef.current = null;
+      battleFinishAtRef.current = null;
+      arenaWinAtRef.current = null;
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
@@ -375,8 +381,15 @@ export default function Simulator() {
       // cannot tell a restart from "still running", so it is done here).
       if (isStarted && !paused) audioRef.current?.getMusicBed().restart();
       else audioRef.current?.getMusicBed().stop();
+      // --- review fix (recording-export) --- `sameSeed`: the run starts over from its own seed (Record Video on a finished run
+      // records the run again – the one the fast export would render); a seed nobody pinned is let go again afterwards, so
+      // later restarts roll new ones. (The split-screen arenas start over with this engine's clock, as on any restart.)
+      const replaySeed = opts?.sameSeed ? engine.getSeed() : null;
+      const pinned = engine.getPinnedSeed() !== null;
+      if (replaySeed !== null) engine.setSeed(replaySeed);
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (replaySeed !== null && !pinned) engine.setSeed(null);
     },
     [settings, isStarted, isPaused, initEngineForMode],
   );
@@ -1331,6 +1344,7 @@ export default function Simulator() {
   // Mode picked from the "Game Modes" cards further down the page (custom DOM event).
   useEffect(() => {
     const handler = (e: Event) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (a batch puts its own modes on the page)
       const mode = (e as CustomEvent<ModeId>).detail;
       changeMode(mode);
       document.getElementById("simulator")?.scrollIntoView({ behavior: scrollBehavior() });
@@ -1578,6 +1592,12 @@ export default function Simulator() {
       await stopRecordingAndDownload();
       return;
     }
+    // --- review fix (recording-export) --- a finished run (its end screen, or the hold before it) is recorded again from
+    // its own seed, as the fast export renders it – not as half a second of the frozen end screen. restartRun() clears
+    // `finished` in this same handler, so the stop-after-the-finish effect below never sees the old run's end.
+    const engineNow = engineRef.current;
+    const runOver = isStarted && !!engineNow && (finished || (engineNow.isSimulationFinished() && (splitRunnerRef.current?.allFinished() ?? true)));
+    if (runOver) restartRun(false, { sameSeed: true });
     if (!isStarted) await start();
     recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
     await audioRef.current?.start();
@@ -1586,7 +1606,7 @@ export default function Simulator() {
     canvasRef.current?.setRecording(true, resolution);
     setIsRecording(true);
     const ok = await recorderRef.current.startRecording({
-      mimeType: "video/mp4",
+      // --- review fix (recording-export) --- no preferred type: the recorder's own order (H.264 + AAC in MP4, else WebM)
       resolution,
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
@@ -1622,7 +1642,7 @@ export default function Simulator() {
       void stopRecordingAndDownload();
     };
     recordTimerRef.current = setTimeout(onClipEnd, 1000 * settings.recordingDuration);
-  }, [isRecording, isStarted, recordingSupported, settings, start, stopRecordingAndDownload]);
+  }, [isRecording, isStarted, finished, recordingSupported, settings, start, stopRecordingAndDownload, restartRun]);
 
   // Stop the recording shortly after the run finishes.
   useEffect(() => {
@@ -1657,6 +1677,12 @@ export default function Simulator() {
   const fastRunning = fastExport.status === "running";
   // --- batch-render --- a batch job for the next export: its seed, and the file handed back instead of downloaded (useBatchRender.ts)
   const batchExportRef = useRef<BatchExportRequest | null>(null);
+  // --- review fix (recording-export) --- while a batch runs (the Batch block's or the viral bot's renders through it) nothing
+  // else may put settings on the page: Import project, a dropped project, a saved preset, a mode card or a share code would be
+  // rolled back by the batch's next job or by its restore at the end. Set by the batch itself as it starts and ends.
+  const [batchActive, setBatchActive] = useState(false);
+  const batchActiveRef = useRef(false);
+  batchActiveRef.current = batchActive;
   const startFastExport = useCallback(async () => {
     const batchJob = batchExportRef.current; // --- batch-render ---
     batchExportRef.current = null;
@@ -2067,6 +2093,7 @@ export default function Simulator() {
 
   const onLoadPreset = useCallback(
     (name: string) => {
+      if (batchActiveRef.current) return; // --- review fix (recording-export) --- (the Load buttons are off meanwhile)
       const preset = presets[name];
       if (preset) loadPresetSettings(preset);
     },
@@ -2117,8 +2144,12 @@ export default function Simulator() {
       onCustomSoundSelect,
       onBeatMediaUpload: videoBeats.onImport, // --- video-beats ---
     },
+    locked: batchActive || fastRunning, // --- review fix (recording-export) --- (refused with a status line meanwhile)
   });
-  const shareCode = useShareCodeLoader(searchParams.toString(), loadPresetSettings);
+  // --- review fix (recording-export) --- (a share code decoded while a batch runs is not put over the batch's settings)
+  const shareCode = useShareCodeLoader(searchParams.toString(), (shared) => {
+    if (!batchActiveRef.current) loadPresetSettings(shared);
+  });
   const shortShareLink = useShortShareLink(settings);
   // --- end project-files ---
   // --- batch-render --- a batch that puts other settings on the page drops a found simulation on the way (the preset loader
@@ -2159,6 +2190,7 @@ export default function Simulator() {
     fastExport,
     supported: fastSupported,
     disabled: isRecording || isSearching || fastRunning || !engineReady || projectFiles.panel.busy === "import" || settings.arenaCount > 1, // --- split-screen --- (not during a race)
+    onRunningChange: setBatchActive, // --- review fix (recording-export) ---
   });
   // --- end batch-render ---
   // --- viral-bot --- the Viral video bot block after the Batch block: it plans clips (lib/bot/planner.ts) in this page's
@@ -2823,7 +2855,7 @@ export default function Simulator() {
           {!isStarted && !isSearching && !(searchResult && !searchResult.found) && !obstacleEditing && (
             <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-bg/40 p-3 sm:p-4">
               <div className="flex max-w-sm flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 text-center ring-1 ring-line">
-                <p className="eyebrow text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
+                <p className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</p>
                 {searchResult?.found && <p className="text-xs font-medium leading-snug text-warn">{t("Simulator.doNotChangeSettingsWarning")}</p>}
               </div>
             </div>
@@ -2832,7 +2864,7 @@ export default function Simulator() {
           {!isStarted && !isSearching && !(searchResult && !searchResult.found) && obstacleEditing && (
             <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3" data-testid="obstacle-ready-bar">
               <div className="flex flex-col items-center gap-1 rounded-lg bg-bg/85 px-3 py-2 ring-1 ring-line">
-                <span className="eyebrow text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</span>
+                <span className="text-sm font-medium text-ink-2">{searchResult?.found ? t("Simulator.readyToStartSimulationFor", { duration: searchResult.duration.toFixed(1) }) : t("Simulator.ready")}</span>
                 {/* A found seed holds only while nothing changes – moving an obstacle included (it drops the seed). */}
                 {searchResult?.found && (
                   <p className="max-w-sm text-center text-xs font-medium leading-snug text-warn" data-testid="obstacle-ready-warning">
@@ -3025,7 +3057,7 @@ export default function Simulator() {
 
   return (
     <main id="simulator" ref={mainRef} className="studio-main">
-      <ProjectDropZone label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} /* --- project-files --- (the whole studio takes a dropped project file) */>
+      <ProjectDropZone label={t("Controls.projectDropHere")} onFile={projectFiles.importFile} disabled={projectFiles.panel.importLocked} lockedLabel={t("Controls.projectImportLocked")} /* --- project-files --- (the whole studio takes a dropped project file; --- review fix (recording-export) --- not while a render runs) */>
         <Controls
           settings={settings}
           update={update}
@@ -3079,6 +3111,7 @@ export default function Simulator() {
           videoBeats={videoBeats.panel} // --- video-beats ---
           bot={viralBot} // --- viral-bot ---
           bounceMath={bounceMathPanel} // --- bounce-math ---
+          batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)
           stage={stage} // --- site-redesign ---
           onOpenModePicker={openModePicker} // --- site-redesign ---
         />

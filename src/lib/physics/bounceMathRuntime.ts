@@ -16,6 +16,7 @@ import {
   serializeRules,
   type BounceMathConfig,
   type BounceParam,
+  type BounceTrigger,
   type CompiledRule,
   type RuleContext,
 } from "@/lib/simulation/bounceMath";
@@ -25,7 +26,8 @@ import {
  * PhysicsEngine owns one `BounceMathRuntime` and calls it from small delimited hooks:
  *
  * - `note()` where the engine already handles a wall / ring bounce, an obstacle hit, a ball pair and a gap pass (and the
- *   modes' `ctx.creditBounce()` / `ctx.noteBounce()`), `noteBreakBall()` where a wall break is reported;
+ *   modes' `ctx.creditBounce()` / `ctx.noteBounce()` / `ctx.noteCollide()` – every mode that resolves its own walls, pegs,
+ *   panes, arcs or ball pairs reports them), `noteBreakBall()` where a wall break is reported;
  * - `beginStep()` / `endStep()` around every fixed 60 Hz step: the start trigger fires at the start of a run's first
  *   step; at the end of every step the step's wall breaks (its "gap" sound events), the beats and bars of the beat grid
  *   and the seconds of run time that fell into the step are queued, and the queue is applied in order – every rule of the
@@ -37,8 +39,8 @@ import {
  * which all build their engines from the page engine's config, replay a rule run exactly.
  *
  * Where a parameter lives:
- *  - per ball: bounciness is `ball.restitution` (the rebound speed factor of the engine's ring rebounds and of obstacle
- *    hits), speed and size are the ball's multipliers (`MultiplierRuntime.apply()`: the speed scale – velocity at once,
+ *  - per ball: bounciness is `ball.restitution` (the rebound speed factor of the engine's ring rebounds, of obstacle hits –
+ *    on top of the obstacle's capped restitution, lifting at most to the cruising speed × it – and of Glass Smash's hops), speed and size are the ball's multipliers (`MultiplierRuntime.apply()`: the speed scale – velocity at once,
  *    the cruising speed from then on – and the radius, so the multipliers' sub-step planner keeps fast balls from
  *    tunnelling and a ball grown past the arena ends the run with their OUTGREW THE ARENA finish), hue turns
  *    `ball.color`, pitch is `ball.pitchShift` (semitones on the ball's bounce notes, through the sound event's pitch);
@@ -86,6 +88,35 @@ export function bounceParamApplies(param: BounceParam, mode: ModeId): boolean {
   }
 }
 
+/** The modes whose balls pass the gaps of the engine's rings ("pass"): the ten ring modes and the Journey's ring stage. */
+export const BOUNCE_MATH_PASS_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MODES, "journey"];
+/**
+ * The modes with ball-to-ball hits ("collide"): the engine's pair pass (the ring modes with two balls or more, Ball Drop,
+ * String Battle) and the modes that resolve their own and report them (`ctx.noteCollide()`).
+ */
+export const BOUNCE_MATH_COLLIDE_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MODES, "drop", "stringBattle", "collide", "multipliers", "battle", "ctf", "doublePendulum"];
+/** The modes where something breaks with the wall-break sound ("break": a ring, a pane, a cleared stack, a KO, a crash). */
+export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MODES, "glass", "multipliers", "battle", "paddle", "powerLayers", "runner", "journey"];
+
+/**
+ * Whether `trigger` ever fires in `mode` (the panel marks a rule whose trigger the mode never sets off). Every mode reports
+ * its bounces – the engine's rings and obstacles, the modes' own walls, pegs, panes and arcs (`ctx.noteBounce()`), and in
+ * the rhythm modes without contacts the ball's note (a pendulum's swing note, a harp pluck, a vortex ring, a landing) –
+ * and the beat, bar, second and start come from the clock.
+ */
+export function bounceTriggerApplies(trigger: BounceTrigger, mode: ModeId): boolean {
+  switch (trigger) {
+    case "pass":
+      return BOUNCE_MATH_PASS_MODES.includes(mode);
+    case "collide":
+      return BOUNCE_MATH_COLLIDE_MODES.includes(mode);
+    case "break":
+      return BOUNCE_MATH_BREAK_MODES.includes(mode);
+    default:
+      return true;
+  }
+}
+
 /** A second pass of the same ball through the same wall within this many simulation ms is the same pass. */
 export const PASS_DEDUPE_MS = 250;
 /** Most trigger events queued per step (a crowd of colliding balls); the rest are counted as dropped. */
@@ -123,6 +154,8 @@ export interface BounceMathView {
   /** The ball that bounced last (else the first ball) exists: its values below are meaningful. */
   hasBall: boolean;
   bounciness: number;
+  /** The ball's colour (a colour shift turns it). */
+  color: string;
   /** px/s. */
   speed: number;
   /** Radius, px. */
@@ -151,6 +184,7 @@ function freshView(): BounceMathView {
     showValues: true,
     hasBall: false,
     bounciness: 1,
+    color: "",
     speed: 0,
     size: 0,
     gravity: 0,
@@ -771,6 +805,7 @@ export class BounceMathRuntime {
     v.hasBall = !!ball;
     if (ball) {
       v.bounciness = ball.restitution ?? 1;
+      v.color = ball.color;
       v.speed = Math.hypot(ball.vx, ball.vy);
       v.size = ball.radius;
     }

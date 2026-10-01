@@ -6,8 +6,10 @@
  * are re-drawn at export scale so they stay crisp. The stream is muxed with the tone
  * generator's audio track.
  *
- * MP4 (H.264) is used when the browser supports it in MediaRecorder (Chrome 126+, Safari);
- * otherwise WebM (VP9/VP8) is produced and the download gets a .webm extension.
+ * MP4 is written only with H.264 and AAC (Safari, Chrome builds with an H.264 encoder) – the same order the fast export
+ * picks its formats in; otherwise WebM (VP9/VP8 with Opus) is produced and the download gets a .webm extension. Only MIME
+ * types that name their codecs are tried: a bare "video/mp4" lets the browser choose them, and Chromium without an
+ * H.264 encoder then writes VP9 + Opus into an .mp4 that QuickTime, iOS Photos and many editors cannot play.
  */
 
 export interface RecordingTextOverlay {
@@ -117,15 +119,24 @@ export function drawRecordingFrame(
 }
 // --- end fast-render ---
 
-const MIME_CANDIDATES = [
+/** --- review fix (recording-export) --- every type names its codecs; H.264 + AAC first, then WebM, H.264 + Opus last (like the fast export). */
+export const MIME_CANDIDATES = [
   "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-  "video/mp4;codecs=avc1.42E01E",
-  "video/mp4",
   "video/webm;codecs=vp9,opus",
-  "video/webm;codecs=vp9",
   "video/webm;codecs=vp8,opus",
+  "video/webm;codecs=vp9",
   "video/webm",
+  "video/mp4;codecs=avc1.42E01E,opus",
+  "video/mp4;codecs=avc1.42E01E",
 ];
+
+/** The file extension of a recording: "mp4" only for an MP4 that holds H.264 (avc1 / avc3), "webm" otherwise. */
+export function recordingExtension(mimeType: string): "mp4" | "webm" {
+  const type = mimeType.toLowerCase();
+  if (!type.includes("mp4")) return "webm";
+  // A bare "video/mp4" from a browser that names no codecs is taken at its word; one that names others (VP9 in MP4) is not an .mp4 to play.
+  return !type.includes("codecs=") || type.includes("avc1") || type.includes("avc3") ? "mp4" : "webm";
+}
 
 export class VideoRecorder {
   private mediaRecorder: MediaRecorder | null = null;
@@ -229,7 +240,7 @@ export class VideoRecorder {
 
   /** Triggers a download; the extension is picked from the blob's container type. */
   downloadBlob(blob: Blob, baseName = "jumpingballslive-export") {
-    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const ext = recordingExtension(blob.type); // --- review fix (recording-export) --- (never .mp4 for VP9 in MP4)
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -240,9 +251,10 @@ export class VideoRecorder {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /** The first supported type of `MIME_CANDIDATES`; `preferred` goes first only when it names its codecs. */
   static getBestMimeType(preferred?: string): string {
     if (typeof MediaRecorder === "undefined") return "video/webm";
-    const candidates = preferred ? [preferred, ...MIME_CANDIDATES] : MIME_CANDIDATES;
+    const candidates = preferred && /codecs=/i.test(preferred) ? [preferred, ...MIME_CANDIDATES] : MIME_CANDIDATES; // --- review fix (recording-export) ---
     for (const type of candidates) {
       if (MediaRecorder.isTypeSupported(type)) return type;
     }

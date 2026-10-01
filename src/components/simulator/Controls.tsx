@@ -164,6 +164,8 @@ export interface ControlsProps {
   project?: ProjectPanelProps;
   /** --- batch-render --- the Batch block of the Recording section: many fast exports in a row (left out without it). */
   batch?: BatchPanelProps;
+  /** --- review fix (recording-export) --- a batch is rendering: saved presets cannot be loaded (the batch would roll them back). */
+  batchRunning?: boolean;
   /** --- video-beats --- the "Beats from a video" block of the Sound section (left out without it). */
   videoBeats?: VideoBeatsPanelProps;
   /** --- viral-bot --- the Viral video bot block after it: plans, scores and renders clips (left out without it). */
@@ -1411,7 +1413,14 @@ export default function Controls(props: ControlsProps) {
           {props.savedPresetNames.map((name) => (
             <li key={name} className="group flex items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1 truncate text-sm text-ink">{name}</span>
-              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => props.onLoadPreset(name)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => props.onLoadPreset(name)}
+                disabled={props.batchRunning} // --- review fix (recording-export) ---
+                title={props.batchRunning ? t("presetLoadLocked") : undefined}
+              >
                 {t("loadBtn")}
               </Button>
               <button

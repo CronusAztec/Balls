@@ -25,10 +25,13 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function SimulatorPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const t = await getTranslations({ locale });
   // --- site-redesign --- the studio fills the first screen under the header; the guide (physics, modes, tips, help) reads below
   return (
     <div className="min-h-screen bg-bg text-ink">
       <Navbar variant="studio" />
+      {/* --- review fix (site-static) --- the page's main heading for search and screen readers, outside the Suspense boundary */}
+      <h1 className="sr-only">{t("SimulatorPage.heading")}</h1>
       <div id="content">
         <Suspense fallback={<div className="flex h-[calc(100svh-56px)] items-center justify-center text-sm text-ink-3">…</div>}>
           <Simulator />

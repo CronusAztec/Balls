@@ -94,6 +94,11 @@ export interface ProjectFilesOptions {
   uploads: MutableRefObject<ProjectUploads>;
   media: ProjectMediaState;
   actions: ProjectMediaActions;
+  /**
+   * --- review fix (recording-export) --- A batch render or a fast export is running: an import is refused with a status line
+   * (the batch would put its own settings back over the project's, the export renders the settings it started with).
+   */
+  locked?: boolean;
 }
 
 /** One loaded medium in the panel's list. */
@@ -123,6 +128,8 @@ export interface ProjectPanelProps {
   status: ProjectStatus | null;
   onExport: () => void;
   onImport: (file: File) => void;
+  /** --- review fix (recording-export) --- Import project is off (a batch render or a fast export is running). */
+  importLocked: boolean;
 }
 
 const ERROR_KEYS: Record<ProjectError, string> = {
@@ -264,6 +271,11 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
   const onImport = useCallback(
     async (file: File) => {
       if (busyRef.current) return;
+      // --- review fix (recording-export) --- (a dropped project too: said, not silently ignored)
+      if (latest.current.locked) {
+        setStatus({ tone: "warn", key: "projectImportLocked" });
+        return;
+      }
       if (!looksLikeProjectFile(file)) {
         setStatus({ tone: "error", key: "projectErrorNotFile", values: { file: file.name } });
         return;
@@ -309,8 +321,9 @@ export function useProjectFiles(options: ProjectFilesOptions): { panel: ProjectP
       status,
       onExport: exportProject,
       onImport: importFile,
+      importLocked: !!options.locked, // --- review fix (recording-export) ---
     }),
-    [name, fileName, listed, totalBytes, busy, status, exportProject, importFile],
+    [name, fileName, listed, totalBytes, busy, status, exportProject, importFile, options.locked],
   );
   return { panel, importFile };
 }

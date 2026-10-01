@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { LOCALE_OPTIONS } from "@/i18n/routing";
-import { SITE_DOMAIN, SITE_NAME } from "@/lib/site";
+import { SITE_NAME } from "@/lib/site";
 import { modeFamilies } from "@/lib/siteDesign";
 import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 import Kbd from "@/components/ui/Kbd";
@@ -101,8 +101,8 @@ export default function Footer() {
       <div className="border-t border-line">
         <div className="site-container flex flex-col gap-3 py-6 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            <span className="font-display text-sm font-bold tracking-[-0.02em] text-ink-2">{SITE_NAME}</span>
-            <span className="mx-2">·</span>© {new Date().getFullYear()} {SITE_DOMAIN}
+            {/* --- review fix (site-static) --- the name, never a host: the copyright line names no URL */}
+            © {new Date().getFullYear()} {SITE_NAME}
           </p>
           <p className="hidden items-center gap-2 sm:flex" aria-label={t("shortcuts")}>
             <span>{t("shortcuts")}</span>

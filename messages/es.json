@@ -15,6 +15,7 @@
     "closeMenu": "Cerrar menú"
   },
   "SimulatorPage": {
+    "heading": "Simulador de física de pelotas",
     "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",
     "metaDescription": "Simulador de física de pelotas gratuito en el navegador con {count} modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
   },
@@ -414,6 +415,7 @@
     "saveBtn": "Guardar",
     "noSavedPresets": "Aún no hay presets guardados",
     "loadBtn": "Cargar",
+    "presetLoadLocked": "Termina o detén el renderizado por lotes antes de cargar un preajuste.",
     "deletePreset": "Eliminar preset",
     "ballPhysicsTab": "Pelota y física",
     "wallSettingsTab": "Ajustes de paredes",
@@ -1138,6 +1140,7 @@
     "projectImporting": "Abriendo el proyecto…",
     "projectExported": "Guardado {file} ({size}).",
     "projectImported": "Abierto «{name}».",
+    "projectImportLocked": "Hay un renderizado en curso: termina o detén el lote (o la exportación rápida) antes de abrir un proyecto.",
     "projectImportedSkipped": "Abierto «{name}», pero se omitieron {count} archivo(s) multimedia dañados.",
     "projectErrorNotJson": "Este archivo no es un archivo de proyecto (no es un JSON válido).",
     "projectErrorNotProject": "Este archivo no es un proyecto de JumpingBallsLive.",
@@ -1717,9 +1720,9 @@
       "item3": "Subir contenido ilegal, dañino o que infrinja derechos de propiedad intelectual de terceros.",
       "item4": "Presentar el Servicio como producto propio."
     },
-    "intellectual": { "title": "5. Propiedad intelectual", "content": "El Servicio, incluidos su código, diseño y marca, pertenece a {siteDomain}. Los vídeos e imágenes que crees con él son tuyos." },
+    "intellectual": { "title": "5. Propiedad intelectual", "content": "El Servicio, incluidos su código, diseño y marca, pertenece al operador de {siteName}. Los vídeos e imágenes que crees con él son tuyos." },
     "warranties": { "title": "6. Exclusión de garantías", "content": "El Servicio se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo, expresas o implícitas, incluidas la fiabilidad, la exactitud o la idoneidad para un fin concreto. No garantizamos que el Servicio sea ininterrumpido ni esté libre de errores." },
-    "liability": { "title": "7. Limitación de responsabilidad", "content": "En la máxima medida permitida por la ley, {siteDomain} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios." },
+    "liability": { "title": "7. Limitación de responsabilidad", "content": "En la máxima medida permitida por la ley, el operador de {siteName} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios." },
     "changes": { "title": "8. Cambios en estos términos", "content": "Podemos actualizar estos términos en cualquier momento. Los cambios se publican en esta página con una nueva fecha, y seguir usando el Servicio tras un cambio implica aceptar los términos revisados." },
     "contact": { "title": "9. Contacto", "content": "¿Preguntas sobre estos términos? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" }
   },
@@ -1941,6 +1944,7 @@
       "recordingDuration": "Duración del clip (s)"
     },
     "summary": "{count, plural, =0 {Todavía no hay nada que renderizar} one {# clip} other {# clips}} · {resolution} · {fps} fps · hasta {seconds} s cada uno",
+    "summaryPerJob": "{count, plural, =0 {Todavía no hay nada que renderizar} one {# clip} other {# clips}} · {resolution} · {fps} fps · cada uno tan largo como diga su enlace",
     "truncated": "Solo se renderizan los primeros {max} clips: un lote admite como máximo {max}.",
     "start": "Renderizar lote",
     "unsupported": "El renderizado por lotes usa la exportación rápida, que necesita WebCodecs, y este navegador no lo tiene.",
@@ -1969,6 +1973,7 @@
     "downloadAll": "Descargar todo en ZIP",
     "zipping": "Empaquetando el ZIP…",
     "zipFailed": "No se pudo crear el ZIP (¿demasiado grande para este navegador?): descarga los clips uno a uno con ⬇.",
+    "settingsChanged": "Los ajustes cambiaron durante el lote, así que se detuvo ahí y los conservó.",
     "clear": "Vaciar la lista",
     "progressLabel": "Progreso del clip del lote"
   },
@@ -2531,6 +2536,7 @@
     "scopeAll": "Todas",
     "scopeTip": "Esta pelota: solo la pelota implicada (las dos en un choque; la que rebotó por última vez en pulsos, compases y segundos). Todas: cada pelota. Los valores del mundo (gravedad, giro, hueco…) siempre afectan a toda la escena.",
     "notInMode": "Este modo no usa este valor: aquí la regla se ignora.",
+    "triggerNotInMode": "En este modo nada activa este disparador: aquí la regla nunca se aplica.",
     "formulaExample": "Ejemplo: v * (1 + 0.1 * sin(n / 3)) – v valor, n veces activada, t segundos, b pulsos, r aleatorio 0–1; + − * / ^ ( ), sin cos tan abs sqrt pow min max floor ceil round log exp clamp, pi, e.",
     "formulaError": {
       "empty": "Escribe una fórmula, p. ej. v * 1.05.",
@@ -2683,6 +2689,8 @@
     "sendSelected": "Enviar a los seleccionados ({count})",
     "overLimit": "Demasiado largo para {platforms}: acorta el texto (mira los contadores).",
     "instagramMp4": "Instagram acepta MP4 (H.264 + AAC) y este clip es WebM: expórtalo en Chrome o Safari, o conviértelo.",
+    "instagramPublicOnly": "Los Reels de Instagram siempre son públicos: elige Público o desmarca las cuentas de Instagram.",
+    "tiktokUnlisted": "TikTok no tiene «oculto»: en su lugar publica el clip para amigos mutuos (Amigos).",
     "sendNeedsClip": "Graba o elige un clip para enviar.",
     "progress": "Progreso del envío",
     "relaySettings": "Relay",
@@ -2711,6 +2719,10 @@
         "server": "El relay ha fallado: revisa su registro e inténtalo de nuevo.",
         "timeout": "El relay sigue publicando: revisa los envíos recientes más tarde.",
         "badUrl": "La URL del relay no es una dirección http(s) válida."
+      },
+      "page": {
+        "clipGone": "El clip de este envío ya no está en la lista: elígelo o grábalo de nuevo y envíalo.",
+        "otherProfile": "Esta cuenta pertenece a otro perfil de relay: vuelve a ese relay para reintentarlo."
       }
     }
   },

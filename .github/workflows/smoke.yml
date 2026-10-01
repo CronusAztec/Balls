@@ -1,20 +1,27 @@
 name: Browser smoke test
 
 # Builds the site under a base path, serves it like GitHub Pages does and runs the headless
-# Chromium end-to-end checks (every page and locale, every mode, recording, seed finder...).
+# Chromium end-to-end checks (every page and locale, every mode, recording, seed finder...)
+# on pull requests and on demand. Pushes to the default branch run the same suite as the
+# `smoke` job of deploy.yml, which gates the Pages deploy.
 on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    # --- review fix (site-static) --- the suite waits up to 120 s at a time: bound a hang instead of the 6-hour default
+    timeout-minutes: 45
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -35,6 +42,8 @@ jobs:
       - name: Serve and test
         env:
           BASE_URL: http://localhost:3000/smoke
+          # A dedicated runner: a timing check that fails twice fails, even when the runner looks busy.
+          SMOKE_STRICT_TIMING: "1"
         run: |
           node scripts/serve-static.mjs --port 3000 --base /smoke &
           for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done
@@ -42,7 +51,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: smoke-output
           path: smoke-output

@@ -10,7 +10,26 @@ import { looksLikeProjectFile } from "@/lib/project";
  * upload handler, so a project dropped on one of them must still open as a project. Other files go through to them.
  * The outline only shows while a JSON file is dragged, so the inner zones keep their own highlight for their files.
  */
-export default function ProjectDropZone({ className, label, onFile, children }: { className?: string; label: string; onFile: (file: File) => void; children: ReactNode }) {
+export default function ProjectDropZone({
+  className,
+  label,
+  onFile,
+  children,
+  disabled = false,
+  lockedLabel,
+}: {
+  className?: string;
+  label: string;
+  onFile: (file: File) => void;
+  children: ReactNode;
+  /**
+   * --- review fix (recording-export) --- Importing is locked (a batch render or a fast export is running): a project file is
+   * still caught – it must not reach an inner zone – and handed to `onFile`, which refuses it with a status line; the
+   * outline says so (`lockedLabel`).
+   */
+  disabled?: boolean;
+  lockedLabel?: string;
+}) {
   const [active, setActive] = useState(false);
   const depth = useRef(0);
 
@@ -56,8 +75,8 @@ export default function ProjectDropZone({ className, label, onFile, children }: 
     >
       {children}
       {active && (
-        <div className="pointer-events-none absolute inset-0 z-30 rounded-lg border-2 border-dashed border-accent bg-accent/5 flex items-start justify-center pt-24" aria-hidden="true">
-          <span className="px-3 py-1.5 rounded-lg bg-bg/90 text-accent text-xs font-semibold">{label}</span>
+        <div className={`pointer-events-none absolute inset-0 z-30 rounded-lg border-2 border-dashed flex items-start justify-center pt-24 ${disabled ? "border-warn bg-warn/5" : "border-accent bg-accent/5"}`} aria-hidden="true">
+          <span className={`px-3 py-1.5 rounded-lg bg-bg/90 text-xs font-semibold ${disabled ? "text-warn" : "text-accent"}`}>{disabled ? `${lockedLabel ?? label}` : `${label}`}</span>
         </div>
       )}
     </div>
