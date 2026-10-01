@@ -9276,6 +9276,212 @@ const bdInstrument = () =>
 }
 // --- end review fix (site-redesign) ---
 
+// --- gerald-conveyor ---
+// Conveyor Belt and timed respawns: the preview image and the card under the escape heading; URL → the Conveyor block of the
+// Mode row (arena, drop interval, balls, freeze, variety, the run summary), controls → URL and the search box; a short rings
+// run at 4× (OscillatorNode.start instrumented) – every ball dropped a drop interval after the last, all of them out of the
+// rings and carried away, a hum (the belt's sawtooth pair) and a click per ball, the final banner held before the end screen;
+// the bowl with Freeze on Landing (a frozen pile that spills over onto the bottom belt); the peg field (every ball in the
+// bins); the finder lands a 30 s seed that the run keeps at 8×; the default run keeps 30+ fps; a 1080×1920 recording
+// downloads; and Classic's Respawn Every (URL `rse`, next to the Rotation Speed's `rs`): the slider in the Ball section and a
+// new ball every second.
+{
+  const res = await page.request.get(`${BASE}/modes/conveyor.webp`);
+  check("asset /modes/conveyor.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inEscape = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Escape modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/conveyor.webp"]') && !!group.querySelector('img[src$="/modes/classic.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/conveyor.webp"]').count();
+  check("the Conveyor Belt card is on the landing page under the escape heading", card === 1 && inEscape, `(cards=${card}, in the escape group=${inEscape})`);
+}
+{
+  const block = page.getByTestId("conveyor");
+  const cvSlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  const freeze = () => block.getByRole("switch", { name: switchName("Freeze on Landing") });
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&cvi=1.5&cvn=12&cva=bowl&cvf=1&cvv=0.8`, { waitUntil: "networkidle" });
+  {
+    const values = { cvi: await cvSlider("Drop Interval").inputValue(), cvn: await cvSlider("Balls").inputValue(), cvv: await cvSlider("Variety").inputValue() };
+    const bowl = await block.getByTestId("conveyor-arena-bowl").getAttribute("aria-pressed");
+    const frozen = await freeze().getAttribute("aria-checked");
+    const runText = await page.getByTestId("conveyor-run").innerText().catch(() => "");
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRespawn = (await page.getByTestId("respawn-every").count()) === 0;
+    check(
+      "conveyor loads from the URL",
+      values.cvi === "1.5" && values.cvn === "12" && values.cvv === "0.8" && bowl === "true" && frozen === "true" && /\b12 balls\b/.test(runText) && finderShown && noRespawn,
+      `(${JSON.stringify(values)}, bowl=${bowl}, freeze=${frozen}, "${runText}", finder shown=${finderShown}, no respawn slider=${noRespawn})`,
+    );
+  }
+  await block.getByTestId("conveyor-arena-pegs").click();
+  await cvSlider("Balls").evaluate(setRangeValue, "20");
+  await freeze().click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "conveyor mirrors into the URL",
+      query.get("mode") === "conveyor" && query.get("cva") === "pegs" && query.get("cvn") === "20" && query.get("cvi") === "1.5" && query.get("cvv") === "0.8" && !query.has("cvf") && !query.has("rse"),
+      `(${query.toString()})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("drop interval");
+  const found = await page.locator('input[aria-label="Drop Interval"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the conveyor controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A short rings run at 4×: four balls a second apart.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&cvi=1&cvn=4&face=cute`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__cvOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, type: this.type });
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-conveyor.png") });
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const banner = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.cvAllDone === "1" && d?.cvFinished === "0";
+    }, null, { timeout: 60000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.screenshot({ path: path.join(outDir, "sim-conveyor-done.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const tones = await page.evaluate(() => window.__cvOsc);
+  const drops = (data.cvDrops || "").split(",").filter(Boolean).map(Number);
+  const gaps = drops.slice(1).map((t, i) => t - drops[i]);
+  // The hum: a sawtooth on the belt's low A (55 Hz) and one a fifth above; the click: a sine thunk from 240 Hz.
+  const hums = tones.filter((o) => o.type === "sawtooth" && Math.abs(o.f - 55) < 0.01).length;
+  const fifths = tones.filter((o) => o.type === "sawtooth" && Math.abs(o.f - 82.5) < 0.01).length;
+  const thunks = tones.filter((o) => o.type === "sine" && Math.abs(o.f - 240) < 0.01).length;
+  check(
+    "conveyor: the belt drops a ball every interval, each works its way out of the rings and rides away, with a hum and a click apiece, the banner holds, then the run ends",
+    early.cvArena === "rings" && early.cvMax === "4" && Number(early.cvRings) >= 2 && banner && done && data.cvLoaded === "4" && data.cvEscaped === "4" && data.cvCarried === "4" && data.cvFinished === "1" && drops.length === 4 && gaps.every((g) => Math.abs(g - 1000) <= 10) && data.cvHums === "4" && data.cvClicks === "4" && hums === 4 && fifths === 4 && thunks === 4 && Number(data.cvPasses) >= 4 * Number(data.cvRings) && data.face === "cute",
+    `(banner=${banner}, finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("cv"))))}, drop gaps ${gaps.join("/")} ms, ${hums} hums / ${fifths} fifths / ${thunks} thunks of ${tones.length} tones)`,
+  );
+}
+{
+  // The bowl with Freeze on Landing: forty balls half a second apart pile up frozen until the pile spills over.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&cva=bowl&cvf=1&cvi=0.5&cvn=40`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cvFinished === "1", null, { timeout: 60000 }).catch(() => {});
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-conveyor-bowl.png") });
+  check(
+    "conveyor bowl: the frozen pile grows until it spills over, the overflow riding the bottom belt out",
+    data.cvFinished === "1" && data.cvArena === "bowl" && data.cvLoaded === "40" && Number(data.cvFrozen) >= 15 && data.cvFrozenBalls === data.cvFrozen && Number(data.cvOverflow) > 0 && data.cvCarried === data.cvOverflow && Number(data.cvFrozen) + Number(data.cvCarried) === 40,
+    `(${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("cv") && k !== "cvDrops")))})`,
+  );
+}
+{
+  // The peg field: ten balls bounce down into the bins.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&cva=pegs&cvi=0.5&cvn=10`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cvFinished === "1", null, { timeout: 60000 }).catch(() => {});
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-conveyor-pegs.png") });
+  check("conveyor pegs: every ball bounces through the pegs into the bins", data.cvFinished === "1" && data.cvArena === "pegs" && data.cvLoaded === "10" && data.cvLanded === "10" && Number(data.cvNotes) > 10, `(${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("cv") && k !== "cvDrops")))})`);
+}
+{
+  // The finder: the seed moves the run length (the escapes) – a found seed keeps its promise.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.cvFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a conveyor seed for 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.cvFinished === "1" && Math.abs(Number(data.cvFinishedMs) / 1000 - promised) < 0.1 && data.cvEscaped === "8",
+    `(ready=${ready}, "${readyText}", finished at ${data.cvFinishedMs} ms, escaped ${data.cvEscaped})`,
+  );
+}
+{
+  // The default run at 1× (glow on), a few balls already inside the rings.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&cvi=0.8&cvn=12&glow=1&face=cute`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(6000);
+  const fps = await pageFrameRates(4000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-conveyor-full.png") });
+  await timingCheck("a conveyor run keeps 30+ fps with balls on the belt and in the rings", Number(data.cvLoaded) >= 5, fpsOk(fps, 6, 30), `(loaded ${data.cvLoaded}, inside ${data.cvInside}, ${fpsNote(fps)}, floor 30${loadNote()})`, fpsRetry(3000, 5, 30));
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default run.
+  await page.goto(`${BASE}/en/simulator/?mode=conveyor&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await pageFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `conveyor-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await timingCheck("a 1080×1920 conveyor recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
+}
+{
+  // Respawn Every in Classic (URL rse, next to the Rotation Speed's rs): the Ball section's slider and the search box find it, a
+  // ball dropped in every second; 0 turns it off. Multiply has the slider too, the other modes do not.
+  await page.goto(`${BASE}/en/simulator/?mode=classic&rse=1&rs=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const slider = page.getByTestId("respawn-every").locator('input[aria-label="Respawn Every"]');
+  const value = await slider.inputValue().catch(() => "");
+  await page.getByPlaceholder("Search settings...").fill("respawn");
+  const found = await page.locator('input[aria-label="Respawn Every"]').isVisible();
+  await page.getByPlaceholder("Search settings...").fill("");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.respawns) >= 3, null, { timeout: 15000 }).catch(() => {});
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-classic-respawn.png") });
+  if (!(await slider.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  await slider.evaluate(setRangeValue, "0");
+  await page.waitForTimeout(300);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.goto(`${BASE}/en/simulator/?mode=multiply`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const multiplyShown = await page.getByTestId("respawn-every").isVisible();
+  await page.goto(`${BASE}/en/simulator/?mode=shatter&rse=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Ball & Physics/ }).click();
+  const shatterHidden = (await page.getByTestId("respawn-every").count()) === 0;
+  check(
+    "Respawn Every drops a new ball into Classic every second; the slider lives in Classic and Multiply only, and 0 turns it off",
+    value === "1" && found && Number(data.respawns) >= 3 && Number(data.respawnBalls) >= 2 && !query.has("rse") && query.get("rs") === "2" && multiplyShown && shatterHidden,
+    `(slider=${value}, search found it=${found}, respawns=${data.respawns}, balls=${data.respawnBalls}, after off: ${query.toString()}, multiply shows it=${multiplyShown}, shatter hides it=${shatterHidden})`,
+  );
+}
+// --- end gerald-conveyor ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

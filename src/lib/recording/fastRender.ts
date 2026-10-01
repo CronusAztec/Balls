@@ -244,6 +244,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playArenaEaten();
     return;
   }
+  // --- gerald-conveyor --- the Conveyor Belt's hum and drop click (and a respawn's drop-in click)
+  if (ev.conveyor) {
+    audio.playConveyor(ev.conveyor, ev.cvSec, ev.frequency, ev.level);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

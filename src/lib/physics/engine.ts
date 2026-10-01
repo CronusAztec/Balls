@@ -60,6 +60,9 @@ import type { Crowd } from "./crowd";
 import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { BOUNCIER_CLASSIC_MAX, bouncierIncrementOf } from "@/lib/uncap"; // --- uncap-all --- the uncapped Bouncier
 import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --- odd-maze ---
+// --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
+import { ConveyorMode, type ConveyorSettings, type ConveyorView } from "./modes/conveyor";
+import { RespawnTimer } from "./respawn";
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -290,6 +293,10 @@ export class PhysicsEngine {
   readonly territoryMode = new TerritoryMode();
   // --- odd-maze --- Maze escape (a seeded maze the balls race through, leaving a trail)
   readonly mazeMode = new MazeMode();
+  // --- gerald-conveyor --- the Conveyor Belt (a belt drops a ball into the arena below every few seconds), and the respawn
+  // timer of Classic and Multiply (a new ball drops in every `respawnEvery` seconds; respawn.ts)
+  readonly conveyorMode = new ConveyorMode();
+  private readonly respawn = new RespawnTimer();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -654,6 +661,10 @@ export class PhysicsEngine {
   initMaze() {
     this.activateMode(this.mazeMode, "none");
   }
+  // --- gerald-conveyor --- the mode owns its field (the rings arena sets the engine's rings itself)
+  initConveyor() {
+    this.activateMode(this.conveyorMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -739,6 +750,9 @@ export class PhysicsEngine {
       // --- odd-maze ---
       case "maze":
         return this.initMaze();
+      // --- gerald-conveyor ---
+      case "conveyor":
+        return this.initConveyor();
     }
   }
 
@@ -1651,6 +1665,29 @@ export class PhysicsEngine {
     return this.mazeMode.getProgress();
   }
   // --- end odd-maze ---
+  // --- gerald-conveyor ---
+  isConveyorMode() {
+    return this.currentMode === this.conveyorMode;
+  }
+  getConveyorSettings(): ConveyorSettings {
+    return this.conveyorMode.getSettings();
+  }
+  /** The interval, the ball count, the arena, the freeze and the variety of the Conveyor Belt apply on the next `initConveyor()`; the scale and root at once. */
+  setConveyorSettings(settings: Partial<ConveyorSettings>) {
+    this.conveyorMode.setSettings(settings);
+  }
+  /** Live Conveyor Belt state (layout, belts, counters, frozen balls, the end) for the canvas and the HUD; the same object every call. */
+  getConveyorView(): ConveyorView {
+    return this.conveyorMode.getView();
+  }
+  getConveyorProgress() {
+    return this.conveyorMode.getProgress();
+  }
+  /** Balls the respawn timer has dropped in this run (Classic, Multiply; `PhysicsConfig.respawnEvery`). */
+  getRespawnCount(): number {
+    return this.respawn.count;
+  }
+  // --- end gerald-conveyor ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
@@ -1906,6 +1943,7 @@ export class PhysicsEngine {
     this.wallContacts.clear(); // --- jdm-illusions --- a new run: the wobbly walls start still
     this.onBeat.reset(); // --- video-beats --- a new run: no flight plans, fresh hit statistics
     this.limits.reset(); // --- unlimited --- a new run: its crowd appears at the first step
+    this.respawn.reset(); // --- gerald-conveyor --- a new run: the respawns count from zero
   }
 
   private setObstacles(obstacles: Obstacle[]) {
@@ -2258,6 +2296,7 @@ export class PhysicsEngine {
       }
       this.cinematicDirector.update(stepMs);
       this.currentMode?.onPreUpdate(this.ctx, stepMs);
+      this.respawn.step(this.ctx, modeName, this._elapsedMs); // --- gerald-conveyor --- (a no-op unless `respawnEvery` is set in Classic / Multiply)
       if (orbsLive) mult.stepPickups(this.ctx, stepMs); // --- gerald-multipliers --- spawn, drift and fade the pickup orbs
 
       // Physics extras: air drag acts once per 60 Hz step; the gravity direction, wind and spin

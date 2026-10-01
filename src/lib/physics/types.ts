@@ -65,6 +65,8 @@ export const MODE_IDS = [
   "territory",
   // --- odd-maze --- Maze escape (oddplayground: balls race through a seeded maze, leaving a red trail)
   "maze",
+  // --- gerald-conveyor --- Conveyor Belt (a belt drops a ball into the arena below every few seconds)
+  "conveyor",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -218,6 +220,10 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
    */
   bounceMath?: BounceMathConfig;
   // --- end bounce-math ---
+  // --- gerald-conveyor ---
+  /** Seconds between two respawns in Classic and Multiply (lib/physics/respawn.ts): a new ball drops in from the top; 0 / absent = off. */
+  respawnEvery?: number;
+  // --- end gerald-conveyor ---
 }
 
 export interface SoundEvent {
@@ -280,6 +286,15 @@ export interface SoundEvent {
   // --- unlimited ---
   /** A ball ate the arena (No limits): the page plays the gulp (`ToneGenerator.playArenaEaten()`) instead of a wall break. */
   ate?: boolean;
+  // --- gerald-conveyor ---
+  /**
+   * The Conveyor Belt's machinery (`ToneGenerator.playConveyor()`, lib/audio/conveyorTones.ts) instead of a bounce: "hum" – the
+   * belt's motor while it carries a ball, `cvSec` seconds long – or "click" – a ball dropping off the belt (and a respawn
+   * dropping in). An accompaniment: it never uses up a melody note or a slicer slice.
+   */
+  conveyor?: "hum" | "click";
+  cvSec?: number;
+  // --- end gerald-conveyor ---
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

@@ -12,6 +12,7 @@ import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"
 import { scheduleGulpTone } from "./gulpTone"; // --- unlimited ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
+import { DEFAULT_HUM_FREQUENCY, scheduleConveyorClick, scheduleConveyorHum } from "./conveyorTones"; // --- gerald-conveyor ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -847,6 +848,39 @@ export class ToneGenerator {
     }
   }
   // --- end beat-drop ---
+
+  // --- gerald-conveyor ---
+  /**
+   * The Conveyor Belt's machinery (conveyorTones.ts): "hum" – the belt's motor while it carries a ball, `seconds` long, at
+   * `frequency` – or "click" – a ball dropping off the belt (or a respawn dropping in). Machinery, not notes: never snapped,
+   * never a melody note, a hit sample or a song slice, never a bounce's beat-grid slot; on the beat grid when the beat lock is
+   * on; the click ducks the music bed (the hum sits under it).
+   */
+  playConveyor(kind: "hum" | "click", seconds?: number, frequency?: number, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleConveyor(kind, seconds, frequency, level));
+      return;
+    }
+    this.scheduleConveyor(kind, seconds, frequency, level);
+  }
+
+  private scheduleConveyor(kind: "hum" | "click", seconds: number | undefined, frequency: number | undefined, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const time = this.scheduleTime(ctx.currentTime);
+      if (kind === "hum") scheduleConveyorHum(ctx, this.masterGain, frequency !== undefined && frequency > 0 ? frequency : DEFAULT_HUM_FREQUENCY, time, seconds ?? 1, hitLevel(level));
+      else {
+        scheduleConveyorClick(ctx, this.masterGain, time, this.noiseCache.get(ctx), hitLevel(level));
+        this.musicBed.duck(time);
+      }
+    } catch (err) {
+      console.error("Error playing the conveyor:", err);
+    }
+  }
+  // --- end gerald-conveyor ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

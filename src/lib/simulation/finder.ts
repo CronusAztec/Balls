@@ -43,6 +43,7 @@ import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- ger
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 import type { MazeSettings } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import type { ConveyorSettings } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -160,6 +161,13 @@ export interface ModeSettings {
    * Every run ends – every ball out, or the clip limit – so the finder searches it by length or by winner.
    */
   maze?: Partial<MazeSettings>;
+  // --- gerald-conveyor ---
+  /**
+   * Conveyor Belt: interval, ball count, arena, freeze and variety (see modes/conveyor.ts); the defaults when left out. Every
+   * run ends – the last ball out of the rings (the director helps the slow ones) or the arena settled, at the latest a safety
+   * timeout after the last drop – and the seed moves that (the escapes, the bounces), so the finder searches it.
+   */
+  conveyor?: Partial<ConveyorSettings>;
 }
 
 // --- odd-string-battle ---
@@ -377,6 +385,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---
+  if (mode === "conveyor") engine.setConveyorSettings(settings.conveyor ?? {}); // --- gerald-conveyor ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);

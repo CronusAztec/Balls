@@ -132,6 +132,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- odd-maze --- Maze escape: its own grid, no rings; recorded when the mode was added (seed 12345, defaults: a 12 × 17 maze, three
   // explorer balls released 0.26 s apart – by 10 s every one of them is out, so the last sample has no ball).
   maze: { samples: [[425996,102290],[551684,311625],[553877,319523],[480143,193547],[317671,157286],[274837,181753]], broken: [], walls: [] },
+  // --- gerald-conveyor --- Conveyor Belt: its own field, the rings arena setting the engine's rings (five fit here); recorded when
+  // the mode was added (seed 12345, defaults: 8 balls 3 s apart dropped into the rings, the escaped ones carried away).
+  conveyor: { samples: [[392830,299930],[405963,324324],[359936,292702],[332380,173434],[408332,258889],[589499,316456],[357295,354065]], broken: [], walls: [50112,79344,108576,137808,167040] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

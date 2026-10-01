@@ -30,6 +30,7 @@ import { SPLIT_SCREEN_KEYS } from "./sections/ArenasSection";
 import { STRING_BATTLE_KEYS } from "./sections/StringBattleSection";
 import { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory ---
 import { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze ---
+import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // --- gerald-conveyor ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
 import { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
@@ -94,6 +95,7 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   beatDrop: BEAT_DROP_KEYS,
   territory: TERRITORY_KEYS, // --- odd-territory ---
   maze: MAZE_KEYS, // --- odd-maze ---
+  conveyor: CONVEYOR_KEYS, // --- gerald-conveyor ---
 };
 
 /** The keys of every mode's block. */
@@ -151,6 +153,7 @@ const CAPTION_FORM_SET: ReadonlySet<string> = new Set(CAPTION_KEYS.filter((key) 
 export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean): boolean {
   if (MODE_BLOCK_KEY_SET.has(key) || SEARCH_ALIASES.has(key)) return false;
   if (key === "ballCount") return MULTI_BALL_MODES.includes(p.mode);
+  if (key === "respawnEvery") return showsRespawn(p.mode); // --- gerald-conveyor --- the respawn timer of Classic and Multiply
   if (BALL_INTERACTION_SET.has(key)) return TWO_BALL_MODES.includes(p.mode);
   if (key === "ballColor") return !p.ballPicture;
   if (MULTIPLIER_GROUP_SET.has(key)) return multipliers;
