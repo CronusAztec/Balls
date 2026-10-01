@@ -1,24 +1,18 @@
 /**
- * Loads KEY=VALUE pairs from .env.local and .env into process.env (the files `next build`
- * reads), without overriding variables already set in the shell. Used by the static server
- * and the browser scripts so they see the same NEXT_PUBLIC_BASE_PATH as the build.
+ * Loads the project's .env files into process.env exactly the way `next build` does, with Next's own loader (@next/env, which
+ * ships with next): .env.production.local, .env.local, .env.production and .env, inline comments and `export` prefixes
+ * handled, variables already set in the shell never overridden. Used by the static server and the browser scripts so they see
+ * the same NEXT_PUBLIC_BASE_PATH as the build (--- review fix (site-static) --- a hand-rolled parser kept inline comments, so
+ * `NEXT_PUBLIC_BASE_PATH=/Balls # sub-folder` built for /Balls and served "/Balls # sub-folder").
  */
-import fs from "fs";
-import path from "path";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 
 export function loadDotEnv(cwd = process.cwd()) {
-  for (const name of [".env.local", ".env"]) {
-    const file = path.join(cwd, name);
-    if (!fs.existsSync(file)) continue;
-    for (const raw of fs.readFileSync(file, "utf8").split("\n")) {
-      const line = raw.trim();
-      if (!line || line.startsWith("#")) continue;
-      const eq = line.indexOf("=");
-      if (eq < 0) continue;
-      const key = line.slice(0, eq).trim();
-      let value = line.slice(eq + 1).trim();
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-      if (!(key in process.env)) process.env[key] = value;
-    }
-  }
+  // Resolved from next's own location: @next/env is next's dependency, not the project's.
+  const { loadEnvConfig } = require(require.resolve("@next/env", { paths: [require.resolve("next/package.json")] }));
+  loadEnvConfig(cwd, false, { info() {}, error: console.error });
+  // The loader marks the environment as processed; a `next` started from a script must still read the files itself.
+  delete process.env.__NEXT_PROCESSED_ENV;
 }
