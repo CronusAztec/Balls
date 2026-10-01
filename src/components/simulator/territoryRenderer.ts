@@ -428,13 +428,13 @@ export class TerritoryLayer {
   private drawWhirls(ctx: CanvasRenderingContext2D, view: TerritoryView, balls: readonly Ball[], now: number) {
     const f = view.field;
     const q = this.point;
-    // (the arms' part on the board: `whirlReach()` – any reach draws at most the board's diagonal)
-    const w = whirlReach(view.settings.radius, view.cols, view.rows, this.whirl);
-    const R = w.reach * f.tile;
     for (const tb of view.balls) {
       if (!(tb.whirlMs > -Infinity)) continue;
       const age = now - tb.whirlMs;
       if (age < 0 || age >= TY_WHIRL_MS) continue;
+      // (the arms' part on the board: `whirlReach()` – any reach draws at most the board's diagonal; a big ball's reaches past it)
+      const w = whirlReach(tb.reach, view.cols, view.rows, this.whirl);
+      const R = w.reach * f.tile;
       const p = age / TY_WHIRL_MS;
       const B = this.ballById(balls, tb.id);
       const x = B ? B.x : f.gx + tb.u * f.tile;
@@ -555,7 +555,7 @@ export class TerritoryLayer {
         ctx.arc(B.x, B.y, 1.35 * r, 0, TWO_PI);
         ctx.stroke();
         ctx.setLineDash([]);
-      } else if (tb && tb.armedMs > -Infinity && !view.finished) {
+      } else if (tb && tb.armedMs > -Infinity && !view.finished && !view.ate) {
         // An armed bomber: a full ring flickering white – it blows on its next bounce off an enemy tile.
         const flicker = 0.5 + 0.5 * Math.sin((now - tb.armedMs) * 0.06);
         ctx.strokeStyle = ARMED_WHITE[Math.round(10 * flicker)];
@@ -563,7 +563,7 @@ export class TerritoryLayer {
         ctx.beginPath();
         ctx.arc(B.x, B.y, (1.45 + 0.15 * flicker) * r, 0, TWO_PI);
         ctx.stroke();
-      } else if (tb && (power === "bomber" || power === "vortex" || power === "painter") && !view.finished) {
+      } else if (tb && (power === "bomber" || power === "vortex" || power === "painter") && !view.finished && !view.ate) {
         // The charge ring: how far the next trigger is (white when it is about to fire).
         const every = 1000 * view.settings.powerEvery;
         const since = tb.lastPowerMs > -Infinity ? now - tb.lastPowerMs : now + every - tb.nextPowerMs;
@@ -929,6 +929,7 @@ export const TERRITORY_DATA_KEYS = [
   "tyBanner",
   "tyInField",
   "tyJolts",
+  "tyBallTiles",
 ] as const;
 
 const pctScratch: number[] = [];
@@ -967,8 +968,15 @@ export function writeTerritoryDataset(view: TerritoryView, layer: TerritoryLayer
   set("tyBadgeRight", layer.badgeDrawn && layer.badgeRight ? "1" : "0");
   set("tyHud", layer.hudDrawn ? "1" : "0");
   set("tyBanner", layer.bannerDrawn ? "1" : "0");
+  // Every ball's whole disc on the board (±0.5 px), and the biggest ball's radius in tiles (uncap-all: the Ball Size however big).
   let inField = true;
-  for (const b of balls) if (b.x < f.gx - 0.5 || b.x > f.gx + f.gridW + 0.5 || b.y < f.gy - 0.5 || b.y > f.gy + f.gridH + 0.5) inField = false;
+  let biggest = 0;
+  for (const b of balls) {
+    const r = b.radius;
+    if (b.x - r < f.gx - 0.5 || b.x + r > f.gx + f.gridW + 0.5 || b.y - r < f.gy - 0.5 || b.y + r > f.gy + f.gridH + 0.5) inField = false;
+    if (r > biggest) biggest = r;
+  }
   set("tyInField", inField ? "1" : "0");
   set("tyJolts", String(layer.jolts));
+  set("tyBallTiles", f.tile > 0 ? (biggest / f.tile).toFixed(2) : "0");
 }

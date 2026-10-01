@@ -4,22 +4,31 @@ import {
   DEFAULT_TY_POWERS,
   TERRITORY_RANGES,
   TY_ARM_MAX_MS,
+  TY_BALL_SCALE,
+  TY_CROWD_FILL,
   TY_DASH_SPEED,
   TY_DASH_TILES,
+  TY_EDGE_DEPTH,
   TY_FINALE_MS,
   TY_FINALE_SPEED,
   TY_GHOST_SPEED,
   TY_LADDER,
   TY_MAX_TEAMS,
   TY_MIN_AXIS,
+  TY_MIN_RADIUS,
+  TY_NEAR_BUDGET,
   TY_PALETTE,
+  TY_PEG_FIT,
   TY_PEG_RADIUS,
   TY_PEG_STEP,
+  TY_PROBE_RADIUS,
   TY_SPEED,
+  TY_TILE_VISITS,
   TY_VORTEX_CURVE,
   TY_WHIRL_MS,
   TY_WHIRL_SAMPLES_PER_TILE,
   awayFromAxes,
+  discSpans,
   fillRegions,
   flipFrequency,
   parseTyPowers,
@@ -28,11 +37,14 @@ import {
   resolveTerritorySettings,
   rigBlocksConversion,
   serializeTyPowers,
+  territoryBallFits,
+  territoryBallRadius,
   territoryClipSec,
   territoryField,
   territoryFinaleFactor,
   territoryForcedWinner,
   territoryLeaders,
+  territoryReach,
   territoryRows,
   territorySettingFields,
   territorySettingsOf,
@@ -49,7 +61,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
-import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
+import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
 import { FIXED_RUN_SLACK_MS, createEngineForSettings, findSimulation, fixedRunDurationSec, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { slowViewEligible } from "@/lib/simulation/camera";
@@ -60,6 +72,9 @@ import { bounceMathBeatConfig, type BounceRule } from "@/lib/simulation/bounceMa
 import { assistantSettings, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { MEMORY_CEILINGS } from "@/lib/uncap";
+import { uncapConfigOf } from "@/lib/physics/limits";
+import { buildProject, resolveProjectSettings, serializeProject } from "@/lib/project";
+import { decodeShareCode, encodeShareCode } from "@/lib/shareCode";
 
 /**
  * Territory (lib/physics/modes/territory.ts, feature odd-territory): the settings (resolve, URL, presets), the board
@@ -1085,5 +1100,486 @@ describe("Territory with the other features", () => {
     const current = { ...defaultSettings("territory"), mode: "territory" as const };
     expect(validateSettingsPatch(current, { tyTeams: 4, tyPowers: "ghost,bomber,none,vortex" }).ok).toBe(true);
     expect(validateSettingsPatch(current, { tyPowers: "laser" }).ok).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ uncap-all: the Ball Size however big */
+
+/** FNV-1a over bytes: a fingerprint of a run's exact state. */
+function fnv(bytes: Uint8Array, h = 0x811c9dc5) {
+  for (let i = 0; i < bytes.length; i++) {
+    h ^= bytes[i];
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+/** The page's run of the Territory defaults with `patch` (its 800 × 450 world), `steps` 60 Hz steps: its exact state, fingerprinted. */
+function fingerprint(patch: Partial<SimulatorSettings>, seed: number, steps: number, world = { width: 800, height: 450 }) {
+  const s = { ...defaultSettings("territory"), ...patch } as SimulatorSettings;
+  const engine = createEngineForSettings(physicsConfigOfSettings(s, world), "territory", modeSettingsOfSettings(s), seed);
+  let sounds = 0;
+  for (let i = 0; i < steps; i++) {
+    engine.update(STEP, 0);
+    sounds += engine.consumeSoundEvents().length;
+  }
+  const v = engine.getTerritoryView();
+  const state = new Float64Array(engine.getBalls().flatMap((b) => [b.id, b.x, b.y, b.vx, b.vy, b.radius]));
+  return {
+    tiles: fnv(v.tiles.subarray(0, v.total)),
+    balls: fnv(new Uint8Array(state.buffer)),
+    counts: Array.from(v.counts.subarray(0, v.teams)).join(","),
+    events: [v.conversions, v.tileBounces, v.wallBounces, v.pegHits, v.whirls, v.blasts, v.dashes, v.ghostBlocks, v.notes, sounds].join(","),
+    verdict: `${v.finished ? v.winner : "-"}`,
+  };
+}
+
+/** The Ball Size (px) whose balls are `tiles` tiles in radius. */
+const sizeFor = (tiles: number) => (8 * tiles) / TY_BALL_SCALE;
+
+/** A battle of balls `tiles` tiles in radius (the test config's 800 × 600 world). */
+function sized(tiles: number, settings: Partial<TerritorySettings> = {}, seed = 42, cfg: Partial<PhysicsConfig> = {}): PhysicsEngine {
+  return territory(settings, seed, { ...config, ballRadius: sizeFor(tiles), ...cfg });
+}
+
+/** Whether every ball's whole disc lies on the board. */
+function discsOnBoard(engine: PhysicsEngine) {
+  const f = engine.getTerritoryView().field;
+  return engine.getBalls().every((b) => b.x - b.radius >= f.gx - 1e-6 && b.x + b.radius <= f.gx + f.gridW + 1e-6 && b.y - b.radius >= f.gy - 1e-6 && b.y + b.radius <= f.gy + f.gridH + 1e-6);
+}
+
+/** The tile's nearest point to (u, v), as its distance (tile units). */
+function tileDistance(col: number, row: number, u: number, v: number) {
+  const du = Math.max(col, Math.min(col + 1, u)) - u;
+  const dv = Math.max(row, Math.min(row + 1, v)) - v;
+  return Math.hypot(du, dv);
+}
+
+/** The most enemy tiles any ball has deeper than `depth` tiles inside its disc – not counting the ground under another team's ball. */
+function sunkTiles(engine: PhysicsEngine, depth: number) {
+  const v = engine.getTerritoryView();
+  const f = v.field;
+  const balls = engine.getBalls().map((b) => ({ team: b.team!, u: (b.x - f.gx) / f.tile, v: (b.y - f.gy) / f.tile, r: b.radius / f.tile }));
+  let worst = 0;
+  for (const b of balls) {
+    let n = 0;
+    for (let row = Math.max(0, Math.floor(b.v - b.r)); row <= Math.min(v.rows - 1, Math.floor(b.v + b.r)); row++) {
+      for (let col = Math.max(0, Math.floor(b.u - b.r)); col <= Math.min(v.cols - 1, Math.floor(b.u + b.r)); col++) {
+        if (v.tiles[row * v.cols + col] === b.team || tileDistance(col, row, b.u, b.v) >= b.r - depth) continue;
+        if (!balls.some((o) => o.team !== b.team && tileDistance(col, row, o.u, o.v) < o.r)) n++;
+      }
+    }
+    worst = Math.max(worst, n);
+  }
+  return worst;
+}
+
+describe("Territory past the old size cap (uncap-all: the Ball Size however big)", () => {
+  it("plays every size the old cap allowed exactly as before: whole runs' states, bit for bit", () => {
+    // Recorded with the code before the cap was lifted (TY_MAX_RADIUS = 0.9 tiles): the page's defaults through the verdict,
+    // four teams with every power and the dotted grid, the Ball Sizes 16 and 4 (the ghost and the painter, 48 columns) and
+    // the bot's 800 × 600 world. Every bit of every ball and tile, every counter and sound, the same.
+    expect(fingerprint({}, 1, 1900)).toEqual({ tiles: 2077598062, balls: 1579712573, counts: "271,209", events: "187,119,180,0,20,18,0,0,93,123", verdict: "0" });
+    expect(fingerprint({ tyTeams: 4, tyBallsPerTeam: 3, tyPegs: true, tyPowers: "vortex,bomber,painter,ghost" }, 7, 900)).toEqual({ tiles: 3698735293, balls: 1697172989, counts: "156,105,126,93", events: "1013,425,237,460,15,15,15,68,140,248", verdict: "-" });
+    expect(fingerprint({ ballRadius: 16, tyPowers: "ghost,painter,vortex,bomber" }, 3, 900)).toEqual({ tiles: 1966518269, balls: 3446846487, counts: "246,234", events: "238,101,72,0,0,0,10,23,59,92", verdict: "-" });
+    expect(fingerprint({ ballRadius: 4, tyCols: 48 }, 5, 600)).toEqual({ tiles: 3168323384, balls: 334133007, counts: "961,959", events: "93,41,47,0,6,6,0,0,33,45", verdict: "-" });
+    expect(fingerprint({}, 42, 600, { width: 800, height: 600 })).toEqual({ tiles: 1418246952, balls: 2350001713, counts: "265,215", events: "57,40,45,0,6,6,0,0,34,46", verdict: "-" });
+  });
+
+  it("sizes the balls by the Ball Size with no maximum – past the old 0.9 tiles, on any board – and knows when one is wider than the board", () => {
+    for (const size of [4, 8, 17, 18, 30, 57, 100, 1e3, 1e9]) expect([size, territoryBallRadius(size, 10) / (10 * TY_BALL_SCALE * (size / 8))].map((n) => +n.toFixed(12))).toEqual([size, 1]);
+    expect(territoryBallRadius(1, 10)).toBe(10 * TY_MIN_RADIUS); // (a floor, never a ceiling)
+    expect(territoryBallRadius(Number.NaN, 10)).toBe(territoryBallRadius(8, 10));
+    for (const [size, cols] of [[30, 24], [57, 24], [100, 24], [180, 24], [600, 200], [4000, 1000]] as const) {
+      const engine = territory({ cols }, 42, { ...config, ballRadius: size });
+      const v = engine.getTerritoryView();
+      for (const b of engine.getBalls()) expect([size, cols, +(b.radius / v.field.tile).toFixed(9)]).toEqual([size, cols, +(TY_BALL_SCALE * (size / 8)).toFixed(9)]);
+    }
+    const f = territoryField(800, 600, 24);
+    expect(f.gridH).toBeLessThan(f.gridW);
+    expect(territoryBallFits(f.gridH / 2 - 1e-9, f)).toBe(true);
+    expect(territoryBallFits(f.gridH / 2, f)).toBe(false);
+    // The tile test follows the size: the eight rim probes up to the old cap, the contact edge past it.
+    expect(TY_PROBE_RADIUS).toBe(0.9);
+    expect(TY_PEG_FIT).toBeCloseTo(1.4, 12);
+  });
+
+  it("a ball of 3 tiles flips several tiles per hit, never leaves the board and never sinks into enemy ground over 20 s", () => {
+    for (const seed of [1, 2, 3]) {
+      const engine = sized(3, { powers: NONE, duration: 60 }, seed);
+      const v = engine.getTerritoryView();
+      expect(engine.getBalls()[0].radius / v.field.tile).toBeCloseTo(3, 9);
+      let onBoard = true;
+      let sunk = 0;
+      for (let s = 0; s < 20 * 60; s++) {
+        engine.update(STEP, 0);
+        engine.consumeSoundEvents();
+        if (!discsOnBoard(engine)) onBoard = false;
+        if (s % 5 === 0) sunk = Math.max(sunk, sunkTiles(engine, TY_EDGE_DEPTH + 0.5));
+      }
+      expect([seed, onBoard, sunk]).toEqual([seed, true, 0]);
+      expect(v.tileBounces).toBeGreaterThan(100);
+      // A default ball takes one tile a hit; this one its front, a tile deep: several.
+      expect(v.conversions / v.tileBounces).toBeGreaterThan(3);
+      expect(v.wallBounces / (engine.getBalls().length * 20)).toBeLessThan(10); // (moving freely, not jammed against the frame)
+      expect(accounted(engine).ok).toBe(true);
+      for (const b of engine.getBalls()) expect([b.x, b.y, b.vx, b.vy].every(Number.isFinite)).toBe(true);
+    }
+    // A default ball, the same way: one tile a hit.
+    const plain = territory({ powers: NONE, duration: 60 }, 1);
+    for (let s = 0; s < 20 * 60; s++) plain.update(STEP, 0);
+    expect(plain.getTerritoryView().conversions / plain.getTerritoryView().tileBounces).toBeLessThan(1.1);
+  });
+
+  it("finds the tiles under a disc's edge row by row: discSpans() is the brute-force overlap (bands and crescents too)", () => {
+    let seed = 12345;
+    const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296);
+    const brute = (cu: number, cv: number, r: number, inner: number, cols: number, rows: number, iu: number, iv: number) => {
+      const out: string[] = [];
+      for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) if (tileDistance(col, row, cu, cv) < r && !(inner > 0 && tileDistance(col, row, iu, iv) < inner)) out.push(`${col},${row}`);
+      return out.sort();
+    };
+    const spans = { spans: new Int32Array(3) };
+    const cases: [number, number, number, number, number, number][] = [
+      [5, 5, 2, 0, 5, 5],
+      [5.5, 4.5, 3, 1, 5.5, 4.5],
+      [0, 0, 4, 0, 0, 0],
+      [11.9, 2.1, 7.3, 6.2, 11.9, 2.1],
+    ];
+    for (let k = 0; k < 400; k++) {
+      const cu = -3 + 23 * rnd();
+      const cv = -3 + 19 * rnd();
+      const r = 0.05 + 11 * rnd();
+      const kind = k % 3;
+      const inner = kind === 0 ? 0 : r * rnd();
+      const shift = kind === 2 ? 1 : 0;
+      const a = 2 * Math.PI * rnd();
+      cases.push([cu, cv, r, inner, cu - shift * Math.cos(a), cv - shift * Math.sin(a)]);
+    }
+    for (const [cu, cv, r, inner, iu, iv] of cases) {
+      const n = discSpans(cu, cv, r, inner, 17, 13, spans, iu, iv);
+      const got: string[] = [];
+      for (let s = 0; s < n; s++) for (let col = spans.spans[3 * s + 1]; col <= spans.spans[3 * s + 2]; col++) got.push(`${col},${spans.spans[3 * s]}`);
+      expect([cu, cv, r, inner, iu, iv, got.sort()]).toEqual([cu, cv, r, inner, iu, iv, brute(cu, cv, r, inner, 17, 13, iu, iv)]);
+      expect(new Set(got).size).toBe(got.length); // (no tile twice)
+    }
+  });
+
+  it("bounces a big ball the same off a border or a corner from either side, and the order the balls move in changes nothing", () => {
+    // Team 0 above the border and team 1 below it are each other's 180° turn; so are their bounces, their dents and their counts.
+    for (const corner of [false, true]) {
+      for (const [u, ux, uy] of [[9.5, 0.3, 0.95], [12.2, -0.6, 0.8], [8.05, 0.95, 0.31]]) {
+        const top = sized(3, { powers: NONE, ballsPerTeam: 1 });
+        const bottom = sized(3, { powers: NONE, ballsPerTeam: 1 });
+        const v = top.getTerritoryView();
+        const f = v.field;
+        const mid = v.rows / 2;
+        if (corner) {
+          setTile(top, Math.floor(u) + 1, mid - 1, 1);
+          setTile(bottom, v.cols - 1 - (Math.floor(u) + 1), mid, 0);
+        }
+        const a = onlyBall(top, 0);
+        const b = onlyBall(bottom, 1);
+        a.x = f.gx + u * f.tile;
+        a.y = f.gy + mid * f.tile - a.radius - 0.5;
+        a.vx = 400 * ux;
+        a.vy = 400 * uy;
+        b.x = f.gx + f.gridW - (a.x - f.gx);
+        b.y = f.gy + f.gridH - (a.y - f.gy);
+        b.vx = -a.vx;
+        b.vy = -a.vy;
+        for (let i = 0; i < 4; i++) {
+          top.update(STEP, 0);
+          bottom.update(STEP, 0);
+        }
+        const label = `${corner ? "corner" : "border"} ${u}`;
+        expect(top.getTerritoryView().tileBounces, label).toBeGreaterThan(0);
+        expect(b.vx, label).toBeCloseTo(-a.vx, 6);
+        expect(b.vy, label).toBeCloseTo(-a.vy, 6);
+        expect(b.x - f.gx, label).toBeCloseTo(f.gridW - (a.x - f.gx), 6);
+        expect(top.getTerritoryView().conversions, label).toBe(bottom.getTerritoryView().conversions);
+        expect(top.getTerritoryView().conversions, label).toBeGreaterThan(2);
+        for (let row = 0; row < v.rows; row++) for (let col = 0; col < v.cols; col++) expect(owner(top, col, row), `${label} ${col},${row}`).toBe(1 - owner(bottom, v.cols - 1 - col, v.rows - 1 - row));
+      }
+    }
+    // Two big balls of different teams working the same stretch of border in the same sub-steps: whoever moves first.
+    const run = (order: "ab" | "ba") => {
+      const engine = sized(2, { powers: NONE, ballsPerTeam: 1 });
+      const v = engine.getTerritoryView();
+      const f = v.field;
+      const boundary = f.gy + (v.rows / 2) * f.tile;
+      const a = engine.getBalls().find((b) => b.team === 0)!;
+      const b = engine.getBalls().find((b) => b.team === 1)!;
+      a.x = f.gx + 9.5 * f.tile;
+      b.x = f.gx + 13.25 * f.tile;
+      a.y = boundary - a.radius - 0.5;
+      a.vx = 60;
+      a.vy = 400;
+      b.y = boundary + 0.5 * f.tile + b.radius;
+      b.vx = -60;
+      b.vy = -400;
+      engine.setBalls(order === "ab" ? [a, b] : [b, a]);
+      for (let i = 0; i < 3; i++) engine.update(STEP, 0);
+      const at = (ball: { x: number; y: number; vx: number; vy: number }) => [ball.x, ball.y, ball.vx, ball.vy].map((n) => Math.round(n * 1e6));
+      return { tiles: Array.from(v.tiles.subarray(0, v.total)).join(""), a: at(a), b: at(b), conversions: v.conversions, bounces: v.tileBounces };
+    };
+    const ab = run("ab");
+    expect(ab).toEqual(run("ba"));
+    expect(ab.conversions).toBeGreaterThan(4);
+    expect(ab.bounces).toBeGreaterThan(1);
+  });
+
+  it("leaves the ground another team's ball stands on to it: two big balls passing through each other flip nothing under each other", () => {
+    const engine = sized(3, { powers: NONE, ballsPerTeam: 1 }, 42, { ballInteraction: "pass" });
+    const v = engine.getTerritoryView();
+    const f = v.field;
+    const a = engine.getBalls().find((b) => b.team === 0)!;
+    const b = engine.getBalls().find((b) => b.team === 1)!;
+    // B sits in its own half; A drives into it from above, half over it.
+    b.x = f.gx + 12 * f.tile;
+    b.y = f.gy + 15 * f.tile;
+    b.vx = 30;
+    b.vy = 0;
+    a.x = f.gx + 12.4 * f.tile;
+    a.y = f.gy + 12.2 * f.tile;
+    a.vx = 0;
+    a.vy = 400;
+    engine.update(STEP, 0);
+    let under = 0;
+    let taken = 0;
+    const bu = (b.x - f.gx) / f.tile;
+    const bv = (b.y - f.gy) / f.tile;
+    for (let row = 0; row < v.rows; row++) {
+      for (let col = 0; col < v.cols; col++) {
+        if (row < v.rows / 2) continue;
+        if (tileDistance(col, row, bu, bv) < b.radius / f.tile - 0.2) {
+          under++;
+          expect(owner(engine, col, row), `${col},${row}`).toBe(1);
+        } else if (owner(engine, col, row) === 0) taken++;
+      }
+    }
+    expect(under).toBeGreaterThan(20);
+    expect(taken).toBeGreaterThan(0); // (A took the enemy ground under its edge that no ball of B's stands on)
+    expect(accounted(engine).ok).toBe(true);
+  });
+
+  it("a ball wider than the board ate the arena: the run ends at its first step with the outgrow finish, the ball's size and the gulp", () => {
+    // Ball Size 200: 246.75 px on a board 470 px tall – wider than it, under half the canvas' diagonal (the mode's own check).
+    const engine = territory({}, 42, { ...config, ballRadius: 200 });
+    const v = engine.getTerritoryView();
+    const f = v.field;
+    const radius = engine.getBalls()[0].radius;
+    expect(radius).toBeCloseTo(f.tile * TY_BALL_SCALE * 25, 9);
+    expect(territoryBallFits(radius, f)).toBe(false);
+    expect(engine.isSimulationFinished()).toBe(false);
+    engine.update(STEP, 0);
+    const events = engine.consumeSoundEvents();
+    expect([engine.isSimulationFinished(), engine.getMultiplierRuntime().isOutgrown(), v.ate, v.finished, v.winner]).toEqual([true, true, true, false, -1]);
+    expect(engine.getUnlimitedView().ate).toBe(true);
+    expect(engine.getUnlimitedView().ateRadius).toBeCloseTo(radius, 9); // the banner names the size that ate it
+    expect(events.filter((e) => e.ate)).toHaveLength(1);
+    // The ball fills the board from its middle; every ball is at most that big, and nothing moves any more.
+    const fill = Math.min(f.gridW, f.gridH) / 2;
+    expect(engine.getBalls().every((b) => b.radius <= fill + 1e-9)).toBe(true);
+    expect(engine.getBalls().some((b) => Math.abs(b.x - (f.gx + f.gridW / 2)) < 1e-6 && Math.abs(b.y - (f.gy + f.gridH / 2)) < 1e-6 && Math.abs(b.radius - fill) < 1e-9)).toBe(true);
+    const still = engine.getBalls().map((b) => [b.x, b.y]);
+    for (let i = 0; i < 30; i++) engine.update(STEP, 0);
+    expect(engine.getBalls().map((b) => [b.x, b.y])).toEqual(still);
+    expect([v.conversions, engine.getElapsedMs()]).toEqual([0, STEP]);
+    // Just under the board's height it plays (crowded: the four balls pass through each other).
+    const fits = territory({ powers: NONE }, 42, { ...config, ballRadius: 185 });
+    for (let i = 0; i < 120; i++) fits.update(STEP, 0);
+    expect([fits.isSimulationFinished(), fits.getTerritoryView().ate, discsOnBoard(fits), fits.getTerritoryView().conversions > 0]).toEqual([false, false, true, true]);
+    // Past half the canvas' diagonal the extreme runtime eats it as the step begins: the same finish.
+    const huge = territory({}, 42, { ...config, ballRadius: 1e6 });
+    huge.update(STEP, 0);
+    expect([huge.isSimulationFinished(), huge.getUnlimitedView().ate, huge.consumeSoundEvents().filter((e) => e.ate).length]).toEqual([true, true, 1]);
+    expect(huge.getUnlimitedView().ateRadius).toBeCloseTo(huge.getTerritoryView().field.tile * TY_BALL_SCALE * 125_000, 3);
+    // A live Ball Size past the board ends a running battle at its next step.
+    const live = territory({}, 42);
+    for (let i = 0; i < 60; i++) live.update(STEP, 0);
+    const conversions = live.getTerritoryView().conversions;
+    live.setConfig({ ballRadius: 400 });
+    live.update(STEP, 0);
+    expect([live.isSimulationFinished(), live.getTerritoryView().ate, live.getUnlimitedView().ate, live.getTerritoryView().conversions]).toEqual([true, true, true, conversions]);
+  });
+
+  it("big balls crowding the board pass through each other and say ARENA FULL instead of jamming against each other and the frame", () => {
+    // Four balls of 6.3 tiles cover the 24 × 20 board once over: bouncing off each other they jammed, every ball off the
+    // frame at every sub-step (240 frame bounces a ball and second).
+    const crowded = sized(6.3, { powers: NONE, duration: 60 });
+    const v = crowded.getTerritoryView();
+    crowded.update(STEP, 0);
+    const area = crowded.getBalls().reduce((sum, b) => sum + Math.PI * b.radius * b.radius, 0);
+    expect(area).toBeGreaterThan(TY_CROWD_FILL * v.field.gridW * v.field.gridH);
+    expect([crowded.territoryMode.ballsPassThrough, crowded.getUnlimitedView().full]).toEqual([true, true]);
+    let onBoard = true;
+    for (let s = 0; s < 10 * 60; s++) {
+      crowded.update(STEP, 0);
+      crowded.consumeSoundEvents();
+      if (!discsOnBoard(crowded)) onBoard = false;
+    }
+    expect(onBoard).toBe(true);
+    expect(v.wallBounces / (4 * 10)).toBeLessThan(20);
+    expect(v.conversions).toBeGreaterThan(100);
+    expect(accounted(crowded).ok).toBe(true);
+    // With room to bounce apart they do (no ARENA FULL), and the old sizes never pass through each other.
+    const roomy = sized(3, { powers: NONE });
+    roomy.update(STEP, 0);
+    expect([roomy.territoryMode.ballsPassThrough, roomy.getUnlimitedView().full]).toEqual([false, false]);
+    const packed = territory({ teams: 4, ballsPerTeam: 8, cols: 12 }, 42);
+    packed.update(STEP, 0);
+    expect(packed.territoryMode.ballsPassThrough).toBe(false);
+  });
+
+  it("a big ball rolls over the dotted grid; its powers reach past it; a big ghost and painter take their own width", () => {
+    // The dots: a ball that fits between two of them bounces off them, a wider one rolls over them.
+    for (const [tiles, hits] of [[1.2, true], [2.1, false]] as const) {
+      const engine = sized(tiles, { pegs: true, powers: NONE, duration: 30 });
+      for (let s = 0; s < 10 * 60; s++) engine.update(STEP, 0);
+      expect([tiles, engine.getTerritoryView().pegHits > 0, discsOnBoard(engine)]).toEqual([tiles, hits, true]);
+    }
+    // The reach: the Power Reach from a ball's centre up to the old cap, past it as much more as the ball outgrew it.
+    expect([territoryReach(3, 0.42), territoryReach(3, TY_PROBE_RADIUS), territoryReach(3, 3), territoryReach(1e9, 50)]).toEqual([3, 3, 3 + (3 - TY_PROBE_RADIUS), 1e9 + 50 - TY_PROBE_RADIUS]);
+    {
+      // A bomber of 3 tiles armed at the border, heading into the enemy half: its blast takes every tile within 5.1 tiles.
+      const engine = sized(3, { powers: ["none", "bomber", "none", "none"], ballsPerTeam: 1, radius: 3 });
+      const v = engine.getTerritoryView();
+      const f = v.field;
+      const bomber = onlyBall(engine, 1);
+      const tb = teamBall(engine, bomber);
+      bomber.x = f.gx + 12 * f.tile;
+      bomber.y = f.gy + (v.rows / 2) * f.tile + bomber.radius + 0.5;
+      bomber.vx = 0;
+      bomber.vy = -400;
+      tb.nextPowerMs = 0;
+      for (let i = 0; i < 4 && v.blasts === 0; i++) engine.update(STEP, 0);
+      expect(v.blasts).toBe(1);
+      const shock = v.shocks[0];
+      expect(shock.radius).toBeCloseTo(territoryReach(3, 3), 9);
+      let beyond = 0;
+      for (let row = 0; row < v.rows; row++) {
+        for (let col = 0; col < v.cols; col++) {
+          const d = Math.hypot(col + 0.5 - shock.u, row + 0.5 - shock.v);
+          if (d > shock.radius) continue;
+          expect(owner(engine, col, row), `${col},${row}`).toBe(1);
+          if (d > 3.2 && row < v.rows / 2) beyond++;
+        }
+      }
+      expect(beyond).toBeGreaterThan(5); // (past the ball's own rim)
+    }
+    {
+      // A vortex of 3 tiles: its whirl reaches 5.1 tiles.
+      const engine = sized(3, { powers: ["vortex", "none", "none", "none"], ballsPerTeam: 1, radius: 3 });
+      const ball = onlyBall(engine, 0);
+      teamBall(engine, ball).nextPowerMs = 0;
+      engine.update(STEP, 0);
+      expect(teamBall(engine, ball).reach).toBeCloseTo(territoryReach(3, 3), 9);
+      expect(engine.getTerritoryView().whirls).toBe(1);
+    }
+    {
+      // A ghost of 3 tiles bouncing off the bottom frame in the enemy half (in the step's first sub-step) takes every tile its
+      // disc covers there.
+      const engine = sized(3, { powers: ["ghost", "none", "none", "none"], ballsPerTeam: 1 });
+      const v = engine.getTerritoryView();
+      const f = v.field;
+      const ball = onlyBall(engine, 0);
+      ball.x = f.gx + 11.7 * f.tile;
+      ball.y = f.gy + f.gridH - ball.radius + 0.5;
+      ball.vx = 100;
+      ball.vy = 400;
+      const u = 11.7;
+      const w = v.rows - 3;
+      engine.update(STEP, 0);
+      expect([v.wallBounces, v.ghostBlocks]).toEqual([1, 1]);
+      let disc = 0;
+      for (let row = 0; row < v.rows; row++) {
+        for (let col = 0; col < v.cols; col++) {
+          if (tileDistance(col, row, u, w) >= 3 - 0.1) continue;
+          disc++;
+          expect(owner(engine, col, row), `${col},${row}`).toBe(0);
+        }
+      }
+      expect(disc).toBeGreaterThan(15);
+      expect(v.conversions).toBeGreaterThan(20);
+    }
+    {
+      // A painter of 2 tiles dashing straight down through the enemy half paints a trail as wide as itself.
+      const engine = sized(2, { powers: ["painter", "none", "none", "none"], ballsPerTeam: 1 });
+      const v = engine.getTerritoryView();
+      const f = v.field;
+      const ball = onlyBall(engine, 0);
+      ball.x = f.gx + 12 * f.tile;
+      ball.y = f.gy + (v.rows / 2) * f.tile - ball.radius - 0.5;
+      ball.vx = 0;
+      ball.vy = 400;
+      teamBall(engine, ball).nextPowerMs = 0;
+      const dashMs = (1000 * TY_DASH_TILES * f.tile) / (TY_SPEED * f.side * TY_DASH_SPEED);
+      for (let i = 0; i < Math.floor(dashMs / STEP) - 1; i++) engine.update(STEP, 0);
+      expect([v.dashes, v.tileBounces]).toEqual([1, 0]);
+      const { row } = tileOf(engine, ball.x, ball.y);
+      for (let r = v.rows / 2; r <= row; r++) for (let col = 11; col <= 12; col++) expect(owner(engine, col, r), `${col},${r}`).toBe(0);
+      expect(v.conversions).toBeGreaterThan(3 * (row - v.rows / 2 + 1));
+    }
+  });
+
+  it("plans a big ball's steps a tile at a time on a board of tiny tiles (and nothing for the old sizes)", () => {
+    // 400 columns: tiles of 1.41 px. A ball of 10.5 tiles (14.8 px) may move 4 px a sub-step in the engine's plan – three
+    // tiles –, so the mode asks for sub-steps of at most a tile.
+    const engine = territory({ cols: 400, powers: NONE }, 42, { ...config, ballRadius: 200 });
+    const v = engine.getTerritoryView();
+    const f = v.field;
+    expect(f.tile).toBeLessThan(1.5);
+    let worst = 0;
+    for (let s = 0; s < 120; s++) {
+      const before = engine.getBalls().map((b) => [b.x, b.y]);
+      engine.update(STEP, 0);
+      const sub = Math.max(4, engine.getMultiplierView().subSteps);
+      engine.getBalls().forEach((b, i) => (worst = Math.max(worst, Math.hypot(b.x - before[i][0], b.y - before[i][1]) / sub)));
+    }
+    expect(engine.getMultiplierView().subSteps).toBeGreaterThan(4);
+    expect(worst).toBeLessThan(f.tile);
+    expect(discsOnBoard(engine)).toBe(true);
+    const plain = territory({ cols: 400, powers: NONE }, 42);
+    plain.update(STEP, 0);
+    expect(plain.getMultiplierView().subSteps).toBe(0); // (no plan: the old sizes take the engine's own four sub-steps)
+  });
+
+  it("the Power Reach and the Ball Size travel past their sliders through links, presets, project files and share codes, and run as typed", async () => {
+    for (const [tyRadius, ballRadius] of [[9, 31], [50, 120], [12_345, 1e4], [1e9, 1e6]]) {
+      const settings: SimulatorSettings = { ...defaultSettings("territory"), tyRadius, ballRadius };
+      const params = settingsToSearchParams(settings);
+      expect([params.get("tyr"), params.get("r")]).toEqual([String(tyRadius), String(ballRadius)]);
+      const fromLink = settingsFromSearchParams(params);
+      const fromPreset = presetToSettings(JSON.parse(JSON.stringify(settings)));
+      const fromFile = resolveProjectSettings(JSON.parse(serializeProject(buildProject({ name: "big", settings }))).settings);
+      const code = await encodeShareCode(params);
+      const decoded = await decodeShareCode(code!);
+      expect(decoded.ok).toBe(true);
+      const fromCode = decoded.ok ? settingsFromSearchParams(decoded.params) : null;
+      for (const s of [fromLink, fromPreset, fromFile, fromCode!]) {
+        expect([s.mode, s.tyRadius, s.ballRadius, territorySettingsOf(s).radius, uncappedEngaged(s)]).toEqual(["territory", tyRadius, ballRadius, tyRadius, true]);
+      }
+      // The engine the page builds runs both as typed: the reach, and the balls' size (no cap) until they are wider than the board.
+      const engine = createEngineForSettings({ ...physicsConfigOfSettings(fromLink), ...uncapConfigOf(true, fromLink.ballCount, 2, false) }, "territory", modeSettingsOfSettings(fromLink), 3);
+      const f = engine.getTerritoryView().field;
+      expect(engine.getTerritorySettings().radius).toBe(tyRadius);
+      expect(engine.getBalls()[0].radius).toBeCloseTo(territoryBallRadius(ballRadius, f.tile), 6);
+      engine.update(STEP, 0);
+      expect(engine.getMultiplierRuntime().isOutgrown()).toBe(!territoryBallFits(territoryBallRadius(ballRadius, f.tile), f));
+    }
+  });
+
+  it("bounds the big balls' work: a ceiling on the tiles visited a sub-step and on the neighbours a test respects – runs stay fast and in the field", () => {
+    expect(TY_TILE_VISITS).toBe(1 << 20);
+    expect(TY_NEAR_BUDGET).toBeGreaterThanOrEqual(8);
+    // A thousand columns and balls 210 tiles wide; 64 balls of 4 tiles piled on 24 columns.
+    for (const [settings, size] of [[{ cols: 1000 }, 4000], [{ teams: 4 as const, ballsPerTeam: 16 }, 80]] as const) {
+      const engine = territory({ ...settings, powers: NONE }, 7, { ...config, ballRadius: size });
+      const started = performance.now();
+      for (let s = 0; s < 60; s++) engine.update(STEP, 0);
+      expect(performance.now() - started).toBeLessThan(6000);
+      expect([discsOnBoard(engine), accounted(engine).ok, engine.getTerritoryView().conversions > 0]).toEqual([true, true, true]);
+    }
   });
 });
