@@ -28,6 +28,7 @@ import {
 import { bytesToBase64 } from "@/lib/base64";
 import { WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
 import { defaultSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { SITE_DOMAIN } from "@/lib/site";
 
 function bytesOf(length: number, seed = 7): Uint8Array {
   const out = new Uint8Array(length);
@@ -127,7 +128,7 @@ describe("project files", () => {
     expect(s.ballSpeed).toBe(800);
     expect(s.wallCount).toBe(1);
     expect(s.topText).toBe("");
-    expect(s.bottomText).toHaveLength(500);
+    expect(s.bottomText).toHaveLength(60); // --- review fix (recording-export) --- (a link's length: a share link made after the import keeps it whole)
     expect(s.rainbowBall).toBe(false);
     expect(s.obstacles).toEqual([]);
     expect(s.ballInteraction).toBe(d.ballInteraction);
@@ -215,5 +216,36 @@ describe("project files", () => {
     expect(resolveExtras({ ballEmoji: " 😂 ", melody: "ode-to-joy" })).toEqual({ ballEmoji: "😂", melody: "ode-to-joy" });
     expect(resolveExtras({ ballEmoji: "a very long text", melody: "../../etc/passwd" })).toEqual({ ballEmoji: null, melody: null });
     expect(resolveExtras("junk")).toEqual({ ballEmoji: null, melody: null });
+  });
+});
+
+// --- review fix (recording-export) --- legacy files: enumerations, texts and the pre-rename default watermark
+describe("project files from before the checks (review fix: recording-export)", () => {
+  const legacy = (settings: Record<string, unknown>) => JSON.stringify({ format: "viralballs-project", version: 1, name: "old", settings: { mode: "classic", recordingDuration: 10, ...settings }, assets: {} });
+
+  it("a bogus resolution, wall-break style and rainbow mode fall back; texts are cut at a link's 60 characters", () => {
+    const result = parseProject(legacy({ recordingResolution: "20000x20000", wallBreakStyle: "bogus", rainbowWallMode: "bogus", topText: "t".repeat(300), watermarkText: "w".repeat(80) }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const s = result.project.settings;
+    expect(s.recordingResolution).toBe("1080x1920");
+    expect(s.wallBreakStyle).toBe("confetti");
+    expect(s.rainbowWallMode).toBe("gradient");
+    expect(s.topText).toHaveLength(60);
+    expect(s.watermarkText).toHaveLength(60);
+    expect(s.recordingDuration).toBe(10);
+  });
+
+  it("the old default watermark (viralballs.com) opens as today's default; a custom one stays", () => {
+    const old = parseProject(legacy({ watermarkText: "viralballs.com" }));
+    expect(old.ok && old.project.settings.watermarkText).toBe(SITE_DOMAIN);
+    const own = parseProject(legacy({ watermarkText: "@me" }));
+    expect(own.ok && own.project.settings.watermarkText).toBe("@me");
+  });
+
+  it("a negative ball size or no rings open at their slider's minimum, a big wall count stays", () => {
+    const r = parseProject(legacy({ ballRadius: -5, wallCount: 0 }));
+    expect(r.ok && r.project.settings.ballRadius).toBe(4);
+    expect(r.ok && r.project.settings.wallCount).toBe(1);
   });
 });

@@ -2,11 +2,11 @@ import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { PhysicsEngine } from "@/lib/physics/engine";
-import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
+import { MODE_IDS, type ModeId, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { wallHitFrequency } from "@/lib/audio/sampler";
 import { MULTIPLY_MAX_BALLS } from "@/lib/physics/modes/multiply";
 import { BOX_WALL_NOTES } from "@/lib/physics/modes/box";
-import { BM_BOUNCE, BounceMathRuntime, PITCH_MAX_HZ, bounceHitEvent, bounceParamApplies, pitchedFrequency, resizeTrail } from "@/lib/physics/bounceMathRuntime";
+import { BM_BOUNCE, BounceMathRuntime, PITCH_MAX_HZ, bounceHitEvent, bounceParamApplies, bounceTriggerApplies, pitchedFrequency, resizeTrail } from "@/lib/physics/bounceMathRuntime";
 import { createEngineForSettings, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { buildProject, parseProject, serializeProject } from "@/lib/project";
@@ -36,6 +36,7 @@ import {
   evaluateFormula,
   formatBounceValue,
   moveRule,
+  parseColorHsl,
   parseRule,
   parseRules,
   removeRule,
@@ -424,6 +425,20 @@ describe("validation and the URL form", () => {
     expect(rotateHue("#f00", -120)).toBe("#0000ff");
     expect(rotateHue("hsl(0, 100%, 50%)", 240)).toBe("#0000ff");
     expect(rotateHue("not a colour", 90)).toBe("not a colour");
+    // White, black and greys have no hue to turn: they turn from a saturated colour of a similar lightness, so a shift shows.
+    for (const grey of ["#FFFFFF", "#ffffff", "#fff", "#808080", "#000000", "#fcfcfc"]) {
+      const turned = rotateHue(grey, 90);
+      expect(turned, grey).not.toBe(grey.toLowerCase());
+      const hsl = parseColorHsl(turned)!;
+      expect(hsl.s, grey).toBeGreaterThan(0.5);
+      expect(hsl.l, grey).toBeGreaterThanOrEqual(0.44);
+      expect(hsl.l, grey).toBeLessThanOrEqual(0.66);
+      expect(hsl.h, grey).toBeCloseTo(90, 0);
+    }
+    expect(rotateHue("#FFFFFF", 90)).not.toBe("#ffffff");
+    expect(rotateHue("#808080", 120)).not.toBe("#808080");
+    expect(rotateHue("#FFFFFF", 0)).toBe("#FFFFFF");
+    expect(rotateHue("#ffffff", 30)).not.toBe(rotateHue("#ffffff", 60));
     expect(formatBounceValue(1.05)).toBe("1.05");
     expect(formatBounceValue(812.4)).toBe("812");
     expect(formatBounceValue(12345)).toBe("12.3k");
@@ -756,6 +771,113 @@ describe("bounce math in the engine", () => {
     });
     expect(max).toBeGreaterThan(400 * 1.2);
     expect(max).toBeLessThan(400 * 1.5 * 2.5);
+  });
+
+  it("Glass Smash: a bounciness of 2 hops twice as fast and four times as high – the landing's hop takes it", () => {
+    const hop = (rules: BounceRule[] | null) => {
+      const engine = makeEngine(rules, "glass", 7);
+      let up = 0;
+      let sum = 0;
+      let n = 0;
+      run(engine, 10, () => {
+        engine.consumeSoundEvents();
+        const b = engine.getBalls()[0];
+        if (!b) return;
+        up = Math.max(up, -b.vy);
+        sum += Math.hypot(b.vx, b.vy);
+        n++;
+      });
+      return { up, mean: sum / n };
+    };
+    const plain = hop(null);
+    const bouncy = hop([rule({ trigger: "start", op: "set", amount: 2, scope: "all" })]);
+    expect(bouncy.up / plain.up).toBeCloseTo(2, 1);
+    expect(bouncy.mean).toBeGreaterThan(1.3 * plain.mean);
+    // "Bouncier every bounce" now shows in the hops (it did nothing before: the landing reset the hop)
+    const bouncier = hop([rule()]);
+    expect(bouncier.up).toBeGreaterThan(1.5 * plain.up);
+    // The Journey's glass stage too (and its other stages' obstacles)
+    const journey = (rules: BounceRule[] | null) => {
+      const engine = makeEngine(rules, "journey", 7);
+      let up = 0;
+      run(engine, 10, () => {
+        engine.consumeSoundEvents();
+        for (const b of engine.getBalls()) up = Math.max(up, -b.vy);
+      });
+      return up;
+    };
+    expect(journey([rule({ trigger: "start", op: "set", amount: 2, scope: "all" })])).toBeGreaterThan(1.5 * journey(null));
+  });
+
+  it("Ball Drop and Bullseye: a bounciness of 2 makes the pegs, bars and walls bouncier than their 0.98 cap – without running away", { timeout: 60_000 }, () => {
+    const speeds = (mode: ModeId, rules: BounceRule[] | null) => {
+      const engine = makeEngine(rules, mode, 7);
+      let max = 0;
+      let sum = 0;
+      let n = 0;
+      run(engine, 10, () => {
+        engine.consumeSoundEvents();
+        for (const b of engine.getBalls()) {
+          const v = Math.hypot(b.vx, b.vy);
+          max = Math.max(max, v);
+          if (v > 1) {
+            sum += v;
+            n++;
+          }
+        }
+      });
+      return { max, mean: sum / n };
+    };
+    // ("second", all balls: the balls released later get it too)
+    const two = [rule({ trigger: "second", op: "set", amount: 2, scope: "all" })];
+    for (const mode of ["drop", "bullseye"] as ModeId[]) {
+      const plain = speeds(mode, null);
+      const bouncy = speeds(mode, two);
+      expect(bouncy.mean, mode).toBeGreaterThan(1.15 * plain.mean);
+      expect(bouncy.max, mode).toBeGreaterThan(plain.max);
+      // the lift: a rebound the bounciness speeds up stops at the cruising speed × the bounciness (gravity adds the rest)
+      expect(bouncy.max, mode).toBeLessThan(3 * plain.max);
+    }
+  });
+
+  it("turns the default white ball's colour on a colour shift", () => {
+    const engine = makeEngine([rule({ param: "hue", op: "add", amount: 30 })], "classic", 5);
+    run(engine, 4, () => engine.consumeSoundEvents());
+    const ball = engine.getBalls()[0];
+    expect(ball.hueShift).toBeGreaterThan(0);
+    expect(ball.color.toLowerCase()).not.toBe("#ffffff");
+    expect(parseColorHsl(ball.color)!.s).toBeGreaterThan(0.5);
+  });
+
+  it("reports bounces in every mode and ball hits wherever balls hit each other; the panel names the triggers a mode never sets off", { timeout: 120_000 }, () => {
+    const listen = (["bounce", "collide"] as const).map((trigger) => rule({ trigger, param: "hue", op: "add", amount: 5 }));
+    const settingsFor: Partial<Record<ModeId, Partial<ModeSettings>>> = {
+      classic: { twoBalls: true },
+      doublePendulum: { doublePendulum: { spar: true, randomStart: false, angle1: 45, angle2: 90, endless: true } },
+    };
+    for (const mode of MODE_IDS) {
+      const engine = createEngineForSettings({ ...config, bounceMath: bmConfig(listen) }, mode, { ...modeSettings, ...settingsFor[mode] }, 7);
+      const seconds = mode === "doublePendulum" ? 12 : 10;
+      run(engine, seconds, () => engine.consumeSoundEvents());
+      const fires = engine.getBounceMathView().fires;
+      expect(bounceTriggerApplies("bounce", mode), mode).toBe(true);
+      expect(fires[0], `${mode} bounce`).toBeGreaterThan(0);
+      const collides = ["classic", "drop", "collide", "multipliers", "battle", "ctf", "stringBattle", "doublePendulum"].includes(mode);
+      if (collides) {
+        expect(bounceTriggerApplies("collide", mode), mode).toBe(true);
+        expect(fires[1], `${mode} collide`).toBeGreaterThan(0);
+      }
+      if (!bounceTriggerApplies("collide", mode)) expect(fires[1], `${mode} collide`).toBe(0);
+    }
+    // the triggers a mode never sets off (the panel's note), and the clock's, which fire everywhere
+    expect(bounceTriggerApplies("collide", "pendulum")).toBe(false);
+    expect(bounceTriggerApplies("collide", "box")).toBe(false);
+    expect(bounceTriggerApplies("pass", "drop")).toBe(false);
+    expect(bounceTriggerApplies("pass", "classic")).toBe(true);
+    expect(bounceTriggerApplies("pass", "journey")).toBe(true);
+    expect(bounceTriggerApplies("break", "collide")).toBe(false);
+    expect(bounceTriggerApplies("break", "glass")).toBe(true);
+    for (const mode of MODE_IDS) for (const trigger of ["beat", "bar", "second", "start"] as const) expect(bounceTriggerApplies(trigger, mode)).toBe(true);
   });
 
   it("queues its triggers without touching a run whose rules do not listen to them", () => {

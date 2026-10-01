@@ -413,6 +413,7 @@ export class BattleMode implements GameMode {
     if (!this.wallPass(ctx, ball)) return;
     const w = this.wall;
     if (w.approach < 0.2 * this.ballSpeed) return;
+    ctx.noteBounce?.(ball); // --- bounce-math --- a real wall hit is a bounce
     v.wallHits++;
     v.wallHitMs[w.wall] = v.timeMs;
     const field = v.field!;
@@ -497,6 +498,7 @@ export class BattleMode implements GameMode {
     const now = v.timeMs;
     const rel = c.approach / Math.max(1, this.ballSpeed);
     if (rel < MIN_DAMAGE_REL) return;
+    ctx.noteCollide?.(a, b); // --- bounce-math --- a clash is a ball hit
     v.hits++;
     this.lastClashMs = now;
     const attackerIndex = c.speedA > c.speedB + 1e-6 ? i : c.speedB > c.speedA + 1e-6 ? j : -1;

@@ -684,14 +684,20 @@ export class MultipliersMode implements GameMode {
       if (ball.vx < 0) {
         const vn = -ball.vx;
         ball.vx = vn * WALL_RESTITUTION * this.restitutionScale;
-        if (vn >= this.hitSpeed) this.offerSound(0.5 * vn * vn * r * r, boardPitch(0), level(vn, this.ballSpeed), false);
+        if (vn >= this.hitSpeed) {
+          this.offerSound(0.5 * vn * vn * r * r, boardPitch(0), level(vn, this.ballSpeed), false);
+          ctx.noteBounce?.(ball); // --- bounce-math --- a wall hit is a bounce
+        }
       }
     } else if (ball.x + r > board.right) {
       ball.x = board.right - r;
       if (ball.vx > 0) {
         const vn = ball.vx;
         ball.vx = -vn * WALL_RESTITUTION * this.restitutionScale;
-        if (vn >= this.hitSpeed) this.offerSound(0.5 * vn * vn * r * r, boardPitch(1), level(vn, this.ballSpeed), false);
+        if (vn >= this.hitSpeed) {
+          this.offerSound(0.5 * vn * vn * r * r, boardPitch(1), level(vn, this.ballSpeed), false);
+          ctx.noteBounce?.(ball); // --- bounce-math ---
+        }
       }
     }
     // Obstacles of the bands the ball overlaps.
@@ -751,6 +757,7 @@ export class MultipliersMode implements GameMode {
     const kind = board.kind[i];
     const u = (o.x - board.left) / Math.max(1, board.right - board.left);
     this.offerSound(0.5 * impact * impact * ball.radius * ball.radius, boardPitch(u), level(impact, this.ballSpeed), false);
+    ctx.noteBounce?.(ball); // --- bounce-math --- a peg, bumper or bar hit is a bounce
     if (kind === OB_BUMPER && o.kind === "circle") {
       const dx = ball.x - o.x;
       const dy = ball.y - o.y;
@@ -817,7 +824,9 @@ export class MultipliersMode implements GameMode {
       const forward = it === 0;
       for (let q = 0; q < count; q++) {
         const p = forward ? q : count - 1 - q;
-        resolvePair(balls[idx[pairs[2 * p]]], balls[idx[pairs[2 * p + 1]]]);
+        const a = balls[idx[pairs[2 * p]]];
+        const b = balls[idx[pairs[2 * p + 1]]];
+        if (resolvePair(a, b) >= this.hitSpeed) ctx.noteCollide?.(a, b); // --- bounce-math --- a ball hit
       }
     }
     for (let k = 0; k < n; k++) {
@@ -1132,13 +1141,16 @@ function level(impact: number, ballSpeed: number): number {
   return 0.35 * Math.max(0.25, Math.min(1, 0.25 + 0.75 * x)) + 0.1;
 }
 
-/** Two touching balls: push the overlap apart by inverse mass (mass ∝ radius²) and exchange momentum with a damped restitution. */
-function resolvePair(a: Ball, b: Ball) {
+/**
+ * Two touching balls: push the overlap apart by inverse mass (mass ∝ radius²) and exchange momentum with a damped restitution.
+ * Returns the approach speed of the impulse (0 when they were not approaching or not touching).
+ */
+function resolvePair(a: Ball, b: Ball): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const minD = a.radius + b.radius;
   const d2 = dx * dx + dy * dy;
-  if (d2 >= minD * minD) return;
+  if (d2 >= minD * minD) return 0;
   const d = Math.sqrt(d2);
   const nx = d > 1e-9 ? dx / d : 1;
   const ny = d > 1e-9 ? dy / d : 0;
@@ -1154,10 +1166,11 @@ function resolvePair(a: Ball, b: Ball) {
     b.y += ny * corr * imb;
   }
   const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-  if (rel >= 0) return;
+  if (rel >= 0) return 0;
   const j = (-(1 + BALL_RESTITUTION) * rel) / sum;
   a.vx -= j * ima * nx;
   a.vy -= j * ima * ny;
   b.vx += j * imb * nx;
   b.vy += j * imb * ny;
+  return -rel;
 }

@@ -828,6 +828,14 @@ export class PendulumMode implements GameMode {
     const tick = v.tick;
     v.noteCount += notes.length;
     for (const note of notes) this.bobs[note.index].lastNoteTick = tick;
+    // --- bounce-math --- a bob's note (it crosses the centre line or turns at an extreme) counts as its bounce
+    if (ctx.noteBounce) {
+      for (const ball of ctx.getBalls()) {
+        const index = this.byId.get(ball.id)?.index;
+        if (index === undefined) continue;
+        for (const note of notes) if (note.index === index) ctx.noteBounce(ball);
+      }
+    }
     const chord = notes.length > 1;
     if (chord) {
       v.chordCount++;

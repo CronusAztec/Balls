@@ -18,6 +18,8 @@ import {
   readConfig,
   redact,
   sameSecret,
+  TIKTOK_UNLISTED_NOTE,
+  TIKTOK_WHOLE_MAX,
   tiktokChunks,
   tiktokErrorMessage,
 } from "./server.mjs";
@@ -197,13 +199,40 @@ describe("helpers", () => {
 
   it("cuts TikTok uploads the way the Content Posting API wants", () => {
     expect(tiktokChunks(3 * MB)).toEqual({ chunkSize: 3 * MB, total: 1, ranges: [[0, 3 * MB - 1]] });
-    const big = tiktokChunks(23 * MB + 5);
-    expect(big.chunkSize).toBe(10 * MB);
-    expect(big.total).toBe(2);
-    expect(big.ranges).toEqual([
-      [0, 10 * MB - 1],
-      [10 * MB, 23 * MB + 4],
-    ]);
+    // A 5–64 MB clip (a 20–40 s 1080×1920 recording) goes up whole: never a 10 MB chunk_size bigger than the video.
+    expect(tiktokChunks(7 * MB)).toEqual({ chunkSize: 7 * MB, total: 1, ranges: [[0, 7 * MB - 1]] });
+    const nearly10 = Math.round(9.9 * MB);
+    expect(tiktokChunks(nearly10)).toEqual({ chunkSize: nearly10, total: 1, ranges: [[0, nearly10 - 1]] });
+    expect(tiktokChunks(23 * MB + 5)).toEqual({ chunkSize: 23 * MB + 5, total: 1, ranges: [[0, 23 * MB + 4]] });
+    expect(tiktokChunks(TIKTOK_WHOLE_MAX).total).toBe(1);
+    // Above 64 MB: 10 MB chunks, total = size / chunk rounded down, the remainder in the last one.
+    const seventy = tiktokChunks(70 * MB);
+    expect(seventy.chunkSize).toBe(10 * MB);
+    expect(seventy.total).toBe(7);
+    expect(seventy.ranges[6]).toEqual([60 * MB, 70 * MB - 1]);
+    const odd = tiktokChunks(70 * MB + 512 * 1024);
+    expect(odd.total).toBe(7);
+    expect(odd.ranges).toHaveLength(7);
+    expect(odd.ranges[0]).toEqual([0, 10 * MB - 1]);
+    expect(odd.ranges[6]).toEqual([60 * MB, 70 * MB + 512 * 1024 - 1]);
+    // Every plan keeps the guide's rules: total_chunk_count = floor(video_size / chunk_size) ≥ 1, chunk_size ≤ video_size,
+    // chunks of 5–64 MB (a whole file under 64 MB is one chunk), the last one under 128 MB, the ranges covering the file.
+    for (const size of [1, 3 * MB, 5 * MB, 5 * MB + 1, 7 * MB, 10 * MB, 23 * MB + 5, 64 * MB, 64 * MB + 1, 70 * MB, 99 * MB + 7, 200 * MB + 3]) {
+      const plan = tiktokChunks(size);
+      expect(plan.chunkSize, String(size)).toBeLessThanOrEqual(size);
+      expect(plan.total, String(size)).toBe(Math.floor(size / plan.chunkSize));
+      expect(plan.total, String(size)).toBeGreaterThanOrEqual(1);
+      expect(plan.ranges).toHaveLength(plan.total);
+      if (size > TIKTOK_WHOLE_MAX) expect(plan.chunkSize).toBeGreaterThanOrEqual(5 * MB);
+      expect(plan.chunkSize).toBeLessThanOrEqual(64 * MB);
+      let next = 0;
+      for (const [start, end] of plan.ranges) {
+        expect(start).toBe(next);
+        expect(end - start + 1).toBeLessThan(128 * MB);
+        next = end + 1;
+      }
+      expect(next).toBe(size);
+    }
   });
 
   it("composes each platform's words (the page's own, or the shared ones of the CLI)", () => {
@@ -518,6 +547,50 @@ describe("the HTTP API", () => {
     expect(job.items[0].error).toMatch(/connect the account again/);
     const accounts = (await api(base, "/api/accounts", { key: alice.key })).json.accounts;
     expect(accounts[0].status).toBe("expired");
+  });
+
+  it("refuses a private or unlisted Reel instead of posting it publicly, and says that TikTok's unlisted is Friends", async () => {
+    let initBody = null;
+    const { fetchImpl, calls } = platformMock([
+      { method: "POST", url: "https://open.tiktokapis.com/v2/post/publish/creator_info/query/", reply: { body: { data: { creator_username: "tok", privacy_level_options: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"], max_video_post_duration_sec: 600 }, error: { code: "ok" } } } },
+      {
+        method: "POST",
+        url: "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        reply: (call) => {
+          initBody = JSON.parse(call.body);
+          return { body: { data: { publish_id: "v_pub_9", upload_url: "https://open-upload.tiktokapis.com/video/?upload_id=9" }, error: { code: "ok" } } };
+        },
+      },
+      { method: "PUT", url: "https://open-upload.tiktokapis.com/video/", reply: { status: 201, body: "" } },
+      { method: "POST", url: "https://open.tiktokapis.com/v2/post/publish/status/fetch/", reply: { body: { data: { status: "PUBLISH_COMPLETE", publicaly_available_post_id: [42] }, error: { code: "ok" } } } },
+    ]);
+    const { relay, base } = await startRelay({ fetchImpl });
+    const alice = await adminKey(base, "Alice");
+    const keyId = relay.store.keyFor(alice.key).id;
+    const tt = relay.store.upsertAccount(keyId, "tiktok", "open-7", { name: "Tok", handle: "@tok", tokens: { access: "tt-access", refresh: "tt-refresh", expiresAt: Date.now() + 86400e3 } });
+    const ig = relay.store.upsertAccount(keyId, "instagram", "1784001", { name: "IG", handle: "@ig", tokens: { access: "page-token-1" }, meta: { login: "facebook", igUserId: "1784001" } });
+    const send = async (visibility) => {
+      const fd = new FormData();
+      fd.append("accounts", [tt.id, ig.id].join(","));
+      fd.append("caption", "Can it escape?");
+      fd.append("visibility", visibility);
+      fd.append("file", new Blob([Buffer.alloc(4096, 1)], { type: "video/mp4" }), "clip.mp4");
+      const started = await api(base, "/api/publish", { method: "POST", key: alice.key, body: fd });
+      expect(started.status).toBe(202);
+      const job = await waitJob(base, alice.key, started.json.jobId);
+      return Object.fromEntries(job.items.map((i) => [i.accountId, i]));
+    };
+    const unlisted = await send("unlisted");
+    expect(unlisted[tt.id]).toMatchObject({ status: "published", note: TIKTOK_UNLISTED_NOTE });
+    expect(initBody.post_info.privacy_level).toBe("MUTUAL_FOLLOW_FRIENDS");
+    expect(unlisted[ig.id]).toMatchObject({ status: "failed", code: "visibility" });
+    expect(unlisted[ig.id].error).toMatch(/always public/);
+    const priv = await send("private");
+    expect(priv[ig.id]).toMatchObject({ status: "failed", code: "visibility" });
+    expect(priv[tt.id]).toMatchObject({ status: "published", note: null });
+    expect(initBody.post_info.privacy_level).toBe("SELF_ONLY");
+    // Instagram was never asked to post anything.
+    expect(calls.some((c) => c.url.includes("graph.facebook.com") || c.url.includes("graph.instagram.com"))).toBe(false);
   });
 
   it("refuses unknown accounts, WebM for Instagram and uploads over the size limit", async () => {

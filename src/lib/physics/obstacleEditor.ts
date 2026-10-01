@@ -565,23 +565,24 @@ export class ObstacleField {
    * before the hit × the boost (× `restitutionScale`, at most BUMPER_SPEED_CAP × `baseSpeed`, never slower than the
    * rebound left it), and a sound event is queued into `events` (at most MAX_OBSTACLE_SOUNDS_PER_STEP per step).
    * Whatever sped the ball up – a spinner's fling or a bumper's kick – it leaves at most `obstacleSpeedLimit()`, so it
-   * cannot tunnel through the next ring (`dtSec` is the sub-step the ball moves with).
+   * cannot tunnel through the next ring (`dtSec` is the sub-step the ball moves with). `ballRestitution` / `liftSpeed`: the
+   * ball's bounce-math bounciness, applied after the restitution cap (see obstacles.ts `rebound()`).
    */
-  collide(ball: Ball, dtSec: number, restitutionScale: number, hitSpeed: number, baseSpeed: number, nowMs: number, events: SoundEvent[]) {
+  collide(ball: Ball, dtSec: number, restitutionScale: number, hitSpeed: number, baseSpeed: number, nowMs: number, events: SoundEvent[], ballRestitution = 1, liftSpeed = Infinity) {
     const items = this.items;
     const speedIn = Math.hypot(ball.vx, ball.vy);
     for (let i = 0; i < items.length; i++) {
       const o = items[i];
       const bumper = this.kinds[i] === "bumper";
       const before = bumper ? Math.hypot(ball.vx, ball.vy) : 0;
-      const impact = o.kind === "circle" ? resolveBallCircle(ball, o, dtSec, restitutionScale) : resolveBallSegment(ball, o, dtSec, restitutionScale);
+      const impact = o.kind === "circle" ? resolveBallCircle(ball, o, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed) : resolveBallSegment(ball, o, dtSec, restitutionScale, undefined, ballRestitution, liftSpeed);
       if (impact < hitSpeed) continue; // no contact (−1) or a soft one
       this.lastHitMs[i] = nowMs;
       this.hitCount++;
       if (bumper) {
         this.bumpCount++;
         const after = Math.hypot(ball.vx, ball.vy);
-        const target = Math.max(after, Math.min(before * this.boost * restitutionScale, BUMPER_SPEED_CAP * baseSpeed));
+        const target = Math.max(after, Math.min(before * this.boost * restitutionScale * ballRestitution, BUMPER_SPEED_CAP * baseSpeed));
         if (after > 1e-9 && target > after) {
           const k = target / after;
           ball.vx *= k;
