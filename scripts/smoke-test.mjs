@@ -1145,7 +1145,7 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
   });
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Saved Presets/ }).click();
-  const presetRow = page.locator("div", { hasText: /^My old preset/ }).last();
+  const presetRow = page.locator("li", { hasText: /^My old preset/ }).last(); // --- site-redesign --- (a saved preset is a list row)
   await presetRow.getByRole("button", { name: "Load", exact: true }).click({ timeout: 10000 }).catch(() => {});
   await page.waitForFunction(() => new URL(location.href).searchParams.get("g") === "700", null, { timeout: 10000 }).catch(() => {});
   const presetParams = new URL(page.url()).searchParams;
