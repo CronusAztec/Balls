@@ -43,7 +43,7 @@ import { drawDoublePendulumBodies, drawDoublePendulumFlash, drawDoublePendulumSt
 import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
-import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
+import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
 import type { Ball } from "@/lib/physics/types";
 import { gapWrap } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
@@ -69,6 +69,7 @@ import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDa
 import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
+import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
 import type { VideoBackgroundLayer } from "./videoBeatsRenderer"; // --- video-beats ---
 // --- unlimited --- No limits: levels of detail, the crowd, the real-time / ARENA FULL badges and the frame budget
 import { DEFAULT_UNLIMITED_LABELS, UnlimitedLayer, ateSizeLabel, cappedEffects, lodOf, writeUnlimitedDataset, type UnlimitedLabels } from "./unlimitedRenderer";
@@ -132,6 +133,8 @@ export interface CanvasLabels {
   /** The multipliers board is done: "N Gerald made it home", with the clones made along the way. */
   madeItHome?: (n: number) => string;
   madeItHomeSub?: (clones: number) => string;
+  /** --- review fix (modes-gerald-odd) --- "N lost" after the clones when balls got stuck for good (they are not hidden). */
+  madeItHomeLost?: (lost: number) => string;
   // --- jdm-double-pendulum ---
   /** Double Pendulum: the banner at the end of the clip, with the plucks, the sparring hits or the seconds of chaos. */
   dpDone?: string;
@@ -172,6 +175,9 @@ export interface CanvasLabels {
   // --- uncap-all ---
   /** Uncapped everything: the speed readout and NUMBERS OVERFLOWED. */
   uncap?: UncapLabels;
+  // --- bounce-math ---
+  /** Bounce math: the words of the "Show values" badge (bounciness, speed, size, gravity, a rule's fire count). */
+  bounceMath?: BounceMathHudLabels;
 }
 
 export interface CanvasHandle {
@@ -193,6 +199,11 @@ export interface CanvasHandle {
   // --- end themes
   /** --- camera --- True while the escape replay is about to play or playing: the page holds the end screen (and a recording) back. */
   holdsEndScreen: () => boolean;
+  /**
+   * --- review fix (modes-gerald-odd) --- Real ms the camera's slow motion has added to the run so far (the split screen: the most of
+   * any arena). A recording measures its clip on the run's pace: it is extended by what this grows while it records.
+   */
+  getSlowLagMs: () => number;
 }
 
 export interface CanvasProps {
@@ -322,6 +333,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   outgrewSub: (size) => `SIZE ${size}`,
   madeItHome: (n) => `${n} Gerald made it home`,
   madeItHomeSub: (clones) => `${clones} clones along the way`,
+  madeItHomeLost: (lost) => `${lost} lost`,
   // --- jdm-double-pendulum ---
   dpDone: "TIME!",
   dpPlucks: (n) => `${n} strings plucked`,
@@ -423,6 +435,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const recordingRef = useRef(false);
   /** --- captions --- performance.now() when the current recording started, and the export frame it records into. */
   const clipStartRef = useRef(0);
+  /** --- review fix (modes-gerald-odd) --- the camera's slow-motion lag when the recording started (the clip clock subtracts what it adds since). */
+  const clipLag0Ref = useRef(0);
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
   const sizeRef = useRef({ width: 800, height: 600 });
@@ -601,7 +615,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   useImperativeHandle(ref, () => ({
     getCanvas: () => canvasRef.current,
     setRecording: (v: boolean, exportSize?: { width: number; height: number }) => {
-      if (v && !recordingRef.current) clipStartRef.current = performance.now(); // --- captions --- the clip's clock starts
+      if (v && !recordingRef.current) {
+        clipStartRef.current = performance.now(); // --- captions --- the clip's clock starts
+        clipLag0Ref.current = cinematicRef.current?.getSlowLagMs() ?? 0; // --- review fix (modes-gerald-odd) --- (and the slow motion's lag it leaves out)
+      }
       recordingRef.current = v;
       exportSizeRef.current = v ? (exportSize ?? null) : null;
     },
@@ -619,6 +636,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     },
     // --- end themes
     holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
+    getSlowLagMs: () => cinematicRef.current?.getSlowLagMs() ?? 0, // --- review fix (modes-gerald-odd) ---
   }));
 
   useEffect(() => {
@@ -719,6 +737,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const teamLayer = new TeamLayer(); // --- teams ---
     const scoreboardBox = { x: 0, y: 0, w: 0, h: 0 }; // --- gerald-multipliers --- where the scoreboard goes this frame (the HUD keeps clear)
     let multHudTop = -1;
+    // --- review fix (modes-gerald-odd) --- screen y of the lowest top overlay a mode drew in the square this frame (Power Layers' pills,
+    // Glass Smash's stage dots, the multiplier badges, the String Battle's badge and HUD; 0 = none): the top captions start below it
+    let modeTopHud = 0;
+    const multTopOut = { bottom: 0 };
     const boxHueColors: string[] = [];
     const boxBodyColor = (ball: { id: number }) => {
       const st = engine.getBoxView().shapes.get(ball.id);
@@ -786,6 +808,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bullseyeData = new BullseyeDataset();
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
+    const bmLayer = new BounceMathLayer(); // --- bounce-math ---
     const bdRender: BeatDropRenderOptions = { wallThickness: 2, showWallGlow: true, showTrail: true, trailThickness: 0.8, colorTrail: true, teamColors: [], ballColor: "#ffffff" };
     let bdTeams: CanvasTeamOptions | null | undefined;
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
@@ -913,7 +936,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       lastFrameRef.current = now;
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
-      const p = propsRef.current;
+      const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
       cam.settings = cameraRef.current; // --- camera ---
 
       if (!p.isPaused && p.isStarted) {
@@ -1112,7 +1135,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
-      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmountRef.current, illusionView.intrinsicWobble) : wobbleAmountRef.current);
+      const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
+      wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
       let conicCache: { time: number; alpha: number | undefined; gradient: CanvasGradient } | null = null;
       const conicGradient = (alpha?: number) => {
@@ -2100,7 +2124,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && isDp) faces.drawOverlays(ctx, balls, bobBodyColor, null);
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
-      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, null); // --- odd-string-battle --- faces on the fighters
+      // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
+      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
@@ -2214,7 +2239,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-double-pendulum --- a hard sparring hit lights up the frame.
       if (isDp) drawDoublePendulumFlash(ctx, size.width, size.height, engine.getDoublePendulumView());
       // --- gerald-glass --- Glass Smash: the stage dots and the "STAGE n" banner (screen space, part of the recording).
-      if (glassView) drawGlassOverlay(ctx, glassView, glassRender);
+      modeTopHud = 0; // --- review fix (modes-gerald-odd) ---
+      if (glassView) modeTopHud = Math.max(modeTopHud, drawGlassOverlay(ctx, glassView, glassRender));
       // --- jdm-race --- standings, mini-map, callouts, the countdown, the podium and the cup table (screen space, part of the recording);
       // live, below the page's buttons over a nearly square canvas
       if (raceView) raceLayer.drawOverlay(ctx, raceView, raceRef.current, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, !p.isPaused && p.isStarted ? frameMs : 0);
@@ -2226,7 +2252,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         illusionLayer.drawOverlay(ctx, size.width, size.height, illusionView, engine.getElapsedMs(), illusionLabels);
       }
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
-      if (plView) plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS);
+      if (plView) modeTopHud = Math.max(modeTopHud, plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS)); // --- review fix (modes-gerald-odd) --- (the pills' bottom)
       // --- gerald-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
       if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- gerald-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
@@ -2250,7 +2276,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (multView.active) {
         const sq = Math.min(size.width, size.height);
         const avoid = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
-        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid);
+        multHudTop = drawMultiplierHud(ctx, multView, multLabels, cx - sq / 2, cy - sq / 2, sq, engine.getElapsedMs(), multBoard, avoid, multTopOut);
+        modeTopHud = Math.max(modeTopHud, multTopOut.bottom); // --- review fix (modes-gerald-odd) ---
       }
       // --- unlimited --- the ball count, "x0.4 real time" and ARENA FULL, bottom right of the square the recorder crops to
       if (unlimitedView.on) {
@@ -2269,7 +2296,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
 
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
-      if (sbView) sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive() });
+      // (--- review fix (modes-gerald-odd) --- the badge takes the top-right corner when the teams scoreboard sits in the top-left one;
+      // the badge and the HUD are what the top captions start below)
+      if (sbView) {
+        const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
+        modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+      }
 
       // HUD: mode counters in the centre
       {
@@ -2439,7 +2471,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           });
         };
         if (multView.outgrown) fitBanner(unlimitedView.ate ? (L.unlimited ?? DEFAULT_UNLIMITED_LABELS).ateArena : L.outgrew ?? DEFAULT_LABELS.outgrew ?? "", (L.outgrewSub ?? DEFAULT_LABELS.outgrewSub!)(unlimitedView.ate && multView.size <= 1 ? ateSizeLabel(unlimitedView.ateRadius) : formatMultiplier(multView.size)), unlimitedView.ate ? "#93d119" : "#c4b5fd"); // --- unlimited --- (No limits: THE BALL ATE THE ARENA; a Ball Size past the arena shows its size in px)
-        else if (multBoard && multBoard.done) fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones), "#a3e635");
+        else if (multBoard && multBoard.done) {
+          // (--- review fix (modes-gerald-odd) --- and the balls lost on the way, when there are any)
+          const sub = (L.madeItHomeSub ?? DEFAULT_LABELS.madeItHomeSub!)(multBoard.clones);
+          fitBanner((L.madeItHome ?? DEFAULT_LABELS.madeItHome!)(multBoard.home), multBoard.lost > 0 ? `${sub} · ${(L.madeItHomeLost ?? DEFAULT_LABELS.madeItHomeLost!)(multBoard.lost)}` : sub, "#a3e635");
+        }
         // --- end gerald-multipliers ---
         if (engine.isShatterMode() && engine.hasShatterEscaped()) {
           const prog = engine.getShatterProgress();
@@ -2632,11 +2668,31 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionView.insetBottom = live ? 56 : 0;
         // --- viral-bot --- an arena game's scoreboard band (the top HUD_BAND of the square) is the top captions' limit too
         const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
-        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom), captionView);
+        edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-gerald-odd) --- (the mode's top HUD)
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
-        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current) / 1000 : -1;
+        // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
+        captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);
       } else captionLayer.clear();
+
+      // --- bounce-math --- "Show values": the ball that bounced last and every rule's fire count, inside the recorded square (so
+      // clips have it) – in its bottom-left corner above the page's buttons, the bottom text and the song bar, or in the top-right
+      // corner below the page's buttons, the scoreboard, SLOW-MO and the top text while bottom captions are on screen
+      {
+        const bmView = engine.getBounceMathView();
+        if (bmView.active && bmView.showValues) {
+          const side = Math.min(size.width, size.height);
+          const live = !recordingRef.current && (size.width - side) / 2 < 170;
+          let bottom = cy + side / 2 - (live ? 56 : 0);
+          if (p.bottomText) bottom = Math.min(bottom, edgeLines.bottomY - 0.75 * edgeLines.fontSize);
+          if (songProgressRef.current !== null) bottom = Math.min(bottom, size.height - 14);
+          if (multBoard) bottom = Math.min(bottom, cy + side / 2 - 0.025 * side - 1.5 * Math.max(16, 0.06 * side) - 6); // (above the multipliers board's HOME counter)
+          const slowMo = multView.active && multView.dilation < 1 ? 0.025 * side + 1.6 * Math.max(11, 0.034 * side) + 6 : 0;
+          const top = Math.max(cy - side / 2 + (live ? 52 : 0) + slowMo, teamLayer.isActive() ? teamLayer.scoreboardBottom + 6 : 0, p.topText ? edgeLines.topY + 0.75 * edgeLines.fontSize : 0);
+          const bmLabels = (labelsRef.current ?? DEFAULT_LABELS).bounceMath ?? DEFAULT_BOUNCE_MATH_LABELS;
+          bmLayer.drawHud(ctx, bmView, bmLabels, { x0: cx - side / 2, y0: cy - side / 2, side, bottom, top, toTop: captionLayer.usesBottom }, engine.getElapsedMs());
+        } else bmLayer.drawn = false;
+      }
 
       // Song slicer: thin progress bar along the bottom edge (part of the recording too)
       const songProgress = songProgressRef.current;
@@ -2675,7 +2731,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- camera --- the REPLAY badge (screen space, part of the recording too); at the bottom when the top text or the
       // teams' scoreboard is there (below the scoreboard when the bottom text is in use too)
-      const scoreboardBottom = teamLayer.isActive() ? teamLayer.scoreboardBottom : 0; // --- teams ---
+      const scoreboardBottom = Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, modeTopHud); // --- teams --- (--- review fix (modes-gerald-odd) --- and the mode's top HUD)
       const replayAtBottom = (!!p.topText || scoreboardBottom > 0 || (captionLayer.usesTop && !captionLayer.usesBottom)) && !p.bottomText; // --- captions --- (top captions)
       cam.drawOverlay(ctx, size.width, size.height, (labelsRef.current ?? DEFAULT_LABELS).replay ?? "REPLAY", replayAtBottom, replayAtBottom ? 0 : scoreboardBottom);
       if (sbView) sbLayer.applyGlitch(ctx); // --- odd-string-battle --- the neon style's glitch bars over the finished frame
@@ -2811,6 +2867,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbPainted", String(sbLayer.painted));
         setCanvasData("sbWobble", String(sbLayer.wobbling));
         setCanvasData("sbBadge", sbLayer.badgeDrawn ? "1" : "0");
+        setCanvasData("sbBadgeRight", sbLayer.badgeDrawn && sbLayer.badgeRight ? "1" : "0"); // --- review fix (modes-gerald-odd) --- (clear of the scoreboard)
         setCanvasData("sbHud", sbLayer.hudDrawn ? "1" : "0");
         setCanvasData("sbBanner", sbLayer.bannerDrawn ? "1" : "0");
         setCanvasData("sbReducedMotion", sbLayer.reducedMotion ? "1" : "0");
@@ -2830,7 +2887,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("sbStalePx", stalePx.toFixed(1));
         setCanvasData("sbInRing", inRing ? "1" : "0");
       } else if (canvas.dataset.sbBalls !== undefined) {
-        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
+        for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbBadgeRight", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
@@ -2893,6 +2950,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("captions", String(captionLayer.drawn));
         setCanvasData("captionTexts", captionLayer.summary);
         setCanvasData("captionReveal", captionLayer.revealed ? "1" : "0");
+        setCanvasData("captionModeHud", modeTopHud.toFixed(1)); // --- review fix (modes-gerald-odd) --- the mode's top HUD the stack starts below (0: none)
         const st = captionLayer.starts;
         if (st.top !== mirrored.stackTop || st.bottom !== mirrored.stackBottom) {
           mirrored.stackTop = st.top;
@@ -2911,7 +2969,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           mirrored.textTop = NaN;
         }
       } else if (canvas.dataset.captions !== undefined) {
-        for (const key of ["captions", "captionTexts", "captionReveal", "captionStack", "edgeText"]) delete canvas.dataset[key];
+        for (const key of ["captions", "captionTexts", "captionReveal", "captionStack", "edgeText", "captionModeHud"]) delete canvas.dataset[key];
         mirrored.stackTop = NaN;
         mirrored.textTop = NaN;
       }
@@ -2992,6 +3050,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("onbeatWarp", onBeat.warp.toFixed(2));
       } else if (canvas.dataset.onbeatHits !== undefined) for (const key of ["onbeatHits", "onbeatOnBeat", "onbeatFree", "onbeatMaxErr", "onbeatMeanErr", "onbeatBeats", "onbeatWarp"]) delete canvas.dataset[key];
 
+      // --- bounce-math --- the readout: rules, fire counts, the last ball's bounciness / speed / size, gravity, the badge (data-bm-*)
+      const bmData = engine.getBounceMathView();
+      if (bmData.active) writeBounceMathDataset(bmData, bmLayer, setCanvasData, engine.getElapsedMs());
+      else if (canvas.dataset.bmRules !== undefined) for (const key of BOUNCE_MATH_DATA_KEYS) delete canvas.dataset[key];
+
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;
       const delta = now - lastFpsSampleRef.current;
@@ -3006,6 +3069,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       elapsedRef.current = 0;
       recordingRef.current = true;
       clipStartRef.current = 0;
+      clipLag0Ref.current = 0; // --- review fix (modes-gerald-odd) --- (a fresh camera)
       exportSizeRef.current = { width: offline.exportWidth, height: offline.exportHeight };
       offline.attach({
         canvas,
@@ -3015,6 +3079,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           songProgressRef.current = v;
         },
         holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
+        slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
         paintBackground: (c, width, height, crop) => bgPainter().paintExport(c, width, height, crop, backgroundLook()),
         ready: () => {
           const pics = picturesRef.current;

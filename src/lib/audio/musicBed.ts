@@ -124,6 +124,13 @@ interface Voice {
    * arithmetic must follow the loop state the source actually had, not the live option.
    */
   looped: boolean;
+  /** --- review fix (audio) --- Context time the source started (its fade in runs over BED_FADE_SEC from here). */
+  startedAt: number;
+}
+
+/** --- review fix (audio) --- Gain of the bed's fade stage `elapsed` seconds after its source started (the fade in, then 1). */
+export function bedFadeAt(elapsed: number): number {
+  return Math.max(0, Math.min(1, elapsed / BED_FADE_SEC));
 }
 
 export class MusicBed {
@@ -253,7 +260,7 @@ export class MusicBed {
       fade.gain.linearRampToValueAtTime(1, now + BED_FADE_SEC);
       source.connect(fade);
       fade.connect(this.duckGain);
-      const voice: Voice = { source, fade, looped: source.loop };
+      const voice: Voice = { source, fade, looped: source.loop, startedAt: now };
       source.onended = () => {
         // Natural end of a non-looping track: stay silent until the simulation restarts.
         if (this.voice !== voice) return;
@@ -350,7 +357,7 @@ export class MusicBed {
       const now = this.context?.currentTime ?? 0;
       const g = voice.fade.gain;
       g.cancelScheduledValues(now);
-      g.setValueAtTime(g.value, now);
+      g.setValueAtTime(bedFadeAt(now - voice.startedAt), now); // --- review fix (audio) --- not g.value (the last rendered value)
       g.linearRampToValueAtTime(0, now + BED_FADE_SEC);
       voice.source.stop(now + BED_FADE_SEC);
     } catch {

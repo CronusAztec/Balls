@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BED_FADE_SEC, DEFAULT_MUSIC_OPTIONS, DUCK_FLOOR, MusicBed, duckEnvelope, duckedLevel, normalizeMusicOptions, playbackPosition, resolveOffset, scheduleDuck, type DuckParam } from "@/lib/audio/musicBed";
+import { BED_FADE_SEC, DEFAULT_MUSIC_OPTIONS, DUCK_FLOOR, MusicBed, bedFadeAt, duckEnvelope, duckedLevel, normalizeMusicOptions, playbackPosition, resolveOffset, scheduleDuck, type DuckParam } from "@/lib/audio/musicBed";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 
 /* ------------------------------------------------------------------ envelope maths */
@@ -403,6 +403,38 @@ describe("MusicBed", () => {
 });
 
 /* ------------------------------------------------------------------ settings */
+
+// --- review fix (audio) ---
+describe("music bed fade out", () => {
+  it("knows the fade stage's gain: the fade in, then 1", () => {
+    expect(bedFadeAt(-1)).toBe(0);
+    expect(bedFadeAt(0)).toBe(0);
+    expect(bedFadeAt(BED_FADE_SEC / 3)).toBeCloseTo(1 / 3, 12);
+    expect(bedFadeAt(BED_FADE_SEC)).toBe(1);
+    expect(bedFadeAt(60)).toBe(1);
+  });
+
+  it("fades a stopped bed out from where its fade in got to, not from the param's last rendered value", () => {
+    const audio = fakeAudio(100);
+    const bed = new MusicBed();
+    bed.attach(audio.ctx, audio.destination);
+    bed.setBuffer({ duration: 10 } as AudioBuffer);
+    bed.play();
+    const fade = audio.gains[2]; // duck, volume, then the source's fade stage
+    audio.tick(100 + BED_FADE_SEC / 3);
+    bed.pause(); // a third of the way into the fade in
+    const cancel = fade.calls.findIndex(([m]) => m === "cancel");
+    expect(fade.calls[cancel + 1][0]).toBe("set");
+    expect(fade.calls[cancel + 1][1]).toBeCloseTo(1 / 3, 9); // the param's value reads 1 here
+    expect(fade.calls[cancel + 2]).toEqual(["linear", 0, 100 + BED_FADE_SEC / 3 + BED_FADE_SEC]);
+    audio.tick(101);
+    bed.play();
+    audio.tick(105);
+    bed.stop(); // long after the fade in: from 1
+    const later = audio.gains[3].calls;
+    expect(later[later.findIndex(([m]) => m === "cancel") + 1]).toEqual(["set", 1, 105]);
+  });
+});
 
 describe("music bed settings", () => {
   it("has sensible defaults inside the slider ranges", () => {

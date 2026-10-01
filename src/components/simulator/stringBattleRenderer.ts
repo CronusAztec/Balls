@@ -1,8 +1,9 @@
 import type { Ball } from "@/lib/physics/types";
 import type { WallContactLog } from "@/lib/physics/wobble";
-import { SB_INVULN_MS, SB_BURST_MS, SB_PALETTE, ghostLifeMs, lineThroughRect, sbHudShown, stringBattleBallName, type StringBattleView } from "@/lib/physics/modes/stringBattle";
+import { SB_INVULN_MS, SB_BURST_MS, SB_PALETTE, ghostLifeMs, lineThroughRect, sbHudShown, stringBattleBallName, type SbStyle, type StringBattleView } from "@/lib/physics/modes/stringBattle";
 import type { TeamEntry } from "@/lib/teams";
 import { WobbleLayer } from "./wobbleRenderer";
+import { inCaptionColumn } from "@/lib/captions";
 
 /**
  * Canvas drawing of the String Battle (feature odd-string-battle; lib/physics/modes/stringBattle.ts), one
@@ -71,6 +72,15 @@ export interface StringBattleRenderOptions {
   /** Canvas size in CSS px. */
   width: number;
   height: number;
+}
+
+/**
+ * --- review fix (modes-gerald-odd) --- How the ball characters' faces sit on the fighters (`FaceLayer.drawOverlays()`): in the web
+ * style two eyes above the lives the body shows (the compact face of a countdown), in the neon style – no number – the whole face.
+ */
+const SB_FACE_LAYOUT = { shape: "circle", countdown: true } as const;
+export function sbFaceLayout(style: SbStyle): typeof SB_FACE_LAYOUT | null {
+  return style === "neon" ? null : SB_FACE_LAYOUT;
 }
 
 const TWO_PI = Math.PI * 2;
@@ -167,6 +177,15 @@ export class StringBattleLayer {
   badgeDrawn = false;
   hudDrawn = false;
   bannerDrawn = false;
+  /** --- review fix (modes-gerald-odd) --- the warning badge sits in the top-right corner this frame (the teams scoreboard has the left one). */
+  badgeRight = false;
+  // The last badge / HUD rectangle drawn (screen px): what the top captions keep clear of.
+  private badgeX = 0;
+  private badgeW = 0;
+  private badgeBottom = 0;
+  private hudX = 0;
+  private hudW = 0;
+  private hudBottom = 0;
   /** Lines painted into the neon layer this run. */
   painted = 0;
   /** Walls wobbling this frame (neon). */
@@ -621,9 +640,11 @@ export class StringBattleLayer {
    * Screen space, inside the square the recorder exports: the warning badge (top left), the HUD (top right; the web
    * style) and, without a team roster, the winner banner and its confetti. `inset` moves the corner items below the
    * page's overlay buttons; `dtMs` advances the confetti (0 while paused); `teamBanner` – a roster is on and the teams
-   * banner announces the winner – leaves the banner to it.
+   * banner announces the winner – leaves the banner to it; `badgeRight` – the teams scoreboard takes the top-left corner (the HUD
+   * is off then) – moves the badge to the top-right one. Returns the screen y of the lowest top item that reaches into the
+   * captions' centred column (0: none), which the top captions start below.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: StringBattleView, o: StringBattleRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean }) {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: StringBattleView, o: StringBattleRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean; badgeRight?: boolean }): number {
     const side = Math.min(o.width, o.height);
     const sx = (o.width - side) / 2;
     const sy = (o.height - side) / 2;
@@ -632,9 +653,14 @@ export class StringBattleLayer {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     this.badgeDrawn = view.settings.badge;
-    if (view.settings.badge) this.drawBadge(ctx, sx + margin, sy + frame.inset + margin, side, o.labels);
+    this.badgeRight = !!frame.badgeRight;
+    if (view.settings.badge) this.drawBadge(ctx, this.badgeRight ? sx + side - margin : sx + margin, sy + frame.inset + margin, side, o.labels, this.badgeRight);
     this.hudDrawn = sbHudShown(view.settings);
     if (this.hudDrawn) this.drawHud(ctx, view, sx + side - margin, sy + frame.inset + margin, side, o.labels);
+    // --- review fix (modes-gerald-odd) --- the corner items the top captions have to start below
+    let topBottom = 0;
+    if (this.badgeDrawn && inCaptionColumn(this.badgeX, this.badgeW, sx + side / 2, side)) topBottom = this.badgeBottom;
+    if (this.hudDrawn && inCaptionColumn(this.hudX, this.hudW, sx + side / 2, side)) topBottom = Math.max(topBottom, this.hudBottom);
     this.bannerDrawn = false;
     if (view.finished && !frame.teamBanner && o.nowMs - view.finishedMs >= BANNER_DELAY_MS) {
       if (!this.bannerStarted) {
@@ -646,9 +672,11 @@ export class StringBattleLayer {
     }
     this.stepConfetti(ctx, frame.dtMs / 1000, side);
     ctx.restore();
+    return topBottom;
   }
 
-  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: StringBattleLabels) {
+  /** The warning badge with its top-left corner at (x, y) – or, `right`, its top-right corner. */
+  private drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, L: StringBattleLabels, right = false) {
     const fs = Math.max(7, 0.016 * side);
     const small = 0.78 * fs;
     ctx.font = this.font(fs, 900);
@@ -659,6 +687,10 @@ export class StringBattleLayer {
     const pad = 0.55 * fs;
     const w = pad * 3 + icon + Math.max(w1, w2);
     const h = pad * 2 + fs + 1.15 * small;
+    if (right) x -= w;
+    this.badgeX = x;
+    this.badgeW = w;
+    this.badgeBottom = y + h;
     ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
     roundRect(ctx, x, y, w, h, 0.35 * fs);
     ctx.fill();
@@ -707,6 +739,9 @@ export class StringBattleLayer {
     const w = pad * 2 + Math.max(rowW, titleW);
     const h = pad * 2 + 1.5 * titleFs + view.count * rowH + 1.4 * fs;
     const x = right - w;
+    this.hudX = x;
+    this.hudW = w;
+    this.hudBottom = top + h;
     ctx.fillStyle = "rgba(0, 0, 0, 0.58)";
     roundRect(ctx, x, top, w, h, 0.45 * fs);
     ctx.fill();

@@ -9,6 +9,7 @@ import {
   CAPTION_RANGES,
   CAPTION_REVEAL_SEC,
   CAPTION_TYPES,
+  CAPTION_COLUMN,
   CAPTION_MARGIN,
   CaptionTracker,
   MAX_CAPTIONS,
@@ -33,6 +34,7 @@ import {
   fillLabel,
   formatClock,
   holdsForAnswer,
+  inCaptionColumn,
   isOpenEnded,
   liveEdgeTextLines,
   parseCaptions,
@@ -521,6 +523,29 @@ describe("caption clip clock and layout", () => {
     edgeTextBounds(emptyEdgeTextLines(), 120, b);
     expect(b.topMin).toBe(120);
     expect(captionStackStarts(800, 600, b, { top: 0, bottom: 0 }).top).toBeCloseTo(120 + 0.5 * CAPTION_MARGIN * 600, 9);
+  });
+
+  it("--- review fix (modes-gerald-odd) --- starts the top stack below a mode's own top HUD (the lower of it and the scoreboard)", () => {
+    const b = bounds();
+    // Power Layers' second pill ends at 150 px, the scoreboard at 90: the stack starts below the pill.
+    const modeTopHud = 150;
+    edgeTextBounds(emptyEdgeTextLines(), Math.max(90, modeTopHud), b);
+    const top = captionStackStarts(800, 600, b, { top: 0, bottom: 0 }).top;
+    expect(top).toBeGreaterThan(modeTopHud);
+    expect(top).toBeCloseTo(modeTopHud + 0.5 * CAPTION_MARGIN * 600, 9);
+    // With the Top Text lower still, the text wins.
+    const lines = emptyEdgeTextLines();
+    liveEdgeTextLines(600, 300, 255, 1, true, false, lines);
+    edgeTextBounds(lines, 20, b);
+    expect(captionStackStarts(800, 600, b, { top: 0, bottom: 0 }).top).toBeGreaterThan(lines.topY);
+    // Only a HUD that reaches into the centred caption column counts (a corner item clear of it does not push the stack down).
+    const side = 600;
+    const cx = 400;
+    const colLeft = cx - (CAPTION_COLUMN * side) / 2;
+    expect(inCaptionColumn(colLeft - 60, 50, cx, side)).toBe(false);
+    expect(inCaptionColumn(colLeft - 60, 70, cx, side)).toBe(true);
+    expect(inCaptionColumn(cx + (CAPTION_COLUMN * side) / 2 + 1, 80, cx, side)).toBe(false);
+    expect(inCaptionColumn(cx - 20, 40, cx, side)).toBe(true);
   });
 
   /** A text line's glyphs reach about half a font size around its centre: the stacks must start beyond that. */

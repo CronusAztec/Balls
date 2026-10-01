@@ -101,9 +101,27 @@ const CACHE_LIMIT = 6;
 interface Voice {
   source: AudioBufferSourceNode;
   gain: GainNode;
+  /** --- review fix (audio) --- Context time the voice starts, its plateau level and the length of its fade in / out (seconds). */
+  start: number;
+  level: number;
+  fade: number;
   /** --- fast-render --- Context time the voice has played out by (its `ended` event may come later, or – offline – after the whole clip is scheduled). */
   end: number;
 }
+
+// --- review fix (audio) ---
+/**
+ * The gain a voice's envelope has at context time `t`: 0 before it starts and after it ends, a linear ramp over the fade in
+ * and the fade out, its level in between. A stolen voice fades out from this value – `AudioParam.value` only holds the last
+ * rendered value (the default 1 while a fast export schedules its whole clip), so reading it made a stolen voice jump to 1.
+ */
+export function voiceEnvelopeAt(v: { start: number; level: number; fade: number; end: number }, t: number): number {
+  if (t <= v.start || t >= v.end) return 0;
+  if (v.fade > 0 && t < v.start + v.fade) return (v.level * (t - v.start)) / v.fade;
+  if (v.fade > 0 && t > v.end - v.fade) return (v.level * (v.end - t)) / v.fade;
+  return v.level;
+}
+// --- end review fix (audio) ---
 
 export class HitSampler {
   private buffer: AudioBuffer | null = null;
@@ -233,7 +251,7 @@ export class HitSampler {
       gain.gain.linearRampToValueAtTime(0, now + duration);
       source.connect(gain);
       gain.connect(this.destination);
-      const voice: Voice = { source, gain, end: now + duration };
+      const voice: Voice = { source, gain, start: now, level, fade, end: now + duration };
       source.onended = () => {
         const i = this.voices.indexOf(voice);
         if (i >= 0) this.voices.splice(i, 1);
@@ -266,12 +284,12 @@ export class HitSampler {
   }
   // --- end fast-render ---
 
-  /** Fades a voice out quickly instead of cutting it (voice stealing). */
+  /** Fades a voice out quickly instead of cutting it (voice stealing), from the level its envelope has reached. */
   private release(voice: Voice, now: number) {
     try {
       const g = voice.gain.gain;
       g.cancelScheduledValues(now);
-      g.setValueAtTime(g.value, now);
+      g.setValueAtTime(voiceEnvelopeAt(voice, now), now); // --- review fix (audio) --- not g.value (see voiceEnvelopeAt)
       g.linearRampToValueAtTime(0, now + VOICE_FADE_SEC);
       voice.source.stop(now + VOICE_FADE_SEC);
     } catch {

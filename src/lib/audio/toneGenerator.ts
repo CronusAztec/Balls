@@ -15,6 +15,7 @@ import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- bea
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
+import { SameTimeVoices, createMasterBus } from "./masterBus"; // --- review fix (audio) ---
 import { clockedAudioContext } from "./offlineContext"; // --- fast-render ---
 import { nextGridPointSec } from "@/lib/simulation/beatSource"; // --- video-beats ---
 import type { BeatClockConfig } from "@/lib/simulation/beatClock"; // --- video-beats ---
@@ -25,8 +26,8 @@ import type { BeatClockConfig } from "@/lib/simulation/beatClock"; // --- video-
  * "sample" mode, or the next slice of an uploaded song when the song slicer is on; gap
  * passes play a rising four-note arpeggio or a custom audio clip; a ball merge plays a low
  * tone and a split a high one (interactionTones.ts). Everything is routed
- * through a master gain and also into a MediaStreamDestination so the recorder can
- * capture the audio track.
+ * through a master gain and a limiter (masterBus.ts) to the speakers and also into a
+ * MediaStreamDestination so the recorder can capture the audio track.
  *
  * A wall hit is dispatched in this order: song slicer (while it has a song to play), hit
  * sample (in "sample" mode, once the clip is decoded), otherwise a synthesised voice. The
@@ -105,6 +106,8 @@ export class ToneGenerator {
   private wallBreakSoundUrl: string | null = null;
   private wallBreakBuffer: AudioBuffer | null = null;
   private wallBreakDecoding = false;
+  /** --- review fix (audio) --- The wall-break clip that could not be fetched or decoded: the synthesised effects play instead and it is not fetched again. */
+  private wallBreakFailedUrl: string | null = null;
   private volume = 1;
   private sampler: HitSampler | null = null;
   private hitSoundMode: HitSoundMode = "tones";
@@ -126,6 +129,10 @@ export class ToneGenerator {
   // simulation clock the hits are placed on (null = the BPM grid anchored at the run's start, as before)
   private beatSourceClock: BeatClockConfig | null = null;
   private beatSourceSimTime: (() => number) | null = null;
+  // --- review fix (audio) --- the synth voices and the hit-sample voices a wall hit started at the current scheduling time
+  // (same-time identical voices add up to √n × one, and one time starts at most MAX_CHORD_VOICES / MAX_SAMPLE_VOICES)
+  private readonly synthStack = new SameTimeVoices(MAX_CHORD_VOICES);
+  private readonly sampleStack = new SameTimeVoices(MAX_SAMPLE_VOICES);
 
   async start() {
     if (this.isPlaying) return;
@@ -189,13 +196,9 @@ export class ToneGenerator {
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.audioContext = this.audioContext || new Ctor();
       if (!this.masterGain) {
-        this.masterGain = this.audioContext.createGain();
-        this.masterGain.gain.value = this.volume;
-        this.masterGain.connect(this.audioContext.destination);
-      }
-      if (!this.mediaStreamDestination) {
-        this.mediaStreamDestination = this.audioContext.createMediaStreamDestination();
-        this.masterGain.connect(this.mediaStreamDestination);
+        // --- review fix (audio) --- the master gain feeds the speakers and the recording through the limiter (masterBus.ts)
+        this.mediaStreamDestination = this.mediaStreamDestination || this.audioContext.createMediaStreamDestination();
+        this.masterGain = createMasterBus(this.audioContext, [this.audioContext.destination, this.mediaStreamDestination], this.volume);
       }
       // The music bed shares the master gain too, so it is heard and recorded like every other sound.
       this.musicBed.attach(this.audioContext, this.masterGain);
@@ -384,7 +387,11 @@ export class ToneGenerator {
       // √n times louder (and take every voice): the clip then plays once for the whole chord.
       const pitches = this.hitSamplePitchByWall ? hitPitches(wallIndex, pitch, chord, MAX_SAMPLE_VOICES) : [pitch];
       const level = (accent ? ACCENT_GAIN : 1) * chordGain(pitches.length);
-      for (const f of pitches) this.sampler!.play(hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitches.length > 1 || pitch !== undefined ? f : undefined), time, level * softness);
+      for (const f of pitches) {
+        const rate = hitSamplePlaybackRate(wallIndex, this.hitSamplePitchByWall, pitches.length > 1 || pitch !== undefined ? f : undefined);
+        const stack = this.sampleStack.add(time, "sample", rate); // --- review fix (audio) --- same-time copies add up to √n
+        if (stack > 0) this.sampler!.play(rate, time, level * softness * stack);
+      }
       this.musicBed.duck(time);
       return;
     }
@@ -420,7 +427,12 @@ export class ToneGenerator {
       }
       // Melody notes keep their own voice (sine by default), so a song sounds as it always did.
       const instrument = melodyNote ? this.music.melodyInstrument : this.music.instrument;
-      for (const frequency of notes) playVoice(this.audioContext, this.masterGain, instrument, { frequency: this.snap(frequency), time, duration, gain }, this.pluckCache);
+      for (const frequency of notes) {
+        const snapped = this.snap(frequency);
+        // --- review fix (audio) --- hits of one frame on one wall start in phase: n of them add up to √n × one, not n ×
+        const stack = this.synthStack.add(time, instrument, snapped);
+        if (stack > 0) playVoice(this.audioContext, this.masterGain, instrument, { frequency: snapped, time, duration, gain: gain * stack }, this.pluckCache);
+      }
       this.musicBed.duck(time);
     } catch (err) {
       console.error("Error playing wall hit sound:", err);
@@ -428,7 +440,7 @@ export class ToneGenerator {
   }
 
   playGapPass() {
-    if (this.wallBreakSoundUrl) {
+    if (this.useWallBreakClip()) {
       this.playWallBreakBuffer();
       return;
     }
@@ -603,7 +615,7 @@ export class ToneGenerator {
    * effect like the gap arpeggio and the bumper ding, so it never steals a bounce's slot.
    */
   playStringBattle(kind: "pluck" | "shatter", frequency?: number) {
-    if (kind === "shatter" && this.wallBreakSoundUrl) {
+    if (kind === "shatter" && this.useWallBreakClip()) {
       this.playWallBreakBuffer();
       return;
     }
@@ -687,7 +699,7 @@ export class ToneGenerator {
    * is an effect like the gap arpeggio (it never takes a bounce's beat-grid slot); a chosen wall-break clip plays instead.
    */
   playPew(frequency = DEFAULT_PEW_FREQUENCY) {
-    if (this.wallBreakSoundUrl) {
+    if (this.useWallBreakClip()) {
       this.playWallBreakBuffer();
       return;
     }
@@ -840,8 +852,24 @@ export class ToneGenerator {
     this.wallBreakSoundUrl = url;
     this.wallBreakBuffer = null;
     this.wallBreakDecoding = false;
+    this.wallBreakFailedUrl = null; // choosing a clip (again) tries it (again)
     if (url) void this.decodeWallBreakSound(url);
   }
+
+  // --- review fix (audio) ---
+  /**
+   * True when the chosen wall-break clip is decoded and plays instead of the synthesised effect (the gap arpeggio, the
+   * shatter burst, the pew). While it is still decoding – or when it failed – the effect plays, so a break is never silent;
+   * a missing clip starts its decode, once: one that failed is not fetched again.
+   */
+  private useWallBreakClip(): boolean {
+    const url = this.wallBreakSoundUrl;
+    if (!url) return false;
+    if (this.wallBreakBuffer) return true;
+    if (this.wallBreakFailedUrl !== url) void this.decodeWallBreakSound(url);
+    return false;
+  }
+  // --- end review fix (audio) ---
 
   private async decodeWallBreakSound(url: string) {
     if (this.wallBreakDecoding) return;
@@ -854,11 +882,17 @@ export class ToneGenerator {
     }
     try {
       const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`); // --- review fix (audio) ---
       const data = await res.arrayBuffer();
       const buffer = await ctx.decodeAudioData(data);
       if (this.wallBreakSoundUrl === url) this.wallBreakBuffer = buffer;
     } catch (err) {
-      console.error("Failed to decode wall-break sound:", err);
+      // --- review fix (audio) --- a context closed meanwhile (the generator stopped) is not the clip's fault; otherwise the
+      // clip is marked as failed: the synthesised effects play instead and it is not fetched again (the upload says so).
+      if (this.audioContext === ctx) {
+        if (this.wallBreakSoundUrl === url) this.wallBreakFailedUrl = url;
+        console.warn("Failed to decode wall-break sound (the synthesised effect plays instead):", err);
+      }
     } finally {
       this.wallBreakDecoding = false;
     }
@@ -868,10 +902,7 @@ export class ToneGenerator {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") void this.audioContext.resume();
-    if (!this.wallBreakBuffer) {
-      if (this.wallBreakSoundUrl) void this.decodeWallBreakSound(this.wallBreakSoundUrl);
-      return;
-    }
+    if (!this.wallBreakBuffer) return; // callers check useWallBreakClip() first
     try {
       const source = this.audioContext.createBufferSource();
       source.buffer = this.wallBreakBuffer;
@@ -932,9 +963,7 @@ export class ToneGenerator {
   async createOfflineTwin(context: BaseAudioContext, clock: () => number): Promise<ToneGenerator> {
     const twin = new ToneGenerator();
     const ctx = clockedAudioContext(context, clock);
-    const master = ctx.createGain();
-    master.gain.value = this.volume;
-    master.connect(context.destination);
+    const master = createMasterBus(context, [context.destination], this.volume); // --- review fix (audio) --- the live mix's bus
     twin.audioContext = ctx;
     twin.masterGain = master;
     twin.volume = this.volume;
@@ -949,6 +978,7 @@ export class ToneGenerator {
     twin.sampler.setVolume(this.hitSampleVolume);
     twin.wallBreakSoundUrl = this.wallBreakSoundUrl;
     twin.wallBreakBuffer = this.wallBreakBuffer;
+    twin.wallBreakFailedUrl = this.wallBreakFailedUrl; // --- review fix (audio) --- a clip that failed on the page is not tried again
     twin.slicer.setOptions(this.slicer.getOptions());
     twin.slicer.setBuffer(this.slicer.getBuffer());
     twin.slicer.setEnabled(this.slicer.isActive());
@@ -960,7 +990,7 @@ export class ToneGenerator {
     twin.resetBeatGrid();
     if (this.beatSourceClock) twin.setBeatSourceClock(this.beatSourceClock, clock); // --- video-beats --- (the export's clock is the simulation's)
     if (twin.hitSoundMode === "sample" && twin.hitSampleUrl) await twin.sampler.load(twin.hitSampleUrl);
-    if (twin.wallBreakSoundUrl && !twin.wallBreakBuffer) await twin.decodeWallBreakSound(twin.wallBreakSoundUrl);
+    if (twin.wallBreakSoundUrl && !twin.wallBreakBuffer && twin.wallBreakFailedUrl !== twin.wallBreakSoundUrl) await twin.decodeWallBreakSound(twin.wallBreakSoundUrl);
     twin.musicBed.play();
     return twin;
   }
