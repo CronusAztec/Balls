@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TeamLayer, type TeamLabels } from "@/components/simulator/teamsRenderer";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { BallStatsBook, MAX_TEAMS, MAX_TRACKED_BALLS, MODE_MAX_BALLS, MULTI_BALL_MODES, emptyStats, modeBallCap, startBallAngle, startBallColor, startBallCount, teamSlotOf, type BallStats } from "@/lib/physics/ballStats";
 import { MODE_IDS, type ModeId, type PhysicsConfig } from "@/lib/physics/types";
@@ -506,5 +507,39 @@ describe("several balls in the engine", () => {
     const engine = engineFor("classic", 8, 3);
     engine.setConfig({ ballColor: "#abcdef", ballColor2: "#123456" });
     expect(engine.getBalls().map((b) => b.color)).toEqual(["#abcdef", "#123456", startBallColor(2, config)]);
+  });
+});
+
+// --- review fix (gerald-exit-splat) --- who got out first, for tools and the smoke test: a multi-ball Classic run goes on until
+// every ball is out, so the escape counts read a moment after the first escape can already include the rival's.
+describe("per-team first escapes for the canvas (data-team-first-escapes)", () => {
+  const LABELS: TeamLabels = { bounces: "Bounces", walls: "Walls", escapes: "Escapes", kills: "Kills", win: "Win", wins: (name) => `${name} wins!`, tie: "It's a tie!", team: (n) => `Team ${n}` };
+  const options = { roster: [{ name: "Red", color: "#ef4444", emoji: "" }, { name: "Blue", color: "#3b82f6", emoji: "" }], showNames: true, showScoreboard: true, position: "top-left" as const, labels: LABELS };
+
+  it("names each team's first escape in seconds, -1 before one, and keeps the order once the rival is out too", () => {
+    const engine = engineFor("classic", 31337, 2);
+    const layer = new TeamLayer();
+    layer.beginFrame(engine, options);
+    expect(layer.firstEscapesText(engine)).toBe("-1,-1");
+    let steps = 0;
+    while (engine.getTeamStats().every((t) => t.escapes === 0) && steps < 60 * 120) {
+      engine.update(STEP, 0);
+      steps++;
+    }
+    const teams = engine.getTeamStats();
+    const first = teams.findIndex((t) => t.escapes > 0);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(engine.isSimulationFinished()).toBe(false); // the other ball is still in: the run goes on
+    layer.beginFrame(engine, options);
+    const parts = layer.firstEscapesText(engine).split(",").map(Number);
+    expect(parts).toHaveLength(2);
+    expect(parts[first]).toBe(Number((teams[first].firstEscapeMs / 1000).toFixed(2)));
+    expect(parts[1 - first]).toBe(-1);
+    run(engine, 60 * 120, true);
+    expect(engine.isSimulationFinished()).toBe(true);
+    layer.beginFrame(engine, options);
+    const after = layer.firstEscapesText(engine).split(",").map(Number);
+    expect(after[first]).toBe(parts[first]); // the first escape keeps its time
+    expect(after[1 - first]).toBeGreaterThan(after[first]); // the rival got out later, however the counts read now
   });
 });

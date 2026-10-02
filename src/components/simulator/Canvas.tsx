@@ -3048,17 +3048,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         for (const key of ["obstacles", "obstacleEditing", "obstacleSelected", "obstacleHits", "bumperHits", "spinnerAngle"]) delete canvas.dataset[key];
       }
 
-      // --- teams --- teams in play, per-team "bounces/walls/escapes", the winner, the names drawn and the scoreboard (data-team-*) for tools and the smoke test
+      // --- teams --- teams in play, per-team "bounces/walls/escapes" and first escape, the winner, the names drawn and the scoreboard (data-team-*) for tools and the smoke test
       if (teamLayer.isActive()) {
         const o = teamsRef.current;
         setCanvasData("teams", String(teamLayer.teamsInPlay()));
         setCanvasData("teamStats", teamLayer.statsText(engine));
+        setCanvasData("teamFirstEscapes", teamLayer.firstEscapesText(engine)); // who got out first, whatever flies out after the run is over
         setCanvasData("teamWinner", teamLayer.winnerText());
         setCanvasData("teamLabels", String(teamLayer.labelsDrawn));
         setCanvasData("scoreboard", o && o.showScoreboard ? o.position : "off");
         setCanvasData("scoreboardBottom", String(Math.round(teamLayer.scoreboardBottom))); // --- gerald-multipliers --- the HUD starts below it
       } else if (canvas.dataset.teams !== undefined) {
-        for (const key of ["teams", "teamStats", "teamWinner", "teamLabels", "scoreboard", "scoreboardBottom"]) delete canvas.dataset[key];
+        for (const key of ["teams", "teamStats", "teamFirstEscapes", "teamWinner", "teamLabels", "scoreboard", "scoreboardBottom"]) delete canvas.dataset[key];
       }
       // --- captions --- captions drawn, the values they show ("0:27 | Wall 2/7 | Will it escape? → YES!") and the answer's reveal
       // (data-caption-*); where the top / bottom stacks start and the Top / Bottom Text lines they keep clear of ("top,bottom" and

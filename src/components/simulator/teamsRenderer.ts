@@ -450,6 +450,17 @@ export class TeamLayer {
     return out;
   }
 
+  /**
+   * Per-team first escape in seconds of simulation time (-1 without one) joined by commas, for the canvas data attribute:
+   * who got out first, whatever flies out once the run is over (a tool reading the stats a moment later still sees the order).
+   */
+  firstEscapesText(engine: PhysicsEngine): string {
+    const stats = this.result ? this.frozen : engine.getTeamStats();
+    let out = "";
+    for (let i = 0; i < this.count; i++) out += `${i > 0 ? "," : ""}${stats[i].firstEscapeMs >= 0 ? (stats[i].firstEscapeMs / 1000).toFixed(2) : "-1"}`;
+    return out;
+  }
+
   /** The winner's name, "tie", or "" while the run goes on (or its banner waits for the escape replay). */
   winnerText(): string {
     const r = this.result;

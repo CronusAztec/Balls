@@ -9750,7 +9750,8 @@ const bdInstrument = () =>
   // --- review fix (gerald-exit-splat) --- a forced winner gets out with moving exits: the rig steers at the exits where they
   // are (the rings hold still), no longer where turning rings would have carried them – with Flee and Shrink it almost never
   // escaped. Two teams, Blue forced to win, a pinned seed, at 8×: out after 42 / 29 / 25 s of the run (before: 145 s, never
-  // within 4 minutes, 112 s).
+  // within 4 minutes, 112 s). Who got out first is read from the per-team first escapes (data-team-first-escapes), not from
+  // the escape counts: once the run is over the rival can fly out too, and a slow machine reads the stats after it has.
   const forced = {};
   const pair = "Red*ef4444*🔥,Blue*3b82f6*💧";
   for (const behavior of ["jump", "flee", "shrink"]) {
@@ -9759,8 +9760,8 @@ const bdInstrument = () =>
     await page.getByRole("button", { name: "8x", exact: true }).click();
     const out = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.firstEscape) >= 0, null, { timeout: 60000 }).then(() => true).catch(() => false);
     const d = await canvasData();
-    const escapes = (d.teamStats || "").split(",").map((t) => Number(t.split("/")[2]));
-    forced[behavior] = { out, at: d.firstEscape, winner: d.rigWinner, exit: d.exitBehavior, teams: d.teamStats, chosenFirst: escapes[1] >= 1 && escapes[0] === 0 };
+    const firsts = (d.teamFirstEscapes || "").split(",").map(Number);
+    forced[behavior] = { out, at: d.firstEscape, winner: d.rigWinner, exit: d.exitBehavior, firsts: d.teamFirstEscapes, teams: d.teamStats, chosenFirst: firsts[1] >= 0 && (firsts[0] < 0 || firsts[0] > firsts[1]) };
   }
   check(
     "a forced winner gets out first with jumping, fleeing and shrinking exits",
