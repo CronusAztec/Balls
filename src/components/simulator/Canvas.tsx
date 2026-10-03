@@ -87,6 +87,8 @@ import { ringDrawStride, ringDrawn } from "./ringLod"; // --- review fix (record
 import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type MazeLabels, type MazeRenderOptions } from "./mazeRenderer";
 // --- gerald-conveyor --- the Conveyor Belt: the belts, the hatch, the loading tube, the bowl, the bins, the frost and the counter
 import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
+// --- orb-grid --- Bouncing Orbs: the perspective field (floor, shadows, sprites back to front), the HUD line and the data-og-* writer
+import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -197,6 +199,9 @@ export interface CanvasLabels {
   // --- gerald-conveyor ---
   /** Conveyor Belt: the HUD title, the counter ("Loaded 17 / Escaped 4"), the frozen count and the final banner. */
   conveyor?: ConveyorLabels;
+  // --- orb-grid ---
+  /** Bouncing Orbs: the HUD line ("1089 bouncing orbs") and the end banners. */
+  orbGrid?: OrbGridLabels;
 }
 
 export interface CanvasHandle {
@@ -308,6 +313,13 @@ export interface CanvasProps {
   videoBackground?: VideoBackgroundLayer | null;
   /** --- split-screen --- A split-screen race: its engines, layout and labels (null / one engine = this canvas alone); see splitScreenCanvas.tsx. */
   splitScreen?: SplitScreenCanvasOptions | null;
+  // --- orb-grid ---
+  /**
+   * The arenas drawn into one frame (a split-screen arena's canvas gets their count): Bouncing Orbs picks its quality level for
+   * all of their orbs together – four arenas of 1089 orbs draw like 4356 (the lean version of split screen).
+   */
+  orbArenas?: number;
+  // --- end orb-grid ---
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -373,6 +385,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   uncap: DEFAULT_UNCAP_LABELS, // --- uncap-all ---
   maze: DEFAULT_MAZE_LABELS, // --- odd-maze ---
   conveyor: DEFAULT_CONVEYOR_LABELS, // --- gerald-conveyor ---
+  orbGrid: DEFAULT_ORB_GRID_LABELS, // --- orb-grid ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -446,6 +459,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     fastRender = null, // --- fast-render ---
     race = null, // --- jdm-race ---
     videoBackground = null, // --- video-beats ---
+    orbArenas = 1, // --- orb-grid ---
   },
   ref,
 ) {
@@ -475,6 +489,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   /** Picture Paint: the decoded picture (null until it loads, or without one). */
   const paintImageRef = useRef<HTMLImageElement | null>(null);
   labelsRef.current = labels;
+  const orbArenasRef = useRef(orbArenas); // --- orb-grid --- (read by the draw loop)
+  orbArenasRef.current = orbArenas;
   // --- gerald-faces --- the characters' options and chirp callback, read by the draw loop; the face layer lives with the loop
   const characterRef = useRef<CharacterRenderOptions | null>(character);
   characterRef.current = character;
@@ -857,6 +873,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const conveyorLayer = new ConveyorLayer();
     const conveyorRender: ConveyorRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const conveyorData = new ConveyorDataset();
+    // --- orb-grid --- the Bouncing Orbs layer (its sprite caches and per-orb buffers) and the data-og-* writer
+    const orbLayer = new OrbGridLayer();
+    const orbData = new OrbGridDataset();
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
     const bmLayer = new BounceMathLayer(); // --- bounce-math ---
@@ -1211,6 +1230,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
+      const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
       const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
@@ -1567,6 +1587,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conveyorRender.showWallGlow = p.showWallGlow;
         conveyorLayer.drawWorld(ctx, conveyorView, conveyorRender);
       }
+      // --- orb-grid --- Bouncing Orbs: the slab, the plate or the grid floor under the orbs (the field's perspective)
+      if (orbView) orbLayer.drawWorld(ctx, orbView, size.width, size.height);
       // --- beat-drop --- the obstructions (flying in, settled, squashing, glowing with the beat, leaving) and the ball's trail
       if (bdView) bdLayer.drawWorld(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender);
       // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
@@ -2018,6 +2040,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
+      else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
       else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
@@ -2387,6 +2410,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       uncapInfo.bounce = engine.getBounceSpeedMultiplier();
       uncapInfo.rescued = unlimitedView.rescued;
       uncapInfo.show = unlimitedView.on;
+      if (orbView) uncapInfo.show = false; // --- orb-grid --- (the orbs have no ball speed to read out: the placeholder ball stands still)
       if (uncapInfo.show) {
         const sq = Math.min(size.width, size.height);
         drawUncapHud(ctx, uncapInfo, (labelsRef.current ?? DEFAULT_LABELS).uncap ?? DEFAULT_UNCAP_LABELS, cx - sq / 2, cy - sq / 2, sq, !recordingRef.current ? 52 : 0);
@@ -2410,6 +2434,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (mazeView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         modeTopHud = Math.max(modeTopHud, mazeLayer.drawOverlay(ctx, mazeView, mazeRender, { inset: teamInset, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+      }
+      // --- orb-grid --- Bouncing Orbs: "1089 bouncing orbs" at the top of the square the recorder crops to – on the right while the
+      // teams scoreboard holds the top-left corner; the top captions start below it
+      if (orbView) {
+        const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
+        // (a split-screen arena: on the right too – the arena's letter badge holds the top-left corner)
+        modeTopHud = Math.max(modeTopHud, orbLayer.drawOverlay(ctx, orbView, (labelsRef.current ?? DEFAULT_LABELS).orbGrid ?? DEFAULT_ORB_GRID_LABELS, size.width, size.height, teamInset, boardLeft || orbArenasRef.current > 1));
       }
 
       // HUD: mode counters in the centre
@@ -2641,6 +2672,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (conveyorView && conveyorView.allDone) {
           const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
           bigBanner(CV.title, CV.sub, "#a3e635");
+        }
+        // --- orb-grid --- Bouncing Orbs: every orb at rest (from the last landing, through the hold before the end) / the clip over first
+        if (orbView && (orbView.allSettled || orbView.finished)) {
+          const OG = orbGridBanner(orbView, L.orbGrid ?? DEFAULT_ORB_GRID_LABELS);
+          bigBanner(OG.title, OG.sub, "#a3e635");
         }
         // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
         if (bdView && bdLayer.finale(bdView)) {
@@ -3156,6 +3192,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- gerald-conveyor --- arena, balls, loaded, escaped / overflow / landed, frozen, carried, passes, notes, drops, the end (data-cv-*)
       if (conveyorView) conveyorData.write(conveyorView, setCanvasData);
       else if (canvas.dataset.cvArena !== undefined) for (const key of CONVEYOR_DATA_KEYS) delete canvas.dataset[key];
+      // --- orb-grid --- orbs, released (orbs and rings), bounces, landed, settled, moving, the resolve detector, quality, sound, the end (data-og-*)
+      if (orbView) orbData.write(orbView, orbLayer, setCanvasData);
+      else if (canvas.dataset.ogOrbs !== undefined) for (const key of ORB_GRID_DATA_KEYS) delete canvas.dataset[key];
       // (the respawn timer of Classic and Multiply: balls dropped in this run, and the balls in play – data-respawns, data-respawn-balls)
       if ((engine.config.respawnEvery ?? 0) > 0) {
         setCanvasData("respawns", String(engine.getRespawnCount()));

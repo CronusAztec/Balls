@@ -113,6 +113,8 @@ import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-j
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
+// --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
+import { orbGridNeverSettles, orbGridSettingsOf, type OrbGridFields } from "@/lib/physics/modes/orbGrid";
 import { respawnConfigOf } from "@/lib/physics/respawn";
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
@@ -356,6 +358,7 @@ export default function Simulator() {
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
     engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
     engine.setConveyorSettings(conveyorSettingsOf(s)); // --- gerald-conveyor ---
+    engine.setOrbGridSettings(orbGridSettingsOf(s)); // --- orb-grid ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -960,6 +963,26 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.respawnEvery]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end gerald-conveyor ---
+  // --- orb-grid --- Bouncing Orbs: a change of the field or the variation – or of the gravity the orbs fall under – restarts the
+  // run and drops a found seed; the look, the sound, the Sound section's scale and root, the Ball Colour and the clip follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setOrbGridSettings(orbGridSettingsOf(s));
+    if (s.mode === "orbGrid" && engine.getCurrentModeName() === "orbGrid") {
+      engine.initOrbGrid();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ogColumns, s.ogRows, s.ogArrangement, s.ogVaried, s.ogDistribution, s.ogSpread, s.ogRelease, s.ogStagger, s.ogDropHeight, s.ogOrbSize, s.ogBounciness, s.ogResolve, s.gravity]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.ogColumns, s.ogRows, s.ogArrangement, s.ogVaried, s.ogDistribution, s.ogSpread, s.ogRelease, s.ogStagger, s.ogDropHeight, s.ogOrbSize, s.ogBounciness, s.ogResolve]);
+  useEffect(() => {
+    engineRef.current?.setOrbGridSettings(orbGridSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ogElevation, s.ogRotation, s.ogOrbit, s.ogFloor, s.ogMaterial, s.ogPalette, s.ogHud, s.ogSound, s.scale, s.rootNote, s.ballColor, s.recordingDuration]);
+  // --- end orb-grid ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1262,7 +1285,9 @@ export default function Simulator() {
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
   const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless, neverEscape: s.neverEscape, ballCount });
+  // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
+  const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
@@ -1322,6 +1347,7 @@ export default function Simulator() {
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
         engine.setMazeSettings({ trail: arena.mzTrail, trailColor: arena.mzTrailColor, trailOwn: arena.mzTrailOwn, fog: arena.mzFog, wallColor: arena.mzWallColor, badge: arena.mzBadge, hud: arena.mzHud }); // --- odd-maze --- (the drawing follows live; the maze and the race wait for a restart)
         engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
+        engine.setOrbGridSettings(orbGridSettingsOf(arena)); // --- orb-grid --- (the look, the sound, the scale and the clip follow live; the field waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1555,6 +1581,11 @@ export default function Simulator() {
           // --- gerald-exit-splat --- a splat of the splat barrier landed: the wet splat (the wall hit sounds as its own event)
           if (ev.splat) {
             audio.playSplat(ev.level);
+            continue;
+          }
+          // --- orb-grid --- a Bouncing Orbs voice in its own sound (sleep or metal; notes and music are ordinary hits)
+          if (ev.orb) {
+            audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
@@ -2305,6 +2336,17 @@ export default function Simulator() {
     [presets],
   );
 
+  // --- orb-grid --- a Bouncing Orbs preset (the Presets group): another mode switches over first (from Bouncing Orbs' defaults,
+  // like a mode card), then the preset's field, look and sound apply – the field restarts the run and drops a found seed
+  const applyOrbGridPreset = useCallback(
+    (fields: OrbGridFields) => {
+      if (batchActiveRef.current) return; // (no preset loads while a batch runs)
+      if (settings.mode !== "orbGrid") changeMode("orbGrid");
+      update(fields);
+    },
+    [settings.mode, changeMode, update],
+  );
+
   // --- project-files --- Export / Import project (the settings plus the media in memory) and the short ?c= share codes
   const projectFiles = useProjectFiles({
     settings,
@@ -2480,7 +2522,7 @@ export default function Simulator() {
     finderAbortRef.current = controller;
     // --- rigged --- an outcome search (never escapes, escapes at, winner) instead of the run length
     // (a first escape later than the clip gets a clip that runs a few seconds past it)
-    const clipSec = finderOutcome === "escapes-at" ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
+    const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
@@ -2534,6 +2576,7 @@ export default function Simulator() {
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
           maze: mazeSettingsOf(settings), // --- odd-maze ---
           conveyor: conveyorSettingsOf(settings), // --- gerald-conveyor ---
+          orbGrid: { ...orbGridSettingsOf(settings), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest: the page's clip is left out)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2765,6 +2808,15 @@ export default function Simulator() {
         doneBowl: t("Conveyor.canvasDoneBowl"),
         donePegs: t("Conveyor.canvasDonePegs"),
         timeUp: t("Conveyor.canvasTimeUp"),
+      },
+      // --- orb-grid ---
+      orbGrid: {
+        // (ICU plurals: `n` picks the form, `count` is shown as the account writes it – "1089", no grouping)
+        hud: (count) => t("OrbGrid.canvasHud", { n: Number(count), count }),
+        settledTitle: t("OrbGrid.canvasSettled"),
+        settledSub: (count, seconds) => t("OrbGrid.canvasSettledSub", { n: Number(count), count, seconds }),
+        timeTitle: t("OrbGrid.canvasTime"),
+        timeSub: (settled, count) => t("OrbGrid.canvasTimeSub", { settled, count }),
       },
       // --- odd-maze ---
       maze: {
@@ -3353,6 +3405,7 @@ export default function Simulator() {
           batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)
           stage={stage} // --- site-redesign ---
           onOpenModePicker={openModePicker} // --- site-redesign ---
+          onOrbGridPreset={applyOrbGridPreset} // --- orb-grid ---
         />
       </ProjectDropZone>
       <DesktopSection page={desktopPage} /* --- desktop-exe --- */ />

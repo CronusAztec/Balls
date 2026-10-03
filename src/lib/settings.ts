@@ -75,6 +75,8 @@ import { MAZE_RANGES, defaultMazeFields, readMazeParams, resolveMazeFields, writ
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConveyorFields, writeConveyorParams, type ConveyorArena } from "@/lib/physics/modes/conveyor";
 import { RESPAWN_RANGES } from "@/lib/physics/respawn";
+// --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
+import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGridPastCeiling, readOrbGridParams, resolveOrbGridFields, writeOrbGridParams, type OgArrangement, type OgDistribution, type OgFloor, type OgMaterial, type OgPalette, type OgProperty, type OgRelease, type OgSound } from "@/lib/physics/modes/orbGrid";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -767,6 +769,40 @@ export interface SimulatorSettings {
   /** Classic and Multiply: a new ball drops in every this many seconds, 0 = off (URL `rse`; `rs` is the Rotation Speed's). */
   respawnEvery: number;
   // --- end gerald-conveyor ---
+  // --- orb-grid --- Bouncing Orbs (lib/physics/modes/orbGrid.ts): a field of orbs, each bouncing on its own spot
+  /** Orbs across and along the field, 1–80 on the sliders, any whole number typed (a run builds at most 250,000) (URL `ogC`, `ogR`). */
+  ogColumns: number;
+  ogRows: number;
+  /** grid | disc | octagons | hex (URL `ogA`). */
+  ogArrangement: OgArrangement;
+  /** The varied property: bounciness | height | delay | size | gravity | period (URL `ogV`). */
+  ogVaried: OgProperty;
+  /** Its distribution over the field: varied | corner | centre | rows | columns | spiral | ripple | checker (URL `ogD`). */
+  ogDistribution: OgDistribution;
+  /** How far the property ranges across the field, 0 = all identical (URL `ogS`). */
+  ogSpread: number;
+  /** together | outside-in | inside-out | row-by-row | random (URL `ogL`), and the seconds between two release steps (URL `ogT`). */
+  ogRelease: OgRelease;
+  ogStagger: number;
+  /** Drop height (field widths) (URL `ogH`), orb diameter (share of the spacing) (URL `ogZ`), base bounciness (URL `ogB`). */
+  ogDropHeight: number;
+  ogOrbSize: number;
+  ogBounciness: number;
+  /** The resolve moment: every moving orb lands at once on the pattern clock (URL `ogRes`). */
+  ogResolve: boolean;
+  /** Camera elevation and rotation (degrees), the slow auto-orbit (URL `ogE`, `ogRot`, `ogO`). */
+  ogElevation: number;
+  ogRotation: number;
+  ogOrbit: boolean;
+  /** slab | plate | grid | none (URL `ogF`); glossy | metallic | matte | glass (URL `ogM`); height | rings | rows | ball | rainbow-field (URL `ogP`). */
+  ogFloor: OgFloor;
+  ogMaterial: OgMaterial;
+  ogPalette: OgPalette;
+  /** The "1089 bouncing orbs" line in the exported square (URL `ogHud`). */
+  ogHud: boolean;
+  /** notes | sleep | music | metal | silent (URL `ogSnd`). */
+  ogSound: OgSound;
+  // --- end orb-grid ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -893,6 +929,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     bounciness: BOUNCINESS_OFF, // --- uncap-all ---
     ...defaultMazeFields(), // --- odd-maze ---
     ...defaultConveyorFields(), // --- gerald-conveyor --- (and the respawn timer, off)
+    ...defaultOrbGridFields(), // --- orb-grid ---
   };
 }
 
@@ -969,6 +1006,7 @@ export const RANGES = {
   ...MAZE_RANGES, // --- odd-maze ---
   ...CONVEYOR_RANGES, // --- gerald-conveyor ---
   ...RESPAWN_RANGES, // --- gerald-conveyor --- (the respawn timer of Classic and Multiply)
+  ...ORB_GRID_RANGES, // --- orb-grid ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1215,6 +1253,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeTerritoryParams(settings, base, params); // --- odd-territory ---: tyc, tyt, tyb, typ, tye, tyr, tyd, typg, tybg, tyh
   writeMazeParams(settings, base, params); // --- odd-maze ---: mzc, mzn, mzb, mzh, mzg, mzs, mzt, mztc, mzto, mzf, mzwc, mzd, mzbg, mzhud
   writeConveyorParams(settings, base, params); // --- gerald-conveyor ---: cvi, cvn, cva, cvf, cvv, rse
+  writeOrbGridParams(settings, base, params); // --- orb-grid ---: ogC, ogR, ogA, ogV, ogD, ogS, ogL, ogT, ogH, ogZ, ogB, ogRes, ogE, ogRot, ogO, ogF, ogM, ogP, ogHud, ogSnd
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1374,6 +1413,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
   readMazeParams(params, settings); // --- odd-maze --- (valid numbers kept, no maximum; unknown options and bad colours fall back)
   readConveyorParams(params, settings); // --- gerald-conveyor --- (valid numbers kept, no maximum; an unknown arena falls back)
+  readOrbGridParams(params, settings); // --- orb-grid --- (valid numbers kept, no maximum; unknown options fall back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1588,6 +1628,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
   maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
   conveyor: rangeKeys(CONVEYOR_RANGES), // --- gerald-conveyor ---
+  orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -1641,6 +1682,7 @@ export function numericUrlKeyFields(): Readonly<Record<string, string>> {
 export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
   const record = settings as unknown as Record<string, unknown>;
   for (const key of engineSettingKeys(settings.mode)) if (pastMemoryCeiling(key, record[key])) return true;
+  if (settings.mode === "orbGrid" && orbGridPastCeiling(settings)) return true; // --- orb-grid --- (columns × rows past the orbs' ceiling)
   return false;
 }
 // --- end uncap-all ---
@@ -1791,6 +1833,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans
   Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- valid numbers on their steps (no maximum), known options, real colours and booleans
   Object.assign(merged, resolveConveyorFields(merged)); // --- gerald-conveyor --- valid numbers on their steps (no maximum), a known arena, a real boolean, the respawn period
+  Object.assign(merged, resolveOrbGridFields(merged)); // --- orb-grid --- valid numbers (no maximum), known options, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)
