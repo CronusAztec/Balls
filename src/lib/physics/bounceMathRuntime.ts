@@ -111,6 +111,8 @@ export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MO
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("conveyor");
 (BOUNCE_MATH_PASS_MODES as ModeId[]).push("conveyor");
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("conveyor");
+// --- land-claim --- Land Claim resolves its balls' hits on each other itself and reports them (`ctx.noteCollide()`)
+(BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("landClaim");
 
 /**
  * Whether `trigger` ever fires in `mode` (the panel marks a rule whose trigger the mode never sets off). Every mode reports

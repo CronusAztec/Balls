@@ -63,6 +63,7 @@ import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { ConveyorMode, type ConveyorSettings, type ConveyorView } from "./modes/conveyor";
 import { RespawnTimer } from "./respawn";
+import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./modes/landClaim"; // --- land-claim ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -299,6 +300,8 @@ export class PhysicsEngine {
   // timer of Classic and Multiply (a new ball drops in every `respawnEvery` seconds; respawn.ts)
   readonly conveyorMode = new ConveyorMode();
   private readonly respawn = new RespawnTimer();
+  // --- land-claim --- Land Claim: balls knock the top blocks off the columns lining the arena
+  readonly landClaimMode = new LandClaimMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -680,6 +683,10 @@ export class PhysicsEngine {
   initConveyor() {
     this.activateMode(this.conveyorMode, "none");
   }
+  // --- land-claim --- the mode owns its arena (no rings)
+  initLandClaim() {
+    this.activateMode(this.landClaimMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -768,6 +775,9 @@ export class PhysicsEngine {
       // --- gerald-conveyor ---
       case "conveyor":
         return this.initConveyor();
+      // --- land-claim ---
+      case "landClaim":
+        return this.initLandClaim();
     }
   }
 
@@ -1707,6 +1717,25 @@ export class PhysicsEngine {
     return this.respawn.count;
   }
   // --- end gerald-conveyor ---
+  // --- land-claim ---
+  isLandClaimMode() {
+    return this.currentMode === this.landClaimMode;
+  }
+  getLandClaimSettings(): LandClaimSettings {
+    return this.landClaimMode.getSettings();
+  }
+  /** The wall, the competitors, the balls, the rule, the spawn period and the duration of Land Claim apply on the next `initLandClaim()`; the title and the HUD at once. */
+  setLandClaimSettings(settings: Partial<LandClaimSettings>) {
+    this.landClaimMode.setSettings(settings);
+  }
+  /** Live Land Claim state (the arena, the columns and their blocks, the land, the balls, the verdict) for the canvas and the HUD; the same object every call. */
+  getLandClaimView(): LandClaimView {
+    return this.landClaimMode.getView();
+  }
+  getLandClaimProgress() {
+    return this.landClaimMode.getProgress();
+  }
+  // --- end land-claim ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

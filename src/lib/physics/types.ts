@@ -68,6 +68,8 @@ export const MODE_IDS = [
   "maze",
   // --- gerald-conveyor --- Conveyor Belt (a belt drops a ball into the arena below every few seconds)
   "conveyor",
+  // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
+  "landClaim",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -319,6 +321,15 @@ export interface SoundEvent {
    * plays an accompaniment hit, never a melody note.
    */
   splat?: boolean;
+  // --- land-claim ---
+  /**
+   * A Land Claim effect instead of a bounce (`ToneGenerator.playLandClaim()`, lib/audio/landClaimTones.ts): "knock" – a block
+   * knocked off its column, a short wooden click at `frequency` (pitched by the column) –, "spawn" – a new ball, a chime – or
+   * "ko" – a column's last block (louder with `accent`: the last block of the arena). Sent with `melody: false`, so a page
+   * that does not know it plays an accompaniment hit, never a melody note.
+   */
+  lcSound?: "knock" | "spawn" | "ko";
+  // --- end land-claim ---
 }
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */

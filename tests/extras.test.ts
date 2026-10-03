@@ -135,6 +135,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- gerald-conveyor --- Conveyor Belt: its own field, the rings arena setting the engine's rings (five fit here); recorded when
   // the mode was added (seed 12345, defaults: 8 balls 3 s apart dropped into the rings, the escaped ones carried away).
   conveyor: { samples: [[392830,299930],[405963,324324],[359936,292702],[332380,173434],[408332,258889],[589499,316456],[357295,354065]], broken: [], walls: [50112,79344,108576,137808,167040] },
+  // --- land-claim --- (recorded when the mode was added: no rings – the wall of columns is the mode's own)
+  landClaim: { samples: [[328386,444514],[369351,237432],[436782,420717],[255355,223244],[467695,452667],[322641,326623],[561586,483469],[293545,478909]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

@@ -255,6 +255,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playSplat(ev.level);
     return;
   }
+  // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
+  if (ev.lcSound) {
+    audio.playLandClaim(ev.lcSound, ev.frequency, ev.level, ev.accent);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

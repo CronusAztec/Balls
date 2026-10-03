@@ -21,6 +21,7 @@ import {
   wallCount,
   wallCounterText,
   wrapCaptionText,
+  captionAnswerText, // --- land-claim ---
   type Caption,
   type CaptionBounds,
   type CaptionEngineView,
@@ -50,6 +51,8 @@ export interface CaptionView extends CaptionBounds {
   dtMs: number;
   /** Real seconds since Record while a clip is being recorded, else −1 (see `captionClock()`). */
   clipTimeSec: number;
+  /** --- land-claim --- The run's winner once it is known (a question's answer may name it as "[winner]"), else "". */
+  winner?: string;
 }
 
 const FONT_FAMILY = "sans-serif";
@@ -289,14 +292,15 @@ export class CaptionLayer {
         height = slot.barH + 2 * slot.pad + (main.lines.length > 0 ? main.lines.length * slot.lineH + 0.25 * fs : 0);
       }
       const reveal = slot.phase.reveal;
+      const answerText = captionAnswerText(c.answer, view.winner); // --- land-claim --- ("[winner]" named)
       if (reveal > 0) {
-        const answer = slot.answer.get(ctx, c.answer, slot.answerFont, maxTextW - 2 * padX);
+        const answer = slot.answer.get(ctx, answerText, slot.answerFont, maxTextW - 2 * padX);
         slot.answerHeight = answer.lines.length * slot.answerLineH;
         height += slot.answerHeight * easeOutCubic(reveal);
         width = Math.max(width, answer.width * Math.min(1, reveal * 1.5));
       }
       if (c.type === "question" || c.type === "text") {
-        if (slot.textSummary(text, c.answer, reveal > 0)) this.summaryDirty = true;
+        if (slot.textSummary(text, answerText, reveal > 0)) this.summaryDirty = true;
       } else if (c.type !== "progress" && slot.summary !== slot.valueText) {
         slot.summary = slot.valueText;
         this.summaryDirty = true;

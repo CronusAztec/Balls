@@ -8,6 +8,7 @@ import { effectiveBallCount } from "@/lib/teams";
 import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import { lcPaletteName } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
@@ -26,6 +27,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "never-escapes": "outcomeNeverEscapes",
   "escapes-at": "outcomeEscapesAt",
   winner: "outcomeWinner",
+  close: "outcomeClose", // --- land-claim ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -33,11 +35,13 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "never-escapes": "hintNeverEscapes",
   "escapes-at": "hintEscapesAt",
   winner: "hintWinner",
+  close: "hintClose", // --- land-claim ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
-function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territory?: boolean): string {
+function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territory?: boolean, landClaim?: boolean): string {
   if (territory && outcome === "winner") return "hintWinnerTerritory";
+  if (landClaim && outcome === "winner") return "hintWinnerLandClaim"; // --- land-claim --- (the most land at the end)
   return battle && outcome === "winner" ? "hintWinnerBattle" : OUTCOME_HINTS[outcome];
 }
 
@@ -45,7 +49,7 @@ function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territ
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */ }, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */; lcTeams?: number /* --- land-claim --- */ }, name: (kind: "team" | "ball", n: number) => string): string[] {
   const count = effectiveBallCount(settings);
   // --- odd-string-battle --- the String Battle's balls go by the roster's names, then by their palette names (HOTPINK, AQUA…)
   if (settings.mode === "stringBattle") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : stringBattleBallName(i)));
@@ -53,6 +57,8 @@ export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ball
   if (settings.mode === "territory") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : TY_PALETTE[i % TY_PALETTE.length].name));
   // --- odd-maze --- the Maze's balls go by the roster's names, then by their palette names (SNOW, AQUA…)
   if (settings.mode === "maze") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : mazeBallName(i)));
+  // --- land-claim --- Land Claim's competitors go by the roster's names (its countries), then by their palette names (RED, BLUE…)
+  if (settings.mode === "landClaim") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : lcPaletteName(i) || name("team", i + 1)));
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     if (settings.teams.length > 0) out.push(settings.teams[i]?.name || name("team", i + 1));
@@ -72,13 +78,15 @@ export interface FinderOutcomeSelectProps {
   battle?: boolean;
   /** --- odd-territory --- Territory: the winner is the team with the most tiles when the countdown runs out. */
   territory?: boolean;
+  /** --- land-claim --- Land Claim: the winner is the competitor with the most land when the run ends. */
+  landClaim?: boolean;
 }
 
 /**
  * The compact Outcome select in the Find Simulation panel's title row (so the classic panel keeps its height); nothing
  * when the run length is all the finder can search in this mode.
  */
-export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, battle, territory }: FinderOutcomeSelectProps) {
+export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, battle, territory, landClaim }: FinderOutcomeSelectProps) {
   const r = useTranslations("Rigged");
   if (outcomes.length === 0 || (outcomes.length === 1 && outcomes[0] === "duration")) return null;
   return (
@@ -91,7 +99,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, ba
         id="find-outcome"
         value={outcome}
         aria-label={r("outcome")}
-        title={r(hintKey(outcome, battle, territory))}
+        title={r(hintKey(outcome, battle, territory, landClaim))}
         disabled={disabled}
         onChange={(e) => onOutcome(e.target.value as FinderOutcomeKind)}
         className="h-8 min-w-0 max-w-[11rem] px-2 bg-surface-2 text-ink text-xs rounded-md border border-line-strong focus:border-accent-dim cursor-pointer disabled:opacity-50 [@media(pointer:coarse)]:min-h-11" /* --- review fix (site-redesign) --- a 32 px target (44 px on touch) */
@@ -121,16 +129,18 @@ export interface FinderOutcomeFieldsProps {
   battle?: boolean;
   /** --- odd-territory --- Territory: the winner is the team with the most tiles when the countdown runs out. */
   territory?: boolean;
+  /** --- land-claim --- Land Claim: the winner is the competitor with the most land when the run ends. */
+  landClaim?: boolean;
 }
 
 /** An outcome search's one-line explanation and its own field (the escape second, the team to win); nothing for the classic run-length search. */
-export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory }: FinderOutcomeFieldsProps) {
+export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory, landClaim }: FinderOutcomeFieldsProps) {
   const r = useTranslations("Rigged");
   if (outcome === "duration") return null;
   const range = RANGES.findEscapeAt;
   return (
     <div className="space-y-3" data-testid="finder-outcome-fields">
-      <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory))}</p>
+      <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory, landClaim))}</p>
       {outcome === "escapes-at" && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -193,6 +203,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findEscapesAt", { time: c.escapeAt.toFixed(1) });
     case "winner":
       return t("Rigged.findWinner", { name: c.winnerName });
+    case "close": // --- land-claim ---
+      return t("Rigged.findClose");
     default:
       return null;
   }
@@ -207,6 +219,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundEscapesAt", { time: (result.escapeAt ?? 0).toFixed(1) });
     case "winner":
       return t("Rigged.foundWinner", { name: c.winnerName, duration: result.duration.toFixed(1) });
+    case "close": // --- land-claim ---
+      return t("Rigged.foundClose", { duration: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -221,6 +235,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return result.escapeAt === undefined ? t("Rigged.missNoEscape", { seeds: result.seedsTested }) : t("Rigged.missEscapesAt", { time: result.escapeAt.toFixed(1), seeds: result.seedsTested });
     case "winner":
       return t("Rigged.missWinner", { name: c.winnerName, seeds: result.seedsTested });
+    case "close": // --- land-claim --- (the closest gap between the top two, in percent of the land)
+      return t("Rigged.missClose", { margin: result.duration.toFixed(1), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -237,6 +253,8 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
         : t("Rigged.overlayEscapesAt", { tested: result.seedsTested, closest: result.escapeAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     case "winner":
       return t("Rigged.overlayWinner", { tested: result.seedsTested, name: c.winnerName });
+    case "close": // --- land-claim ---
+      return t("Rigged.overlayClose", { tested: result.seedsTested, margin: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -246,5 +264,6 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
 export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | null, progress: FinderProgress): string | null {
   if (outcome === "never-escapes") return t("Rigged.progressNeverEscapes", { duration: progress.bestDuration.toFixed(1) });
   if (outcome === "escapes-at") return progress.bestDuration > 0 ? t("Rigged.progressEscapesAt", { time: progress.bestDuration.toFixed(1) }) : null;
+  if (outcome === "close") return progress.bestDuration < 100 ? t("Rigged.progressClose", { margin: progress.bestDuration.toFixed(1) }) : null; // --- land-claim ---
   return null;
 }

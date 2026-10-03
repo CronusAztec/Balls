@@ -158,6 +158,15 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- gerald-conveyor --- Conveyor Belt: the balls the belt loads (full-physics balls, the pile's pairs every sub-step)
   cvMaxBalls: BOARD_BALL_CEILING,
   splatMax: ENTITY_CEILING, // --- gerald-exit-splat --- the splats standing at once (each a pooled circle every ball near it is tested against)
+  // --- land-claim --- Land Claim (`LC_*_CEILING` of lib/physics/modes/landClaim.ts – a test keeps them equal): the columns (a
+  // dozen numbers each; 5,000 are a wall of hairlines), the blocks of a column (two bytes a block of the owner array: the rows a
+  // run builds also stop at a million blocks in all), the competitors (a few counters and a line of the HUD each) and the balls
+  // a competitor starts with (the board's full-physics balls – every spawn counts against the same 2,000)
+  lcCols: 5_000,
+  lcRows: 2_000,
+  lcTeams: 1_000,
+  lcBalls: BOARD_BALL_CEILING,
+  // --- end land-claim ---
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

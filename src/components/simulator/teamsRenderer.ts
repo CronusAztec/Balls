@@ -7,6 +7,7 @@ import { nameLabelSize } from "./faceRenderer";
 import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { TY_PALETTE, type TerritoryView } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { MZ_PALETTE, mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import { lcPaletteColor, lcPaletteName, type LandClaimView } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 
 /**
  * Drawing of the "Team balls with scoreboard" feature (lib/teams.ts, physics/ballStats.ts), created once with
@@ -34,6 +35,8 @@ export interface TeamLabels {
   win: string;
   /** --- odd-territory --- Territory's word for its "walls" column: the tiles a team holds (its "escapes" column is the win). */
   tiles?: string;
+  /** --- land-claim --- Land Claim's word for its "walls" column: the blocks a competitor holds (its "escapes" column is the win). */
+  blocks?: string;
   /** "[name] wins!" with the name filled in. */
   wins: (name: string) => string;
   tie: string;
@@ -168,6 +171,13 @@ export class TeamLayer {
   private mazeSource: CanvasTeamOptions | null = null;
   private mazeKey = "";
   private mazeOptions: CanvasTeamOptions | null = null;
+  // --- land-claim --- the roster as Land Claim plays it (padded to its first six competitors), rebuilt when an input changes
+  private landClaimSource: CanvasTeamOptions | null = null;
+  private landClaimKey = "";
+  private landClaimOptions: CanvasTeamOptions | null = null;
+  /** The battle this frame (null in any other mode): its live land fills the scoreboard's blocks column. */
+  private landClaim: LandClaimView | null = null;
+  private readonly landClaimLive: BallStats[] = Array.from({ length: MAX_TEAMS }, emptyStats);
 
   isActive() {
     return this.active;
@@ -210,6 +220,12 @@ export class TeamLayer {
     const maze = next && next.roster.length > 0 && engine.isMazeMode() ? engine.getMazeView() : null;
     if (maze && next) next = this.mazeTeams(next, maze.teamCount, maze.settings.hud);
     // --- end odd-maze ---
+    // --- land-claim --- Land Claim plays the roster too: one team per competitor (its first six), its palette beyond the roster;
+    // its HUD takes the scoreboard's place and its land fills the blocks column (its winner banner is this layer's)
+    const landClaim = !battle && !territory && !maze && next && next.roster.length > 0 && engine.isLandClaimMode() ? engine.getLandClaimView() : null;
+    if (landClaim && next) next = this.landClaimTeams(next, Math.min(landClaim.teams, MAX_TEAMS), landClaim.settings.hud);
+    this.landClaim = landClaim;
+    // --- end land-claim ---
     if (next !== this.options) {
       this.options = next;
       this.layout = null;
@@ -224,8 +240,8 @@ export class TeamLayer {
     this.labelled = 0;
     this.labelsDrawn = 0;
     const mode = engine.getCurrentModeName();
-    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory || !!maze); // --- odd-string-battle --- (battle) --- odd-territory --- (territory) --- odd-maze --- (maze)
-    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : maze ? maze.teamCount : startBallCount(engine.config, mode)) : 0;
+    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory || !!maze || !!landClaim); // --- odd-string-battle --- (battle) --- odd-territory --- (territory) --- odd-maze --- (maze) --- land-claim --- (landClaim)
+    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : maze ? maze.teamCount : landClaim ? Math.min(landClaim.teams, MAX_TEAMS) /* --- land-claim --- */ : startBallCount(engine.config, mode)) : 0;
     if (count !== this.count) {
       this.count = count;
       this.layout = null;
@@ -295,6 +311,35 @@ export class TeamLayer {
     return this.mazeOptions;
   }
   // --- end odd-maze ---
+  // --- land-claim ---
+  /**
+   * The roster padded to `count` competitors with Land Claim's palette, the scoreboard off while its HUD shows, and the
+   * columns and banner line named for the battle – its land in the "walls" column, its win in the "escapes" one (the same
+   * object while nothing changed).
+   */
+  private landClaimTeams(options: CanvasTeamOptions, count: number, hud: boolean): CanvasTeamOptions {
+    const key = `${count}|${hud ? 1 : 0}`;
+    if (this.landClaimOptions && this.landClaimSource === options && this.landClaimKey === key) return this.landClaimOptions;
+    const roster = options.roster.slice(0, count).map((t) => ({ ...t }));
+    for (let i = roster.length; i < count; i++) roster.push({ name: lcPaletteName(i) || options.labels.team(i + 1), color: lcPaletteColor(i), emoji: "" });
+    this.landClaimSource = options;
+    this.landClaimKey = key;
+    const labels = { ...options.labels, walls: options.labels.blocks ?? options.labels.walls, escapes: options.labels.win };
+    this.landClaimOptions = { ...options, roster, labels, showScoreboard: options.showScoreboard && !hud };
+    return this.landClaimOptions;
+  }
+  /** Land Claim's team stats with the land each competitor holds right now in the "walls" (blocks) column; null in any other mode. */
+  private landClaimStats(engine: PhysicsEngine): readonly BallStats[] | null {
+    const view = this.landClaim;
+    if (!view) return null;
+    const live = engine.getTeamStats();
+    for (let i = 0; i < MAX_TEAMS; i++) {
+      Object.assign(this.landClaimLive[i], live[i]);
+      if (i < view.teams) this.landClaimLive[i].walls = view.land[i];
+    }
+    return this.landClaimLive;
+  }
+  // --- end land-claim ---
 
   private rebuildTexts() {
     const o = this.options;
@@ -416,6 +461,12 @@ export class TeamLayer {
       this.result = teamResult(this.frozen, this.count);
       // --- odd-maze --- a maze race won by a ball past the six teams (its seventh or eighth ball) has no team winner: the maze's banner stays
       if (engine.isMazeMode() && engine.getMazeView().winner >= this.count) this.result = { winner: -1, tie: false, leaders: [] };
+      // --- land-claim --- the verdict names the winner (the most land; on a level top the rig's pick, then more balls): no team
+      // winner without land or past the six teams (Land Claim's own banner names it then)
+      if (this.landClaim) {
+        const w = this.landClaim.verdict.winner;
+        this.result = w >= 0 && w < this.count ? { winner: w, tie: false, leaders: [w] } : { winner: -1, tie: false, leaders: [] };
+      }
       this.bannerMs = 0;
       this.makeBannerTexts();
       this.confettiPending = this.result.winner >= 0;
@@ -429,7 +480,7 @@ export class TeamLayer {
       this.confettiPending = false;
       this.spawnConfetti(sx, sy, side, bannerY);
     }
-    const stats = this.result ? this.frozen : (this.territoryStats(engine) ?? engine.getTeamStats()); // --- odd-territory --- (the live tiles)
+    const stats = this.result ? this.frozen : (this.territoryStats(engine) ?? this.landClaimStats(engine) ?? engine.getTeamStats()); // --- odd-territory --- (the live tiles) --- land-claim --- (the live land)
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;

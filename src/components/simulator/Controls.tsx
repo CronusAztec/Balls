@@ -70,6 +70,7 @@ import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; //
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
 import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
 import ConveyorSection, { CONVEYOR_KEYS, RESPAWN_KEYS, RespawnControl } from "./sections/ConveyorSection"; // --- gerald-conveyor --- the Conveyor block of the Mode row, the respawn timer of the Ball section
+import LandClaimSection, { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim --- the Land Claim block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
 import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
@@ -253,6 +254,8 @@ SECTION_KEYS.ball.push(...MAZE_KEYS);
 // --- gerald-conveyor --- the Conveyor block of the Mode row is searched with the Ball section too, where the respawn timer
 // of Classic and Multiply lives.
 SECTION_KEYS.ball.push(...CONVEYOR_KEYS, ...RESPAWN_KEYS);
+// --- land-claim --- the Land Claim block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...LAND_CLAIM_KEYS);
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -379,6 +382,8 @@ export default function Controls(props: ControlsProps) {
     maze: t("modeMaze"),
     // --- gerald-conveyor ---
     conveyor: t("modeConveyor"),
+    // --- land-claim ---
+    landClaim: t("modeLandClaim"),
   };
 
   // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
@@ -478,6 +483,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "maze" && !!search && <MazeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- gerald-conveyor --- */}
       {s.mode === "conveyor" && !!search && <ConveyorSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- land-claim --- */}
+      {s.mode === "landClaim" && !!search && <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
@@ -1318,6 +1325,9 @@ export default function Controls(props: ControlsProps) {
       // --- gerald-conveyor ---
       case "conveyor":
         return <ConveyorSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- land-claim ---
+      case "landClaim":
+        return <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

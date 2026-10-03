@@ -44,6 +44,8 @@ import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 import type { MazeSettings } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import type { ConveyorSettings } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
+import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -168,6 +170,13 @@ export interface ModeSettings {
    * timeout after the last drop – and the seed moves that (the escapes, the bounces), so the finder searches it.
    */
   conveyor?: Partial<ConveyorSettings>;
+  // --- land-claim ---
+  /**
+   * Land Claim: the wall, the competitors, the balls, the rule, the spawn period and the duration (see modes/landClaim.ts); the
+   * defaults when left out. A knock or claim run ends when the last block is taken – the seed moves that – or at the duration,
+   * a steal battle always at the duration; the finder searches the length, the winner and a close battle.
+   */
+  landClaim?: Partial<LandClaimSettings>;
 }
 
 // --- odd-string-battle ---
@@ -192,6 +201,10 @@ export const PAINT_FINDER_BATCH = 2;
 // --- odd-maze ---
 /** Seeds of the Maze simulated per animation frame (a seed runs until every ball is out, up to the clip limit). */
 export const MAZE_FINDER_BATCH = 6;
+
+// --- land-claim ---
+/** Seeds of Land Claim simulated per animation frame (a seed plays its whole battle, its balls multiplying). */
+export const LAND_CLAIM_FINDER_BATCH = 3;
 
 // --- review fix (modes-rhythm) ---
 /**
@@ -262,6 +275,11 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   if (mode === "powerLayers") return powerLayersFixedDurationSec((settings as Pick<ModeSettings, "powerLayers">).powerLayers);
   // --- odd-territory --- every run lasts its countdown, whatever the seed (the seed picks the winner)
   if (mode === "territory") return resolveTerritorySettings((settings as Pick<ModeSettings, "territory">).territory).duration;
+  // --- land-claim --- a steal battle always lasts its duration (land sways until then); a knock or claim run ends when the wall is taken
+  if (mode === "landClaim") {
+    const lc = resolveLandClaimSettings((settings as Pick<ModeSettings, "landClaim">).landClaim);
+    return lc.rule === "steal" ? lc.duration : null;
+  }
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
   return p.cycles > 0 ? p.cycles * p.cycleSeconds : null;
@@ -399,6 +417,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---
   if (mode === "conveyor") engine.setConveyorSettings(settings.conveyor ?? {}); // --- gerald-conveyor ---
+  if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -630,7 +649,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : request.mode === "maze" ? MAZE_FINDER_BATCH /* --- odd-maze --- */ : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : request.mode === "maze" ? MAZE_FINDER_BATCH /* --- odd-maze --- */ : request.mode === "landClaim" ? LAND_CLAIM_FINDER_BATCH /* --- land-claim --- */ : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -758,7 +777,9 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // its verdict only at that end, so the search follows every run there, past a shorter clip and horizon (the page's
   // Find Duration + 30 s cut a 61–120 s countdown short: no seed could match, not even with the forced winner)
   const fixedSec = winnerNeedsEnd(outcome, request.mode) ? fixedRunDurationSec(request.mode, request.modeSettings) : null;
-  const horizonMs = Math.max(outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode), fixedSec !== null ? 1000 * fixedSec + FIXED_RUN_SLACK_MS : 0);
+  // --- land-claim --- a battle judged at its end (the winner, a close battle) is followed to its duration at the latest
+  const lcEndSec = request.mode === "landClaim" && (winnerNeedsEnd(outcome, request.mode) || outcome.kind === "close") ? resolveLandClaimSettings(request.modeSettings.landClaim).duration : null;
+  const horizonMs = Math.max(outcomeHorizonMs(outcome, request.maxSimTimeSec * 1000, request.mode), fixedSec !== null ? 1000 * fixedSec + FIXED_RUN_SLACK_MS : 0, lcEndSec !== null ? 1000 * lcEndSec + FIXED_RUN_SLACK_MS : 0);
   // --- odd-string-battle --- the chosen ball of a battle's winner search (−1: none to watch)
   const battleTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "stringBattle" ? (outcome.team ?? -1) : -1;
   const mazeTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "maze" ? (outcome.team ?? -1) : -1; // --- odd-maze ---
@@ -778,8 +799,10 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
-  const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams };
+  // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
+  const lcView = request.mode === "landClaim" ? engine.getLandClaimView() : null;
+  const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}) };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */

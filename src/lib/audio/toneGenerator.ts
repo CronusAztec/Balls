@@ -14,6 +14,7 @@ import { SPLAT_SAMPLE_GAIN, SPLAT_SAMPLE_RATE, scheduleSplatTone, splatLevel } f
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { DEFAULT_HUM_FREQUENCY, scheduleConveyorClick, scheduleConveyorHum } from "./conveyorTones"; // --- gerald-conveyor ---
+import { DEFAULT_KNOCK_FREQUENCY, DEFAULT_KO_FREQUENCY, lcFrequency, lcLevel, scheduleKnock, scheduleKo, scheduleSpawnChime } from "./landClaimTones"; // --- land-claim ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -915,6 +916,47 @@ export class ToneGenerator {
     }
   }
   // --- end gerald-exit-splat ---
+
+  // --- land-claim ---
+  /**
+   * A Land Claim effect (landClaimTones.ts): "knock" – a block knocked off its column, a short wooden click pitched by the
+   * column (the hit sample transposed to it in sample mode) –, "spawn" – a new ball's chime – or "ko" – a column's last block,
+   * a low thump (`accent`: the last block of the arena, louder, with a sparkle). The knock and the chime are snapped to the
+   * scale; all three go on the beat grid when the beat lock is on without taking a bounce's slot (effects, not melody notes),
+   * and the chime and the KO duck the music bed.
+   */
+  playLandClaim(kind: "knock" | "spawn" | "ko", frequency?: number, level = 1, accent = false) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleLandClaim(kind, frequency, level, accent));
+      return;
+    }
+    this.scheduleLandClaim(kind, frequency, level, accent);
+  }
+
+  private scheduleLandClaim(kind: "knock" | "spawn" | "ko", frequency: number | undefined, level: number, accent: boolean) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const out = this.masterGain;
+      const time = this.scheduleTime(ctx.currentTime);
+      if (kind === "knock") {
+        const pitch = this.snap(lcFrequency(frequency, DEFAULT_KNOCK_FREQUENCY));
+        if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, pitch), time, 0.8 * lcLevel(level));
+        else scheduleKnock(ctx, out, time, pitch, this.noiseCache.get(ctx), level);
+      } else if (kind === "spawn") {
+        scheduleSpawnChime(ctx, out, time, this.snap(lcFrequency(frequency, 2 * DEFAULT_KNOCK_FREQUENCY)), level);
+        this.musicBed.duck(time);
+      } else {
+        scheduleKo(ctx, out, time, lcFrequency(frequency, DEFAULT_KO_FREQUENCY), this.noiseCache.get(ctx), level, accent);
+        this.musicBed.duck(time);
+      }
+    } catch (err) {
+      console.error(`Error playing the land claim ${kind}:`, err);
+    }
+  }
+  // --- end land-claim ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

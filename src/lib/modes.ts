@@ -66,6 +66,13 @@ MODE_CARD_ORDER.push("journey");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "conveyor");
 }
 
+// --- land-claim --- Land Claim joins the battle family next to Territory and the Maze (the land-claim battles: the most land wins)
+{
+  const after = MODE_CARD_ORDER.indexOf("maze");
+  const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
+}
+
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
  * components/site/ModesOverview.tsx, `Headings.modes<Family>` in messages/*.json):
@@ -130,6 +137,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   maze: "battle",
   // --- gerald-conveyor --- a belt loads ball after ball into the rings, and each works its way out: the escape family
   conveyor: "escape",
+  // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
+  landClaim: "battle",
 };
 
 /** The modes of a category in card order. */

@@ -22,6 +22,7 @@ import { beatDropSettingsOf } from "@/lib/physics/modes/beatDrop"; // --- beat-d
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
+import { landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
@@ -143,6 +144,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     territory: territorySettingsOf(s), // --- odd-territory ---
     maze: mazeSettingsOf(s), // --- odd-maze ---
     conveyor: conveyorSettingsOf(s), // --- gerald-conveyor ---
+    landClaim: landClaimSettingsOf(s), // --- land-claim ---
   };
 }
 

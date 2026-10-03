@@ -200,6 +200,8 @@ interface BallCountFields {
   tyTeams?: number;
   /** --- odd-maze --- The Maze's own ball count (1–8): its first six balls are teams, whatever the roster's size. */
   mzBalls?: number;
+  /** --- land-claim --- Land Claim's own competitor count (2 and up): its first six competitors are teams, whatever the roster's size. */
+  lcTeams?: number;
 }
 
 /**
@@ -213,6 +215,8 @@ export function effectiveBallCount(settings: BallCountFields): number {
   if (settings.mode === "territory" && settings.tyTeams !== undefined && Number.isFinite(settings.tyTeams)) return settings.tyTeams >= 3 ? 4 : 2;
   // --- odd-maze --- the Maze plays its own number of balls too (the roster colours and names the first ones; six at most are teams)
   if (settings.mode === "maze" && settings.mzBalls !== undefined && Number.isFinite(settings.mzBalls)) return Math.max(1, Math.min(MAX_TEAMS, Math.round(settings.mzBalls)));
+  // --- land-claim --- Land Claim plays its own number of competitors too (the roster colours, names and flags the first ones; six at most are teams)
+  if (settings.mode === "landClaim" && settings.lcTeams !== undefined && Number.isFinite(settings.lcTeams)) return Math.max(2, Math.min(MAX_TEAMS, Math.round(settings.lcTeams)));
   const n = settings.teams.length > 0 ? settings.teams.length : Math.max(settings.ballCount, settings.twoBalls ? 2 : 1);
   return Math.min(modeBallCap(settings.mode), clampBallCount(n));
 }

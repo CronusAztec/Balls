@@ -77,3 +77,6 @@ export type { MazeSettings, MazeView, MazeRunner, MazeHit, MazeBrain, MazeHand }
 // --- gerald-conveyor ---
 export { ConveyorMode } from "./conveyor";
 export type { ConveyorSettings, ConveyorView, ConveyorLayout, ConveyorArena, ConveyorBowl } from "./conveyor";
+// --- land-claim ---
+export { LandClaimMode } from "./landClaim";
+export type { LandClaimSettings, LandClaimView, LandClaimField, LcArena, LcRule, LcVerdict, LcVerdictKind } from "./landClaim";

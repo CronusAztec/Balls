@@ -2,6 +2,7 @@ import { MULTI_BALL_MODES, type BallStats } from "@/lib/physics/ballStats";
 import { BATTLE_WINNER_MODES, RIG_ESCAPE_MODES, neverEscapeApplies } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import type { ModeId } from "@/lib/physics/types";
 import { teamResult } from "@/lib/teams";
+import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 
 /**
  * Rigged outcomes for Find Simulation: besides a run of an exact length ("duration", the finder's classic search), the
@@ -19,7 +20,7 @@ import { teamResult } from "@/lib/teams";
  * judge it, so they can be tested on synthetic runs. Times are real (recording) time – what the clip shows.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner"] as const;
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "close" /* --- land-claim --- */] as const;
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -57,7 +58,19 @@ export interface RunSummary {
   firstEscapeMs: number;
   /** The team totals at the end (one entry per team slot in play). */
   teams: readonly Readonly<BallStats>[];
+  /** --- land-claim --- A finished battle's gap between its top two, as a share of the land (Land Claim's verdict); absent elsewhere. */
+  margin?: number;
 }
+
+// --- land-claim ---
+/**
+ * The modes whose verdict can be a close battle – the top two within `CLOSE_BATTLE_MARGIN` of the land when the run ends (Land
+ * Claim's SUCH A CLOSE BATTLE): the "close" outcome searches for one, following every run to its end.
+ */
+export const CLOSE_BATTLE_MODES: readonly ModeId[] = ["landClaim"];
+/** The gap (a share of the land) under which the top two of a battle make a close one: Land Claim's `LC_CLOSE`. */
+export const CLOSE_BATTLE_MARGIN = LC_CLOSE;
+// --- end land-claim ---
 
 /**
  * Whether the winner outcome follows a run of `mode` to its end: the battle modes (`BATTLE_WINNER_MODES`), whose winner
@@ -79,6 +92,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return clipMs;
     case "winner":
       return winnerNeedsEnd(outcome, mode) ? Math.max(clipMs, maxSimMs) : clipMs;
+    case "close": // --- land-claim --- (the verdict comes at the run's end)
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -126,6 +141,9 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const result = teamResult(run.teams, run.teams.length);
       return !result.tie && result.winner === team;
     }
+    // --- land-claim --- a finished battle whose top two ended within the margin
+    case "close":
+      return run.finished && run.margin !== undefined && run.margin <= CLOSE_BATTLE_MARGIN + 1e-9;
     default:
       return false;
   }
@@ -144,6 +162,8 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return run.firstEscapeMs < 0 ? Infinity : Math.abs(run.firstEscapeMs / 1000 - (outcome.atSec ?? 0));
     case "winner":
       return outcomeMatches(outcome, run) ? 0 : 1;
+    case "close": // --- land-claim --- how far past the margin its top two ended (a run cut short: Infinity)
+      return run.finished && run.margin !== undefined ? Math.max(0, run.margin - CLOSE_BATTLE_MARGIN) : Infinity;
     default:
       return Infinity;
   }
@@ -164,6 +184,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return survivalSec(run);
     case "escapes-at":
       return run.firstEscapeMs >= 0 ? run.firstEscapeMs / 1000 : 0;
+    case "close": // --- land-claim --- the gap between its top two, in percent of the land (100 for a run cut short)
+      return run.finished && run.margin !== undefined ? 100 * run.margin : 100;
     default:
       return run.durationMs / 1000;
   }
@@ -203,6 +225,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (MULTI_BALL_MODES.includes(mode) && ctx.ballCount >= 2) out.push("winner");
   // --- odd-string-battle --- a battle's winner is the last ball standing (every ball is a team)
   if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
+  if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   return out;
 }
 
