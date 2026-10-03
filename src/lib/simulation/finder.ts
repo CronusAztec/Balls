@@ -44,6 +44,7 @@ import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 import type { MazeSettings } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import type { ConveyorSettings } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
+import { orbGridNeverSettles, type OrbGridSettings } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 
@@ -170,6 +171,14 @@ export interface ModeSettings {
    * timeout after the last drop – and the seed moves that (the escapes, the bounces), so the finder searches it.
    */
   conveyor?: Partial<ConveyorSettings>;
+  // --- orb-grid ---
+  /**
+   * Bouncing Orbs: the field, the variation, the release and the resolve tuning (see modes/orbGrid.ts); the defaults when left
+   * out. A field that settles ends by itself and the seed's tempo moves when (and when it resolves), so the finder searches its
+   * length, a run that never settles within the clip, or its first resolve moment. The page leaves the clip out here (`maxSec`):
+   * the searched run is the physics, not the clip that cuts it.
+   */
+  orbGrid?: Partial<OrbGridSettings>;
   // --- land-claim ---
   /**
    * Land Claim: the wall, the competitors, the balls, the rule, the spawn period and the duration (see modes/landClaim.ts); the
@@ -248,6 +257,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "runner" || mode === "paddle") return jdmRhythmNeverFinishes(mode, settings);
   // --- gerald-vortex --- with the loop on every swallowed ball comes back: the vortex never ends
   if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
+  // --- orb-grid --- a field that never settles (the period property, an orb bouncing elastically or harder): only the clip ends it
+  if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
   return false;
 }
 
@@ -344,6 +355,10 @@ export interface FinderResult {
   escapeAt?: number;
   /** An outcome search: the run found ended (the mode's own finish) within the clip – the page holds its end screen. */
   finished?: boolean;
+  // --- orb-grid ---
+  /** The first "in phase" moment (seconds) of the run found – or of the closest one – when it had one (Bouncing Orbs). */
+  resolveAt?: number;
+  // --- end orb-grid ---
   // --- video-beats ---
   /** On beat: the distinct beats the found run's wall hits land on, and its timed hits (set when On beat applies). */
   beatsCovered?: number;
@@ -417,6 +432,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---
   if (mode === "conveyor") engine.setConveyorSettings(settings.conveyor ?? {}); // --- gerald-conveyor ---
+  if (mode === "orbGrid") engine.setOrbGridSettings(settings.orbGrid ?? {}); // --- orb-grid ---
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
@@ -624,6 +640,11 @@ export function findSimulation(
       resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
       return;
     }
+    // --- orb-grid --- without gravity the orbs hover where they were let go: the field never settles either
+    if (request.mode === "orbGrid" && orbGridNeverSettles(request.modeSettings.orbGrid, request.physicsConfig.gravity)) {
+      resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
+      return;
+    }
     // --- rigged --- "never escape" keeps a mode that ends with an escape from ever ending: no length to search for either
     if (rigNeverFinishes(request.mode, request.physicsConfig)) {
       resolve({ found: false, seed: 0, duration: 0, seedsTested: 0, endless: true });
@@ -787,13 +808,16 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   let elapsed = 0;
   let firstEscape = -1;
   let finished = false;
+  let firstResolve = -1; // --- orb-grid --- (the field's first "in phase" moment, real time)
+  const orbs = request.mode === "orbGrid"; // --- orb-grid ---
   while (elapsed < horizonMs - 1e-6) {
     engine.update(step, 0);
     elapsed += step;
     engine.consumeSoundEvents();
     if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
+    if (orbs && firstResolve < 0 && engine.getOrbGridView().resolveAtMs >= 0) firstResolve = elapsed; // --- orb-grid ---
     finished = engine.isSimulationFinished();
-    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode)) break;
+    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve)) break;
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -802,7 +826,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
   const lcView = request.mode === "landClaim" ? engine.getLandClaimView() : null;
   const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}) };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve } : {}) /* --- orb-grid --- */ };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
@@ -820,6 +844,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       outcome: outcome.kind,
       finished: run?.finished ?? false,
       ...(run && run.firstEscapeMs >= 0 ? { escapeAt: run.firstEscapeMs / 1000 } : {}),
+      ...(run && (run.firstResolveMs ?? -1) >= 0 ? { resolveAt: (run.firstResolveMs ?? 0) / 1000 } : {}), // --- orb-grid ---
     });
     const runBatch = () => {
       if (signal?.aborted) {

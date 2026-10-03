@@ -65,6 +65,12 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("powerLayers");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "conveyor");
 }
+// --- orb-grid --- Bouncing Orbs joins the rhythm family next to Pendulum Wave and Metronomes & Polyrhythms (a field of periods
+// drifting in and out of phase), right after the polyrhythms
+{
+  const at = MODE_CARD_ORDER.indexOf("polyrhythm");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "orbGrid");
+}
 
 // --- land-claim --- Land Claim joins the battle family next to Territory and the Maze (the land-claim battles: the most land wins)
 {
@@ -137,6 +143,9 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   maze: "battle",
   // --- gerald-conveyor --- a belt loads ball after ball into the rings, and each works its way out: the escape family
   conveyor: "escape",
+  // --- orb-grid --- every landing of thousands of orbs is a soft note, their periods drifting in and out of phase like the
+  // Pendulum Wave's: the sound-first family
+  orbGrid: "rhythm",
   // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
   landClaim: "battle",
 };

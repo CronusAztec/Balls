@@ -24,6 +24,7 @@ import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
 import { landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
+import { orbGridSettingsOf } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
@@ -144,6 +145,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     territory: territorySettingsOf(s), // --- odd-territory ---
     maze: mazeSettingsOf(s), // --- odd-maze ---
     conveyor: conveyorSettingsOf(s), // --- gerald-conveyor ---
+    orbGrid: { ...orbGridSettingsOf(s), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest, as on the page)
     landClaim: landClaimSettingsOf(s), // --- land-claim ---
   };
 }

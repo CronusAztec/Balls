@@ -97,6 +97,18 @@ export const CAPTION_CEILING = 1_000;
  */
 export const BOUNCE_RULE_CEILING = 1_000;
 
+// --- orb-grid ---
+/**
+ * Bouncing Orbs: the orbs one run builds (columns × rows; lib/physics/modes/orbGrid.ts). An orb is ~70 bytes of typed state
+ * (its spot, radius, distribution value, ring / row / column, delay, gravity, restitution, launch time and speed, next landing,
+ * height, state) plus ~25 bytes of the renderer's projection and depth order: 250,000 orbs (a 500 × 500 field) are ~24 MB –
+ * what the crowd's million balls take – and a step over all of them a few milliseconds; the canvas then draws them as points
+ * in one image (orbGridRenderer.ts). Each axis alone may be that long (a line of orbs); past the product the field keeps its
+ * aspect at this many orbs, the settings keep the typed values and the canvas says ARENA FULL.
+ */
+export const ORB_CEILING = 250_000;
+// --- end orb-grid ---
+
 /**
  * The settings whose value sizes an allocation, and the most of it a run builds (the memory-safety ceiling). The link,
  * the preset and the panel keep the typed value; the engine builds at most this many, and the canvas says ARENA FULL.
@@ -158,6 +170,9 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- gerald-conveyor --- Conveyor Belt: the balls the belt loads (full-physics balls, the pile's pairs every sub-step)
   cvMaxBalls: BOARD_BALL_CEILING,
   splatMax: ENTITY_CEILING, // --- gerald-exit-splat --- the splats standing at once (each a pooled circle every ball near it is tested against)
+  // --- orb-grid --- Bouncing Orbs: the field's columns and rows (each alone up to the orbs' ceiling; their product too, in the mode)
+  ogColumns: ORB_CEILING,
+  ogRows: ORB_CEILING,
   // --- land-claim --- Land Claim (`LC_*_CEILING` of lib/physics/modes/landClaim.ts – a test keeps them equal): the columns (a
   // dozen numbers each; 5,000 are a wall of hairlines), the blocks of a column (two bytes a block of the owner array: the rows a
   // run builds also stop at a million blocks in all), the competitors (a few counters and a line of the HUD each) and the balls

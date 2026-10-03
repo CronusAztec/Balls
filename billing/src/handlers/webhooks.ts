@@ -1,79 +1,33 @@
-// The three webhook endpoints. Each verifies the provider's signature, is idempotent per event id,
-// and writes the entitlement that /license/claim and /license/restore later turn into a token.
+// The three webhook endpoints. Each verifies the provider's signature, is idempotent per event, and
+// records the facts the event carries – each under its own key (store.ts), never a shared record – for
+// /license/claim and /license/restore to turn into a token.
 
 import { ApiError, json, readBodyText } from "../http";
-import {
-  addRef,
-  cryptoPeriodEnd,
-  newEntitlement,
-  normalizeEmail,
-} from "../entitlements";
-import type { Entitlement, EntitlementStatus, Plan, Provider } from "../entitlements";
+import { cryptoBase, isPlan, normalizeEmail, planDays } from "../entitlements";
+import type { EntitlementStatus, Plan } from "../entitlements";
 import * as stripe from "../providers/stripe";
 import * as paypal from "../providers/paypal";
 import * as nowpayments from "../providers/nowpayments";
 import type { Ctx } from "./common";
-import { isoToUnix } from "./common";
-
-// --- shared entitlement writer ----------------------------------------------------------------
-
-interface GrantInput {
-  email: string;
-  provider: Provider;
-  plan?: Plan;
-  periodEnd?: number;
-  status?: EntitlementStatus;
-  customerId?: string;
-  subscriptionId?: string;
-  refs?: string[];
-}
-
-/** Create or update the entitlement for an e-mail, only touching the fields that are supplied. */
-async function writeGrant(ctx: Ctx, input: GrantInput): Promise<void> {
-  const email = normalizeEmail(input.email);
-  let ent: Entitlement | null = await ctx.repo.getUser(email);
-  if (!ent) ent = newEntitlement(email, input.plan ?? "monthly", input.provider, ctx.now);
-  if (input.plan) ent.plan = input.plan;
-  ent.provider = input.provider;
-  if (input.periodEnd !== undefined) ent.periodEnd = input.periodEnd;
-  if (input.status !== undefined) ent.status = input.status;
-  if (input.customerId !== undefined) ent.customerId = input.customerId;
-  if (input.subscriptionId !== undefined) ent.subscriptionId = input.subscriptionId;
-  for (const ref of input.refs ?? []) {
-    addRef(ent, ref);
-    await ctx.repo.putRef(input.provider, ref, email);
-  }
-  ent.updatedAt = ctx.now;
-  await ctx.repo.putUser(ent);
-}
+import { asRecord, asString, isoToUnix, planFromPaypalPlanId, planFromStripePrice } from "./common";
 
 function received(ctx: Ctx): Response {
   return json({ received: true }, 200, ctx.cors);
 }
 
-function asString(value: unknown): string | undefined {
-  return typeof value === "string" && value ? value : undefined;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+/** An event the Worker cannot place yet (its buyer is not known): 503, so the provider delivers it again later. */
+function notYet(): never {
+  throw new ApiError("not_ready", "The event cannot be placed yet; it will be retried.", 503);
 }
 
 // --- Stripe -----------------------------------------------------------------------------------
-
-function planFromStripePrice(priceId: string | undefined, ctx: Ctx): Plan | undefined {
-  if (!priceId) return undefined;
-  if (priceId === ctx.env.STRIPE_PRICE_YEARLY) return "yearly";
-  if (priceId === ctx.env.STRIPE_PRICE_MONTHLY) return "monthly";
-  return undefined;
-}
 
 function mapStripeStatus(status: string | undefined, cancelAtPeriodEnd: boolean): EntitlementStatus {
   if (cancelAtPeriodEnd) return "cancel_at_period_end";
   switch (status) {
     case "active":
     case "trialing":
-    case "past_due": // still subscribed during dunning; the period governs access
+    case "past_due": // still subscribed during dunning; the paid period governs access
       return "active";
     case "paused":
       return "suspended";
@@ -86,25 +40,19 @@ function mapStripeStatus(status: string | undefined, cancelAtPeriodEnd: boolean)
   }
 }
 
-/** The period end of a paid invoice: from its line items, or by fetching the subscription. */
-async function stripeInvoicePeriodEnd(
-  ctx: Ctx,
-  invoice: Record<string, unknown>,
-  subscriptionId: string | undefined,
-): Promise<number | undefined> {
-  const lines = asRecord(invoice.lines).data;
-  if (Array.isArray(lines)) {
-    for (const line of lines) {
-      const end = asRecord(asRecord(line).period).end;
-      if (typeof end === "number") return end;
-    }
-  }
-  if (subscriptionId && ctx.env.STRIPE_SECRET_KEY) {
-    const sub = await stripe.getSubscription(ctx.env.STRIPE_SECRET_KEY, subscriptionId);
-    const end = sub?.current_period_end;
-    if (typeof end === "number") return end;
+/** The plan of an invoice's lines – only this Worker's prices count (undefined: not our product). */
+function invoicePlan(invoice: Record<string, unknown>, ctx: Ctx): Plan | undefined {
+  for (const line of stripe.invoiceLines(invoice)) {
+    const plan = planFromStripePrice(stripe.linePriceId(line), ctx.env);
+    if (plan) return plan;
   }
   return undefined;
+}
+
+/** Whether a subscription event concerns one of ours: a known subscription, or one of our prices. */
+async function isOurStripeSubscription(ctx: Ctx, subscription: Record<string, unknown>, id: string): Promise<boolean> {
+  if (await ctx.repo.getLink("stripe", id)) return true;
+  return stripe.subscriptionPriceIds(subscription).some((price) => !!planFromStripePrice(price, ctx.env));
 }
 
 export async function webhookStripe(request: Request, ctx: Ctx): Promise<Response> {
@@ -134,73 +82,60 @@ export async function webhookStripe(request: Request, ctx: Ctx): Promise<Respons
 
 async function processStripeEvent(ctx: Ctx, event: Record<string, unknown>): Promise<Response> {
   const obj = asRecord(asRecord(event.data).object);
+  const eventTime = typeof event.created === "number" ? event.created : ctx.now;
   switch (event.type) {
     case "checkout.session.completed": {
-      const email =
-        asString(asRecord(obj.customer_details).email) ?? asString(obj.customer_email);
-      const plan = asString(asRecord(obj.metadata).plan) as Plan | undefined;
-      const subscriptionId = asString(obj.subscription);
-      if (email) {
-        await writeGrant(ctx, {
+      // Our sessions carry metadata.plan (createCheckoutSession); anything else is another product's.
+      const plan = asString(asRecord(obj.metadata).plan);
+      const email = asString(asRecord(obj.customer_details).email) ?? asString(obj.customer_email);
+      const subscriptionId = asString(obj.subscription) ?? asString(asRecord(obj.subscription).id);
+      if (email && subscriptionId && isPlan(plan)) {
+        await ctx.repo.linkSubscription("stripe", subscriptionId, {
           email,
-          provider: "stripe",
-          plan: plan === "yearly" || plan === "monthly" ? plan : undefined,
-          status: "active",
-          customerId: asString(obj.customer),
-          subscriptionId,
-          refs: [asString(obj.id), subscriptionId].filter(Boolean) as string[],
+          plan,
+          customerId: asString(obj.customer) ?? asString(asRecord(obj.customer).id),
+          refs: [asString(obj.id)].filter((r): r is string => !!r),
         });
       }
       return received(ctx);
     }
     case "invoice.paid": {
-      const subscriptionId = asString(obj.subscription);
-      const email =
-        (subscriptionId ? await ctx.repo.getRefEmail("stripe", subscriptionId) : null) ??
-        asString(obj.customer_email);
-      if (email) {
-        const periodEnd = await stripeInvoicePeriodEnd(ctx, obj, subscriptionId);
-        const linePrice = asString(
-          asRecord(asRecord((asRecord(obj.lines).data as unknown[])?.[0]).price).id,
-        );
-        await writeGrant(ctx, {
-          email,
-          provider: "stripe",
-          plan: planFromStripePrice(linePrice, ctx),
-          periodEnd,
-          status: "active",
-          subscriptionId,
-          refs: subscriptionId ? [subscriptionId] : [],
-        });
+      // The only event that moves a subscription's paid period: the invoice for it has been paid.
+      const subscriptionId = stripe.invoiceSubscriptionId(obj);
+      if (!subscriptionId) return received(ctx);
+      const link = await ctx.repo.getLink("stripe", subscriptionId);
+      const plan = invoicePlan(obj, ctx);
+      if (!link && !plan) return received(ctx); // neither a known subscription nor one of our prices
+      const email = link?.email ?? asString(obj.customer_email);
+      if (!email) notYet(); // the checkout event that names the buyer has not been processed yet
+      let periodEnd = stripe.invoicePeriodEnd(obj);
+      if (periodEnd === undefined && ctx.env.STRIPE_SECRET_KEY) {
+        const sub = await stripe.getSubscription(ctx.env.STRIPE_SECRET_KEY, subscriptionId);
+        periodEnd = sub ? stripe.subscriptionPeriodEnd(sub) : undefined;
+      }
+      if (periodEnd !== undefined) {
+        await ctx.repo.recordPaid("stripe", subscriptionId, { email, periodEnd, plan: plan ?? link?.plan });
       }
       return received(ctx);
     }
     case "customer.subscription.updated": {
+      // Only the status and the cancel flag: Stripe sends this when the subscription cycles into its
+      // next period – before the renewal invoice is paid – so the period itself waits for invoice.paid.
       const subscriptionId = asString(obj.id);
-      const email = subscriptionId ? await ctx.repo.getRefEmail("stripe", subscriptionId) : null;
-      if (email) {
-        const periodEnd = typeof obj.current_period_end === "number" ? obj.current_period_end : undefined;
-        await writeGrant(ctx, {
-          email,
-          provider: "stripe",
-          periodEnd,
+      if (subscriptionId && (await isOurStripeSubscription(ctx, obj, subscriptionId))) {
+        await ctx.repo.recordState("stripe", subscriptionId, {
           status: mapStripeStatus(asString(obj.status), obj.cancel_at_period_end === true),
-          subscriptionId,
+          at: eventTime,
         });
       }
       return received(ctx);
     }
     case "customer.subscription.deleted": {
+      // Ends this subscription's access now – only this subscription's: other periods of the e-mail stay.
       const subscriptionId = asString(obj.id);
-      const email = subscriptionId ? await ctx.repo.getRefEmail("stripe", subscriptionId) : null;
-      if (email) {
-        await writeGrant(ctx, {
-          email,
-          provider: "stripe",
-          periodEnd: ctx.now,
-          status: "canceled",
-          subscriptionId,
-        });
+      if (subscriptionId && (await isOurStripeSubscription(ctx, obj, subscriptionId))) {
+        await ctx.repo.recordEnded("stripe", subscriptionId, typeof obj.ended_at === "number" ? obj.ended_at : ctx.now);
+        await ctx.repo.recordState("stripe", subscriptionId, { status: "canceled", at: eventTime });
       }
       return received(ctx);
     }
@@ -210,13 +145,6 @@ async function processStripeEvent(ctx: Ctx, event: Record<string, unknown>): Pro
 }
 
 // --- PayPal -----------------------------------------------------------------------------------
-
-function planFromPaypalPlanId(planId: string | undefined, ctx: Ctx): Plan | undefined {
-  if (!planId) return undefined;
-  if (planId === ctx.env.PAYPAL_PLAN_YEARLY) return "yearly";
-  if (planId === ctx.env.PAYPAL_PLAN_MONTHLY) return "monthly";
-  return undefined;
-}
 
 export async function webhookPaypal(request: Request, ctx: Ctx): Promise<Response> {
   const { PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID } = ctx.env;
@@ -251,56 +179,61 @@ async function processPaypalEvent(
   token: string,
 ): Promise<Response> {
   const resource = asRecord(event.resource);
+  const eventTime = isoToUnix(event.create_time) ?? ctx.now;
   switch (event.event_type) {
     case "BILLING.SUBSCRIPTION.ACTIVATED": {
       const email = asString(asRecord(resource.subscriber).email_address);
       const subscriptionId = asString(resource.id);
-      const customId = asString(resource.custom_id);
       if (email && subscriptionId) {
-        const periodEnd = isoToUnix(asRecord(resource.billing_info).next_billing_time) ?? undefined;
-        await writeGrant(ctx, {
+        const plan = planFromPaypalPlanId(asString(resource.plan_id), ctx.env);
+        await ctx.repo.linkSubscription("paypal", subscriptionId, {
           email,
-          provider: "paypal",
-          plan: planFromPaypalPlanId(asString(resource.plan_id), ctx),
-          periodEnd,
-          status: "active",
-          subscriptionId,
-          refs: [subscriptionId, customId].filter(Boolean) as string[],
+          plan,
+          refs: [asString(resource.custom_id)].filter((r): r is string => !!r),
         });
+        const periodEnd = paypal.paidThrough({ ...resource, status: resource.status ?? "ACTIVE" });
+        if (periodEnd !== null) await ctx.repo.recordPaid("paypal", subscriptionId, { email, periodEnd, plan });
       }
       return received(ctx);
     }
     case "PAYMENT.SALE.COMPLETED": {
+      // A renewal (or the first) payment came in: the subscription's next billing time is paid for.
       const subscriptionId = asString(resource.billing_agreement_id);
-      const email = subscriptionId ? await ctx.repo.getRefEmail("paypal", subscriptionId) : null;
-      if (email && subscriptionId) {
-        const sub = await paypal.getSubscription(apiBase, token, subscriptionId);
-        const periodEnd =
-          isoToUnix(asRecord(sub?.billing_info).next_billing_time) ?? undefined;
-        await writeGrant(ctx, {
+      if (!subscriptionId) return received(ctx);
+      const link = await ctx.repo.getLink("paypal", subscriptionId);
+      const sub = await paypal.getSubscription(apiBase, token, subscriptionId);
+      if (!sub) return received(ctx);
+      const plan = planFromPaypalPlanId(asString(sub.plan_id), ctx.env);
+      if (!link && !plan) return received(ctx); // not one of our plans
+      const email = link?.email ?? asString(asRecord(sub.subscriber).email_address);
+      if (!email) notYet();
+      if (!link) {
+        // the sale beat the activation: link it now (the same facts the activation writes)
+        await ctx.repo.linkSubscription("paypal", subscriptionId, {
           email,
-          provider: "paypal",
-          periodEnd,
-          status: "active",
-          subscriptionId,
+          plan,
+          refs: [asString(sub.custom_id)].filter((r): r is string => !!r),
         });
+      }
+      const periodEnd = paypal.paidThrough(sub);
+      if (periodEnd !== null) {
+        await ctx.repo.recordPaid("paypal", subscriptionId, { email, periodEnd, plan: plan ?? link?.plan });
       }
       return received(ctx);
     }
     case "BILLING.SUBSCRIPTION.CANCELLED":
     case "BILLING.SUBSCRIPTION.SUSPENDED":
     case "BILLING.SUBSCRIPTION.EXPIRED": {
+      // The paid period stays where it is: a cancelled subscription keeps access until it lapses.
       const subscriptionId = asString(resource.id);
-      const email = subscriptionId ? await ctx.repo.getRefEmail("paypal", subscriptionId) : null;
-      if (email) {
+      if (subscriptionId && (await ctx.repo.getLink("paypal", subscriptionId))) {
         const status: EntitlementStatus =
           event.event_type === "BILLING.SUBSCRIPTION.SUSPENDED"
             ? "suspended"
             : event.event_type === "BILLING.SUBSCRIPTION.EXPIRED"
               ? "expired"
               : "canceled";
-        // The period end stays where it is: a cancelled subscription keeps access until it lapses.
-        await writeGrant(ctx, { email, provider: "paypal", status, subscriptionId });
+        await ctx.repo.recordState("paypal", subscriptionId, { status, at: eventTime });
       }
       return received(ctx);
     }
@@ -311,8 +244,17 @@ async function processPaypalEvent(
 
 // --- NOWPayments (crypto) ---------------------------------------------------------------------
 
+/** The statuses that mean the payment arrived. A payment reports both on its way; only the first grants. */
 const GRANT_STATUSES = new Set(["finished", "confirmed"]);
 const RECORD_STATUSES = new Set(["partially_paid", "failed", "refunded", "expired"]);
+
+/** NOWPayments' payment id: a JSON number in its IPNs (a string in some), "" when there is none. */
+export function ipnPaymentId(payload: Record<string, unknown>): string {
+  const raw = payload.payment_id ?? payload.payment_id_string;
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  if (typeof raw === "string") return raw.trim();
+  return "";
+}
 
 export async function webhookNowPayments(request: Request, ctx: Ctx): Promise<Response> {
   if (!ctx.env.NOWPAYMENTS_IPN_SECRET) {
@@ -328,12 +270,12 @@ export async function webhookNowPayments(request: Request, ctx: Ctx): Promise<Re
   if (!verified) throw new ApiError("invalid_signature", "Signature verification failed.", 400);
 
   const orderId = asString(payload.order_id);
-  const paymentId = asString(payload.payment_id) ?? asString(payload.payment_id_string) ?? "";
+  const paymentId = ipnPaymentId(payload);
   const status = asString(payload.payment_status) ?? "";
   if (!orderId) return received(ctx);
 
-  // Idempotent per payment + status: the same payment moves through several statuses, each once.
-  const eventKey = `${paymentId}:${status}`;
+  // Idempotent per order + payment + status (never a key shared by every buyer).
+  const eventKey = `${orderId}:${paymentId || "-"}:${status}`;
   if (!(await ctx.repo.markEventSeen("nowpayments", eventKey))) return received(ctx);
   try {
     return await processNowPaymentsEvent(ctx, orderId, paymentId, status);
@@ -354,21 +296,27 @@ async function processNowPaymentsEvent(
   if (paymentId && !order.paymentIds.includes(paymentId)) order.paymentIds.push(paymentId);
 
   if (GRANT_STATUSES.has(status)) {
-    const current = await ctx.repo.getUser(order.email);
-    const periodEnd = cryptoPeriodEnd(current?.periodEnd, order.plan, ctx.now);
-    await writeGrant(ctx, {
-      email: order.email,
-      provider: "crypto",
-      plan: order.plan,
-      periodEnd,
-      status: "active",
-      refs: [orderId],
-    });
+    // One payment buys one period: "confirmed" and "finished" both arrive, only the first grants. The
+    // grant is a key of its own, so even both arriving at once write the same single grant.
+    const grantId = paymentId || `order-${orderId}`;
+    if (!(await ctx.repo.getCryptoGrant(grantId))) {
+      const email = normalizeEmail(order.email);
+      const base = cryptoBase(await ctx.repo.factsFor(email), ctx.now);
+      await ctx.repo.putCryptoGrant(grantId, {
+        email,
+        orderId,
+        paymentId,
+        plan: order.plan,
+        days: planDays(order.plan),
+        base,
+        grantedAt: ctx.now,
+      });
+    }
     order.status = "granted";
-  } else if (RECORD_STATUSES.has(status)) {
+  } else if (RECORD_STATUSES.has(status) && order.status !== "granted") {
     order.status = status as typeof order.status;
   }
-  // "waiting", "confirming", "sending" leave the order pending (the payment id is still recorded).
+  // "waiting", "confirming", "sending" leave the order as it is (the payment id is still recorded).
 
   await ctx.repo.putCryptoOrder(orderId, order);
   return received(ctx);

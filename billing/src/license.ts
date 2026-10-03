@@ -18,14 +18,13 @@ import {
   stringToBase64url,
   utf8,
 } from "./crypto";
-import { normalizeEmail } from "./entitlements";
+import { DAY, GRACE_DAYS, normalizeEmail } from "./entitlements";
 import type { Plan, Provider } from "./entitlements";
 
-/** Days of grace added to the paid period's end before the licence expires. */
-export const GRACE_DAYS = 3;
+/** Days of grace added to the paid period's end before the licence expires (entitlements.ts owns it). */
+export { GRACE_DAYS };
 /** A licence never claims validity more than this many days ahead, whatever the paid period. */
 export const MAX_LICENSE_DAYS = 400;
-const DAY = 86400;
 
 export interface LicensePayload {
   sub: string;

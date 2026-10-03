@@ -68,6 +68,8 @@ export const MODE_IDS = [
   "maze",
   // --- gerald-conveyor --- Conveyor Belt (a belt drops a ball into the arena below every few seconds)
   "conveyor",
+  // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
+  "orbGrid",
   // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
   "landClaim",
 ] as const;
@@ -321,6 +323,15 @@ export interface SoundEvent {
    * plays an accompaniment hit, never a melody note.
    */
   splat?: boolean;
+  // --- orb-grid ---
+  /**
+   * Bouncing Orbs' own timbres (lib/audio/orbTones.ts, `ToneGenerator.playOrb()`) instead of a bounce: "sleep" – a very soft,
+   * low-passed, long note – or "metal" – a bright clink – at `frequency` (or the `chord`), `level` loud. Sent with
+   * `melody: false`, so a page that does not know it plays an accompaniment hit, never a melody note. (The orbs' plain notes and
+   * their composed melody are ordinary hits.)
+   */
+  orb?: "sleep" | "metal";
+  // --- end orb-grid ---
   // --- land-claim ---
   /**
    * A Land Claim effect instead of a bounce (`ToneGenerator.playLandClaim()`, lib/audio/landClaimTones.ts): "knock" – a block

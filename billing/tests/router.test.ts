@@ -83,4 +83,13 @@ describe("/config", () => {
     const body = await jsonOf(res);
     expect(body.providers).toEqual({ stripe: true, paypal: true, crypto: true });
   });
+
+  it("keeps a provider off until its webhook secret is set too (a payment it could not verify would never count)", async () => {
+    const { env } = makeHarness(allProvidersEnv({ STRIPE_WEBHOOK_SECRET: "", PAYPAL_WEBHOOK_ID: "", NOWPAYMENTS_IPN_SECRET: "" }));
+    const res = await handleRequest(makeRequest("GET", "/config", { origin: SITE_ORIGIN }), env, { now: NOW });
+    expect((await jsonOf(res)).providers).toEqual({ stripe: false, paypal: false, crypto: false });
+    const { env: onlyStripe } = makeHarness(allProvidersEnv({ PAYPAL_WEBHOOK_ID: undefined, NOWPAYMENTS_IPN_SECRET: undefined }));
+    const res2 = await handleRequest(makeRequest("GET", "/config", { origin: SITE_ORIGIN }), onlyStripe, { now: NOW });
+    expect((await jsonOf(res2)).providers).toEqual({ stripe: true, paypal: false, crypto: false });
+  });
 });

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { BILLING_API_OVERRIDE_KEY, DAY_MS, GRACE_DAYS, LICENSE_REF_STORAGE_KEY, LICENSE_RENEWAL_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_PUBLIC_KEY, PLANS, billingApiBase, formatUsd, monthlyEquivalentUsd, plansFromConfig, yearlySavingPercent } from "@/lib/billing/config";
+import { BILLING_API_OVERRIDE_KEY, CHECKOUT_FROM_STORAGE_KEY, DAY_MS, GRACE_DAYS, LAPSED_RETRY_MS, LICENSE_LAPSED_STORAGE_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_RENEWAL_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_PUBLIC_KEY, PLANS, billingApiBase, formatUsd, monthlyEquivalentUsd, plansFromConfig, yearlySavingPercent } from "@/lib/billing/config";
 import { BillingClient, isEmail, isReceiptRef, parseClaim, parseClaimParams, parseConfig, parseRedirect, pricingReturnUrl } from "@/lib/billing/api";
-import { accountMessageKey, accountView, renewQuietly, shouldRenew, storedReceipt } from "@/lib/billing/account";
+import { accountMessageKey, accountView, isRenewableLapse, renewQuietly, shouldRenew, storedReceipt } from "@/lib/billing/account";
 import { createEntitlementStore, type Entitlement } from "@/lib/billing/entitlement";
+import { checkoutFrom, forgetCheckoutFrom, rememberCheckoutFrom, studioReturnPath } from "@/lib/billing/returnTo";
 import { verifyLicense } from "@/lib/billing/license";
 import { signTestLicense } from "../scripts/lib/test-license.mjs";
 import en from "../messages/en.json";
@@ -94,20 +95,21 @@ describe("the backend's answers", () => {
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({ plan: "yearly", email: "Me@Example.com", locale: "pl", returnUrl: "https://site/Balls/pl/pricing/" });
     await ok.checkout("paypal", { plan: "monthly", email: "me@example.com", locale: "en", returnUrl: "r" });
     expect(JSON.parse(String(calls[1].init?.body))).toEqual({ plan: "monthly", locale: "en", returnUrl: "r" }); // PayPal brings its own email
-    // the Stripe portal comes back to the pricing page under the base path (the backend's fallback is the bare site origin)
-    expect(await ok.portal(" Me@Example.com ", "https://site/Balls/pl/pricing/")).toEqual({ ok: true, value: "https://checkout.stripe.com/x" });
+    // the Stripe portal: the email AND the receipt reference (an email alone opens nothing), back to the pricing page under
+    // the base path (the backend's fallback is the bare site origin)
+    expect(await ok.portal(" Me@Example.com ", " cs_test_1 ", "https://site/Balls/pl/pricing/")).toEqual({ ok: true, value: "https://checkout.stripe.com/x" });
     expect(calls[2].url).toBe("https://billing.test/portal/stripe");
-    expect(JSON.parse(String(calls[2].init?.body))).toEqual({ email: "me@example.com", returnUrl: "https://site/Balls/pl/pricing/" });
-    await ok.portal("me@example.com");
-    expect(JSON.parse(String(calls[3].init?.body))).toEqual({ email: "me@example.com" });
+    expect(JSON.parse(String(calls[2].init?.body))).toEqual({ email: "me@example.com", ref: "cs_test_1", returnUrl: "https://site/Balls/pl/pricing/" });
+    await ok.portal("me@example.com", "sub_1");
+    expect(JSON.parse(String(calls[3].init?.body))).toEqual({ email: "me@example.com", ref: "sub_1" });
     expect(await new BillingClient("https://billing.test", reply(200, { pending: true })).claim("crypto", "ord_1")).toEqual({ ok: true, value: { kind: "pending" } });
     expect(await new BillingClient("https://billing.test", reply(404, { error: "not_found", message: "Unknown order" })).restore("a@b.co", "ord_1")).toEqual({ ok: true, value: { kind: "error", error: "not_found", message: "Unknown order" } });
     expect(await new BillingClient("https://billing.test", reply(502, "<html>Bad gateway</html>", false)).config()).toMatchObject({ ok: false, kind: "http", status: 502 });
     expect(await new BillingClient("https://billing.test", reply(200, "<html>", false)).config()).toMatchObject({ ok: false, kind: "shape" });
     expect(await new BillingClient("https://billing.test", reply(200, { what: 1 })).claim("stripe", "cs_1")).toMatchObject({ ok: false, kind: "shape" });
     const offline = new BillingClient("https://billing.test", async () => Promise.reject(new TypeError("Failed to fetch")));
-    expect(await offline.portal("a@b.co")).toEqual({ ok: false, kind: "network", message: "Failed to fetch" });
-    expect(await new BillingClient("https://billing.test", reply(200, { error: "no_customer", message: "No subscription for this email" })).portal("a@b.co")).toEqual({ ok: false, kind: "server", message: "No subscription for this email" });
+    expect(await offline.portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "network", message: "Failed to fetch" });
+    expect(await new BillingClient("https://billing.test", reply(200, { error: "no_customer", message: "No subscription for this email" })).portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "server", message: "No subscription for this email" });
   });
 });
 
@@ -135,14 +137,17 @@ describe("the claim a checkout returns with", () => {
 
 describe("the account row's wording", () => {
   const now = Date.UTC(2026, 9, 3);
-  const pro = (days: number, provider: Entitlement["provider"] = "stripe", plan: Entitlement["plan"] = "yearly"): Entitlement => ({ status: "pro", plan, provider, email: "a@b.co", expiresAt: now + days * DAY_MS, issuedAt: null, testMode: false, dropped: null });
+  const pro = (days: number, provider: Entitlement["provider"] = "stripe", plan: Entitlement["plan"] = "yearly"): Entitlement => ({ status: "pro", plan, provider, email: "a@b.co", expiresAt: now + days * DAY_MS, issuedAt: null, testMode: false, dropped: null, lapsed: null, renewing: false });
 
-  it("says Free, why a licence was dropped, or that it is checking", () => {
-    const free: Entitlement = { status: "free", plan: null, provider: null, email: null, expiresAt: null, issuedAt: null, testMode: false, dropped: null };
+  it("says Free, why a licence was dropped, that a lapsed one is being renewed, or that it is checking", () => {
+    const free: Entitlement = { status: "free", plan: null, provider: null, email: null, expiresAt: null, issuedAt: null, testMode: false, dropped: null, lapsed: null, renewing: false };
     expect(accountMessageKey(accountView(free, now))).toBe("free");
     expect(accountMessageKey(accountView({ ...free, dropped: "expired" }, now))).toBe("freeExpired");
     expect(accountMessageKey(accountView({ ...free, dropped: "invalid" }, now))).toBe("freeInvalid");
     expect(accountMessageKey(accountView({ ...free, status: "checking" }, now))).toBe("checking");
+    const lapsed = { email: "a@b.co", plan: "monthly" as const, provider: "stripe" as const, expiresAt: now - DAY_MS };
+    expect(accountView({ ...free, dropped: "expired", lapsed }, now)).toEqual({ kind: "free", dropped: "expired", lapsed, renewing: false });
+    expect(accountMessageKey(accountView({ ...free, dropped: "expired", lapsed, renewing: true }, now))).toBe("renewing");
   });
 
   it("says Pro until the paid period's end (exp minus the grace days)", () => {
@@ -162,7 +167,7 @@ describe("the account row's wording", () => {
   it("says payment pending in the grace days, then Free once exp has passed", () => {
     expect(accountView(pro(2), now)).toMatchObject({ phase: "grace", date: now + 2 * DAY_MS });
     expect(accountMessageKey(accountView(pro(2, "crypto"), now))).toBe("grace");
-    expect(accountView(pro(-0.01), now)).toEqual({ kind: "free", dropped: "expired" });
+    expect(accountView(pro(-0.01), now)).toEqual({ kind: "free", dropped: "expired", lapsed: null, renewing: false });
   });
 });
 
@@ -172,7 +177,9 @@ describe("the quiet renewal of a subscription's licence", () => {
     const data = new Map<string, string>();
     return { data, getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), removeItem: (k: string) => void data.delete(k) };
   };
-  const proIn = (days: number, provider: Entitlement["provider"] = "stripe"): Entitlement => ({ status: "pro", plan: "monthly", provider, email: "a@b.co", expiresAt: now + days * DAY_MS, issuedAt: null, testMode: true, dropped: null });
+  const proIn = (days: number, provider: Entitlement["provider"] = "stripe"): Entitlement => ({ status: "pro", plan: "monthly", provider, email: "a@b.co", expiresAt: now + days * DAY_MS, issuedAt: null, testMode: true, dropped: null, lapsed: null, renewing: false });
+  const lapsedOf = (provider: Entitlement["provider"] = "stripe"): Entitlement => ({ ...proIn(-1, provider), status: "free", plan: null, provider: null, email: null, expiresAt: null, dropped: "expired", lapsed: { email: "a@b.co", plan: "monthly", provider, expiresAt: now - DAY_MS } });
+  const newStore = (storage: ReturnType<typeof memory>) => createEntitlementStore({ storage: () => storage, verify: (t) => verifyLicense(t, { publicKey: LICENSE_TEST_PUBLIC_KEY }), testMode: true, info: () => {} });
 
   it("asks only for a renewing subscription near its end, with a receipt to ask with, at most every few hours", () => {
     const receipt = { provider: "stripe" as const, ref: "cs_1" };
@@ -182,6 +189,14 @@ describe("the quiet renewal of a subscription's licence", () => {
     expect(shouldRenew(proIn(5), null, now, null)).toBe(false);
     expect(shouldRenew(proIn(5), receipt, now, now - 60_000)).toBe(false);
     expect(shouldRenew(proIn(5), receipt, now, now - 7 * 3600_000)).toBe(true);
+    // a subscription's licence that ran out: asked every quarter of an hour (the visitor cannot record meanwhile)
+    expect(isRenewableLapse(lapsedOf())).toBe(true);
+    expect(isRenewableLapse(lapsedOf("crypto"))).toBe(false);
+    expect(shouldRenew(lapsedOf(), receipt, now, now - 60_000)).toBe(false);
+    expect(shouldRenew(lapsedOf(), receipt, now, now - LAPSED_RETRY_MS)).toBe(true);
+    expect(shouldRenew(lapsedOf("paypal"), receipt, now, null)).toBe(true);
+    expect(shouldRenew(lapsedOf("crypto"), receipt, now, null)).toBe(false);
+    expect(shouldRenew(lapsedOf(), null, now, null)).toBe(false);
     const storage = memory();
     expect(storedReceipt(storage)).toBeNull();
     storage.setItem(LICENSE_REF_STORAGE_KEY, "{bad json");
@@ -192,7 +207,7 @@ describe("the quiet renewal of a subscription's licence", () => {
 
   it("installs a newer licence from /license/restore and keeps the stored one otherwise", async () => {
     const storage = memory();
-    const store = createEntitlementStore({ storage: () => storage, verify: (t) => verifyLicense(t, { publicKey: LICENSE_TEST_PUBLIC_KEY }), testMode: true, info: () => {} });
+    const store = newStore(storage);
     const current = signTestLicense({ sub: "a@b.co", plan: "monthly", provider: "stripe", days: 5 });
     storage.setItem(LICENSE_STORAGE_KEY, current);
     storage.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify({ provider: "stripe", ref: "cs_1" }));
@@ -213,6 +228,90 @@ describe("the quiet renewal of a subscription's licence", () => {
     const stale = new BillingClient("https://billing.test", async () => new Response(JSON.stringify({ token: signTestLicense({ sub: "a@b.co", days: 2 }) })));
     expect(await renewQuietly(store, stale, storage, Date.now())).toBe("unchanged");
     expect(storage.getItem(LICENSE_STORAGE_KEY)).toBe(current);
+  });
+
+  /** An expired monthly Stripe licence (its exp passed yesterday) and the receipt it was claimed with, as the next page load finds them. */
+  const lapsedSetup = async () => {
+    const storage = memory();
+    const exp = Math.floor(Date.now() / 1000) - 86400;
+    storage.setItem(LICENSE_STORAGE_KEY, signTestLicense({ sub: "buyer@example.com", plan: "monthly", provider: "stripe", exp }));
+    storage.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify({ provider: "stripe", ref: "cs_test_abc" }));
+    const store = newStore(storage);
+    await store.refresh();
+    return { storage, store };
+  };
+
+  it("renews a subscription's licence that ran out: the stored receipt goes to /license/restore and the page ends Pro", async () => {
+    const { storage, store } = await lapsedSetup();
+    expect(store.getSnapshot()).toMatchObject({ status: "free", dropped: "expired", lapsed: { email: "buyer@example.com", provider: "stripe" } });
+    expect(storedReceipt(storage)).toEqual({ provider: "stripe", ref: "cs_test_abc" }); // the receipt survived the expiry
+    const renewed = signTestLicense({ sub: "buyer@example.com", plan: "monthly", provider: "stripe", days: 30 });
+    const seen: boolean[] = [];
+    store.subscribe(() => seen.push(store.getSnapshot().renewing));
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ token: renewed }), { status: 200 }));
+    expect(await renewQuietly(store, new BillingClient("https://billing.test", fetchImpl), storage, Date.now())).toBe("renewed");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://billing.test/license/restore");
+    expect(JSON.parse(String(init.body))).toEqual({ email: "buyer@example.com", ref: "cs_test_abc" });
+    expect(store.getSnapshot()).toMatchObject({ status: "pro", plan: "monthly", provider: "stripe", lapsed: null, renewing: false });
+    expect(seen).toContain(true); // "Renewing your licence…" while the request ran
+    expect(storage.getItem(LICENSE_STORAGE_KEY)).toBe(renewed);
+    expect(storage.getItem(LICENSE_LAPSED_STORAGE_KEY)).toBeNull();
+    expect(storedReceipt(storage)).toEqual({ provider: "stripe", ref: "cs_test_abc" });
+  });
+
+  it("forgets the receipt only when the backend says the subscription is over or unknown; a failure keeps it for the next visit", async () => {
+    for (const [status, body] of [[402, { error: "not_active", message: "This subscription is no longer active." }], [404, { error: "unknown_reference", message: "No subscription matches" }]] as const) {
+      const { storage, store } = await lapsedSetup();
+      const client = new BillingClient("https://billing.test", async () => new Response(JSON.stringify(body), { status }));
+      expect(await renewQuietly(store, client, storage, Date.now())).toBe("ended");
+      expect(store.getSnapshot()).toMatchObject({ status: "free", dropped: "expired", lapsed: null, renewing: false });
+      expect(storage.getItem(LICENSE_REF_STORAGE_KEY)).toBeNull();
+      expect(storage.getItem(LICENSE_LAPSED_STORAGE_KEY)).toBeNull();
+    }
+    const { storage, store } = await lapsedSetup();
+    const offline = new BillingClient("https://billing.test", async () => Promise.reject(new TypeError("Failed to fetch")));
+    expect(await renewQuietly(store, offline, storage, Date.now())).toBe("failed");
+    expect(storedReceipt(storage)).toEqual({ provider: "stripe", ref: "cs_test_abc" });
+    expect(store.getSnapshot()).toMatchObject({ dropped: "expired", lapsed: { email: "buyer@example.com" }, renewing: false });
+    // asked a moment ago: the next try waits; a quarter of an hour later it asks again
+    const later = new BillingClient("https://billing.test", async () => new Response(JSON.stringify({ token: signTestLicense({ sub: "buyer@example.com", plan: "monthly", provider: "stripe", days: 2 }) })));
+    expect(await renewQuietly(store, later, storage, Date.now())).toBe("skipped");
+    expect(await renewQuietly(store, later, storage, Date.now() + LAPSED_RETRY_MS)).toBe("renewed");
+  });
+
+  it("does not ask for a crypto period that ran out (it cannot renew by itself) or without a receipt", async () => {
+    const storage = memory();
+    storage.setItem(LICENSE_STORAGE_KEY, signTestLicense({ sub: "c@b.co", plan: "monthly", provider: "crypto", days: -1 }));
+    storage.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify({ provider: "crypto", ref: "order-1" }));
+    const store = newStore(storage);
+    await store.refresh();
+    const fetchImpl = vi.fn(async () => new Response("{}"));
+    expect(await renewQuietly(store, new BillingClient("https://billing.test", fetchImpl), storage, Date.now())).toBe("skipped");
+    const { storage: noReceipt, store: s2 } = await lapsedSetup();
+    noReceipt.removeItem(LICENSE_REF_STORAGE_KEY);
+    expect(await renewQuietly(s2, new BillingClient("https://billing.test", fetchImpl), noReceipt, Date.now())).toBe("skipped");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe("the way back to the studio after a same-tab checkout", () => {
+  it("remembers this site's studio address with its setup, and nothing else", () => {
+    const data = new Map<string, string>();
+    const session = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), removeItem: (k: string) => void data.delete(k) };
+    rememberCheckoutFrom(session, { pathname: "/en/simulator/", search: "?mode=bullseye&dur=12" });
+    expect(data.get(CHECKOUT_FROM_STORAGE_KEY)).toBe("/en/simulator/?mode=bullseye&dur=12");
+    expect(checkoutFrom(session)).toBe("/en/simulator/?mode=bullseye&dur=12");
+    forgetCheckoutFrom(session);
+    expect(checkoutFrom(session)).toBeNull();
+    rememberCheckoutFrom(session, { pathname: "/en/pricing/", search: "" });
+    expect(checkoutFrom(session)).toBeNull();
+    data.set(CHECKOUT_FROM_STORAGE_KEY, "https://evil.example/en/simulator/");
+    expect(checkoutFrom(session)).toBeNull();
+    expect(studioReturnPath("/Balls/pl/simulator/?mode=classic", "/Balls")).toBe("/Balls/pl/simulator/?mode=classic");
+    expect(studioReturnPath("/Balls/es/simulator/", "/Balls")).toBe("/Balls/es/simulator/");
+    for (const bad of ["//evil.example/en/simulator/", "/en/simulator/", "/Balls/de/simulator/", "/Balls/en/simulator/#x", "/Balls/en/simulator/?a=1 b", "javascript:alert(1)"]) expect(studioReturnPath(bad, "/Balls"), bad).toBeNull();
   });
 });
 

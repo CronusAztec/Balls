@@ -18,9 +18,13 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  *
  * Everything here is pure: a headless run is boiled down to a `RunSummary` (finder.ts simulates it) and the predicates
  * judge it, so they can be tested on synthetic runs. Times are real (recording) time – what the clip shows.
+ *
+ * --- orb-grid --- Bouncing Orbs adds two of its own: **never-settles** (the field is still bouncing when the clip ends) and
+ * **resolves-at** (the first "in phase" moment of the field – the resolve detector of modes/orbGrid.ts – comes within ±0.5 s
+ * of a target time).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "close" /* --- land-claim --- */] as const;
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "close" /* --- land-claim --- */] as const; // --- orb-grid --- (never-settles, resolves-at)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -58,6 +62,10 @@ export interface RunSummary {
   firstEscapeMs: number;
   /** The team totals at the end (one entry per team slot in play). */
   teams: readonly Readonly<BallStats>[];
+  // --- orb-grid ---
+  /** Real time (ms) of the field's first "in phase" moment (Bouncing Orbs' resolve detector), −1 or absent when none came. */
+  firstResolveMs?: number;
+  // --- end orb-grid ---
   /** --- land-claim --- A finished battle's gap between its top two, as a share of the land (Land Claim's verdict); absent elsewhere. */
   margin?: number;
 }
@@ -97,18 +105,33 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
+    // --- orb-grid --- the clip (still bouncing at its end?); until the target's window has passed (the first resolve)
+    case "never-settles":
+      return clipMs;
+    case "resolves-at":
+      return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + RESOLVE_SLACK_MS;
     default:
       return maxSimMs;
   }
 }
 
+// --- orb-grid ---
+/** How far past the resolve target's window (ms) a resolves-at run is followed (the detector reports a step late at most). */
+export const RESOLVE_SLACK_MS = 50;
+// --- end orb-grid ---
+
 /**
  * Whether a run being simulated can stop now: its outcome is settled (`elapsedMs` real time so far, `firstEscapeMs`
  * the first escape or −1, `finished` the mode's own end). A battle's winner is settled only by its end (`winnerNeedsEnd()`).
  */
-export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstEscapeMs: number, finished: boolean, mode?: ModeId): boolean {
+export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstEscapeMs: number, finished: boolean, mode?: ModeId, firstResolveMs = -1 /* --- orb-grid --- */): boolean {
   if (finished) return true;
   switch (outcome.kind) {
+    // --- orb-grid --- still bouncing at the clip's end; the first resolve has come (in the window or not) or the window is past
+    case "never-settles":
+      return elapsedMs >= 1000 * outcome.clipSec;
+    case "resolves-at":
+      return firstResolveMs >= 0 || elapsedMs > 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + RESOLVE_SLACK_MS;
     case "never-escapes":
       return firstEscapeMs >= 0 || elapsedMs >= 1000 * outcome.clipSec;
     case "escapes-at": {
@@ -133,6 +156,13 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     case "escapes-at": {
       const tol = 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC);
       return run.firstEscapeMs >= 0 && Math.abs(run.firstEscapeMs - 1000 * (outcome.atSec ?? 0)) <= tol + 1e-6;
+    }
+    // --- orb-grid ---
+    case "never-settles":
+      return !run.finished && run.durationMs >= 1000 * outcome.clipSec - 1;
+    case "resolves-at": {
+      const at = run.firstResolveMs ?? -1;
+      return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
     }
     case "winner": {
       const team = outcome.team ?? -1;
@@ -162,6 +192,11 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return run.firstEscapeMs < 0 ? Infinity : Math.abs(run.firstEscapeMs / 1000 - (outcome.atSec ?? 0));
     case "winner":
       return outcomeMatches(outcome, run) ? 0 : 1;
+    // --- orb-grid --- the seconds the field fell short of the clip; the seconds between its first resolve and the target
+    case "never-settles":
+      return Math.max(0, outcome.clipSec - run.durationMs / 1000);
+    case "resolves-at":
+      return (run.firstResolveMs ?? -1) < 0 ? Infinity : Math.abs((run.firstResolveMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     case "close": // --- land-claim --- how far past the margin its top two ended (a run cut short: Infinity)
       return run.finished && run.margin !== undefined ? Math.max(0, run.margin - CLOSE_BATTLE_MARGIN) : Infinity;
     default:
@@ -184,6 +219,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return survivalSec(run);
     case "escapes-at":
       return run.firstEscapeMs >= 0 ? run.firstEscapeMs / 1000 : 0;
+    case "resolves-at": // --- orb-grid --- (the first resolve, 0 without one; never-settles: the run's length, as below)
+      return (run.firstResolveMs ?? -1) >= 0 ? (run.firstResolveMs ?? 0) / 1000 : 0;
     case "close": // --- land-claim --- the gap between its top two, in percent of the land (100 for a run cut short)
       return run.finished && run.margin !== undefined ? 100 * run.margin : 100;
     default:
@@ -197,6 +234,7 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
  */
 export function outcomeClipSec(outcome: FinderOutcome, run: RunSummary): number {
   if (outcome.kind === "never-escapes") return outcome.clipSec;
+  if (outcome.kind === "never-settles") return outcome.clipSec; // --- orb-grid --- (the field bounces through the whole clip)
   if (run.finished) return run.durationMs / 1000;
   return outcome.clipSec;
 }
@@ -225,6 +263,8 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (MULTI_BALL_MODES.includes(mode) && ctx.ballCount >= 2) out.push("winner");
   // --- odd-string-battle --- a battle's winner is the last ball standing (every ball is a team)
   if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
+  // --- orb-grid --- Bouncing Orbs: still bouncing when the clip ends, the field's first resolve at a chosen second
+  if (mode === "orbGrid") out.push("never-settles", "resolves-at");
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   return out;
 }

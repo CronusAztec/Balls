@@ -117,6 +117,10 @@ export interface ArenaSoundSink {
   playConveyor?(kind: "hum" | "click", seconds?: number, frequency?: number, level?: number): void;
   /** --- gerald-exit-splat --- a splat of the splat barrier landed. */
   playSplat?(level?: number): void;
+  // --- orb-grid ---
+  /** A Bouncing Orbs voice in its own sound (sleep or metal). */
+  playOrb?(kind: "sleep" | "metal", frequency?: number, chord?: readonly number[], level?: number): void;
+  // --- end orb-grid ---
   /** --- land-claim --- a knocked block's click, a new ball's chime, a column's KO. */
   playLandClaim?(kind: "knock" | "spawn" | "ko", frequency?: number, level?: number, accent?: boolean): void;
 }
@@ -136,6 +140,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.ate) return sink.playArenaEaten?.(); // --- unlimited --- (the gulp, not a wall break)
   if (ev.conveyor) return sink.playConveyor?.(ev.conveyor, ev.cvSec, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- gerald-conveyor --- (machinery, not a wall hit)
   if (ev.splat) return sink.playSplat?.((ev.level ?? 0.6) * EXTRA_ARENA_LEVEL); // --- gerald-exit-splat --- (the wet splat, not a wall hit)
+  if (ev.orb) return sink.playOrb?.(ev.orb, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- orb-grid --- (an orb voice's own sound, not a wall hit)
   if (ev.lcSound) return sink.playLandClaim?.(ev.lcSound, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.accent); // --- land-claim --- (a knock, a chime, a KO: not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();

@@ -515,6 +515,7 @@ describe("uncap-all review fixes: every mode runs Gravity, Ball Speed and Ball S
 describe("uncap-all review fixes: only the settings a run's engine reads engage it (and its badges)", () => {
   /** The settings no mode's engine reads: the clip's, the text's, the sound's and the picture's. */
   const NOT_ENGINE = new Set(["wallThickness", "trailThickness", "backgroundDim", "textSize", "recordingDuration", "hitSampleVolume", "sliceMs", "sliceFadeMs", "musicVolume", "musicDucking", "musicDuckRelease", "musicStartOffset", "rootNote", "bpm", "ballSquash", "cameraZoom", "screenShake", "slowMoFactor", "slowMoMs", "fastExportFps", "beatDownbeat", "videoBgOpacity"]);
+  for (const key of ["ogElevation", "ogRotation"]) NOT_ENGINE.add(key); // --- orb-grid --- the Bouncing Orbs camera is the picture's (the canvas draws it)
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {
     const read = new Set<string>();
@@ -816,6 +817,8 @@ describe("uncap-all: the guard", () => {
     byPerfect: "a shot's index",
     beatDownbeat: "a beat's index",
     tyRadius: "a reach in tiles (a blast visits at most the board's tiles, a whirl walks at most its diagonal: whirlReach())", // --- odd-territory ---
+    ogElevation: "degrees", // --- orb-grid --- (the camera)
+    ogRotation: "degrees", // --- orb-grid --- (the camera)
     lcEvery: "a spawn period in blocks (the balls a run holds stop at LC_BALL_CEILING: ARENA FULL)", // --- land-claim ---
   };
 

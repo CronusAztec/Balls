@@ -13,7 +13,8 @@ LICENSE_PRIVATE_JWK='{"kty":"EC","crv":"P-256","x":"-VrvsDyDq0VpFeKfqI8l87Q2eosU
 # --- Stripe (card subscriptions) ---
 # Secret API key (sk_test_... in test mode, sk_live_... in production).
 STRIPE_SECRET_KEY=
-# Signing secret of the webhook endpoint you add in the Stripe dashboard (whsec_...).
+# Signing secret of the webhook endpoint you add in the Stripe dashboard (whsec_...). Card checkout stays
+# off (/config stripe: false) until it is set: a payment the Worker cannot verify would never be recorded.
 STRIPE_WEBHOOK_SECRET=
 # The two recurring Price ids (scripts/stripe-create-prices.mjs prints them): $10/month and $79/year.
 STRIPE_PRICE_MONTHLY=
@@ -25,7 +26,7 @@ STRIPE_AUTOMATIC_TAX=
 # REST app credentials from the PayPal developer dashboard.
 PAYPAL_CLIENT_ID=
 PAYPAL_CLIENT_SECRET=
-# The webhook id PayPal assigns the endpoint you add (used to verify every webhook).
+# The webhook id PayPal assigns the endpoint you add (used to verify every webhook; PayPal stays off without it).
 PAYPAL_WEBHOOK_ID=
 # The two billing Plan ids (scripts/paypal-create-plans.mjs prints them): $10/month and $79/year.
 PAYPAL_PLAN_MONTHLY=
@@ -36,7 +37,7 @@ PAYPAL_ENV=sandbox
 # --- NOWPayments (crypto: BTC, ETH and the other popular coins) ---
 # API key from your NOWPayments account.
 NOWPAYMENTS_API_KEY=
-# IPN secret (Store settings -> Instant payment notifications) used to verify every callback.
+# IPN secret (Store settings -> Instant payment notifications) used to verify every callback (crypto stays off without it).
 NOWPAYMENTS_IPN_SECRET=
 # Set to 1 to use the NOWPayments sandbox API.
 NOWPAYMENTS_SANDBOX=
