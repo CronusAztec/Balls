@@ -1,0 +1,18 @@
+{
+  "note": "TEST licensing key pair for development, tests and the smoke test only. It is public: anyone can sign licences with it, so a production build must set NEXT_PUBLIC_LICENSE_PUBLIC_KEY (and the billing Worker LICENSE_PRIVATE_JWK) to a key pair generated with scripts/billing-keygen.mjs and kept secret.",
+  "algorithm": "ES256 (ECDSA P-256, SHA-256; JWS raw r||s signatures as WebCrypto produces them)",
+  "privateJwk": {
+    "kty": "EC",
+    "x": "-VrvsDyDq0VpFeKfqI8l87Q2eosUd8aahdPHUMDc-Ts",
+    "y": "TYgkXgAzcTLbq98zw37vrB_MZJfIlSHOv5bPBO4C530",
+    "crv": "P-256",
+    "d": "Gh0shGrJs8GvRL--b-ABeiqq1Z-MYbJ3Vi02ahCLQGo"
+  },
+  "publicJwk": {
+    "kty": "EC",
+    "x": "-VrvsDyDq0VpFeKfqI8l87Q2eosUd8aahdPHUMDc-Ts",
+    "y": "TYgkXgAzcTLbq98zw37vrB_MZJfIlSHOv5bPBO4C530",
+    "crv": "P-256"
+  },
+  "publicSpkiBase64url": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE-VrvsDyDq0VpFeKfqI8l87Q2eosUd8aahdPHUMDc-TtNiCReADNxMtur3zPDfu-sH8xkl8iVIc6_ls8E7gLnfQ"
+}
