@@ -31,6 +31,7 @@ import { STRING_BATTLE_KEYS } from "./sections/StringBattleSection";
 import { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory ---
 import { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze ---
 import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // --- gerald-conveyor ---
+import { ORB_GRID_KEYS } from "./sections/OrbGridSection"; // --- orb-grid ---
 import { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
@@ -101,6 +102,7 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   territory: TERRITORY_KEYS, // --- odd-territory ---
   maze: MAZE_KEYS, // --- odd-maze ---
   conveyor: CONVEYOR_KEYS, // --- gerald-conveyor ---
+  orbGrid: ORB_GRID_KEYS, // --- orb-grid ---
   fightLeague: FIGHT_LEAGUE_KEYS, // --- fight-league ---
 };
 

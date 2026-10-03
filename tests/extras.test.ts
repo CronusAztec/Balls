@@ -135,6 +135,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- gerald-conveyor --- Conveyor Belt: its own field, the rings arena setting the engine's rings (five fit here); recorded when
   // the mode was added (seed 12345, defaults: 8 balls 3 s apart dropped into the rings, the escaped ones carried away).
   conveyor: { samples: [[392830,299930],[405963,324324],[359936,292702],[332380,173434],[408332,258889],[589499,316456],[357295,354065]], broken: [], walls: [50112,79344,108576,137808,167040] },
+  // --- orb-grid --- (the placeholder ball stays pinned at the centre: the orbs are not engine balls)
+  orbGrid: { samples: [[400000,300000],[400000,300000],[400000,300000],[400000,300000]], broken: [], walls: [] },
   fightLeague: { samples: [[322587,392541],[479754,366913],[357342,358123],[462286,375558],[573213,379685],[357902,130849],[531836,220763],[429882,134919]], broken: [], walls: [] }, // --- fight-league ---
 };
 

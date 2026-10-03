@@ -170,6 +170,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   territory: "ty", // --- odd-territory ---
   maze: "mz", // --- odd-maze ---
   conveyor: "cv", // --- gerald-conveyor ---
+  orbGrid: "og", // --- orb-grid ---
   fightLeague: "fl", // --- fight-league ---
 };
 

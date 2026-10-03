@@ -1,19 +1,32 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { CLOCK_SKEW_SEC, LICENSE_PUBLIC_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_MODE, type Plan, type Provider } from "./config";
-import { licenseExpiresAtMs, verifyLicense, type LicenseCheck } from "./license";
+import { CLOCK_SKEW_SEC, LICENSE_LAPSED_STORAGE_KEY, LICENSE_PUBLIC_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_MODE, isPlan, isProvider, type Plan, type Provider } from "./config";
+import { licenseExpiresAtMs, verifyLicense, type LicenseCheck, type LicensePayload } from "./license";
 
 /*
  * --- paywall-gate --- Who may create videos in this browser: a small live store (like the stores of components/simulator)
  * over the licence token kept in localStorage ("jbl.license"). It verifies the token when the page starts, whenever the
- * window gets the focus and whenever another tab changes the token (the storage event); a token that does not verify or
- * has expired is dropped from storage. `useEntitlement()` is the hook the pricing page, the Unlock dialog, the account row
- * and the lock badges read; the guard (guard.ts) reads the same store.
+ * window gets the focus and whenever another tab changes the token (the storage event). A token that does not verify is
+ * dropped from storage with its receipt. One that has EXPIRED is dropped too, but not forgotten: a subscription's licence
+ * runs out at the end of every paid period unless the page fetched the renewed one in time, so the receipt it was claimed
+ * with stays ("jbl.license.ref") and the expired licence's email, plan and provider are kept ("jbl.license.lapsed") – the
+ * quiet renewal (account.ts) asks the backend for the renewed licence with them, and only the backend's "no longer active"
+ * or "unknown reference" (or Remove from this browser) forgets them. `useEntitlement()` is the hook the pricing page, the
+ * Unlock dialog, the account row and the lock badges read; the guard (guard.ts) reads the same store.
  *
  * States: "checking" until the first verification has answered (WebCrypto is asynchronous), then "free" or "pro". A later
  * re-check keeps the last answer on show until it has its own (no flicker on every focus).
  */
 
 export type EntitlementStatus = "checking" | "free" | "pro";
+
+/** A licence that ran out in this browser: what the renewal asks the backend about. */
+export interface LapsedLicence {
+  email: string;
+  plan: Plan;
+  provider: Provider | null;
+  /** Its exp (ms). */
+  expiresAt: number;
+}
 
 export interface Entitlement {
   status: EntitlementStatus;
@@ -28,6 +41,10 @@ export interface Entitlement {
   testMode: boolean;
   /** Why the last stored token was dropped, until a licence is installed (the account row explains it). */
   dropped: "expired" | "invalid" | null;
+  /** The licence that ran out, while the page may still renew it (Free only). */
+  lapsed: LapsedLicence | null;
+  /** The backend is being asked for a renewed licence right now ("Renewing your licence…"). */
+  renewing: boolean;
 }
 
 /** What the store needs from its surroundings (the browser's by default; the unit tests hand in their own). */
@@ -41,9 +58,36 @@ export interface EntitlementDeps {
   info?: (message: string) => void;
 }
 
-const freeState = (testMode: boolean, dropped: Entitlement["dropped"] = null): Entitlement => ({ status: "free", plan: null, provider: null, email: null, expiresAt: null, issuedAt: null, testMode, dropped });
+const freeState = (testMode: boolean, dropped: Entitlement["dropped"] = null, lapsed: LapsedLicence | null = null): Entitlement => ({
+  status: "free",
+  plan: null,
+  provider: null,
+  email: null,
+  expiresAt: null,
+  issuedAt: null,
+  testMode,
+  dropped,
+  lapsed,
+  renewing: false,
+});
+
+const lapsedFrom = (p: LicensePayload): LapsedLicence => ({ email: p.sub, plan: p.plan, provider: p.provider, expiresAt: licenseExpiresAtMs(p) });
+
+/** A stored lapsed record, or null when it is not one. */
+export function parseLapsed(raw: string | null): LapsedLicence | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<Record<keyof LapsedLicence, unknown>> | null;
+    if (!v || typeof v !== "object" || typeof v.email !== "string" || !v.email.trim() || !isPlan(v.plan) || typeof v.expiresAt !== "number" || !Number.isFinite(v.expiresAt)) return null;
+    return { email: v.email.trim().toLowerCase(), plan: v.plan, provider: isProvider(v.provider) ? v.provider : null, expiresAt: v.expiresAt };
+  } catch {
+    return null;
+  }
+}
 
 export const TEST_MODE_NOTICE = "Licensing is in test mode – payments are not configured yet (no NEXT_PUBLIC_LICENSE_PUBLIC_KEY: licences are verified with the committed TEST key).";
+
+type Waiter = { test: (state: Entitlement) => boolean; resolve: (state: Entitlement) => void };
 
 export class EntitlementStore {
   private state: Entitlement;
@@ -51,7 +95,8 @@ export class EntitlementStore {
   private readonly listeners = new Set<() => void>();
   private started = false;
   private serial = 0;
-  private settleWaiters: ((state: Entitlement) => void)[] = [];
+  private renewingFlag = false;
+  private waiters: Waiter[] = [];
   private detach: (() => void) | null = null;
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -71,10 +116,19 @@ export class EntitlementStore {
   getServerSnapshot = (): Entitlement => this.serverState;
 
   private set(next: Entitlement) {
-    this.state = next;
+    this.state = next.renewing === this.renewingFlag ? next : { ...next, renewing: this.renewingFlag };
     this.scheduleExpiry();
     for (const l of this.listeners) l();
-    if (next.status !== "checking" && this.settleWaiters.length) for (const resolve of this.settleWaiters.splice(0)) resolve(next);
+    if (this.waiters.length) {
+      const due = this.waiters.filter((w) => w.test(this.state));
+      this.waiters = this.waiters.filter((w) => !due.includes(w));
+      for (const w of due) w.resolve(this.state);
+    }
+  }
+
+  private waitFor(test: (state: Entitlement) => boolean): Promise<Entitlement> {
+    if (test(this.state)) return Promise.resolve(this.state);
+    return new Promise<Entitlement>((resolve) => this.waiters.push({ test, resolve }));
   }
 
   /** A licence that runs out while the page is open turns the page Free at its exp (checked again then). */
@@ -96,7 +150,7 @@ export class EntitlementStore {
       const onFocus = () => void this.refresh();
       const onStorage = (e: Event) => {
         const key = (e as StorageEvent).key;
-        if (key === null || key === LICENSE_STORAGE_KEY) void this.refresh();
+        if (key === null || key === LICENSE_STORAGE_KEY || key === LICENSE_LAPSED_STORAGE_KEY) void this.refresh();
       };
       target.addEventListener("focus", onFocus);
       target.addEventListener("storage", onStorage);
@@ -116,21 +170,40 @@ export class EntitlementStore {
     this.scheduleExpiry();
   }
 
-  private read(): string | null {
+  private storage() {
     try {
-      return this.deps.storage()?.getItem(LICENSE_STORAGE_KEY) ?? null;
+      return this.deps.storage();
     } catch {
       return null;
     }
   }
 
-  private remove() {
+  private read(key = LICENSE_STORAGE_KEY): string | null {
     try {
-      const storage = this.deps.storage();
-      storage?.removeItem(LICENSE_STORAGE_KEY);
-      storage?.removeItem(LICENSE_REF_STORAGE_KEY);
+      return this.storage()?.getItem(key) ?? null;
     } catch {
-      /* storage blocked: nothing to remove */
+      return null;
+    }
+  }
+
+  /** Removes the given keys (storage blocked: nothing to remove). */
+  private removeKeys(...keys: string[]) {
+    try {
+      const storage = this.storage();
+      for (const key of keys) storage?.removeItem(key);
+    } catch {
+      /* storage blocked */
+    }
+  }
+
+  /** An expired licence: off the licence key, but its receipt stays and its email, plan and provider are kept for the renewal. */
+  private lapse(lapsed: LapsedLicence) {
+    try {
+      const storage = this.storage();
+      storage?.removeItem(LICENSE_STORAGE_KEY);
+      storage?.setItem(LICENSE_LAPSED_STORAGE_KEY, JSON.stringify(lapsed));
+    } catch {
+      /* storage blocked: the page renews from this state while it is open */
     }
   }
 
@@ -140,15 +213,17 @@ export class EntitlementStore {
   }
 
   /** The state a verification answer gives (and what to do with the stored token). */
-  private apply(check: LicenseCheck): { next: Entitlement; drop: boolean } {
+  private apply(check: LicenseCheck): { next: Entitlement; drop: "none" | "lapse" | "all" } {
     const testMode = this.deps.testMode;
     if (check.ok) {
       const p = check.payload;
-      return { next: { status: "pro", plan: p.plan, provider: p.provider, email: p.sub, expiresAt: licenseExpiresAtMs(p), issuedAt: p.iat ? p.iat * 1000 : null, testMode, dropped: null }, drop: false };
+      return { next: { status: "pro", plan: p.plan, provider: p.provider, email: p.sub, expiresAt: licenseExpiresAtMs(p), issuedAt: p.iat ? p.iat * 1000 : null, testMode, dropped: null, lapsed: null, renewing: false }, drop: "none" };
     }
     // The site's own key cannot be used (a misconfigured build): keep the visitor's licence for a fixed build.
-    if (check.error === "key") return { next: freeState(testMode, this.state.dropped), drop: false };
-    return { next: freeState(testMode, check.error === "expired" ? "expired" : "invalid"), drop: true };
+    if (check.error === "key") return { next: freeState(testMode, this.state.dropped, this.state.lapsed), drop: "none" };
+    // Expired but genuine (its signature verified): its subscription may have renewed – keep what the renewal needs.
+    if (check.error === "expired" && check.payload) return { next: freeState(testMode, "expired", lapsedFrom(check.payload)), drop: "lapse" };
+    return { next: freeState(testMode, check.error === "expired" ? "expired" : "invalid"), drop: "all" };
   }
 
   /** Verifies the stored licence again; resolves with the state it settles in (the newest check wins a race). */
@@ -156,14 +231,23 @@ export class EntitlementStore {
     const id = ++this.serial;
     const token = this.read();
     if (!token) {
-      if (id === this.serial) this.set(this.state.status === "free" ? this.state : freeState(this.deps.testMode, this.state.dropped));
+      if (id === this.serial) {
+        // A licence that ran out earlier (this page or another) is still waiting for its renewal.
+        const lapsed = parseLapsed(this.read(LICENSE_LAPSED_STORAGE_KEY));
+        const next = freeState(this.deps.testMode, lapsed ? "expired" : this.state.dropped, lapsed);
+        const same = this.state.status === "free" && this.state.dropped === next.dropped && JSON.stringify(this.state.lapsed) === JSON.stringify(next.lapsed);
+        this.set(same ? this.state : next);
+      }
       return this.state;
     }
     const check = await this.deps.verify(token).catch((): LicenseCheck => ({ ok: false, error: "key" }));
     if (id !== this.serial) return this.whenSettled();
     const { next, drop } = this.apply(check);
     // Another tab may have stored a new licence meanwhile: only the token that was checked is dropped.
-    if (drop && this.read() === token) this.remove();
+    if (drop !== "none" && this.read() === token) {
+      if (drop === "lapse" && next.lapsed) this.lapse(next.lapsed);
+      else this.removeKeys(LICENSE_STORAGE_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_LAPSED_STORAGE_KEY);
+    }
     this.set(next);
     return next;
   }
@@ -174,11 +258,12 @@ export class EntitlementStore {
     const check = await this.deps.verify(trimmed).catch((): LicenseCheck => ({ ok: false, error: "key" }));
     if (!check.ok) return check;
     try {
-      const storage = this.deps.storage();
+      const storage = this.storage();
       storage?.setItem(LICENSE_STORAGE_KEY, trimmed);
       // the receipt of this licence – a previous licence's receipt would renew the wrong purchase
       if (ref) storage?.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify(ref));
       else storage?.removeItem(LICENSE_REF_STORAGE_KEY);
+      storage?.removeItem(LICENSE_LAPSED_STORAGE_KEY);
     } catch {
       /* storage blocked: the licence lasts as long as this page */
     }
@@ -187,20 +272,43 @@ export class EntitlementStore {
     return check;
   }
 
-  /** Removes the licence from this browser ("Remove licence from this browser"). */
+  /** Removes the licence from this browser ("Remove licence from this browser") – with its receipt and a lapsed licence. */
   clear(): void {
-    this.remove();
+    this.removeKeys(LICENSE_STORAGE_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_LAPSED_STORAGE_KEY);
     this.serial++;
     this.set(freeState(this.deps.testMode));
+  }
+
+  /**
+   * Forgets the receipt and a lapsed licence: the backend said the subscription is no longer active, or does not know the
+   * reference – asking again would never renew anything. A licence still stored stays (it runs until its exp).
+   */
+  forgetReceipt(): void {
+    this.removeKeys(LICENSE_REF_STORAGE_KEY, LICENSE_LAPSED_STORAGE_KEY);
+    if (this.state.lapsed) this.set({ ...this.state, lapsed: null });
+  }
+
+  /** Says that a renewal request is (or is no longer) in flight. */
+  setRenewing(renewing: boolean): void {
+    if (this.renewingFlag === renewing) return;
+    this.renewingFlag = renewing;
+    this.set(this.state);
   }
 
   /** Resolves once the store has an answer ("free" or "pro"); starts it when nobody has. */
   whenSettled(): Promise<Entitlement> {
     if (this.state.status !== "checking") return Promise.resolve(this.state);
     // Waiting first: without a stored licence the check answers at once, inside start().
-    const settled = new Promise<Entitlement>((resolve) => this.settleWaiters.push(resolve));
+    const settled = this.waitFor((s) => s.status !== "checking");
     this.start();
     return settled;
+  }
+
+  /** Resolves once the store has an answer and no renewal is in flight (what the guard waits for). */
+  whenIdle(): Promise<Entitlement> {
+    const idle = this.waitFor((s) => s.status !== "checking" && !s.renewing);
+    if (this.state.status === "checking") this.start();
+    return idle;
   }
 }
 

@@ -72,6 +72,9 @@ const MODES = {
   // --- gerald-conveyor --- mid-run: balls riding the belt, one sliding down the tube, others working their way out of the rings,
   // the escaped ones riding the bottom belt away, and the counter
   conveyor: { wait: 7600, query: "cvi=1&cvn=12&face=cute&glow=1" },
+  // --- orb-grid --- the corner-to-corner preset (44 × 43 = 1892 orbs) mid-wave: a sheet of orbs rising from one corner over the
+  // blue slab, coloured by height, with the orb count
+  orbGrid: { wait: 2000, query: "ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&seed=3" },
   // --- fight-league --- mid-duel: Thor vs Loki (a pinned seed) with the hammer and the cards out, the HP in the balls, the
   // names in the fighters' colours and the ability boxes
   fightLeague: { wait: 8000, query: "seed=11" },

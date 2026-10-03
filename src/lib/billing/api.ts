@@ -10,7 +10,8 @@ import { PROVIDERS, isPlan, isProvider, type Plan, type Provider } from "./confi
  *   POST /checkout/crypto     { plan, email, locale, returnUrl }  → { url }   NOWPayments invoice (a prepaid period)
  *   POST /license/claim       { provider, ref }  → { token } | { pending: true } | { error, message }
  *   POST /license/restore     { email, ref }     → { token } | { error, message }
- *   POST /portal/stripe       { email, returnUrl? } → { url }   Stripe's customer portal, back to returnUrl (the pricing page)
+ *   POST /portal/stripe       { email, ref, returnUrl? } → { url }   Stripe's customer portal (the reference proves the
+ *                                                                     subscription is the caller's), back to returnUrl
  *
  * Every checkout returns the buyer to returnUrl (the pricing page of the buyer's language, sent WITHOUT a query) with
  * `?claim=<provider>&ref=<id>` appended by the backend. Every answer is treated defensively: a network error, a non-JSON
@@ -163,12 +164,13 @@ export class BillingClient {
   }
 
   /**
-   * Stripe's customer portal for the email (change the card, cancel). `returnUrl` is where its "return" link goes – the
-   * pricing page; the backend refuses one that is not on the site, and without one it goes back to the site's bare origin,
-   * which on GitHub Pages is not this site (it lives under the base path).
+   * Stripe's customer portal for the email (change the card, cancel). `ref` is the receipt reference of that card
+   * subscription (the session or subscription id this browser keeps): an email alone opens nothing. `returnUrl` is where the
+   * portal's "return" link goes – the pricing page; the backend refuses one that is not on the site, and without one it
+   * goes back to the site's bare origin, which on GitHub Pages is not this site (it lives under the base path).
    */
-  async portal(email: string, returnUrl?: string): Promise<BillingResult<string>> {
-    const body: Record<string, string> = { email: email.trim().toLowerCase() };
+  async portal(email: string, ref: string, returnUrl?: string): Promise<BillingResult<string>> {
+    const body: Record<string, string> = { email: email.trim().toLowerCase(), ref: ref.trim() };
     if (returnUrl) body.returnUrl = returnUrl;
     const r = await this.call("/portal/stripe", body);
     if (!r.ok) return r;

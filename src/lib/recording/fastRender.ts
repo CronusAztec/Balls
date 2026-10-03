@@ -255,6 +255,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playSplat(ev.level);
     return;
   }
+  // --- orb-grid --- a Bouncing Orbs voice in its own sound (sleep or metal; notes and music are ordinary hits)
+  if (ev.orb) {
+    audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
+    return;
+  }
   // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
   if (ev.fight) {
     audio.playFight(ev.fight, ev.frequency, ev.level);

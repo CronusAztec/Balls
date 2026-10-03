@@ -16,6 +16,16 @@ export const LICENSE_REF_STORAGE_KEY = "jbl.license.ref";
 /** localStorage key of the last silent renewal attempt (ms), so a page load asks the backend at most every few hours. */
 export const LICENSE_RENEWAL_STORAGE_KEY = "jbl.license.renewedAt";
 /**
+ * localStorage key of a licence that ran out ({ email, plan, provider, expiresAt }): its subscription may well have renewed
+ * meanwhile, so the page asks the backend (with the receipt kept under LICENSE_REF_STORAGE_KEY) instead of forgetting it.
+ */
+export const LICENSE_LAPSED_STORAGE_KEY = "jbl.license.lapsed";
+/**
+ * sessionStorage key of the studio address a checkout left from (pathname + search) when it had to leave in the studio's own
+ * tab: the pricing page then offers "Back to your setup" after the claim.
+ */
+export const CHECKOUT_FROM_STORAGE_KEY = "jbl.checkoutFrom";
+/**
  * TEST MODE ONLY: a localStorage key that points the pricing page at another billing backend – a Worker under `wrangler dev`,
  * or the smoke test's mock. A production build (public key set) ignores it and only talks to NEXT_PUBLIC_BILLING_API.
  */
@@ -44,6 +54,8 @@ export const GRACE_DAYS = 3;
 export const RENEWAL_NOTICE_DAYS = 7;
 /** A silent renewal asks the backend at most this often (ms). */
 export const RENEWAL_RETRY_MS = 6 * 60 * 60 * 1000;
+/** A licence that ran out asks the backend for its renewal at most this often (ms) – the visitor cannot record meanwhile. */
+export const LAPSED_RETRY_MS = 15 * 60 * 1000;
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 

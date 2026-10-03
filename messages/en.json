@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
-    "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator with {count} modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
+    "metaTitle": "Ball Physics Simulator for TikTok & Reels – Free to Play, Export with Pro – {siteName}",
+    "metaDescription": "Browser-based ball physics simulator with {count} modes, customisable physics and rainbow effects – free to play with, no sign-up, no install. MP4 export in vertical TikTok format comes with Pro."
   },
   "Layout": {
     "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and {count} unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
+    "metaDescription": "Browser-based ball physics simulator. Play with {count} unique modes, customisable physics and rainbow effects for free – no sign-up or installation – and export MP4 videos for TikTok, Reels and Shorts with Pro.",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
     "featuresModes": "{count} simulation modes",
     "features": [
@@ -1613,6 +1613,109 @@
     "splatMax": "Most Splats",
     "splatMaxTip": "How many splats stand at once; past it the oldest fade out (10–300 on the slider).",
     "splatGrowNote": "In Grow the splats only paint the ring – the ball grows to fill it.",
+    "modeOrbGrid": "Bouncing Orbs",
+    "ogTitle": "Bouncing Orbs",
+    "ogDesc": "Thousands of orbs, each bouncing straight up and down on its own spot. One property varies across the field, so the whole set becomes a wave – it rises from a corner, funnels into the centre or ripples in rings, falls into phase and dissolves again.",
+    "ogFieldHeading": "Field",
+    "ogVariationHeading": "Variation",
+    "ogLookHeading": "Look",
+    "ogSoundHeading": "Sound",
+    "ogColumns": "Columns",
+    "ogColumnsTip": "Orbs across the field. Columns × rows is the orb count the clip shows (33 × 33 = 1089). No upper limit: type any whole number.",
+    "ogRows": "Rows",
+    "ogRowsTip": "Orbs along the field. 70 × 70 makes 4900 orbs; past 250,000 a run builds the largest field that fits in memory.",
+    "ogArrangement": "Arrangement",
+    "ogArrangementTip": "How the orbs stand: a square grid, a disc of concentric rings, octagon rings or a hex grid. The ring arrangements place columns × rows orbs ring by ring.",
+    "ogArrGrid": "Grid",
+    "ogArrDisc": "Disc",
+    "ogArrOctagons": "Octagons",
+    "ogArrHex": "Hex",
+    "ogVaried": "Varied Property",
+    "ogVariedTip": "What differs from orb to orb: how bouncy it is, how high it starts, when it is let go, its size, its gravity – or its period (perfectly elastic orbs that never settle).",
+    "ogPropBounciness": "Bounciness",
+    "ogPropHeight": "Drop height",
+    "ogPropDelay": "Release delay",
+    "ogPropSize": "Size",
+    "ogPropGravity": "Gravity",
+    "ogPropPeriod": "Period",
+    "ogDistribution": "Distribution",
+    "ogDistributionTip": "How the property spreads over the field: at random per orb (from the seed), corner to corner, centre outwards, by rows or columns, in a spiral, in ripple bands or as a checkerboard.",
+    "ogDistVaried": "Varied (random)",
+    "ogDistCorner": "Corner to corner",
+    "ogDistCentre": "Centre outwards",
+    "ogDistRows": "By rows",
+    "ogDistColumns": "By columns",
+    "ogDistSpiral": "Spiral",
+    "ogDistRipple": "Ripple bands",
+    "ogDistChecker": "Checkerboard",
+    "ogSpread": "Spread",
+    "ogSpreadTip": "How far the property ranges across the field. At 0 every orb is alike and the whole field bounces as one.",
+    "ogRelease": "Release",
+    "ogReleaseTip": "When the orbs are let go: all together, ring by ring from the outside in or from the inside out, row by row, or in random slots.",
+    "ogRelTogether": "Together",
+    "ogRelOutsideIn": "Outside in",
+    "ogRelInsideOut": "Inside out",
+    "ogRelRowByRow": "Row by row",
+    "ogRelRandom": "Random",
+    "ogStagger": "Release Stagger",
+    "ogStaggerTip": "Seconds between two release steps (rings, rows or random slots).",
+    "ogDropHeight": "Drop Height",
+    "ogDropHeightTip": "How high the orbs start above the slab, in field widths.",
+    "ogOrbSize": "Orb Size",
+    "ogOrbSizeTip": "Orb diameter as a share of the spacing: at 100% neighbours touch.",
+    "ogBounciness": "Orb Bounciness",
+    "ogBouncinessTip": "How much of its speed an orb keeps at each landing (0.9 = 90%). A varied bounciness spreads around this value; 1 or more never settles.",
+    "ogResolve": "Resolve Moment",
+    "ogResolveTip": "Tunes every orb's timing a little (its bounciness stays) so that at one moment every moving orb lands at once – the pattern falls into phase, then dissolves again.",
+    "ogElevation": "Camera Elevation",
+    "ogElevationTip": "How far above the slab the camera looks down from, in degrees: low for a sweeping wave, 90° straight down.",
+    "ogRotation": "Camera Rotation",
+    "ogRotationTip": "Turns the field around its centre, in degrees.",
+    "ogOrbit": "Auto-orbit",
+    "ogOrbitTip": "The camera slowly circles the field on the simulation clock, so a found run and its export look the same.",
+    "ogFloor": "Floor",
+    "ogFloorTip": "Under the orbs: a slab with a grid over a blue grid floor, a round dark plate, the grid alone, or nothing.",
+    "ogFloorSlab": "Slab",
+    "ogFloorPlate": "Plate",
+    "ogFloorGrid": "Grid",
+    "ogFloorNone": "None",
+    "ogMaterial": "Material",
+    "ogMaterialTip": "Glossy (a bright highlight and a darker rim), chrome-like metallic, soft matte or see-through glass.",
+    "ogMatGlossy": "Glossy",
+    "ogMatMetallic": "Metallic",
+    "ogMatMatte": "Matte",
+    "ogMatGlass": "Glass",
+    "ogPalette": "Palette",
+    "ogPaletteTip": "Colours by current height (a rainbow from green to purple), by ring, by row, in the Ball Colour, or a rainbow by position.",
+    "ogPalHeight": "By height",
+    "ogPalRings": "By ring",
+    "ogPalRows": "By row",
+    "ogPalBall": "Ball Colour",
+    "ogPalRainbowField": "Rainbow field",
+    "ogHud": "Orb Count Line",
+    "ogHudTip": "Shows the line “1089 bouncing orbs” at the top of the clip.",
+    "ogSound": "Orb Sound",
+    "ogSoundTip": "Notes: a soft tone per landing (a row or a ring lands as a chord). Sleep: very soft, long and low. Music: the landings compose a melody on your scale. Metal: bright clinks. Silent: nothing.",
+    "ogSndNotes": "Notes",
+    "ogSndSleep": "Sleep",
+    "ogSndMusic": "Music",
+    "ogSndMetal": "Metal",
+    "ogSndSilent": "Silent",
+    "ogRunOrbs": "{orbs, plural, one {# orb} other {# orbs}}",
+    "ogRunSettles": "every orb at rest after about {seconds}s",
+    "ogRunNever": "never settles – the clip ends the run",
+    "ogRunResolve": "in phase at about {seconds}s",
+    "ogFull": "Orbs in a run: {count} – the most one run holds ({requested} asked for).",
+    "ogPresetsTitle": "Bouncing Orbs presets",
+    "ogPresetsTip": "Fields after the most-liked orb clips: one click switches to Bouncing Orbs and loads the field, the look and the sound.",
+    "ogPresetVaried": "Varied orbs 1089",
+    "ogPresetCorner": "Corner to corner 44x43",
+    "ogPresetCentre": "Centre outwards 22x20",
+    "ogPresetOctagons": "Octagons outside-in 1352",
+    "ogPresetMetallic": "Metallic 525",
+    "ogPresetSleep": "Sleep sound 484",
+    "ogPresetMusic": "Music 484",
+    "ogPresetGrid70": "70 x 70",
     "modeFightLeague": "Fight League",
     "flTitle": "Fight League",
     "flDesc": "Fighters from games, comics, shows and movies duel in an arena with their weapons and one ability each. Pick a matchup or your own fighters – a random slot is picked by the seed – and the last one (or team) standing wins.",
@@ -1787,6 +1890,10 @@
       "name": "Conveyor Belt",
       "description": "Gerald respawns every 3 seconds: a conveyor belt across the top carries ball after ball out of a hatch and drops it into the arena below – concentric rings to escape, a bowl that fills up, or a peg field over bins. Every bounce is a note, the belt hums and clicks, and a counter keeps score: Loaded 17 / Escaped 4."
     },
+    "orbGrid": {
+      "name": "Bouncing Orbs",
+      "description": "Thousands of glossy orbs on a slab, each bouncing straight up and down on its own spot – 1089, 1936 or 4900 of them. Their bounces vary smoothly across the field, so the whole set rises from a corner, funnels into the centre or ripples in rings, falls into phase and dissolves again, every landing a soft note."
+    },
     "fightLeague": {
       "name": "Fight League",
       "description": "Characters from games, comics, shows and movies duel as balls with their own weapons – swords sweep, hammers fly and come back, guns and wands fire – and every fighter's ability charges up and fires by itself. HP inside the ball; the last one standing wins: Thor vs Loki, Captain Falcon vs Little Mac, Yuumi vs Katarina…"
@@ -1907,6 +2014,7 @@
     "modeTerritory": "The oddplayground pong-wars battle: a tile map split into 2 or 4 team regions, every team's balls bouncing inside its own colour. A ball passes through tiles of its own colour and bounces off any other, converting the tile it hits – so every bounce pushes the border, and the live percentage bar under PICK A SIDE swings with it. Every team can have a power: the vortex curves its path and drags a whirl whose spiral arms convert enemy tiles, the bomber arms every few seconds and blows on its next bounce off an enemy tile, taking every tile within its reach (with a shock ring, debris and a jolt of the board), the painter dashes straight through enemy territory painting a trail, and the ghost passes through enemy tiles and converts a 3×3 block on every wall bounce. The balls collide with each other, the optional dotted grid deflects them, the last five seconds speed everything up, and when the countdown runs out the team with the most tiles wins – with slow motion when the lead flips in the finale and the camera's slow motion is on. Every seed replays exactly, Find Simulation searches for a run your chosen team wins, the Forced Winner rigs one, and a team roster lends the teams its colours and names.",
     "modeMaze": "oddplayground's maze reels (“who else thought that was blood”): a seeded perfect maze with glowing green walls on near-black – a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls drop in one after another and work their way through physically (a downward pull, perfectly elastic walls), steered by a brain: pure bounce, a wall follower or an explorer that prefers the corridors it has not visited. Every cell a ball passes is painted red, every wall hit is a note that climbs as the ball nears the exit, and the first ball out wins – with a distance-to-exit bar per ball in the HUD and optional fog over the unvisited cells for suspense. Find Simulation times the run or picks the winner.",
     "modeConveyor": "A conveyor belt runs across the top of the field and drops a ball into the arena below every few seconds – Gerald respawns, again and again. Pick the arena: concentric rings with rotating gaps that every ball has to escape on its own (the rings never break, and a second belt carries the escaped balls out of the field), a bowl that fills up until it spills over, or a peg field that sorts the balls into bins. Freeze on Landing turns every ball that lands into an obstacle for the next one, so the pile grows; Variety mixes sizes and colours. Every bounce is a note of your scale, the belt hums and clicks, and the counter keeps score – Loaded 17 / Escaped 4. In Classic and Multiply the same respawn timer drops in a new ball every few seconds. Seeded and deterministic, so Find Simulation can pick a run of your clip length.",
+    "modeOrbGrid": "A field of orbs – a square grid, a disc, octagon rings or a hex grid, 33 × 33 = 1089 by default and no upper limit – seen in perspective on a slab or a round plate. Every orb bounces straight up and down on its own spot, and one property varies across the field: bounciness, drop height, release delay, size, gravity or period, spread corner to corner, centre outwards, by rows, in a spiral, in ripple bands or at random. The orbs drift in and out of phase, so the field becomes a rising sheet, a funnel or rings – and with Resolve Moment on, every moving orb lands at once before the pattern dissolves. Colour them by height, make them glossy, metallic, matte or glass; every landing is a soft note (a row lands as a chord), or a sleep sound, a melody composed by the bounces or metal clinks. The run ends when every orb is at rest, so Find Simulation can pick a run of your clip length – or one still bouncing when the clip ends, or one that falls into phase at a chosen second.",
     "modeFightLeague": "Fighters from video games, comics, TV shows and movies – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina and fifty-odd more, grouped into divisions so a matchup stays in its genre – duel as balls in a square or round arena. Every fighter carries its own weapon, drawn as a simple vector silhouette: swords sweep on every bounce, hammers fly at the foe and come back, fists punch, guns, bows and wands fire, breath and beams burn. A hit takes HP – the number inside the ball and the bar under it – knocks the foe back and charges the ability meter in the box at the bottom; when it is full, the ability's name flashes for 0.4 s and it fires by itself: lightning, decoys, beams, chokes, shockwaves, summons, bullet time. Play 1v1, 2v2 or a free-for-all; the last fighter or team standing wins, or the side with more HP at the time cap. Seeded and deterministic: Find Simulation finds a run A or B wins, a double KO or a fight of your clip length – and the Forced Winner rigs it."
   },
   "Footer": {
@@ -2020,7 +2128,7 @@
     },
     "description": {
       "title": "2. Description of Service",
-      "content": "{siteName} is a free, browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. The Service is provided \"as is\" without any guarantee of availability or uptime."
+      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator is free; recording and exporting video files requires a Pro licence (see Pro subscriptions). The Service is provided \"as is\" without any guarantee of availability or uptime."
     },
     "ugc": {
       "title": "3. User-Generated Content",
@@ -2067,7 +2175,7 @@
     "metaDescription": "Disclaimer for {siteName}: how the tool is provided, what it does not guarantee and its relationship to third-party platforms.",
     "general": {
       "title": "General information",
-      "content": "{siteName} ({siteDomain}) is a free tool for creating physics-based animation videos in your browser. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
+      "content": "{siteName} ({siteDomain}) is a tool for creating physics-based animation videos in your browser: playing with the simulator is free, and exporting the videos is part of Pro. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
     },
     "noGuarantee": {
       "title": "No guarantee of results",
@@ -2133,12 +2241,12 @@
     "openManually": "If nothing opened, use this link."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Make Bouncing Ball Videos for TikTok – Free Tool – {siteName}",
-    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with {count} modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
+    "metaTitle": "Make Bouncing Ball Videos for TikTok – Play Free, Export with Pro – {siteName}",
+    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a browser tool with {count} modes and custom physics to play with for free, and vertical 1080×1920 export with Pro. No sign-up needed.",
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
-    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a free browser tool built for exactly this kind of content, with physics controls, visual effects and one-click vertical export.",
+    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a browser tool built for exactly this kind of content: its physics controls and visual effects are free to play with, and Pro adds one-click vertical export.",
     "p2": "What makes the format work is its built-in tension arc. The ball ricochets faster, the walls close in, the gap looks impossibly small, and then the ball slips through and everything pays off with confetti, a shatter or a shockwave. That loop fits naturally into 15 to 60 seconds, which is where TikTok engagement peaks.",
     "h2_1": "Why It Works on TikTok",
     "p3": "TikTok rewards videos that hold viewers to the end and get replayed. Ball physics does both: people stay to see whether the ball escapes and rewatch to catch the effects they missed. The format also fits TikTok's sound culture: {siteName} can play a melody note by note on every wall hit, turning the physics into a musical performance.",
@@ -2152,8 +2260,8 @@
     "cta": "Make Your First TikTok Ball Video"
   },
   "About": {
-    "metaTitle": "About {siteName} – Free Ball Physics Video Maker",
-    "metaDescription": "The story behind {siteName}: a free, browser-based tool for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
+    "metaTitle": "About {siteName} – Ball Physics Video Maker",
+    "metaDescription": "The story behind {siteName}: a browser-based tool – free to play with, Pro to export – for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
     "metaOgTitle": "About {siteName}",
     "metaOgDescription": "Why {siteName} exists and who it is for.",
     "badge": "About",
@@ -2171,7 +2279,7 @@
     "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
     "cta": "Open the simulator",
     "toolTitle": "What {siteName} actually is",
-    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings, press record and download the clip. There is no account, no installation and no video editor involved; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
+    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings and watch it play – all free, with no account, no installation and no video editor involved. When a clip is ready, Pro records it and lets you download it; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
     "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
     "tweakTitle": "Built to be tweaked",
     "tweakP": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
@@ -2213,6 +2321,23 @@
     "noteNeverEscape": "Rigged: no ball can escape",
     "noteWinner": "Rigged: {name} wins",
     "hintWinnerTerritory": "The chosen team owns the most tiles when the countdown runs out: every run is played to its end, and the recording covers the verdict and its banner.",
+    "outcomeNeverSettles": "Never settles",
+    "outcomeResolvesAt": "In phase at",
+    "hintNeverSettles": "The orbs are still bouncing when the duration is up – the clip ends before the last one comes to rest.",
+    "hintResolvesAt": "The field's first in-phase moment – every moving orb landing at once – comes within ±0.5 s of the chosen second; the duration is the clip length.",
+    "resolveAt": "First in-phase moment at",
+    "findNeverSettles": "Find a {duration}s Run That Never Settles",
+    "findResolvesAt": "Find a Run in Phase at {time}s",
+    "foundNeverSettles": "Found! Still bouncing after {duration}s",
+    "foundResolvesAt": "Found! In phase at {time}s",
+    "missNeverSettles": "Longest bouncing run: {duration}s ({seeds} seeds)",
+    "missResolvesAt": "Closest in-phase moment: {time}s ({seeds} seeds)",
+    "missNoResolve": "No run fell into phase in time ({seeds} seeds)",
+    "progressNeverSettles": "Longest bouncing run: {duration}s",
+    "progressResolvesAt": "Closest in-phase moment: {time}s",
+    "overlayNeverSettles": "Tested {tested} seeds. The longest run came to rest after {closest}s (target: {target}s). Try a shorter duration, a higher orb bounciness or a bigger drop height.",
+    "overlayResolvesAt": "Tested {tested} seeds. The closest in-phase moment came at {closest}s (target: {target}s ±{tolerance}s). The orbs panel's run line shows when these settings fall into phase.",
+    "overlayNoResolve": "Tested {tested} seeds and no run fell into phase by {target}s. Turn on Resolve Moment or try a later second.",
     "outcomeDoubleKo": "Double KO",
     "hintDoubleKo": "Fight League: the fight ends with its last two sides knocked out together. Every fight is played to its end, and the recording covers it and its banner.",
     "findDoubleKo": "Find a Double KO",
@@ -3122,7 +3247,7 @@
   "DesktopLink": {
     "navLabel": "Windows app",
     "heroButton": "Download for Windows",
-    "heroNote": "Free · GPU video rendering · built-in AI"
+    "heroNote": "Free download · GPU rendering with Pro · built-in AI"
   },
   "Desktop": {
     "groupTitle": "Desktop studio",
@@ -3355,7 +3480,7 @@
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
     "metaTitle": "Download {siteName} for Windows – GPU video rendering and a built-in AI",
-    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download.",
+    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download; video rendering needs Pro.",
     "badge": "Windows app",
     "title": "{siteName} for Windows",
     "intro": "Everything the simulator does in the browser, plus what a browser can't: your GPU renders and encodes the videos, a render queue works through batches while you do something else, and an AI studio – running on your PC, offline – plans clips, writes captions and changes settings for you.",
@@ -3527,8 +3652,9 @@
       "notConfigured": "Payments are not configured yet. Please check back soon.",
       "redirecting": "Opening the checkout…",
       "failed": "The checkout could not start: {message}",
-      "desktop": "The checkout opened in your browser. Once the payment is done, come back here and restore the purchase with the reference on your receipt.",
-      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there."
+      "desktop": "The checkout opened in your browser. Once you have paid, come back here and restore the purchase with your email and the receipt reference the page shows after the payment – or paste the licence key from there.",
+      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there.",
+      "newTab": "The checkout opened in a new tab. Pay there – this studio unlocks by itself once the payment is through, and your setup stays as it is."
     },
     "email": {
       "label": "Email",
@@ -3571,11 +3697,13 @@
       "failed": "The licence could not be activated: {message}",
       "notConfigured": "Payments are not configured on this site, so the purchase cannot be activated here.",
       "retry": "Try again",
-      "openStudio": "Open the studio"
+      "openStudio": "Open the studio",
+      "referenceHint": "Keep this reference: with your email it restores the purchase on another device, in another browser or in the desktop app.",
+      "backToSetup": "Back to your setup"
     },
     "restore": {
       "title": "Restore purchase",
-      "intro": "On another device or in another browser: enter the email you paid with and the reference on your receipt – the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
+      "intro": "On another device or in another browser: enter the email you paid with and the receipt reference – it is shown after the payment and under Your licence on the device you paid on: the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
       "ref": "Receipt reference",
       "refPlaceholder": "sub_… · I-… · order id",
       "refInvalid": "Copy the reference from your receipt (letters, digits, hyphens and underscores).",
@@ -3600,7 +3728,12 @@
       "copied": "Copied",
       "copyHint": "The viral bot's command line takes this key as BOT_LICENSE.",
       "remove": "Remove from this browser",
-      "removeConfirm": "Remove the licence from this browser? You can restore it later with your receipt."
+      "removeConfirm": "Remove the licence from this browser? You can restore it later with your receipt.",
+      "reference": "Receipt reference",
+      "referenceHint": "With your email, this reference restores the licence on another device, in another browser or in the desktop app.",
+      "copyRef": "Copy reference",
+      "lapsedEmail": "Last licensed to {email}",
+      "needsRef": "Manage subscription needs the receipt reference of your purchase. Restore the purchase below once with your email and the reference, then this opens Stripe's customer portal."
     },
     "account": {
       "label": "Account",
@@ -3614,7 +3747,8 @@
       "grace": "Pro – {plan}, payment pending, works until {date}",
       "unlock": "Unlock",
       "restore": "Restore",
-      "manage": "Manage"
+      "manage": "Manage",
+      "renewing": "Renewing your licence…"
     },
     "dialog": {
       "title": "Unlock video creation",
@@ -3646,7 +3780,7 @@
       "renew": "Card and PayPal subscriptions renew by themselves until you cancel – any time, with Manage subscription on this page.",
       "crypto": "Crypto pays for a prepaid period (30 days on the monthly plan, 365 on the yearly one); nothing renews by itself.",
       "licence": "Your licence is a signed key kept in this browser – the site needs no account and no password.",
-      "devices": "On another device or browser, restore the purchase with your email and the reference on your receipt."
+      "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment – or paste the licence key."
     },
     "landing": {
       "line": "Playing is free. Making the videos is Pro, from {price} a month.",
@@ -3659,7 +3793,25 @@
     "terms": {
       "title": "Pro subscriptions",
       "content": "Playing with the simulator is free. Recording and exporting videos needs a Pro licence: $10 a month or $79 a year. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+    },
+    "paste": {
+      "title": "Paste a licence key",
+      "intro": "Copied a licence key on another device (Copy licence key)? Paste it here to use the licence in this browser or in the desktop app. A pasted key lasts until its end date – restore with your email and receipt reference instead to keep it renewing by itself.",
+      "label": "Licence key",
+      "placeholder": "eyJ… – the key from Copy licence key",
+      "submit": "Use this key",
+      "working": "Checking the key…",
+      "success": "Installed – you are Pro until {date}.",
+      "failed": "The key could not be used: {message}",
+      "empty": "Paste the licence key first."
     }
+  },
+  "OrbGrid": {
+    "canvasHud": "{n, plural, one {{count} bouncing orb} other {{count} bouncing orbs}}",
+    "canvasSettled": "ALL SETTLED",
+    "canvasSettledSub": "{n, plural, one {{count} orb at rest} other {{count} orbs at rest}} after {seconds}s",
+    "canvasTime": "TIME!",
+    "canvasTimeSub": "{settled} of {count} orbs at rest"
   },
   "FightLeague": {
     "division_marvel": "Marvel",

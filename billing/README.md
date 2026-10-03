@@ -105,11 +105,21 @@ development only — do not use it in production.)
    "JumpingBallsLive Pro" by hand in the dashboard with a $10/month and a $79/year recurring price.)
 3. Add a **webhook endpoint**: Dashboard → *Developers → Webhooks → Add endpoint*.
    - URL: `https://<your-worker-subdomain>.workers.dev/webhooks/stripe` (you will know the subdomain
-     after step 6; you can add the endpoint afterwards).
+     after step 7; you can add the endpoint afterwards).
    - Events to send (exactly these four):
      `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`,
      `customer.subscription.deleted`.
+   - **API version:** pick `2025-02-24.acacia` for the endpoint (the version selector of the "Add
+     endpoint" form; with the Stripe CLI, `--api-version 2025-02-24.acacia`). The Worker sends that
+     version on every call it makes to Stripe, so the events and its own reads then have the same
+     shape. (It also understands the newer event shapes, but matching versions is the tested setup.)
    - After saving, copy the endpoint's **Signing secret** (`whsec_...`).
+   - **Card checkout stays off until this secret is set.** `/config` reports `stripe: false` and
+     `/checkout/stripe` answers `503 provider_unavailable` while `STRIPE_WEBHOOK_SECRET` is missing:
+     a payment whose webhook the Worker cannot verify would never be recorded. So the order is: deploy
+     (step 7), add the endpoint with the Worker's URL, then `wrangler secret put STRIPE_WEBHOOK_SECRET`
+     – the card button appears on the site after that. (The same holds for PayPal's
+     `PAYPAL_WEBHOOK_ID` and NOWPayments' `NOWPAYMENTS_IPN_SECRET` below.)
 4. Store the Stripe secrets in the Worker:
    ```bash
    npx wrangler secret put STRIPE_SECRET_KEY        # sk_test_... (sk_live_... when you go live)
@@ -135,7 +145,8 @@ development only — do not use it in production.)
      `BILLING.SUBSCRIPTION.ACTIVATED`, `PAYMENT.SALE.COMPLETED`,
      `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`,
      `BILLING.SUBSCRIPTION.EXPIRED`.
-   - After saving, copy the **Webhook ID**.
+   - After saving, copy the **Webhook ID**. (PayPal stays off on the site until `PAYPAL_WEBHOOK_ID`
+     is set.)
 4. Store the PayPal secrets:
    ```bash
    npx wrangler secret put PAYPAL_CLIENT_ID
@@ -154,7 +165,7 @@ development only — do not use it in production.)
 3. *Store settings → Instant Payment Notifications (IPN)*: set an **IPN secret** and the callback URL to
    `https://<your-worker-subdomain>.workers.dev/webhooks/nowpayments`. (The Worker also sends this
    callback URL on every invoice, so it is set automatically; filling it in the dashboard is belt and
-   braces.)
+   braces.) Crypto stays off on the site until `NOWPAYMENTS_IPN_SECRET` is set.
 4. Store the NOWPayments secrets:
    ```bash
    npx wrangler secret put NOWPAYMENTS_API_KEY
@@ -206,7 +217,9 @@ test key, so it refuses the licences this Worker signs with your real key. Set b
   dashboard shows the subscription moving to **ACTIVE** and the webhook deliveries with their response
   codes.
 - **NOWPayments:** use the **sandbox** and its test payment flow. The dashboard shows the invoice and the
-  payment status moving `waiting → confirming → finished`; the Worker grants the period on `finished`.
+  payment status moving `waiting → confirming → confirmed → sending → finished`; the Worker grants the
+  period on `confirmed` or `finished`, whichever arrives first – one payment buys one period (30 or 365
+  days), however many statuses it reports.
 - **The Worker itself:** `npx wrangler dev` runs it locally. Copy `.dev.vars.example` to `.dev.vars`
   first — out of the box it uses the public **test** signing key, so `/config` reports `"testMode": true`
   and the local site can verify the licences immediately. `curl http://localhost:8787/config` should list
@@ -237,20 +250,43 @@ app's own origin, `app://jumpingballslive`, which no web page can claim). Errors
 | `POST /webhooks/nowpayments` | NOWPayments IPN (signed)            | `{ received: true }`                            |
 | `POST /license/claim`     | `{ provider, ref }`                     | `{ token }` \| `{ pending: true }` \| `{ error }` |
 | `POST /license/restore`   | `{ email, ref }`                        | `{ token }` \| `{ error }`                      |
-| `POST /portal/stripe`     | `{ email, returnUrl? }`                 | `{ url }` (Stripe Billing Portal)              |
+| `POST /portal/stripe`     | `{ email, ref, returnUrl? }`            | `{ url }` (Stripe Billing Portal)              |
 
 `plan` is `"monthly"` or `"yearly"`. `returnUrl` must be a page on your own site: the site sends its
 pricing page, which on GitHub Pages lives under the repository's path (`/Balls/…`). The portal's return
 link goes there, or to `SITE_ORIGIN` when the request names none.
 
+`ref` is a receipt reference: the Stripe Checkout Session id (`cs_…`) or subscription id (`sub_…`), the
+PayPal subscription id (`I-…`) or our PayPal order id, or the crypto order id – the checkout returns to
+the site with it (`?claim=<provider>&ref=<id>`), and the site shows it and keeps it. `/license/restore`
+answers `404 unknown_reference` unless the reference belongs to that e-mail, and `402 not_active` once
+its paid period (plus the grace days) has run out. `/portal/stripe` opens the portal only for the
+customer of the card subscription the reference names, owned by that e-mail – otherwise `404
+unknown_reference`, the same as an e-mail alone. A claim answers `{ pending: true }` until THIS
+purchase's own paid period is recorded – it records what the provider itself says about the session
+or subscription it fetched, so it does not wait for the webhooks, and a returning customer's old, lapsed
+period never stands in for the new payment.
+
 ---
 
 ## Trust model (please read)
 
-- **Every webhook is verified** before it changes anything: Stripe and NOWPayments by an HMAC signature
-  over the exact raw body (constant-time compare, with a timestamp tolerance for Stripe); PayPal by
-  calling PayPal's own verify-signature API. A forged or replayed webhook is rejected, and each real one
-  is processed **once** (idempotent per event id).
+- **Every webhook is verified** before it changes anything: Stripe by an HMAC-SHA256 signature over the
+  exact raw body (constant-time compare, with a timestamp tolerance); NOWPayments by its HMAC-SHA512
+  signature over the body re-serialised with every object's keys sorted (NOWPayments' own scheme; the
+  Worker rebuilds that form from the parsed body and compares in constant time); PayPal by calling
+  PayPal's own verify-signature API. A forged or replayed webhook is rejected. Stripe and PayPal events
+  are processed once per event id; a NOWPayments payment grants its period once, however many status
+  updates (`confirmed`, `finished`, retries) arrive for it.
+- **Every fact has its own record.** KV has no transactions, so nothing is one record per customer that
+  several webhooks rewrite (Stripe sends three events for one purchase within a second). Each
+  subscription's buyer, paid period, state and end, and each crypto payment's prepaid days, are stored
+  under their own keys and the entitlement is derived from all of them when a licence is minted (see
+  "How the records are kept" below). A provider's events only touch their own subscription: cancelling
+  a card plan cannot wipe a prepaid crypto year, and two subscriptions on one e-mail stay apart. The
+  paid period of a subscription moves only on a paid invoice (`invoice.paid`) or a completed PayPal sale –
+  never on `customer.subscription.updated`, which Stripe sends when a subscription cycles, before the
+  renewal is paid.
 - **Licences are signed on the server** with a private key that never leaves the Worker. The site holds
   only the public key and can verify but never issue a licence. A licence states the buyer's e-mail, the
   plan, the provider and an expiry (the paid period plus three days of grace, capped at 400 days).
@@ -258,9 +294,34 @@ link goes there, or to `SITE_ORIGIN` when the request names none.
   check in their own browser — that is unavoidable for a static site, and no secret or unreleased content
   is exposed by doing so. What they cannot do is forge a licence that other installs or a server would
   accept, obtain anyone else's licence, or make a payment "stick" without the provider confirming it by a
-  verified webhook. The paywall protects the revenue path, not the shipped JavaScript.
+  verified webhook. Nor can they open someone else's billing portal: like Restore, the portal needs the
+  e-mail **and** a reference of that card subscription (an e-mail alone is not proof of anything). The
+  paywall protects the revenue path, not the shipped JavaScript.
 - **Secrets never touch Git.** The only key material in this repository is the clearly labelled public
   test key pair. Real keys live in Wrangler secrets (and, for local runs, in an un-committed `.dev.vars`).
+
+---
+
+## How the records are kept
+
+All in the one KV namespace, every fact under its own key (`src/store.ts` owns the shapes):
+
+| Key | What | Written by |
+| --- | --- | --- |
+| `sub:<stripe\|paypal>:<subscription id>:link` | who bought it: e-mail, plan, Stripe customer, the session / order id | `checkout.session.completed`, `BILLING.SUBSCRIPTION.ACTIVATED`, the claim |
+| `sub:<stripe\|paypal>:<subscription id>:paid` | how far it is paid (only ever moves later) | `invoice.paid`, `PAYMENT.SALE.COMPLETED`, the activation, the claim |
+| `sub:<stripe\|paypal>:<subscription id>:state` | its latest status (an older event never overwrites a newer one) | `customer.subscription.updated`, PayPal's cancel / suspend / expire |
+| `sub:stripe:<subscription id>:ended` | when Stripe deleted it – its access ends there | `customer.subscription.deleted` |
+| `grant:crypto:<payment id>` (`order-<order id>` when an IPN carries no payment id) | one crypto payment's prepaid days and where they start | the first `confirmed` / `finished` IPN of that payment |
+| `idx:<e-mail>:<stripe\|paypal\|crypto>:<id>` | the e-mail's index – one key per subscription or payment, read by listing the prefix | with each of the above |
+| `order:crypto:<id>`, `order:paypal:<id>` | the orders the checkouts created | the checkouts, the IPNs |
+| `event:<provider>:<id>` | webhook idempotency, kept 30 days | the webhooks |
+
+The entitlement of an e-mail is the furthest paid period over its sources: each subscription (its
+paid end, cut short where Stripe deleted it) and the chain of crypto payments (each starts after the
+e-mail's subscriptions' paid end at the time of payment, or after the previous crypto period). The
+licence carries that end (plus three days of grace) and the plan and provider of the source that runs
+furthest.
 
 ---
 
@@ -268,7 +329,7 @@ link goes there, or to `SITE_ORIGIN` when the request names none.
 
 ```bash
 npm run check   # tsc --noEmit (strict, with @cloudflare/workers-types)
-npm test        # vitest: signatures, token round trip, entitlement maths, claims, CORS, routing…
+npm test        # vitest: signatures, token round trip, entitlement maths, claims, races, CORS, routing…
 npm run dev     # wrangler dev (needs .dev.vars)
 npm run deploy  # wrangler deploy
 ```
