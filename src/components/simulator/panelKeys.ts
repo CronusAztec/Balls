@@ -31,6 +31,7 @@ import { STRING_BATTLE_KEYS } from "./sections/StringBattleSection";
 import { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory ---
 import { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze ---
 import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // --- gerald-conveyor ---
+import { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
 import { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
@@ -47,6 +48,8 @@ import { supportsMovingExits, supportsSplats } from "@/lib/physics/exitSplat"; /
 
 /** The Wall section's controls in a mode: wall count, thickness, the gap controls (Rotation) and Gap Size itself. */
 export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: boolean; gapControls: boolean; gapSize: boolean } {
+  // --- fight-league --- Fight League has no rings: its arena (a square or a circle) and its rim are the mode's own
+  if (mode === "fightLeague") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
   const wallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode);
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
@@ -98,6 +101,7 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   territory: TERRITORY_KEYS, // --- odd-territory ---
   maze: MAZE_KEYS, // --- odd-maze ---
   conveyor: CONVEYOR_KEYS, // --- gerald-conveyor ---
+  fightLeague: FIGHT_LEAGUE_KEYS, // --- fight-league ---
 };
 
 /** The keys of every mode's block. */

@@ -117,6 +117,7 @@ import { respawnConfigOf } from "@/lib/physics/respawn";
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -176,6 +177,8 @@ const RACE_RUN_PREFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 
 const ARENA_WIN_HOLD_MS = 1000 * ARENA_WIN_HOLD_SEC;
 /** --- odd-territory --- How long Territory's verdict – the frame's flash, the winner banner (or DRAW) and its confetti – plays before the end screen covers it (a recording keeps it). */
 const TERRITORY_FINISH_HOLD_MS = 3000;
+/** --- fight-league --- How long Fight League's winner banner ("Thor wins!", DRAW, DOUBLE KO) and its confetti play before the end screen covers them (a recording keeps them). */
+const FIGHT_LEAGUE_WIN_HOLD_MS = 1000 * FL_WIN_HOLD_SEC;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -196,6 +199,8 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
             ? TERRITORY_FINISH_HOLD_MS // --- odd-territory --- the verdict's flash, banner and confetti, as the page holds them
           : isArenaGameMode(engine.getCurrentModeName())
             ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
+          : engine.isFightLeagueMode()
+            ? FIGHT_LEAGUE_WIN_HOLD_MS // --- fight-league --- the winner banner and its confetti, as the page holds them
             : 0;
   const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
@@ -356,6 +361,7 @@ export default function Simulator() {
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
     engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
     engine.setConveyorSettings(conveyorSettingsOf(s)); // --- gerald-conveyor ---
+    engine.setFightLeagueSettings(fightLeagueSettingsOf(s)); // --- fight-league ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -421,6 +427,7 @@ export default function Simulator() {
       illusionRevealAtRef.current = null;
       battleFinishAtRef.current = null;
       arenaWinAtRef.current = null;
+      flWinAtRef.current = null; // --- fight-league ---
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
@@ -960,6 +967,26 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.respawnEvery]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end gerald-conveyor ---
+  // --- fight-league --- Fight League: a change of the fighters, the match, the division rule, the HP, a multiplier, the time
+  // cap or the arena restarts the fight and drops a found seed; the HUD only changes the drawing and follows live.
+  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD].join("|");
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setFightLeagueSettings(fightLeagueSettingsOf(s));
+    if (s.mode === "fightLeague" && engine.getCurrentModeName() === "fightLeague") {
+      engine.initFightLeague();
+      setFinished(false);
+    }
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flFightKey]);
+  useEffect(() => {
+    engineRef.current?.setFightLeagueSettings({ hud: s.flHud });
+  }, [s.flHud]);
+  const flWinAtRef = useRef<number | null>(null);
+  // --- end fight-league ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1322,6 +1349,7 @@ export default function Simulator() {
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
         engine.setMazeSettings({ trail: arena.mzTrail, trailColor: arena.mzTrailColor, trailOwn: arena.mzTrailOwn, fog: arena.mzFog, wallColor: arena.mzWallColor, badge: arena.mzBadge, hud: arena.mzHud }); // --- odd-maze --- (the drawing follows live; the maze and the race wait for a restart)
         engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
+        engine.setFightLeagueSettings({ hud: arena.flHud }); // --- fight-league --- (the HUD follows live; the fight waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1557,6 +1585,11 @@ export default function Simulator() {
             audio.playSplat(ev.level);
             continue;
           }
+          // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
+          if (ev.fight) {
+            audio.playFight(ev.fight, ev.frequency, ev.level);
+            continue;
+          }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
           // --- jdm-rhythm-runner --- `melody: false` accompanies the tune (a paddle's wall bounce, a runner's crash): no melody note used up
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
@@ -1614,6 +1647,12 @@ export default function Simulator() {
           if (territoryFinishAtRef.current === null) territoryFinishAtRef.current = now;
           if (now - territoryFinishAtRef.current < TERRITORY_FINISH_HOLD_MS) done = false;
         } else territoryFinishAtRef.current = null;
+        // --- fight-league --- the winner banner ("Thor wins!", DRAW, DOUBLE KO) and its confetti play (and record) before the end screen
+        if (done && engine.isFightLeagueMode()) {
+          const now = performance.now();
+          if (flWinAtRef.current === null) flWinAtRef.current = now;
+          if (now - flWinAtRef.current < FIGHT_LEAGUE_WIN_HOLD_MS) done = false;
+        } else flWinAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -2534,6 +2573,7 @@ export default function Simulator() {
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
           maze: mazeSettingsOf(settings), // --- odd-maze ---
           conveyor: conveyorSettingsOf(settings), // --- gerald-conveyor ---
+          fightLeague: fightLeagueSettingsOf(settings), // --- fight-league --- (every fight ends: the last side standing, a double KO or the time cap)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2573,6 +2613,8 @@ export default function Simulator() {
       if (settings.mode === "territory" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + TERRITORY_FINISH_HOLD_MS / 1000)) }) /* --- uncap-all --- */;
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
+      // --- fight-league --- a found fight is recorded with its winner banner's hold
+      if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_WIN_HOLD_SEC)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
@@ -2819,6 +2861,23 @@ export default function Simulator() {
       uncap: {
         speed: (speed) => fill("Uncap.canvasSpeed", { speed }),
         overflow: (count) => fill("Uncap.canvasOverflow", { count }),
+      },
+      // --- fight-league --- (fighter and ability names are proper names: they stay as they are)
+      fightLeague: {
+        vs: t("FightLeague.canvasVs"),
+        fight: t("FightLeague.canvasFight"),
+        ko: t("FightLeague.canvasKo"),
+        doubleKo: t("FightLeague.canvasDoubleKo"),
+        wins: (name) => t("FightLeague.canvasWins").replace("[name]", () => name), // a name may hold "$&"
+        winTeam: (names) => t("FightLeague.canvasWinTeam").replace("[names]", () => names),
+        draw: t("FightLeague.canvasDraw"),
+        time: t("FightLeague.canvasTime"),
+        winSub: (hp, hits) => fill("FightLeague.canvasWinSub", { hp, hits }),
+        speed: t("FightLeague.canvasSpeed"),
+        damage: t("FightLeague.canvasDamage"),
+        attack: t("FightLeague.canvasAttack"),
+        cast: t("FightLeague.canvasCast"),
+        ready: t("FightLeague.canvasReady"),
       },
     };
   }, [t]);

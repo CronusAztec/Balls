@@ -170,6 +170,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   territory: "ty", // --- odd-territory ---
   maze: "mz", // --- odd-maze ---
   conveyor: "cv", // --- gerald-conveyor ---
+  fightLeague: "fl", // --- fight-league ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

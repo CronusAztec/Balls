@@ -255,6 +255,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playSplat(ev.level);
     return;
   }
+  // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
+  if (ev.fight) {
+    audio.playFight(ev.fight, ev.frequency, ev.level);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

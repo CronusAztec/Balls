@@ -65,6 +65,11 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("powerLayers");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "conveyor");
 }
+// --- fight-league --- Fight League joins the arena games (Battle Royale, Capture the Flag) of the rhythm family, right after them
+{
+  const at = MODE_CARD_ORDER.indexOf("ctf");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "fightLeague");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -130,6 +135,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   maze: "battle",
   // --- gerald-conveyor --- a belt loads ball after ball into the rings, and each works its way out: the escape family
   conveyor: "escape",
+  // --- fight-league --- weapon-wielding fighter balls duel in a square arena: with the arena games (every hit a sound, every bounce a note)
+  fightLeague: "rhythm",
 };
 
 /** The modes of a category in card order. */

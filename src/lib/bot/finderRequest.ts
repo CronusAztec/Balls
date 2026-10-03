@@ -23,6 +23,7 @@ import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
+import { fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
@@ -143,6 +144,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     territory: territorySettingsOf(s), // --- odd-territory ---
     maze: mazeSettingsOf(s), // --- odd-maze ---
     conveyor: conveyorSettingsOf(s), // --- gerald-conveyor ---
+    fightLeague: fightLeagueSettingsOf(s), // --- fight-league ---
   };
 }
 

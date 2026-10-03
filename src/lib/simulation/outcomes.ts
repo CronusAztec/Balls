@@ -17,9 +17,12 @@ import { teamResult } from "@/lib/teams";
  *
  * Everything here is pure: a headless run is boiled down to a `RunSummary` (finder.ts simulates it) and the predicates
  * judge it, so they can be tested on synthetic runs. Times are real (recording) time – what the clip shows.
+ *
+ * --- fight-league --- Fight League adds **double-ko**: the fight ends with its last two sides going down together (the run
+ * is followed to its end, like a battle's winner).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner"] as const;
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "double-ko"] as const; // --- fight-league --- (double-ko)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -57,6 +60,10 @@ export interface RunSummary {
   firstEscapeMs: number;
   /** The team totals at the end (one entry per team slot in play). */
   teams: readonly Readonly<BallStats>[];
+  // --- fight-league ---
+  /** Fight League: the run ended with a double KO (its last sides down in the same step). */
+  doubleKo?: boolean;
+  // --- end fight-league ---
 }
 
 /**
@@ -79,6 +86,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return clipMs;
     case "winner":
       return winnerNeedsEnd(outcome, mode) ? Math.max(clipMs, maxSimMs) : clipMs;
+    case "double-ko": // --- fight-league --- (the fight is followed to its end)
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -119,6 +128,8 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const tol = 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC);
       return run.firstEscapeMs >= 0 && Math.abs(run.firstEscapeMs - 1000 * (outcome.atSec ?? 0)) <= tol + 1e-6;
     }
+    case "double-ko": // --- fight-league ---
+      return run.finished && run.doubleKo === true;
     case "winner": {
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
@@ -143,6 +154,7 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
     case "escapes-at":
       return run.firstEscapeMs < 0 ? Infinity : Math.abs(run.firstEscapeMs / 1000 - (outcome.atSec ?? 0));
     case "winner":
+    case "double-ko": // --- fight-league ---
       return outcomeMatches(outcome, run) ? 0 : 1;
     default:
       return Infinity;
@@ -203,6 +215,8 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (MULTI_BALL_MODES.includes(mode) && ctx.ballCount >= 2) out.push("winner");
   // --- odd-string-battle --- a battle's winner is the last ball standing (every ball is a team)
   if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
+  // --- fight-league --- Fight League: the fight ends with a double KO
+  if (mode === "fightLeague") out.push("double-ko");
   return out;
 }
 

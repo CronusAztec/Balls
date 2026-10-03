@@ -72,6 +72,9 @@ const MODES = {
   // --- gerald-conveyor --- mid-run: balls riding the belt, one sliding down the tube, others working their way out of the rings,
   // the escaped ones riding the bottom belt away, and the counter
   conveyor: { wait: 7600, query: "cvi=1&cvn=12&face=cute&glow=1" },
+  // --- fight-league --- mid-duel: Thor vs Loki (a pinned seed) with the hammer and the cards out, the HP in the balls, the
+  // names in the fighters' colours and the ability boxes
+  fightLeague: { wait: 8000, query: "seed=11" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 // --- daily-gallery --- GALLERY=1 (every card) or GALLERY=<id>,<id>: gallery previews; with MODES and no GALLERY, none

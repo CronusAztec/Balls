@@ -8,6 +8,7 @@ import { effectiveBallCount } from "@/lib/teams";
 import { stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import { flSideNames } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
@@ -26,6 +27,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "never-escapes": "outcomeNeverEscapes",
   "escapes-at": "outcomeEscapesAt",
   winner: "outcomeWinner",
+  "double-ko": "outcomeDoubleKo", // --- fight-league ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -33,6 +35,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "never-escapes": "hintNeverEscapes",
   "escapes-at": "hintEscapesAt",
   winner: "hintWinner",
+  "double-ko": "hintDoubleKo", // --- fight-league ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -45,7 +48,9 @@ function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territ
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */ }, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */ } & Partial<Pick<SimulatorSettings, "flMatch" | "flFighterA" | "flFighterB" | "flFighterC" | "flFighterD">> /* --- fight-league --- */, name: (kind: "team" | "ball", n: number) => string): string[] {
+  // --- fight-league --- Fight League's sides: "A · Thor", "B · Loki" (a random slot "A · ?"), in 2v2 "A+B · Naruto + Sasuke"
+  if (settings.mode === "fightLeague") return flSideNames(settings.flMatch, [settings.flFighterA, settings.flFighterB, settings.flFighterC, settings.flFighterD]);
   const count = effectiveBallCount(settings);
   // --- odd-string-battle --- the String Battle's balls go by the roster's names, then by their palette names (HOTPINK, AQUA…)
   if (settings.mode === "stringBattle") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : stringBattleBallName(i)));
@@ -193,6 +198,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findEscapesAt", { time: c.escapeAt.toFixed(1) });
     case "winner":
       return t("Rigged.findWinner", { name: c.winnerName });
+    case "double-ko": // --- fight-league ---
+      return t("Rigged.findDoubleKo");
     default:
       return null;
   }
@@ -207,6 +214,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundEscapesAt", { time: (result.escapeAt ?? 0).toFixed(1) });
     case "winner":
       return t("Rigged.foundWinner", { name: c.winnerName, duration: result.duration.toFixed(1) });
+    case "double-ko": // --- fight-league ---
+      return t("Rigged.foundDoubleKo", { duration: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -221,6 +230,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return result.escapeAt === undefined ? t("Rigged.missNoEscape", { seeds: result.seedsTested }) : t("Rigged.missEscapesAt", { time: result.escapeAt.toFixed(1), seeds: result.seedsTested });
     case "winner":
       return t("Rigged.missWinner", { name: c.winnerName, seeds: result.seedsTested });
+    case "double-ko": // --- fight-league ---
+      return t("Rigged.missDoubleKo", { seeds: result.seedsTested });
     default:
       return null;
   }
@@ -237,6 +248,8 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
         : t("Rigged.overlayEscapesAt", { tested: result.seedsTested, closest: result.escapeAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     case "winner":
       return t("Rigged.overlayWinner", { tested: result.seedsTested, name: c.winnerName });
+    case "double-ko": // --- fight-league ---
+      return t("Rigged.overlayDoubleKo", { tested: result.seedsTested });
     default:
       return null;
   }
