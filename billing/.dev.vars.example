@@ -1,0 +1,42 @@
+# Copy this file to `.dev.vars` for `wrangler dev`. In production each of these is set instead with
+# `wrangler secret put <NAME>` (see billing/README.md). NEVER commit a real .dev.vars — it is secret.
+#
+# Out of the box this file uses the PUBLIC test licensing key (tests/fixtures/license-test-key.json),
+# so `wrangler dev` signs licences the local site can verify immediately and /config reports
+# "testMode": true. Replace LICENSE_PRIVATE_JWK with your own key (billing/scripts/keygen.mjs) before
+# you deploy for real, and set NEXT_PUBLIC_LICENSE_PUBLIC_KEY on the site to the matching public half.
+
+# --- Licence signing (required) ---
+# The P-256 private key as a one-line JWK. This is the PUBLIC test key; do not use it in production.
+LICENSE_PRIVATE_JWK='{"kty":"EC","crv":"P-256","x":"-VrvsDyDq0VpFeKfqI8l87Q2eosUd8aahdPHUMDc-Ts","y":"TYgkXgAzcTLbq98zw37vrB_MZJfIlSHOv5bPBO4C530","d":"Gh0shGrJs8GvRL--b-ABeiqq1Z-MYbJ3Vi02ahCLQGo"}'
+
+# --- Stripe (card subscriptions) ---
+# Secret API key (sk_test_... in test mode, sk_live_... in production).
+STRIPE_SECRET_KEY=
+# Signing secret of the webhook endpoint you add in the Stripe dashboard (whsec_...).
+STRIPE_WEBHOOK_SECRET=
+# The two recurring Price ids (scripts/stripe-create-prices.mjs prints them): $10/month and $79/year.
+STRIPE_PRICE_MONTHLY=
+STRIPE_PRICE_YEARLY=
+# Set to 1 to enable Stripe automatic tax at checkout (needs tax configured in your Stripe account).
+STRIPE_AUTOMATIC_TAX=
+
+# --- PayPal (subscriptions) ---
+# REST app credentials from the PayPal developer dashboard.
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+# The webhook id PayPal assigns the endpoint you add (used to verify every webhook).
+PAYPAL_WEBHOOK_ID=
+# The two billing Plan ids (scripts/paypal-create-plans.mjs prints them): $10/month and $79/year.
+PAYPAL_PLAN_MONTHLY=
+PAYPAL_PLAN_YEARLY=
+# "sandbox" (default) or "live".
+PAYPAL_ENV=sandbox
+
+# --- NOWPayments (crypto: BTC, ETH and the other popular coins) ---
+# API key from your NOWPayments account.
+NOWPAYMENTS_API_KEY=
+# IPN secret (Store settings -> Instant payment notifications) used to verify every callback.
+NOWPAYMENTS_IPN_SECRET=
+# Set to 1 to use the NOWPayments sandbox API.
+NOWPAYMENTS_SANDBOX=

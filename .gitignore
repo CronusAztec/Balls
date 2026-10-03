@@ -40,3 +40,8 @@ yarn-error.log*
 /desktop/dist/
 /desktop/release/
 *.gguf
+
+# --- billing-backend --- the Cloudflare billing Worker's install, local secrets and Wrangler cache
+/billing/node_modules/
+/billing/.dev.vars
+/billing/.wrangler/
