@@ -3769,13 +3769,16 @@ const instrumentOscillators = () =>
   await page.getByRole("button", { name: "2x", exact: true }).click();
   const wobbled = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbWobble === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
   const glitched = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbGlitches ?? 0) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  // The lines keep coming for as long as the battle runs, so wait for the count to pass the floor instead of sampling it at
+  // the moment of the first glitch (a slow machine had painted 99 lines by then; a fast one far more).
+  const painted = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbPainted ?? 0) > 100, null, { timeout: 20_000 }).then(() => true).catch(() => false);
   await page.waitForTimeout(400);
   const data = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-string-battle-neon.png") });
   const reduced = data.sbReducedMotion === "1";
   check(
     "the neon string battle paints moiré lines, wobbles its ring and glitches on a lost life",
-    data.sbStyle === "neon" && Number(data.sbPainted) > 100 && wobbled && (glitched || reduced) && data.sbHud === "0" && data.sbBadge === "1",
+    data.sbStyle === "neon" && painted && Number(data.sbPainted) > 100 && wobbled && (glitched || reduced) && data.sbHud === "0" && data.sbBadge === "1",
     `(${JSON.stringify({ painted: data.sbPainted, glitches: data.sbGlitches, wobble: wobbled, hud: data.sbHud, lost: data.sbLivesLost, reduced: data.sbReducedMotion })})`,
   );
 }
