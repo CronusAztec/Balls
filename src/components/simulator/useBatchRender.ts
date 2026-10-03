@@ -30,6 +30,9 @@ import { zipBlobs } from "@/lib/recording/zip";
 import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
 import type { FastExportState } from "./sections/FastExportSection";
 import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish ---
+// --- paywall-gate --- the batch runner (the Batch block, the viral bot's renders, the desktop render queue) is a Pro feature
+import { requireEntitlement } from "@/lib/billing/guard";
+import { gate, requestUnlock } from "@/lib/billing/unlock";
 
 /*
  * --- batch-render --- The page's side of the batch render (lib/recording/batch.ts): runs the fast export job after job.
@@ -251,6 +254,15 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
   }, []);
 
   const start = useCallback(async (custom?: CustomBatchJob[]): Promise<CustomBatchFile[]> => {
+    // --- paywall-gate --- the guard first: a free visitor gets the Unlock dialog and no job starts (a second start that
+    // arrives meanwhile still meets the running check below, which the first start passes synchronously)
+    if (runningRef.current) return [];
+    const entitled = await requireEntitlement("batch");
+    if (!entitled.ok) {
+      requestUnlock(entitled);
+      return [];
+    }
+    // --- end paywall-gate ---
     const o = latest.current;
     if (runningRef.current || o.disabled) return [];
     const def = definitionRef.current;
@@ -401,6 +413,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
 
   /* ---------------------------------------------------------- files */
   const onDownloadJob = useCallback((id: number) => {
+    if (!gate("download")) return; // --- paywall-gate --- a rendered video's download
     const file = files.current.get(id);
     if (file) downloadExport(file.blob, file.extension, file.name.slice(0, -(file.extension.length + 1)));
   }, []);
@@ -409,6 +422,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
   const onDownloadAll = useCallback(async () => {
     const all = [...files.current.entries()].sort((a, b) => a[0] - b[0]).map(([, f]) => ({ name: f.name, blob: f.blob }));
     if (all.length === 0) return;
+    if (!gate("download")) return; // --- paywall-gate --- the rendered videos' ZIP
     setZipping(true);
     setZipFailed(false);
     try {

@@ -37,6 +37,7 @@ import {
 } from "./fastRenderPlan";
 import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVideoConfig } from "@/lib/desktop/gpuEncode"; // --- desktop-exe ---
+import { EntitlementRequiredError, requireEntitlement } from "@/lib/billing/guard"; // --- paywall-gate ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -361,9 +362,15 @@ export function downloadExport(blob: Blob, extension: string, baseName = EXPORT_
 
 /**
  * Renders and encodes the clip. Resolves with the file, or null when `signal` aborted it; throws
- * `FastRenderUnsupportedError` when the browser cannot encode any supported format.
+ * `FastRenderUnsupportedError` when the browser cannot encode any supported format, and --- paywall-gate ---
+ * `EntitlementRequiredError` without a Pro licence (the guard, lib/billing/guard.ts: the page asks it first and opens the
+ * Unlock dialog; a call around the page meets it here).
  */
 export async function renderFast(options: FastRenderOptions): Promise<FastRenderResult | null> {
+  // --- paywall-gate --- the fast export is a Pro feature
+  const entitled = await requireEntitlement("fastExport");
+  if (!entitled.ok) throw new EntitlementRequiredError(entitled);
+  // --- end paywall-gate ---
   const { host, resolution, fps, signal } = options;
   const width = resolution.width;
   const height = resolution.height;

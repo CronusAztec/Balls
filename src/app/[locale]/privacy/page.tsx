@@ -24,13 +24,14 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Privacy" });
   const site = await getTranslations({ locale, namespace: "SiteRedesign" });
+  const billing = await getTranslations({ locale, namespace: "Billing" }); // --- paywall-gate --- the Payments section
   const v = { siteName: SITE_NAME, siteDomain: SITE_DOMAIN };
   return (
     <ProseLayout
       eyebrow={site("footer.legal")}
       title={t("title")}
       meta={`${t("lastUpdated")}: ${legalDate(locale)}`}
-      toc={SECTIONS.map((id) => ({ id, label: t(`${id}.title`) }))}
+      toc={[...SECTIONS.map((id) => ({ id, label: t(`${id}.title`) })), { id: "payments", label: billing("privacy.title") } /* --- paywall-gate --- */]}
       tocLabel={site("prose.onThisPage")}
     >
       <section id="introduction">
@@ -102,6 +103,11 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
           </a>
           {t("publishing.youtube4")}
         </p>
+      </section>
+      {/* --- paywall-gate --- what a Pro purchase sends where */}
+      <section id="payments">
+        <h2>{billing("privacy.title")}</h2>
+        <p>{billing("privacy.content")}</p>
       </section>
     </ProseLayout>
   );

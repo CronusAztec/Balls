@@ -14,6 +14,10 @@ import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, saveBotState, type Bo
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
+// --- paywall-gate --- the bot's record step is a Pro feature; the CLI reads the licence's state through the page's handle
+import { requireEntitlement } from "@/lib/billing/guard";
+import { requestUnlock } from "@/lib/billing/unlock";
+import { getEntitlementStore, type EntitlementStatus } from "@/lib/billing/entitlement";
 
 /*
  * --- viral-bot --- The page's side of the viral video bot (the Bot block of the Recording section, sections/BotSection.tsx):
@@ -119,6 +123,8 @@ declare global {
       render: (request?: { download?: "each" | "zip" }) => Promise<RenderedClip[]>;
       textFiles: () => { name: string; text: string }[];
       world: () => BotWorld | null;
+      /** --- paywall-gate --- The page's licence (rendering needs Pro): the CLI waits for "free" or "pro" before it renders. */
+      licence?: () => { status: EntitlementStatus; plan: string | null; expiresAt: number | null; testMode: boolean };
     };
   }
 }
@@ -260,6 +266,13 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     const plan = stateRef.current.plan;
     const l = latest.current;
     if (!plan || plan.clips.length === 0 || l.disabled || abortRef.current) return [];
+    // --- paywall-gate --- the bot's record step: a free visitor gets the Unlock dialog and nothing renders
+    const entitled = await requireEntitlement("bot");
+    if (!entitled.ok) {
+      requestUnlock(entitled);
+      return [];
+    }
+    // --- end paywall-gate ---
     const clips = plan.clips;
     const melodyBefore = l.currentMelody;
     setRender({ status: "running", total: clips.length, done: 0, zip: download === "zip" });
@@ -297,6 +310,13 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
         return batchTextFiles(plan.clips, latest.current.copy, { date: plan.date, platform: plan.platform, locale: latest.current.locale }, lastRendered.current);
       },
       world: () => latest.current.getWorld(),
+      // --- paywall-gate ---
+      licence: () => {
+        const store = getEntitlementStore();
+        store.start();
+        const e = store.getSnapshot();
+        return { status: e.status, plan: e.plan, expiresAt: e.expiresAt, testMode: e.testMode };
+      },
     };
     return () => {
       delete window.__jumpingBallsBot;

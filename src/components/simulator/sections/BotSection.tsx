@@ -11,6 +11,7 @@ import type { ModeId } from "@/lib/physics/types";
 import type { BotPanelProps } from "../useViralBot";
 import { IconRestart, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 import NumberField from "../NumberField"; // --- uncap-all --- a number field next to every numeric control
+import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
 
 export type { BotPanelProps } from "../useViralBot";
 
@@ -222,6 +223,7 @@ export default function BotSection({ t, search, matches, bot }: { t: Translate; 
             <p className="text-xs text-ink-3 leading-snug">{b("notes")}</p>
             <button type="button" onClick={bot.onRenderAll} disabled={!canRender} className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-accent/60 text-accent bg-surface-1/40 hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed">
               <IconVideo size={16} /> {b("renderAll")}
+              <LockBadge /* --- paywall-gate --- */ />
             </button>
             {rendering && (
               <div className="space-y-1.5" role="status">

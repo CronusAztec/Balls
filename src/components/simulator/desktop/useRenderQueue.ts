@@ -36,6 +36,7 @@ import {
 import { settingsToSearchParams } from "@/lib/settings";
 import { SITE_URL } from "@/lib/site";
 import type { DesktopPageHooks } from "./pageHooks";
+import { gate } from "@/lib/billing/unlock"; // --- paywall-gate --- the render queue is a Pro feature (a free visitor gets the Unlock dialog)
 
 /*
  * --- desktop-exe --- The page's side of the render queue: it keeps the queue (lib/desktop/renderQueue.ts), writes the journal
@@ -234,6 +235,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
 
   const add = useCallback(
     (specs: QueueJobSpec[]) => {
+      if (specs.length > 0 && !gate("renderQueue")) return 0; // --- paywall-gate --- the queue's enqueue
       const before = stateRef.current.jobs.length;
       apply((s) => enqueue(s, specs, Date.now(), newJobId));
       return stateRef.current.jobs.length - before;
@@ -268,6 +270,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
     folder,
     add,
     start: () => {
+      if (!gate("renderQueue")) return; // --- paywall-gate --- (a queue restored from the journal needs a licence to render too)
       setResumable(null);
       apply((s) => startQueue(s));
     },

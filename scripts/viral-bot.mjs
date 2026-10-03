@@ -23,6 +23,10 @@
  * --- social-publish --- --relay URL --relay-key KEY --accounts a,b,c posts every rendered clip (or, with --post-only,
  * every clip --out holds) through the self-hosted publish relay (relay/server.mjs) to the key's TikTok, Instagram and
  * YouTube accounts – the relay uploads each clip once and posts it to every account (`--accounts all`: all of the key's).
+ *
+ * --- paywall-gate --- Rendering is a Pro feature of the site: the CLI puts a licence into the page's localStorage before it
+ * loads – BOT_LICENSE (your licence key: pricing page → Copy licence key), or, without it, a licence signed with the
+ * committed TEST key, which a test-mode build (no NEXT_PUBLIC_LICENSE_PUBLIC_KEY) accepts. The page says whether it took it.
  */
 import { spawnSync } from "child_process";
 import fs from "fs";
@@ -30,6 +34,7 @@ import os from "os";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { loadDotEnv } from "./dotenv.mjs";
+import { LICENSE_STORAGE_KEY, installLicenseScript, signTestLicense } from "./lib/test-license.mjs"; // --- paywall-gate ---
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -55,7 +60,8 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --help             this text
 
 Environment: BASE_URL (the served site), CHROME_PATH (a Chromium to use), FFMPEG_PATH (the ffmpeg that converts WebM
-clips to MP4 for Instagram; default: ffmpeg on PATH), and for --post IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL,
+clips to MP4 for Instagram; default: ffmpeg on PATH), BOT_LICENSE (your Pro licence key – rendering is a Pro feature; a
+test-mode build takes a test licence the CLI signs itself), and for --post IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL,
 IG_GRAPH_VERSION, IG_GRAPH_HOST; for --relay RELAY_KEY.`;
 
 class UsageError extends Error {}
@@ -203,6 +209,29 @@ function manualSteps(copy) {
   return `${copy.manual?.title ?? "Posting by hand"}: ${copy.manual?.steps ?? ""}`;
 }
 
+// --- paywall-gate ---
+/**
+ * The licence the page renders with: BOT_LICENSE, or – for a test-mode build of the site – a short one signed with the
+ * committed TEST key (a production build refuses it, and the CLI then says to set BOT_LICENSE).
+ *
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {{ token: string, source: "BOT_LICENSE" | "test" }}
+ */
+export function botLicense(env = process.env, now = Date.now()) {
+  const token = String(env.BOT_LICENSE ?? "").trim();
+  if (token) return { token, source: "BOT_LICENSE" };
+  return { token: signTestLicense({ sub: "viral-bot@localhost", plan: "yearly", provider: "stripe", now, days: 2 }), source: "test" };
+}
+
+/** Why the page would not render with the licence the CLI gave it (`testMode`: the page verifies with the TEST key). */
+export function licenceRefusal(source, testMode) {
+  if (source === "BOT_LICENSE") return "The site refused BOT_LICENSE (expired, or not a licence of this site's key). Copy a current key from the pricing page (Copy licence key) or restore the purchase there first.";
+  return testMode
+    ? "The test-mode site refused the test licence – is tests/fixtures/license-test-key.json the key pair this build was made with?"
+    : "This build of the site verifies licences with its own key (NEXT_PUBLIC_LICENSE_PUBLIC_KEY): rendering is a Pro feature, so set BOT_LICENSE to your licence key (pricing page → Copy licence key).";
+}
+// --- end paywall-gate ---
+
 async function renderInBrowser(opts, out) {
   let chromium;
   try {
@@ -216,6 +245,9 @@ async function renderInBrowser(opts, out) {
   const browser = await chromium.launch(launch);
   try {
     const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+    // --- paywall-gate --- the licence goes into the page's storage before any of its scripts runs
+    const licence = botLicense();
+    await context.addInitScript(installLicenseScript, { key: LICENSE_STORAGE_KEY, token: licence.token });
     const page = await context.newPage();
     page.on("pageerror", (e) => console.warn(`  page error: ${e.message}`));
     const url = `${base}/${opts.locale}/simulator/`;
@@ -226,6 +258,17 @@ async function renderInBrowser(opts, out) {
     await page.waitForFunction(() => !!window.__jumpingBallsBot, null, { timeout: 30000 }).catch(() => {
       throw new Error("The simulator page has no viral bot (window.__jumpingBallsBot) – is this build up to date?");
     });
+    // --- paywall-gate --- the page's verdict on the licence (an older build without the paywall reports nothing)
+    const pageLicence = await page
+      .waitForFunction(() => {
+        const l = window.__jumpingBallsBot?.licence?.();
+        return l && l.status !== "checking" ? l : !window.__jumpingBallsBot?.licence ? { status: "none" } : false;
+      }, null, { timeout: 15000 })
+      .then((h) => h.jsonValue())
+      .catch(() => null);
+    if (pageLicence && pageLicence.status === "free") throw new Error(licenceRefusal(licence.source, pageLicence.testMode));
+    if (pageLicence && pageLicence.status === "pro") console.log(`Licence: Pro (${pageLicence.plan}${licence.source === "test" ? ", a test licence – test-mode build" : ", BOT_LICENSE"}) until ${new Date(pageLicence.expiresAt).toISOString().slice(0, 10)}`);
+    // --- end paywall-gate ---
     const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined");
     if (!webCodecs) throw new Error("This Chromium has no WebCodecs: the fast export cannot render. Use a recent Chromium (CHROME_PATH).");
     console.log(`Planning in the page (${url}, world ${JSON.stringify(await page.evaluate(() => window.__jumpingBallsBot.world()))})…`);
@@ -520,6 +563,20 @@ export async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
+  // --- paywall-gate --- a BOT_LICENSE that is no licence key, or one past its end, is said before a browser starts
+  const ownLicence = String(process.env.BOT_LICENSE ?? "").trim();
+  if (ownLicence) {
+    const decoded = planner.decodeLicense(ownLicence);
+    if (!decoded || !decoded.payload) {
+      console.error("BOT_LICENSE is not a licence key (copy it from the pricing page: Copy licence key).");
+      return 1;
+    }
+    if (planner.licenseExpired(decoded.payload, Date.now())) {
+      console.error(`BOT_LICENSE ended on ${new Date(decoded.payload.exp * 1000).toISOString().slice(0, 10)} – restore the purchase on the pricing page and copy the new key.`);
+      return 1;
+    }
+  }
+  // --- end paywall-gate ---
   const { plans, rendered } = await renderInBrowser(opts, out);
   const done = rendered.filter((r) => r.status === "done").length;
   console.log(`\n${done}/${plans.length} clips rendered into ${out} (+ caption files, ${planner.MANIFEST_FILE}, ${planner.SCHEDULE_FILE}).`);

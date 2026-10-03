@@ -12,6 +12,7 @@
  * H.264 encoder then writes VP9 + Opus into an .mp4 that QuickTime, iOS Photos and many editors cannot play.
  */
 import { SITE_SLUG } from "@/lib/site";
+import { requireEntitlement, type EntitlementRefusal } from "@/lib/billing/guard"; // --- paywall-gate ---
 
 /** --- review fix (docs-consistency) --- The stem of a downloaded clip (`jumpingballslive-export.mp4`), from the site's name. */
 export const EXPORT_BASE_NAME = `${SITE_SLUG}-export`;
@@ -156,6 +157,7 @@ export class VideoRecorder {
   private recordingCanvas: HTMLCanvasElement | null = null;
   private animationFrameId: number | null = null;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private refusal: EntitlementRefusal | null = null; // --- paywall-gate ---
 
   constructor(sourceCanvas: HTMLCanvasElement) {
     this.sourceCanvas = sourceCanvas;
@@ -177,6 +179,12 @@ export class VideoRecorder {
    */
   async startRecording(options: RecordingOptions = {}): Promise<boolean> {
     if (!this.sourceCanvas) return false; // --- review fix (security-robustness) --- (was a throw the page did not catch)
+    // --- paywall-gate --- Record Video is a Pro feature: the guard (lib/billing/guard.ts) – the page asked it already and opened
+    // the Unlock dialog; a call that went around the page is refused here too (advisory, like every check in a browser)
+    const entitled = await requireEntitlement("record");
+    this.refusal = entitled.ok ? null : entitled;
+    if (!entitled.ok) return false;
+    // --- end paywall-gate ---
     this.chunks = [];
     const width = options.resolution?.width || this.sourceCanvas.width;
     const height = options.resolution?.height || this.sourceCanvas.height;
@@ -266,6 +274,11 @@ export class VideoRecorder {
 
   isRecording() {
     return this.mediaRecorder?.state === "recording";
+  }
+
+  /** --- paywall-gate --- Why the last start was refused by the guard (no Pro licence), null when it was not. */
+  lastRefusal(): EntitlementRefusal | null {
+    return this.refusal;
   }
 
   getMimeType() {

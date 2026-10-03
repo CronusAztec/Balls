@@ -46,6 +46,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
     { href: "/simulator", label: t("nav.studio") },
     { href: "/gallery", label: gallery("navLabel") },
     { href: "/download", label: desktop("navLabel") } /* --- desktop-exe --- */,
+    { href: "/pricing", label: nav("pricing") } /* --- paywall-gate --- */,
     { href: "/about", label: t("nav.about") },
   ];
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);

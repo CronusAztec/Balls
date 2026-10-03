@@ -31,6 +31,7 @@ export default function Footer() {
     { href: "/simulator", label: s("nav.studio") },
     { href: "/gallery", label: gallery("navLabel") },
     { href: "/download", label: desktop("navLabel") } /* --- desktop-exe --- */,
+    { href: "/pricing", label: t("pricing") } /* --- paywall-gate --- */,
     { href: "/tiktok-ball-videos", label: t("tiktok") },
     { href: "/about", label: t("about") },
     { href: "/feedback", label: t("feedback") },

@@ -13,7 +13,8 @@
     "goHome": "Ir al inicio",
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú",
-    "back": "Volver"
+    "back": "Volver",
+    "pricing": "Precios"
   },
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",
@@ -1704,7 +1705,7 @@
     "conveyor": { "name": "Cinta transportadora", "description": "Gerald reaparece cada 3 segundos: una cinta transportadora en lo alto saca pelota tras pelota de una trampilla y las deja caer en la arena de abajo: anillos concéntricos de los que escapar, un cuenco que se va llenando o un campo de clavos sobre casillas. Cada rebote es una nota, la cinta zumba y hace clic, y un contador lleva la cuenta: Cargadas 17 / Escapadas 4." }
   },
   "FAQ": {
-    "q1": { "question": "¿{siteName} es gratis?", "answer": "Sí. El simulador, todos los modos, todas las opciones de personalización y la exportación de vídeo son gratuitos, y no hay que crear ninguna cuenta." },
+    "q1": { "question": "¿{siteName} es gratis?", "answer": "Jugar es gratis: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, sin crear ninguna cuenta. Grabar y exportar los vídeos forma parte de Pro, por 10 $ al mes o 79 $ al año." },
     "q2": { "question": "¿Qué formatos y resoluciones de vídeo puedo exportar?", "answer": "Puedes grabar clips de 500×500 (cuadrado), 1280×720 (HD), 1920×1080 (Full HD) y 1080×1920 (vertical, TikTok) de entre 10 y 120 segundos. Los navegadores que admiten grabación MP4 exportan MP4; el resto exporta WebM." },
     "q3": { "question": "¿Puedo usar los vídeos exportados con fines comerciales?", "answer": "Sí. Todo lo que crees es tuyo y puedes usarlo en TikTok, YouTube, Instagram o donde quieras, sin necesidad de atribución." },
     "q4": { "question": "¿Necesito instalar algo?", "answer": "No. Toda la herramienta funciona en el navegador. Abre el sitio y empieza a crear." },
@@ -1796,7 +1797,8 @@
     "feedback": "Comentarios",
     "shortcuts": "Atajos de teclado",
     "pauseResume": "Pausar/Reanudar",
-    "restart": "Reiniciar"
+    "restart": "Reiniciar",
+    "pricing": "Precios"
   },
   "NotFound": {
     "title": "Página no encontrada",
@@ -1820,7 +1822,7 @@
     "howWeUse": { "title": "3. Cómo usamos tu información", "content": "Los datos analíticos se usan solo para entender cómo se utiliza el sitio y poder mejorarlo. No vendemos, compartimos ni cedemos los datos recopilados a terceros con fines de marketing." },
     "cookies": { "title": "4. Cookies y seguimiento", "content": "Podemos usar un mínimo de cookies o tecnologías similares para analítica y para recordar tu idioma. No te rastrean en otros sitios web ni recopilan información personal." },
     "thirdParty": { "title": "5. Servicios de terceros", "content": "Los servicios de analítica de terceros, cuando están activados, pueden recopilar datos de uso anónimos bajo sus propias políticas de privacidad." },
-    "retention": { "title": "6. Conservación de datos", "content": "Los datos analíticos se conservan solo de forma agregada. Como no recopilamos información personal identificable, no hay datos personales que eliminar. Los datos del almacenamiento local se pueden borrar en cualquier momento desde los ajustes del navegador." },
+    "retention": { "title": "6. Conservación de datos", "content": "Los datos analíticos se conservan solo de forma agregada. Aparte de los datos de facturación de una compra Pro (ver Pagos más abajo), no recopilamos información personal identificable. Los datos del almacenamiento local se pueden borrar en cualquier momento desde los ajustes del navegador." },
     "children": { "title": "7. Privacidad de los menores", "content": "El servicio no está dirigido a menores de 13 años y no recopilamos a sabiendas información personal de menores." },
     "changes": { "title": "8. Cambios en esta política", "content": "Podemos actualizar esta política de vez en cuando. Los cambios aparecerán en esta página con una fecha de revisión actualizada." },
     "adsenseNotice": {
@@ -1952,7 +1954,7 @@
     "badge": "Acerca de",
     "title": "Acerca de {siteName}",
     "p1": "{siteName} nació de una frustración sencilla. Los vídeos de física de pelotas rebotando estaban por todas partes, acumulando millones de visualizaciones, y todas las formas de hacer uno eran engorrosas: aprender un motor de juegos, pagar una aplicación o republicar un clip que ya habían usado mil cuentas. Nada de eso servía para alguien que solo quería hacer un buen vídeo y publicarlo. Así que construimos la herramienta que nos habría gustado tener: abre una pestaña, haz el vídeo, descárgalo, listo.",
-    "p2": "Esa idea sigue moviendo todo el sitio. {siteName} es gratis, funciona en tu navegador y no te pide nada antes de empezar. Sin registro, sin instalación, sin muro de pago entre tú y un clip terminado. Los valores por defecto ya producen algo digno de publicar; todo lo demás es adaptarlo a tu idea.",
+    "p2": "Esa idea sigue moviendo todo el sitio. {siteName} es gratis, funciona en tu navegador y no te pide nada antes de empezar. Sin registro ni instalación: todos los modos y ajustes están a tu disposición, y Pro añade la exportación del vídeo cuando el clip está listo para publicar. Los valores por defecto ya producen algo digno de publicar; todo lo demás es adaptarlo a tu idea.",
     "h2_1": "Lo que nos importa",
     "p3": "La velocidad y el control, más que cualquier otra cosa. La velocidad, porque la distancia entre una idea y un vídeo publicado es donde muere la mayor parte del contenido; si un clip lleva veinte minutos y tres aplicaciones, dejas de hacer clips. El control, porque el contenido republicado no hace crecer una cuenta. Cuando eliges tú el modo, los colores, el ritmo y el gancho, el vídeo es tuyo y tiene una oportunidad real en un feed que ya ha visto cada clip reciclado.",
     "p4": "También nos importa no estorbar. El simulador se actualiza a medida que cambias cosas, así que aprendes haciendo en lugar de leyendo un manual. Los ajustes tienen nombres claros. La parte difícil, la física y el renderizado, ocurre en silencio en segundo plano mientras te concentras en si el vídeo es divertido de ver.",
@@ -3214,7 +3216,7 @@
     "hero": {
       "eyebrow": "Estudio de física de pelotas",
       "title": "Física de pelotas hipnótica, lista para TikTok.",
-      "sub": "Ajusta la física, elige uno de los {count} modos y exporta un clip vertical listo para publicar: gratis, en tu navegador y sin cuenta.",
+      "sub": "Ajusta la física, elige uno de los {count} modos y juega con cada ajuste: gratis, en tu navegador y sin cuenta. Exporta el clip vertical, listo para publicar, con Pro.",
       "seeModes": "Ver los modos",
       "live": "En vivo",
       "preview": "Vista previa",
@@ -3222,7 +3224,7 @@
       "previewOpen": "Abrir {mode} en el estudio",
       "statModes": "Modos",
       "statExport": "Exportación",
-      "statPrice": "Precio",
+      "statPrice": "Jugar",
       "statPriceValue": "Gratis"
     },
     "modesWall": {
@@ -3282,5 +3284,170 @@
     "canvasDoneBowl": "¡ASENTADAS!",
     "canvasDonePegs": "¡ATERRIZARON!",
     "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!"
+  },
+  "Billing": {
+    "metaTitle": "Precios – juega gratis, crea vídeos con Pro – {siteName}",
+    "metaDescription": "Todos los modos y ajustes de {siteName} son gratis. Pro desbloquea la grabación y la exportación de vídeos por {monthly} al mes o {yearly} al año, con tarjeta, PayPal o criptomonedas.",
+    "eyebrow": "Precios",
+    "title": "Juega gratis. Hazte Pro para crear los vídeos.",
+    "lede": "Todos los modos, ajustes y sonidos son gratis, sin crear una cuenta. Pro añade todo lo que convierte una partida en un archivo de vídeo: Grabar vídeo, la exportación rápida, el renderizado por lotes, los vídeos del bot viral, Publicar y la cola de renderizado de la app de escritorio.",
+    "testMode": "Las licencias están en modo de prueba: los pagos aún no están configurados.",
+    "why": "Grabar y exportar vídeos es una función Pro; todo lo demás es gratis.",
+    "proTag": "Pro",
+    "proFeature": "Función Pro",
+    "plansTitle": "Planes Pro",
+    "plansNote": "Paga cada mes, o una vez al año y ahorra un {percent} %.",
+    "plan": {
+      "monthly": "Mensual",
+      "yearly": "Anual",
+      "perMonth": "/ mes",
+      "perYear": "/ año",
+      "monthlyNote": "Se renueva cada mes. Cancela cuando quieras.",
+      "yearlyNote": "Son {price} al mes, facturados una vez al año.",
+      "save": "Ahorra un {percent} %"
+    },
+    "pay": {
+      "label": "Pagar con",
+      "stripe": "Tarjeta (Stripe)",
+      "paypal": "PayPal",
+      "crypto": "Cripto: BTC, ETH, USDT y más de 300 monedas",
+      "stripeNote": "Apple Pay y Google Pay están incluidos en el pago con tarjeta.",
+      "cryptoNote": "Con cripto pagas por adelantado un periodo de {days} días que no se renueva solo: compra otro periodo cuando termine.",
+      "notConfigured": "Los pagos aún no están configurados. Vuelve pronto.",
+      "redirecting": "Abriendo el pago…",
+      "failed": "No se pudo iniciar el pago: {message}",
+      "desktop": "El pago se abrió en tu navegador. Cuando termines, vuelve aquí y restaura la compra con la referencia de tu recibo.",
+      "emailNeeded": "Primero escribe tu correo: el pago con cripto te envía el recibo allí."
+    },
+    "email": {
+      "label": "Correo electrónico",
+      "placeholder": "tu@example.com",
+      "hint": "Lo usan los pagos con tarjeta y cripto, y sirve para restaurar la compra en otro dispositivo. PayPal usa el correo de tu cuenta de PayPal.",
+      "invalid": "Eso no parece una dirección de correo."
+    },
+    "compare": {
+      "title": "Gratis y Pro",
+      "feature": "Función",
+      "free": "Gratis",
+      "pro": "Pro",
+      "included": "Incluido",
+      "notIncluded": "No incluido",
+      "playTitle": "Todo lo que sirve para jugar",
+      "createTitle": "Todo lo que crea un archivo de vídeo",
+      "play": {
+        "modes": "Todos los modos y todos los ajustes",
+        "sound": "Sonido, melodías y tu propio audio",
+        "finder": "Buscar simulación y resultados amañados",
+        "presets": "Preajustes, enlaces para compartir y archivos de proyecto",
+        "gallery": "La galería, el reto del día y las carreras en pantalla dividida",
+        "editor": "El editor de obstáculos, los subtítulos y la línea de tiempo"
+      },
+      "create": {
+        "record": "Grabar vídeo: hasta 1080×1920, con sonido",
+        "fastExport": "Exportación rápida: renderizada fotograma a fotograma",
+        "batch": "Renderizado por lotes: muchos clips en un ZIP",
+        "bot": "Los vídeos que renderiza el bot viral",
+        "publish": "Publicar en TikTok, Instagram y YouTube",
+        "desktop": "La cola de renderizado y la codificación por GPU de la app de escritorio"
+      }
+    },
+    "claim": {
+      "title": "Tu compra",
+      "claiming": "Activando tu licencia…",
+      "pending": "Esperando a que la red confirme tu pago. Esta página lo comprueba cada pocos segundos; mantenla abierta.",
+      "timeout": "El pago aún no está confirmado. Vuelve más tarde y restaura la compra con la referencia de tu pedido.",
+      "success": "Eres Pro hasta el {date}.",
+      "failed": "No se pudo activar la licencia: {message}",
+      "notConfigured": "Los pagos no están configurados en este sitio, así que la compra no se puede activar aquí.",
+      "retry": "Reintentar",
+      "openStudio": "Abrir el estudio"
+    },
+    "restore": {
+      "title": "Restaurar compra",
+      "intro": "En otro dispositivo o navegador: escribe el correo con el que pagaste y la referencia de tu recibo (el ID de sesión o de suscripción de Stripe, el ID de suscripción de PayPal o el número de pedido cripto).",
+      "ref": "Referencia del recibo",
+      "refPlaceholder": "sub_… · I-… · n.º de pedido",
+      "refInvalid": "Copia la referencia de tu recibo (letras, números, guiones y guiones bajos).",
+      "submit": "Restaurar",
+      "working": "Restaurando…",
+      "success": "Restaurada: eres Pro hasta el {date}.",
+      "failed": "No se pudo restaurar nada: {message}"
+    },
+    "manage": {
+      "title": "Tu licencia",
+      "free": "Este navegador no tiene licencia Pro. Compra un plan arriba o restaura una compra abajo.",
+      "email": "Licencia a nombre de {email}",
+      "stripe": "Gestionar suscripción",
+      "stripeHint": "Cambia la tarjeta o cancela en el portal de clientes de Stripe.",
+      "paypal": "Gestionar en PayPal",
+      "paypalHint": "Las suscripciones de PayPal se cambian y cancelan en tu cuenta de PayPal.",
+      "crypto": "Comprar otro periodo",
+      "cryptoHint": "Un periodo pagado con cripto no se renueva solo: compra el siguiente antes de que termine este.",
+      "opening": "Abriendo…",
+      "failed": "No se pudo abrir el portal de clientes: {message}",
+      "copyKey": "Copiar clave de licencia",
+      "copied": "Copiada",
+      "copyHint": "La línea de comandos del bot viral acepta esta clave como BOT_LICENSE.",
+      "remove": "Quitar de este navegador",
+      "removeConfirm": "¿Quitar la licencia de este navegador? Puedes restaurarla después con tu recibo."
+    },
+    "account": {
+      "label": "Cuenta",
+      "checking": "Comprobando tu licencia…",
+      "free": "Gratis: desbloquea la creación de vídeos",
+      "freeExpired": "Tu licencia Pro ha terminado: vuelve a desbloquear la creación de vídeos",
+      "freeInvalid": "La licencia guardada no era válida: desbloquea la creación de vídeos",
+      "pro": "Pro – {plan} hasta el {date}",
+      "renews": "Pro – {plan}, se renueva el {date}",
+      "ends": "Pro – {plan}, termina el {date}",
+      "grace": "Pro – {plan}, pago pendiente, funciona hasta el {date}",
+      "unlock": "Desbloquear",
+      "restore": "Restaurar",
+      "manage": "Gestionar"
+    },
+    "dialog": {
+      "title": "Desbloquea la creación de vídeos",
+      "feature": "{feature} forma parte de Pro.",
+      "unlocked": "Tu licencia está activa: cierra esto y vuelve a pulsar el botón.",
+      "seePricing": "Comparar Gratis y Pro",
+      "restore": "¿Ya pagaste? Restaurar compra",
+      "close": "Cerrar"
+    },
+    "features": {
+      "record": "Grabar vídeo",
+      "fastExport": "La exportación rápida",
+      "batch": "El renderizado por lotes",
+      "bot": "Renderizar los clips del bot viral",
+      "publish": "Publicar",
+      "renderQueue": "La cola de renderizado de escritorio",
+      "download": "Descargar vídeos renderizados"
+    },
+    "licenseError": {
+      "malformed": "la licencia está dañada.",
+      "header": "la licencia es de un tipo desconocido.",
+      "payload": "la licencia está incompleta.",
+      "signature": "la licencia no se emitió para este sitio.",
+      "expired": "la licencia ya ha caducado.",
+      "key": "este sitio no puede comprobar licencias ahora mismo."
+    },
+    "notes": {
+      "title": "Conviene saber",
+      "renew": "Las suscripciones con tarjeta y PayPal se renuevan solas hasta que las canceles, cuando quieras, con Gestionar suscripción en esta página.",
+      "crypto": "Con cripto pagas un periodo por adelantado (30 días con el plan mensual, 365 con el anual); nada se renueva solo.",
+      "licence": "Tu licencia es una clave firmada guardada en este navegador: el sitio no necesita cuenta ni contraseña.",
+      "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia de tu recibo."
+    },
+    "landing": {
+      "line": "Jugar es gratis. Crear los vídeos es Pro, desde {price} al mes.",
+      "link": "Ver precios"
+    },
+    "privacy": {
+      "title": "Pagos",
+      "content": "Pro se paga a través del proveedor que elijas (Stripe, PayPal o NOWPayments), en su propia página de pago y según su propia política de privacidad; los datos de tu tarjeta o monedero nunca llegan a nosotros. Nuestro servidor de facturación guarda lo necesario para emitir, renovar y restaurar tu licencia: tu correo, el plan y la referencia del pago o de la suscripción en el proveedor. La licencia en sí es una clave firmada guardada en tu navegador."
+    },
+    "terms": {
+      "title": "Suscripciones Pro",
+      "content": "Jugar con el simulador es gratis. Grabar y exportar vídeos requiere una licencia Pro: 10 $ al mes o 79 $ al año. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles (en el portal de clientes de Stripe o en tu cuenta de PayPal); un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
+    }
   }
 }

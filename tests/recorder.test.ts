@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MIME_CANDIDATES, VideoRecorder, recordingExtension } from "@/lib/recording/recorder";
 
+// --- paywall-gate --- Record Video asks the paywall's guard first; these tests are about the recorder's formats and start, so
+// the guard grants here (tests/billingEntitlement.test.ts checks that the recorder refuses without a licence).
+vi.mock("@/lib/billing/guard", () => ({ requireEntitlement: async () => ({ ok: true, feature: "record", plan: "yearly", expiresAt: Number.MAX_SAFE_INTEGER }) }));
+
 /*
  * --- review fix (recording-export) --- Record Video's container and codecs: MP4 only with H.264 (+ AAC), WebM otherwise –
  * never VP9 + Opus inside an .mp4, which Chromium without an H.264 encoder writes when it is handed a bare "video/mp4".

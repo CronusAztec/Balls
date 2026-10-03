@@ -13,6 +13,8 @@ import { defaultDraft } from "@/lib/publish/copy";
 import { PUBLISH_PLATFORMS, VISIBILITIES, type PublishPlatform, type Visibility } from "@/lib/publish/platforms";
 import { SITE_NAME } from "@/lib/site";
 import { isDesktopApp } from "@/lib/desktop/bridge"; // --- desktop-exe ---
+import { gate } from "@/lib/billing/unlock"; // --- paywall-gate --- Publish sends videos: a Pro feature (a free visitor gets the Unlock dialog)
+import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
 
 import { IconClose, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 /*
@@ -318,7 +320,7 @@ function SendRow({ item, p }: { item: SendItem; p: Translate }) {
         </p>
       )}
       {item.status === "failed" && (
-        <button type="button" onClick={() => void c.retry(item.key)} className={`${smallBtn} ${offBtn}`}>
+        <button type="button" onClick={() => gate("publish") && void c.retry(item.key)} /* --- paywall-gate --- */ className={`${smallBtn} ${offBtn}`}>
           {p("retry")}
         </button>
       )}
@@ -505,7 +507,7 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
         <span className="text-xs font-medium text-ink-2">{t("publishQuickShare")}</span>
         <div className="grid grid-cols-3 gap-1.5">
           {PUBLISH_PLATFORMS.map((platform) => (
-            <button key={platform} type="button" onClick={() => void c.quickShare(platform)} disabled={!clip} className={`px-2 py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${offBtn}`} data-testid={`publish-share-${platform}`}>
+            <button key={platform} type="button" onClick={() => gate("publish") && void c.quickShare(platform)} /* --- paywall-gate --- */ disabled={!clip} className={`px-2 py-2 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${offBtn}`} data-testid={`publish-share-${platform}`}>
               {p("shareTo", { platform: PLATFORM_NAMES[platform] })}
             </button>
           ))}
@@ -549,8 +551,9 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => void c.sendSelected()} disabled={!canSend} className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-accent text-accent-ink hover:bg-accent-strong disabled:opacity-40 disabled:cursor-not-allowed" data-testid="publish-send">
+        <button type="button" onClick={() => gate("publish") && void c.sendSelected()} /* --- paywall-gate --- */ disabled={!canSend} className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer bg-accent text-accent-ink hover:bg-accent-strong disabled:opacity-40 disabled:cursor-not-allowed" data-testid="publish-send">
           {s.sending ? p("sending") : p("sendSelected", { count: plan.targets.length })}
+          <LockBadge tone="inherit" /* --- paywall-gate --- */ />
         </button>
         {plan.blocked.length > 0 && <p className="text-xs text-danger leading-snug">{p("overLimit", { platforms: plan.blocked.map((x) => PLATFORM_NAMES[x]).join(", ") })}</p>}
         {plan.publicOnly.includes("instagram") && (
