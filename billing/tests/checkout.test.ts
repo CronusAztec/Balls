@@ -51,13 +51,16 @@ describe("checkout – stripe", () => {
     stubFetch(() => {
       throw new Error("should not be called");
     });
-    const res = await handleRequest(
-      jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: "https://evil.example.com/x" }),
-      env,
-      { now: NOW },
-    );
-    expect(res.status).toBe(400);
-    expect((await jsonOf(res)).error).toBe("invalid_return_url");
+    // the Windows app's origin may call the Worker (CORS) but is never a page to send a buyer back to
+    for (const returnUrl of ["https://evil.example.com/x", "app://jumpingballslive/en/pricing/"]) {
+      const res = await handleRequest(
+        jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl }),
+        env,
+        { now: NOW },
+      );
+      expect(res.status, returnUrl).toBe(400);
+      expect((await jsonOf(res)).error).toBe("invalid_return_url");
+    }
   });
 
   it("is 503 when Stripe is not configured", async () => {

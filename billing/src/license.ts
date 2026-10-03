@@ -137,11 +137,16 @@ export async function verifyLicense(
  */
 export const TEST_PRIVATE_D = "Gh0shGrJs8GvRL--b-ABeiqq1Z-MYbJ3Vi02ahCLQGo";
 
-/** Parse LICENSE_PRIVATE_JWK (a JSON string) into a JWK, or null when unset/invalid. */
+/**
+ * Parse LICENSE_PRIVATE_JWK (a JSON string) into a JWK, or null when unset/invalid. Takes the bare
+ * private JWK or line 1 of a keygen exactly as printed, `{"privateJwk":{…}}` – billing/scripts/keygen.mjs
+ * and the site's scripts/billing-keygen.mjs both print that line, and the setup says to paste it whole.
+ */
 export function parsePrivateJwk(raw: string | undefined): JsonWebKey | null {
   if (!raw) return null;
   try {
-    const jwk = JSON.parse(raw) as JsonWebKey;
+    const parsed = JSON.parse(raw) as (JsonWebKey & { privateJwk?: unknown }) | null;
+    const jwk = (parsed && parsed.privateJwk && typeof parsed.privateJwk === "object" ? parsed.privateJwk : parsed) as JsonWebKey | null;
     if (jwk && jwk.kty === "EC" && typeof jwk.d === "string") return jwk;
     return null;
   } catch {

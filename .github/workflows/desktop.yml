@@ -78,6 +78,11 @@ jobs:
         env:
           DESKTOP_SITE_URL: https://cronusaztec.github.io/Balls
           NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+          # --- paywall-gate / billing-backend --- the same public licence key and billing Worker origin as the website
+          # (deploy.yml), so the app verifies the Worker's real licences and its Restore reaches the Worker (which grants the
+          # app's app://jumpingballslive origin CORS). Empty while unset: the app is then in test mode, like the site.
+          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
+          NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
 
       - name: Install the app's dependencies
         working-directory: desktop

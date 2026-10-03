@@ -87,4 +87,17 @@ describe("licence token round trip", () => {
     expect(parsePrivateJwk(JSON.stringify(testKey.publicJwk))).toBeNull();
     expect(parsePrivateJwk(undefined)).toBeNull();
   });
+
+  it("takes line 1 of a keygen as printed, {\"privateJwk\":{…}}, and signs with it", async () => {
+    // billing/scripts/keygen.mjs and the site's scripts/billing-keygen.mjs print this line for the secret
+    const keygenLine = JSON.stringify({ privateJwk: testKey.privateJwk });
+    const jwk = parsePrivateJwk(keygenLine);
+    expect(jwk).toEqual(testKey.privateJwk);
+    expect(isTestKey(keygenLine)).toBe(true);
+    expect(parsePrivateJwk(JSON.stringify({ privateJwk: testKey.publicJwk }))).toBeNull();
+    expect(parsePrivateJwk(JSON.stringify({ privateJwk: null }))).toBeNull();
+    expect(parsePrivateJwk("null")).toBeNull();
+    const token = await signLicense(jwk!, { sub: "buyer@example.com", plan: "monthly", provider: "crypto", periodEnd: NOW + 30 * DAY, now: NOW });
+    expect((await verifyLicense(testKey.publicSpkiBase64url, token))?.sub).toBe("buyer@example.com");
+  });
 });

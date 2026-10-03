@@ -1092,7 +1092,8 @@ the shared ones in small `--- gerald-exit-splat ---` blocks.
 
 ### Pricing and licences
 Feature paywall-gate: the playground stays free and **Pro** – $10 a month or $79 a year (save 34 %) – unlocks video
-creation. The payments run on a Cloudflare Worker under `billing/` (feature billing-backend), which takes them and issues
+creation. The payments run on a Cloudflare Worker under [`billing/`](billing/README.md) (feature billing-backend, see
+[Billing backend](#billing-backend)), which takes them and issues
 signed licences; the site only verifies them. Everything lives in `src/lib/billing/` and `src/components/billing/`, wired
 into the shared files in small `--- paywall-gate ---` blocks.
 
@@ -1131,14 +1132,17 @@ into the shared files in small `--- paywall-gate ---` blocks.
   /checkout/crypto` → `{ url }` (Stripe Checkout with Apple Pay and Google Pay; PayPal's approval page; a NOWPayments invoice
   for BTC, ETH, USDT, USDC, SOL, DOGE, LTC, XRP, BNB, ADA, TRX and 300+ more – crypto buys a prepaid period, 30 days for $10 or
   365 for $79, because it cannot renew by itself, and the UI says so), `POST /license/claim` → `{ token } | { pending } |
-  { error, message }`, `POST /license/restore` and `POST /portal/stripe` (the customer portal). Every checkout gets the
+  { error, message }`, `POST /license/restore` and `POST /portal/stripe` (the customer portal; its return link comes back
+  to the pricing page, sent as `returnUrl` – the Worker's fallback, the bare site origin, is not this site under a base
+  path). Every checkout gets the
   pricing page of the buyer's language as `returnUrl` (without a query) and comes back with `?claim=<provider>&ref=<id>`,
   which the page claims (a pending crypto payment is asked again every 5 s for up to 10 minutes). Every answer is read
   defensively: a network error, a non-JSON body or an unknown shape is a message, never a throw; only an https address is
   followed. Without `NEXT_PUBLIC_BILLING_API` nothing is sent anywhere and the pay buttons say that payments are not
   configured yet. A subscription's licence is renewed quietly near its end through `/license/restore` with the receipt
   reference it was claimed with (`renewQuietly()`, kept under `jbl.license.ref`). Inside the desktop app a checkout opens in
-  the system browser and the purchase is restored in the app afterwards.
+  the system browser and the purchase is restored in the app afterwards: the app's page calls the Worker from its own
+  origin, `app://jumpingballslive`, which the Worker grants CORS (no web page can claim that origin).
 - **The pricing page** (`src/app/[locale]/pricing/page.tsx` with `PricingClient.tsx` and `PlanCards.tsx`; in every language,
   the sitemap, the navbar, the footer and a line under the landing's call to action) – the Free / Pro table, the two plan
   cards with "Card (Stripe)", "PayPal" and "Crypto – BTC, ETH, USDT and 300+ coins" and one email field (the card and crypto
@@ -1155,12 +1159,13 @@ into the shared files in small `--- paywall-gate ---` blocks.
   starts. In test mode only, a `jbl.billingApi` localStorage key may point the page at another backend (a Worker under
   `wrangler dev`, the smoke test's mock); a production build ignores it.
 - **Configuration** – `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` (base64url of the SPKI DER of the P-256 public key) and
-  `NEXT_PUBLIC_BILLING_API` (the Worker's origin) are public and baked in at build time; `deploy.yml` passes them from the
-  repository variables `LICENSE_PUBLIC_KEY` and `BILLING_API_URL` (Settings → Secrets and variables → Actions → Variables;
-  empty while unset). `node scripts/billing-keygen.mjs` makes a production key pair and prints two lines: `{"privateJwk":…}`
-  for the Worker's secret (`wrangler secret put LICENSE_PRIVATE_JWK`) and the public key for `LICENSE_PUBLIC_KEY`
-  (`billing/scripts/keygen.mjs` prints the same format). Set both variables together: a build with the API but without the
-  key is in test mode and refuses the Worker's real licences.
+  `NEXT_PUBLIC_BILLING_API` (the Worker's origin) are public and baked in at build time; `deploy.yml` (the website) and
+  `desktop.yml` (the Windows app's site build) pass them from the repository variables `LICENSE_PUBLIC_KEY` and
+  `BILLING_API_URL` (Settings → Secrets and variables → Actions → Variables; empty while unset). `node
+  scripts/billing-keygen.mjs` makes a production key pair and prints two lines: `{"privateJwk":…}` for the Worker's secret
+  (`wrangler secret put LICENSE_PRIVATE_JWK` – the Worker takes that line as printed, or the bare JWK inside it) and the
+  public key for `LICENSE_PUBLIC_KEY` (`billing/scripts/keygen.mjs` prints the same format). Set both variables together: a
+  build with the API but without the key is in test mode and refuses the Worker's real licences.
 - **Tools that record** – `scripts/lib/test-license.mjs` signs licences with the TEST key in Node (`crypto.sign("sha256",
   data, { key, dsaEncoding: "ieee-p1363" })` gives the raw r‖s form; `node scripts/lib/test-license.mjs [--plan monthly]
   [--expired]` prints one). The smoke test installs one in every browser context it opens (`browser.newContext()` is wrapped
@@ -1391,7 +1396,7 @@ Web Audio are available.
 - Melodies shipped in `public/notes` are short public-domain themes generated from note lists in `scripts/generate-midi.py`.
 
 <!-- --- billing-backend --- -->
-### Billing backend
+## Billing backend
 
 The playground is free; creating a video is a **Pro** feature ($10/month or $79/year, with cards,
 PayPal and crypto — BTC, ETH and the other popular coins). Because the site is a static export with no
@@ -1402,4 +1407,7 @@ kept out of the site's `tsc`/ESLint/Vitest/build. A non-developer, step-by-step 
 the secrets, the webhook event lists, the two GitHub repository variables (`BILLING_API_URL`,
 `LICENSE_PUBLIC_KEY`) the site reads, test/sandbox testing and the trust model — is in
 [`billing/README.md`](billing/README.md); deploy it from the **Actions → "Deploy billing worker"**
-workflow.
+workflow (it type-checks and runs the Worker's own suite first: `cd billing && npm ci && npm run check && npm test`).
+The site's half of the contract – the Unlock dialog, the licence store, the guard, test mode – is described in
+[Pricing and licences](#pricing-and-licences); `src/lib/billing/api.ts` and `src/lib/billing/license.ts` document the
+endpoints and the licence format both sides share.

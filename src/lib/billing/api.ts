@@ -10,7 +10,7 @@ import { PROVIDERS, isPlan, isProvider, type Plan, type Provider } from "./confi
  *   POST /checkout/crypto     { plan, email, locale, returnUrl }  → { url }   NOWPayments invoice (a prepaid period)
  *   POST /license/claim       { provider, ref }  → { token } | { pending: true } | { error, message }
  *   POST /license/restore     { email, ref }     → { token } | { error, message }
- *   POST /portal/stripe       { email }          → { url }   Stripe's customer portal
+ *   POST /portal/stripe       { email, returnUrl? } → { url }   Stripe's customer portal, back to returnUrl (the pricing page)
  *
  * Every checkout returns the buyer to returnUrl (the pricing page of the buyer's language, sent WITHOUT a query) with
  * `?claim=<provider>&ref=<id>` appended by the backend. Every answer is treated defensively: a network error, a non-JSON
@@ -162,9 +162,15 @@ export class BillingClient {
     return answer && answer.kind !== "pending" ? { ok: true, value: answer } : { ok: false, kind: "shape", message: "Unexpected /license/restore answer" };
   }
 
-  /** Stripe's customer portal for the email (change the card, cancel). */
-  async portal(email: string): Promise<BillingResult<string>> {
-    const r = await this.call("/portal/stripe", { email: email.trim().toLowerCase() });
+  /**
+   * Stripe's customer portal for the email (change the card, cancel). `returnUrl` is where its "return" link goes – the
+   * pricing page; the backend refuses one that is not on the site, and without one it goes back to the site's bare origin,
+   * which on GitHub Pages is not this site (it lives under the base path).
+   */
+  async portal(email: string, returnUrl?: string): Promise<BillingResult<string>> {
+    const body: Record<string, string> = { email: email.trim().toLowerCase() };
+    if (returnUrl) body.returnUrl = returnUrl;
+    const r = await this.call("/portal/stripe", body);
     if (!r.ok) return r;
     const url = parseRedirect(r.value, this.allowHttpRedirects);
     if (url) return { ok: true, value: url };

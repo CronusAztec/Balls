@@ -19,6 +19,16 @@ describe("CORS and preflight", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:4173");
   });
 
+  it("grants the Windows app's origin (app://jumpingballslive) and no other app:// host", async () => {
+    const { env } = makeHarness();
+    const app = await handleRequest(makeRequest("OPTIONS", "/license/restore", { origin: "app://jumpingballslive" }), env, { now: NOW });
+    expect(app.status).toBe(204);
+    expect(app.headers.get("access-control-allow-origin")).toBe("app://jumpingballslive");
+    expect(app.headers.get("access-control-allow-headers")).toContain("Content-Type");
+    const other = await handleRequest(makeRequest("GET", "/config", { origin: "app://elsewhere" }), env, { now: NOW });
+    expect(other.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
   it("does not grant CORS to a foreign origin", async () => {
     const { env } = makeHarness();
     const res = await handleRequest(makeRequest("GET", "/config", { origin: "https://evil.example.com" }), env, { now: NOW });

@@ -7,14 +7,14 @@ import { buttonClass } from "@/components/ui/Button";
 import { inputClass } from "@/components/ui/Field";
 import { IconCheck, IconWarning } from "@/components/ui/icons";
 import { cx } from "@/components/ui/cx";
-import { CLAIM_POLL_LIMIT_MS, CLAIM_POLL_MS, isEmail, isReceiptRef, parseClaimParams, type BillingClient } from "@/lib/billing/api";
+import { CLAIM_POLL_LIMIT_MS, CLAIM_POLL_MS, isEmail, isReceiptRef, parseClaimParams, pricingReturnUrl, type BillingClient } from "@/lib/billing/api";
 import { PAYPAL_SUBSCRIPTIONS_URL, accountView, formatLicenseDate, paidUntilMs } from "@/lib/billing/account";
 import { getEntitlementStore, useEntitlement } from "@/lib/billing/entitlement";
 import { decodeLicense, type LicenseError } from "@/lib/billing/license";
 import { isDesktopApp } from "@/lib/desktop/bridge";
 import PlanCards from "./PlanCards";
 import TestModeNote from "./TestModeNote";
-import { useBilling, useLicenseRenewal } from "./useBilling";
+import { siteBaseUrl, useBilling, useLicenseRenewal } from "./useBilling";
 
 /*
  * --- paywall-gate --- The pricing page's live parts (src/app/[locale]/pricing/page.tsx renders the static ones): the
@@ -181,7 +181,8 @@ export function LicencePanel() {
     }
     setBusy(true);
     setNote(null);
-    const r = await client.portal(view.email);
+    // back to this pricing page (with the base path; the public site's from the desktop app), as the checkouts come back
+    const r = await client.portal(view.email, pricingReturnUrl(siteBaseUrl(), locale));
     setBusy(false);
     if (!r.ok) {
       setNote(t("manage.failed", { message: r.message }));

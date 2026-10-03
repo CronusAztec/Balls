@@ -25,10 +25,23 @@ export function isAllowedOrigin(origin: string | null, siteOrigin: string | unde
   return false;
 }
 
+/**
+ * The Windows app's origin: it loads the site's static export from its own app:// protocol
+ * (desktop/src/protocol.ts, APP_ORIGIN), so its pricing page and Restore call the Worker from there. No
+ * web page can claim this origin, so granting it CORS lets only the app read the answers. It is never a
+ * returnUrl (validateReturnUrl takes http(s) pages of the site only).
+ */
+export const DESKTOP_APP_ORIGIN = "app://jumpingballslive";
+
+/** Whether a request Origin may read the answers: the site, localhost, or the Windows app. */
+export function isCorsOrigin(origin: string | null, siteOrigin: string | undefined): boolean {
+  return origin === DESKTOP_APP_ORIGIN || isAllowedOrigin(origin, siteOrigin);
+}
+
 /** The CORS headers for a given request Origin (empty when the Origin is not allowed). */
 export function corsHeaders(origin: string | null, siteOrigin: string | undefined): Record<string, string> {
   const headers: Record<string, string> = { Vary: "Origin" };
-  if (isAllowedOrigin(origin, siteOrigin) && origin) {
+  if (isCorsOrigin(origin, siteOrigin) && origin) {
     headers["Access-Control-Allow-Origin"] = origin;
     headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
     headers["Access-Control-Allow-Headers"] = "Content-Type";

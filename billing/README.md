@@ -82,7 +82,8 @@ It prints two lines:
 - line 1 is a JSON object `{ "privateJwk": { ... } }` — this is the **Worker secret**;
 - line 2 is a long base64url string — this is the **site's public key**.
 
-Set the Worker secret now (paste the whole JSON object from line 1 when prompted):
+Set the Worker secret now (paste the whole JSON object from line 1 when prompted; the bare JWK inside it
+works too):
 
 ```bash
 npx wrangler secret put LICENSE_PRIVATE_JWK
@@ -185,9 +186,13 @@ variable*. Add two **variables** (not secrets — both values are public):
 | `BILLING_API_URL` | the Worker URL from step 7 (e.g. `https://…workers.dev`)               |
 | `LICENSE_PUBLIC_KEY` | line 2 from `npm run keygen` (the base64url public key)             |
 
-The site's deploy workflow reads these into `NEXT_PUBLIC_PUBLISH…`-style build variables, so the next
-site deploy knows where to send checkouts and which public key verifies licences. Until both are set the
-site keeps the whole playground free and simply does not show the paywall.
+The site's deploy workflow (`deploy.yml`) passes them to the build as `NEXT_PUBLIC_BILLING_API` and
+`NEXT_PUBLIC_LICENSE_PUBLIC_KEY`, so the next site deploy knows where to send checkouts and which public
+key verifies licences; the Windows app's release workflow (`desktop.yml`) builds the app with the same two.
+The playground is always free and video creation is always Pro (see "Pricing and licences" in the main
+README). Until `BILLING_API_URL` is set the pay buttons say that payments are not configured yet; until
+`LICENSE_PUBLIC_KEY` is set the site runs in a visible **test mode** – it verifies licences with the public
+test key, so it refuses the licences this Worker signs with your real key. Set both together.
 
 ---
 
@@ -205,7 +210,10 @@ site keeps the whole playground free and simply does not show the paywall.
 - **The Worker itself:** `npx wrangler dev` runs it locally. Copy `.dev.vars.example` to `.dev.vars`
   first — out of the box it uses the public **test** signing key, so `/config` reports `"testMode": true`
   and the local site can verify the licences immediately. `curl http://localhost:8787/config` should list
-  the plans and which providers you have configured.
+  the plans and which providers you have configured. To point a local site at it, build the site without
+  `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` (test mode) and, in its browser console, run
+  `localStorage.setItem("jbl.billingApi", "http://localhost:8787")` – a test-mode build only, a production
+  build ignores that key.
 
 When everything works in test/sandbox, switch each provider to live (real `sk_live_…`, `PAYPAL_ENV=live`,
 remove `NOWPAYMENTS_SANDBOX`), re-run the secret commands with the live values, and `npm run deploy`.
@@ -214,7 +222,8 @@ remove `NOWPAYMENTS_SANDBOX`), re-run the secret commands with the live values, 
 
 ## The endpoints (reference)
 
-All JSON, all CORS-restricted to your site's origin (and `localhost` for development). Errors are
+All JSON, all CORS-restricted to your site's origin (plus `localhost` for development and the Windows
+app's own origin, `app://jumpingballslive`, which no web page can claim). Errors are
 `{ "error": "<code>", "message": "..." }`.
 
 | Method & path             | Body                                   | Returns                                        |
@@ -228,9 +237,11 @@ All JSON, all CORS-restricted to your site's origin (and `localhost` for develop
 | `POST /webhooks/nowpayments` | NOWPayments IPN (signed)            | `{ received: true }`                            |
 | `POST /license/claim`     | `{ provider, ref }`                     | `{ token }` \| `{ pending: true }` \| `{ error }` |
 | `POST /license/restore`   | `{ email, ref }`                        | `{ token }` \| `{ error }`                      |
-| `POST /portal/stripe`     | `{ email }`                             | `{ url }` (Stripe Billing Portal)              |
+| `POST /portal/stripe`     | `{ email, returnUrl? }`                 | `{ url }` (Stripe Billing Portal)              |
 
-`plan` is `"monthly"` or `"yearly"`. `returnUrl` must be a page on your own site.
+`plan` is `"monthly"` or `"yearly"`. `returnUrl` must be a page on your own site: the site sends its
+pricing page, which on GitHub Pages lives under the repository's path (`/Balls/…`). The portal's return
+link goes there, or to `SITE_ORIGIN` when the request names none.
 
 ---
 

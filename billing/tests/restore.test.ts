@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import testKey from "../../tests/fixtures/license-test-key.json";
 import { jsonOf } from "./helpers";
 import { handleRequest } from "../src/app";
 import { verifyLicense } from "../src/license";
@@ -31,6 +32,15 @@ describe("restore", () => {
     const token = (await jsonOf(res)).token as string;
     const payload = await verifyLicense(TEST_PUBLIC_SPKI, token);
     expect(payload!.sub).toBe("buyer@example.com");
+  });
+
+  it("signs with LICENSE_PRIVATE_JWK set to a keygen's line 1 as printed ({\"privateJwk\":{…}})", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv({ LICENSE_PRIVATE_JWK: JSON.stringify({ privateJwk: testKey.privateJwk }) }));
+    await seedBuyer(repo, NOW + 300 * DAY);
+    const res = await restore(env, "buyer@example.com", "cs_known");
+    expect(res.status).toBe(200);
+    const payload = await verifyLicense(TEST_PUBLIC_SPKI, (await jsonOf(res)).token as string);
+    expect(payload!.plan).toBe("yearly");
   });
 
   it("refuses a reference that does not belong to the e-mail", async () => {

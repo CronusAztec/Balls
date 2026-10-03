@@ -94,6 +94,12 @@ describe("the backend's answers", () => {
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({ plan: "yearly", email: "Me@Example.com", locale: "pl", returnUrl: "https://site/Balls/pl/pricing/" });
     await ok.checkout("paypal", { plan: "monthly", email: "me@example.com", locale: "en", returnUrl: "r" });
     expect(JSON.parse(String(calls[1].init?.body))).toEqual({ plan: "monthly", locale: "en", returnUrl: "r" }); // PayPal brings its own email
+    // the Stripe portal comes back to the pricing page under the base path (the backend's fallback is the bare site origin)
+    expect(await ok.portal(" Me@Example.com ", "https://site/Balls/pl/pricing/")).toEqual({ ok: true, value: "https://checkout.stripe.com/x" });
+    expect(calls[2].url).toBe("https://billing.test/portal/stripe");
+    expect(JSON.parse(String(calls[2].init?.body))).toEqual({ email: "me@example.com", returnUrl: "https://site/Balls/pl/pricing/" });
+    await ok.portal("me@example.com");
+    expect(JSON.parse(String(calls[3].init?.body))).toEqual({ email: "me@example.com" });
     expect(await new BillingClient("https://billing.test", reply(200, { pending: true })).claim("crypto", "ord_1")).toEqual({ ok: true, value: { kind: "pending" } });
     expect(await new BillingClient("https://billing.test", reply(404, { error: "not_found", message: "Unknown order" })).restore("a@b.co", "ord_1")).toEqual({ ok: true, value: { kind: "error", error: "not_found", message: "Unknown order" } });
     expect(await new BillingClient("https://billing.test", reply(502, "<html>Bad gateway</html>", false)).config()).toMatchObject({ ok: false, kind: "http", status: 502 });
