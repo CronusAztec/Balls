@@ -76,6 +76,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Conveyor Belt & timed respawns** | An escape-family mode (`conveyor`, feature gerald-conveyor) after the character-ball account's "conveyor belt loading" and "Gerald respawns every 3 seconds" clips: a conveyor belt across the top of the field (its tread moving, its rollers turning) carries a ball out of a hatch every **Drop Interval** seconds (0.5–10 on the slider, default 3; `cvi`) and drops it into the arena below, up to **Balls** (1–200 on the slider, default 8; `cvn`). The **Arena** (`cva`): **rings** – Classic's concentric rings with rotating gaps (Wall Count, Gap Size and Rotation apply) that every ball has to escape on its own (a note per ring passed, the wall-break sound and confetti per escape, the director's help for a ball stuck for long) while a second belt at the bottom carries the escaped ones away; **bowl** – a U-shaped container where the balls pile up and settle (about 30 of the Ball Size before the first one rolls over the rim), with an overflow counter; **pegs** – a Galton board of notes over bins. **Freeze on Landing** (`cvf`): a ball that lands freezes in place and becomes an obstacle, so the pile grows visibly (in the rings its freedom lasts four seconds); **Variety** (`cvv`) mixes the balls' sizes and colours – the first is always Gerald. The belt hums while it carries a ball and clicks when one drops, every bounce is a note through the ToneGenerator (melodies, instruments, hit samples, beat lock and the music bed apply), and a counter keeps score ("Loaded 17 / Escaped 4"). The schedule runs on the simulation clock and the run is seeded, so Find Simulation searches its length. Classic and Multiply get the same timer as **Respawn Every** (`respawnEvery`, URL `rse`, seconds, 0 = off): a new ball drops in from the top every N seconds |
 | **Moving exits & splat barriers** | Two options of the ring modes (feature gerald-exit-splat) after the character-ball account's "solving the case of the moving exit" and "Splat Barrier Demo" clips. **Exit Behaviour** (the end of the Wall section; Classic, Accumulation and Multiply – the ring modes with one exit a ring; URL `exit`): **Rotate** (the exits turn with their rings – the default), **Jump** (every ring's exit teleports to a new seeded spot of its ring every `exj` seconds, 1–10, or 0.2 s after a ball comes within `exs` degrees of it – a ball that reaches the doorway first gets out – with a flash where it was and where it lands), **Flee** (the exit runs away from the ball along its ring at up to `exf` degrees a second while the ball is within its sense: the ball has to out-run it) and **Shrink** (the exit narrows over `exj` seconds until it shuts, then opens again at least a quarter turn away). With a moving exit the rings hold still, and the exits move at every physics sub-step, so a gap pass is judged where the exit is at that moment. **Splat Barrier** (Visual section, after Wobbly Walls; every ring mode but Shatter and Color Match; URL `splat`): every wall hit leaves a splat of paint in the ball's colour, with drips, at the impact point on the inside of the wall – `sps` × the ball's radius (0.5–2) – and every splat is a solid circle of the obstacle layer, so the ball builds its own barrier; past `spm` splats (10–300) the oldest fade out, a splat drips off when an exit moves over it or its ring breaks, and when the barrier has kept every ball off the wall for 2.5 s the oldest one falls, so a run never locks up (Grow's splats only paint its ring). A landing plays a wet splat – a noise burst through a falling low-pass over a low blop, or the hit sample an octave down in sample mode. Both off by default and deterministic (the engine's seeded RNG): Find Simulation, links, presets, the fast export and the split-screen arenas replay them |
 | **Pricing & licences (Pro)** | The playground stays free – every mode, setting and sound, Find Simulation, presets and share links, the gallery, split-screen races, the obstacle editor, captions, the timeline and the daily challenge, with no account (feature paywall-gate). **Pro** – $10 a month or $79 a year (save 34 %), by card through Stripe Checkout (Apple Pay and Google Pay included), PayPal, or BTC, ETH, USDT and 300+ coins through NOWPayments (a prepaid period: crypto cannot renew by itself) – unlocks everything that creates a video file: Record Video, the fast export, the batch render, the viral bot's renders, Publish and the desktop app's render queue. Those buttons stay visible with a lock and a "Pro" tag and open the Unlock dialog; a `/pricing` page in every language holds the Free / Pro table, the plans, the purchase a checkout returns with, Manage subscription and Restore purchase, and an account row in the studio says Free or "Pro – <plan> until <date>". Licences are ES256-signed JWTs the backend (`billing/`) issues and the browser verifies with WebCrypto; without a configured key the site runs in a visible test mode (see [Pricing and licences](#pricing-and-licences)) |
+| **Obfuscation & proprietary licence** | The site is closed-source (feature code-obfuscation). `npm run build` obfuscates the shipped JavaScript as a build step (`scripts/obfuscate.mjs`, run from `scripts/postexport.mjs` before the service worker so its precache hashes see the final files): every `/_next/static/chunks` chunk but the Next loader chunks (webpack/framework/main/polyfills) gets hexadecimal identifier renaming (every local, function and class name, the engine's included) and a one-line proprietary banner, source maps are off and any `.map` is deleted. Settings are tuned for speed so the 60 fps budget, the smoke-test frame-rate floors and the seed finder hold (the string array is off – its wrapper de-optimised the physics hot loop, measured ~28x on the finder); `OBFUSCATE=0` skips it for debugging. A `LICENSE` file, `"license": "UNLICENSED"` in every package and a line on the terms page make the software proprietary. It deters casual copying but is not DRM – a determined person can still read it, so the repository must stay private (see [Obfuscation and the licence](#obfuscation-and-the-licence)) |
 
 ## Design
 
@@ -230,6 +231,48 @@ missing asset, a URL without the base path).
 - The feedback form talks to its channel directly from the browser (`src/components/site/FeedbackForm.tsx`).
 - `scripts/postexport.mjs` also writes `out/offline.html` and `out/sw.js`, the service worker of the installable offline
   app, with the list of exported files it precaches and a version hash of the export (see "Installable offline app" below).
+
+### Obfuscation and the licence
+
+Feature code-obfuscation: the site is proprietary and the shipped JavaScript is obfuscated so it is not trivially copied
+and reused.
+
+- **What runs.** `npm run build` ends with `scripts/postexport.mjs`, which calls `scripts/obfuscate.mjs` over
+  `out/_next/static/chunks/**/*.js`. It skips the chunks Next's runtime bootstraps from (`webpack-*`, `framework-*`,
+  `main-*`, `main-app-*`, `polyfills-*`) and never touches `out/sw.js`; every other chunk is renamed (hexadecimal
+  identifiers – every local, function and class name, the engine's included, becomes `_0x…`), and a one-line banner
+  (`/*! JumpingBallsLive - proprietary software. … */`) is prepended. It then deletes any `.map` from `out/`
+  (`productionBrowserSourceMaps` is off in `next.config.ts`, so there should be none), and logs the chunk count and the
+  time it took.
+- **Order: before the service worker.** The PWA build hashes every exported file's contents to version the worker and
+  precaches the `/_next/static` chunks (`hashExport` / `selectPrecache` in `scripts/pwa/build.mjs`). So obfuscation runs
+  **first** – otherwise the offline cache would hold the obfuscated bytes under a version computed from the readable
+  ones, and the precache integrity would not match what is served.
+- **Speed first.** The physics runs a fixed 60 Hz loop and the seed finder re-runs the engine for thousands of seeds, and
+  the smoke test enforces frame-rate floors and finder timeouts that must not move, so the expensive transforms stay off
+  (`controlFlowFlattening`, `deadCodeInjection`, `selfDefending`, `renameProperties` – property renaming would break
+  React and Next – all `false`). The **string array is off** too: measured against the finder it made the build ~28x
+  slower (4.7 vs 133 seeds/second) and timed out the finder's checks – a check that fails only under obfuscation, so the
+  spec's reduction ladder applies. The string-array wrapper (a call per string access) de-optimises the engine's tight
+  step loop, turning its rotate/shuffle off did not help, and the hot code is in the simulator page chunk (so excluding
+  "the physics chunk" would un-obfuscate the chunk the smoke must find obfuscated); turning the array off keeps
+  hexadecimal identifier renaming on every chunk (the engine's logic stays unreadable) at native speed. `debugProtection`
+  is off on purpose (it is hostile to real users). The `seed` is a stable hash of each file name, so a build is
+  reproducible.
+- **Turning it off.** `OBFUSCATE=0 npm run build` ships the readable build – use it when debugging the export. The
+  default for `npm run build` is on, and CI builds with it on.
+- **The desktop app** packages the same `out/`, so the web bundle it ships is obfuscated too. Its Electron main-process
+  bundle (`desktop/dist/main.js`) is **not** obfuscated: it is Node/ESM code with `import.meta`, a `createRequire`
+  banner, native externals (`node-llama-cpp`, `ffmpeg-static`, …) and IPC channel strings the preload must match
+  byte-for-byte, so obfuscating it is high-risk for little gain (it is not downloadable from the website – it lives
+  inside the packaged app).
+- **What it protects, and what it does not.** This deters casual copying; it is **not** DRM. A determined person can
+  still read and run the code – the browser has to. So the obfuscation only raises the bar; the real protection for the
+  source is to keep **the repository private**. Set the GitHub repository to Private in its settings, or keep the source
+  in a private repository and publish only the built `out/` to the public Pages repository. The `LICENSE` file,
+  `"license": "UNLICENSED"` in every `package.json` and the terms page state the terms: all rights reserved, no copying,
+  modification, distribution, reverse engineering or commercial use (the Gerald character, name and artwork included)
+  without the owner's written permission.
 
 ## Project layout
 
@@ -1436,3 +1479,10 @@ workflow (it type-checks and runs the Worker's own suite first: `cd billing && n
 The site's half of the contract – the Unlock dialog, the licence store, the guard, test mode – is described in
 [Pricing and licences](#pricing-and-licences); `src/lib/billing/api.ts` and `src/lib/billing/license.ts` document the
 endpoints and the licence format both sides share.
+
+## Licence
+
+Copyright (c) 2026 the owner of JumpingBallsLive. All rights reserved. This software and its source code, including the
+Gerald character, name and artwork, are proprietary: no copying, modification, distribution, public display, reverse
+engineering or commercial use without the owner's written permission. The software is provided "as is". See
+[`LICENSE`](LICENSE) and [Obfuscation and the licence](#obfuscation-and-the-licence).

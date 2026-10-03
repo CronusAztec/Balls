@@ -2,6 +2,7 @@
   "name": "jumpingballslive",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "JumpingBallsLive \u2013 free browser-based ball physics simulator for TikTok, Reels and Shorts, exported as a static site for GitHub Pages",
   "scripts": {
     "dev": "next dev",
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.26",
+    "javascript-obfuscator": "^4.2.2",
     "playwright": "^1.56.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5",
