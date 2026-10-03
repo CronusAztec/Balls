@@ -63,6 +63,7 @@ import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { ConveyorMode, type ConveyorSettings, type ConveyorView } from "./modes/conveyor";
 import { RespawnTimer } from "./respawn";
+import { OrbGridMode, type OrbGridSettings, type OrbGridView } from "./modes/orbGrid"; // --- orb-grid --- Bouncing Orbs
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -299,6 +300,8 @@ export class PhysicsEngine {
   // timer of Classic and Multiply (a new ball drops in every `respawnEvery` seconds; respawn.ts)
   readonly conveyorMode = new ConveyorMode();
   private readonly respawn = new RespawnTimer();
+  // --- orb-grid --- Bouncing Orbs (thousands of orbs, each bouncing on its own spot, in the mode's typed arrays)
+  readonly orbGridMode = new OrbGridMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -680,6 +683,10 @@ export class PhysicsEngine {
   initConveyor() {
     this.activateMode(this.conveyorMode, "none");
   }
+  // --- orb-grid --- the mode owns its field (no rings; one placeholder ball, pinned)
+  initOrbGrid() {
+    this.activateMode(this.orbGridMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -768,6 +775,9 @@ export class PhysicsEngine {
       // --- gerald-conveyor ---
       case "conveyor":
         return this.initConveyor();
+      // --- orb-grid ---
+      case "orbGrid":
+        return this.initOrbGrid();
     }
   }
 
@@ -1707,6 +1717,25 @@ export class PhysicsEngine {
     return this.respawn.count;
   }
   // --- end gerald-conveyor ---
+  // --- orb-grid ---
+  isOrbGridMode() {
+    return this.currentMode === this.orbGridMode;
+  }
+  getOrbGridSettings(): OrbGridSettings {
+    return this.orbGridMode.getSettings();
+  }
+  /** The field, the variation and the resolve tuning apply on the next `initOrbGrid()`; the look, the sound, the scale and the clip at once. */
+  setOrbGridSettings(settings: Partial<OrbGridSettings>) {
+    this.orbGridMode.setSettings(settings);
+  }
+  /** Live Bouncing Orbs state (layout, heights, counters, the resolve detector, the end) for the canvas; the same object every call. */
+  getOrbGridView(): OrbGridView {
+    return this.orbGridMode.getView();
+  }
+  getOrbGridProgress() {
+    return this.orbGridMode.getProgress();
+  }
+  // --- end orb-grid ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

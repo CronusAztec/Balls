@@ -26,6 +26,9 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "never-escapes": "outcomeNeverEscapes",
   "escapes-at": "outcomeEscapesAt",
   winner: "outcomeWinner",
+  // --- orb-grid ---
+  "never-settles": "outcomeNeverSettles",
+  "resolves-at": "outcomeResolvesAt",
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -33,6 +36,9 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "never-escapes": "hintNeverEscapes",
   "escapes-at": "hintEscapesAt",
   winner: "hintWinner",
+  // --- orb-grid ---
+  "never-settles": "hintNeverSettles",
+  "resolves-at": "hintResolvesAt",
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -109,7 +115,7 @@ export function FinderOutcomeSelect({ outcomes, outcome, onOutcome, disabled, ba
 export interface FinderOutcomeFieldsProps {
   /** The outcome in effect (`effectiveOutcome()`). */
   outcome: FinderOutcomeKind;
-  /** Escapes at: the target second. */
+  /** Escapes at: the target second (--- orb-grid --- resolves at: the same field, the first resolve's second). */
   escapeAt: number;
   onEscapeAt: (sec: number) => void;
   /** Winner: the team slot and the names to pick from. */
@@ -131,11 +137,11 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
   return (
     <div className="space-y-3" data-testid="finder-outcome-fields">
       <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory))}</p>
-      {outcome === "escapes-at" && (
+      {(outcome === "escapes-at" || outcome === "resolves-at") /* --- orb-grid --- */ && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-escape-at">
-              {r("escapeAt")}
+              {r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")}
             </label>
             <span className="text-xs font-mono text-accent">
               {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
@@ -150,11 +156,11 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
             value={escapeAt}
             disabled={disabled}
             onChange={(e) => onEscapeAt(Number(e.target.value))}
-            aria-label={r("escapeAt")}
+            aria-label={r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")}
             className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
             style={sliderStyle(escapeAt, range.min, range.max)}
           />
-          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
         </div>
       )}
       {outcome === "winner" && (
@@ -193,6 +199,11 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findEscapesAt", { time: c.escapeAt.toFixed(1) });
     case "winner":
       return t("Rigged.findWinner", { name: c.winnerName });
+    // --- orb-grid ---
+    case "never-settles":
+      return t("Rigged.findNeverSettles", { duration: c.duration });
+    case "resolves-at":
+      return t("Rigged.findResolvesAt", { time: c.escapeAt.toFixed(1) });
     default:
       return null;
   }
@@ -207,6 +218,11 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundEscapesAt", { time: (result.escapeAt ?? 0).toFixed(1) });
     case "winner":
       return t("Rigged.foundWinner", { name: c.winnerName, duration: result.duration.toFixed(1) });
+    // --- orb-grid ---
+    case "never-settles":
+      return t("Rigged.foundNeverSettles", { duration: result.duration.toFixed(1) });
+    case "resolves-at":
+      return t("Rigged.foundResolvesAt", { time: (result.resolveAt ?? 0).toFixed(1) });
     default:
       return null;
   }
@@ -221,6 +237,11 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return result.escapeAt === undefined ? t("Rigged.missNoEscape", { seeds: result.seedsTested }) : t("Rigged.missEscapesAt", { time: result.escapeAt.toFixed(1), seeds: result.seedsTested });
     case "winner":
       return t("Rigged.missWinner", { name: c.winnerName, seeds: result.seedsTested });
+    // --- orb-grid ---
+    case "never-settles":
+      return t("Rigged.missNeverSettles", { duration: result.duration.toFixed(1), seeds: result.seedsTested });
+    case "resolves-at":
+      return result.resolveAt === undefined ? t("Rigged.missNoResolve", { seeds: result.seedsTested }) : t("Rigged.missResolvesAt", { time: result.resolveAt.toFixed(1), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -237,6 +258,13 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
         : t("Rigged.overlayEscapesAt", { tested: result.seedsTested, closest: result.escapeAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     case "winner":
       return t("Rigged.overlayWinner", { tested: result.seedsTested, name: c.winnerName });
+    // --- orb-grid ---
+    case "never-settles":
+      return t("Rigged.overlayNeverSettles", { tested: result.seedsTested, closest: result.duration.toFixed(1), target: c.duration });
+    case "resolves-at":
+      return result.resolveAt === undefined
+        ? t("Rigged.overlayNoResolve", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
+        : t("Rigged.overlayResolvesAt", { tested: result.seedsTested, closest: result.resolveAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     default:
       return null;
   }
@@ -246,5 +274,8 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
 export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | null, progress: FinderProgress): string | null {
   if (outcome === "never-escapes") return t("Rigged.progressNeverEscapes", { duration: progress.bestDuration.toFixed(1) });
   if (outcome === "escapes-at") return progress.bestDuration > 0 ? t("Rigged.progressEscapesAt", { time: progress.bestDuration.toFixed(1) }) : null;
+  // --- orb-grid ---
+  if (outcome === "never-settles") return t("Rigged.progressNeverSettles", { duration: progress.bestDuration.toFixed(1) });
+  if (outcome === "resolves-at") return progress.bestDuration > 0 ? t("Rigged.progressResolvesAt", { time: progress.bestDuration.toFixed(1) }) : null;
   return null;
 }

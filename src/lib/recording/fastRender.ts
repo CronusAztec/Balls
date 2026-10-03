@@ -254,6 +254,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playSplat(ev.level);
     return;
   }
+  // --- orb-grid --- a Bouncing Orbs voice in its own sound (sleep or metal; notes and music are ordinary hits)
+  if (ev.orb) {
+    audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();
