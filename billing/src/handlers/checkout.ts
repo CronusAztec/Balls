@@ -1,6 +1,6 @@
 // The three checkout endpoints. Each validates the request, calls the provider and returns { url }.
 
-import { flagOn } from "../env";
+import { flagOn, providerReady } from "../env";
 import { ApiError, json, readJsonBody } from "../http";
 import { randomId } from "../crypto";
 import * as stripe from "../providers/stripe";
@@ -27,7 +27,8 @@ export async function checkoutStripe(request: Request, ctx: Ctx): Promise<Respon
   const returnUrl = validateReturnUrl(requireString(body, "returnUrl"), ctx.env);
 
   const { STRIPE_SECRET_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY } = ctx.env;
-  if (!STRIPE_SECRET_KEY || !STRIPE_PRICE_MONTHLY || !STRIPE_PRICE_YEARLY) {
+  // the webhook secret too: a payment whose webhook cannot be verified would never be recorded
+  if (!providerReady(ctx.env, "stripe") || !STRIPE_SECRET_KEY || !STRIPE_PRICE_MONTHLY || !STRIPE_PRICE_YEARLY) {
     throw new ApiError("provider_unavailable", "Card payments are not configured.", 503);
   }
   const priceId = plan === "yearly" ? STRIPE_PRICE_YEARLY : STRIPE_PRICE_MONTHLY;
@@ -52,7 +53,7 @@ export async function checkoutPaypal(request: Request, ctx: Ctx): Promise<Respon
   const returnUrl = validateReturnUrl(requireString(body, "returnUrl"), ctx.env);
 
   const { PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_PLAN_MONTHLY, PAYPAL_PLAN_YEARLY } = ctx.env;
-  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_PLAN_MONTHLY || !PAYPAL_PLAN_YEARLY) {
+  if (!providerReady(ctx.env, "paypal") || !PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_PLAN_MONTHLY || !PAYPAL_PLAN_YEARLY) {
     throw new ApiError("provider_unavailable", "PayPal is not configured.", 503);
   }
   const planId = plan === "yearly" ? PAYPAL_PLAN_YEARLY : PAYPAL_PLAN_MONTHLY;
@@ -83,7 +84,7 @@ export async function checkoutCrypto(request: Request, ctx: Ctx): Promise<Respon
   const returnUrl = validateReturnUrl(requireString(body, "returnUrl"), ctx.env);
 
   const { NOWPAYMENTS_API_KEY } = ctx.env;
-  if (!NOWPAYMENTS_API_KEY) {
+  if (!providerReady(ctx.env, "crypto") || !NOWPAYMENTS_API_KEY) {
     throw new ApiError("provider_unavailable", "Crypto payments are not configured.", 503);
   }
   const priceAmount = plan === "yearly" ? 79 : 10;

@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
-    "metaTitle": "Ball Physics Simulator – Free Online Tool for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator with {count} modes, customisable physics, rainbow effects and MP4 export in vertical TikTok format. No sign-up, no install."
+    "metaTitle": "Ball Physics Simulator for TikTok & Reels – Free to Play, Export with Pro – {siteName}",
+    "metaDescription": "Browser-based ball physics simulator with {count} modes, customisable physics and rainbow effects – free to play with, no sign-up, no install. MP4 export in vertical TikTok format comes with Pro."
   },
   "Layout": {
     "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
-    "metaDescription": "Free browser-based ball physics simulator. Create mesmerising bouncing-ball simulations with customisable physics, rainbow effects and {count} unique modes, then export MP4 videos for TikTok, Reels and Shorts. No sign-up or installation needed.",
+    "metaDescription": "Browser-based ball physics simulator. Play with {count} unique modes, customisable physics and rainbow effects for free – no sign-up or installation – and export MP4 videos for TikTok, Reels and Shorts with Pro.",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
     "featuresModes": "{count} simulation modes",
     "features": [
@@ -2084,7 +2084,7 @@
     },
     "description": {
       "title": "2. Description of Service",
-      "content": "{siteName} is a free, browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. The Service is provided \"as is\" without any guarantee of availability or uptime."
+      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator is free; recording and exporting video files requires a Pro licence (see Pro subscriptions). The Service is provided \"as is\" without any guarantee of availability or uptime."
     },
     "ugc": {
       "title": "3. User-Generated Content",
@@ -2131,7 +2131,7 @@
     "metaDescription": "Disclaimer for {siteName}: how the tool is provided, what it does not guarantee and its relationship to third-party platforms.",
     "general": {
       "title": "General information",
-      "content": "{siteName} ({siteDomain}) is a free tool for creating physics-based animation videos in your browser. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
+      "content": "{siteName} ({siteDomain}) is a tool for creating physics-based animation videos in your browser: playing with the simulator is free, and exporting the videos is part of Pro. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
     },
     "noGuarantee": {
       "title": "No guarantee of results",
@@ -2197,12 +2197,12 @@
     "openManually": "If nothing opened, use this link."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Make Bouncing Ball Videos for TikTok – Free Tool – {siteName}",
-    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a free browser tool with {count} modes, custom physics and vertical 1080×1920 export. No sign-up needed.",
+    "metaTitle": "Make Bouncing Ball Videos for TikTok – Play Free, Export with Pro – {siteName}",
+    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a browser tool with {count} modes and custom physics to play with for free, and vertical 1080×1920 export with Pro. No sign-up needed.",
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
-    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a free browser tool built for exactly this kind of content, with physics controls, visual effects and one-click vertical export.",
+    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a browser tool built for exactly this kind of content: its physics controls and visual effects are free to play with, and Pro adds one-click vertical export.",
     "p2": "What makes the format work is its built-in tension arc. The ball ricochets faster, the walls close in, the gap looks impossibly small, and then the ball slips through and everything pays off with confetti, a shatter or a shockwave. That loop fits naturally into 15 to 60 seconds, which is where TikTok engagement peaks.",
     "h2_1": "Why It Works on TikTok",
     "p3": "TikTok rewards videos that hold viewers to the end and get replayed. Ball physics does both: people stay to see whether the ball escapes and rewatch to catch the effects they missed. The format also fits TikTok's sound culture: {siteName} can play a melody note by note on every wall hit, turning the physics into a musical performance.",
@@ -2216,8 +2216,8 @@
     "cta": "Make Your First TikTok Ball Video"
   },
   "About": {
-    "metaTitle": "About {siteName} – Free Ball Physics Video Maker",
-    "metaDescription": "The story behind {siteName}: a free, browser-based tool for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
+    "metaTitle": "About {siteName} – Ball Physics Video Maker",
+    "metaDescription": "The story behind {siteName}: a browser-based tool – free to play with, Pro to export – for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
     "metaOgTitle": "About {siteName}",
     "metaOgDescription": "Why {siteName} exists and who it is for.",
     "badge": "About",
@@ -2235,7 +2235,7 @@
     "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
     "cta": "Open the simulator",
     "toolTitle": "What {siteName} actually is",
-    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings, press record and download the clip. There is no account, no installation and no video editor involved; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
+    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings and watch it play – all free, with no account, no installation and no video editor involved. When a clip is ready, Pro records it and lets you download it; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
     "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
     "tweakTitle": "Built to be tweaked",
     "tweakP": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
@@ -3197,7 +3197,7 @@
   "DesktopLink": {
     "navLabel": "Windows app",
     "heroButton": "Download for Windows",
-    "heroNote": "Free · GPU video rendering · built-in AI"
+    "heroNote": "Free download · GPU rendering with Pro · built-in AI"
   },
   "Desktop": {
     "groupTitle": "Desktop studio",
@@ -3430,7 +3430,7 @@
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
     "metaTitle": "Download {siteName} for Windows – GPU video rendering and a built-in AI",
-    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download.",
+    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download; video rendering needs Pro.",
     "badge": "Windows app",
     "title": "{siteName} for Windows",
     "intro": "Everything the simulator does in the browser, plus what a browser can't: your GPU renders and encodes the videos, a render queue works through batches while you do something else, and an AI studio – running on your PC, offline – plans clips, writes captions and changes settings for you.",
@@ -3602,8 +3602,9 @@
       "notConfigured": "Payments are not configured yet. Please check back soon.",
       "redirecting": "Opening the checkout…",
       "failed": "The checkout could not start: {message}",
-      "desktop": "The checkout opened in your browser. Once the payment is done, come back here and restore the purchase with the reference on your receipt.",
-      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there."
+      "desktop": "The checkout opened in your browser. Once you have paid, come back here and restore the purchase with your email and the receipt reference the page shows after the payment – or paste the licence key from there.",
+      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there.",
+      "newTab": "The checkout opened in a new tab. Pay there – this studio unlocks by itself once the payment is through, and your setup stays as it is."
     },
     "email": {
       "label": "Email",
@@ -3646,11 +3647,13 @@
       "failed": "The licence could not be activated: {message}",
       "notConfigured": "Payments are not configured on this site, so the purchase cannot be activated here.",
       "retry": "Try again",
-      "openStudio": "Open the studio"
+      "openStudio": "Open the studio",
+      "referenceHint": "Keep this reference: with your email it restores the purchase on another device, in another browser or in the desktop app.",
+      "backToSetup": "Back to your setup"
     },
     "restore": {
       "title": "Restore purchase",
-      "intro": "On another device or in another browser: enter the email you paid with and the reference on your receipt – the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
+      "intro": "On another device or in another browser: enter the email you paid with and the receipt reference – it is shown after the payment and under Your licence on the device you paid on: the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
       "ref": "Receipt reference",
       "refPlaceholder": "sub_… · I-… · order id",
       "refInvalid": "Copy the reference from your receipt (letters, digits, hyphens and underscores).",
@@ -3675,7 +3678,12 @@
       "copied": "Copied",
       "copyHint": "The viral bot's command line takes this key as BOT_LICENSE.",
       "remove": "Remove from this browser",
-      "removeConfirm": "Remove the licence from this browser? You can restore it later with your receipt."
+      "removeConfirm": "Remove the licence from this browser? You can restore it later with your receipt.",
+      "reference": "Receipt reference",
+      "referenceHint": "With your email, this reference restores the licence on another device, in another browser or in the desktop app.",
+      "copyRef": "Copy reference",
+      "lapsedEmail": "Last licensed to {email}",
+      "needsRef": "Manage subscription needs the receipt reference of your purchase. Restore the purchase below once with your email and the reference, then this opens Stripe's customer portal."
     },
     "account": {
       "label": "Account",
@@ -3689,7 +3697,8 @@
       "grace": "Pro – {plan}, payment pending, works until {date}",
       "unlock": "Unlock",
       "restore": "Restore",
-      "manage": "Manage"
+      "manage": "Manage",
+      "renewing": "Renewing your licence…"
     },
     "dialog": {
       "title": "Unlock video creation",
@@ -3721,7 +3730,7 @@
       "renew": "Card and PayPal subscriptions renew by themselves until you cancel – any time, with Manage subscription on this page.",
       "crypto": "Crypto pays for a prepaid period (30 days on the monthly plan, 365 on the yearly one); nothing renews by itself.",
       "licence": "Your licence is a signed key kept in this browser – the site needs no account and no password.",
-      "devices": "On another device or browser, restore the purchase with your email and the reference on your receipt."
+      "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment – or paste the licence key."
     },
     "landing": {
       "line": "Playing is free. Making the videos is Pro, from {price} a month.",
@@ -3734,6 +3743,17 @@
     "terms": {
       "title": "Pro subscriptions",
       "content": "Playing with the simulator is free. Recording and exporting videos needs a Pro licence: $10 a month or $79 a year. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+    },
+    "paste": {
+      "title": "Paste a licence key",
+      "intro": "Copied a licence key on another device (Copy licence key)? Paste it here to use the licence in this browser or in the desktop app. A pasted key lasts until its end date – restore with your email and receipt reference instead to keep it renewing by itself.",
+      "label": "Licence key",
+      "placeholder": "eyJ… – the key from Copy licence key",
+      "submit": "Use this key",
+      "working": "Checking the key…",
+      "success": "Installed – you are Pro until {date}.",
+      "failed": "The key could not be used: {message}",
+      "empty": "Paste the licence key first."
     }
   },
   "OrbGrid": {

@@ -1,6 +1,7 @@
 // The Worker's bindings and secrets. [vars] and the KV binding come from wrangler.toml; every secret
 // is set with `wrangler secret put` (see billing/README.md and .dev.vars.example). All optional: a
-// provider whose secrets are unset is simply reported as unavailable by /config and refuses checkout.
+// provider whose secrets are unset – its webhook secret included – is reported as unavailable by
+// /config and refuses checkout (providerReady below).
 
 export interface Env {
   /** KV namespace binding (wrangler.toml). */
@@ -43,4 +44,28 @@ export function flagOn(value: string | undefined): boolean {
   if (!value) return false;
   const v = value.trim().toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
+export type PaymentProvider = "stripe" | "paypal" | "crypto";
+
+/**
+ * Whether a provider may take payments: its API keys, its plans and – just as much – the secret its
+ * webhook is verified with. A payment whose webhook the Worker cannot verify is never recorded, so a
+ * provider without one is not offered (/config) and refuses checkout until the secret is set.
+ */
+export function providerReady(env: Env, provider: PaymentProvider): boolean {
+  switch (provider) {
+    case "stripe":
+      return !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_MONTHLY && env.STRIPE_PRICE_YEARLY);
+    case "paypal":
+      return !!(
+        env.PAYPAL_CLIENT_ID &&
+        env.PAYPAL_CLIENT_SECRET &&
+        env.PAYPAL_WEBHOOK_ID &&
+        env.PAYPAL_PLAN_MONTHLY &&
+        env.PAYPAL_PLAN_YEARLY
+      );
+    case "crypto":
+      return !!(env.NOWPAYMENTS_API_KEY && env.NOWPAYMENTS_IPN_SECRET);
+  }
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LICENSE_REF_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_PUBLIC_KEY } from "@/lib/billing/config";
-import { TEST_MODE_NOTICE, createEntitlementStore, type Entitlement, type EntitlementDeps } from "@/lib/billing/entitlement";
+import { LICENSE_LAPSED_STORAGE_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_PUBLIC_KEY } from "@/lib/billing/config";
+import { TEST_MODE_NOTICE, createEntitlementStore, parseLapsed, type Entitlement, type EntitlementDeps } from "@/lib/billing/entitlement";
 import { checkEntitlement, isEntitlementRefusal, requireEntitlement, EntitlementRequiredError } from "@/lib/billing/guard";
 import { gate, requestUnlock, subscribeUnlock, withEntitlement, type UnlockRequest } from "@/lib/billing/unlock";
 import { verifyLicense } from "@/lib/billing/license";
@@ -71,26 +71,89 @@ describe("the entitlement store", () => {
     expect(seen.at(-1)).toBe("pro");
   });
 
-  it("drops an expired licence from storage and says so", async () => {
+  it("drops an expired licence but keeps what its renewal needs: the receipt and the licence's email, plan and provider", async () => {
     const { store, storage } = setup();
-    storage.setItem(LICENSE_STORAGE_KEY, signTestLicense({ days: -2 }));
+    const exp = Math.floor(Date.now() / 1000) - 86400;
+    storage.setItem(LICENSE_STORAGE_KEY, signTestLicense({ sub: "Buyer@Example.com", plan: "monthly", provider: "stripe", exp }));
     storage.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify({ provider: "stripe", ref: "cs_1" }));
     store.start();
     await settle(store);
-    expect(store.getSnapshot()).toMatchObject({ status: "free", dropped: "expired" });
+    const lapsed = { email: "buyer@example.com", plan: "monthly", provider: "stripe", expiresAt: exp * 1000 };
+    expect(store.getSnapshot()).toMatchObject({ status: "free", dropped: "expired", lapsed, renewing: false });
     expect(storage.getItem(LICENSE_STORAGE_KEY)).toBeNull();
+    expect(JSON.parse(storage.getItem(LICENSE_REF_STORAGE_KEY)!)).toEqual({ provider: "stripe", ref: "cs_1" });
+    expect(parseLapsed(storage.getItem(LICENSE_LAPSED_STORAGE_KEY))).toEqual(lapsed);
+    // the next page load (a new store over the same storage) still knows the lapsed licence
+    const again = createEntitlementStore({ storage: () => storage, verify: (t) => verifyLicense(t, { publicKey: LICENSE_TEST_PUBLIC_KEY }), testMode: true, info: () => {} });
+    again.start();
+    await settle(again);
+    expect(again.getSnapshot()).toMatchObject({ status: "free", dropped: "expired", lapsed });
+    // the backend said the subscription is over: the receipt and the lapsed licence are forgotten, the reason stays
+    again.forgetReceipt();
+    expect(again.getSnapshot()).toMatchObject({ status: "free", dropped: "expired", lapsed: null });
     expect(storage.getItem(LICENSE_REF_STORAGE_KEY)).toBeNull();
+    expect(storage.getItem(LICENSE_LAPSED_STORAGE_KEY)).toBeNull();
   });
 
-  it("drops a licence signed with another key, or garbage, as invalid", async () => {
+  it("drops a licence signed with another key, or garbage, as invalid – with its receipt and any lapsed licence", async () => {
     for (const token of [signForeignLicense(), "not.a.licence", "garbage"]) {
       const { store, storage } = setup();
       storage.setItem(LICENSE_STORAGE_KEY, token);
+      storage.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify({ provider: "stripe", ref: "cs_1" }));
+      storage.setItem(LICENSE_LAPSED_STORAGE_KEY, JSON.stringify({ email: "a@b.co", plan: "monthly", provider: "stripe", expiresAt: 1 }));
       store.start();
       await settle(store);
-      expect(store.getSnapshot(), token).toMatchObject({ status: "free", dropped: "invalid" });
+      expect(store.getSnapshot(), token).toMatchObject({ status: "free", dropped: "invalid", lapsed: null });
       expect(storage.getItem(LICENSE_STORAGE_KEY)).toBeNull();
+      expect(storage.getItem(LICENSE_REF_STORAGE_KEY)).toBeNull();
+      expect(storage.getItem(LICENSE_LAPSED_STORAGE_KEY)).toBeNull();
     }
+  });
+
+  it("reads only a well-formed lapsed record", () => {
+    expect(parseLapsed(null)).toBeNull();
+    expect(parseLapsed("{bad")).toBeNull();
+    expect(parseLapsed(JSON.stringify({ email: "a@b.co", plan: "weekly", expiresAt: 1 }))).toBeNull();
+    expect(parseLapsed(JSON.stringify({ email: " A@B.co ", plan: "yearly", provider: "nope", expiresAt: 5 }))).toEqual({ email: "a@b.co", plan: "yearly", provider: null, expiresAt: 5 });
+  });
+
+  it("installing a licence ends a lapse; removing it forgets everything", async () => {
+    const { store, storage } = setup();
+    storage.setItem(LICENSE_REF_STORAGE_KEY, JSON.stringify({ provider: "paypal", ref: "I-1" }));
+    storage.setItem(LICENSE_LAPSED_STORAGE_KEY, JSON.stringify({ email: "a@b.co", plan: "monthly", provider: "paypal", expiresAt: 1 }));
+    store.start();
+    await settle(store);
+    expect(store.getSnapshot()).toMatchObject({ status: "free", dropped: "expired", lapsed: { email: "a@b.co" } });
+    expect((await store.install(signTestLicense({ sub: "a@b.co", provider: "paypal" }), { provider: "paypal", ref: "I-1" })).ok).toBe(true);
+    expect(store.getSnapshot()).toMatchObject({ status: "pro", dropped: null, lapsed: null });
+    expect(storage.getItem(LICENSE_LAPSED_STORAGE_KEY)).toBeNull();
+    expect(storage.getItem(LICENSE_REF_STORAGE_KEY)).not.toBeNull();
+    storage.setItem(LICENSE_LAPSED_STORAGE_KEY, JSON.stringify({ email: "a@b.co", plan: "monthly", provider: "paypal", expiresAt: 1 }));
+    store.clear();
+    expect(store.getSnapshot()).toMatchObject({ status: "free", dropped: null, lapsed: null });
+    for (const key of [LICENSE_STORAGE_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_LAPSED_STORAGE_KEY]) expect(storage.getItem(key)).toBeNull();
+  });
+
+  it("says when a renewal is in flight, through every state change, and lets the guard wait for it", async () => {
+    const { store, storage } = setup();
+    store.start();
+    await settle(store);
+    store.setRenewing(true);
+    expect(store.getSnapshot().renewing).toBe(true);
+    const decision = requireEntitlement("record", { store });
+    await flush();
+    // a renewed licence arrives while the renewal is still running: the flag stays until it is over
+    await store.install(signTestLicense());
+    expect(store.getSnapshot()).toMatchObject({ status: "pro", renewing: true });
+    store.setRenewing(false);
+    await expect(decision).resolves.toMatchObject({ ok: true, feature: "record" });
+    expect(store.getSnapshot().renewing).toBe(false);
+    // and without one the guard gives up after its timeout
+    store.clear();
+    store.setRenewing(true);
+    await expect(requireEntitlement("record", { store, timeoutMs: 20 })).resolves.toMatchObject({ ok: false, reason: "free" });
+    store.setRenewing(false);
+    expect(storage.getItem(LICENSE_STORAGE_KEY)).toBeNull();
   });
 
   it("keeps the licence when the site's own key cannot be used (a misconfigured build)", async () => {
@@ -198,7 +261,7 @@ describe("the entitlement store", () => {
 });
 
 describe("the guard", () => {
-  const pro = (over: Partial<Entitlement> = {}): Entitlement => ({ status: "pro", plan: "yearly", provider: "stripe", email: "a@b.co", expiresAt: Date.now() + 86400_000, issuedAt: null, testMode: true, dropped: null, ...over });
+  const pro = (over: Partial<Entitlement> = {}): Entitlement => ({ status: "pro", plan: "yearly", provider: "stripe", email: "a@b.co", expiresAt: Date.now() + 86400_000, issuedAt: null, testMode: true, dropped: null, lapsed: null, renewing: false, ...over });
 
   it("grants a Pro licence and refuses Free, unverified and expired ones with a typed refusal", () => {
     const now = Date.now();

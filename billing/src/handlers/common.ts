@@ -5,6 +5,32 @@ import { ApiError, isAllowedOrigin } from "../http";
 import type { Plan } from "../entitlements";
 import type { Repo } from "../store";
 
+/** A non-empty string, else undefined. */
+export function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+/** An object to read fields from ({} for anything else). */
+export function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+/** The plan a Stripe price id stands for – only this Worker's two prices count. */
+export function planFromStripePrice(priceId: string | undefined, env: Env): Plan | undefined {
+  if (!priceId) return undefined;
+  if (priceId === env.STRIPE_PRICE_YEARLY) return "yearly";
+  if (priceId === env.STRIPE_PRICE_MONTHLY) return "monthly";
+  return undefined;
+}
+
+/** The plan a PayPal plan id stands for – only this Worker's two plans count. */
+export function planFromPaypalPlanId(planId: string | undefined, env: Env): Plan | undefined {
+  if (!planId) return undefined;
+  if (planId === env.PAYPAL_PLAN_YEARLY) return "yearly";
+  if (planId === env.PAYPAL_PLAN_MONTHLY) return "monthly";
+  return undefined;
+}
+
 /** Everything a handler needs: the environment, the store, the CORS headers, a clock and our origin. */
 export interface Ctx {
   env: Env;

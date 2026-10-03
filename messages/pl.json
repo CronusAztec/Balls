@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
-    "metaTitle": "Symulator fizyki piłki – darmowe narzędzie online na TikToka i Reels – {siteName}",
-    "metaDescription": "Darmowy przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką, tęczowymi efektami i eksportem MP4 w pionowym formacie TikTok. Bez rejestracji i instalacji."
+    "metaTitle": "Symulator fizyki piłki na TikToka i Reels – zabawa za darmo, eksport z Pro – {siteName}",
+    "metaDescription": "Przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką i tęczowymi efektami – zabawa jest darmowa, bez rejestracji i instalacji. Eksport MP4 w pionowym formacie TikTok daje Pro."
   },
   "Layout": {
     "metaTitle": "Darmowy satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
-    "metaDescription": "Darmowy symulator fizyki piłki działający w przeglądarce. Twórz hipnotyzujące symulacje z konfigurowalną fizyką, tęczowymi efektami i {count} unikalnymi trybami, a potem eksportuj filmy MP4 na TikToka, Reels i Shorts. Bez rejestracji i instalacji.",
+    "metaDescription": "Symulator fizyki piłki działający w przeglądarce. Baw się za darmo {count} unikalnymi trybami, konfigurowalną fizyką i tęczowymi efektami – bez rejestracji i instalacji – a filmy MP4 na TikToka, Reels i Shorts eksportuj z Pro.",
     "browserRequirements": "Wymaga nowoczesnej przeglądarki z włączonym JavaScriptem",
     "featuresModes": "{count, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
     "features": [
@@ -1964,7 +1964,7 @@
     "metaTitle": "Regulamin – {siteName}",
     "metaDescription": "Regulamin serwisu {siteDomain}",
     "acceptance": { "title": "1. Akceptacja regulaminu", "content": "Korzystając z serwisu {siteDomain} („Serwis”), akceptujesz niniejszy regulamin. Jeśli nie zgadzasz się z którymkolwiek jego punktem, nie korzystaj z Serwisu." },
-    "description": { "title": "2. Opis usługi", "content": "{siteName} to darmowe, przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania." },
+    "description": { "title": "2. Opis usługi", "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora jest darmowe; nagrywanie i eksport plików wideo wymaga licencji Pro (zob. Subskrypcje Pro). Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania." },
     "ugc": {
       "title": "3. Treści użytkowników",
       "subtitle": "Korzystając z Serwisu, możesz:",
@@ -1992,7 +1992,7 @@
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Zastrzeżenia – {siteName}",
     "metaDescription": "Zastrzeżenia {siteName}: jak udostępniane jest narzędzie, czego nie gwarantuje i jaki ma związek z platformami zewnętrznymi.",
-    "general": { "title": "Informacje ogólne", "content": "{siteName} ({siteDomain}) to darmowe narzędzie do tworzenia filmów z animacjami fizycznymi w przeglądarce. Jego funkcje i treści służą celom ogólnym i rozrywkowym. Korzystając z narzędzia, akceptujesz te zastrzeżenia w całości; jeśli nie zgadzasz się z którymkolwiek punktem, nie korzystaj ze strony." },
+    "general": { "title": "Informacje ogólne", "content": "{siteName} ({siteDomain}) to narzędzie do tworzenia filmów z animacjami fizycznymi w przeglądarce: zabawa symulatorem jest darmowa, a eksport filmów należy do Pro. Jego funkcje i treści służą celom ogólnym i rozrywkowym. Korzystając z narzędzia, akceptujesz te zastrzeżenia w całości; jeśli nie zgadzasz się z którymkolwiek punktem, nie korzystaj ze strony." },
     "noGuarantee": { "title": "Brak gwarancji rezultatów", "content": "{siteName} pomaga tworzyć filmy. Nie obiecuje, że staną się one viralowe ani że zdobędą wyświetlenia, obserwujących, zaangażowanie czy dochód. Odniesienia do filmów „stających się viralowymi” opisują możliwości formatu, a nie gwarantowany rezultat. Wyniki na TikToku, Instagramie, YouTube lub innej platformie zależą od czynników poza naszą kontrolą, w tym algorytmu platformy, Twoich widzów i Twoich treści." },
     "noAffiliation": { "title": "Brak powiązań z platformami zewnętrznymi", "content": "{siteName} to niezależny projekt. Nie jest powiązany, wspierany, sponsorowany ani związany z TikTokiem, Instagramem, Meta, YouTube, Google ani żadną inną platformą wymienioną na tej stronie. Nazwy produktów, logo i znaki towarowe należą do ich właścicieli i są używane wyłącznie do opisania, gdzie można udostępniać filmy." },
     "yourContent": { "title": "Twoje treści i Twoja odpowiedzialność", "content": "Odpowiadasz za treści, które tworzysz i wgrywasz, w tym obrazy, dźwięki, teksty i logo. Nie używaj materiałów, do których nie masz praw. Odpowiadasz też za przestrzeganie zasad platform, na których publikujesz, i za zgodność z obowiązującym prawem. {siteName} nie sprawdza ani nie moderuje tego, co tworzą użytkownicy." },
@@ -2036,12 +2036,12 @@
     "openManually": "Jeśli nic się nie otworzyło, użyj tego linku."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – darmowe narzędzie – {siteName}",
-    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: darmowe narzędzie przeglądarkowe z {count} trybami, własną fizyką i pionowym eksportem 1080×1920. Bez rejestracji.",
+    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – zabawa za darmo, eksport z Pro – {siteName}",
+    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: narzędzie przeglądarkowe z {count} trybami i własną fizyką do zabawy za darmo, a pionowy eksport 1080×1920 daje Pro. Bez rejestracji.",
     "badge": "Treści na TikToka",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",
-    "p1": "Symulacje odbijającej się piłki to jeden z najbardziej niezawodnych formatów na TikToku. Założenie jest maleńkie, piłka uwięziona w pierścieniach z wąskimi szczelinami próbuje się wydostać, ale finał jest na tyle satysfakcjonujący, że utrzymuje uwagę przez cały krótki klip. {siteName} to darmowe narzędzie przeglądarkowe stworzone dokładnie do takich treści, z kontrolą fizyki, efektami wizualnymi i pionowym eksportem jednym kliknięciem.",
+    "p1": "Symulacje odbijającej się piłki to jeden z najbardziej niezawodnych formatów na TikToku. Założenie jest maleńkie, piłka uwięziona w pierścieniach z wąskimi szczelinami próbuje się wydostać, ale finał jest na tyle satysfakcjonujący, że utrzymuje uwagę przez cały krótki klip. {siteName} to narzędzie przeglądarkowe stworzone dokładnie do takich treści: kontrolą fizyki i efektami wizualnymi bawisz się za darmo, a Pro dodaje pionowy eksport jednym kliknięciem.",
     "p2": "Format działa dzięki wbudowanemu łukowi napięcia. Piłka rykoszetuje coraz szybciej, ściany się zaciskają, szczelina wygląda na niemożliwie małą, aż w końcu piłka się prześlizguje i wszystko wybucha konfetti, rozbiciem lub falą uderzeniową. Ta pętla naturalnie mieści się w 15–60 sekundach, czyli tam, gdzie zaangażowanie na TikToku jest najwyższe.",
     "h2_1": "Dlaczego to działa na TikToku",
     "p3": "TikTok nagradza filmy oglądane do końca i odtwarzane ponownie. Fizyka piłki robi jedno i drugie: ludzie zostają, aby zobaczyć, czy piłka ucieknie, i oglądają ponownie, aby wyłapać efekty, które przegapili. Format pasuje też do kultury dźwięku na TikToku: {siteName} może odtwarzać melodię nuta po nucie przy każdym uderzeniu w ścianę, zamieniając fizykę w występ muzyczny.",
@@ -2055,8 +2055,8 @@
     "cta": "Nagraj swój pierwszy film z piłką na TikToka"
   },
   "About": {
-    "metaTitle": "O {siteName} – darmowy kreator filmów z fizyką piłki",
-    "metaDescription": "Historia {siteName}: darmowego, przeglądarkowego narzędzia do tworzenia filmów z odbijającą się piłką, które stają się viralowe na TikToku, Reels i YouTube Shorts.",
+    "metaTitle": "O {siteName} – kreator filmów z fizyką piłki",
+    "metaDescription": "Historia {siteName}: przeglądarkowego narzędzia – zabawa za darmo, eksport z Pro – do tworzenia filmów z odbijającą się piłką, które stają się viralowe na TikToku, Reels i YouTube Shorts.",
     "metaOgTitle": "O {siteName}",
     "metaOgDescription": "Dlaczego {siteName} istnieje i dla kogo jest.",
     "badge": "O nas",
@@ -2074,7 +2074,7 @@
     "p7": "Plan jest taki, aby rdzeń pozostał darmowy i aby dodawać tryby, efekty i ułatwienia, dzięki którym dobry klip powstaje szybciej. Jeśli coś dzięki niemu stworzysz, o to właśnie chodzi. Idź i spraw, żeby piłka rozbiła kilka ścian.",
     "cta": "Otwórz symulator",
     "toolTitle": "Czym właściwie jest {siteName}",
-    "toolP1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień, naciśnij nagrywanie i pobierz klip. Nie ma konta, instalacji ani edytora wideo; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
+    "toolP1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień i patrz, jak gra – wszystko za darmo, bez konta, instalacji i edytora wideo. Gdy klip jest gotowy, Pro go nagrywa i pozwala go pobrać; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
     "toolP2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje: ściana się rozpada, piłka się mnoży, kolor zalewa ekran, cel zostaje trafiony. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej. Ta mała pętla napięcia i ulgi napędza wyświetlenia, a tutaj kontrolujesz każdy jej element, zamiast publikować cudzy klip.",
     "tweakTitle": "Stworzony do majstrowania",
     "tweakP": "Wygląd należy do Ciebie. Dodaj pierścienie dla dłuższego budowania napięcia lub usuń je dla szybkiego finału. Włącz tęczowe ściany, przełączaj efekt przebicia między konfetti, rozbiciem i falą uderzeniową albo połącz wszystkie trzy. Dodaj kolce dla zagrożenia, poświatę dla szlifu i kolorowy ślad, aby szybki ruch wyglądał celowo. Umieść własny obrazek na piłce, napisz haczyk w stylu „czy ucieknie?” u góry i wgraj melodię, aby odbicia trafiały w rytm. Małe zmiany mają znaczenie: jeden dodatkowy pierścień może zdecydować o tym, czy klip zostanie przewinięty, czy obejrzany dwa razy.",
@@ -3036,7 +3036,7 @@
   "DesktopLink": {
     "navLabel": "Aplikacja Windows",
     "heroButton": "Pobierz dla Windows",
-    "heroNote": "Za darmo · renderowanie wideo na GPU · wbudowana AI"
+    "heroNote": "Pobieranie za darmo · renderowanie na GPU z Pro · wbudowana AI"
   },
   "Desktop": {
     "groupTitle": "Studio desktopowe",
@@ -3269,7 +3269,7 @@
     "libDelete": "Usuń plik",
     "libDeleteConfirm": "Przenieść {name} do kosza?",
     "metaTitle": "Pobierz {siteName} dla Windows – renderowanie wideo na GPU i wbudowana AI",
-    "metaDescription": "Cały symulator {siteName} jako aplikacja Windows: renderuj klipy na GPU (NVENC, AMF, Quick Sync), renderuj całe kolejki prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo.",
+    "metaDescription": "Cały symulator {siteName} jako aplikacja Windows: renderuj klipy na GPU (NVENC, AMF, Quick Sync), renderuj całe kolejki prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo; renderowanie filmów wymaga Pro.",
     "badge": "Aplikacja Windows",
     "title": "{siteName} dla Windows",
     "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi: Twoje GPU renderuje i koduje filmy, kolejka renderowania przerabia całe serie, gdy robisz coś innego, a studio AI – działające na Twoim komputerze, offline – planuje klipy, pisze opisy i zmienia za Ciebie ustawienia.",
@@ -3441,8 +3441,9 @@
       "notConfigured": "Płatności nie są jeszcze skonfigurowane. Zajrzyj tu wkrótce.",
       "redirecting": "Otwieranie płatności…",
       "failed": "Nie udało się rozpocząć płatności: {message}",
-      "desktop": "Płatność otworzyła się w przeglądarce. Po zapłacie wróć tutaj i przywróć zakup numerem referencyjnym z potwierdzenia.",
-      "emailNeeded": "Najpierw podaj e-mail – płatność kryptowalutą wysyła na niego potwierdzenie."
+      "desktop": "Płatność otworzyła się w przeglądarce. Po zapłacie wróć tutaj i przywróć zakup e-mailem i numerem referencyjnym, który strona pokaże po płatności – albo wklej stamtąd klucz licencji.",
+      "emailNeeded": "Najpierw podaj e-mail – płatność kryptowalutą wysyła na niego potwierdzenie.",
+      "newTab": "Płatność otworzyła się w nowej karcie. Zapłać tam – to studio odblokuje się samo, gdy płatność przejdzie, a Twoje ustawienia zostaną bez zmian."
     },
     "email": {
       "label": "E-mail",
@@ -3485,11 +3486,13 @@
       "failed": "Nie udało się aktywować licencji: {message}",
       "notConfigured": "Płatności nie są skonfigurowane na tej stronie, więc zakupu nie da się tu aktywować.",
       "retry": "Spróbuj ponownie",
-      "openStudio": "Otwórz studio"
+      "openStudio": "Otwórz studio",
+      "referenceHint": "Zachowaj ten numer: razem z e-mailem przywraca zakup na innym urządzeniu, w innej przeglądarce lub w aplikacji na komputer.",
+      "backToSetup": "Wróć do swoich ustawień"
     },
     "restore": {
       "title": "Przywróć zakup",
-      "intro": "Na innym urządzeniu lub w innej przeglądarce: podaj e-mail, którym płaciłeś, i numer referencyjny z potwierdzenia – identyfikator sesji lub subskrypcji Stripe, identyfikator subskrypcji PayPal albo numer zamówienia krypto.",
+      "intro": "Na innym urządzeniu lub w innej przeglądarce: podaj e-mail, którym płaciłeś, i numer referencyjny – widać go po płatności i w sekcji Twoja licencja na urządzeniu, na którym płaciłeś: identyfikator sesji lub subskrypcji Stripe, identyfikator subskrypcji PayPal albo numer zamówienia krypto.",
       "ref": "Numer referencyjny",
       "refPlaceholder": "sub_… · I-… · nr zamówienia",
       "refInvalid": "Skopiuj numer z potwierdzenia (litery, cyfry, myślniki i podkreślenia).",
@@ -3514,7 +3517,12 @@
       "copied": "Skopiowano",
       "copyHint": "Wiersz poleceń bota przyjmuje ten klucz jako BOT_LICENSE.",
       "remove": "Usuń z tej przeglądarki",
-      "removeConfirm": "Usunąć licencję z tej przeglądarki? Możesz ją później przywrócić z potwierdzenia zakupu."
+      "removeConfirm": "Usunąć licencję z tej przeglądarki? Możesz ją później przywrócić z potwierdzenia zakupu.",
+      "reference": "Numer referencyjny",
+      "referenceHint": "Razem z e-mailem ten numer przywraca licencję na innym urządzeniu, w innej przeglądarce lub w aplikacji na komputer.",
+      "copyRef": "Kopiuj numer",
+      "lapsedEmail": "Ostatnia licencja dla {email}",
+      "needsRef": "Zarządzanie subskrypcją wymaga numeru referencyjnego zakupu. Przywróć raz zakup poniżej e-mailem i tym numerem, a potem ten przycisk otworzy portal klienta Stripe."
     },
     "account": {
       "label": "Konto",
@@ -3528,7 +3536,8 @@
       "grace": "Pro – {plan}, płatność w toku, działa do {date}",
       "unlock": "Odblokuj",
       "restore": "Przywróć",
-      "manage": "Zarządzaj"
+      "manage": "Zarządzaj",
+      "renewing": "Odnawianie licencji…"
     },
     "dialog": {
       "title": "Odblokuj tworzenie filmów",
@@ -3560,7 +3569,7 @@
       "renew": "Subskrypcje kartą i przez PayPal odnawiają się same, dopóki z nich nie zrezygnujesz – w każdej chwili, przez Zarządzaj subskrypcją na tej stronie.",
       "crypto": "Kryptowaluta opłaca okres z góry (30 dni w planie miesięcznym, 365 w rocznym); nic nie odnawia się samo.",
       "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce – strona nie potrzebuje konta ani hasła.",
-      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym z potwierdzenia."
+      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym pokazanym po płatności – albo wklej klucz licencji."
     },
     "landing": {
       "line": "Zabawa jest darmowa. Tworzenie filmów to Pro, od {price} miesięcznie.",
@@ -3573,6 +3582,17 @@
     "terms": {
       "title": "Subskrypcje Pro",
       "content": "Zabawa symulatorem jest darmowa. Nagrywanie i eksport filmów wymagają licencji Pro: 10 $ miesięcznie lub 79 $ rocznie. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
+    },
+    "paste": {
+      "title": "Wklej klucz licencji",
+      "intro": "Masz klucz licencji skopiowany na innym urządzeniu (Kopiuj klucz licencji)? Wklej go tutaj, aby używać licencji w tej przeglądarce lub w aplikacji na komputer. Wklejony klucz działa do swojej daty końca – przywróć zakup e-mailem i numerem referencyjnym, aby odnawiał się sam.",
+      "label": "Klucz licencji",
+      "placeholder": "eyJ… – klucz z „Kopiuj klucz licencji”",
+      "submit": "Użyj tego klucza",
+      "working": "Sprawdzanie klucza…",
+      "success": "Zainstalowano – masz Pro do {date}.",
+      "failed": "Nie udało się użyć klucza: {message}",
+      "empty": "Najpierw wklej klucz licencji."
     }
   },
   "OrbGrid": {

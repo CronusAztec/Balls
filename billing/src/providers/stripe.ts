@@ -5,8 +5,22 @@ import { ApiError } from "../http";
 
 const STRIPE_API = "https://api.stripe.com";
 
+/**
+ * The Stripe API version every call asks for, so the objects the Worker reads (a Checkout Session with
+ * its subscription and latest invoice, a subscription's current period) keep the shape it was written
+ * against whatever the account's default version is. Create the webhook endpoint with this version
+ * too (billing/README.md, step 4); the webhook handlers also read the newer event shapes (the
+ * subscription under an invoice's parent, the period on the subscription items).
+ */
+export const STRIPE_API_VERSION = "2025-02-24.acacia";
+
 function authHeader(secretKey: string): string {
   return "Basic " + btoa(`${secretKey}:`);
+}
+
+/** The headers of every Stripe call: the secret key and the pinned API version. */
+function stripeHeaders(secretKey: string): Record<string, string> {
+  return { Authorization: authHeader(secretKey), "Stripe-Version": STRIPE_API_VERSION };
 }
 
 async function stripeFetch(
@@ -18,7 +32,7 @@ async function stripeFetch(
   const res = await fetch(`${STRIPE_API}${path}`, {
     method,
     headers: {
-      Authorization: authHeader(secretKey),
+      ...stripeHeaders(secretKey),
       ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
     },
     body: form ? form.toString() : undefined,
@@ -66,14 +80,17 @@ export async function createCheckoutSession(
   return url;
 }
 
-/** Fetch a Checkout Session with its subscription expanded. Returns null on a 4xx (unknown id). */
+/**
+ * Fetch a Checkout Session with its subscription and the subscription's latest invoice expanded (the
+ * claim records the paid period from that invoice). Returns null on a 4xx (unknown id).
+ */
 export async function getCheckoutSession(
   secretKey: string,
   sessionId: string,
 ): Promise<Record<string, unknown> | null> {
   const res = await fetch(
-    `${STRIPE_API}/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=subscription`,
-    { headers: { Authorization: authHeader(secretKey) } },
+    `${STRIPE_API}/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=subscription&expand[]=subscription.latest_invoice`,
+    { headers: stripeHeaders(secretKey) },
   );
   if (res.status === 404 || res.status === 400) return null;
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -88,7 +105,7 @@ export async function getSubscription(
 ): Promise<Record<string, unknown> | null> {
   const res = await fetch(
     `${STRIPE_API}/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
-    { headers: { Authorization: authHeader(secretKey) } },
+    { headers: stripeHeaders(secretKey) },
   );
   if (res.status === 404 || res.status === 400) return null;
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -155,4 +172,59 @@ export async function buildSignatureHeader(
 ): Promise<string> {
   const sig = await hmacSha256Hex(secret, `${timestamp}.${rawBody}`);
   return `t=${timestamp},v1=${sig}`;
+}
+
+// --- reading Stripe objects (both the pinned version's shapes and the newer ones) ----------------
+
+const rec = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+const str = (value: unknown): string | undefined => (typeof value === "string" && value ? value : undefined);
+/** An id field that is either the id itself or the expanded object. */
+const idOf = (value: unknown): string | undefined => str(value) ?? str(rec(value).id);
+
+/** The subscription an invoice belongs to: `subscription` (to 2025-02), or `parent.subscription_details.subscription` (since 2025-03). */
+export function invoiceSubscriptionId(invoice: Record<string, unknown>): string | undefined {
+  return idOf(invoice.subscription) ?? idOf(rec(rec(invoice.parent).subscription_details).subscription);
+}
+
+/** The line items of an invoice (the first page, which is what an event or an expansion carries). */
+export function invoiceLines(invoice: Record<string, unknown>): Record<string, unknown>[] {
+  const data = rec(invoice.lines).data;
+  return Array.isArray(data) ? data.map(rec) : [];
+}
+
+/** A line item's price id: `price.id` (to 2025-02), `pricing.price_details.price` (since 2025-03) or the legacy `plan.id`. */
+export function linePriceId(line: Record<string, unknown>): string | undefined {
+  return idOf(line.price) ?? idOf(rec(rec(line.pricing).price_details).price) ?? idOf(line.plan);
+}
+
+/** The latest period end any of an invoice's lines covers – what a paid invoice pays for. */
+export function invoicePeriodEnd(invoice: Record<string, unknown>): number | undefined {
+  let end: number | undefined;
+  for (const line of invoiceLines(invoice)) {
+    const e = rec(line.period).end;
+    if (typeof e === "number" && Number.isFinite(e) && (end === undefined || e > end)) end = e;
+  }
+  return end;
+}
+
+/** A subscription's current period end: on the subscription (to 2025-02) or on its items (since 2025-03). */
+export function subscriptionPeriodEnd(subscription: Record<string, unknown>): number | undefined {
+  if (typeof subscription.current_period_end === "number") return subscription.current_period_end;
+  const items = rec(subscription.items).data;
+  let end: number | undefined;
+  if (Array.isArray(items)) {
+    for (const item of items) {
+      const e = rec(item).current_period_end;
+      if (typeof e === "number" && (end === undefined || e > end)) end = e;
+    }
+  }
+  return end;
+}
+
+/** The price ids of a subscription's items. */
+export function subscriptionPriceIds(subscription: Record<string, unknown>): string[] {
+  const items = rec(subscription.items).data;
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => linePriceId(rec(item))).filter((id): id is string => !!id);
 }

@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",
-    "metaTitle": "Simulador de física de pelotas – herramienta online gratuita para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas gratuito en el navegador con {count} modos, física personalizable, efectos arcoíris y exportación MP4 en formato vertical de TikTok. Sin registro ni instalación."
+    "metaTitle": "Simulador de física de pelotas para TikTok y Reels – juega gratis, exporta con Pro – {siteName}",
+    "metaDescription": "Simulador de física de pelotas en el navegador con {count} modos, física personalizable y efectos arcoíris: jugar es gratis, sin registro ni instalación. La exportación MP4 en formato vertical de TikTok llega con Pro."
   },
   "Layout": {
     "metaTitle": "Simulador de física de pelotas gratuito y satisfactorio para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas gratuito en el navegador. Crea simulaciones hipnóticas con física personalizable, efectos arcoíris y {count} modos únicos, y exporta vídeos MP4 para TikTok, Reels y Shorts. Sin registro ni instalación.",
+    "metaDescription": "Simulador de física de pelotas en el navegador. Juega gratis con {count} modos únicos, física personalizable y efectos arcoíris, sin registro ni instalación, y exporta vídeos MP4 para TikTok, Reels y Shorts con Pro.",
     "browserRequirements": "Requiere un navegador moderno con JavaScript activado",
     "featuresModes": "{count} modos de simulación",
     "features": [
@@ -1964,7 +1964,7 @@
     "metaTitle": "Términos del servicio – {siteName}",
     "metaDescription": "Términos del servicio de {siteDomain}",
     "acceptance": { "title": "1. Aceptación de los términos", "content": "Al usar {siteDomain} («el Servicio») aceptas estos Términos del servicio. Si no estás de acuerdo con alguna parte, por favor no uses el Servicio." },
-    "description": { "title": "2. Descripción del servicio", "content": "{siteName} es una herramienta gratuita de simulación física en el navegador para crear animaciones de pelotas rebotando, personalizar su aspecto y comportamiento y exportarlas como archivos de vídeo. El Servicio se ofrece «tal cual», sin garantía de disponibilidad ni de tiempo de actividad." },
+    "description": { "title": "2. Descripción del servicio", "content": "{siteName} es una herramienta de simulación física en el navegador para crear animaciones de pelotas rebotando, personalizar su aspecto y comportamiento y exportarlas como archivos de vídeo. Usar el simulador es gratis; grabar y exportar archivos de vídeo requiere una licencia Pro (consulta Suscripciones Pro). El Servicio se ofrece «tal cual», sin garantía de disponibilidad ni de tiempo de actividad." },
     "ugc": {
       "title": "3. Contenido generado por el usuario",
       "subtitle": "Al usar el Servicio puedes:",
@@ -1992,7 +1992,7 @@
     "lastUpdated": "Última actualización",
     "metaTitle": "Aviso legal – {siteName}",
     "metaDescription": "Aviso legal de {siteName}: cómo se ofrece la herramienta, qué no garantiza y su relación con plataformas de terceros.",
-    "general": { "title": "Información general", "content": "{siteName} ({siteDomain}) es una herramienta gratuita para crear vídeos de animación basados en física en tu navegador. Sus funciones y contenidos se ofrecen con fines generales y de entretenimiento. Al usar la herramienta aceptas este aviso en su totalidad; si no estás de acuerdo con alguna parte, por favor no uses el sitio." },
+    "general": { "title": "Información general", "content": "{siteName} ({siteDomain}) es una herramienta para crear vídeos de animación basados en física en tu navegador: jugar con el simulador es gratis y exportar los vídeos forma parte de Pro. Sus funciones y contenidos se ofrecen con fines generales y de entretenimiento. Al usar la herramienta aceptas este aviso en su totalidad; si no estás de acuerdo con alguna parte, por favor no uses el sitio." },
     "noGuarantee": { "title": "Sin garantía de resultados", "content": "{siteName} te ayuda a hacer vídeos. No promete que esos vídeos se vuelvan virales ni que consigan visualizaciones, seguidores, interacción o ingresos. Las referencias a vídeos que «se vuelven virales» describen lo que el formato puede hacer, no un resultado que garanticemos. El rendimiento en TikTok, Instagram, YouTube o cualquier otra plataforma depende de factores fuera de nuestro control, como el algoritmo de cada plataforma, tu audiencia y tu contenido." },
     "noAffiliation": { "title": "Sin afiliación con plataformas de terceros", "content": "{siteName} es un proyecto independiente. No está afiliado, respaldado, patrocinado ni asociado con TikTok, Instagram, Meta, YouTube, Google ni ninguna otra plataforma mencionada en este sitio. Los nombres de productos, logos y marcas pertenecen a sus respectivos propietarios y se usan solo para describir dónde se pueden compartir los vídeos." },
     "yourContent": { "title": "Tu contenido y tu responsabilidad", "content": "Eres responsable del contenido que creas y subes, incluidas imágenes, audio, texto y logos. No uses material sobre el que no tengas derechos. También eres responsable de cumplir las normas de las plataformas donde publiques y la legislación aplicable. {siteName} no revisa ni modera lo que crean los usuarios." },
@@ -2036,12 +2036,12 @@
     "openManually": "Si no se ha abierto nada, usa este enlace."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – herramienta gratuita – {siteName}",
-    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web gratuita con {count} modos, física personalizada y exportación vertical 1080×1920. Sin registro.",
+    "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – juega gratis, exporta con Pro – {siteName}",
+    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web con {count} modos y física personalizada para jugar gratis, y exportación vertical 1080×1920 con Pro. Sin registro.",
     "badge": "Contenido para TikTok",
     "navLabel": "Vídeos de pelotas para TikTok",
     "title": "Vídeos de pelotas rebotando para TikTok",
-    "p1": "Las simulaciones de pelotas rebotando son uno de los formatos más fiables de TikTok. La premisa es mínima, una pelota atrapada entre anillos con huecos estrechos intentando salir a base de rebotes, pero la recompensa es lo bastante satisfactoria como para retener la atención durante todo un clip corto. {siteName} es una herramienta web gratuita creada exactamente para este tipo de contenido, con controles de física, efectos visuales y exportación vertical con un clic.",
+    "p1": "Las simulaciones de pelotas rebotando son uno de los formatos más fiables de TikTok. La premisa es mínima, una pelota atrapada entre anillos con huecos estrechos intentando salir a base de rebotes, pero la recompensa es lo bastante satisfactoria como para retener la atención durante todo un clip corto. {siteName} es una herramienta web creada exactamente para este tipo de contenido: sus controles de física y efectos visuales son gratis para jugar, y Pro añade la exportación vertical con un clic.",
     "p2": "Lo que hace funcionar el formato es su arco de tensión integrado. La pelota rebota cada vez más rápido, las paredes se cierran, el hueco parece imposiblemente pequeño, y entonces la pelota se cuela y todo estalla con confeti, una rotura o una onda expansiva. Ese bucle encaja de forma natural en 15 a 60 segundos, justo donde la interacción en TikTok alcanza su máximo.",
     "h2_1": "Por qué funciona en TikTok",
     "p3": "TikTok premia los vídeos que retienen al espectador hasta el final y se vuelven a reproducir. La física de pelotas hace ambas cosas: la gente se queda para ver si la pelota escapa y vuelve a verlo para captar los efectos que se perdió. El formato también encaja con la cultura sonora de TikTok: {siteName} puede reproducir una melodía nota a nota en cada golpe contra la pared, convirtiendo la física en una actuación musical.",
@@ -2055,8 +2055,8 @@
     "cta": "Crea tu primer vídeo de pelotas para TikTok"
   },
   "About": {
-    "metaTitle": "Acerca de {siteName} – creador gratuito de vídeos de física de pelotas",
-    "metaDescription": "La historia de {siteName}: una herramienta gratuita en el navegador para crear los vídeos de pelotas rebotando que se vuelven virales en TikTok, Reels y YouTube Shorts.",
+    "metaTitle": "Acerca de {siteName} – creador de vídeos de física de pelotas",
+    "metaDescription": "La historia de {siteName}: una herramienta en el navegador (gratis para jugar, con Pro para exportar) para crear los vídeos de pelotas rebotando que se vuelven virales en TikTok, Reels y YouTube Shorts.",
     "metaOgTitle": "Acerca de {siteName}",
     "metaOgDescription": "Por qué existe {siteName} y para quién es.",
     "badge": "Acerca de",
@@ -2074,7 +2074,7 @@
     "p7": "El plan es mantener el núcleo gratuito y seguir añadiendo modos, efectos y mejoras de calidad de vida que hagan más rápido construir un buen clip. Si haces algo con ella, ese es el objetivo. Ve y haz que una pelota rompa unas cuantas paredes.",
     "cta": "Abrir el simulador",
     "toolTitle": "Qué es realmente {siteName}",
-    "toolP1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros, pulsa grabar y descarga el clip. No hay cuenta, instalación ni editor de vídeo; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
+    "toolP1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros y míralo en acción: todo gratis, sin cuenta, instalación ni editor de vídeo. Cuando el clip esté listo, Pro lo graba y te deja descargarlo; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
     "toolP2": "El formato funciona porque es simple. Una pelota rebota dentro de un anillo con un hueco. Cada vez que se cuela, algo se recompensa: una pared se rompe, la pelota se multiplica, el color inunda la pantalla, se acierta un objetivo. El espectador quiere saber cómo acaba, así que sigue mirando. Ese pequeño bucle de tensión y alivio es lo que genera las visualizaciones, y aquí controlas cada parte en lugar de republicar el clip de otro.",
     "tweakTitle": "Hecho para trastear",
     "tweakP": "El aspecto es tuyo. Añade anillos para alargar la tensión o quítalos para un desenlace rápido. Activa las paredes arcoíris, alterna el efecto de ruptura entre confeti, fragmentación y onda expansiva, o combina los tres. Añade púas para el peligro, brillo para el acabado y un rastro de color para que el movimiento rápido parezca deliberado. Pon tu propia imagen en la pelota, escribe un gancho como «¿escapará?» arriba y carga una melodía para que los rebotes sigan el ritmo. Los pequeños cambios importan: un anillo extra puede marcar la diferencia entre un clip que la gente salta y uno que ve dos veces.",
@@ -3036,7 +3036,7 @@
   "DesktopLink": {
     "navLabel": "App para Windows",
     "heroButton": "Descargar para Windows",
-    "heroNote": "Gratis · vídeo renderizado en la GPU · IA integrada"
+    "heroNote": "Descarga gratuita · renderizado en la GPU con Pro · IA integrada"
   },
   "Desktop": {
     "groupTitle": "Estudio de escritorio",
@@ -3269,7 +3269,7 @@
     "libDelete": "Eliminar archivo",
     "libDeleteConfirm": "¿Mover {name} a la papelera?",
     "metaTitle": "Descarga {siteName} para Windows: vídeo renderizado en la GPU e IA integrada",
-    "metaDescription": "Todo el simulador {siteName} como aplicación de Windows: renderiza clips en tu GPU (NVENC, AMF, Quick Sync), renderiza colas enteras directamente en una carpeta y planifica vídeos con una IA integrada que funciona sin conexión. Descarga gratuita.",
+    "metaDescription": "Todo el simulador {siteName} como aplicación de Windows: renderiza clips en tu GPU (NVENC, AMF, Quick Sync), renderiza colas enteras directamente en una carpeta y planifica vídeos con una IA integrada que funciona sin conexión. Descarga gratuita; renderizar vídeos requiere Pro.",
     "badge": "App para Windows",
     "title": "{siteName} para Windows",
     "intro": "Todo lo que hace el simulador en el navegador y lo que un navegador no puede: tu GPU renderiza y codifica los vídeos, una cola de renderizado procesa lotes mientras haces otra cosa y un estudio de IA –en tu PC y sin conexión– planifica clips, escribe descripciones y cambia los ajustes por ti.",
@@ -3441,8 +3441,9 @@
       "notConfigured": "Los pagos aún no están configurados. Vuelve pronto.",
       "redirecting": "Abriendo el pago…",
       "failed": "No se pudo iniciar el pago: {message}",
-      "desktop": "El pago se abrió en tu navegador. Cuando termines, vuelve aquí y restaura la compra con la referencia de tu recibo.",
-      "emailNeeded": "Primero escribe tu correo: el pago con cripto te envía el recibo allí."
+      "desktop": "El pago se abrió en tu navegador. Cuando hayas pagado, vuelve aquí y restaura la compra con tu correo y la referencia del recibo que muestra la página tras el pago, o pega desde allí la clave de licencia.",
+      "emailNeeded": "Primero escribe tu correo: el pago con cripto te envía el recibo allí.",
+      "newTab": "El pago se abrió en una pestaña nueva. Paga allí: este estudio se desbloquea solo cuando el pago se complete, y tu configuración se queda como está."
     },
     "email": {
       "label": "Correo electrónico",
@@ -3485,11 +3486,13 @@
       "failed": "No se pudo activar la licencia: {message}",
       "notConfigured": "Los pagos no están configurados en este sitio, así que la compra no se puede activar aquí.",
       "retry": "Reintentar",
-      "openStudio": "Abrir el estudio"
+      "openStudio": "Abrir el estudio",
+      "referenceHint": "Guarda esta referencia: con tu correo restaura la compra en otro dispositivo, en otro navegador o en la aplicación de escritorio.",
+      "backToSetup": "Volver a tu configuración"
     },
     "restore": {
       "title": "Restaurar compra",
-      "intro": "En otro dispositivo o navegador: escribe el correo con el que pagaste y la referencia de tu recibo (el ID de sesión o de suscripción de Stripe, el ID de suscripción de PayPal o el número de pedido cripto).",
+      "intro": "En otro dispositivo o navegador: escribe el correo con el que pagaste y la referencia del recibo (se muestra tras el pago y en Tu licencia, en el dispositivo donde pagaste): el ID de sesión o de suscripción de Stripe, el ID de suscripción de PayPal o el número de pedido cripto.",
       "ref": "Referencia del recibo",
       "refPlaceholder": "sub_… · I-… · n.º de pedido",
       "refInvalid": "Copia la referencia de tu recibo (letras, números, guiones y guiones bajos).",
@@ -3514,7 +3517,12 @@
       "copied": "Copiada",
       "copyHint": "La línea de comandos del bot viral acepta esta clave como BOT_LICENSE.",
       "remove": "Quitar de este navegador",
-      "removeConfirm": "¿Quitar la licencia de este navegador? Puedes restaurarla después con tu recibo."
+      "removeConfirm": "¿Quitar la licencia de este navegador? Puedes restaurarla después con tu recibo.",
+      "reference": "Referencia del recibo",
+      "referenceHint": "Con tu correo, esta referencia restaura la licencia en otro dispositivo, en otro navegador o en la aplicación de escritorio.",
+      "copyRef": "Copiar referencia",
+      "lapsedEmail": "Última licencia a nombre de {email}",
+      "needsRef": "Gestionar la suscripción necesita la referencia del recibo de tu compra. Restaura la compra abajo una vez con tu correo y la referencia, y este botón abrirá el portal de clientes de Stripe."
     },
     "account": {
       "label": "Cuenta",
@@ -3528,7 +3536,8 @@
       "grace": "Pro – {plan}, pago pendiente, funciona hasta el {date}",
       "unlock": "Desbloquear",
       "restore": "Restaurar",
-      "manage": "Gestionar"
+      "manage": "Gestionar",
+      "renewing": "Renovando tu licencia…"
     },
     "dialog": {
       "title": "Desbloquea la creación de vídeos",
@@ -3560,7 +3569,7 @@
       "renew": "Las suscripciones con tarjeta y PayPal se renuevan solas hasta que las canceles, cuando quieras, con Gestionar suscripción en esta página.",
       "crypto": "Con cripto pagas un periodo por adelantado (30 días con el plan mensual, 365 con el anual); nada se renueva solo.",
       "licence": "Tu licencia es una clave firmada guardada en este navegador: el sitio no necesita cuenta ni contraseña.",
-      "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia de tu recibo."
+      "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia del recibo que se muestra tras el pago, o pega la clave de licencia."
     },
     "landing": {
       "line": "Jugar es gratis. Crear los vídeos es Pro, desde {price} al mes.",
@@ -3573,6 +3582,17 @@
     "terms": {
       "title": "Suscripciones Pro",
       "content": "Jugar con el simulador es gratis. Grabar y exportar vídeos requiere una licencia Pro: 10 $ al mes o 79 $ al año. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles (en el portal de clientes de Stripe o en tu cuenta de PayPal); un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
+    },
+    "paste": {
+      "title": "Pegar una clave de licencia",
+      "intro": "¿Copiaste una clave de licencia en otro dispositivo (Copiar clave de licencia)? Pégala aquí para usar la licencia en este navegador o en la aplicación de escritorio. Una clave pegada dura hasta su fecha de fin; restaura con tu correo y la referencia del recibo para que se renueve sola.",
+      "label": "Clave de licencia",
+      "placeholder": "eyJ…: la clave de «Copiar clave de licencia»",
+      "submit": "Usar esta clave",
+      "working": "Comprobando la clave…",
+      "success": "Instalada: eres Pro hasta el {date}.",
+      "failed": "No se pudo usar la clave: {message}",
+      "empty": "Primero pega la clave de licencia."
     }
   },
   "OrbGrid": {
