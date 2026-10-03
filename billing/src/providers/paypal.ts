@@ -147,3 +147,21 @@ export async function verifyWebhookSignature(
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return data.verification_status === "SUCCESS";
 }
+
+/**
+ * How far an ACTIVE subscription is paid: its next billing time, as long as no payment is failing or
+ * outstanding (PayPal keeps a subscription ACTIVE through up to three failed renewal attempts). Null
+ * for any other state, and while the first payment has not cleared.
+ */
+export function paidThrough(subscription: Record<string, unknown>): number | null {
+  if (subscription.status !== "ACTIVE") return null;
+  const info =
+    subscription.billing_info && typeof subscription.billing_info === "object"
+      ? (subscription.billing_info as Record<string, unknown>)
+      : {};
+  if (typeof info.failed_payments_count === "number" && info.failed_payments_count > 0) return null;
+  const outstanding = info.outstanding_balance as { value?: unknown } | undefined;
+  if (outstanding && Number(outstanding.value ?? 0) > 0) return null;
+  const next = typeof info.next_billing_time === "string" ? Date.parse(info.next_billing_time) : NaN;
+  return Number.isFinite(next) ? Math.floor(next / 1000) : null;
+}

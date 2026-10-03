@@ -146,3 +146,21 @@ describe("checkout – crypto", () => {
     expect((await jsonOf(res)).error).toBe("invalid_request");
   });
 });
+
+describe("checkout without a webhook secret", () => {
+  it("refuses to take a payment the Worker could not record (503 provider_unavailable), for every provider", async () => {
+    const { env } = makeHarness(allProvidersEnv({ STRIPE_WEBHOOK_SECRET: "", PAYPAL_WEBHOOK_ID: "", NOWPAYMENTS_IPN_SECRET: "" }));
+    stubFetch(() => {
+      throw new Error("should not be called");
+    });
+    for (const [path, body] of [
+      ["/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }],
+      ["/checkout/paypal", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }],
+      ["/checkout/crypto", { plan: "monthly", email: "buyer@example.com", locale: "en", returnUrl: RETURN_URL }],
+    ] as const) {
+      const res = await handleRequest(jsonRequest(path, body), env, { now: NOW });
+      expect(res.status, path).toBe(503);
+      expect((await jsonOf(res)).error).toBe("provider_unavailable");
+    }
+  });
+});

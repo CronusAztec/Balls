@@ -2,6 +2,7 @@
 // test suite both call it. `now` is injectable so tests pin the clock.
 
 import type { Env } from "./env";
+import { providerReady } from "./env";
 import { corsHeaders, json, Router } from "./http";
 import { Repo } from "./store";
 import type { KV } from "./store";
@@ -17,15 +18,11 @@ function configResponse(ctx: Ctx): Response {
   return json(
     {
       plans: { monthly: { usd: 10 }, yearly: { usd: 79 } },
+      // On only with every secret it needs – the webhook's included (providerReady).
       providers: {
-        stripe: !!(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_MONTHLY && env.STRIPE_PRICE_YEARLY),
-        paypal: !!(
-          env.PAYPAL_CLIENT_ID &&
-          env.PAYPAL_CLIENT_SECRET &&
-          env.PAYPAL_PLAN_MONTHLY &&
-          env.PAYPAL_PLAN_YEARLY
-        ),
-        crypto: !!env.NOWPAYMENTS_API_KEY,
+        stripe: providerReady(env, "stripe"),
+        paypal: providerReady(env, "paypal"),
+        crypto: providerReady(env, "crypto"),
       },
       testMode: isTestKey(env.LICENSE_PRIVATE_JWK),
     },

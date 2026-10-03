@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { jsonOf } from "./helpers";
 import { handleRequest } from "../src/app";
-import { allProvidersEnv, jsonResponse, makeHarness, makeRequest, NOW, stubFetch } from "./helpers";
+import type { Source } from "../src/entitlements";
+import { allProvidersEnv, jsonResponse, makeHarness, makeRequest, NOW, seedCrypto, seedPaypal, stubFetch } from "./helpers";
 
 const DAY = 86400;
 
@@ -15,6 +16,8 @@ const TX_HEADERS = {
   "paypal-auth-algo": "SHA256withRSA",
   "content-type": "application/json",
 };
+
+const iso = (unix: number) => new Date(unix * 1000).toISOString();
 
 /** Mock the PayPal token + verify endpoints; `verifies` controls the verification result. */
 function mockPaypal(verifies: boolean, extra?: (url: string) => Response | undefined) {
@@ -34,6 +37,20 @@ function postWebhook(env: ReturnType<typeof makeHarness>["env"], event: unknown,
   return handleRequest(req, env, { now: NOW });
 }
 
+const activated = (nextBilling: number, id = "ev-act", over: Record<string, unknown> = {}) => ({
+  id,
+  event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
+  resource: {
+    id: "I-SUB1",
+    status: "ACTIVE",
+    plan_id: "P-MONTHLY",
+    custom_id: "order-1",
+    subscriber: { email_address: "Buyer@Example.com" },
+    billing_info: { next_billing_time: iso(nextBilling), failed_payments_count: 0 },
+    ...over,
+  },
+});
+
 describe("paypal webhook", () => {
   it("rejects when PayPal does not verify the signature", async () => {
     const { env } = makeHarness(allProvidersEnv());
@@ -50,72 +67,79 @@ describe("paypal webhook", () => {
     expect(res.status).toBe(400);
   });
 
-  it("stores the entitlement on BILLING.SUBSCRIPTION.ACTIVATED", async () => {
+  it("links the subscription and records its paid period on BILLING.SUBSCRIPTION.ACTIVATED", async () => {
     const { env, repo } = makeHarness(allProvidersEnv());
     mockPaypal(true);
     const nextBilling = NOW + 30 * DAY;
-    const res = await postWebhook(env, {
-      id: "ev-act",
-      event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
-      resource: {
-        id: "I-SUB1",
-        plan_id: "P-MONTHLY",
-        custom_id: "order-1",
-        subscriber: { email_address: "Buyer@Example.com" },
-        billing_info: { next_billing_time: new Date(nextBilling * 1000).toISOString() },
-      },
-    });
+    const res = await postWebhook(env, activated(nextBilling));
     expect(res.status).toBe(200);
-    const ent = await repo.getUser("buyer@example.com");
-    expect(ent!.plan).toBe("monthly");
-    expect(ent!.provider).toBe("paypal");
-    expect(ent!.subscriptionId).toBe("I-SUB1");
-    expect(ent!.periodEnd).toBe(nextBilling);
-    expect(await repo.getRefEmail("paypal", "I-SUB1")).toBe("buyer@example.com");
-    expect(await repo.getRefEmail("paypal", "order-1")).toBe("buyer@example.com");
+    const ent = await repo.entitlementFor("buyer@example.com");
+    expect(ent).toMatchObject({ plan: "monthly", provider: "paypal", periodEnd: nextBilling });
+    expect(ent!.sources[0].subscriptionId).toBe("I-SUB1");
+    expect(ent!.refs).toEqual(expect.arrayContaining(["I-SUB1", "order-1"]));
+  });
+
+  it("does not count a period while a payment is failing", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    mockPaypal(true);
+    await postWebhook(env, activated(NOW + 30 * DAY, "ev-f", { billing_info: { next_billing_time: iso(NOW + 30 * DAY), failed_payments_count: 1 } }));
+    expect((await repo.entitlementFor("buyer@example.com"))!.periodEnd).toBe(0);
   });
 
   it("extends the period on PAYMENT.SALE.COMPLETED", async () => {
     const { env, repo } = makeHarness(allProvidersEnv());
-    await repo.putRef("paypal", "I-SUB1", "buyer@example.com");
+    await seedPaypal(repo, { periodEnd: NOW + 30 * DAY });
     const nextBilling = NOW + 60 * DAY;
     mockPaypal(true, (url) => {
       if (url.includes("/v1/billing/subscriptions/I-SUB1")) {
-        return jsonResponse({ billing_info: { next_billing_time: new Date(nextBilling * 1000).toISOString() } });
+        return jsonResponse({ id: "I-SUB1", status: "ACTIVE", plan_id: "P-MONTHLY", billing_info: { next_billing_time: iso(nextBilling) } });
       }
       return undefined;
     });
-    const res = await postWebhook(env, {
-      id: "ev-sale",
-      event_type: "PAYMENT.SALE.COMPLETED",
-      resource: { billing_agreement_id: "I-SUB1" },
-    });
+    const res = await postWebhook(env, { id: "ev-sale", event_type: "PAYMENT.SALE.COMPLETED", resource: { billing_agreement_id: "I-SUB1" } });
     expect(res.status).toBe(200);
-    expect((await repo.getUser("buyer@example.com"))!.periodEnd).toBe(nextBilling);
+    expect((await repo.entitlementFor("buyer@example.com"))!.periodEnd).toBe(nextBilling);
+  });
+
+  it("does not reset a prepaid crypto period, and keeps two subscriptions apart", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    await seedPaypal(repo, { periodEnd: NOW + 30 * DAY });
+    await seedPaypal(repo, { sub: "I-SUB2", order: "order-2", plan: "yearly", periodEnd: NOW + 300 * DAY });
+    await seedCrypto(repo, { order: "o-c", payment: "pc", plan: "yearly" }); // granted at NOW: NOW + 365 days
+    mockPaypal(true, (url) => {
+      if (url.includes("/v1/billing/subscriptions/I-SUB1")) {
+        return jsonResponse({ id: "I-SUB1", status: "ACTIVE", plan_id: "P-MONTHLY", billing_info: { next_billing_time: iso(NOW + 60 * DAY) } });
+      }
+      return undefined;
+    });
+    await postWebhook(env, { id: "ev-sale2", event_type: "PAYMENT.SALE.COMPLETED", resource: { billing_agreement_id: "I-SUB1" } });
+    const ent = await repo.entitlementFor("buyer@example.com");
+    expect(ent).toMatchObject({ periodEnd: NOW + 365 * DAY, provider: "crypto" });
+    expect(ent!.sources.find((s: Source) => s.subscriptionId === "I-SUB1")!.periodEnd).toBe(NOW + 60 * DAY);
+    expect(ent!.sources.find((s: Source) => s.subscriptionId === "I-SUB2")!.periodEnd).toBe(NOW + 300 * DAY);
+  });
+
+  it("links a subscription whose first sale beats its activation", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    mockPaypal(true, (url) =>
+      url.includes("/v1/billing/subscriptions/I-SUB3")
+        ? jsonResponse({ id: "I-SUB3", status: "ACTIVE", plan_id: "P-YEARLY", custom_id: "order-3", subscriber: { email_address: "early@example.com" }, billing_info: { next_billing_time: iso(NOW + 365 * DAY) } })
+        : undefined,
+    );
+    await postWebhook(env, { id: "ev-sale3", event_type: "PAYMENT.SALE.COMPLETED", resource: { billing_agreement_id: "I-SUB3" } });
+    const ent = await repo.entitlementFor("early@example.com");
+    expect(ent).toMatchObject({ periodEnd: NOW + 365 * DAY, plan: "yearly", provider: "paypal" });
+    expect(ent!.refs).toEqual(expect.arrayContaining(["I-SUB3", "order-3"]));
   });
 
   it("keeps the period on cancellation", async () => {
     const { env, repo } = makeHarness(allProvidersEnv());
-    await repo.putRef("paypal", "I-SUB1", "buyer@example.com");
     const periodEnd = NOW + 15 * DAY;
-    await repo.putUser({
-      email: "buyer@example.com",
-      plan: "monthly",
-      provider: "paypal",
-      periodEnd,
-      status: "active",
-      subscriptionId: "I-SUB1",
-      refs: ["I-SUB1"],
-      updatedAt: NOW,
-    });
+    await seedPaypal(repo, { periodEnd });
     mockPaypal(true);
-    const res = await postWebhook(env, {
-      id: "ev-cancel",
-      event_type: "BILLING.SUBSCRIPTION.CANCELLED",
-      resource: { id: "I-SUB1" },
-    });
+    const res = await postWebhook(env, { id: "ev-cancel", event_type: "BILLING.SUBSCRIPTION.CANCELLED", resource: { id: "I-SUB1" } });
     expect(res.status).toBe(200);
-    const ent = await repo.getUser("buyer@example.com");
+    const ent = await repo.entitlementFor("buyer@example.com");
     expect(ent!.status).toBe("canceled");
     expect(ent!.periodEnd).toBe(periodEnd); // unchanged
   });
@@ -123,18 +147,8 @@ describe("paypal webhook", () => {
   it("is idempotent per event id", async () => {
     const { env, repo } = makeHarness(allProvidersEnv());
     mockPaypal(true);
-    const event = (nextBilling: number) => ({
-      id: "ev-dup",
-      event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
-      resource: {
-        id: "I-SUB1",
-        plan_id: "P-MONTHLY",
-        subscriber: { email_address: "buyer@example.com" },
-        billing_info: { next_billing_time: new Date(nextBilling * 1000).toISOString() },
-      },
-    });
-    await postWebhook(env, event(NOW + 30 * DAY));
-    await postWebhook(env, event(NOW + 90 * DAY)); // same id -> ignored
-    expect((await repo.getUser("buyer@example.com"))!.periodEnd).toBe(NOW + 30 * DAY);
+    await postWebhook(env, activated(NOW + 30 * DAY, "ev-dup"));
+    await postWebhook(env, activated(NOW + 90 * DAY, "ev-dup")); // same id -> ignored
+    expect((await repo.entitlementFor("buyer@example.com"))!.periodEnd).toBe(NOW + 30 * DAY);
   });
 });

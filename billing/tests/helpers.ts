@@ -101,3 +101,50 @@ export function stubFetch(handler: FetchStub) {
   vi.stubGlobal("fetch", fn);
   return fn;
 }
+
+// --- seeding the store the way the webhooks record purchases --------------------------------------
+
+type SeedRepo = Repo;
+
+/** A Stripe subscription as checkout.session.completed (and, with periodEnd, invoice.paid) records it. */
+export async function seedStripe(
+  repo: SeedRepo,
+  opts: { email?: string; sub?: string; session?: string; customer?: string; plan?: "monthly" | "yearly"; periodEnd?: number } = {},
+): Promise<void> {
+  const { email = "buyer@example.com", sub = "sub_1", session = "cs_1", customer = "cus_1", plan = "monthly" } = opts;
+  await repo.linkSubscription("stripe", sub, { email, plan, customerId: customer, refs: [session] });
+  if (opts.periodEnd !== undefined) await repo.recordPaid("stripe", sub, { email, periodEnd: opts.periodEnd, plan });
+}
+
+/** A PayPal subscription as BILLING.SUBSCRIPTION.ACTIVATED records it. */
+export async function seedPaypal(
+  repo: SeedRepo,
+  opts: { email?: string; sub?: string; order?: string; plan?: "monthly" | "yearly"; periodEnd?: number } = {},
+): Promise<void> {
+  const { email = "buyer@example.com", sub = "I-SUB1", plan = "monthly" } = opts;
+  await repo.linkSubscription("paypal", sub, { email, plan, refs: opts.order ? [opts.order] : [] });
+  if (opts.periodEnd !== undefined) await repo.recordPaid("paypal", sub, { email, periodEnd: opts.periodEnd, plan });
+}
+
+/** A crypto payment's prepaid period as a finished IPN records it. */
+export async function seedCrypto(
+  repo: SeedRepo,
+  opts: { email?: string; order?: string; payment?: string; plan?: "monthly" | "yearly"; at?: number } = {},
+): Promise<void> {
+  const { email = "buyer@example.com", order = "order-1", payment = "p1", plan = "monthly", at = NOW } = opts;
+  await repo.putCryptoOrder(order, { email, plan, status: "granted", paymentIds: [payment] });
+  await repo.putCryptoGrant(payment, { email, orderId: order, paymentId: payment, plan, days: plan === "yearly" ? 365 : 30, base: at, grantedAt: at });
+}
+
+/** A MemoryKV whose calls take 5–30 ms, like Workers KV seen from a Worker (for the race tests). */
+export class SlowKV extends MemoryKV {
+  private pause = () => new Promise((r) => setTimeout(r, 5 + Math.random() * 25));
+  override async get(key: string) {
+    await this.pause();
+    return super.get(key);
+  }
+  override async put(key: string, value: string, options?: { expirationTtl?: number }) {
+    await this.pause();
+    return super.put(key, value, options);
+  }
+}
