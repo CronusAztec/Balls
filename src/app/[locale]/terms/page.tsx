@@ -24,13 +24,14 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Terms" });
   const site = await getTranslations({ locale, namespace: "SiteRedesign" });
+  const billing = await getTranslations({ locale, namespace: "Billing" }); // --- paywall-gate --- the Pro subscriptions section
   const v = { siteName: SITE_NAME, siteDomain: SITE_DOMAIN };
   return (
     <ProseLayout
       eyebrow={site("footer.legal")}
       title={t("title")}
       meta={`${t("lastUpdated")}: ${legalDate(locale)}`}
-      toc={SECTIONS.map((id) => ({ id, label: t(`${id}.title`) }))}
+      toc={SECTIONS.flatMap((id) => [{ id, label: t(`${id}.title`) }, ...(id === "description" ? [{ id: "pro", label: billing("terms.title") }] : [])]) /* --- paywall-gate --- (the Pro section after the description) */}
       tocLabel={site("prose.onThisPage")}
     >
       <section id="acceptance">
@@ -40,6 +41,11 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
       <section id="description">
         <h2>{t("description.title")}</h2>
         <p>{t("description.content", v)}</p>
+      </section>
+      {/* --- paywall-gate --- the free playground and the Pro subscriptions */}
+      <section id="pro">
+        <h2>{billing("terms.title")}</h2>
+        <p>{billing("terms.content")}</p>
       </section>
       <section id="ugc">
         <h2>{t("ugc.title")}</h2>

@@ -5,6 +5,8 @@ import { offerPublishClip } from "./clips";
 import { getPublishController, sendPlan, type PublishController } from "./controller";
 import { PUBLISH_PLATFORMS, type PublishPlatform } from "./platforms";
 import type { ShareEnv, ShareNavigator } from "./share";
+import { EntitlementRequiredError, requireEntitlement } from "@/lib/billing/guard"; // --- paywall-gate ---
+import { requestUnlock } from "@/lib/billing/unlock"; // --- paywall-gate ---
 
 /*
  * --- desktop-exe --- The Publish feature's paths as one-click targets of the Windows app's Library (the extension point in
@@ -128,17 +130,30 @@ export async function shareLibraryClip(controller: PublishController, clip: Libr
   return { message: labels.shared(platform, controller.getSnapshot().share?.copied === true) };
 }
 
+/**
+ * --- paywall-gate --- The Library's Publish buttons send videos – a Pro feature: the guard first (a refusal opens the Unlock
+ * dialog and the Library's status line says why).
+ */
+async function proOnly<T>(send: () => Promise<T>): Promise<T> {
+  const decision = await requireEntitlement("publish");
+  if (!decision.ok) {
+    requestUnlock(decision);
+    throw new EntitlementRequiredError(decision);
+  }
+  return send();
+}
+
 /** Registers the Library's Publish targets; returns their unregistration. */
 export function registerDesktopPublishTargets(labels: DesktopPublishLabels, options: DesktopPublishOptions = {}): () => void {
   const controller = options.controller ?? getPublishController();
   const offs = [
-    registerPublishTarget({ id: "publish", label: labels.accounts, publish: (clip) => publishToAccounts(controller, clip, labels, options) }),
+    registerPublishTarget({ id: "publish", label: labels.accounts, publish: (clip) => proOnly(() => publishToAccounts(controller, clip, labels, options)) /* --- paywall-gate --- */ }),
     ...PUBLISH_PLATFORMS.map((platform) =>
       registerPublishTarget({
         id: `share-${platform}`,
         label: labels.share(platform),
         available: (item) => publishPlatformOf(item.meta.platform) === platform,
-        publish: (clip) => shareLibraryClip(controller, clip, platform, labels, options),
+        publish: (clip) => proOnly(() => shareLibraryClip(controller, clip, platform, labels, options)) /* --- paywall-gate --- */,
       }),
     ),
   ];

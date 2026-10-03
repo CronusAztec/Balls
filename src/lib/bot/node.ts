@@ -9,3 +9,6 @@ export { BOT_LOCALES, isBotLocale, copyString } from "./copy";
 export { DEFAULT_BOT_WORLD } from "./finderRequest";
 export { INSTAGRAM_ENV, InstagramError, instagramConfigFromEnv, publicVideoUrl, publishReel, redact } from "./instagram";
 export { RelayClient, RelayError } from "@/lib/publish/relayClient"; // --- social-publish --- the CLI's --relay path
+// --- paywall-gate --- rendering needs a Pro licence in the page: the CLI reads BOT_LICENSE's plan and end before it starts
+export { decodeLicense, licenseExpired } from "@/lib/billing/license";
+export { LICENSE_STORAGE_KEY } from "@/lib/billing/config";

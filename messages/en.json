@@ -13,7 +13,8 @@
     "goHome": "Go to Home",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "back": "Back"
+    "back": "Back",
+    "pricing": "Pricing"
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
@@ -1751,7 +1752,7 @@
   "FAQ": {
     "q1": {
       "question": "Is {siteName} free to use?",
-      "answer": "Yes. The simulator, every mode, every customisation option and the video export are free, and there is no account to create."
+      "answer": "Playing is free: every mode, every customisation option, the sound and Find Simulation, with no account to create. Recording and exporting the videos is part of Pro, for $10 a month or $79 a year."
     },
     "q2": {
       "question": "What video formats and resolutions can I export?",
@@ -1874,7 +1875,8 @@
     "feedback": "Feedback",
     "shortcuts": "Keyboard shortcuts",
     "pauseResume": "Pause/Resume",
-    "restart": "Restart"
+    "restart": "Restart",
+    "pricing": "Pricing"
   },
   "NotFound": {
     "title": "Page not found",
@@ -1921,7 +1923,7 @@
     },
     "retention": {
       "title": "6. Data Retention",
-      "content": "Analytics data is kept only in aggregate form. Because we collect no personally identifiable information there is no personal data to delete. Local storage data can be cleared at any time through your browser settings."
+      "content": "Analytics data is kept only in aggregate form. Apart from the billing details of a Pro purchase (see Payments below), we collect no personally identifiable information. Local storage data can be cleared at any time through your browser settings."
     },
     "children": {
       "title": "7. Children's Privacy",
@@ -2113,7 +2115,7 @@
     "badge": "About",
     "title": "About {siteName}",
     "p1": "{siteName} started with a simple frustration. Bouncing-ball physics videos were everywhere, pulling in millions of views, and every way of making one was clunky: learn a game engine, pay for an app, or repost a clip a thousand other accounts had already used. None of that suited someone who just wanted to make a good video and post it. So we built the tool we wished existed: open a tab, make the video, download it, done.",
-    "p2": "That idea still runs the whole site. {siteName} is free, works in your browser and asks nothing of you before you start. No sign-up, no install, no paywall between you and a finished clip. The defaults already produce something worth posting; everything after that is you shaping it to fit your idea.",
+    "p2": "That idea still runs the whole site. {siteName} is free, works in your browser and asks nothing of you before you start. No sign-up and no install: every mode and setting is yours to play with, and Pro adds the video export once a clip is ready to post. The defaults already produce something worth posting; everything after that is you shaping it to fit your idea.",
     "h2_1": "What we care about",
     "p3": "Speed and control, more than anything else. Speed, because the gap between an idea and a posted video is where most content dies; if a clip takes twenty minutes and three apps, you stop making clips. Control, because reposted content does not grow an account. When you set the mode, the colours, the pacing and the hook yourself, the video is yours and it stands a real chance in a feed that has seen every recycled clip.",
     "p4": "We also care about staying out of your way. The simulator updates as you change things, so you learn by doing rather than reading a manual. Settings have plain names. The hard part, the physics and the rendering, happens quietly in the background while you focus on whether the video is fun to watch.",
@@ -3375,7 +3377,7 @@
     "hero": {
       "eyebrow": "Ball physics studio",
       "title": "Satisfying ball physics, made for TikTok.",
-      "sub": "Tune the physics, pick one of {count} modes and export a vertical clip that is ready to post – free, in your browser, no account.",
+      "sub": "Tune the physics, pick one of {count} modes and play with every setting – free, in your browser, no account. Export the vertical clip, ready to post, with Pro.",
       "seeModes": "See the modes",
       "live": "Live",
       "preview": "Preview",
@@ -3383,7 +3385,7 @@
       "previewOpen": "Open {mode} in the studio",
       "statModes": "Modes",
       "statExport": "Export",
-      "statPrice": "Price",
+      "statPrice": "Playing",
       "statPriceValue": "Free"
     },
     "modesWall": {
@@ -3443,5 +3445,170 @@
     "canvasDoneBowl": "SETTLED!",
     "canvasDonePegs": "LANDED!",
     "canvasTimeUp": "TIME'S UP"
+  },
+  "Billing": {
+    "metaTitle": "Pricing – free playground, Pro video creation – {siteName}",
+    "metaDescription": "Play with every mode and setting of {siteName} for free. Pro unlocks recording and exporting the videos for {monthly} a month or {yearly} a year – by card, PayPal or crypto.",
+    "eyebrow": "Pricing",
+    "title": "Play for free. Go Pro to make the videos.",
+    "lede": "Every mode, every setting and every sound is free to play with, without an account. Pro adds everything that turns a run into a video file: Record Video, the fast export, batch renders, the viral bot's renders, Publish and the desktop app's render queue.",
+    "testMode": "Licensing is in test mode – payments are not configured yet.",
+    "why": "Recording and exporting videos is a Pro feature – everything else is free.",
+    "proTag": "Pro",
+    "proFeature": "Pro feature",
+    "plansTitle": "Pro plans",
+    "plansNote": "Pay monthly, or yearly and save {percent}%.",
+    "plan": {
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "perMonth": "/ month",
+      "perYear": "/ year",
+      "monthlyNote": "Renews every month. Cancel any time.",
+      "yearlyNote": "That is {price} a month, billed once a year.",
+      "save": "Save {percent}%"
+    },
+    "pay": {
+      "label": "Pay with",
+      "stripe": "Card (Stripe)",
+      "paypal": "PayPal",
+      "crypto": "Crypto – BTC, ETH, USDT and 300+ coins",
+      "stripeNote": "Apple Pay and Google Pay come with the card checkout.",
+      "cryptoNote": "Crypto buys a prepaid period of {days} days and cannot renew by itself – buy another period when it ends.",
+      "notConfigured": "Payments are not configured yet. Please check back soon.",
+      "redirecting": "Opening the checkout…",
+      "failed": "The checkout could not start: {message}",
+      "desktop": "The checkout opened in your browser. Once the payment is done, come back here and restore the purchase with the reference on your receipt.",
+      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there."
+    },
+    "email": {
+      "label": "Email",
+      "placeholder": "you@example.com",
+      "hint": "The card and crypto checkouts use it, and it restores the purchase on another device. PayPal uses the email of your PayPal account.",
+      "invalid": "That does not look like an email address."
+    },
+    "compare": {
+      "title": "Free and Pro",
+      "feature": "Feature",
+      "free": "Free",
+      "pro": "Pro",
+      "included": "Included",
+      "notIncluded": "Not included",
+      "playTitle": "Everything that plays",
+      "createTitle": "Everything that creates a video file",
+      "play": {
+        "modes": "Every mode and every setting",
+        "sound": "Sound, melodies and your own audio",
+        "finder": "Find Simulation and rigged outcomes",
+        "presets": "Presets, share links and project files",
+        "gallery": "The gallery, the daily challenge and split-screen races",
+        "editor": "The obstacle editor, captions and the timeline"
+      },
+      "create": {
+        "record": "Record Video – up to 1080×1920, with sound",
+        "fastExport": "Fast export – rendered offline, frame by frame",
+        "batch": "Batch render – many clips in one ZIP",
+        "bot": "The viral bot's renders",
+        "publish": "Publish to TikTok, Instagram and YouTube",
+        "desktop": "The desktop app's render queue and GPU encoding"
+      }
+    },
+    "claim": {
+      "title": "Your purchase",
+      "claiming": "Activating your licence…",
+      "pending": "Waiting for the network to confirm your payment. This page checks every few seconds – keep it open.",
+      "timeout": "The payment is not confirmed yet. Come back later and restore the purchase with your order reference.",
+      "success": "You are Pro until {date}.",
+      "failed": "The licence could not be activated: {message}",
+      "notConfigured": "Payments are not configured on this site, so the purchase cannot be activated here.",
+      "retry": "Try again",
+      "openStudio": "Open the studio"
+    },
+    "restore": {
+      "title": "Restore purchase",
+      "intro": "On another device or in another browser: enter the email you paid with and the reference on your receipt – the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
+      "ref": "Receipt reference",
+      "refPlaceholder": "sub_… · I-… · order id",
+      "refInvalid": "Copy the reference from your receipt (letters, digits, hyphens and underscores).",
+      "submit": "Restore",
+      "working": "Restoring…",
+      "success": "Restored – you are Pro until {date}.",
+      "failed": "Nothing could be restored: {message}"
+    },
+    "manage": {
+      "title": "Your licence",
+      "free": "This browser has no Pro licence. Buy a plan above, or restore a purchase below.",
+      "email": "Licensed to {email}",
+      "stripe": "Manage subscription",
+      "stripeHint": "Change the card or cancel in Stripe's customer portal.",
+      "paypal": "Manage on PayPal",
+      "paypalHint": "PayPal subscriptions are changed and cancelled in your PayPal account.",
+      "crypto": "Buy another period",
+      "cryptoHint": "A crypto period does not renew by itself: buy the next one before this one ends.",
+      "opening": "Opening…",
+      "failed": "The customer portal could not open: {message}",
+      "copyKey": "Copy licence key",
+      "copied": "Copied",
+      "copyHint": "The viral bot's command line takes this key as BOT_LICENSE.",
+      "remove": "Remove from this browser",
+      "removeConfirm": "Remove the licence from this browser? You can restore it later with your receipt."
+    },
+    "account": {
+      "label": "Account",
+      "checking": "Checking your licence…",
+      "free": "Free – unlock video creation",
+      "freeExpired": "Your Pro licence has ended – unlock video creation again",
+      "freeInvalid": "The saved licence was not valid – unlock video creation",
+      "pro": "Pro – {plan} until {date}",
+      "renews": "Pro – {plan}, renews on {date}",
+      "ends": "Pro – {plan}, ends on {date}",
+      "grace": "Pro – {plan}, payment pending, works until {date}",
+      "unlock": "Unlock",
+      "restore": "Restore",
+      "manage": "Manage"
+    },
+    "dialog": {
+      "title": "Unlock video creation",
+      "feature": "{feature} is part of Pro.",
+      "unlocked": "Your licence is active – close this and press the button again.",
+      "seePricing": "Compare Free and Pro",
+      "restore": "Already paid? Restore purchase",
+      "close": "Close"
+    },
+    "features": {
+      "record": "Record Video",
+      "fastExport": "The fast export",
+      "batch": "The batch render",
+      "bot": "Rendering the viral bot's clips",
+      "publish": "Publishing",
+      "renderQueue": "The desktop render queue",
+      "download": "Downloading rendered videos"
+    },
+    "licenseError": {
+      "malformed": "the licence is damaged.",
+      "header": "the licence is of an unknown kind.",
+      "payload": "the licence is incomplete.",
+      "signature": "the licence was not issued for this site.",
+      "expired": "the licence has already expired.",
+      "key": "this site cannot check licences right now."
+    },
+    "notes": {
+      "title": "Good to know",
+      "renew": "Card and PayPal subscriptions renew by themselves until you cancel – any time, with Manage subscription on this page.",
+      "crypto": "Crypto pays for a prepaid period (30 days on the monthly plan, 365 on the yearly one); nothing renews by itself.",
+      "licence": "Your licence is a signed key kept in this browser – the site needs no account and no password.",
+      "devices": "On another device or browser, restore the purchase with your email and the reference on your receipt."
+    },
+    "landing": {
+      "line": "Playing is free. Making the videos is Pro, from {price} a month.",
+      "link": "See pricing"
+    },
+    "privacy": {
+      "title": "Payments",
+      "content": "Pro is paid through the provider you choose – Stripe, PayPal or NOWPayments – on its own checkout page and under its own privacy policy; your card or wallet details never reach us. Our billing server keeps what it needs to issue, renew and restore your licence: your email, the plan, and the provider's payment or subscription reference. The licence itself is a signed key stored in your browser."
+    },
+    "terms": {
+      "title": "Pro subscriptions",
+      "content": "Playing with the simulator is free. Recording and exporting videos needs a Pro licence: $10 a month or $79 a year. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+    }
   }
 }

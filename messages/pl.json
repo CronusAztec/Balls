@@ -13,7 +13,8 @@
     "goHome": "Strona główna",
     "openMenu": "Otwórz menu",
     "closeMenu": "Zamknij menu",
-    "back": "Wróć"
+    "back": "Wróć",
+    "pricing": "Cennik"
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
@@ -1704,7 +1705,7 @@
     "conveyor": { "name": "Taśmociąg", "description": "Gerald odradza się co 3 sekundy: taśmociąg u góry wywozi z włazu piłkę za piłką i zrzuca je na arenę poniżej – do koncentrycznych pierścieni, z których trzeba uciec, do misy, która się zapełnia, albo na pole kołków nad przegródkami. Każde odbicie to nuta, taśma buczy i klika, a licznik prowadzi rachunek: Załadowano 17 / Uciekło 4." }
   },
   "FAQ": {
-    "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Tak. Symulator, wszystkie tryby, każda opcja personalizacji i eksport wideo są darmowe, a konta nie trzeba zakładać." },
+    "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Zabawa jest darmowa: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację, bez zakładania konta. Nagrywanie i eksport filmów należą do Pro – 10 $ miesięcznie lub 79 $ rocznie." },
     "q2": { "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?", "answer": "Możesz nagrywać klipy 500×500 (kwadrat), 1280×720 (HD), 1920×1080 (Full HD) i 1080×1920 (pionowo, TikTok) o długości od 10 do 120 sekund. Przeglądarki obsługujące nagrywanie MP4 eksportują MP4, pozostałe WebM." },
     "q3": { "question": "Czy mogę używać wyeksportowanych filmów komercyjnie?", "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie i możesz tego używać na TikToku, YouTube, Instagramie lub gdziekolwiek indziej, bez podawania źródła." },
     "q4": { "question": "Czy muszę coś instalować?", "answer": "Nie. Całe narzędzie działa w przeglądarce. Otwórz stronę i zacznij tworzyć." },
@@ -1796,7 +1797,8 @@
     "feedback": "Opinie",
     "shortcuts": "Skróty klawiszowe",
     "pauseResume": "Pauza/Wznów",
-    "restart": "Restart"
+    "restart": "Restart",
+    "pricing": "Cennik"
   },
   "NotFound": {
     "title": "Nie znaleziono strony",
@@ -1820,7 +1822,7 @@
     "howWeUse": { "title": "3. Jak wykorzystujemy informacje", "content": "Dane analityczne służą wyłącznie do zrozumienia, jak używana jest strona, abyśmy mogli ją ulepszać. Nie sprzedajemy, nie udostępniamy ani nie przekazujemy zebranych danych podmiotom trzecim w celach marketingowych." },
     "cookies": { "title": "4. Pliki cookie i śledzenie", "content": "Możemy używać minimalnej liczby plików cookie lub podobnych technologii do celów analitycznych i zapamiętania języka. Nie śledzą Cię one na innych stronach i nie zbierają danych osobowych." },
     "thirdParty": { "title": "5. Usługi podmiotów trzecich", "content": "Zewnętrzne usługi analityczne, jeśli są włączone, mogą zbierać anonimowe dane o użytkowaniu zgodnie z własną polityką prywatności." },
-    "retention": { "title": "6. Przechowywanie danych", "content": "Dane analityczne są przechowywane wyłącznie w formie zagregowanej. Ponieważ nie zbieramy danych osobowych, nie ma danych osobowych do usunięcia. Dane w pamięci lokalnej możesz w każdej chwili wyczyścić w ustawieniach przeglądarki." },
+    "retention": { "title": "6. Przechowywanie danych", "content": "Dane analityczne są przechowywane wyłącznie w formie zagregowanej. Poza danymi rozliczeniowymi zakupu Pro (zobacz Płatności poniżej) nie zbieramy danych osobowych. Dane w pamięci lokalnej możesz w każdej chwili wyczyścić w ustawieniach przeglądarki." },
     "children": { "title": "7. Prywatność dzieci", "content": "Serwis nie jest skierowany do dzieci poniżej 13. roku życia i świadomie nie zbieramy od nich danych osobowych." },
     "changes": { "title": "8. Zmiany w polityce", "content": "Możemy od czasu do czasu aktualizować tę politykę. Zmiany pojawią się na tej stronie wraz ze zaktualizowaną datą." },
     "adsenseNotice": {
@@ -1952,7 +1954,7 @@
     "badge": "O nas",
     "title": "O {siteName}",
     "p1": "{siteName} zaczął się od prostej frustracji. Filmy z fizyką odbijającej się piłki były wszędzie i zbierały miliony wyświetleń, a każdy sposób na ich zrobienie był toporny: nauczyć się silnika gier, zapłacić za aplikację albo ponownie opublikować klip, którego użyło już tysiąc innych kont. Nic z tego nie pasowało komuś, kto po prostu chciał zrobić dobry film i go opublikować. Zbudowaliśmy więc narzędzie, którego nam brakowało: otwórz kartę, zrób film, pobierz, gotowe.",
-    "p2": "Ten pomysł nadal napędza całą stronę. {siteName} jest darmowy, działa w przeglądarce i niczego od Ciebie nie wymaga przed startem. Bez rejestracji, instalacji i paywalla między Tobą a gotowym klipem. Domyślne ustawienia od razu dają coś wartego publikacji; reszta to Twoje dopasowanie do własnego pomysłu.",
+    "p2": "Ten pomysł nadal napędza całą stronę. {siteName} jest darmowy, działa w przeglądarce i niczego od Ciebie nie wymaga przed startem. Bez rejestracji i instalacji: każdy tryb i każde ustawienie są do Twojej dyspozycji, a Pro dodaje eksport filmu, gdy klip jest gotowy do publikacji. Domyślne ustawienia od razu dają coś wartego publikacji; reszta to Twoje dopasowanie do własnego pomysłu.",
     "h2_1": "Na czym nam zależy",
     "p3": "Na szybkości i kontroli, bardziej niż na czymkolwiek innym. Na szybkości, bo odległość między pomysłem a opublikowanym filmem to miejsce, gdzie umiera większość treści; jeśli klip wymaga dwudziestu minut i trzech aplikacji, przestajesz robić klipy. Na kontroli, bo ponownie publikowane treści nie rozwijają konta. Gdy sam ustalasz tryb, kolory, tempo i haczyk, film jest Twój i ma realną szansę w feedzie, który widział już każdy przetworzony klip.",
     "p4": "Zależy nam też na tym, aby nie wchodzić Ci w drogę. Symulator aktualizuje się w miarę zmian, więc uczysz się przez działanie, a nie czytanie instrukcji. Ustawienia mają proste nazwy. Trudna część, fizyka i rendering, dzieje się po cichu w tle, a Ty skupiasz się na tym, czy film jest przyjemny do oglądania.",
@@ -3214,7 +3216,7 @@
     "hero": {
       "eyebrow": "Studio fizyki piłek",
       "title": "Hipnotyzująca fizyka piłek, gotowa na TikToka.",
-      "sub": "Dostrój fizykę, wybierz jeden z {count} trybów i wyeksportuj pionowy klip gotowy do publikacji – za darmo, w przeglądarce, bez konta.",
+      "sub": "Dostrój fizykę, wybierz jeden z {count} trybów i baw się każdym ustawieniem – za darmo, w przeglądarce, bez konta. Pionowy klip gotowy do publikacji wyeksportujesz z Pro.",
       "seeModes": "Zobacz tryby",
       "live": "Na żywo",
       "preview": "Podgląd",
@@ -3222,7 +3224,7 @@
       "previewOpen": "Otwórz tryb {mode} w studiu",
       "statModes": "Tryby",
       "statExport": "Eksport",
-      "statPrice": "Cena",
+      "statPrice": "Zabawa",
       "statPriceValue": "Za darmo"
     },
     "modesWall": {
@@ -3282,5 +3284,170 @@
     "canvasDoneBowl": "UŁOŻONE!",
     "canvasDonePegs": "WYLĄDOWAŁY!",
     "canvasTimeUp": "KONIEC CZASU"
+  },
+  "Billing": {
+    "metaTitle": "Cennik – darmowa zabawa, filmy z Pro – {siteName}",
+    "metaDescription": "Wszystkie tryby i ustawienia {siteName} są darmowe. Pro odblokowuje nagrywanie i eksport filmów za {monthly} miesięcznie lub {yearly} rocznie – kartą, przez PayPal albo w kryptowalutach.",
+    "eyebrow": "Cennik",
+    "title": "Baw się za darmo. Filmy twórz z Pro.",
+    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez zakładania konta. Pro dodaje wszystko, co zamienia przebieg w plik wideo: Nagraj wideo, szybki eksport, renderowanie seryjne, filmy bota, publikowanie i kolejkę renderowania w aplikacji na komputer.",
+    "testMode": "Licencjonowanie działa w trybie testowym – płatności nie są jeszcze skonfigurowane.",
+    "why": "Nagrywanie i eksport filmów to funkcja Pro – cała reszta jest darmowa.",
+    "proTag": "Pro",
+    "proFeature": "Funkcja Pro",
+    "plansTitle": "Plany Pro",
+    "plansNote": "Płać co miesiąc albo raz w roku i oszczędzaj {percent}%.",
+    "plan": {
+      "monthly": "Miesięczny",
+      "yearly": "Roczny",
+      "perMonth": "/ miesiąc",
+      "perYear": "/ rok",
+      "monthlyNote": "Odnawia się co miesiąc. Możesz zrezygnować w każdej chwili.",
+      "yearlyNote": "To {price} miesięcznie, płatne raz w roku.",
+      "save": "Oszczędzasz {percent}%"
+    },
+    "pay": {
+      "label": "Zapłać przez",
+      "stripe": "Karta (Stripe)",
+      "paypal": "PayPal",
+      "crypto": "Krypto – BTC, ETH, USDT i ponad 300 monet",
+      "stripeNote": "Apple Pay i Google Pay są dostępne w płatności kartą.",
+      "cryptoNote": "Krypto opłaca z góry okres {days} dni i nie odnawia się samo – gdy się skończy, kup kolejny okres.",
+      "notConfigured": "Płatności nie są jeszcze skonfigurowane. Zajrzyj tu wkrótce.",
+      "redirecting": "Otwieranie płatności…",
+      "failed": "Nie udało się rozpocząć płatności: {message}",
+      "desktop": "Płatność otworzyła się w przeglądarce. Po zapłacie wróć tutaj i przywróć zakup numerem referencyjnym z potwierdzenia.",
+      "emailNeeded": "Najpierw podaj e-mail – płatność kryptowalutą wysyła na niego potwierdzenie."
+    },
+    "email": {
+      "label": "E-mail",
+      "placeholder": "ty@example.com",
+      "hint": "Używają go płatności kartą i kryptowalutą; przywraca też zakup na innym urządzeniu. PayPal korzysta z adresu Twojego konta PayPal.",
+      "invalid": "To nie wygląda na adres e-mail."
+    },
+    "compare": {
+      "title": "Darmowy i Pro",
+      "feature": "Funkcja",
+      "free": "Darmowy",
+      "pro": "Pro",
+      "included": "W zestawie",
+      "notIncluded": "Brak",
+      "playTitle": "Wszystko, co służy zabawie",
+      "createTitle": "Wszystko, co tworzy plik wideo",
+      "play": {
+        "modes": "Każdy tryb i każde ustawienie",
+        "sound": "Dźwięk, melodie i własne nagrania",
+        "finder": "Znajdź symulację i ustawione wyniki",
+        "presets": "Presety, linki do udostępniania i pliki projektów",
+        "gallery": "Galeria, wyzwanie dnia i wyścigi na podzielonym ekranie",
+        "editor": "Edytor przeszkód, napisy i oś czasu"
+      },
+      "create": {
+        "record": "Nagraj wideo – do 1080×1920, z dźwiękiem",
+        "fastExport": "Szybki eksport – renderowany klatka po klatce",
+        "batch": "Renderowanie seryjne – wiele klipów w jednym pliku ZIP",
+        "bot": "Filmy renderowane przez bota",
+        "publish": "Publikowanie na TikToku, Instagramie i YouTube",
+        "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
+      }
+    },
+    "claim": {
+      "title": "Twój zakup",
+      "claiming": "Aktywowanie licencji…",
+      "pending": "Czekamy, aż sieć potwierdzi płatność. Ta strona sprawdza to co kilka sekund – nie zamykaj jej.",
+      "timeout": "Płatność nie jest jeszcze potwierdzona. Wróć później i przywróć zakup numerem zamówienia.",
+      "success": "Masz Pro do {date}.",
+      "failed": "Nie udało się aktywować licencji: {message}",
+      "notConfigured": "Płatności nie są skonfigurowane na tej stronie, więc zakupu nie da się tu aktywować.",
+      "retry": "Spróbuj ponownie",
+      "openStudio": "Otwórz studio"
+    },
+    "restore": {
+      "title": "Przywróć zakup",
+      "intro": "Na innym urządzeniu lub w innej przeglądarce: podaj e-mail, którym płaciłeś, i numer referencyjny z potwierdzenia – identyfikator sesji lub subskrypcji Stripe, identyfikator subskrypcji PayPal albo numer zamówienia krypto.",
+      "ref": "Numer referencyjny",
+      "refPlaceholder": "sub_… · I-… · nr zamówienia",
+      "refInvalid": "Skopiuj numer z potwierdzenia (litery, cyfry, myślniki i podkreślenia).",
+      "submit": "Przywróć",
+      "working": "Przywracanie…",
+      "success": "Przywrócono – masz Pro do {date}.",
+      "failed": "Nie udało się niczego przywrócić: {message}"
+    },
+    "manage": {
+      "title": "Twoja licencja",
+      "free": "Ta przeglądarka nie ma licencji Pro. Kup plan powyżej albo przywróć zakup poniżej.",
+      "email": "Licencja dla {email}",
+      "stripe": "Zarządzaj subskrypcją",
+      "stripeHint": "Zmień kartę lub zrezygnuj w portalu klienta Stripe.",
+      "paypal": "Zarządzaj w PayPal",
+      "paypalHint": "Subskrypcje PayPal zmienia się i anuluje na koncie PayPal.",
+      "crypto": "Kup kolejny okres",
+      "cryptoHint": "Okres opłacony kryptowalutą nie odnawia się sam: kup następny, zanim ten się skończy.",
+      "opening": "Otwieranie…",
+      "failed": "Nie udało się otworzyć portalu klienta: {message}",
+      "copyKey": "Kopiuj klucz licencji",
+      "copied": "Skopiowano",
+      "copyHint": "Wiersz poleceń bota przyjmuje ten klucz jako BOT_LICENSE.",
+      "remove": "Usuń z tej przeglądarki",
+      "removeConfirm": "Usunąć licencję z tej przeglądarki? Możesz ją później przywrócić z potwierdzenia zakupu."
+    },
+    "account": {
+      "label": "Konto",
+      "checking": "Sprawdzanie licencji…",
+      "free": "Darmowy – odblokuj tworzenie filmów",
+      "freeExpired": "Twoja licencja Pro wygasła – odblokuj tworzenie filmów ponownie",
+      "freeInvalid": "Zapisana licencja była nieprawidłowa – odblokuj tworzenie filmów",
+      "pro": "Pro – {plan} do {date}",
+      "renews": "Pro – {plan}, odnowienie {date}",
+      "ends": "Pro – {plan}, kończy się {date}",
+      "grace": "Pro – {plan}, płatność w toku, działa do {date}",
+      "unlock": "Odblokuj",
+      "restore": "Przywróć",
+      "manage": "Zarządzaj"
+    },
+    "dialog": {
+      "title": "Odblokuj tworzenie filmów",
+      "feature": "{feature} należy do Pro.",
+      "unlocked": "Twoja licencja jest aktywna – zamknij to okno i naciśnij przycisk jeszcze raz.",
+      "seePricing": "Porównaj Darmowy i Pro",
+      "restore": "Już zapłaciłeś? Przywróć zakup",
+      "close": "Zamknij"
+    },
+    "features": {
+      "record": "Nagraj wideo",
+      "fastExport": "Szybki eksport",
+      "batch": "Renderowanie seryjne",
+      "bot": "Renderowanie klipów bota",
+      "publish": "Publikowanie",
+      "renderQueue": "Kolejka renderowania w aplikacji",
+      "download": "Pobieranie wyrenderowanych filmów"
+    },
+    "licenseError": {
+      "malformed": "licencja jest uszkodzona.",
+      "header": "licencja jest nieznanego rodzaju.",
+      "payload": "licencja jest niekompletna.",
+      "signature": "licencja nie została wydana dla tej strony.",
+      "expired": "licencja już wygasła.",
+      "key": "ta strona nie może teraz sprawdzać licencji."
+    },
+    "notes": {
+      "title": "Dobrze wiedzieć",
+      "renew": "Subskrypcje kartą i przez PayPal odnawiają się same, dopóki z nich nie zrezygnujesz – w każdej chwili, przez Zarządzaj subskrypcją na tej stronie.",
+      "crypto": "Kryptowaluta opłaca okres z góry (30 dni w planie miesięcznym, 365 w rocznym); nic nie odnawia się samo.",
+      "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce – strona nie potrzebuje konta ani hasła.",
+      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym z potwierdzenia."
+    },
+    "landing": {
+      "line": "Zabawa jest darmowa. Tworzenie filmów to Pro, od {price} miesięcznie.",
+      "link": "Zobacz cennik"
+    },
+    "privacy": {
+      "title": "Płatności",
+      "content": "Za Pro płacisz u wybranego dostawcy – Stripe, PayPal albo NOWPayments – na jego własnej stronie płatności i zgodnie z jego polityką prywatności; dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń przechowuje to, czego potrzebuje do wydania, odnowienia i przywrócenia licencji: Twój e-mail, plan oraz identyfikator płatności lub subskrypcji u dostawcy. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce."
+    },
+    "terms": {
+      "title": "Subskrypcje Pro",
+      "content": "Zabawa symulatorem jest darmowa. Nagrywanie i eksport filmów wymagają licencji Pro: 10 $ miesięcznie lub 79 $ rocznie. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
+    }
   }
 }
