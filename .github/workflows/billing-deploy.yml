@@ -1,0 +1,49 @@
+name: Deploy billing worker
+
+# --- billing-backend --- Manually deploys the Cloudflare Worker in billing/ (Stripe, PayPal and
+# NOWPayments subscriptions that issue signed licences). It is never triggered by a push: the site and
+# the Worker deploy independently, and the Worker holds live payment secrets. Run it from the Actions
+# tab after you have set the repository secrets below and the Worker's own secrets with `wrangler secret
+# put` (see billing/README.md).
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions -> Secrets):
+#   CLOUDFLARE_API_TOKEN   - a token with the "Edit Cloudflare Workers" permissions
+#   CLOUDFLARE_ACCOUNT_ID  - your Cloudflare account id
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: billing
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: billing/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Deploy with Wrangler
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: billing

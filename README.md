@@ -1289,3 +1289,17 @@ Web Audio are available.
 - The tool is free of external runtime dependencies beyond Next.js, React, next-intl and the two MIT muxers of the fast export (mp4-muxer, webm-muxer).
 - Uploaded images, MIDI files and sounds never leave the browser.
 - Melodies shipped in `public/notes` are short public-domain themes generated from note lists in `scripts/generate-midi.py`.
+
+<!-- --- billing-backend --- -->
+### Billing backend
+
+The playground is free; creating a video is a **Pro** feature ($10/month or $79/year, with cards,
+PayPal and crypto — BTC, ETH and the other popular coins). Because the site is a static export with no
+server of its own, payments and licence signing live in a small **Cloudflare Worker** in
+[`billing/`](billing/) (Stripe, PayPal and NOWPayments through their REST APIs, issuing short signed
+ES256 licences the browser verifies with a public key). It has its own package, tests and deploy and is
+kept out of the site's `tsc`/ESLint/Vitest/build. A non-developer, step-by-step setup — the accounts,
+the secrets, the webhook event lists, the two GitHub repository variables (`BILLING_API_URL`,
+`LICENSE_PUBLIC_KEY`) the site reads, test/sandbox testing and the trust model — is in
+[`billing/README.md`](billing/README.md); deploy it from the **Actions → "Deploy billing worker"**
+workflow.

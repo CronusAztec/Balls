@@ -1,0 +1,23 @@
+{
+  "name": "jumpingballslive-billing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Billing backend for JumpingBallsLive: a Cloudflare Worker that issues signed ES256 licences for Stripe, PayPal and NOWPayments (crypto) subscriptions.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "check": "tsc --noEmit",
+    "keygen": "node scripts/keygen.mjs",
+    "stripe-prices": "node scripts/stripe-create-prices.mjs",
+    "paypal-plans": "node scripts/paypal-create-plans.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.7",
+    "wrangler": "^3.95.0"
+  }
+}
