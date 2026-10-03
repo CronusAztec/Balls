@@ -75,6 +75,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Maze Escape** | A battle-family mode (`maze`, feature odd-maze) after oddplayground's maze reels ("who else thought that was blood"): a seeded perfect maze (6–40 columns on the slider, `mzc`; the rows follow the portrait field) with glowing green walls on near-black, a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls (`mzn`; the Teams roster colours and names the first six) queue in a chute above the entrance and drop in a moment apart, then move physically – a downward pull (`mzg`), perfectly elastic walls, their own speed (`mzs`) – in micro-steps against a cell-indexed wall grid, so no ball ever tunnels through a wall at any speed. A **brain** steers them by nudging the velocity at every cell centre: **bounce** (pure physics), **wall follower** (left, right or alternating hand, `mzh`) or **explorer** (prefers the cells it has not visited – a depth-first search) (`mzb`). Every cell a ball visits is painted in blood red (opacity `mzt`, colour `mztc`, or each ball's own colour `mzto`), every wall hit is a note whose pitch follows the cell's BFS distance to the exit – the melody climbs as a ball closes in – and the first ball through the exit wins (wall-break sound, shake, slow motion as the leader reaches the exit cell, the winner banner with its deadpan caption); the others keep going until every ball is out or the clip limit (`mzd`, then the ball nearest the exit wins). A HUD with a distance-to-exit bar per ball (`mzhud`), the "FLASHING LIGHTS" badge (`mzbg`), fog over the unvisited cells (`mzf`) and the wall colour (`mzwc`). Deterministic: Find Simulation searches the run length or the winner; the rigged forced winner steers the shortest way and the exit stays closed to the others until it is out |
 | **Conveyor Belt & timed respawns** | An escape-family mode (`conveyor`, feature gerald-conveyor) after the character-ball account's "conveyor belt loading" and "Gerald respawns every 3 seconds" clips: a conveyor belt across the top of the field (its tread moving, its rollers turning) carries a ball out of a hatch every **Drop Interval** seconds (0.5–10 on the slider, default 3; `cvi`) and drops it into the arena below, up to **Balls** (1–200 on the slider, default 8; `cvn`). The **Arena** (`cva`): **rings** – Classic's concentric rings with rotating gaps (Wall Count, Gap Size and Rotation apply) that every ball has to escape on its own (a note per ring passed, the wall-break sound and confetti per escape, the director's help for a ball stuck for long) while a second belt at the bottom carries the escaped ones away; **bowl** – a U-shaped container where the balls pile up and settle (about 30 of the Ball Size before the first one rolls over the rim), with an overflow counter; **pegs** – a Galton board of notes over bins. **Freeze on Landing** (`cvf`): a ball that lands freezes in place and becomes an obstacle, so the pile grows visibly (in the rings its freedom lasts four seconds); **Variety** (`cvv`) mixes the balls' sizes and colours – the first is always Gerald. The belt hums while it carries a ball and clicks when one drops, every bounce is a note through the ToneGenerator (melodies, instruments, hit samples, beat lock and the music bed apply), and a counter keeps score ("Loaded 17 / Escaped 4"). The schedule runs on the simulation clock and the run is seeded, so Find Simulation searches its length. Classic and Multiply get the same timer as **Respawn Every** (`respawnEvery`, URL `rse`, seconds, 0 = off): a new ball drops in from the top every N seconds |
 | **Moving exits & splat barriers** | Two options of the ring modes (feature gerald-exit-splat) after the character-ball account's "solving the case of the moving exit" and "Splat Barrier Demo" clips. **Exit Behaviour** (the end of the Wall section; Classic, Accumulation and Multiply – the ring modes with one exit a ring; URL `exit`): **Rotate** (the exits turn with their rings – the default), **Jump** (every ring's exit teleports to a new seeded spot of its ring every `exj` seconds, 1–10, or 0.2 s after a ball comes within `exs` degrees of it – a ball that reaches the doorway first gets out – with a flash where it was and where it lands), **Flee** (the exit runs away from the ball along its ring at up to `exf` degrees a second while the ball is within its sense: the ball has to out-run it) and **Shrink** (the exit narrows over `exj` seconds until it shuts, then opens again at least a quarter turn away). With a moving exit the rings hold still, and the exits move at every physics sub-step, so a gap pass is judged where the exit is at that moment. **Splat Barrier** (Visual section, after Wobbly Walls; every ring mode but Shatter and Color Match; URL `splat`): every wall hit leaves a splat of paint in the ball's colour, with drips, at the impact point on the inside of the wall – `sps` × the ball's radius (0.5–2) – and every splat is a solid circle of the obstacle layer, so the ball builds its own barrier; past `spm` splats (10–300) the oldest fade out, a splat drips off when an exit moves over it or its ring breaks, and when the barrier has kept every ball off the wall for 2.5 s the oldest one falls, so a run never locks up (Grow's splats only paint its ring). A landing plays a wet splat – a noise burst through a falling low-pass over a low blop, or the hit sample an octave down in sample mode. Both off by default and deterministic (the engine's seeded RNG): Find Simulation, links, presets, the fast export and the split-screen arenas replay them |
+| **Pricing & licences (Pro)** | The playground stays free – every mode, setting and sound, Find Simulation, presets and share links, the gallery, split-screen races, the obstacle editor, captions, the timeline and the daily challenge, with no account (feature paywall-gate). **Pro** – $10 a month or $79 a year (save 34 %), by card through Stripe Checkout (Apple Pay and Google Pay included), PayPal, or BTC, ETH, USDT and 300+ coins through NOWPayments (a prepaid period: crypto cannot renew by itself) – unlocks everything that creates a video file: Record Video, the fast export, the batch render, the viral bot's renders, Publish and the desktop app's render queue. Those buttons stay visible with a lock and a "Pro" tag and open the Unlock dialog; a `/pricing` page in every language holds the Free / Pro table, the plans, the purchase a checkout returns with, Manage subscription and Restore purchase, and an account row in the studio says Free or "Pro – <plan> until <date>". Licences are ES256-signed JWTs the backend (`billing/`) issues and the browser verifies with WebCrypto; without a configured key the site runs in a visible test mode (see [Pricing and licences](#pricing-and-licences)) |
 | **Bouncing Orbs** | A rhythm-family mode (`orbGrid`, feature orb-grid) after an Instagram account's "Satisfying physics simulation – N varied bouncing orbs" clips: a perspective field of glossy orbs – a grid, a hex grid, a disc or octagon rings of **Columns × Rows** orbs (`ogC` × `ogR`; 33 × 33 = 1089 by default, the count drawn as "1089 bouncing orbs" at the top of the clip; 70 × 70 = 4900 and any count typed, a run building at most 250,000) – over a blue-grid slab, a round plate, a grid or nothing, every orb bouncing straight up and down on its own spot. One **varied property** (bounciness, drop height, release delay, size, gravity or period, `ogV`) follows a **distribution** over the field (varied, corner to corner, centre outwards, rows, columns, spiral, ripple bands, checker, `ogD`) with a **spread** (`ogS`), the orbs released together, outside in, inside out, row by row or at random (`ogL`, stagger `ogT`): the heights form a wave surface – a rising sheet, a funnel, rings – that falls into phase at the **resolve moment** (`ogRes`) and dissolves again, and the run ends when every orb is at rest. Glossy, metallic, matte or glass orbs (`ogM`) coloured by height, ring, row, the Ball Colour or position (`ogP`) under a tilting (`ogE`), turning (`ogRot`) and auto-orbiting (`ogO`) camera; every landing a soft note of the scale (a row lands as a chord), or a sleep sound, a melody composed by the landings or metal clinks (`ogSnd`). Eight presets in the Presets group after the account's clips; Find Simulation searches a run length, a run still bouncing when the clip ends or the first in-phase moment at a chosen second; 1089 orbs run at ~56 fps on the page and ~37 fps while recording 1080×1920 (see the Bouncing Orbs section under How to extend it) |
 
 ## Design
@@ -153,6 +154,7 @@ Copy `.env.example` to `.env.local` to configure the build. Everything is option
 - Feedback channel, first one set wins: `NEXT_PUBLIC_FEEDBACK_ENDPOINT` (an endpoint that accepts a cross-origin JSON POST, e.g. Formspree, Basin or your own worker with CORS enabled), `NEXT_PUBLIC_FEEDBACK_EMAIL` (opens the visitor's email app) or `NEXT_PUBLIC_GITHUB_REPO` (opens a prefilled GitHub issue; needs a public repository with Issues on, and visitors need a GitHub account).
 - `NEXT_PUBLIC_ANALYTICS_SCRIPT_URL` / `NEXT_PUBLIC_ANALYTICS_SITE_ID` – load a privacy-friendly analytics script (Plausible, Umami, Rybbit…).
 - `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` / `NEXT_PUBLIC_PUBLISH_RELAY_URL` – --- social-publish --- the Publish block's Google OAuth client ID for direct YouTube uploads and the relay URL it suggests (both public; see "Publish").
+- `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` / `NEXT_PUBLIC_BILLING_API` – --- paywall-gate --- the licence public key (base64url SPKI; without it the site runs in test mode) and the billing Worker's origin (without it the pay buttons say payments are not configured); both public, see "Pricing and licences".
 
 `next build` reads `.env.local` (and `.env.production*`, `.env`); `npm start`, `npm run smoke` and `npm run previews` read them with
 Next's own loader (`@next/env`, in `scripts/dotenv.mjs`), so they see the same `NEXT_PUBLIC_BASE_PATH` and a base-path build previews correctly at `http://localhost:3000/<base path>/`. You can also pass it explicitly:
@@ -173,6 +175,8 @@ python3 scripts/generate-sounds.py         # regenerate the wall-break and hit s
 node scripts/generate-icons.mjs            # --- pwa --- rasterise public/icon.svg into the app icons in public/icons (Playwright's Chromium)
 node scripts/generate-og.mjs               # regenerate public/og.png, the social preview image of every page (build and `npm start` first)
 node relay/server.mjs                      # --- social-publish --- the self-hosted publish relay for TikTok, Instagram and YouTube (relay/README.md)
+node scripts/billing-keygen.mjs            # --- paywall-gate --- a production licence key pair: the Worker's secret, then the site's public key
+node scripts/lib/test-license.mjs          # --- paywall-gate --- prints a Pro licence signed with the committed TEST key (test-mode builds)
 ```
 
 ## Deploying to GitHub Pages
@@ -246,6 +250,7 @@ src/
   app/sitemap.ts, robots.ts
   components/site/      navbar, footer, language switcher, landing sections (hero with the live preview, modes wall), ProseLayout, forms
   components/ui/        the design kit: buttons, chips, fields, switches, dialogs and sheets, the rail tab strip, icons (see Design)
+  components/billing/   --- paywall-gate --- the Unlock dialog, the lock badge, the plan cards, the studio's account row, the pricing page's live parts
   components/simulator/ Simulator.tsx (page state) · Canvas.tsx (renderer) · boxRenderer.ts (Bouncing Shapes drawing) · pendulumRenderer.ts (Pendulum Wave drawing) · Controls.tsx (panel) · ControlPrimitives.tsx (Slider/Toggle/… helpers) · sections/*.tsx (feature blocks of the panel, e.g. BallDropSection.tsx, BoxArenaSection.tsx, PendulumWaveSection.tsx)
   i18n/                 next-intl routing + request config
   lib/physics/          engine.ts · director.ts · rigged.ts (the director's hard constraints: never escape, forced winner) · types.ts · extras.ts (drag, wind, spin, bounciness, breathing walls, rotating gravity) · interactions.ts (merge / split / pass) · obstacles.ts (pegs, bars, straight walls) · picturePaint.ts (Picture Paint settings, coverage and pacing maths) · modes/*.ts (drop.ts is the Ball Drop board, box.ts the Bouncing Shapes box, pendulum.ts the Pendulum Wave rig, paint.ts the Paint / Picture Paint mode)
@@ -256,6 +261,7 @@ src/
   lib/modes.ts          mode card order, the mode families (MODE_CATEGORY_IDS / MODE_CATEGORIES: escape / rhythm / battle / journey)
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
   lib/site.ts           site name (SITE_NAME, SITE_SLUG) and accent – see "Rebrand"; the domain derived from the site URL; base-path and URL helpers
+  lib/billing/          --- paywall-gate --- the licence contract (license.ts), the entitlement store, THE guard, the billing API client, plans and wording
   lib/project.ts        project files (.jumpingballslive.json): build, versioning / migration, validation · shareCode.ts (short ?c= share codes) · base64.ts
 ```
 
@@ -672,7 +678,9 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   WebM (Playwright's Chromium on Linux has neither; Google Chrome on Linux has no AAC encoder), so after rendering the CLI
   converts every WebM clip with ffmpeg (on `PATH`, or `FFMPEG_PATH`: `-c:v libx264 -pix_fmt yuv420p -r 60 -c:a aac -b:a 192k
   -movflags +faststart`), removes the WebM and points `manifest.json` and `posting-schedule.md` at the `.mp4`; without ffmpeg
-  the WebM stays, with a warning, and is never posted.
+  the WebM stays, with a warning, and is never posted. --- paywall-gate --- Rendering is a Pro feature: the CLI puts
+  `BOT_LICENSE` (your licence key – pricing page → Copy licence key) into the page before it loads, or, for a test-mode build,
+  a licence it signs with the committed TEST key, and stops with a clear message when the page refuses it.
 - **Scheduled job** – `.github/workflows/bot.yml`: every day at 05:47 UTC and by hand (inputs `count`, `platform`, `post`) it
   installs (with ffmpeg, when the runner lacks it, checked for its libx264 and aac encoders), builds with the Pages base path,
   serves `out/`, runs the CLI (which converts the WebM clips to MP4) and uploads `bot-output` as an artifact kept 14 days.
@@ -1083,6 +1091,103 @@ the shared ones in small `--- gerald-exit-splat ---` blocks.
   Shrink and sees the exit move, lets a forced winner out with each behaviour and keeps a shrinking exit on its spot under
   gap-size keyframes.
 
+### Pricing and licences
+Feature paywall-gate: the playground stays free and **Pro** – $10 a month or $79 a year (save 34 %) – unlocks video
+creation. The payments run on a Cloudflare Worker under [`billing/`](billing/README.md) (feature billing-backend, see
+[Billing backend](#billing-backend)), which takes them and issues
+signed licences; the site only verifies them. Everything lives in `src/lib/billing/` and `src/components/billing/`, wired
+into the shared files in small `--- paywall-gate ---` blocks.
+
+- **Free and Pro** – free, with no account and no limits: everything that plays – every mode, setting and slider, sound,
+  Find Simulation, presets, share links and project files, the gallery, split-screen races, the obstacle editor, captions,
+  the timeline and the daily challenge. Pro: everything that creates a video file – Record Video, the fast export, the batch
+  render, the viral bot's renders, Publish (send, quick share, retry and the desktop Library's publish targets), the desktop
+  app's render queue and GPU encode, and the downloads of rendered videos.
+- **Gating at the action, never by hiding** – the buttons stay visible with a lock badge (a padlock and a "Pro" tag, "Pro
+  feature" as tooltip and in the button's accessible name; `LockBadge.tsx`, shown to free visitors only, so a Pro user's
+  buttons look and are named as before) and their sections stay editable, so a free visitor can prepare everything. Pressing
+  one asks THE guard, `requireEntitlement()` in `src/lib/billing/guard.ts` (it waits for a licence check still in flight),
+  which returns a typed refusal (`free`, `expired`, `unverified`) that the caller turns into the Unlock dialog
+  (`requestUnlock()` in `unlock.ts`; `UnlockDialog.tsx`, mounted once by the simulator: one line of why, the two plans with
+  their pay buttons, links to the pricing page and to Restore purchase, the test-mode line, Escape and the close button).
+  The programmatic entry points ask the same guard – `VideoRecorder.startRecording()` (it keeps the refusal in
+  `lastRefusal()`), `renderFast()` (it throws `EntitlementRequiredError`), the batch runner (useBatchRender's start, which the
+  viral bot and the desktop queue go through too), the bot's `renderAll()`, the queue's `add()` / `start()` – so a call that
+  goes around the UI meets the refusal as well. The account row at the top of the Recording group (`AccountRow.tsx`) says
+  "Free – unlock video creation" or "Pro – <plan> until <date>" ("renews / ends on <date>" once the licence's exp is within 7
+  days, "payment pending" in the grace days; `accountView()` in `account.ts`), with Unlock or Manage, and Restore.
+- **The licence contract** (`license.ts`, shared with `billing/`; pure WebCrypto, no JWT dependency) – a JWT (RFC 7519) signed
+  with ES256, the signature being the raw 64-byte r‖s pair WebCrypto's ECDSA produces: `base64url(header).base64url(payload).
+  base64url(signature)`, header `{"alg":"ES256","typ":"JWT"}`, payload `{ sub: email (lower-cased, trimmed), plan: "monthly" |
+  "yearly", provider: "stripe" | "paypal" | "crypto", iat, exp: the paid period's end + 3 days of grace, jti }`. The site
+  imports the SPKI public key (`importKey("spki", …, { name: "ECDSA", namedCurve: "P-256" })`), verifies the signature over
+  `header.payload` and refuses a header that is not alg ES256 / typ JWT (or names critical extensions), a payload without
+  sub, plan or exp, and an exp in the past (60 s of clock skew allowed).
+- **The entitlement store** (`entitlement.ts`, a small live store, and its hook `useEntitlement()` →
+  `{ status: "checking" | "free" | "pro", plan, provider, email, expiresAt, testMode, dropped }`) – the raw token lives in
+  localStorage under `jbl.license`; the store verifies it when the page starts, when the window gets the focus and when
+  another tab changes it (the storage event), drops a token that is invalid or expired (the account row says which), turns
+  Free at the licence's exp while the page is open, and installs a claimed or restored licence only after verifying it.
+- **The billing API** (`api.ts`; base = `NEXT_PUBLIC_BILLING_API`, JSON bodies, CORS) – `GET /config` (prices, the providers
+  that are on – only those get a pay button –, the backend's test mode), `POST /checkout/stripe | /checkout/paypal |
+  /checkout/crypto` → `{ url }` (Stripe Checkout with Apple Pay and Google Pay; PayPal's approval page; a NOWPayments invoice
+  for BTC, ETH, USDT, USDC, SOL, DOGE, LTC, XRP, BNB, ADA, TRX and 300+ more – crypto buys a prepaid period, 30 days for $10 or
+  365 for $79, because it cannot renew by itself, and the UI says so), `POST /license/claim` → `{ token } | { pending } |
+  { error, message }`, `POST /license/restore` and `POST /portal/stripe` (the customer portal; its return link comes back
+  to the pricing page, sent as `returnUrl` – the Worker's fallback, the bare site origin, is not this site under a base
+  path). Every checkout gets the
+  pricing page of the buyer's language as `returnUrl` (without a query) and comes back with `?claim=<provider>&ref=<id>`,
+  which the page claims (a pending crypto payment is asked again every 5 s for up to 10 minutes). Every answer is read
+  defensively: a network error, a non-JSON body or an unknown shape is a message, never a throw; only an https address is
+  followed. Without `NEXT_PUBLIC_BILLING_API` nothing is sent anywhere and the pay buttons say that payments are not
+  configured yet. A subscription's licence is renewed quietly near its end through `/license/restore` with the receipt
+  reference it was claimed with (`renewQuietly()`, kept under `jbl.license.ref`). Inside the desktop app a checkout opens in
+  the system browser and the purchase is restored in the app afterwards: the app's page calls the Worker from its own
+  origin, `app://jumpingballslive`, which the Worker grants CORS (no web page can claim that origin).
+- **The pricing page** (`src/app/[locale]/pricing/page.tsx` with `PricingClient.tsx` and `PlanCards.tsx`; in every language,
+  the sitemap, the navbar, the footer and a line under the landing's call to action) – the Free / Pro table, the two plan
+  cards with "Card (Stripe)", "PayPal" and "Crypto – BTC, ETH, USDT and 300+ coins" and one email field (the card and crypto
+  checkouts use it; PayPal brings its own), the claim's states (claiming, waiting for the network, "You are Pro until
+  <date>", a failure with Restore), this browser's licence with Manage subscription (Stripe → the customer portal, PayPal →
+  paypal.com's automatic payments page, crypto → buy another period), Copy licence key and Remove, and Restore purchase (the
+  checkout email and the receipt reference: the Stripe session or subscription id, the PayPal subscription id or the crypto
+  order id). The privacy policy and the terms gained a Payments / Pro subscriptions section, and the copy that called the
+  video export free (the FAQ, About, the hero) now says what is free and what is Pro.
+- **Test mode** – a build without `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` verifies licences with the committed TEST key pair
+  (`tests/fixtures/license-test-key.json`, whose public half is `LICENSE_TEST_PUBLIC_KEY` in `config.ts`; `src/` never imports
+  the fixture). Anyone can sign licences with that key, so test mode is visible: a yellow "Licensing is in test mode –
+  payments are not configured yet" line on the pricing page and in the Unlock dialog, and one `console.info` when the store
+  starts. In test mode only, a `jbl.billingApi` localStorage key may point the page at another backend (a Worker under
+  `wrangler dev`, the smoke test's mock); a production build ignores it.
+- **Configuration** – `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` (base64url of the SPKI DER of the P-256 public key) and
+  `NEXT_PUBLIC_BILLING_API` (the Worker's origin) are public and baked in at build time; `deploy.yml` (the website) and
+  `desktop.yml` (the Windows app's site build) pass them from the repository variables `LICENSE_PUBLIC_KEY` and
+  `BILLING_API_URL` (Settings → Secrets and variables → Actions → Variables; empty while unset). `node
+  scripts/billing-keygen.mjs` makes a production key pair and prints two lines: `{"privateJwk":…}` for the Worker's secret
+  (`wrangler secret put LICENSE_PRIVATE_JWK` – the Worker takes that line as printed, or the bare JWK inside it) and the
+  public key for `LICENSE_PUBLIC_KEY` (`billing/scripts/keygen.mjs` prints the same format). Set both variables together: a
+  build with the API but without the key is in test mode and refuses the Worker's real licences.
+- **Tools that record** – `scripts/lib/test-license.mjs` signs licences with the TEST key in Node (`crypto.sign("sha256",
+  data, { key, dsaEncoding: "ieee-p1363" })` gives the raw r‖s form; `node scripts/lib/test-license.mjs [--plan monthly]
+  [--expired]` prints one). The smoke test installs one in every browser context it opens (`browser.newContext()` is wrapped
+  to add the init script; `license: null` opens a free one), so every recording, export, batch, bot and publish check runs as
+  a Pro user. The viral bot puts `BOT_LICENSE` (your licence key: pricing page → Copy licence key) into the page before it
+  loads, or – for a test-mode build – a test licence it signs itself, and stops with a clear message when the page refuses it.
+  The desktop app's `--smoke` run does not record, so it needs none.
+- **Honest limits** – the gate in the browser is advisory: the page's code runs on the visitor's machine, and a patched
+  browser can skip any check (or capture the canvas itself). What cannot be forged is the licence – an ES256 signature only
+  the Worker's private key makes, verified with the public key baked into the build. A licence is a bearer key bound to an
+  email, not to a device. Only rendering on a server would enforce video creation fully.
+- **Tests** – `tests/billingLicense.test.ts` (a good licence, expired, another key, a tampered payload or header, a foreign
+  algorithm, malformed tokens, DER signatures, the bot's licence), `tests/billingEntitlement.test.ts` (the store's
+  transitions, the focus and storage events, install / clear, the guard, the Unlock channel, the recorder refusing without a
+  licence), `tests/billingPlans.test.ts` (the plan maths: 34 % saving, 30 / 365 prepaid days, 3 grace days; the backend's
+  answers, the claim URL, the account row's wording, the quiet renewal, the Billing namespace in three languages). The smoke
+  test's paywall block opens a free visitor's studio (Record, the fast export and Render batch carry the lock and open the
+  Unlock dialog – no recording, no download), the pricing page in three languages and its links, a full checkout → claim with a
+  mocked backend (`page.route()`) that ends Pro and records, an expired and a foreign licence being dropped, Restore with the
+  mock, and the desktop group's locked queue.
+
 ### Bouncing Orbs (particlesflow family)
 The Instagram account particlesflow ("Particle flow", 124K followers, "Everything is simulated, not animated.") posts one format – "Satisfying physics simulation – N varied bouncing orbs", the count as the hook (484 to 4900 orbs; 1089 = 33 × 33 is the most liked) – with variants like "Corner to corner distribution" (44 × 43), "Centre outwards distribution" (22 × 20), "octagons dropping outside in", metallic orbs, "music composed by the bounces" and "sleep sound". Its clips show a perspective grid or disc of glossy orbs on a slab or a round plate in which every orb bounces straight up on its own spot with heights that vary smoothly across the field, so the whole set becomes a rising sheet, a funnel or rings that fall into phase and dissolve again, coloured by height and sounding a soft tone per landing.
 
@@ -1304,3 +1409,20 @@ Web Audio are available.
 - The tool is free of external runtime dependencies beyond Next.js, React, next-intl and the two MIT muxers of the fast export (mp4-muxer, webm-muxer).
 - Uploaded images, MIDI files and sounds never leave the browser.
 - Melodies shipped in `public/notes` are short public-domain themes generated from note lists in `scripts/generate-midi.py`.
+
+<!-- --- billing-backend --- -->
+## Billing backend
+
+The playground is free; creating a video is a **Pro** feature ($10/month or $79/year, with cards,
+PayPal and crypto — BTC, ETH and the other popular coins). Because the site is a static export with no
+server of its own, payments and licence signing live in a small **Cloudflare Worker** in
+[`billing/`](billing/) (Stripe, PayPal and NOWPayments through their REST APIs, issuing short signed
+ES256 licences the browser verifies with a public key). It has its own package, tests and deploy and is
+kept out of the site's `tsc`/ESLint/Vitest/build. A non-developer, step-by-step setup — the accounts,
+the secrets, the webhook event lists, the two GitHub repository variables (`BILLING_API_URL`,
+`LICENSE_PUBLIC_KEY`) the site reads, test/sandbox testing and the trust model — is in
+[`billing/README.md`](billing/README.md); deploy it from the **Actions → "Deploy billing worker"**
+workflow (it type-checks and runs the Worker's own suite first: `cd billing && npm ci && npm run check && npm test`).
+The site's half of the contract – the Unlock dialog, the licence store, the guard, test mode – is described in
+[Pricing and licences](#pricing-and-licences); `src/lib/billing/api.ts` and `src/lib/billing/license.ts` document the
+endpoints and the licence format both sides share.

@@ -15,6 +15,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { loadDotEnv } from "./dotenv.mjs";
+import { LICENSE_STORAGE_KEY, installLicenseScript, signForeignLicense, signTestLicense } from "./lib/test-license.mjs"; // --- paywall-gate ---
 
 loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
@@ -25,6 +26,21 @@ fs.mkdirSync(outDir, { recursive: true });
 const launchOpts = { args: ["--autoplay-policy=no-user-gesture-required"] };
 if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
 const browser = await chromium.launch(launchOpts);
+// --- paywall-gate --- Video creation is Pro: every context of the suite – the main one below and every one a check opens –
+// starts with a licence signed by the committed TEST key (a build without NEXT_PUBLIC_LICENSE_PUBLIC_KEY verifies with that
+// key), put into localStorage by an init script before any page script runs, so every recording, export, batch, bot and
+// publish check runs as a Pro user. The paywall checks (before the summary) open contexts with `license: null` (a free
+// visitor) or with a licence of their own.
+const PRO_LICENSE = signTestLicense({ sub: "smoke@example.com", plan: "yearly", provider: "stripe", days: 400 });
+{
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async ({ license = PRO_LICENSE, ...options } = {}) => {
+    const context = await newContext(options);
+    if (license) await context.addInitScript(installLicenseScript, { key: LICENSE_STORAGE_KEY, token: license });
+    return context;
+  };
+}
+// --- end paywall-gate ---
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
 const page = await ctx.newPage();
 const errors = [];
@@ -9815,6 +9831,294 @@ const bdInstrument = () =>
   );
 }
 // --- end gerald-exit-splat ---
+
+// --- paywall-gate --- The paywall. A free visitor (a context without a licence) plays freely but meets the lock on every
+// video-creating action: Record Video, the fast export and the batch carry the lock and open the Unlock dialog instead of
+// starting (no recording state, no download). The pricing page shows both plans with the three pay methods and the test-mode
+// line in every language, is linked from the navbar and the footer and is in the sitemap. With a mocked billing backend
+// (page.route() on a same-origin path the test-mode build is pointed at through "jbl.billingApi") a checkout comes back with
+// ?claim=…&ref=…, the claim ends Pro and Record Video then records; Restore unlocks too. An expired licence is dropped, one
+// signed with another key is refused, and the desktop group's queue is locked for a free visitor.
+{
+  const MOCK = `${ORIGIN}${BASE_PATH}/__billing-mock`;
+  const payErrors = [];
+  const watchPage = (p) => {
+    p.on("pageerror", (e) => payErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && payErrors.push(`console: ${m.text()}`));
+  };
+  const stored = (p) => p.evaluate((key) => localStorage.getItem(key), LICENSE_STORAGE_KEY);
+  const lockCount = (p) => p.locator("[data-pro-lock]").count();
+  const dialogFeature = (p) => p.getByTestId("unlock-dialog").getAttribute("data-unlock-feature").catch(() => null);
+  /** The mocked billing backend: /config, the Stripe checkout (back to its returnUrl with a claim), the claim and Restore. */
+  const mockBilling = async (p, { claimToken, restoreToken, calls }) => {
+    await p.route(`${MOCK}/**`, async (route) => {
+      const req = route.request();
+      const pathName = new URL(req.url()).pathname.slice(new URL(MOCK).pathname.length);
+      const body = req.postData() ? JSON.parse(req.postData()) : null;
+      calls.push({ path: pathName, body });
+      const json = (status, data) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
+      if (pathName === "/config") return json(200, { plans: { monthly: { usd: 10 }, yearly: { usd: 79 } }, providers: { stripe: true, paypal: true, crypto: true }, testMode: true });
+      if (pathName === "/checkout/stripe") return json(200, { url: `${body.returnUrl}?claim=stripe&ref=cs_test_smoke1` });
+      if (pathName === "/license/claim") return json(200, body && body.ref === "cs_test_smoke1" ? { token: claimToken } : { error: "not_found", message: "Unknown checkout" });
+      if (pathName === "/license/restore") return body && body.email === "buyer@example.com" && body.ref === "sub_SMOKE123" ? json(200, { token: restoreToken }) : json(404, { error: "not_found", message: "No purchase with this email and reference" });
+      return json(404, { error: "not_found", message: "unknown endpoint" });
+    });
+  };
+  const contexts = [];
+  const open = async (license, override = false) => {
+    const c = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, license });
+    contexts.push(c);
+    if (override) await c.addInitScript((url) => localStorage.setItem("jbl.billingApi", url), MOCK);
+    const p = await c.newPage();
+    watchPage(p);
+    return p;
+  };
+  try {
+    // 1. A free visitor: the locks, and the Unlock dialog instead of a recording, a fast export or a batch.
+    {
+      const fp = await open(null);
+      let downloaded = 0;
+      fp.on("download", () => downloaded++);
+      await fp.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
+      await fp.waitForFunction(() => document.querySelectorAll("[data-pro-lock]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+      const record = fp.getByRole("button", { name: /Record Video/ });
+      const fast = fp.getByRole("button", { name: /Fast export/ });
+      const locks = { record: await record.locator("[data-pro-lock]").count(), fast: await fast.locator("[data-pro-lock]").count(), title: await record.locator("[data-pro-lock]").getAttribute("title").catch(() => null), name: await record.evaluate((b) => b.textContent ?? "") };
+      await record.click();
+      const recordDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const recordInfo = {
+        feature: await dialogFeature(fp),
+        plans: await fp.getByTestId("unlock-dialog").locator('[data-testid="plan-monthly"], [data-testid="plan-yearly"]').count(),
+        pays: await fp.getByTestId("unlock-dialog").locator("[data-pay]").count(),
+        testMode: await fp.getByTestId("unlock-dialog").getByTestId("billing-test-mode").isVisible().catch(() => false),
+        pricingLink: await fp.getByTestId("unlock-pricing-link").getAttribute("href").catch(() => null),
+        restoreLink: await fp.getByTestId("unlock-restore-link").getAttribute("href").catch(() => null),
+        recording: await fp.getByRole("button", { name: /Stop & Export/ }).count(),
+        started: await fp.getByRole("button", { name: /Start Simulator/ }).isVisible().catch(() => false),
+      };
+      await fp.keyboard.press("Escape");
+      const escClosed = await fp.getByTestId("unlock-dialog").waitFor({ state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
+      await fast.click();
+      const fastDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const fastInfo = { feature: await dialogFeature(fp), state: await fp.locator("[data-fast-export]").first().getAttribute("data-fast-export").catch(() => null) };
+      await fp.getByTestId("unlock-dialog").locator("xpath=ancestor::dialog").getByRole("button", { name: "Close", exact: true }).click().catch(() => {});
+      const closeClosed = await fp.getByTestId("unlock-dialog").waitFor({ state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
+      // the batch: its block stays editable, Render batch carries the lock and opens the dialog
+      await fp.getByRole("button", { name: /Recording/ }).click();
+      const account = await fp.getByTestId("billing-account").innerText().catch(() => "");
+      const accountStatus = await fp.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null);
+      const batch = fp.locator("[data-batch]");
+      const batchButton = batch.getByRole("button", { name: /Render batch/ });
+      const batchLock = await batchButton.locator("[data-pro-lock]").count();
+      const editable = await fp.locator("#batch-count").isEnabled().catch(() => false);
+      await batchButton.click();
+      const batchDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const batchInfo = { feature: await dialogFeature(fp), state: await batch.getAttribute("data-batch").catch(() => null) };
+      await fp.keyboard.press("Escape");
+      await fp.waitForTimeout(1500);
+      check(
+        "paywall: a free visitor's Record Video, fast export and Render batch carry the lock (a Pro feature tooltip) and open the Unlock dialog instead of starting – no recording, no download",
+        locks.record === 1 && locks.fast === 1 && locks.title === "Pro feature" && /Pro feature/.test(locks.name) &&
+          recordDialog && recordInfo.feature === "record" && recordInfo.plans === 2 && recordInfo.pays === 6 && recordInfo.testMode && recordInfo.pricingLink === `${BASE_PATH}/en/pricing/` && recordInfo.restoreLink === `${BASE_PATH}/en/pricing/#restore` && recordInfo.recording === 0 && recordInfo.started && escClosed &&
+          fastDialog && fastInfo.feature === "fastExport" && fastInfo.state === "idle" && closeClosed &&
+          /Free – unlock video creation/.test(account) && accountStatus === "free" && batchLock === 1 && editable && batchDialog && batchInfo.feature === "batch" && batchInfo.state === "idle" && downloaded === 0,
+        `(${JSON.stringify({ locks, recordDialog, recordInfo, escClosed, fastDialog, fastInfo, closeClosed, account, accountStatus, batchLock, editable, batchDialog, batchInfo, downloaded })})`,
+      );
+      await fp.screenshot({ path: path.join(outDir, "paywall-free-studio.png") });
+
+      // 2. The pricing page in every language: both plans, the three pay methods, the Free / Pro table, the test-mode line.
+      const pricing = {};
+      for (const locale of ["en", "pl", "es"]) {
+        const res = await fp.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "networkidle" });
+        await fp.waitForFunction(() => document.querySelector('[data-testid="plan-cards"]')?.getAttribute("data-billing-config") === "unconfigured", null, { timeout: 10000 }).catch(() => {});
+        pricing[locale] = await fp.evaluate(() => ({
+          h1: document.querySelector("h1")?.textContent ?? "",
+          prices: ["monthly", "yearly"].map((p) => document.querySelector(`[data-testid="price-${p}"]`)?.textContent ?? ""),
+          pays: ["monthly", "yearly"].map((p) => [...document.querySelectorAll(`[data-testid="plan-${p}"] [data-pay]`)].map((b) => b.getAttribute("data-pay")).join(",")),
+          save: document.querySelector('[data-testid="plan-yearly"]')?.textContent?.includes("34") ?? false,
+          testMode: !!document.querySelector('[data-testid="billing-test-mode"]'),
+          rows: document.querySelectorAll("[data-compare-row]").length,
+          proOnly: document.querySelectorAll('[data-compare-free="0"]').length,
+          restore: !!document.querySelector('[data-testid="billing-restore"]'),
+          lang: document.documentElement.lang,
+        }));
+        pricing[locale].status = res.status();
+      }
+      await fp.screenshot({ path: path.join(outDir, "paywall-pricing-es.png"), fullPage: true });
+      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && p.prices[0].includes("10") && p.prices[1].includes("79") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 12 && p.proOnly === 6 && p.restore;
+      const sitemapXml = await (await fp.request.get(`${BASE}/sitemap.xml`)).text();
+      await fp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+      const navHref = await fp.locator("header").getByRole("link", { name: "Pricing", exact: true }).first().getAttribute("href").catch(() => null);
+      const footerHref = await fp.locator("footer").getByRole("link", { name: "Pricing", exact: true }).first().getAttribute("href").catch(() => null);
+      const heroHref = await fp.getByTestId("hero-pricing").getByRole("link").getAttribute("href").catch(() => null);
+      check(
+        "paywall: /pricing/ shows both plans ($10 a month, $79 a year, save 34%) with Card, PayPal and Crypto, the Free / Pro table and the test-mode line in English, Polish and Spanish; the navbar, the footer and the landing's call to action link it and it is in the sitemap",
+        ["en", "pl", "es"].every((l) => pricingOk(pricing[l], l)) && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/pricing/`)) && navHref === `${BASE_PATH}/en/pricing/` && footerHref === `${BASE_PATH}/en/pricing/` && heroHref === `${BASE_PATH}/en/pricing/`,
+        `(${JSON.stringify(pricing)}, nav ${navHref}, footer ${footerHref}, hero ${heroHref})`,
+      );
+      // without a billing backend the pay buttons only say so (nothing is sent anywhere)
+      await fp.goto(`${BASE}/en/pricing/`, { waitUntil: "networkidle" });
+      await fp.locator('[data-testid="plan-yearly"] [data-pay="crypto"]').click();
+      const unconfigured = await fp.getByTestId("billing-pay-note").innerText().catch(() => "");
+      check("paywall: without a billing backend the pay buttons say that payments are not configured yet", /not configured yet/.test(unconfigured), `("${unconfigured}")`);
+    }
+
+    // 3. A checkout with the mocked backend: Card (Stripe) → back with ?claim=stripe&ref=… → claimed → Pro; Record then records.
+    {
+      const claimToken = signTestLicense({ sub: "buyer@example.com", plan: "yearly", provider: "stripe", days: 368 });
+      const calls = [];
+      const cp = await open(null, true);
+      await mockBilling(cp, { claimToken, restoreToken: claimToken, calls });
+      await cp.goto(`${BASE}/en/pricing/`, { waitUntil: "networkidle" });
+      await cp.waitForFunction(() => document.querySelector('[data-testid="plan-cards"]')?.getAttribute("data-billing-config") === "ready", null, { timeout: 10000 }).catch(() => {});
+      await cp.getByTestId("billing-email").fill("Buyer@Example.com");
+      await Promise.all([cp.waitForURL(/claim=stripe/, { timeout: 15000 }).catch(() => {}), cp.locator('[data-testid="plan-yearly"] [data-pay="stripe"]').click()]);
+      const claimed = await cp.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "success", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const claimText = await cp.getByTestId("billing-claim").innerText().catch(() => "");
+      const token = await stored(cp);
+      const cleanUrl = !cp.url().includes("claim=");
+      const checkout = calls.find((c) => c.path === "/checkout/stripe")?.body ?? null;
+      const claim = calls.find((c) => c.path === "/license/claim")?.body ?? null;
+      const licence = await cp.getByTestId("billing-licence").getAttribute("data-licence").catch(() => null);
+      await cp.screenshot({ path: path.join(outDir, "paywall-claimed.png"), fullPage: true });
+      // the studio: no locks, the account row says Pro, and Record Video records and downloads
+      await cp.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
+      await cp.waitForTimeout(800);
+      const locks = await lockCount(cp);
+      let size = 0;
+      const download = await Promise.all([
+        cp.waitForEvent("download", { timeout: 40000 }).catch(() => null),
+        (async () => {
+          await cp.getByRole("button", { name: /Record Video/ }).click();
+          await cp.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).catch(() => {});
+          await cp.waitForTimeout(2000);
+          await cp.getByRole("button", { name: /Stop & Export/ }).click().catch(() => {});
+        })(),
+      ]).then(([d]) => d);
+      if (download) {
+        const file = path.join(outDir, `paywall-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        size = fs.statSync(file).size;
+      }
+      await cp.getByRole("button", { name: /Recording/ }).click();
+      const account = await cp.getByTestId("billing-account").innerText().catch(() => "");
+      check(
+        "paywall: a checkout with the mocked backend comes back with ?claim=stripe&ref=…, the claim ends Pro (“You are Pro until …”, the licence stored) and Record Video then records and downloads",
+        !!checkout && checkout.plan === "yearly" && checkout.email === "Buyer@Example.com" && checkout.locale === "en" && checkout.returnUrl === `${BASE}/en/pricing/` &&
+          !!claim && claim.provider === "stripe" && claim.ref === "cs_test_smoke1" && claimed && /You are Pro until/.test(claimText) && token === claimToken && cleanUrl && licence === "pro" &&
+          locks === 0 && size > 10000 && /Pro – Yearly until/.test(account),
+        `(${JSON.stringify({ checkout, claim, claimed, claimText, stored: token === claimToken, cleanUrl, licence, locks, size, account })})`,
+      );
+    }
+
+    // 4. An expired licence is dropped; one signed with another key is refused – both leave a free visitor.
+    {
+      const dropped = {};
+      for (const [kind, license] of [
+        ["expired", signTestLicense({ days: -2 })],
+        ["foreign", signForeignLicense({ days: 30 })],
+      ]) {
+        const p = await open(license);
+        await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+        await p.waitForFunction(() => document.querySelectorAll("[data-pro-lock]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+        await p.getByRole("button", { name: /Recording/ }).click();
+        dropped[kind] = { locks: await lockCount(p), stored: await stored(p), account: await p.getByTestId("billing-account").innerText().catch(() => ""), status: await p.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null) };
+        await p.getByRole("button", { name: /Record Video/ }).click();
+        dropped[kind].dialog = await p.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+        await p.close();
+      }
+      check(
+        "paywall: an expired licence is dropped and one signed with another key is refused – the locks stay, the account row says why, Record opens the Unlock dialog",
+        dropped.expired.locks >= 3 && dropped.expired.stored === null && /has ended/.test(dropped.expired.account) && dropped.expired.status === "free" && dropped.expired.dialog &&
+          dropped.foreign.locks >= 3 && dropped.foreign.stored === null && /not valid/.test(dropped.foreign.account) && dropped.foreign.status === "free" && dropped.foreign.dialog,
+        `(${JSON.stringify(dropped)})`,
+      );
+    }
+
+    // 5. Restore purchase with the mocked backend: a wrong reference says so, the right one unlocks.
+    {
+      const restoreToken = signTestLicense({ sub: "buyer@example.com", plan: "monthly", provider: "paypal", days: 33 });
+      const calls = [];
+      const rp = await open(null, true);
+      await mockBilling(rp, { claimToken: restoreToken, restoreToken, calls });
+      await rp.goto(`${BASE}/en/pricing/#restore`, { waitUntil: "networkidle" });
+      await rp.getByTestId("billing-restore-email").fill("buyer@example.com");
+      await rp.getByTestId("billing-restore-ref").fill("sub_WRONG");
+      await rp.getByTestId("billing-restore-submit").click();
+      const wrong = await rp.waitForFunction(() => document.querySelector('[data-testid="billing-restore"]')?.getAttribute("data-restore-state") === "failed", null, { timeout: 10000 }).then(() => true).catch(() => false);
+      const wrongText = await rp.getByTestId("billing-restore").innerText().catch(() => "");
+      await rp.getByTestId("billing-restore-ref").fill("sub_SMOKE123");
+      await rp.getByTestId("billing-restore-submit").click();
+      const restored = await rp.waitForFunction(() => document.querySelector('[data-testid="billing-restore"]')?.getAttribute("data-restore-state") === "success", null, { timeout: 10000 }).then(() => true).catch(() => false);
+      const licence = { state: await rp.getByTestId("billing-licence").getAttribute("data-licence").catch(() => null), provider: await rp.getByTestId("billing-licence").getAttribute("data-licence-provider").catch(() => null), manage: await rp.getByTestId("billing-manage").getAttribute("href").catch(() => null) };
+      const token = await stored(rp);
+      await rp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+      await rp.waitForTimeout(800);
+      const locks = await lockCount(rp);
+      check(
+        "paywall: Restore purchase with the mocked backend – a wrong reference says nothing was found, the right one unlocks (PayPal's Manage link, no locks in the studio)",
+        wrong && /No purchase with this email and reference/.test(wrongText) && restored && token === restoreToken && licence.state === "pro" && licence.provider === "paypal" && /paypal\.com/.test(licence.manage ?? "") && locks === 0,
+        `(${JSON.stringify({ wrong, wrongText: wrongText.slice(-90), restored, stored: token === restoreToken, licence, locks, calls: calls.map((c) => c.path) })})`,
+      );
+    }
+
+    // 6. The desktop group (a stand-in window.desktop) for a free visitor: Add to queue and Start carry the lock, Add opens the dialog.
+    {
+      const fakeBridge = `(() => {
+        const prefs = { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: "m", aiGpu: "auto" };
+        const none = async () => null;
+        window.desktop = {
+          apiVersion: 1,
+          info: async () => ({ appName: "JumpingBallsLive", version: "9.9.9", electron: "44", chrome: "146", platform: "win32", arch: "x64", packaged: true, dataDir: "C:/x", logFile: "main.log", smoke: false }),
+          log: () => {}, openLogs: none,
+          prefs: { get: async () => prefs, set: async (p) => Object.assign(prefs, p) },
+          gpu: { status: async () => ({ devices: [], features: {}, hardwareVideoEncode: false, hardwareVideoDecode: false, webgpu: false, switches: [], disabled: false }), probeEncoders: async () => ({ ffmpeg: null, encoders: [], chosen: { h264: null, hevc: null, av1: null }, error: null }), benchmark: async () => [] },
+          dialogs: { pickFolder: none, pickMedia: none },
+          render: { save: async () => { throw new Error("no render for a free visitor"); }, cancel: none },
+          journal: { load: none, save: none },
+          library: { list: async () => [], remove: async () => [], reveal: none, open: none, openFolder: none, read: none },
+          ai: { status: async () => ({ provider: "local", ready: false, local: { model: null, loaded: false, backend: null, gpuLayers: 0, error: null }, cloud: { provider: "anthropic", baseUrl: "", model: "", hasKey: false, encryption: true } }), models: async () => [], downloadModel: async () => [], cancelDownload: none, importModel: async () => [], selectModel: none, removeModel: async () => [], chat: none, cancel: none, setCloud: none, clearCloudKey: none, playbook: async () => "" },
+          update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: none },
+          on: () => () => {},
+        };
+      })();`;
+      const dctx = await browser.newContext({ viewport: { width: 1400, height: 1000 }, license: null });
+      contexts.push(dctx);
+      await dctx.addInitScript(fakeBridge);
+      const dp = await dctx.newPage();
+      watchPage(dp);
+      await dp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+      const shown = await dp.getByTestId("desktop-queue").waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+      await dp.waitForFunction(() => !!document.querySelector('[data-testid="queue-add"] [data-pro-lock]'), null, { timeout: 10000 }).catch(() => {});
+      const addLock = await dp.getByTestId("queue-add").locator("[data-pro-lock]").count();
+      const startLock = await dp.getByTestId("queue-start").locator("[data-pro-lock]").count();
+      await dp.getByTestId("queue-add").click();
+      const dialog = await dp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const feature = await dialogFeature(dp);
+      const queued = await dp.getByTestId("desktop-queue").getAttribute("data-queue-count").catch(() => null);
+      check(
+        "paywall: in the desktop group a free visitor's Add to queue and Start carry the lock; Add opens the Unlock dialog and queues nothing",
+        shown && addLock === 1 && startLock === 1 && dialog && feature === "renderQueue" && queued === "0",
+        `(shown ${shown}, locks add ${addLock} / start ${startLock}, dialog ${dialog} (${feature}), queued ${queued})`,
+      );
+    }
+
+    // 7. The suite's own (Pro) context: no lock anywhere, the account row says Pro.
+    {
+      await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(800);
+      await page.getByRole("button", { name: /Recording/ }).click();
+      const account = await page.getByTestId("billing-account").innerText().catch(() => "");
+      const locks = await lockCount(page);
+      check("paywall: the suite's Pro context shows no lock and the account row says Pro", locks === 0 && /Pro – Yearly until/.test(account), `(locks ${locks}, "${account}")`);
+    }
+  } finally {
+    for (const c of contexts) await c.close().catch(() => {});
+  }
+  const payHard = payErrors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
+  check("paywall: no page errors in the paywall checks", payHard.length === 0, payHard.length ? `\n   ${payHard.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end paywall-gate ---
 
 // --- orb-grid ---
 // Bouncing Orbs: the preview image and the card under the rhythm heading; URL → the Bouncing Orbs

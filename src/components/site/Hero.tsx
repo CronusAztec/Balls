@@ -1,10 +1,11 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight } from "@/components/ui/icons";
 import { modesForFilter } from "@/lib/siteDesign";
 import DownloadAppButton from "./DownloadAppButton"; // --- desktop-exe ---
 import LivePreview from "./LivePreview";
+import { PLANS, formatUsd } from "@/lib/billing/config"; // --- paywall-gate ---
 
 /*
  * --- site-redesign --- The landing hero: the headline (at most eight words), one sentence, the primary action and the
@@ -14,6 +15,8 @@ import LivePreview from "./LivePreview";
 export default function Hero() {
   const t = useTranslations("SiteRedesign");
   const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (server-side: the button's labels as props)
+  const billing = useTranslations("Billing"); // --- paywall-gate --- (server-side: the line under the call to action)
+  const locale = useLocale();
   const count = modesForFilter("all").length;
   return (
     <section className="border-b border-line" aria-labelledby="hero-title">
@@ -39,6 +42,13 @@ export default function Hero() {
               }
             />
           </div>
+          {/* --- paywall-gate --- what is free and what Pro costs, under the call to action */}
+          <p className="mt-4 max-w-[46ch] text-sm text-ink-3" data-testid="hero-pricing">
+            {billing("landing.line", { price: formatUsd(PLANS.monthly.usd, locale) })}{" "}
+            <Link href="/pricing" className="font-medium text-accent hover:text-accent-strong">
+              {billing("landing.link")}
+            </Link>
+          </p>
           <dl className="mt-12 grid max-w-md grid-cols-3 gap-6 border-t border-line pt-5">
             <div>
               <dt className="eyebrow text-ink-3">{t("hero.statModes")}</dt>

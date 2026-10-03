@@ -1,0 +1,21 @@
+name = "jumpingballslive-billing"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# The site's public origin. CORS and every returnUrl are checked against it (localhost is also allowed
+# in development). Override it per environment if you deploy the site somewhere else.
+[vars]
+SITE_ORIGIN = "https://cronusaztec.github.io"
+
+# The entitlement store. Create the namespace once with:
+#   wrangler kv namespace create ENTITLEMENTS
+# then paste the printed id below (and, if you want a local store for `wrangler dev`, run
+#   wrangler kv namespace create ENTITLEMENTS --preview
+# and add preview_id too).
+[[kv_namespaces]]
+binding = "ENTITLEMENTS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+# preview_id = "REPLACE_WITH_YOUR_PREVIEW_KV_NAMESPACE_ID"
+
+# Every secret (LICENSE_PRIVATE_JWK, the Stripe / PayPal / NOWPayments keys) is set with
+# `wrangler secret put <NAME>` — never in this file. See billing/README.md and .dev.vars.example.

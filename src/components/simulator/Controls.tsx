@@ -50,6 +50,7 @@ import { FAST_EXPORT_KEYS, FastExportFpsControl, type FastExportPanelProps } fro
 import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
 import BotSection, { BOT_KEYS, type BotPanelProps } from "./sections/BotSection"; // --- viral-bot ---
 import PublishSection, { PUBLISH_KEYS } from "./sections/PublishSection"; // --- social-publish ---
+import AccountRow from "@/components/billing/AccountRow"; // --- paywall-gate --- Free or Pro, at the top of the Recording group
 // --- project-files --- the "Project file" block (Export / Import project) under Saved Presets
 import ProjectSection, { PROJECT_KEYS } from "./sections/ProjectSection";
 import type { ProjectPanelProps } from "./useProjectFiles";
@@ -1084,6 +1085,7 @@ export default function Controls(props: ControlsProps) {
 
   const recordingSection = () => (
     <div className="space-y-3">
+      {!search && <AccountRow /> /* --- paywall-gate --- */}
       <Searchable search={search} matches={matches} labelKey="videoResolution">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2" htmlFor="resolution-select">
