@@ -60,17 +60,18 @@ export interface RequireEntitlementOptions {
 export const ENTITLEMENT_WAIT_MS = 5000;
 
 /**
- * The guard: waits for a licence check still in flight (the page's first moments), then decides. Never throws; a refusal
- * is a value the caller turns into the Unlock dialog (`requestUnlock()`) or, in a library entry point, into
+ * The guard: waits for a licence check still in flight (the page's first moments) or a renewal of a licence that ran out
+ * ("Renewing your licence…" – a renewed subscription should not meet the Unlock dialog), then decides. Never throws; a
+ * refusal is a value the caller turns into the Unlock dialog (`requestUnlock()`) or, in a library entry point, into
  * `EntitlementRequiredError`.
  */
 export async function requireEntitlement(feature: ProFeature, options: RequireEntitlementOptions = {}): Promise<EntitlementDecision> {
   const store = options.store ?? getEntitlementStore();
   let entitlement = store.getSnapshot();
-  if (entitlement.status === "checking") {
+  if (entitlement.status === "checking" || entitlement.renewing) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<Entitlement>((resolve) => (timer = setTimeout(() => resolve(store.getSnapshot()), options.timeoutMs ?? ENTITLEMENT_WAIT_MS)));
-    entitlement = await Promise.race([store.whenSettled(), timeout]);
+    entitlement = await Promise.race([store.whenIdle(), timeout]);
     clearTimeout(timer);
   }
   return checkEntitlement(feature, entitlement, (options.now ?? Date.now)());

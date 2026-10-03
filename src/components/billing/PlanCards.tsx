@@ -9,6 +9,7 @@ import { isEmail, pricingReturnUrl } from "@/lib/billing/api";
 import { PLAN_IDS, PROVIDERS, formatUsd, monthlyEquivalentUsd, plansFromConfig, yearlySavingPercent, type Plan, type Provider } from "@/lib/billing/config";
 import { useEntitlement } from "@/lib/billing/entitlement";
 import { isDesktopApp } from "@/lib/desktop/bridge";
+import { rememberCheckoutFrom, sessionStore } from "@/lib/billing/returnTo";
 import { siteBaseUrl, useBilling } from "./useBilling";
 
 /*
@@ -17,7 +18,11 @@ import { siteBaseUrl, useBilling } from "./useBilling";
  * (Stripe)" (Apple Pay and Google Pay come with Stripe Checkout), "PayPal" and "Crypto – BTC, ETH, USDT and 300+ coins";
  * one email field above them (the card and crypto checkouts use it; PayPal brings its own). A pay button asks the backend
  * for a hosted checkout and sends the buyer there; the checkout returns to the pricing page with ?claim=…&ref=….
- * The pricing page and the Unlock dialog both show it (`variant`).
+ * The pricing page and the Unlock dialog both show it (`variant`). In the Unlock dialog – the studio, with the setup the
+ * visitor just prepared – the checkout opens in a NEW TAB (opened within the click, so no popup blocker refuses it, and
+ * pointed at the checkout once the backend answers) and the studio stays as it is: the claimed licence reaches it through
+ * the storage event and the dialog says it is unlocked. When the browser refuses the tab, the checkout leaves in the studio's
+ * own tab after remembering the studio's address, and the pricing page offers "Back to your setup" after the claim.
  */
 
 type Note = { tone: "muted" | "warn" | "danger"; text: string } | null;
@@ -58,19 +63,48 @@ export default function PlanCards({ variant = "page" }: { variant?: "page" | "di
     }
     setBusy(`${plan}-${provider}`);
     setNote({ tone: "muted", text: t("pay.redirecting") });
+    const desktop = isDesktopApp();
+    // the studio's tab stays where it is: the checkout gets a tab of its own, opened now – inside the click
+    let tab: Window | null = null;
+    if (compact && !desktop) {
+      try {
+        tab = window.open("", "_blank");
+        if (tab) {
+          tab.opener = null; // the provider's page gets no handle on the studio
+          tab.document.title = t("pay.redirecting");
+          if (tab.document.body) tab.document.body.textContent = t("pay.redirecting");
+        }
+      } catch {
+        /* refused or not scriptable: the checkout leaves in this tab below */
+      }
+    }
     const r = await billing.client.checkout(provider, { plan, email: mail || undefined, locale, returnUrl: pricingReturnUrl(siteBaseUrl(), locale) });
     if (!r.ok) {
+      tab?.close();
       setBusy(null);
       setNote({ tone: "danger", text: t("pay.failed", { message: r.message }) });
       return;
     }
-    if (isDesktopApp()) {
+    if (desktop) {
       // the app sends web pages to the system browser: the purchase is restored here afterwards with the receipt's reference
       window.open(r.value, "_blank");
       setBusy(null);
       setNote({ tone: "muted", text: t("pay.desktop") });
       return;
     }
+    if (tab) {
+      setBusy(null);
+      // closed by the visitor while the backend answered: the checkout was called off, the studio stays
+      if (tab.closed) {
+        setNote(null);
+        return;
+      }
+      tab.location.href = r.value;
+      setNote({ tone: "muted", text: t("pay.newTab") });
+      return;
+    }
+    // no tab of its own: leave from here, and remember the studio so the pricing page can lead back to the setup
+    if (compact) rememberCheckoutFrom(sessionStore(), window.location);
     window.location.assign(r.value);
   };
 

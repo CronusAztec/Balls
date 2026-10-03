@@ -9849,20 +9849,50 @@ const bdInstrument = () =>
   const stored = (p) => p.evaluate((key) => localStorage.getItem(key), LICENSE_STORAGE_KEY);
   const lockCount = (p) => p.locator("[data-pro-lock]").count();
   const dialogFeature = (p) => p.getByTestId("unlock-dialog").getAttribute("data-unlock-feature").catch(() => null);
-  /** The mocked billing backend: /config, the Stripe checkout (back to its returnUrl with a claim), the claim and Restore. */
-  const mockBilling = async (p, { claimToken, restoreToken, calls }) => {
-    await p.route(`${MOCK}/**`, async (route) => {
+  /**
+   * The mocked billing backend: /config, the Stripe checkout (back to its returnUrl with a claim), the claim, Restore and the
+   * Stripe portal. `target` is a page or – for checks whose pages open other tabs – a whole context; `checkout` / `restore` /
+   * `portal` replace those endpoints' answers.
+   */
+  const mockBilling = async (target, { claimToken, restoreToken, calls, restore, portal, checkout }) => {
+    await target.route(`${MOCK}/**`, async (route) => {
       const req = route.request();
       const pathName = new URL(req.url()).pathname.slice(new URL(MOCK).pathname.length);
       const body = req.postData() ? JSON.parse(req.postData()) : null;
       calls.push({ path: pathName, body });
       const json = (status, data) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
       if (pathName === "/config") return json(200, { plans: { monthly: { usd: 10 }, yearly: { usd: 79 } }, providers: { stripe: true, paypal: true, crypto: true }, testMode: true });
-      if (pathName === "/checkout/stripe") return json(200, { url: `${body.returnUrl}?claim=stripe&ref=cs_test_smoke1` });
+      if (pathName === "/checkout/stripe") return checkout ? checkout(body, json) : json(200, { url: `${body.returnUrl}?claim=stripe&ref=cs_test_smoke1` });
       if (pathName === "/license/claim") return json(200, body && body.ref === "cs_test_smoke1" ? { token: claimToken } : { error: "not_found", message: "Unknown checkout" });
-      if (pathName === "/license/restore") return body && body.email === "buyer@example.com" && body.ref === "sub_SMOKE123" ? json(200, { token: restoreToken }) : json(404, { error: "not_found", message: "No purchase with this email and reference" });
+      if (pathName === "/license/restore") {
+        if (restore) return restore(body, json);
+        return body && body.email === "buyer@example.com" && body.ref === "sub_SMOKE123" ? json(200, { token: restoreToken }) : json(404, { error: "not_found", message: "No purchase with this email and reference" });
+      }
+      if (pathName === "/portal/stripe") return portal ? portal(body, json) : json(404, { error: "unknown_reference", message: "No card subscription matches that e-mail and reference." });
       return json(404, { error: "not_found", message: "unknown endpoint" });
     });
+  };
+  /** The studio's Unlock dialog for Record Video, with the backend's /config loaded into its plan cards. */
+  const recordDialog = async (p) => {
+    await p.getByRole("button", { name: /Record Video/ }).click();
+    await p.getByTestId("unlock-dialog").waitFor({ timeout: 10000 });
+    await p.waitForFunction(() => document.querySelector('[data-testid="unlock-dialog"] [data-testid="plan-cards"]')?.getAttribute("data-billing-config") === "ready", null, { timeout: 10000 }).catch(() => {});
+    return p.getByTestId("unlock-dialog");
+  };
+  /** A context holding a licence and its receipt once (a reload does not put the licence back), pointed at the mock. */
+  const openSeeded = async (token, ref) => {
+    const c = await browser.newContext({ viewport: { width: 1400, height: 900 }, license: null });
+    contexts.push(c);
+    await c.addInitScript(({ token, ref, url }) => {
+      if (sessionStorage.getItem("jbl.smokeSeeded")) return;
+      localStorage.setItem("jbl.license", token);
+      localStorage.setItem("jbl.license.ref", JSON.stringify(ref));
+      localStorage.setItem("jbl.billingApi", url);
+      sessionStorage.setItem("jbl.smokeSeeded", "1");
+    }, { token, ref, url: MOCK });
+    const p = await c.newPage();
+    watchPage(p);
+    return p;
   };
   const contexts = [];
   const open = async (license, override = false) => {
@@ -9981,6 +10011,21 @@ const bdInstrument = () =>
       const claim = calls.find((c) => c.path === "/license/claim")?.body ?? null;
       const licence = await cp.getByTestId("billing-licence").getAttribute("data-licence").catch(() => null);
       await cp.screenshot({ path: path.join(outDir, "paywall-claimed.png"), fullPage: true });
+      // the receipt reference is on screen – after the claim and under "Your licence" – and Manage subscription sends it
+      const refs = {
+        claim: await cp.getByTestId("billing-claim-ref").getAttribute("data-ref").catch(() => null),
+        claimCopy: await cp.getByTestId("billing-claim-ref-copy").isVisible().catch(() => false),
+        licence: await cp.getByTestId("billing-licence-ref").getAttribute("data-ref").catch(() => null),
+        licenceCopy: await cp.getByTestId("billing-licence-ref-copy").isVisible().catch(() => false),
+      };
+      await cp.getByTestId("billing-manage").click();
+      await cp.getByTestId("billing-manage-note").waitFor({ timeout: 10000 }).catch(() => {});
+      const portal = calls.find((c) => c.path === "/portal/stripe")?.body ?? null;
+      check(
+        "paywall: the claim shows the receipt reference (cs_…) with Copy, so does Your licence, and Manage subscription sends it with the email to the portal",
+        refs.claim === "cs_test_smoke1" && refs.claimCopy && refs.licence === "cs_test_smoke1" && refs.licenceCopy && !!portal && portal.email === "buyer@example.com" && portal.ref === "cs_test_smoke1" && portal.returnUrl === `${BASE}/en/pricing/`,
+        `(${JSON.stringify({ refs, portal })})`,
+      );
       // the studio: no locks, the account row says Pro, and Record Video records and downloads
       await cp.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
       await cp.waitForTimeout(800);
@@ -10059,6 +10104,223 @@ const bdInstrument = () =>
         "paywall: Restore purchase with the mocked backend – a wrong reference says nothing was found, the right one unlocks (PayPal's Manage link, no locks in the studio)",
         wrong && /No purchase with this email and reference/.test(wrongText) && restored && token === restoreToken && licence.state === "pro" && licence.provider === "paypal" && /paypal\.com/.test(licence.manage ?? "") && locks === 0,
         `(${JSON.stringify({ wrong, wrongText: wrongText.slice(-90), restored, stored: token === restoreToken, licence, locks, calls: calls.map((c) => c.path) })})`,
+      );
+    }
+
+    // 5b. Paying from the studio's Unlock dialog: the checkout gets a tab of its own, the studio keeps its setup and unlocks by
+    //     itself (the storage event); with the tab refused, the checkout leaves from the studio's tab and the claim leads back.
+    {
+      const claimToken = signTestLicense({ sub: "studio@example.com", plan: "monthly", provider: "stripe", days: 33 });
+      const calls = [];
+      const sp = await open(null, true);
+      await mockBilling(sp.context(), { claimToken, restoreToken: claimToken, calls });
+      await sp.goto(`${BASE}/en/simulator/?mode=bullseye&dur=12`, { waitUntil: "networkidle" });
+      await sp.waitForTimeout(800);
+      const studioUrl = sp.url();
+      const dialog = await recordDialog(sp);
+      await dialog.getByTestId("billing-email").fill("studio@example.com");
+      const [tab] = await Promise.all([
+        sp.context().waitForEvent("page", { timeout: 15000 }).catch(() => null),
+        dialog.locator('[data-testid="plan-monthly"] [data-pay="stripe"]').click(),
+      ]);
+      let tabClaimed = false;
+      let tabRef = null;
+      if (tab) {
+        watchPage(tab);
+        await tab.waitForURL(/claim=stripe/, { timeout: 15000 }).catch(() => {});
+        tabClaimed = await tab.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "success", null, { timeout: 15000 }).then(() => true).catch(() => false);
+        tabRef = await tab.getByTestId("billing-claim-ref").getAttribute("data-ref").catch(() => null);
+      }
+      const unlocked = await sp.waitForFunction(() => document.querySelector('[data-testid="unlock-dialog"]')?.getAttribute("data-unlocked") === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const note = await dialog.getByTestId("billing-pay-note").innerText().catch(() => "");
+      const sameStudio = sp.url() === studioUrl && /mode=bullseye/.test(sp.url()) && /dur=12/.test(sp.url());
+      await sp.screenshot({ path: path.join(outDir, "paywall-studio-checkout-tab.png") });
+      await sp.keyboard.press("Escape");
+      await sp.waitForTimeout(500);
+      const locks = await lockCount(sp);
+      await tab?.close().catch(() => {});
+      check(
+        "paywall: Unlock dialog → Card (Stripe) opens the checkout in a new tab; the claim there unlocks the studio tab, whose setup (?mode=bullseye&dur=12) stays as it was",
+        !!tab && tabClaimed && tabRef === "cs_test_smoke1" && unlocked && /new tab/.test(note) && sameStudio && locks === 0,
+        `(${JSON.stringify({ tab: !!tab, tabClaimed, tabRef, unlocked, note, studioUrl: studioUrl.slice(0, 90), now: sp.url().slice(0, 90), locks })})`,
+      );
+
+      // the browser refuses the tab: the checkout leaves from the studio's own tab and the claim offers "Back to your setup"
+      const fallbackCalls = [];
+      const bp = await open(null, true);
+      await bp.context().addInitScript(() => {
+        window.open = () => null;
+      });
+      await mockBilling(bp.context(), { claimToken, restoreToken: claimToken, calls: fallbackCalls });
+      await bp.goto(`${BASE}/en/simulator/?mode=bullseye&dur=12`, { waitUntil: "networkidle" });
+      await bp.waitForTimeout(800);
+      const fallbackDialog = await recordDialog(bp);
+      await fallbackDialog.getByTestId("billing-email").fill("studio@example.com");
+      await Promise.all([bp.waitForURL(/claim=stripe/, { timeout: 15000 }).catch(() => {}), fallbackDialog.locator('[data-testid="plan-monthly"] [data-pay="stripe"]').click()]);
+      const fallbackClaimed = await bp.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "success", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const back = { href: await bp.getByTestId("billing-claim-studio").getAttribute("href").catch(() => null), marked: await bp.getByTestId("billing-claim-studio").getAttribute("data-back-to-setup").catch(() => null) };
+      await Promise.all([bp.waitForURL(/\/simulator\//, { timeout: 15000 }).catch(() => {}), bp.getByTestId("billing-claim-studio").click().catch(() => {})]);
+      await bp.waitForTimeout(800);
+      const backUrl = bp.url();
+      const backLocks = await lockCount(bp);
+      check(
+        "paywall: with the new tab refused, the dialog's checkout leaves from the studio's tab and the claim's \"Back to your setup\" returns to the same setup (Pro, no locks)",
+        fallbackClaimed && back.marked === "1" && !!back.href && back.href.startsWith(`${BASE_PATH}/en/simulator/?`) && /mode=bullseye/.test(back.href) && /dur=12/.test(back.href) && /mode=bullseye/.test(backUrl) && /dur=12/.test(backUrl) && backLocks === 0,
+        `(${JSON.stringify({ fallbackClaimed, back: { ...back, href: back.href?.slice(0, 90) }, backUrl: backUrl.slice(0, 90), backLocks })})`,
+      );
+
+      // ... and a same-tab checkout that is cancelled (back on the pricing page without a purchase) still leads back
+      const cancelPage = await open(null, true);
+      await cancelPage.context().addInitScript(() => {
+        window.open = () => null;
+      });
+      await mockBilling(cancelPage.context(), { claimToken, restoreToken: claimToken, calls: [], checkout: (body, json) => json(200, { url: body.returnUrl }) });
+      await cancelPage.goto(`${BASE}/en/simulator/?mode=bullseye&dur=12`, { waitUntil: "networkidle" });
+      await cancelPage.waitForTimeout(800);
+      const cancelDialog = await recordDialog(cancelPage);
+      await cancelDialog.getByTestId("billing-email").fill("studio@example.com");
+      await Promise.all([cancelPage.waitForURL(/\/pricing\/$/, { timeout: 15000 }).catch(() => {}), cancelDialog.locator('[data-testid="plan-monthly"] [data-pay="stripe"]').click()]);
+      const cancelBack = await cancelPage.getByTestId("billing-back-to-setup").getByRole("link").getAttribute("href", { timeout: 10000 }).catch(() => null);
+
+      // the checkout's tab closed by the visitor before the backend answered: called off – the studio stays, nothing navigates
+      let releaseCheckout = () => {};
+      const checkoutHeld = new Promise((r) => (releaseCheckout = r));
+      const closedPage = await open(null, true);
+      await mockBilling(closedPage.context(), {
+        claimToken,
+        restoreToken: claimToken,
+        calls: [],
+        checkout: async (body, json) => {
+          await checkoutHeld;
+          return json(200, { url: `${body.returnUrl}?claim=stripe&ref=cs_test_smoke1` });
+        },
+      });
+      await closedPage.goto(`${BASE}/en/simulator/?mode=bullseye&dur=12`, { waitUntil: "networkidle" });
+      await closedPage.waitForTimeout(800);
+      const closedStudio = closedPage.url();
+      const closedDialog = await recordDialog(closedPage);
+      await closedDialog.getByTestId("billing-email").fill("studio@example.com");
+      const [blank] = await Promise.all([
+        closedPage.context().waitForEvent("page", { timeout: 15000 }).catch(() => null),
+        closedDialog.locator('[data-testid="plan-monthly"] [data-pay="stripe"]').click(),
+      ]);
+      await blank?.close().catch(() => {});
+      releaseCheckout();
+      await closedPage.waitForTimeout(1500);
+      const closed = {
+        tab: !!blank,
+        sameStudio: closedPage.url() === closedStudio,
+        dialog: await closedPage.getByTestId("unlock-dialog").isVisible().catch(() => false),
+        note: await closedDialog.getByTestId("billing-pay-note").count().catch(() => -1),
+        enabled: await closedDialog.locator('[data-testid="plan-monthly"] [data-pay="stripe"]').isEnabled().catch(() => false),
+        pages: closedPage.context().pages().length,
+      };
+      check(
+        "paywall: a cancelled same-tab checkout leads back to the setup too, and a checkout tab closed before it loaded calls the checkout off (the studio stays, nothing navigates)",
+        !!cancelBack && cancelBack.startsWith(`${BASE_PATH}/en/simulator/?`) && /mode=bullseye/.test(cancelBack) && closed.tab && closed.sameStudio && closed.dialog && closed.note === 0 && closed.enabled && closed.pages === 1,
+        `(${JSON.stringify({ cancelBack: cancelBack?.slice(0, 90), closed })})`,
+      );
+    }
+
+    // 5c. A subscription's licence that ran out while nobody visited: the next visit renews it ("Renewing your licence…", the
+    //     guard waits) with the receipt it was claimed with; the backend's not_active forgets the receipt; a failing backend
+    //     keeps the licence's subscription manageable (Manage subscription sends the receipt).
+    {
+      const DAY = 86400 * 1000;
+      const expired = signTestLicense({ sub: "buyer@example.com", plan: "monthly", provider: "stripe", now: Date.now() - 34 * DAY, days: 33 });
+      const renewed = signTestLicense({ sub: "buyer@example.com", plan: "monthly", provider: "stripe", days: 30 });
+      const receipt = { provider: "stripe", ref: "cs_test_abc" };
+      const readStore = (p) => p.evaluate(() => ({ licence: localStorage.getItem("jbl.license"), ref: localStorage.getItem("jbl.license.ref"), lapsed: localStorage.getItem("jbl.license.lapsed") }));
+
+      // renewed: the backend holds its answer until the "Renewing" line has been seen
+      const calls = [];
+      let release = () => {};
+      const held = new Promise((r) => (release = r));
+      const lp = await openSeeded(expired, receipt);
+      await mockBilling(lp, {
+        claimToken: renewed,
+        restoreToken: renewed,
+        calls,
+        restore: async (body, json) => {
+          await held;
+          return json(200, { token: renewed });
+        },
+      });
+      await lp.goto(`${BASE}/en/simulator/`, { waitUntil: "load" });
+      await lp.getByRole("button", { name: /Recording/ }).waitFor({ timeout: 20000 }).catch(() => {});
+      await lp.getByRole("button", { name: /Recording/ }).click().catch(() => {});
+      const renewing = await lp.waitForFunction(() => document.querySelector('[data-testid="billing-account"]')?.getAttribute("data-billing-renewing") === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const renewingText = await lp.getByTestId("billing-account-text").innerText().catch(() => "");
+      release();
+      const pro = await lp.waitForFunction(() => document.querySelector('[data-testid="billing-account"]')?.getAttribute("data-billing-status") === "pro", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      await lp.waitForTimeout(300);
+      const proText = await lp.getByTestId("billing-account-text").innerText().catch(() => "");
+      const stored = await readStore(lp);
+      const restores = calls.filter((c) => c.path === "/license/restore");
+      check(
+        "paywall: a Stripe licence that expired while nobody visited is renewed on the next visit – \"Renewing your licence…\", one /license/restore with the stored receipt, then Pro (the receipt kept)",
+        renewing && /Renewing your licence/.test(renewingText) && pro && /Pro – Monthly/.test(proText) && restores.length === 1 && restores[0].body?.email === "buyer@example.com" && restores[0].body?.ref === "cs_test_abc" && stored.licence === renewed && stored.lapsed === null && JSON.parse(stored.ref ?? "null")?.ref === "cs_test_abc",
+        `(${JSON.stringify({ renewing, renewingText, pro, proText, restores: restores.map((c) => c.body), stored: { licence: stored.licence === renewed, ref: stored.ref, lapsed: stored.lapsed } })})`,
+      );
+
+      // over: the backend no longer has an active subscription for it – the receipt and the lapsed licence are forgotten
+      const endedCalls = [];
+      const ep = await openSeeded(expired, receipt);
+      await mockBilling(ep, { claimToken: renewed, restoreToken: renewed, calls: endedCalls, restore: (body, json) => json(402, { error: "not_active", message: "This subscription is no longer active." }) });
+      await ep.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+      await ep.getByRole("button", { name: /Recording/ }).click().catch(() => {});
+      await ep.waitForFunction(() => !localStorage.getItem("jbl.license.ref"), null, { timeout: 15000 }).catch(() => {});
+      await ep.waitForTimeout(300);
+      const endedText = await ep.getByTestId("billing-account-text").innerText().catch(() => "");
+      const endedStore = await readStore(ep);
+      await ep.reload({ waitUntil: "networkidle" });
+      await ep.waitForTimeout(500);
+      const endedCallsAfterReload = endedCalls.filter((c) => c.path === "/license/restore").length;
+      check(
+        "paywall: a lapsed licence whose subscription is over (not_active) forgets its receipt – the row says the licence has ended, and the next visit asks nothing",
+        /has ended/.test(endedText) && endedStore.licence === null && endedStore.ref === null && endedStore.lapsed === null && endedCallsAfterReload === 1,
+        `(${JSON.stringify({ endedText, endedStore, endedCallsAfterReload })})`,
+      );
+
+      // the backend fails: the lapsed licence stays, and its subscription stays manageable (Manage → the portal, with the receipt)
+      const failCalls = [];
+      const mp = await openSeeded(expired, receipt);
+      await mockBilling(mp, { claimToken: renewed, restoreToken: renewed, calls: failCalls, restore: (body, json) => json(503, { error: "unavailable", message: "Try again later" }), portal: (body, json) => json(404, { error: "unknown_reference", message: "Portal mock" }) });
+      await mp.goto(`${BASE}/en/pricing/#account`, { waitUntil: "networkidle" });
+      await mp.waitForFunction(() => document.querySelector('[data-testid="billing-licence"]')?.getAttribute("data-licence") === "lapsed", null, { timeout: 15000 }).catch(() => {});
+      const lapsedPanel = {
+        state: await mp.getByTestId("billing-licence").getAttribute("data-licence").catch(() => null),
+        text: await mp.getByTestId("billing-licence").innerText().catch(() => ""),
+        ref: await mp.getByTestId("billing-licence-ref").getAttribute("data-ref").catch(() => null),
+      };
+      await mp.getByTestId("billing-manage").click().catch(() => {});
+      await mp.getByTestId("billing-manage-note").waitFor({ timeout: 10000 }).catch(() => {});
+      const lapsedPortal = failCalls.find((c) => c.path === "/portal/stripe")?.body ?? null;
+      const failStore = await readStore(mp);
+      check(
+        "paywall: when the renewal cannot reach the backend the lapsed licence stays – /pricing shows it with Manage subscription, which sends the email and the receipt to the portal",
+        lapsedPanel.state === "lapsed" && /Last licensed to buyer@example\.com/.test(lapsedPanel.text) && lapsedPanel.ref === "cs_test_abc" && !!lapsedPortal && lapsedPortal.email === "buyer@example.com" && lapsedPortal.ref === "cs_test_abc" && failStore.lapsed !== null && JSON.parse(failStore.ref ?? "null")?.ref === "cs_test_abc",
+        `(${JSON.stringify({ lapsedPanel: { ...lapsedPanel, text: lapsedPanel.text.slice(0, 160) }, lapsedPortal, failStore: { ref: failStore.ref, lapsed: !!failStore.lapsed } })})`,
+      );
+    }
+
+    // 5d. Paste a licence key: garbage is refused, a valid key installs (the desktop app takes the key the browser copied).
+    {
+      const kp = await open(null);
+      await kp.goto(`${BASE}/en/pricing/#restore`, { waitUntil: "networkidle" });
+      await kp.getByTestId("billing-paste-key").fill("not-a-licence");
+      await kp.getByTestId("billing-paste-submit").click();
+      const refused = await kp.waitForFunction(() => document.querySelector('[data-testid="billing-paste"]')?.getAttribute("data-paste-state") === "failed", null, { timeout: 10000 }).then(() => true).catch(() => false);
+      const pasted = signTestLicense({ sub: "paste@example.com", plan: "yearly", provider: "stripe", days: 200 });
+      await kp.getByTestId("billing-paste-key").fill(`  ${pasted}\n`);
+      await kp.getByTestId("billing-paste-submit").click();
+      const installed = await kp.waitForFunction(() => document.querySelector('[data-testid="billing-paste"]')?.getAttribute("data-paste-state") === "success", null, { timeout: 10000 }).then(() => true).catch(() => false);
+      const licence = await kp.getByTestId("billing-licence").getAttribute("data-licence").catch(() => null);
+      const token = await stored(kp);
+      check(
+        "paywall: Paste a licence key refuses garbage and installs a valid key (Pro in this browser)",
+        refused && installed && licence === "pro" && token === pasted,
+        `(${JSON.stringify({ refused, installed, licence, stored: token === pasted })})`,
       );
     }
 

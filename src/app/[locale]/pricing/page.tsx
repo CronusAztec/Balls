@@ -4,7 +4,7 @@ import { getMessages, getTranslations, setRequestLocale } from "next-intl/server
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import JsonLd from "@/components/site/JsonLd";
-import { ClaimPanel, LicencePanel, PricingPlans, PricingTestMode, RestoreForm } from "@/components/billing/PricingClient";
+import { ClaimPanel, LicencePanel, PasteKeyForm, PricingPlans, PricingTestMode, RestoreForm } from "@/components/billing/PricingClient";
 import { IconLock } from "@/components/billing/LockBadge";
 import { IconCheck, IconMinus } from "@/components/ui/icons";
 import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages";
@@ -15,8 +15,9 @@ import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
 /*
  * --- paywall-gate --- The pricing page: what plays for free and what Pro adds (everything that creates a video file), the
  * two plans with their pay buttons, the purchase a checkout returns with (?claim=…&ref=…), this browser's licence with
- * Manage subscription, and Restore purchase. The static parts render here; the live ones are client components
- * (components/billing/PricingClient.tsx) with the Billing namespace (i18n/clientMessages.ts).
+ * Manage subscription and its receipt reference, Restore purchase and Paste a licence key. The static parts render here;
+ * the live ones are client components (components/billing/PricingClient.tsx) with the Billing namespace
+ * (i18n/clientMessages.ts).
  */
 
 const PLAY_ROWS = ["modes", "sound", "finder", "presets", "gallery", "editor"] as const;
@@ -173,6 +174,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
               {t("restore.title")}
             </h2>
             <RestoreForm />
+            <PasteKeyForm />
           </section>
 
           <section className="mt-16 border-t border-line pt-10" aria-labelledby="pricing-notes">

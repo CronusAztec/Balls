@@ -1,7 +1,7 @@
 # JumpingBallsLive – satisfying ball physics simulator
 
-JumpingBallsLive is a full-featured, editable, free, browser-based
-bouncing-ball physics simulator that exports vertical MP4 clips for TikTok, Reels and Shorts.
+JumpingBallsLive is a full-featured, editable, browser-based bouncing-ball physics simulator – free to play with – that
+exports vertical MP4 clips for TikTok, Reels and Shorts with a Pro licence (see [Pricing and licences](#pricing-and-licences)).
 
 Built with **Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · next-intl**.
 Everything runs client-side: physics, rendering, audio and video encoding happen in the visitor's browser.
@@ -1114,7 +1114,14 @@ into the shared files in small `--- paywall-gate ---` blocks.
   viral bot and the desktop queue go through too), the bot's `renderAll()`, the queue's `add()` / `start()` – so a call that
   goes around the UI meets the refusal as well. The account row at the top of the Recording group (`AccountRow.tsx`) says
   "Free – unlock video creation" or "Pro – <plan> until <date>" ("renews / ends on <date>" once the licence's exp is within 7
-  days, "payment pending" in the grace days; `accountView()` in `account.ts`), with Unlock or Manage, and Restore.
+  days, "payment pending" in the grace days, "Renewing your licence…" while a lapsed subscription's licence is being renewed,
+  "has ended" after that; `accountView()` in `account.ts`), with Unlock and/or Manage, and Restore. Everything that leaves the
+  studio – the dialog's checkout, its pricing and Restore links, the row's Manage and Restore – opens in a new tab on the
+  website, so the setup the visitor prepared (and any uploaded media) stays as it is: the claimed licence reaches the studio
+  tab through the storage event and the dialog says it is unlocked. The checkout's tab is opened inside the click (a popup
+  blocker allows that) and pointed at the checkout once the backend answers; if the browser refuses it, the checkout leaves
+  in the studio's tab after remembering the studio's address (`jbl.checkoutFrom` in sessionStorage, `returnTo.ts`), and the
+  claim's or Restore's success offers "Back to your setup" – only ever this site's own `/<locale>/simulator/` page.
 - **The licence contract** (`license.ts`, shared with `billing/`; pure WebCrypto, no JWT dependency) – a JWT (RFC 7519) signed
   with ES256, the signature being the raw 64-byte r‖s pair WebCrypto's ECDSA produces: `base64url(header).base64url(payload).
   base64url(signature)`, header `{"alg":"ES256","typ":"JWT"}`, payload `{ sub: email (lower-cased, trimmed), plan: "monthly" |
@@ -1123,35 +1130,48 @@ into the shared files in small `--- paywall-gate ---` blocks.
   `header.payload` and refuses a header that is not alg ES256 / typ JWT (or names critical extensions), a payload without
   sub, plan or exp, and an exp in the past (60 s of clock skew allowed).
 - **The entitlement store** (`entitlement.ts`, a small live store, and its hook `useEntitlement()` →
-  `{ status: "checking" | "free" | "pro", plan, provider, email, expiresAt, testMode, dropped }`) – the raw token lives in
-  localStorage under `jbl.license`; the store verifies it when the page starts, when the window gets the focus and when
-  another tab changes it (the storage event), drops a token that is invalid or expired (the account row says which), turns
-  Free at the licence's exp while the page is open, and installs a claimed or restored licence only after verifying it.
+  `{ status: "checking" | "free" | "pro", plan, provider, email, expiresAt, testMode, dropped, lapsed, renewing }`) – the raw
+  token lives in localStorage under `jbl.license`; the store verifies it when the page starts, when the window gets the focus
+  and when another tab changes it (the storage event), drops a token that is invalid or expired (the account row says
+  which), turns Free at the licence's exp while the page is open, and installs a claimed or restored licence only after
+  verifying it. An invalid token goes with its receipt; an EXPIRED one (genuine, its signature verified) keeps its receipt
+  (`jbl.license.ref`) and leaves its email, plan and provider in `jbl.license.lapsed` – a subscription's licence runs out at the
+  end of every paid period unless the page fetched the renewed one in time, so the next visit renews it instead of asking
+  for a new payment. Only Remove from this browser, an invalid token, or the backend's `not_active` / `unknown_reference`
+  forget the receipt.
 - **The billing API** (`api.ts`; base = `NEXT_PUBLIC_BILLING_API`, JSON bodies, CORS) – `GET /config` (prices, the providers
   that are on – only those get a pay button –, the backend's test mode), `POST /checkout/stripe | /checkout/paypal |
   /checkout/crypto` → `{ url }` (Stripe Checkout with Apple Pay and Google Pay; PayPal's approval page; a NOWPayments invoice
   for BTC, ETH, USDT, USDC, SOL, DOGE, LTC, XRP, BNB, ADA, TRX and 300+ more – crypto buys a prepaid period, 30 days for $10 or
   365 for $79, because it cannot renew by itself, and the UI says so), `POST /license/claim` → `{ token } | { pending } |
-  { error, message }`, `POST /license/restore` and `POST /portal/stripe` (the customer portal; its return link comes back
-  to the pricing page, sent as `returnUrl` – the Worker's fallback, the bare site origin, is not this site under a base
-  path). Every checkout gets the
+  { error, message }`, `POST /license/restore` and `POST /portal/stripe` with `{ email, ref, returnUrl }` (the customer
+  portal: like Restore it needs the receipt reference of that card subscription – the one this browser keeps –, an email alone
+  opens nothing; its return link comes back to the pricing page, sent as `returnUrl` – the Worker's fallback, the bare site
+  origin, is not this site under a base path). Every checkout gets the
   pricing page of the buyer's language as `returnUrl` (without a query) and comes back with `?claim=<provider>&ref=<id>`,
   which the page claims (a pending crypto payment is asked again every 5 s for up to 10 minutes). Every answer is read
   defensively: a network error, a non-JSON body or an unknown shape is a message, never a throw; only an https address is
   followed. Without `NEXT_PUBLIC_BILLING_API` nothing is sent anywhere and the pay buttons say that payments are not
-  configured yet. A subscription's licence is renewed quietly near its end through `/license/restore` with the receipt
-  reference it was claimed with (`renewQuietly()`, kept under `jbl.license.ref`). Inside the desktop app a checkout opens in
-  the system browser and the purchase is restored in the app afterwards: the app's page calls the Worker from its own
-  origin, `app://jumpingballslive`, which the Worker grants CORS (no web page can claim that origin).
+  configured yet. A subscription's licence is renewed quietly through `/license/restore` with the receipt reference it was
+  claimed with (`renewQuietly()`, kept under `jbl.license.ref`): near its end (at most every 6 hours) and, once it has run
+  out, on every visit and whenever the tab gets the focus again (at most every 15 minutes) – the account row and the pricing
+  page say "Renewing your licence…" meanwhile and the guard waits for the answer. Inside the desktop app a checkout opens in
+  the system browser and the purchase is restored in the app afterwards (with the email and the receipt reference the
+  public site shows after the payment, or by pasting the licence key): the app's page calls the Worker from its own origin,
+  `app://jumpingballslive`, which the Worker grants CORS (no web page can claim that origin).
 - **The pricing page** (`src/app/[locale]/pricing/page.tsx` with `PricingClient.tsx` and `PlanCards.tsx`; in every language,
   the sitemap, the navbar, the footer and a line under the landing's call to action) – the Free / Pro table, the two plan
   cards with "Card (Stripe)", "PayPal" and "Crypto – BTC, ETH, USDT and 300+ coins" and one email field (the card and crypto
   checkouts use it; PayPal brings its own), the claim's states (claiming, waiting for the network, "You are Pro until
-  <date>", a failure with Restore), this browser's licence with Manage subscription (Stripe → the customer portal, PayPal →
-  paypal.com's automatic payments page, crypto → buy another period), Copy licence key and Remove, and Restore purchase (the
-  checkout email and the receipt reference: the Stripe session or subscription id, the PayPal subscription id or the crypto
-  order id). The privacy policy and the terms gained a Payments / Pro subscriptions section, and the copy that called the
-  video export free (the FAQ, About, the hero) now says what is free and what is Pro.
+  <date>", a failure with Restore) – each with the receipt reference the checkout came back with and a Copy button, since
+  neither the Worker nor Stripe's receipts tell a card buyer their `cs_…` / `sub_…` id –, this browser's licence (or the one
+  that ran out) with Manage subscription (Stripe → the customer portal, PayPal → paypal.com's automatic payments page,
+  crypto → buy another period), its receipt reference with Copy, Copy licence key and Remove, Restore purchase (the checkout
+  email and the receipt reference: the Stripe session or subscription id, the PayPal subscription id or the crypto order id)
+  and Paste a licence key (a key copied on another device, or taken into the desktop app, is installed once it verifies).
+  The privacy policy and the terms gained a Payments / Pro subscriptions section, and the copy that called the video export
+  free (the FAQ, About, the hero, the meta descriptions of the landing, studio, TikTok and About pages, the Terms'
+  description, the Disclaimer, the Windows app's download note and description) now says what is free and what is Pro.
 - **Test mode** – a build without `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` verifies licences with the committed TEST key pair
   (`tests/fixtures/license-test-key.json`, whose public half is `LICENSE_TEST_PUBLIC_KEY` in `config.ts`; `src/` never imports
   the fixture). Anyone can sign licences with that key, so test mode is visible: a yellow "Licensing is in test mode –
@@ -1180,12 +1200,17 @@ into the shared files in small `--- paywall-gate ---` blocks.
 - **Tests** – `tests/billingLicense.test.ts` (a good licence, expired, another key, a tampered payload or header, a foreign
   algorithm, malformed tokens, DER signatures, the bot's licence), `tests/billingEntitlement.test.ts` (the store's
   transitions, the focus and storage events, install / clear, the guard, the Unlock channel, the recorder refusing without a
-  licence), `tests/billingPlans.test.ts` (the plan maths: 34 % saving, 30 / 365 prepaid days, 3 grace days; the backend's
-  answers, the claim URL, the account row's wording, the quiet renewal, the Billing namespace in three languages). The smoke
-  test's paywall block opens a free visitor's studio (Record, the fast export and Render batch carry the lock and open the
-  Unlock dialog – no recording, no download), the pricing page in three languages and its links, a full checkout → claim with a
-  mocked backend (`page.route()`) that ends Pro and records, an expired and a foreign licence being dropped, Restore with the
-  mock, and the desktop group's locked queue.
+  licence, a lapsed licence kept across reloads and forgotten only when told, the guard waiting for a renewal),
+  `tests/billingPlans.test.ts` (the plan maths: 34 % saving, 30 / 365 prepaid days, 3 grace days; the backend's answers, the
+  portal's reference, the claim URL, the account row's wording, the quiet renewal – an expired Stripe licence plus its receipt
+  leads to one restore call and ends Pro, `not_active` / `unknown_reference` forget the receipt, a network failure keeps it –,
+  the way back to the studio, the Billing namespace in three languages). The smoke test's paywall block opens a free visitor's
+  studio (Record, the fast export and Render batch carry the lock and open the Unlock dialog – no recording, no download), the
+  pricing page in three languages and its links, a full checkout → claim with a mocked backend (`page.route()`) that ends Pro,
+  shows the receipt reference and records, the Unlock dialog's checkout in a new tab that leaves the studio's setup in place
+  (and the same-tab fallback's "Back to your setup"), an expired and a foreign licence being dropped, a lapsed subscription's
+  licence renewed on the next visit (and one the backend no longer knows forgotten), Manage subscription sending the
+  reference, Restore and Paste a licence key with the mock, and the desktop group's locked queue.
 
 ## Windows app
 

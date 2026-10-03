@@ -9,13 +9,16 @@ import { subscribeUnlock, type UnlockRequest } from "@/lib/billing/unlock";
 import { IconLock } from "./LockBadge";
 import PlanCards from "./PlanCards";
 import TestModeNote from "./TestModeNote";
-import { pricingHref, useBilling, useLicenseRenewal } from "./useBilling";
+import { pricingHref, useBilling, useLicenseRenewal, useNewTabLinks } from "./useBilling";
 
 /*
  * --- paywall-gate --- The Unlock dialog every locked action opens (through the guard's refusal, lib/billing/unlock.ts):
  * one line of why, the two plans with their pay buttons, a link to the pricing page and to Restore purchase, the test-mode
  * line; Escape, the scrim and the close button close it (components/ui/Dialog.tsx). `UnlockDialogHost` listens for the
- * requests – the simulator mounts it once – and renews a subscription's licence quietly near its end.
+ * requests – the simulator mounts it once – and renews a subscription's licence quietly (near its end, and after it ran
+ * out). Everything that leaves the studio from here – the checkout, the pricing page, Restore – opens in a new tab, so the
+ * setup the visitor prepared stays as it is; the licence that comes back reaches this tab through the storage event and the
+ * dialog says it is unlocked.
  */
 
 export function UnlockDialogHost() {
@@ -31,6 +34,7 @@ export default function UnlockDialog({ feature, onClose }: { feature: ProFeature
   const locale = useLocale();
   const { testMode } = useBilling();
   const entitlement = useEntitlement();
+  const newTab = useNewTabLinks();
   // A licence that arrives while the dialog is open (claimed in another tab, restored) unlocks at once: the dialog says so.
   const unlocked = entitlement.status === "pro";
   return (
@@ -54,10 +58,10 @@ export default function UnlockDialog({ feature, onClose }: { feature: ProFeature
         {testMode && <TestModeNote />}
         <PlanCards variant="dialog" />
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 text-sm">
-          <a href={pricingHref(locale)} className="font-medium text-accent hover:text-accent-strong" data-testid="unlock-pricing-link">
+          <a href={pricingHref(locale)} {...newTab} className="font-medium text-accent hover:text-accent-strong" data-testid="unlock-pricing-link">
             {t("dialog.seePricing")}
           </a>
-          <a href={pricingHref(locale, "#restore")} className="text-ink-2 hover:text-ink" data-testid="unlock-restore-link">
+          <a href={pricingHref(locale, "#restore")} {...newTab} className="text-ink-2 hover:text-ink" data-testid="unlock-restore-link">
             {t("dialog.restore")}
           </a>
         </div>
