@@ -79,6 +79,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Bouncing Orbs** | A rhythm-family mode (`orbGrid`, feature orb-grid) after an Instagram account's "Satisfying physics simulation – N varied bouncing orbs" clips: a perspective field of glossy orbs – a grid, a hex grid, a disc or octagon rings of **Columns × Rows** orbs (`ogC` × `ogR`; 33 × 33 = 1089 by default, the count drawn as "1089 bouncing orbs" at the top of the clip; 70 × 70 = 4900 and any count typed, a run building at most 250,000) – over a blue-grid slab, a round plate, a grid or nothing, every orb bouncing straight up and down on its own spot. One **varied property** (bounciness, drop height, release delay, size, gravity or period, `ogV`) follows a **distribution** over the field (varied, corner to corner, centre outwards, rows, columns, spiral, ripple bands, checker, `ogD`) with a **spread** (`ogS`), the orbs released together, outside in, inside out, row by row or at random (`ogL`, stagger `ogT`): the heights form a wave surface – a rising sheet, a funnel, rings – that falls into phase at the **resolve moment** (`ogRes`) and dissolves again, and the run ends when every orb is at rest. Glossy, metallic, matte or glass orbs (`ogM`) coloured by height, ring, row, the Ball Colour or position (`ogP`) under a tilting (`ogE`), turning (`ogRot`) and auto-orbiting (`ogO`) camera; every landing a soft note of the scale (a row lands as a chord), or a sleep sound, a melody composed by the landings or metal clinks (`ogSnd`). Eight presets in the Presets group after the account's clips; Find Simulation searches a run length, a run still bouncing when the clip ends or the first in-phase moment at a chosen second; 1089 orbs run at ~56 fps on the page and ~37 fps while recording 1080×1920 (see the Bouncing Orbs section under How to extend it) |
 | **Fight League** | An arena game in the rhythm family (`fightLeague`, feature fight-league; next to Battle Royale and Capture the Flag) in which popular characters duel as balls, every matchup in its genre: **61 fighters in 13 divisions** – Marvel, DC, Nintendo & Sega, League of Legends, fighting games, game legends, shonen anime, Star Wars, fantasy, movie monsters, action movies, TV, and Gerald as the wildcard – each with a weapon drawn as the site's own vector silhouette (19 kinds: sword, hammer, fists, claws, chain, bow, gun, shotgun, wand, staff, book, cards, fire, beam, spark, web, ice, shield, tail), stats (HP, speed, attack speed, damage, cast speed, size) and an ability built from 22 primitives that charges from time and hits, flashes its name for 0.4 s and fires by itself. One touch is one hit (a short invulnerability window) with knockback, a hit flash and a floating damage number; the HP is inside the ball with a bar under it. **1v1** (the default: Thor vs Loki), **2v2** (no friendly fire) or a free-for-all of 3 or 4, in a square or a circle, no gravity, seeded and deterministic; the last one standing wins, at the **time cap** (90 s) the side with more HP (a draw is possible), and two KOs together are a double KO. A HUD inside the exported square: the names in the fighters' colours, a VS card, the ability boxes with two stat lines each, a KO flash and the winner banner ("Thor wins!") held before the end screen. 14 presets (Thor vs Loki, Captain Falcon vs Little Mac, Yuumi vs Katarina, Batman vs Joker, Goku vs Vegeta, an Avengers free-for-all, a 2v2 Naruto + Sasuke vs Goku + Vegeta…), per-fighter handicaps, a sound per weapon kind, an ability swell and a KO hit through the ToneGenerator, Find Simulation ("A wins", a length, a double KO) and the rigged forced winner. Character names belong to their respective owners; this is an unaffiliated fan simulation. In the Fight League block of the Mode row, shared via the URL (`fl1`–`fl4`, `flM`, `flDiv`, `flHp`, `flT`, `flA`, `flH`, `flS1`–`flC4`) |
 | **Land Claim** | A battle-family mode (`landClaim`, feature land-claim) after the land-claim clips of an arena-battle account ("who will claim the most?", "1,144 blocks, 146 balls"): the arena – a **square**, a **hexagon** or a **circle** (`lca`) – is lined with **Block Columns** (`lcc`, default 24, spread over the sides) of **Blocks per Column** (`lcr`, default 12) standing on the inside of its wall; **Competitors** 2–12 on the slider, any number typed (`lct`, default 4; the Teams roster names, colours and flags the first six – its new **Country** picker fills a row with one of 47 countries –, a palette of RED, BLUE, GREEN, GOLD… the rest) bounce **Balls Each** (`lcb`, default 3) at a constant speed (gravity 0 by default, the Gravity slider still bends them), elastic off the walls, the columns and each other. The **Claim Rule** (`lcm`): **knock** – a hit takes the column's top block, which flies off in the hitter's colour and counts for it; **claim** – the block stays, recoloured; **steal** – a hit on a claimed column flips its top block that is not the hitter's, and the battle runs to its duration. Every **New Ball Every** blocks a competitor takes (`lce`, default 8; 0 = never) spawn one more ball of its colour at the knock point. The battle ends when the wall is taken or at its **Battle Duration** (`lcd`, default 60 s; the clip follows it) and the most blocks wins: DOMINATION past 60 % of the land, SUCH A CLOSE BATTLE when the top two are within 5 %, else "[name] CLAIMS THE MOST". A HUD in the exported square (`lch`): the **Battle Title** line (`lcti`, default LAND CLAIM), the counters and a live bar per competitor (its badge, name, blocks and balls in play); flags drawn as emoji inside a glowing ring in the team colour – the two-letter code on a disc where the fonts have no flag glyphs. A wooden knock pitched by the column, a spawn chime and a KO thump on a column's last block (the arena's last block accented). Five presets (4 countries, Domination: 1144 blocks, 146 balls, Steal, Hexagon: 6 countries, 2v2 claim), a "Who claims the most?" caption whose answer `[winner]` names the winner, Find Simulation's winner, run-length and **Close battle** outcomes, and an honest Forced Winner that aims the chosen colour's rebounds at land still to take. Every number is uncapped (a million blocks, a thousand competitors, 2,000 balls at most a run). See "Land Claim" below |
+| **Obfuscation & proprietary licence** | The site is closed-source (feature code-obfuscation). `npm run build` obfuscates the shipped JavaScript as a build step (`scripts/obfuscate.mjs`, run from `scripts/postexport.mjs` before the service worker so its precache hashes see the final files): every `/_next/static/chunks` chunk but the Next loader chunks (webpack/framework/main/polyfills) gets hexadecimal identifier renaming (every local, function and class name, the engine's included) and a one-line proprietary banner, source maps are off and any `.map` is deleted. Settings are tuned for speed so the 60 fps budget, the smoke-test frame-rate floors and the seed finder hold (the string array is off – its wrapper de-optimised the physics hot loop, measured ~28x on the finder); `OBFUSCATE=0` skips it for debugging. A `LICENSE` file, `"license": "UNLICENSED"` in every package and a line on the terms page make the software proprietary. It deters casual copying but is not DRM – a determined person can still read it, so the repository must stay private (see [Obfuscation and the licence](#obfuscation-and-the-licence)) |
 | **String Circle** | A third style of the String Battle (`sbStyle` "circle", URL `sbst=circle`; feature string-circle) after the STRING CIRCLE country fights of an arena-battle account (the clips of Land Claim's account): flag balls fly round a thin white **circle** or a **hexagon** (`sba`) on black, each curling as it flies, and every ball anchors **Strings per Second** (`sbrt`, default 30) from itself to the rim straight ahead of it – a dense fan in its colour that sweeps the rim. A ball crossing a rival's string on its outer half cuts it; every **Strings per Life** strings of one owner cut (`sbc`, default 200) take a life and shield its fan for 2.5 s, a ball out of lives is out and its fan dissolves, and the last flag standing wins (at a clip limit: the most lives, then the most rim). The fans' share of the rim is the live score – thin arcs just outside the wall and a **Standings Strip** along the bottom (`sbh`) – under a **Title Line** (`sbti`, default STRING CIRCLE). The Teams roster (its Country picker – Land Claim's, now 47 countries – fills a row with a flag) names, colours and flags the first balls; the balls past it play the clips' countries by their two-letter codes in colours apart (TR, IN, US, IR, DE, CA, JP, CN…), so a mega fight has any number of flags. A soft plucked twang for the strings anchored (at most three team notes at a time, twenty times a second), a snap for the strings cut, the battle's shatter at a KO. Five presets (Country fight: India vs USA, Battle of countries: Turkey / India / USA / Iran, Mega country fight (12), Hexagon arena (6), String arena classic (5)), a "Which flag wins?" caption, Find Simulation's winner outcome and the Forced Winner by flag; every number uncapped (a ball keeps up to 1,024 live strings – a memory-safety ceiling). Measured by the smoke test on a shared 4-core machine with software rendering: the four-flag default and the 12-flag mega preset at 60 fps on the page, the mega preset recorded at 1080×1920 at 46 fps; fans of ~400 strings on 5 and 12 balls at 60 fps on the page and 43 / 29 fps recorded. See "String Circle" below |
 
 ## Design
@@ -235,6 +236,48 @@ missing asset, a URL without the base path).
 - `scripts/postexport.mjs` also writes `out/offline.html` and `out/sw.js`, the service worker of the installable offline
   app, with the list of exported files it precaches and a version hash of the export (see "Installable offline app" below).
 
+### Obfuscation and the licence
+
+Feature code-obfuscation: the site is proprietary and the shipped JavaScript is obfuscated so it is not trivially copied
+and reused.
+
+- **What runs.** `npm run build` ends with `scripts/postexport.mjs`, which calls `scripts/obfuscate.mjs` over
+  `out/_next/static/chunks/**/*.js`. It skips the chunks Next's runtime bootstraps from (`webpack-*`, `framework-*`,
+  `main-*`, `main-app-*`, `polyfills-*`) and never touches `out/sw.js`; every other chunk is renamed (hexadecimal
+  identifiers – every local, function and class name, the engine's included, becomes `_0x…`), and a one-line banner
+  (`/*! JumpingBallsLive - proprietary software. … */`) is prepended. It then deletes any `.map` from `out/`
+  (`productionBrowserSourceMaps` is off in `next.config.ts`, so there should be none), and logs the chunk count and the
+  time it took.
+- **Order: before the service worker.** The PWA build hashes every exported file's contents to version the worker and
+  precaches the `/_next/static` chunks (`hashExport` / `selectPrecache` in `scripts/pwa/build.mjs`). So obfuscation runs
+  **first** – otherwise the offline cache would hold the obfuscated bytes under a version computed from the readable
+  ones, and the precache integrity would not match what is served.
+- **Speed first.** The physics runs a fixed 60 Hz loop and the seed finder re-runs the engine for thousands of seeds, and
+  the smoke test enforces frame-rate floors and finder timeouts that must not move, so the expensive transforms stay off
+  (`controlFlowFlattening`, `deadCodeInjection`, `selfDefending`, `renameProperties` – property renaming would break
+  React and Next – all `false`). The **string array is off** too: measured against the finder it made the build ~28x
+  slower (4.7 vs 133 seeds/second) and timed out the finder's checks – a check that fails only under obfuscation, so the
+  spec's reduction ladder applies. The string-array wrapper (a call per string access) de-optimises the engine's tight
+  step loop, turning its rotate/shuffle off did not help, and the hot code is in the simulator page chunk (so excluding
+  "the physics chunk" would un-obfuscate the chunk the smoke must find obfuscated); turning the array off keeps
+  hexadecimal identifier renaming on every chunk (the engine's logic stays unreadable) at native speed. `debugProtection`
+  is off on purpose (it is hostile to real users). The `seed` is a stable hash of each file name, so a build is
+  reproducible.
+- **Turning it off.** `OBFUSCATE=0 npm run build` ships the readable build – use it when debugging the export. The
+  default for `npm run build` is on, and CI builds with it on.
+- **The desktop app** packages the same `out/`, so the web bundle it ships is obfuscated too. Its Electron main-process
+  bundle (`desktop/dist/main.js`) is **not** obfuscated: it is Node/ESM code with `import.meta`, a `createRequire`
+  banner, native externals (`node-llama-cpp`, `ffmpeg-static`, …) and IPC channel strings the preload must match
+  byte-for-byte, so obfuscating it is high-risk for little gain (it is not downloadable from the website – it lives
+  inside the packaged app).
+- **What it protects, and what it does not.** This deters casual copying; it is **not** DRM. A determined person can
+  still read and run the code – the browser has to. So the obfuscation only raises the bar; the real protection for the
+  source is to keep **the repository private**. Set the GitHub repository to Private in its settings, or keep the source
+  in a private repository and publish only the built `out/` to the public Pages repository. The `LICENSE` file,
+  `"license": "UNLICENSED"` in every `package.json` and the terms page state the terms: all rights reserved, no copying,
+  modification, distribution, reverse engineering or commercial use (the Gerald character, name and artwork included)
+  without the owner's written permission.
+
 ## Project layout
 
 ```
@@ -245,7 +288,7 @@ public/
   wallBreak/*.wav       built-in wall-break sounds (generated)
   hitSounds/*.wav       built-in hit samples: click, pluck, kick (generated)
   og.png                social preview image – Open Graph / Twitter card of every page (generated: scripts/generate-og.mjs)
-scripts/                asset generators, postexport.mjs (404.html/.nojekyll), serve-static.mjs (GitHub-Pages-like server), smoke test
+scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test
 .github/workflows/      deploy.yml (lint · test · build · publish to GitHub Pages) · smoke.yml (browser test)
 src/
   app/[locale]/         pages (landing, simulator, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
@@ -854,6 +897,9 @@ These stay fixed on purpose, so a rebrand neither loses visitors' data nor break
 The Windows app (`desktop/`) carries the name on its own: `productName` / `appId` in `desktop/electron-builder.config.cjs`, the
 window, tray and menu titles (`desktop/src/main.ts`, `desktop/src/menu.ts`), the default output folder `Videos\<name>` (`main.ts`;
 the Render queue names it through `{siteName}`) and the portable data folder (`desktop/src/paths.ts`).
+--- code-obfuscation --- The licence names the product in plain text too: the banner the build prepends to every obfuscated chunk
+(`BANNER` in `scripts/obfuscate.mjs` – `tests/obfuscate.test.ts` repeats it and the smoke test's code-obfuscation check its start, so
+change all three together), `LICENSE` and the README's [Licence](#licence) section (the terms page reads `{siteName}`).
 `SITE_DOMAIN` – the address the legal pages name the site by – is not hard-coded: it is `NEXT_PUBLIC_SITE_URL` without the scheme
 (`cronusaztec.github.io/Balls` on GitHub Pages), so a custom domain set in the Pages settings (which `deploy.yml` turns into
 `NEXT_PUBLIC_SITE_URL`) shows up there on the next deploy; `NEXT_PUBLIC_SITE_DOMAIN` overrides it. The footer shows the site name
@@ -1593,3 +1639,10 @@ workflow (it type-checks and runs the Worker's own suite first: `cd billing && n
 The site's half of the contract – the Unlock dialog, the licence store, the guard, test mode – is described in
 [Pricing and licences](#pricing-and-licences); `src/lib/billing/api.ts` and `src/lib/billing/license.ts` document the
 endpoints and the licence format both sides share.
+
+## Licence
+
+Copyright (c) 2026 the owner of JumpingBallsLive. All rights reserved. This software and its source code, including the
+Gerald character, name and artwork, are proprietary: no copying, modification, distribution, public display, reverse
+engineering or commercial use without the owner's written permission. The software is provided "as is". See
+[`LICENSE`](LICENSE) and [Obfuscation and the licence](#obfuscation-and-the-licence).

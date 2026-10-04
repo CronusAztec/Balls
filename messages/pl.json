@@ -2116,7 +2116,8 @@
     "warranties": { "title": "6. Wyłączenie gwarancji", "content": "Serwis jest udostępniany „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji, wyraźnych lub dorozumianych, w tym dotyczących niezawodności, dokładności lub przydatności do określonego celu. Nie gwarantujemy, że Serwis będzie działał nieprzerwanie ani bezbłędnie." },
     "liability": { "title": "7. Ograniczenie odpowiedzialności", "content": "W najszerszym zakresie dozwolonym przez prawo operator serwisu {siteName} nie ponosi odpowiedzialności za jakiekolwiek pośrednie, przypadkowe, szczególne lub wynikowe szkody wynikające z korzystania z Serwisu, w tym utratę danych, przychodów lub zysków." },
     "changes": { "title": "8. Zmiany regulaminu", "content": "Możemy aktualizować regulamin w dowolnym momencie. Zmiany są publikowane na tej stronie z nową datą, a dalsze korzystanie z Serwisu po zmianie oznacza akceptację zmienionego regulaminu." },
-    "contact": { "title": "9. Kontakt", "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" }
+    "contact": { "title": "9. Kontakt", "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" },
+    "proprietaryNotice": "{siteName}, w tym postać Gerald, jej nazwa i grafika, to oprogramowanie własnościowe. Jego kod źródłowy jest zaciemniony (obfuskowany) i nie może być kopiowany, modyfikowany, poddawany inżynierii wstecznej, rozpowszechniany, publicznie wyświetlany ani wykorzystywany komercyjnie bez pisemnej zgody właściciela."
   },
   "Disclaimer": {
     "title": "Zastrzeżenia",

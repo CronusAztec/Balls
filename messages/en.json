@@ -2256,7 +2256,8 @@
       "title": "9. Contact",
       "content": "Questions about these terms? Reach us through our",
       "feedbackLink": "feedback form"
-    }
+    },
+    "proprietaryNotice": "{siteName}, including the Gerald character, its name and its artwork, is proprietary software. Its source code is obfuscated and may not be copied, modified, reverse-engineered, redistributed, publicly displayed or used commercially without the owner's written permission."
   },
   "Disclaimer": {
     "title": "Disclaimer",
