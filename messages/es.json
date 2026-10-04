@@ -2149,7 +2149,8 @@
     "warranties": { "title": "6. Exclusión de garantías", "content": "El Servicio se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo, expresas o implícitas, incluidas la fiabilidad, la exactitud o la idoneidad para un fin concreto. No garantizamos que el Servicio sea ininterrumpido ni esté libre de errores." },
     "liability": { "title": "7. Limitación de responsabilidad", "content": "En la máxima medida permitida por la ley, el operador de {siteName} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios." },
     "changes": { "title": "8. Cambios en estos términos", "content": "Podemos actualizar estos términos en cualquier momento. Los cambios se publican en esta página con una nueva fecha, y seguir usando el Servicio tras un cambio implica aceptar los términos revisados." },
-    "contact": { "title": "9. Contacto", "content": "¿Preguntas sobre estos términos? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" }
+    "contact": { "title": "9. Contacto", "content": "¿Preguntas sobre estos términos? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" },
+    "proprietaryNotice": "{siteName}, incluido el personaje Gerald, su nombre y sus ilustraciones, es software propietario. Su código fuente está ofuscado y no puede copiarse, modificarse, someterse a ingeniería inversa, redistribuirse, mostrarse públicamente ni usarse comercialmente sin el permiso escrito del propietario."
   },
   "Disclaimer": {
     "title": "Aviso legal",

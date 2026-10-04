@@ -756,6 +756,96 @@ describe("fight league forced winner", () => {
     const off = run(fightEngine({ fighters: ["vader", "luke", "random", "random"] }, 9, { forcedWinner: -1 }), 70_000);
     expect([off.finishMs, off.hits, off.winnerTeam, off.forcedWinner]).toEqual([plain.finishMs, plain.hits, plain.winnerTeam, -1]);
   });
+
+  it("holds against Acid Blood: the chosen side wins every seed against a reflecting Alien, both sides (no double KO)", () => {
+    // (with Predator or Gerald chosen, most of these were lost or ended in a double KO while reflected damage bypassed the backstop)
+    for (const [a, b] of [["predator", "alien"], ["gerald", "alien"]]) {
+      for (let seed = 1; seed <= 12; seed++) {
+        for (const forced of [0, 1]) {
+          const v = run(fightEngine({ fighters: [a, b, "random", "random"], timeCap: 60 }, seed, { forcedWinner: forced }), 70_000);
+          expect([a, b, seed, forced, v.finished, v.winnerTeam, v.doubleKo]).toEqual([a, b, seed, forced, true, forced, false]);
+          expect([a, b, seed, forced, v.fighters[forced].alive && v.fighters[forced].hp > 0]).toEqual([a, b, seed, forced, true]);
+        }
+      }
+    }
+  });
+
+  it("never ends a rigged fight in a double KO: the backstop holds until the verdict (rivals down in the same step, a shot in the KO grace)", () => {
+    // Seeds that ended in a DOUBLE KO while the backstop held only as long as a rival had HP left.
+    const cases: [string, string, number, number][] = [
+      ["loki", "spiderman", 3, 0],
+      ["batman", "wonderwoman", 8, 1],
+      ["littlemac", "sonic", 8, 0],
+      ["garen", "jinx", 8, 0],
+      ["ken", "chunli", 8, 1],
+      ["ken", "subzero", 3, 0],
+      ["masterchief", "doomslayer", 3, 1],
+      ["masterchief", "charizard", 8, 1],
+      ["goku", "luffy", 8, 1],
+      ["sasuke", "saitama", 3, 0],
+      ["sasuke", "saitama", 8, 0],
+      ["voldemort", "gandalf", 8, 0],
+      ["godzilla", "predator", 8, 0],
+    ];
+    for (const [a, b, seed, forced] of cases) {
+      const v = run(fightEngine({ fighters: [a, b, "random", "random"], timeCap: 60 }, seed, { forcedWinner: forced }), 70_000);
+      expect([a, b, seed, v.finished, v.doubleKo, v.winnerTeam]).toEqual([a, b, seed, true, false, forced]);
+      expect([a, b, seed, v.fighters[forced].alive, v.fighters[forced].hp > 0, v.fighters[1 - forced].alive]).toEqual([a, b, seed, true, true, false]);
+      expect([a, b, seed, v.rigAbsorbed > 0]).toEqual([a, b, seed, true]);
+    }
+  });
+
+  it("guards reflected damage like a hit: none while the attacker is invulnerable, and the rig's backstop holds against it", () => {
+    /** Gerald at 2 HP punches an Alien that deals no damage and reflects ten times every hit, until three hits land or he drops. */
+    const punchAcid = (forcedWinner: number, invulnerable: boolean) => {
+      const engine = fightEngine({ fighters: ["alien", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 4, { forcedWinner });
+      const v = engine.getFightLeagueView();
+      run(engine, 20_000, STEP, () => v.fighters[0].casts > 0);
+      const [alien, gerald] = v.fighters;
+      expect(alien.reflectUntil).toBeGreaterThan(v.timeMs); // (Acid Blood is on)
+      alien.reflectUntil = Infinity;
+      alien.reflectFrac = 10;
+      alien.damage = 0;
+      alien.cast = 0;
+      gerald.hp = 2;
+      if (invulnerable) gerald.invulnUntil = Infinity;
+      const taken = alien.taken;
+      const absorbed = v.rigAbsorbed;
+      run(engine, v.timeMs + 30_000, STEP, () => alien.taken >= taken + 3 || !gerald.alive);
+      return { v, gerald, hits: alien.taken - taken, absorbed: v.rigAbsorbed - absorbed };
+    };
+    // Unrigged, the first reflected punch takes Gerald's last 2 HP: the Alien wins.
+    const plain = punchAcid(-1, false);
+    expect([plain.hits, plain.gerald.alive, plain.v.winnerTeam]).toEqual([1, false, 0]);
+    // Invulnerable (Cloak, Super Star, Smoke Bomb …), he takes nothing back.
+    const cloaked = punchAcid(-1, true);
+    expect([cloaked.hits, cloaked.gerald.alive, cloaked.gerald.hp]).toEqual([3, true, 2]);
+    // Rigged for Gerald, the backstop keeps his last hit point against every reflected punch.
+    const rigged = punchAcid(1, false);
+    expect([rigged.hits, rigged.gerald.alive, rigged.gerald.hp, rigged.absorbed]).toEqual([3, true, 1, 3]);
+  });
+
+  it("keeps the chosen side standing at a step's end whatever took its last hit point (the guard before the KOs)", () => {
+    for (const forcedWinner of [-1, 0]) {
+      const engine = fightEngine({ fighters: ["thor", "loki", "random", "random"], timeCap: 60 }, 5, { forcedWinner });
+      const v = engine.getFightLeagueView();
+      run(engine, 4000);
+      const thor = v.fighters[0];
+      expect(thor.alive).toBe(true);
+      const absorbed = v.rigAbsorbed;
+      thor.hp = -5; // (no hit took it: hit() and its backstop never saw it)
+      engine.update(STEP, 0);
+      if (forcedWinner < 0) {
+        expect([thor.alive, thor.hp]).toEqual([false, 0]);
+        const end = run(engine, 70_000);
+        expect([end.finished, end.winnerTeam, end.doubleKo]).toEqual([true, 1, false]);
+      } else {
+        expect([thor.alive, thor.hp, v.rigAbsorbed]).toEqual([true, 1, absorbed + 1]);
+        const end = run(engine, 70_000);
+        expect([end.finished, end.winnerTeam, end.doubleKo]).toEqual([true, 0, false]);
+      }
+    }
+  });
 });
 
 /** A fingerprint of a fight's state: positions, HP, hits and casts of every fighter and the counters (the sounds left out). */

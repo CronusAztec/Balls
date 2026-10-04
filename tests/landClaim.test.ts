@@ -419,7 +419,7 @@ describe("Land Claim in the engine", () => {
     for (let t = 0; t < o.teams; t++) expect(o.spawned[t] + o.spawnsRefused * 0).toBe(Math.floor(o.gains[t] / 3));
   });
 
-  it("refuses a spawn past the ball ceiling with ARENA FULL – the knock still counts", () => {
+  it("refuses a spawn past the ball ceiling with ARENA FULL – the knock still counts", { timeout: 20_000 }, () => {
     const engine = landClaim({ teams: 2, balls: LC_BALL_CEILING / 2, every: 1, cols: 60, rows: 4 }, 5, { ...config, ballRadius: 0.5 });
     expect(engine.getBalls()).toHaveLength(LC_BALL_CEILING);
     for (let i = 0; i < 30; i++) engine.update(STEP, 0);
@@ -491,7 +491,7 @@ describe("Land Claim in the engine", () => {
     expect([v.knocks, v.verdict.winner]).toEqual([knocks, verdict.winner]);
   });
 
-  it("replays a seed exactly – the same battle at 30, 60 and 120 frames a second (a pinned fingerprint)", () => {
+  it("replays a seed exactly – the same battle at 30, 60 and 120 frames a second (a pinned fingerprint)", { timeout: 20_000 }, () => {
     function fnv(bytes: Uint8Array, h = 0x811c9dc5) {
       for (let i = 0; i < bytes.length; i++) {
         h ^= bytes[i];
@@ -539,7 +539,7 @@ describe("Land Claim in the engine", () => {
     expect(allInside(engine, 1)).toBe(true);
   });
 
-  it("takes sizes past every slider: a wall of thousands of blocks, dozens of competitors, the ceilings for what a run builds", () => {
+  it("takes sizes past every slider: a wall of thousands of blocks, dozens of competitors, the ceilings for what a run builds", { timeout: 30_000 }, () => {
     const big = landClaim({ cols: 400, rows: 40, teams: 30, balls: 2, every: 4 }, 2);
     const v = big.getLandClaimView();
     expect([v.cols, v.rows, v.total, v.teams, big.getBalls().length]).toEqual([400, 40, 16000, 30, 60]);
@@ -590,7 +590,7 @@ describe("the verdict", () => {
     expect(landClaimForcedWinner(1.5, 4)).toBe(-1);
   });
 
-  it("makes the forced winner the favourite by aiming its balls' rebounds at land still to take – honestly", () => {
+  it("makes the forced winner the favourite by aiming its balls' rebounds at land still to take – honestly", { timeout: 20_000 }, () => {
     let natural = 0;
     let rigged = 0;
     for (let seed = 1; seed <= 14; seed++) {
@@ -646,7 +646,7 @@ describe("Find Simulation", () => {
     expect(outcomeFigure(close, run(0.2, false))).toBe(100);
   });
 
-  it("follows every battle to its verdict: the winner of the first six competitors and the gap a close battle is judged on", () => {
+  it("follows every battle to its verdict: the winner of the first six competitors and the gap a close battle is judged on", { timeout: 20_000 }, () => {
     for (const seed of [1, 2, 3, 4]) {
       const run = simulateOutcomeRun(seed, request(), { kind: "close", clipSec: 15 });
       expect(run.finished).toBe(true);

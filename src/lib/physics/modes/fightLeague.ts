@@ -48,10 +48,12 @@ import {
  * Determinism: every random number – a "random" fighter slot, the spawn, the launch headings, every shot's spread, the arena
  * cuts – comes from `ctx.random()` in slot order, so a seed replays exactly at any frame rate and Find Simulation can search
  * it ("A wins", "B wins", the run's length, a double KO). The rigged forced winner (`config.forcedWinner`, a fighter in
- * 1v1 and the free-for-alls, a team in 2v2) steers within that replay: its hits land a little more (a longer reach,
- * homing shots, rebounds nudged toward a rival – more the further it trails) and the rivals' a little less (it recovers
- * longer from a hit), and as a backstop its side's last fighter never loses its last hit point while a rival stands and
- * the time cap waits while it trails – so the chosen side always wins (`FlRig`).
+ * 1v1 and the free-for-alls, a team in 2v2) steers within that replay (`updateRig()`): its hits land a little more (a
+ * longer reach, homing shots, rebounds nudged toward a rival – more the further it trails) and the rivals' a little less
+ * (it recovers longer from a hit), and as a backstop its side's last fighter never loses its last hit point until the
+ * verdict – to a hit or to reflected damage, also when the rivals go down in the same step or a shot lands in the KO grace
+ * (`absorbLethal()`, with `guardChosenSide()` before every step's KOs) – and the time cap waits while it trails: the
+ * chosen side always wins, never in a double KO.
  *
  * Sound: every weapon hit is an effect of its kind (`SoundEvent.fight` – a metallic ring for blades, a thud for hammers
  * and flails, a twang for arrows, a shot for guns, a whoosh for fire, a chime for magic), an ability a swell, a KO a heavy
@@ -2574,11 +2576,7 @@ export class FightLeagueMode implements GameMode {
     if (!(amount > 0)) return false;
     const before = target.hp;
     target.hp -= amount;
-    // The rig's backstop: the chosen side's last fighter keeps its last hit point while a rival stands.
-    if (target.hp <= 0 && this.rigChosen >= 0 && target.team === this.rigChosen && this.lastOfTeam(target) && this.rivalsStand(target.team)) {
-      target.hp = Math.min(before, 1);
-      v.rigAbsorbed++;
-    }
+    this.absorbLethal(target, before);
     const iframe = FL_IFRAME_MS * (this.rigChosen >= 0 && target.team === this.rigChosen ? 1 + 0.8 * this.rigK : 1);
     target.iUntil = now + iframe;
     if (opts.volley) {
@@ -2604,10 +2602,13 @@ export class FightLeagueMode implements GameMode {
       target.vx = ball.vx;
       target.vy = ball.vy;
     }
-    // Reflection: the attacker takes its share back.
-    if (now < target.reflectUntil && attacker !== target && attacker.alive) {
+    // Reflection: the attacker takes its share back – through the same guards as a hit (none while it is invulnerable, and
+    // the rig's backstop holds against it).
+    if (now < target.reflectUntil && attacker !== target && attacker.alive && now >= attacker.invulnUntil) {
       const back = amount * target.reflectFrac;
+      const had = attacker.hp;
       attacker.hp -= back;
+      this.absorbLethal(attacker, had);
       attacker.hitMs = now;
       this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent);
     }
@@ -2619,14 +2620,37 @@ export class FightLeagueMode implements GameMode {
     return true;
   }
 
+  /**
+   * The rig's backstop, after `f`'s HP dropped from `before` (a hit or reflected damage): the chosen side's last fighter keeps
+   * its last hit point until the verdict – also when the rivals are down in the same step or a rival's shot is still in the
+   * air after the last KO (`FL_KO_GRACE_MS`), so a rigged fight never ends in a double KO.
+   */
+  private absorbLethal(f: FlFighter, before: number) {
+    if (f.hp > 0 || this.rigChosen < 0 || f.team !== this.rigChosen || this.view.finished || !this.lastOfTeam(f)) return;
+    f.hp = Math.min(before, 1);
+    this.view.rigAbsorbed++;
+  }
+
   private lastOfTeam(f: FlFighter): boolean {
     for (const o of this.view.fighters) if (o !== f && o.team === f.team && o.alive && o.hp > 0) return false;
     return true;
   }
 
-  private rivalsStand(team: number): boolean {
-    for (const o of this.view.fighters) if (o.team !== team && o.alive && o.hp > 0) return true;
-    return false;
+  /**
+   * The rig's guard at the end of a step, before its KOs: should every standing fighter of the chosen side be at 0 HP, the
+   * one with the most left keeps 1 HP – the backstop above already holds it, this catches any other way down (the verdict
+   * then never wipes the chosen side out: no rival's win, no double KO). Deterministic, so replays stay exact.
+   */
+  private guardChosenSide() {
+    let keep: FlFighter | null = null;
+    for (const f of this.view.fighters) {
+      if (f.team !== this.rigChosen || !f.alive) continue;
+      if (f.hp > 0) return;
+      if (!keep || f.hp > keep.hp) keep = f;
+    }
+    if (!keep) return;
+    keep.hp = Math.min(keep.maxHp, 1);
+    this.view.rigAbsorbed++;
   }
 
   /* ---------------------------------------------------------------- abilities */
@@ -3096,6 +3120,7 @@ export class FightLeagueMode implements GameMode {
     const v = this.view;
     const now = ctx.getElapsedMs();
     if (v.finished) return;
+    if (this.rigChosen >= 0) this.guardChosenSide();
     // KOs of this step (every hit of the step counted first: no fighter wins by its slot).
     for (const f of v.fighters) {
       if (!f.alive || f.hp > 0) continue;

@@ -10382,6 +10382,48 @@ const bdInstrument = () =>
 }
 // --- end paywall-gate ---
 
+// --- code-obfuscation --- the shipped simulator app chunk is obfuscated (the proprietary banner, hexadecimal-mangled
+// identifiers, and no readable PhysicsEngine / bounceMath / FinderRequest), and no source map is served for it. The
+// expectation follows the build: OBFUSCATE=0 serves a debug (un-obfuscated) build, so the check inverts there; the .map
+// 404 holds either way (productionBrowserSourceMaps is off). page.request.get() fires no page "response" event, so the
+// deliberate .map 404 is not counted by the "no failed same-origin requests" check below. Note PhysicsEngine and
+// FinderRequest are logic identifiers obfuscation removes outright; bounceMath is a SimulatorSettings key, so property
+// access and label strings keep that name (renameProperties must stay off for React/Next) – it is only checked for not
+// being declared as readable code, while the hex-mangling signature (_0x…, which plain minified output never has) proves
+// the chunk really was obfuscated.
+{
+  const expectObfuscated = process.env.OBFUSCATE !== "0";
+  const BANNER = "/*! JumpingBallsLive - proprietary software.";
+  const simHtml = await (await page.request.get(`${BASE}/en/simulator/`)).text();
+  const m = simHtml.match(/_next\/static\/chunks\/app\/[^"'\\\s]*?simulator\/page-[^"'\\\s]*?\.js/);
+  const chunkRel = m ? m[0] : null;
+  if (!chunkRel) {
+    check("code-obfuscation: the simulator page references its app chunk", false, "(no simulator page chunk found in /en/simulator/)");
+  } else {
+    const res = await page.request.get(`${BASE}/${chunkRel}`);
+    const js = res.ok() ? await res.text() : "";
+    const banner = js.startsWith(BANNER);
+    const mangled = (js.match(/_0x[0-9a-f]{4,}/g) || []).length;
+    const present = ["PhysicsEngine", "FinderRequest"].filter((id) => js.includes(id));
+    const readableDecl = /\b(?:class|function)\s+(?:PhysicsEngine|bounceMath|FinderRequest)\b/.test(js);
+    if (expectObfuscated) {
+      check(
+        "code-obfuscation: the shipped simulator chunk is obfuscated (banner, hex-mangled identifiers, no readable PhysicsEngine/bounceMath/FinderRequest)",
+        res.ok() && banner && mangled >= 20 && present.length === 0 && !readableDecl,
+        `(${chunkRel}: ok ${res.ok()}, banner ${banner}, _0x×${mangled}, present [${present.join(", ") || "none"}], readableDecl ${readableDecl})`,
+      );
+    } else {
+      check(
+        "code-obfuscation: OBFUSCATE=0 serves the simulator chunk un-obfuscated (no banner)",
+        res.ok() && !banner,
+        `(${chunkRel}: ok ${res.ok()}, banner ${banner})`,
+      );
+    }
+    const mapRes = await page.request.get(`${BASE}/${chunkRel}.map`);
+    check("code-obfuscation: no source map is served for the simulator chunk (404)", mapRes.status() === 404, `(${chunkRel}.map → ${mapRes.status()})`);
+  }
+}
+// --- end code-obfuscation ---
 // --- orb-grid ---
 // Bouncing Orbs: the preview image and the card under the rhythm heading; URL → the Bouncing Orbs
 // block of the Mode row (columns, rows, arrangement, distribution, sound, material, auto-orbit, the run line), controls → URL
@@ -10812,8 +10854,9 @@ const orbBannerPixels = () =>
 // boxes and VS card; a 1v1 on a pinned seed fought at 8× to its winner – weapon hits and ability swells heard
 // (AudioBufferSourceNode / OscillatorNode.start instrumented), the winner banner held before the end screen, a bottom question
 // caption above the ability boxes answered at the verdict; a four-way free-for-all to its end; the forced winner taking a
-// pinned seed it loses unrigged; four shooters and their projectiles keep 30+ fps; a 1080×1920 recording keeps 20+ fps and
-// downloads; and the finder finds an "A wins" seed that replays as promised.
+// pinned seed it loses unrigged, and its backstop holding to the verdict (Acid Blood's reflection, a shared KO step, the KO
+// grace); four shooters and their projectiles keep 30+ fps; a 1080×1920 recording keeps 20+ fps and downloads; and the
+// finder finds an "A wins" seed that replays as promised.
 {
   const res = await page.request.get(`${BASE}/modes/fightLeague.webp`);
   check("asset /modes/fightLeague.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -10979,6 +11022,32 @@ const orbBannerPixels = () =>
     "fight league: the forced winner wins a pinned seed it loses unrigged",
     plain.data.seed === "11" && rigged.data.seed === "11" && plain.data.flFinished === "1" && (plain.data.flWinnerTeam === "0" || plain.data.flWinnerTeam === "1") && plain.data.flForced === "-1" && rigged.data.flFinished === "1" && rigged.data.flForced === String(loser) && rigged.data.flWinnerTeam === String(loser) && rigged.data.flWinner === names[loser] && rigged.note.includes(`Rigged: ${"AB"[loser]} · ${names[loser]} wins`),
     `(seed 11 on ${plain.data.world}: unrigged ${plain.data.flWinner} at ${plain.data.flFinishSec} s; forced ${names[loser]}: ${rigged.data.flWinner} at ${rigged.data.flFinishSec} s, HP ${rigged.data.flHp}, note "${rigged.note}")`,
+  );
+}
+{
+  // The rig's backstop holds to the verdict, on pinned seeds the rigged side used to lose: Gerald punching a reflecting Alien
+  // (seed 4 – the reflected damage skipped the backstop and took his last hit point), Sasuke vs Saitama (seed 8 – both ended
+  // one step at 0 HP: a double KO) and Loki vs Spider-Man (seed 3 – a shot landed in the KO grace after Spider-Man went down:
+  // a double KO). Rigged for A, A wins each one, alive, never in a double KO.
+  const rows = [];
+  for (const [query, name] of [
+    ["fl1=gerald&fl2=alien&seed=4", "Gerald"],
+    ["fl1=sasuke&fl2=saitama&seed=8", "Sasuke"],
+    ["fl1=loki&fl2=spiderman&seed=3", "Loki"],
+  ]) {
+    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&${query}&fw=0`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    const d = await canvasData();
+    const ok = d.flFinished === "1" && d.flForced === "0" && d.flWinnerTeam === "0" && d.flWinner === name && d.flDoubleKo === "0" && d.flAlive === "1,0" && Number((d.flHp || "").split(",")[0]) > 0;
+    rows.push({ ok, note: `${d.flNames} seed ${d.seed} on ${d.world}: ${d.flWinner || "unfinished"} at ${d.flFinishSec} s, HP ${d.flHp}, alive ${d.flAlive}, double KO ${d.flDoubleKo}` });
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-rig-backstop.png") });
+  check(
+    "fight league: the rig's backstop holds to the verdict – against Acid Blood's reflected damage, a step both sides end at 0 HP and a shot in the KO grace (no double KO)",
+    rows.every((r) => r.ok),
+    `(${rows.map((r) => r.note).join("; ")})`,
   );
 }
 {
