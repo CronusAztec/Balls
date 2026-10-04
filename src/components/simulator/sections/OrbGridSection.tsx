@@ -28,6 +28,7 @@ import {
   type OgSound,
   type OrbGridFields,
   type OrbGridPreset,
+  type OrbRhythmSummary,
 } from "@/lib/physics/modes/orbGrid";
 import OrbRhythmSection, { ORB_RHYTHM_KEYS, OrbModelSwitch } from "./OrbRhythmSection"; // --- orb-rhythm --- the model switch, the rhythm and the metronome
 
@@ -95,6 +96,47 @@ function OptionSelect<T extends string>({ t, labelKey, tipKey, options, labels, 
   );
 }
 
+/** The panel's summary of a field (`orbGridSummary()`): the orbs, when it settles and its planned resolve moment. */
+type OrbGridRunSummary = ReturnType<typeof orbGridSummary>;
+
+/**
+ * What the run line's plan (`orbGridSummary()`) reads – its memo's key: the model (--- orb-rhythm --- a rhythm field never
+ * settles and its resolve is the cycle's end, a decay field comes to rest and resolves on its own plan, so a switch of the
+ * model re-plans the line), the field, the decay model's variation and the gravity. tests/orbGrid.test.ts replays the memos
+ * over a change of every setting the summaries read: the line always reads what a fresh load of the new settings reads.
+ */
+export function orbGridSummaryKey(s: SimulatorSettings): string {
+  return [s.ogModel, s.ogColumns, s.ogRows, s.ogArrangement, s.ogVaried, s.ogDistribution, s.ogSpread, s.ogRelease, s.ogStagger, s.ogDropHeight, s.ogOrbSize, s.ogBounciness, s.ogResolve, s.gravity].join("|");
+}
+
+/**
+ * --- orb-rhythm --- What a rhythm field's summary (`orbRhythmSummary()`) reads – its memo's key: the model, the field, the
+ * rhythm settings, the metronome's clock (the beat lock's tempo while that is on), the heights and the gravity.
+ */
+export function orbRhythmSummaryKey(s: SimulatorSettings): string {
+  return [s.ogModel, s.ogColumns, s.ogRows, s.ogArrangement, s.ogSpread, s.ogDropHeight, s.ogPoly, s.ogGroup, s.ogCycle, s.ogRhythm, s.ogSteps, s.ogBpm, s.ogBeats, s.ogBars, s.ogMetro, s.ogClick, s.ogEq, s.quantizeToBeat, s.bpm, s.gravity].join("|");
+}
+
+/**
+ * The run line under the block, which sums the run up for Find Simulation: the orbs, then a rhythm field's groups, bounces a
+ * cycle, how often it is in phase and the metronome's bars and tempo (`rs`), or a decay field's settle and resolve moments.
+ */
+export function orbGridRunLine(t: Translate, summary: OrbGridRunSummary, rs: OrbRhythmSummary | null): string {
+  const parts = [t("ogRunOrbs", { orbs: summary.count })];
+  // --- orb-rhythm ---
+  if (rs) {
+    parts.push(t("ogRunGroups", { groups: rs.groups }));
+    parts.push(rs.minCount === rs.maxCount ? t("ogRunCount", { count: rs.minCount }) : t("ogRunCounts", { min: rs.minCount, max: rs.maxCount }));
+    parts.push(Number.isFinite(rs.periodSec) ? t("ogRunPhase", { seconds: rs.periodSec.toFixed(1) }) : t("ogRunNeverPhase"));
+    if (rs.metroOn) parts.push(t("ogRunMetro", { bars: rs.bars, bpm: Math.round(rs.bpm * 10) / 10 }));
+    return parts.join(" · ");
+  }
+  // --- end orb-rhythm ---
+  parts.push(Number.isFinite(summary.settleSec) ? t("ogRunSettles", { seconds: summary.settleSec.toFixed(1) }) : t("ogRunNever"));
+  if (summary.resolveSec > 0) parts.push(t("ogRunResolve", { seconds: summary.resolveSec.toFixed(1) }));
+  return parts.join(" · ");
+}
+
 /**
  * "Bouncing Orbs" controls (feature orb-grid), shown in the Mode row while Bouncing Orbs is the mode (and in the Ball section
  * while the settings search is in use): the field (columns, rows, arrangement), the variation (the varied property, its
@@ -105,30 +147,24 @@ function OptionSelect<T extends string>({ t, labelKey, tipKey, options, labels, 
  * maximum.
  */
 export default function OrbGridSection({ t, search, matches, settings: s, update }: OrbGridSectionProps) {
-  // The summary plans the field once per change of the physics (pure; the seed's tempo aside).
+  // The summary plans the field once per change of what it reads (pure; the seed's tempo aside) – the model included: a
+  // rhythm field's summary never settles, so the decay model's line needs its own plan after a switch (`orbGridSummaryKey()`).
+  const summaryKey = orbGridSummaryKey(s);
   const summary = useMemo(
     () => orbGridSummary(orbGridSettingsOf(s), s.gravity),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [s.ogColumns, s.ogRows, s.ogArrangement, s.ogVaried, s.ogDistribution, s.ogSpread, s.ogRelease, s.ogStagger, s.ogDropHeight, s.ogOrbSize, s.ogBounciness, s.ogResolve, s.gravity],
+    [summaryKey],
   );
-  const runParts = [t("ogRunOrbs", { orbs: summary.count })];
   // --- orb-rhythm --- a rhythm field: its groups and bounces a cycle, how often it is in phase, the metronome's bars and tempo
   const rhythm = s.ogModel === "rhythm";
+  const rhythmKey = orbRhythmSummaryKey(s);
   const rs = useMemo(
     () => (rhythm ? orbRhythmSummary(orbGridSettingsOf(s), s.gravity) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rhythm, s.ogColumns, s.ogRows, s.ogArrangement, s.ogSpread, s.ogDropHeight, s.ogPoly, s.ogGroup, s.ogCycle, s.ogRhythm, s.ogSteps, s.ogBpm, s.ogBeats, s.ogBars, s.ogMetro, s.ogClick, s.ogEq, s.quantizeToBeat, s.bpm, s.gravity],
+    [rhythmKey],
   );
-  if (rs) {
-    runParts.push(t("ogRunGroups", { groups: rs.groups }));
-    runParts.push(rs.minCount === rs.maxCount ? t("ogRunCount", { count: rs.minCount }) : t("ogRunCounts", { min: rs.minCount, max: rs.maxCount }));
-    runParts.push(Number.isFinite(rs.periodSec) ? t("ogRunPhase", { seconds: rs.periodSec.toFixed(1) }) : t("ogRunNeverPhase"));
-    if (rs.metroOn) runParts.push(t("ogRunMetro", { bars: rs.bars, bpm: Math.round(rs.bpm * 10) / 10 }));
-  } else {
-    // --- end orb-rhythm ---
-    runParts.push(Number.isFinite(summary.settleSec) ? t("ogRunSettles", { seconds: summary.settleSec.toFixed(1) }) : t("ogRunNever"));
-    if (summary.resolveSec > 0) runParts.push(t("ogRunResolve", { seconds: summary.resolveSec.toFixed(1) }));
-  } // --- orb-rhythm ---
+  // --- end orb-rhythm ---
+  const runLine = orbGridRunLine(t, summary, rs);
   const decay = !rhythm || !!search; // --- orb-rhythm --- (the decay model's own controls)
   return (
     <div className="space-y-3 pt-2" data-testid="orb-grid">
@@ -197,7 +233,7 @@ export default function OrbGridSection({ t, search, matches, settings: s, update
       </Searchable>
       {!search && (
         <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="orb-grid-run">
-          {runParts.join(" · ")}
+          {runLine}
         </p>
       )}
     </div>
