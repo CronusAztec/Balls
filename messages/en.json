@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
-    "metaTitle": "Ball Physics Simulator for TikTok & Reels – Free to Play, Export with Pro – {siteName}",
-    "metaDescription": "Browser-based ball physics simulator with {count} modes, customisable physics and rainbow effects – free to play with, no sign-up, no install. MP4 export in vertical TikTok format comes with Pro."
+    "metaTitle": "Ball Physics Simulator for TikTok & Reels – Free to Play and Export – {siteName}",
+    "metaDescription": "Browser-based ball physics simulator with {count} modes, customisable physics and rainbow effects – free to play with and to export, no sign-up, no install. MP4 export in vertical TikTok format; Pro removes the watermark."
   },
   "Layout": {
     "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
-    "metaDescription": "Browser-based ball physics simulator. Play with {count} unique modes, customisable physics and rainbow effects for free – no sign-up or installation – and export MP4 videos for TikTok, Reels and Shorts with Pro.",
+    "metaDescription": "Browser-based ball physics simulator. Play with {count} unique modes, customisable physics and rainbow effects for free – no sign-up or installation – and export MP4 videos for TikTok, Reels and Shorts (Pro removes the watermark).",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
     "featuresModes": "{count} simulation modes",
     "features": [
@@ -1991,7 +1991,7 @@
   "FAQ": {
     "q1": {
       "question": "Is {siteName} free to use?",
-      "answer": "Playing is free: every mode, every customisation option, the sound and Find Simulation, with no account to create. Recording and exporting the videos is part of Pro, for $10 a month or $79 a year."
+      "answer": "Yes: every mode, every customisation option, the sound and Find Simulation – and recording and exporting the videos – with no account to create. Videos made for free carry a small watermark; Pro removes it for $10 a month or $79 a year."
     },
     "q2": {
       "question": "What video formats and resolutions can I export?",
@@ -2218,7 +2218,7 @@
     },
     "description": {
       "title": "2. Description of Service",
-      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator is free; recording and exporting video files requires a Pro licence (see Pro subscriptions). The Service is provided \"as is\" without any guarantee of availability or uptime."
+      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator and exporting videos is free; videos exported without a Pro licence carry a watermark (see Pro subscriptions). The Service is provided \"as is\" without any guarantee of availability or uptime."
     },
     "ugc": {
       "title": "3. User-Generated Content",
@@ -2266,7 +2266,7 @@
     "metaDescription": "Disclaimer for {siteName}: how the tool is provided, what it does not guarantee and its relationship to third-party platforms.",
     "general": {
       "title": "General information",
-      "content": "{siteName} ({siteDomain}) is a tool for creating physics-based animation videos in your browser: playing with the simulator is free, and exporting the videos is part of Pro. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
+      "content": "{siteName} ({siteDomain}) is a tool for creating physics-based animation videos in your browser: playing with the simulator and exporting the videos is free, with a watermark that Pro removes. Its features and content are provided for general and entertainment purposes. By using the tool you accept this disclaimer in full; if you do not agree with any part of it, please do not use the site."
     },
     "noGuarantee": {
       "title": "No guarantee of results",
@@ -2332,19 +2332,19 @@
     "openManually": "If nothing opened, use this link."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Make Bouncing Ball Videos for TikTok – Play Free, Export with Pro – {siteName}",
-    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a browser tool with {count} modes and custom physics to play with for free, and vertical 1080×1920 export with Pro. No sign-up needed.",
+    "metaTitle": "Make Bouncing Ball Videos for TikTok – Play and Export Free – {siteName}",
+    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a browser tool with {count} modes and custom physics, free to play with and to export in vertical 1080×1920 (Pro removes the watermark). No sign-up needed.",
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
-    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a browser tool built for exactly this kind of content: its physics controls and visual effects are free to play with, and Pro adds one-click vertical export.",
+    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a browser tool built for exactly this kind of content: its physics controls, visual effects and one-click vertical export are free, and Pro takes the watermark off the videos.",
     "p2": "What makes the format work is its built-in tension arc. The ball ricochets faster, the walls close in, the gap looks impossibly small, and then the ball slips through and everything pays off with confetti, a shatter or a shockwave. That loop fits naturally into 15 to 60 seconds, which is where TikTok engagement peaks.",
     "h2_1": "Why It Works on TikTok",
     "p3": "TikTok rewards videos that hold viewers to the end and get replayed. Ball physics does both: people stay to see whether the ball escapes and rewatch to catch the effects they missed. The format also fits TikTok's sound culture: {siteName} can play a melody note by note on every wall hit, turning the physics into a musical performance.",
     "p4": "There is no dialogue, no face on screen and no setup. Just a clean visual hook that works even as background noise for a scrolling viewer, which is why the format regularly out-performs more produced content in the discovery feed.",
     "h2_2": "Export in the Right Format",
     "p5": "TikTok's preferred aspect ratio is 9:16 vertical, 1080×1920 pixels. {siteName} records directly at that size, so there is no cropping, no re-encoding and no external editor. Set the recording duration (10 to 120 seconds), press record and download a platform-ready clip.",
-    "p6": "You can also export 500×500 (square), 1280×720 (HD) or 1920×1080 (Full HD) for Reels, YouTube Shorts and other platforms. Recording happens entirely in your browser; nothing is uploaded and no watermark is added unless you add your own.",
+    "p6": "You can also export 500×500 (square), 1280×720 (HD) or 1920×1080 (Full HD) for Reels, YouTube Shorts and other platforms. Recording happens entirely in your browser and nothing is uploaded. Videos made for free carry a small {siteName} watermark, which Pro removes; your own custom watermark is optional.",
     "h2_3": "Start with a Proven Format",
     "p7": "The best TikTok ball videos follow a simple recipe: a clear visual hook in the first second, a visible progress indicator such as the number of walls left, and a satisfying payoff when the ball finally escapes. The Find Simulation tool searches for a seed that produces a run of your target length, so you can plan the clip instead of guessing.",
     "p8": "Every mode, from Classic and Multiply to Ball Drop, Square Racing and Glass Smash, produces a different rhythm, so you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
@@ -2352,13 +2352,13 @@
   },
   "About": {
     "metaTitle": "About {siteName} – Ball Physics Video Maker",
-    "metaDescription": "The story behind {siteName}: a browser-based tool – free to play with, Pro to export – for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
+    "metaDescription": "The story behind {siteName}: a browser-based tool – free to play with and to export, Pro without the watermark – for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
     "metaOgTitle": "About {siteName}",
     "metaOgDescription": "Why {siteName} exists and who it is for.",
     "badge": "About",
     "title": "About {siteName}",
     "p1": "{siteName} started with a simple frustration. Bouncing-ball physics videos were everywhere, pulling in millions of views, and every way of making one was clunky: learn a game engine, pay for an app, or repost a clip a thousand other accounts had already used. None of that suited someone who just wanted to make a good video and post it. So we built the tool we wished existed: open a tab, make the video, download it, done.",
-    "p2": "That idea still runs the whole site. {siteName} is free, works in your browser and asks nothing of you before you start. No sign-up and no install: every mode and setting is yours to play with, and Pro adds the video export once a clip is ready to post. The defaults already produce something worth posting; everything after that is you shaping it to fit your idea.",
+    "p2": "That idea still runs the whole site. {siteName} is free, works in your browser and asks nothing of you before you start. No sign-up and no install: every mode and setting is yours to play with, and so is the video export – free videos carry a small watermark, which Pro removes. The defaults already produce something worth posting; everything after that is you shaping it to fit your idea.",
     "h2_1": "What we care about",
     "p3": "Speed and control, more than anything else. Speed, because the gap between an idea and a posted video is where most content dies; if a clip takes twenty minutes and three apps, you stop making clips. Control, because reposted content does not grow an account. When you set the mode, the colours, the pacing and the hook yourself, the video is yours and it stands a real chance in a feed that has seen every recycled clip.",
     "p4": "We also care about staying out of your way. The simulator updates as you change things, so you learn by doing rather than reading a manual. Settings have plain names. The hard part, the physics and the rendering, happens quietly in the background while you focus on whether the video is fun to watch.",
@@ -2370,12 +2370,12 @@
     "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
     "cta": "Open the simulator",
     "toolTitle": "What {siteName} actually is",
-    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings and watch it play – all free, with no account, no installation and no video editor involved. When a clip is ready, Pro records it and lets you download it; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
+    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings and watch it play – all free, with no account, no installation and no video editor involved. When a clip is ready, record it and download it – free videos carry a small watermark, Pro exports them clean; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
     "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
     "tweakTitle": "Built to be tweaked",
     "tweakP": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
     "exportTitle": "Record, export, post",
-    "exportP": "When the run looks right, record it in the browser and export a video sized for vertical feeds. No screen-capture app, no unwanted watermark, no re-encoding elsewhere. Found a combination you like? Save it as a preset and reuse it for a whole series; many accounts post the same mode every day with small variations."
+    "exportP": "When the run looks right, record it in the browser and export a video sized for vertical feeds. No screen-capture app and no re-encoding elsewhere; on Free the video carries a small watermark, which Pro removes. Found a combination you like? Save it as a preset and reuse it for a whole series; many accounts post the same mode every day with small variations."
   },
   "Rigged": {
     "outcome": "Outcome",
@@ -3347,7 +3347,7 @@
   "DesktopLink": {
     "navLabel": "Windows app",
     "heroButton": "Download for Windows",
-    "heroNote": "Free download · GPU rendering with Pro · built-in AI"
+    "heroNote": "Free download · GPU rendering · built-in AI"
   },
   "Desktop": {
     "groupTitle": "Desktop studio",
@@ -3580,7 +3580,7 @@
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
     "metaTitle": "Download {siteName} for Windows – GPU video rendering and a built-in AI",
-    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download; video rendering needs Pro.",
+    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download; videos rendered without Pro carry a watermark.",
     "badge": "Windows app",
     "title": "{siteName} for Windows",
     "intro": "Everything the simulator does in the browser, plus what a browser can't: your GPU renders and encodes the videos, a render queue works through batches while you do something else, and an AI studio – running on your PC, offline – plans clips, writes captions and changes settings for you.",
@@ -3652,7 +3652,7 @@
     "hero": {
       "eyebrow": "Ball physics studio",
       "title": "Satisfying ball physics, made for TikTok.",
-      "sub": "Tune the physics, pick one of {count} modes and play with every setting – free, in your browser, no account. Export the vertical clip, ready to post, with Pro.",
+      "sub": "Tune the physics, pick one of {count} modes and play with every setting – free, in your browser, no account. Export the vertical clip, ready to post – Pro removes the watermark.",
       "seeModes": "See the modes",
       "live": "Live",
       "preview": "Preview",
@@ -3722,13 +3722,13 @@
     "canvasTimeUp": "TIME'S UP"
   },
   "Billing": {
-    "metaTitle": "Pricing – free playground, Pro video creation – {siteName}",
-    "metaDescription": "Play with every mode and setting of {siteName} for free. Pro unlocks recording and exporting the videos for {monthly} a month or {yearly} a year – by card, PayPal or crypto.",
+    "metaTitle": "Pricing – free playground and exports, Pro without the watermark – {siteName}",
+    "metaDescription": "Play with every mode and setting of {siteName} and export the videos for free – with a small watermark. Pro removes the watermark for {monthly} a month or {yearly} a year – by card, PayPal or crypto.",
     "eyebrow": "Pricing",
-    "title": "Play for free. Go Pro to make the videos.",
-    "lede": "Every mode, every setting and every sound is free to play with, without an account. Pro adds everything that turns a run into a video file: Record Video, the fast export, batch renders, the viral bot's renders, Publish and the desktop app's render queue.",
+    "title": "Play and export for free. Go Pro to drop the watermark.",
+    "lede": "Every mode, every setting and every sound is free, without an account – and so is making the videos: Record Video, the fast export, batch renders, the viral bot's renders and the desktop app's render queue work for everyone. Videos made on Free carry a small watermark; Pro exports them without it and adds Publish.",
     "testMode": "Licensing is in test mode – payments are not configured yet.",
-    "why": "Recording and exporting videos is a Pro feature – everything else is free.",
+    "why": "Videos made on Free carry a small watermark – Pro removes it.",
     "proTag": "Pro",
     "proFeature": "Pro feature",
     "plansTitle": "Pro plans",
@@ -3770,7 +3770,7 @@
       "included": "Included",
       "notIncluded": "Not included",
       "playTitle": "Everything that plays",
-      "createTitle": "Everything that creates a video file",
+      "createTitle": "Making videos",
       "play": {
         "modes": "Every mode and every setting",
         "sound": "Sound, melodies and your own audio",
@@ -3786,7 +3786,9 @@
         "bot": "The viral bot's renders",
         "publish": "Publish to TikTok, Instagram and YouTube",
         "desktop": "The desktop app's render queue and GPU encoding"
-      }
+      },
+      "withWatermark": "With watermark",
+      "noWatermark": "No watermark"
     },
     "claim": {
       "title": "Your purchase",
@@ -3838,22 +3840,22 @@
     "account": {
       "label": "Account",
       "checking": "Checking your licence…",
-      "free": "Free – unlock video creation",
-      "freeExpired": "Your Pro licence has ended – unlock video creation again",
-      "freeInvalid": "The saved licence was not valid – unlock video creation",
+      "free": "Free – your videos carry a watermark",
+      "freeExpired": "Your Pro licence has ended – videos carry the watermark again",
+      "freeInvalid": "The saved licence was not valid – videos carry the watermark",
       "pro": "Pro – {plan} until {date}",
       "renews": "Pro – {plan}, renews on {date}",
       "ends": "Pro – {plan}, ends on {date}",
       "grace": "Pro – {plan}, payment pending, works until {date}",
-      "unlock": "Unlock",
+      "unlock": "Remove watermark",
       "restore": "Restore",
       "manage": "Manage",
       "renewing": "Renewing your licence…"
     },
     "dialog": {
-      "title": "Unlock video creation",
+      "title": "Remove the watermark",
       "feature": "{feature} is part of Pro.",
-      "unlocked": "Your licence is active – close this and press the button again.",
+      "unlocked": "Your licence is active – your next recordings and exports have no watermark.",
       "seePricing": "Compare Free and Pro",
       "restore": "Already paid? Restore purchase",
       "close": "Close"
@@ -3880,10 +3882,11 @@
       "renew": "Card and PayPal subscriptions renew by themselves until you cancel – any time, with Manage subscription on this page.",
       "crypto": "Crypto pays for a prepaid period (30 days on the monthly plan, 365 on the yearly one); nothing renews by itself.",
       "licence": "Your licence is a signed key kept in this browser – the site needs no account and no password.",
-      "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment – or paste the licence key."
+      "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment – or paste the licence key.",
+      "watermark": "The watermark is drawn into the video itself. With a Pro licence in this browser, every recording or export you start afterwards is clean."
     },
     "landing": {
-      "line": "Playing is free. Making the videos is Pro, from {price} a month.",
+      "line": "Playing and exporting are free – with a watermark. Pro removes it, from {price} a month.",
       "link": "See pricing"
     },
     "privacy": {
@@ -3892,7 +3895,7 @@
     },
     "terms": {
       "title": "Pro subscriptions",
-      "content": "Playing with the simulator is free. Recording and exporting videos needs a Pro licence: $10 a month or $79 a year. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+      "content": "Playing with the simulator and recording or exporting videos is free; videos made without a Pro licence carry a watermark. Pro – $10 a month or $79 a year – exports them without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
     },
     "paste": {
       "title": "Paste a licence key",
@@ -4074,5 +4077,12 @@
     "canvasRim": "[pct]% OF THE RIM",
     "canvasDraw": "DRAW",
     "canvasMore": "+[count]"
+  },
+  "Watermark": {
+    "tag": "Watermark",
+    "tagTip": "Free: this video carries the watermark – Pro removes it",
+    "note": "Free: the videos you record or export here carry a small {siteName} watermark.",
+    "noteRecording": "Recording on Free: this video carries the {siteName} watermark.",
+    "remove": "Remove the watermark"
   }
 }

@@ -9834,7 +9834,9 @@ const bdInstrument = () =>
 
 // --- paywall-gate --- The paywall. A free visitor (a context without a licence) plays freely but meets the lock on every
 // video-creating action: Record Video, the fast export and the batch carry the lock and open the Unlock dialog instead of
-// starting (no recording state, no download). The pricing page shows both plans with the three pay methods and the test-mode
+// starting (no recording state, no download). --- free-watermark --- Since the watermark gate they carry the watermark tag
+// instead and run (the free-watermark block before the summary decodes their videos), Remove watermark opens the Unlock
+// dialog and only Publish keeps the lock. The pricing page shows both plans with the three pay methods and the test-mode
 // line in every language, is linked from the navbar and the footer and is in the sitemap. With a mocked billing backend
 // (page.route() on a same-origin path the test-mode build is pointed at through "jbl.billingApi") a checkout comes back with
 // ?claim=…&ref=…, the claim ends Pro and Record Video then records; Restore unlocks too. An expired licence is dropped, one
@@ -9847,7 +9849,7 @@ const bdInstrument = () =>
     p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && payErrors.push(`console: ${m.text()}`));
   };
   const stored = (p) => p.evaluate((key) => localStorage.getItem(key), LICENSE_STORAGE_KEY);
-  const lockCount = (p) => p.locator("[data-pro-lock]").count();
+  const lockCount = (p) => p.locator("[data-pro-lock], [data-watermark-tag]").count(); // --- free-watermark --- (the free visitor's tags count as well)
   const dialogFeature = (p) => p.getByTestId("unlock-dialog").getAttribute("data-unlock-feature").catch(() => null);
   /**
    * The mocked billing backend: /config, the Stripe checkout (back to its returnUrl with a claim), the claim, Restore and the
@@ -9872,9 +9874,9 @@ const bdInstrument = () =>
       return json(404, { error: "not_found", message: "unknown endpoint" });
     });
   };
-  /** The studio's Unlock dialog for Record Video, with the backend's /config loaded into its plan cards. */
+  /** The studio's Unlock dialog, with the backend's /config loaded into its plan cards. --- free-watermark --- (opened by "Remove the watermark" under the stage: Record Video records now) */
   const recordDialog = async (p) => {
-    await p.getByRole("button", { name: /Record Video/ }).click();
+    await p.getByTestId("free-watermark-remove").click();
     await p.getByTestId("unlock-dialog").waitFor({ timeout: 10000 });
     await p.waitForFunction(() => document.querySelector('[data-testid="unlock-dialog"] [data-testid="plan-cards"]')?.getAttribute("data-billing-config") === "ready", null, { timeout: 10000 }).catch(() => {});
     return p.getByTestId("unlock-dialog");
@@ -9904,55 +9906,73 @@ const bdInstrument = () =>
     return p;
   };
   try {
-    // 1. A free visitor: the locks, and the Unlock dialog instead of a recording, a fast export or a batch.
+    // 1. A free visitor: the locks, and the Unlock dialog instead of a recording, a fast export or a batch. --- free-watermark ---
+    //    Now: Record Video, the fast export and Render batch carry the watermark tag (no lock) and run – Record records, the
+    //    fast export starts – and Remove watermark (the account row, the line under the stage) opens the Unlock dialog.
     {
       const fp = await open(null);
       let downloaded = 0;
       fp.on("download", () => downloaded++);
       await fp.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
-      await fp.waitForFunction(() => document.querySelectorAll("[data-pro-lock]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+      await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
       const record = fp.getByRole("button", { name: /Record Video/ });
       const fast = fp.getByRole("button", { name: /Fast export/ });
-      const locks = { record: await record.locator("[data-pro-lock]").count(), fast: await fast.locator("[data-pro-lock]").count(), title: await record.locator("[data-pro-lock]").getAttribute("title").catch(() => null), name: await record.evaluate((b) => b.textContent ?? "") };
+      const tags = {
+        record: await record.locator("[data-watermark-tag]").count(),
+        fast: await fast.locator("[data-watermark-tag]").count(),
+        locks: (await record.locator("[data-pro-lock]").count()) + (await fast.locator("[data-pro-lock]").count()),
+        title: await record.locator("[data-watermark-tag]").getAttribute("title").catch(() => null),
+        name: await record.evaluate((b) => b.textContent ?? ""),
+      };
       await record.click();
-      const recordDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
-      const recordInfo = {
+      const recording = await fp.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const recordDialog = await fp.getByTestId("unlock-dialog").count();
+      await fp.waitForTimeout(1500);
+      const clip = fp.waitForEvent("download", { timeout: 30000 }).catch(() => null);
+      await fp.getByRole("button", { name: /Stop & Export/ }).click().catch(() => {});
+      const recorded = !!(await clip);
+      // Remove watermark in the account row: the Unlock dialog (no refused feature), both plans, the pay methods, test mode
+      await fp.getByRole("button", { name: /Recording/ }).click();
+      const account = await fp.getByTestId("billing-account").innerText().catch(() => "");
+      const accountStatus = await fp.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null);
+      await fp.getByTestId("billing-account-unlock").click();
+      const unlockDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const dialogInfo = {
         feature: await dialogFeature(fp),
+        title: await fp.getByTestId("unlock-dialog").locator("xpath=ancestor::dialog").locator("h2").first().innerText().catch(() => ""),
         plans: await fp.getByTestId("unlock-dialog").locator('[data-testid="plan-monthly"], [data-testid="plan-yearly"]').count(),
         pays: await fp.getByTestId("unlock-dialog").locator("[data-pay]").count(),
         testMode: await fp.getByTestId("unlock-dialog").getByTestId("billing-test-mode").isVisible().catch(() => false),
         pricingLink: await fp.getByTestId("unlock-pricing-link").getAttribute("href").catch(() => null),
         restoreLink: await fp.getByTestId("unlock-restore-link").getAttribute("href").catch(() => null),
-        recording: await fp.getByRole("button", { name: /Stop & Export/ }).count(),
-        started: await fp.getByRole("button", { name: /Start Simulator/ }).isVisible().catch(() => false),
       };
       await fp.keyboard.press("Escape");
       const escClosed = await fp.getByTestId("unlock-dialog").waitFor({ state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
-      await fast.click();
-      const fastDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
-      const fastInfo = { feature: await dialogFeature(fp), state: await fp.locator("[data-fast-export]").first().getAttribute("data-fast-export").catch(() => null) };
+      // the line under the stage opens it too; its Close button closes it
+      await fp.getByTestId("free-watermark-remove").click();
+      const noteDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
       await fp.getByTestId("unlock-dialog").locator("xpath=ancestor::dialog").getByRole("button", { name: "Close", exact: true }).click().catch(() => {});
       const closeClosed = await fp.getByTestId("unlock-dialog").waitFor({ state: "detached", timeout: 5000 }).then(() => true).catch(() => false);
-      // the batch: its block stays editable, Render batch carries the lock and opens the dialog
-      await fp.getByRole("button", { name: /Recording/ }).click();
-      const account = await fp.getByTestId("billing-account").innerText().catch(() => "");
-      const accountStatus = await fp.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null);
+      // the batch: its block stays editable, Render batch carries the tag (the free-watermark block renders one)
       const batch = fp.locator("[data-batch]");
       const batchButton = batch.getByRole("button", { name: /Render batch/ });
+      const batchTag = await batchButton.locator("[data-watermark-tag]").count();
       const batchLock = await batchButton.locator("[data-pro-lock]").count();
       const editable = await fp.locator("#batch-count").isEnabled().catch(() => false);
-      await batchButton.click();
-      const batchDialog = await fp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
-      const batchInfo = { feature: await dialogFeature(fp), state: await batch.getAttribute("data-batch").catch(() => null) };
-      await fp.keyboard.press("Escape");
-      await fp.waitForTimeout(1500);
+      // the fast export starts at once (no dialog) – and is cancelled
+      await fast.click();
+      const fastStarted = await fp.waitForFunction(() => ["running", "done"].includes(document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") ?? ""), null, { timeout: 15000 }).then(() => true).catch(() => false);
+      const fastDialog = await fp.getByTestId("unlock-dialog").count();
+      await fp.locator("[data-fast-export]").getByRole("button", { name: /Cancel/ }).click({ timeout: 5000 }).catch(() => {});
+      await fp.waitForTimeout(1000);
       check(
-        "paywall: a free visitor's Record Video, fast export and Render batch carry the lock (a Pro feature tooltip) and open the Unlock dialog instead of starting – no recording, no download",
-        locks.record === 1 && locks.fast === 1 && locks.title === "Pro feature" && /Pro feature/.test(locks.name) &&
-          recordDialog && recordInfo.feature === "record" && recordInfo.plans === 2 && recordInfo.pays === 6 && recordInfo.testMode && recordInfo.pricingLink === `${BASE_PATH}/en/pricing/` && recordInfo.restoreLink === `${BASE_PATH}/en/pricing/#restore` && recordInfo.recording === 0 && recordInfo.started && escClosed &&
-          fastDialog && fastInfo.feature === "fastExport" && fastInfo.state === "idle" && closeClosed &&
-          /Free – unlock video creation/.test(account) && accountStatus === "free" && batchLock === 1 && editable && batchDialog && batchInfo.feature === "batch" && batchInfo.state === "idle" && downloaded === 0,
-        `(${JSON.stringify({ locks, recordDialog, recordInfo, escClosed, fastDialog, fastInfo, closeClosed, account, accountStatus, batchLock, editable, batchDialog, batchInfo, downloaded })})`,
+        "paywall: a free visitor's Record Video, fast export and Render batch carry the watermark tag (no lock) and run – Record records and downloads, the fast export starts; Remove watermark (account row, the line under the stage) opens the Unlock dialog",
+        tags.record === 1 && tags.fast === 1 && tags.locks === 0 && /watermark/i.test(tags.title ?? "") && /watermark/i.test(tags.name) &&
+          recording && recordDialog === 0 && recorded &&
+          /Free – your videos carry a watermark/.test(account) && accountStatus === "free" &&
+          unlockDialog && dialogInfo.feature === "" && /Remove the watermark/.test(dialogInfo.title) && dialogInfo.plans === 2 && dialogInfo.pays === 6 && dialogInfo.testMode && dialogInfo.pricingLink === `${BASE_PATH}/en/pricing/` && dialogInfo.restoreLink === `${BASE_PATH}/en/pricing/#restore` && escClosed &&
+          noteDialog && closeClosed && batchTag === 1 && batchLock === 0 && editable && fastStarted && fastDialog === 0 && downloaded >= 1,
+        `(${JSON.stringify({ tags, recording, recordDialog, recorded, account, accountStatus, unlockDialog, dialogInfo, escClosed, noteDialog, closeClosed, batchTag, batchLock, editable, fastStarted, fastDialog, downloaded })})`,
       );
       await fp.screenshot({ path: path.join(outDir, "paywall-free-studio.png") });
 
@@ -9969,13 +9989,14 @@ const bdInstrument = () =>
           testMode: !!document.querySelector('[data-testid="billing-test-mode"]'),
           rows: document.querySelectorAll("[data-compare-row]").length,
           proOnly: document.querySelectorAll('[data-compare-free="0"]').length,
+          watermarked: document.querySelectorAll('[data-compare-free="watermark"]').length, // --- free-watermark ---
           restore: !!document.querySelector('[data-testid="billing-restore"]'),
           lang: document.documentElement.lang,
         }));
         pricing[locale].status = res.status();
       }
       await fp.screenshot({ path: path.join(outDir, "paywall-pricing-es.png"), fullPage: true });
-      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && p.prices[0].includes("10") && p.prices[1].includes("79") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 12 && p.proOnly === 6 && p.restore;
+      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && p.prices[0].includes("10") && p.prices[1].includes("79") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 12 && p.proOnly === 1 && p.watermarked === 5 && p.restore; // --- free-watermark --- (Publish is Pro only; Free makes the other five with the watermark)
       const sitemapXml = await (await fp.request.get(`${BASE}/sitemap.xml`)).text();
       await fp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
       const navHref = await fp.locator("header").getByRole("link", { name: "Pricing", exact: true }).first().getAttribute("href").catch(() => null);
@@ -10065,17 +10086,19 @@ const bdInstrument = () =>
       ]) {
         const p = await open(license);
         await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
-        await p.waitForFunction(() => document.querySelectorAll("[data-pro-lock]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+        await p.waitForFunction(() => document.querySelectorAll("[data-pro-lock], [data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {}); // --- free-watermark ---
         await p.getByRole("button", { name: /Recording/ }).click();
         dropped[kind] = { locks: await lockCount(p), stored: await stored(p), account: await p.getByTestId("billing-account").innerText().catch(() => ""), status: await p.getByTestId("billing-account").getAttribute("data-billing-status").catch(() => null) };
+        // --- free-watermark --- Record Video records (watermarked) instead of opening the Unlock dialog
         await p.getByRole("button", { name: /Record Video/ }).click();
-        dropped[kind].dialog = await p.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+        dropped[kind].recording = await p.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+        dropped[kind].dialog = await p.getByTestId("unlock-dialog").count();
         await p.close();
       }
       check(
-        "paywall: an expired licence is dropped and one signed with another key is refused – the locks stay, the account row says why, Record opens the Unlock dialog",
-        dropped.expired.locks >= 3 && dropped.expired.stored === null && /has ended/.test(dropped.expired.account) && dropped.expired.status === "free" && dropped.expired.dialog &&
-          dropped.foreign.locks >= 3 && dropped.foreign.stored === null && /not valid/.test(dropped.foreign.account) && dropped.foreign.status === "free" && dropped.foreign.dialog,
+        "paywall: an expired licence is dropped and one signed with another key is refused – the watermark tags stay, the account row says why, Record records (with the watermark) instead of the Unlock dialog",
+        dropped.expired.locks >= 3 && dropped.expired.stored === null && /has ended/.test(dropped.expired.account) && dropped.expired.status === "free" && dropped.expired.recording && dropped.expired.dialog === 0 &&
+          dropped.foreign.locks >= 3 && dropped.foreign.stored === null && /not valid/.test(dropped.foreign.account) && dropped.foreign.status === "free" && dropped.foreign.recording && dropped.foreign.dialog === 0,
         `(${JSON.stringify(dropped)})`,
       );
     }
@@ -10325,6 +10348,7 @@ const bdInstrument = () =>
     }
 
     // 6. The desktop group (a stand-in window.desktop) for a free visitor: Add to queue and Start carry the lock, Add opens the dialog.
+    //    --- free-watermark --- Now they carry the watermark tag and Add queues the jobs (they render with the watermark).
     {
       const fakeBridge = `(() => {
         const prefs = { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: "m", aiGpu: "auto" };
@@ -10351,17 +10375,18 @@ const bdInstrument = () =>
       watchPage(dp);
       await dp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
       const shown = await dp.getByTestId("desktop-queue").waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
-      await dp.waitForFunction(() => !!document.querySelector('[data-testid="queue-add"] [data-pro-lock]'), null, { timeout: 10000 }).catch(() => {});
-      const addLock = await dp.getByTestId("queue-add").locator("[data-pro-lock]").count();
-      const startLock = await dp.getByTestId("queue-start").locator("[data-pro-lock]").count();
+      await dp.waitForFunction(() => !!document.querySelector('[data-testid="queue-add"] [data-watermark-tag]'), null, { timeout: 10000 }).catch(() => {});
+      const addTag = await dp.getByTestId("queue-add").locator("[data-watermark-tag]").count();
+      const startTag = await dp.getByTestId("queue-start").locator("[data-watermark-tag]").count();
+      const queueLocks = await dp.getByTestId("desktop-queue").locator("[data-pro-lock]").count();
       await dp.getByTestId("queue-add").click();
-      const dialog = await dp.getByTestId("unlock-dialog").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
-      const feature = await dialogFeature(dp);
+      await dp.waitForFunction(() => document.querySelector('[data-testid="desktop-queue"]')?.getAttribute("data-queue-count") !== "0", null, { timeout: 10000 }).catch(() => {});
+      const dialog = await dp.getByTestId("unlock-dialog").count();
       const queued = await dp.getByTestId("desktop-queue").getAttribute("data-queue-count").catch(() => null);
       check(
-        "paywall: in the desktop group a free visitor's Add to queue and Start carry the lock; Add opens the Unlock dialog and queues nothing",
-        shown && addLock === 1 && startLock === 1 && dialog && feature === "renderQueue" && queued === "0",
-        `(shown ${shown}, locks add ${addLock} / start ${startLock}, dialog ${dialog} (${feature}), queued ${queued})`,
+        "paywall: in the desktop group a free visitor's Add to queue and Start carry the watermark tag (no lock); Add queues the jobs without the Unlock dialog",
+        shown && addTag === 1 && startTag === 1 && queueLocks === 0 && dialog === 0 && Number(queued) >= 1,
+        `(shown ${shown}, tags add ${addTag} / start ${startTag}, locks ${queueLocks}, dialog ${dialog}, queued ${queued})`,
       );
     }
 
@@ -11597,6 +11622,331 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
   );
 }
 // --- end string-circle ---
+
+// --- free-watermark --- Every video made without a verified Pro licence carries the watermark, drawn into its pixels by the
+// compositor (lib/watermark/seal.ts decides, layout.ts places, paint.ts draws). The downloaded videos are decoded in a page of
+// the site (played and sampled frame by frame: MediaRecorder's WebM has no index to seek in) and measured where the layout
+// puts the mark: the badge in the bottom-left corner of the exported square for the first 6 s and in the bottom-right one
+// after that (bright text and the lime rim where it is, plain background in the other corner), and the faint diagonal tiles
+// on the plain background at the top-left of the square. (a) A free recording carries both, its badge changing corner at
+// 6 s; (b) a free recording during which the page is tampered with – every element whose id, class or data attribute names a
+// watermark, Pro or a licence removed, data-pro="true" and Pro classes on <html> and <body>, Pro flags and a forged licence
+// in localStorage, crypto.subtle.verify patched to say yes – still carries them, and so does the next recording; (c) a Pro
+// recording (the test licence) carries neither; (d) a free fast export and a free batch render carry them; (e) the pricing
+// page and the Unlock dialog say Free = with the watermark, Pro = without; (f) a free 1080×1920 recording with the mark keeps
+// 20+ fps.
+{
+  const wmErrors = [];
+  const wmContexts = [];
+  const openWm = async (license, viewport = { width: 1400, height: 900 }) => {
+    const c = await browser.newContext({ viewport, acceptDownloads: true, license });
+    wmContexts.push(c);
+    const p = await c.newPage();
+    p.on("pageerror", (e) => wmErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && wmErrors.push(`console: ${m.text()}`));
+    return p;
+  };
+  /**
+   * Where the mark is in a W × H frame (layout.ts): the exported square, its part inside the platforms' safe zone, the
+   * badge's height and inset; the badge regions are a little narrower than any badge, the tile region is plain background.
+   */
+  const wmRegions = (W, H) => {
+    const side = Math.min(W, H);
+    const sq = { x: (W - side) / 2, y: (H - side) / 2 };
+    const zone =
+      H > W
+        ? { x: Math.max(0.06 * W, sq.x), b: Math.min(0.8 * H, sq.y + side), r: Math.min(0.875 * W, sq.x + side) }
+        : { x: Math.max(0.05 * W, sq.x), b: Math.min(0.95 * H, sq.y + side), r: Math.min(0.95 * W, sq.x + side) };
+    const bh = Math.max(18, Math.round(0.052 * side));
+    const inset = Math.round(0.025 * side);
+    const bw = Math.round(0.2 * side);
+    const y = zone.b - inset - bh;
+    return {
+      left: { x: zone.x + inset, y, w: bw, h: bh },
+      right: { x: zone.r - inset - bw, y, w: bw, h: bh },
+      tiles: { x: sq.x + 0.02 * side, y: sq.y + 0.02 * side, w: 0.11 * side, h: 0.11 * side },
+    };
+  };
+  /** Serves `file` at a same-origin URL and plays it in a page of the site, measuring the regions at the clip times `times` (s). */
+  const decodeVideo = async (p, file, times) => {
+    const url = `${ORIGIN}${BASE_PATH}/__watermark-clip/${encodeURIComponent(path.basename(file))}`;
+    await p.route(url, (route) => route.fulfill({ path: file, contentType: file.endsWith(".mp4") ? "video/mp4" : "video/webm" }));
+    await p.goto(`${BASE}/en/privacy/`, { waitUntil: "domcontentloaded" });
+    return p
+      .evaluate(
+        async ({ url, times, regionsSrc }) => {
+          const regionsFor = new Function(`return (${regionsSrc})`)();
+          const v = document.createElement("video");
+          v.muted = true;
+          v.preload = "auto";
+          v.src = url;
+          await new Promise((res, rej) => {
+            v.onloadeddata = res;
+            v.onerror = () => rej(new Error(`the video does not decode: ${v.error?.message ?? "?"}`));
+          });
+          const c = document.createElement("canvas");
+          c.width = v.videoWidth;
+          c.height = v.videoHeight;
+          const g = c.getContext("2d", { willReadFrequently: true });
+          const stats = (r) => {
+            const w = Math.max(1, Math.round(r.w));
+            const h = Math.max(1, Math.round(r.h));
+            const d = g.getImageData(Math.round(r.x), Math.round(r.y), w, h).data;
+            let sum = 0;
+            let sum2 = 0;
+            let bright = 0;
+            let lime = 0;
+            let edge = 0;
+            let prev = 0;
+            for (let i = 0, k = 0; i < d.length; i += 4, k++) {
+              const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+              sum += l;
+              sum2 += l * l;
+              if (l > 150) bright++;
+              if (d[i + 1] > 140 && d[i] < 210 && d[i + 2] < 120 && d[i + 1] - d[i + 2] > 60) lime++;
+              if (k % w) edge += Math.abs(l - prev);
+              prev = l;
+            }
+            const n = d.length / 4;
+            const mean = sum / n;
+            return { mean: +mean.toFixed(2), sd: +Math.sqrt(Math.max(0, sum2 / n - mean * mean)).toFixed(2), bright: +(bright / n).toFixed(4), lime: +(lime / n).toFixed(4), edge: +(edge / n).toFixed(3) };
+          };
+          const frames = [];
+          const targets = [...times].sort((a, b) => a - b);
+          await new Promise((resolve) => {
+            const timer = setTimeout(resolve, 60000);
+            const done = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+            const step = (_now, meta) => {
+              while (targets.length && meta.mediaTime >= targets[0]) {
+                targets.shift();
+                g.drawImage(v, 0, 0);
+                const regions = regionsFor(c.width, c.height);
+                frames.push({ t: +meta.mediaTime.toFixed(2), left: stats(regions.left), right: stats(regions.right), tiles: stats(regions.tiles) });
+              }
+              if (targets.length && !v.ended) v.requestVideoFrameCallback(step);
+              else done();
+            };
+            v.requestVideoFrameCallback(step);
+            v.onended = done;
+            v.playbackRate = 2;
+            v.play().catch(done);
+          });
+          return { width: c.width, height: c.height, duration: Number.isFinite(v.duration) ? +v.duration.toFixed(2) : null, frames };
+        },
+        { url, times, regionsSrc: wmRegions.toString() },
+      )
+      .catch((e) => ({ width: 0, height: 0, frames: [], error: String(e).split("\n")[0] }));
+  };
+  // The badge is where bright text and the lime rim are; the tiles make the plain background textured (calibrated on 1080×1920
+  // recordings and 500×500 exports: a badge corner has 5–10 % bright and 3–5 % lime pixels, its free corner none; the tiles
+  // give the background a spread of 1.5–2.5 levels where a clean frame has under 0.1).
+  const badge = (r) => r.bright >= 0.015 && r.lime >= 0.008;
+  const plain = (r) => r.bright < 0.004 && r.lime < 0.004;
+  const tiled = (r) => r.sd >= 0.9 && r.edge >= 0.12;
+  const flat = (r) => r.sd < 0.6;
+  const frameAt = (decoded, t) => decoded.frames.find((f) => Math.abs(f.t - t) < 0.6);
+  /** Badge bottom-left before 6 s and bottom-right after, tiles throughout (`still`: the other corner plain as well). */
+  const marked = (decoded, early, late, still = true) => {
+    const a = frameAt(decoded, early);
+    const b = late === null ? null : frameAt(decoded, late);
+    return !!a && badge(a.left) && tiled(a.tiles) && (!still || plain(a.right)) && (late === null || (!!b && badge(b.right) && tiled(b.tiles) && (!still || plain(b.left))));
+  };
+  const unmarked = (decoded, times) => times.every((t) => {
+    const f = frameAt(decoded, t);
+    return !!f && plain(f.left) && plain(f.right) && flat(f.tiles);
+  });
+  const brief = (decoded) => JSON.stringify(decoded.error ? decoded : { size: `${decoded.width}×${decoded.height}`, duration: decoded.duration, frames: decoded.frames.map((f) => ({ t: f.t, L: [f.left.bright, f.left.lime], R: [f.right.bright, f.right.lime], tiles: [f.tiles.sd, f.tiles.edge] })) });
+  const save = async (download, name) => {
+    if (!download) return null;
+    const file = path.join(outDir, `watermark-${name}-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    return fs.statSync(file).size > 10000 ? file : null;
+  };
+  /**
+   * Records a 10 s clip of a still scene (the run paused right after Record Video starts it), `during` running meanwhile;
+   * `stopAt` (ms) stops it by hand instead of waiting for the clip length.
+   */
+  const recordStill = async (p, name, { query = "mode=classic&dur=10", before = null, during = null, stopAt = null, fps = false } = {}) => {
+    await p.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await p.waitForTimeout(800);
+    if (before) await before(p);
+    let rates = null;
+    const download = await Promise.all([
+      p.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+      (async () => {
+        await p.getByRole("button", { name: /Record Video/ }).click();
+        await p.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).catch(() => {});
+        if (fps) rates = fpsStats(await p.evaluate(rafDeltas, 3500));
+        await p.getByRole("button", { name: "Pause", exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+        if (during) await during(p);
+        if (stopAt) {
+          await p.waitForTimeout(Math.max(0, stopAt - (fps ? 3800 : 300)));
+          await p.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 5000 }).catch(() => {});
+        }
+      })(),
+    ]).then(([d]) => d);
+    return { file: await save(download, name), rates };
+  };
+  /** DevTools' Elements panel: every element whose id, class or data attribute names a watermark, Pro or a licence, deleted (runs in the page). */
+  const tamperDom = () => {
+    const names = /watermark|licen[cs]e|(^|[^a-z])pro([^a-z]|$)/i;
+    const victims = [...document.querySelectorAll("*")].filter((el) => {
+      if (el === document.documentElement || el === document.body) return false;
+      if (names.test(el.id || "")) return true;
+      if ([...el.classList].some((c) => names.test(c))) return true;
+      return [...el.attributes].some((a) => a.name.startsWith("data-") && (names.test(a.name.slice(5)) || names.test(a.value)));
+    });
+    for (const el of victims) el.remove();
+    return { removed: victims.length };
+  };
+  /** The rest of DevTools: Pro attributes, classes and a CSS variable on <html> and <body>, storage flags, a forged licence, globals, WebCrypto patched (runs in the page). */
+  const tamperPage = ({ forged }) => {
+    for (const el of [document.documentElement, document.body]) {
+      el.setAttribute("data-pro", "true");
+      el.setAttribute("data-license", "valid");
+      el.setAttribute("data-watermark", "off");
+      el.classList.add("pro", "is-pro", "licensed", "no-watermark");
+      el.classList.remove("free");
+      el.style.setProperty("--watermark-opacity", "0");
+    }
+    for (const [k, v] of Object.entries({ "jbl.pro": "true", pro: "1", isPro: "true", "jbl.watermark": "off", watermark: "false", license: "valid", "jbl.license": forged })) localStorage.setItem(k, v);
+    window.isPro = true;
+    window.__PRO__ = true;
+    // the console one-liner: every signature verifies
+    SubtleCrypto.prototype.verify = async () => true;
+    return { html: document.documentElement.getAttribute("data-pro"), stored: localStorage.getItem("jbl.license") === forged };
+  };
+  /** A licence in the contract's shape with a random signature: what a visitor could forge (it never verifies). */
+  const forgeLicence = () => {
+    const b64 = (x) => Buffer.from(x).toString("base64url");
+    const now = Math.floor(Date.now() / 1000);
+    return `${b64(JSON.stringify({ alg: "ES256", typ: "JWT" }))}.${b64(JSON.stringify({ sub: "forger@example.com", plan: "yearly", provider: "stripe", iat: now, exp: now + 365 * 86400, jti: "forged" }))}.${b64(globalThis.crypto.getRandomValues(new Uint8Array(64)))}`;
+  };
+  try {
+    // (a) + (f) A free recording: 3.5 s of the running page measured, then a still scene to the clip's end.
+    const free = await openWm(null);
+    const a = await recordStill(free, "free", { fps: true });
+    const aDecoded = a.file ? await decodeVideo(free, a.file, [2.5, 4.6, 8.5]) : { frames: [] };
+    check(
+      "free watermark: a free 1080×1920 recording carries the mark in its pixels – the badge bottom-left until 6 s and bottom-right after, the diagonal tiles all over",
+      !!a.file && aDecoded.width === 1080 && aDecoded.height === 1920 && marked(aDecoded, 4.6, 8.5) && marked(aDecoded, 2.5, null, false),
+      `(${a.file ? path.basename(a.file) : "no download"}, ${brief(aDecoded)})`,
+    );
+    const rates = a.rates ?? { windows: [], avg: 0, min: 0, low: 0 };
+    await timingCheck(
+      "free watermark: a free 1080×1920 recording with the mark keeps 20+ fps and downloads",
+      !!a.file,
+      fpsOk(rates, 5, 20),
+      `(${fpsNote(rates)}, floor 20${loadNote()})`,
+      async () => {
+        const again = await recordStill(free, "free-retry", { fps: true, stopAt: 4200 });
+        const r = again.rates ?? { windows: [], avg: 0, min: 0, low: 0 };
+        return { timingOk: fpsOk(r, 5, 20), extra: `(recorded again: ${fpsNote(r)})` };
+      },
+    );
+
+    // (b) Tampered with during a free recording – and the next recording after the tampering.
+    const forged = forgeLicence();
+    let tamper = null;
+    const bPage = await openWm(null);
+    const fail = (e) => ({ error: String(e).split("\n")[0] });
+    const b = await recordStill(bPage, "tampered", {
+      during: async (p) => {
+        await p.waitForTimeout(1200);
+        tamper = { ...(await p.evaluate(tamperDom).catch(fail)), ...(await p.evaluate(tamperPage, { forged }).catch(fail)) };
+      },
+    });
+    const bDecoded = b.file ? await decodeVideo(bPage, b.file, [3, 8.5]) : { frames: [] };
+    // the next recording, sealed after the tampering (the forged licence stored, WebCrypto patched before Record): still marked
+    let retamper = null;
+    const next = await recordStill(bPage, "after-tamper", {
+      before: async (p) => void (retamper = await p.evaluate(tamperPage, { forged }).catch(fail)),
+      during: async (p) => void Object.assign(retamper ?? {}, await p.evaluate(tamperDom).catch(fail)),
+      stopAt: 7600,
+    });
+    const nextDecoded = next.file ? await decodeVideo(bPage, next.file, [2.5, 6.9]) : { frames: [] };
+    check(
+      "free watermark: DevTools tampering (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags and a forged licence in localStorage, crypto.subtle.verify patched) leaves the mark in the recording under way and in the next one",
+      !!tamper && !tamper.error && tamper.removed >= 1 && tamper.html === "true" && tamper.stored && !!b.file && marked(bDecoded, 3, 8.5) && !!retamper && !retamper.error && retamper.stored && !!next.file && marked(nextDecoded, 2.5, 6.9),
+      `(${JSON.stringify({ tamper, retamper })}, during ${brief(bDecoded)}, next ${brief(nextDecoded)})`,
+    );
+
+    // (c) A Pro recording (the test licence): no badge, no tiles.
+    const pro = await openWm(signTestLicense({ sub: "pro@example.com", plan: "yearly", provider: "stripe", days: 30 }));
+    const c = await recordStill(pro, "pro");
+    const cDecoded = c.file ? await decodeVideo(pro, c.file, [2.5, 8.5]) : { frames: [] };
+    check("free watermark: a Pro recording (the test licence) carries no mark – no badge in either corner, no tiles", !!c.file && unmarked(cDecoded, [2.5, 8.5]), `(${brief(cDecoded)})`);
+
+    // (d) A free fast export and a free batch render (500×500 at 30 fps).
+    const webCodecs = await free.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined");
+    if (webCodecs) {
+      await free.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30&wc=12&seed=101`, { waitUntil: "networkidle" });
+      await free.waitForTimeout(800);
+      const fastDownload = await Promise.all([free.waitForEvent("download", { timeout: 240000 }).catch(() => null), free.getByRole("button", { name: /Fast export/ }).click()]).then(([d]) => d);
+      const fastFile = await save(fastDownload, "fast");
+      const fastDecoded = fastFile ? await decodeVideo(free, fastFile, [2.5, 6.6]) : { frames: [] };
+      await free.goto(`${BASE}/en/simulator/?mode=classic&dur=10&res=500x500&xfps=30&wc=12`, { waitUntil: "networkidle" });
+      await free.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
+      await free.reload({ waitUntil: "networkidle" });
+      await free.getByRole("button", { name: /Recording/ }).click();
+      const block = free.locator("[data-batch]");
+      await block.waitFor({ timeout: 10000 }).catch(() => {});
+      await block.getByRole("button", { name: "Seed list", exact: true }).click().catch(() => {});
+      await free.locator("#batch-list").fill("101").catch(() => {});
+      const tags = { batch: await block.getByRole("button", { name: /Render batch/ }).locator("[data-watermark-tag]").count() };
+      const batchDownload = await Promise.all([free.waitForEvent("download", { timeout: 300000 }).catch(() => null), block.getByRole("button", { name: /Render batch/ }).click()]).then(([d]) => d);
+      const batchFile = await save(batchDownload, "batch");
+      const batchDecoded = batchFile ? await decodeVideo(free, batchFile, [2.5]) : { frames: [] };
+      check(
+        "free watermark: a free visitor's fast export and batch render run and carry the mark (badge bottom-left, then bottom-right, tiles)",
+        !!fastFile && fastDecoded.width === 500 && marked(fastDecoded, 2.5, 6.6, false) && !!batchFile && /^classic-101-/.test(batchDownload.suggestedFilename()) && marked(batchDecoded, 2.5, null, false) && tags.batch === 1,
+        `(fast ${fastFile ? path.basename(fastFile) : "none"} ${brief(fastDecoded)}; batch ${batchFile ? path.basename(batchFile) : "none"} ${brief(batchDecoded)}; tags ${JSON.stringify(tags)})`,
+      );
+    } else check("free watermark: a free visitor's fast export and batch render run and carry the mark – skipped (no WebCodecs in this browser)", true);
+
+    // (e) The copy: the pricing page in three languages, the studio's line and account row, the Unlock dialog.
+    const copy = {};
+    for (const locale of ["en", "pl", "es"]) {
+      await free.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "networkidle" });
+      copy[locale] = await free.evaluate(() => ({
+        h1: document.querySelector("h1")?.textContent ?? "",
+        watermarkRows: document.querySelectorAll('[data-compare-free="watermark"]').length,
+        proRows: document.querySelectorAll('[data-compare-free="0"]').length,
+        table: document.querySelector('[data-testid="pricing-compare"]')?.textContent ?? "",
+      }));
+    }
+    const pricingOk =
+      /watermark/i.test(copy.en.h1) && /znaku wodnego/i.test(copy.pl.h1) && /marca de agua/i.test(copy.es.h1) &&
+      ["en", "pl", "es"].every((l) => copy[l].watermarkRows === 5 && copy[l].proRows === 1) &&
+      /With watermark/.test(copy.en.table) && /No watermark/.test(copy.en.table) && /Ze znakiem wodnym/.test(copy.pl.table) && /Sin marca de agua/.test(copy.es.table);
+    await free.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await free.getByTestId("free-watermark-note").waitFor({ timeout: 10000 }).catch(() => {});
+    const note = await free.getByTestId("free-watermark-note").innerText().catch(() => "");
+    const recordTag = await free.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").getAttribute("title").catch(() => null);
+    await free.getByTestId("free-watermark-remove").click().catch(() => {});
+    const dialog = free.getByTestId("unlock-dialog");
+    const opened = await dialog.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const dialogText = await dialog.locator("xpath=ancestor::dialog").innerText().catch(() => "");
+    await free.keyboard.press("Escape");
+    await free.getByRole("button", { name: /Recording/ }).click().catch(() => {});
+    const account = await free.getByTestId("billing-account").innerText().catch(() => "");
+    await free.screenshot({ path: path.join(outDir, "watermark-free-studio.png") });
+    check(
+      "free watermark: the pricing page (en, pl, es: Free makes videos with the watermark, Pro without, Publish is Pro), the studio's line, tag and account row and the Unlock dialog (\"Remove the watermark\") say so",
+      pricingOk && /watermark/.test(note) && /Remove the watermark/.test(note) && /watermark/i.test(recordTag ?? "") && opened && /Remove the watermark/.test(dialogText) && /watermark/.test(dialogText) && /Free – your videos carry a watermark/.test(account) && /Remove watermark/.test(account),
+      `(${JSON.stringify({ copy: Object.fromEntries(Object.entries(copy).map(([k, v]) => [k, { h1: v.h1, watermarkRows: v.watermarkRows, proRows: v.proRows }])), note, recordTag, opened, dialog: dialogText.slice(0, 160), account })})`,
+    );
+  } finally {
+    for (const c of wmContexts) await c.close().catch(() => {});
+  }
+  // a tampered page may log what its tampering broke; the rest must be clean
+  const wmHard = wmErrors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
+  check("free watermark: no page errors in the watermark checks", wmHard.length === 0, wmHard.length ? `\n   ${wmHard.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end free-watermark ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");

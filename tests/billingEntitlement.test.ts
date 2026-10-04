@@ -6,6 +6,7 @@ import { gate, requestUnlock, subscribeUnlock, withEntitlement, type UnlockReque
 import { verifyLicense } from "@/lib/billing/license";
 import { VideoRecorder } from "@/lib/recording/recorder";
 import { signForeignLicense, signTestLicense } from "../scripts/lib/test-license.mjs";
+import { drawsOf, fakeDocument } from "./fakeCanvas"; // --- free-watermark ---
 
 /*
  * --- paywall-gate --- The entitlement store (src/lib/billing/entitlement.ts): its transitions over a stored licence,
@@ -309,25 +310,42 @@ describe("the Unlock channel and the guarded entry points", () => {
     expect(requests[2].serial).toBeGreaterThan(requests[1].serial);
   });
 
-  it("the recorder refuses to start without a licence – a call around the page meets the guard – and says why", async () => {
+  // --- free-watermark --- (was: "the recorder refuses to start without a licence") the watermark gate replaced the refusal:
+  // without a licence the recorder starts, and its frames carry the watermark (tests/freeWatermark.test.ts checks the frames)
+  it("the recorder starts without a licence – no refusal any more: the watermark gate decides what its frames carry", async () => {
     const g = globalThis as Record<string, unknown>;
-    const saved = { MediaRecorder: g.MediaRecorder, document: g.document };
+    const saved = { MediaRecorder: g.MediaRecorder, document: g.document, requestAnimationFrame: g.requestAnimationFrame, cancelAnimationFrame: g.cancelAnimationFrame };
     const created = vi.fn();
     g.MediaRecorder = Object.assign(
       class {
+        state = "recording";
         constructor() {
           created();
         }
+        start() {}
+        stop() {}
       },
       { isTypeSupported: () => true },
     );
-    g.document = { createElement: () => ({ getContext: () => ({}), captureStream: () => ({ getVideoTracks: () => [] }) }) };
+    const doc = fakeDocument();
+    g.document = doc;
+    g.requestAnimationFrame = () => 1;
+    g.cancelAnimationFrame = () => undefined;
     try {
-      const recorder = new VideoRecorder({ width: 1080, height: 1920 } as unknown as HTMLCanvasElement);
-      await expect(recorder.startRecording({ resolution: { width: 1080, height: 1920 } })).resolves.toBe(false);
-      expect(created).not.toHaveBeenCalled();
-      expect(recorder.isRecording()).toBe(false);
-      expect(recorder.lastRefusal()).toEqual({ ok: false, feature: "record", reason: "free" });
+      const source = { width: 1080, height: 1920 };
+      const recorder = new VideoRecorder(source as unknown as HTMLCanvasElement);
+      await expect(recorder.startRecording({ resolution: { width: 1080, height: 1920 } })).resolves.toBe(true);
+      expect(created).toHaveBeenCalledTimes(1);
+      expect(recorder.isRecording()).toBe(true);
+      // the compositor's own frame got the watermark over the copied source: a frame-sized tile layer, then the badge sprite
+      const frame = doc.made[0];
+      const images = drawsOf(frame.ctx).map((c) => c.args[0]);
+      expect(images[0]).toBe(source);
+      const marks = images.slice(1) as { width: number; height: number }[];
+      expect(marks).toHaveLength(2);
+      expect(marks.every((m) => doc.made.includes(m as never))).toBe(true);
+      expect(marks[0]).toMatchObject({ width: 1080, height: 1920 });
+      expect(marks[1].width).toBeLessThan(540);
     } finally {
       Object.assign(g, saved);
     }

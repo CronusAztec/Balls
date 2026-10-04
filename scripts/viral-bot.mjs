@@ -24,9 +24,11 @@
  * every clip --out holds) through the self-hosted publish relay (relay/server.mjs) to the key's TikTok, Instagram and
  * YouTube accounts – the relay uploads each clip once and posts it to every account (`--accounts all`: all of the key's).
  *
- * --- paywall-gate --- Rendering is a Pro feature of the site: the CLI puts a licence into the page's localStorage before it
- * loads – BOT_LICENSE (your licence key: pricing page → Copy licence key), or, without it, a licence signed with the
- * committed TEST key, which a test-mode build (no NEXT_PUBLIC_LICENSE_PUBLIC_KEY) accepts. The page says whether it took it.
+ * --- paywall-gate --- The CLI puts a licence into the page's localStorage before it loads – BOT_LICENSE (your licence key:
+ * pricing page → Copy licence key), or, without it, a licence signed with the committed TEST key, which a test-mode build (no
+ * NEXT_PUBLIC_LICENSE_PUBLIC_KEY) accepts. The page says whether it took it. --- free-watermark --- Rendering works without a
+ * Pro licence too: the clips then carry the watermark (the page's fast export decides – lib/watermark/seal.ts). A BOT_LICENSE
+ * the site refuses stops the run instead (you asked for clips without it).
  */
 import { spawnSync } from "child_process";
 import fs from "fs";
@@ -60,8 +62,8 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --help             this text
 
 Environment: BASE_URL (the served site), CHROME_PATH (a Chromium to use), FFMPEG_PATH (the ffmpeg that converts WebM
-clips to MP4 for Instagram; default: ffmpeg on PATH), BOT_LICENSE (your Pro licence key – rendering is a Pro feature; a
-test-mode build takes a test licence the CLI signs itself), and for --post IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL,
+clips to MP4 for Instagram; default: ffmpeg on PATH), BOT_LICENSE (your Pro licence key – without one the clips carry the
+watermark; a test-mode build takes a test licence the CLI signs itself), and for --post IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL,
 IG_GRAPH_VERSION, IG_GRAPH_HOST; for --relay RELAY_KEY.`;
 
 class UsageError extends Error {}
@@ -223,12 +225,12 @@ export function botLicense(env = process.env, now = Date.now()) {
   return { token: signTestLicense({ sub: "viral-bot@localhost", plan: "yearly", provider: "stripe", now, days: 2 }), source: "test" };
 }
 
-/** Why the page would not render with the licence the CLI gave it (`testMode`: the page verifies with the TEST key). */
+/** Why the page would not take the licence the CLI gave it (`testMode`: the page verifies with the TEST key). */
 export function licenceRefusal(source, testMode) {
-  if (source === "BOT_LICENSE") return "The site refused BOT_LICENSE (expired, or not a licence of this site's key). Copy a current key from the pricing page (Copy licence key) or restore the purchase there first.";
+  if (source === "BOT_LICENSE") return "The site refused BOT_LICENSE (expired, or not a licence of this site's key), so the clips would carry the watermark. Copy a current key from the pricing page (Copy licence key) or restore the purchase there first.";
   return testMode
     ? "The test-mode site refused the test licence – is tests/fixtures/license-test-key.json the key pair this build was made with?"
-    : "This build of the site verifies licences with its own key (NEXT_PUBLIC_LICENSE_PUBLIC_KEY): rendering is a Pro feature, so set BOT_LICENSE to your licence key (pricing page → Copy licence key).";
+    : "This build of the site verifies licences with its own key (NEXT_PUBLIC_LICENSE_PUBLIC_KEY): without a Pro licence the clips carry the watermark – set BOT_LICENSE to your licence key (pricing page → Copy licence key) to render them without it.";
 }
 // --- end paywall-gate ---
 
@@ -266,7 +268,9 @@ async function renderInBrowser(opts, out) {
       }, null, { timeout: 15000 })
       .then((h) => h.jsonValue())
       .catch(() => null);
-    if (pageLicence && pageLicence.status === "free") throw new Error(licenceRefusal(licence.source, pageLicence.testMode));
+    // --- free-watermark --- a licence you gave that the site refuses stops the run; without one the bot renders for free – watermarked
+    if (pageLicence && pageLicence.status === "free" && licence.source === "BOT_LICENSE") throw new Error(licenceRefusal(licence.source, pageLicence.testMode));
+    if (pageLicence && pageLicence.status === "free") console.warn(`Licence: Free – the clips carry the watermark. ${licenceRefusal(licence.source, pageLicence.testMode)}`);
     if (pageLicence && pageLicence.status === "pro") console.log(`Licence: Pro (${pageLicence.plan}${licence.source === "test" ? ", a test licence – test-mode build" : ", BOT_LICENSE"}) until ${new Date(pageLicence.expiresAt).toISOString().slice(0, 10)}`);
     // --- end paywall-gate ---
     const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined");

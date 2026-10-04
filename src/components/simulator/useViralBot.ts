@@ -14,9 +14,8 @@ import { BOT_COUNT_RANGE, defaultBotOptions, loadBotState, saveBotState, type Bo
 import type { BatchRunState, CustomBatchFile, CustomBatchJob } from "./useBatchRender";
 import { CLIP_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
-// --- paywall-gate --- the bot's record step is a Pro feature; the CLI reads the licence's state through the page's handle
-import { requireEntitlement } from "@/lib/billing/guard";
-import { requestUnlock } from "@/lib/billing/unlock";
+// --- paywall-gate --- the CLI reads the licence's state through the page's handle (--- free-watermark --- the bot renders for
+// everyone; without a Pro licence its clips carry the watermark, which the fast export's own seal decides)
 import { getEntitlementStore, type EntitlementStatus } from "@/lib/billing/entitlement";
 
 /*
@@ -123,7 +122,7 @@ declare global {
       render: (request?: { download?: "each" | "zip" }) => Promise<RenderedClip[]>;
       textFiles: () => { name: string; text: string }[];
       world: () => BotWorld | null;
-      /** --- paywall-gate --- The page's licence (rendering needs Pro): the CLI waits for "free" or "pro" before it renders. */
+      /** --- paywall-gate --- The page's licence: the CLI waits for "free" or "pro" before it renders (--- free-watermark --- Free: watermarked clips). */
       licence?: () => { status: EntitlementStatus; plan: string | null; expiresAt: number | null; testMode: boolean };
     };
   }
@@ -266,13 +265,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
     const plan = stateRef.current.plan;
     const l = latest.current;
     if (!plan || plan.clips.length === 0 || l.disabled || abortRef.current) return [];
-    // --- paywall-gate --- the bot's record step: a free visitor gets the Unlock dialog and nothing renders
-    const entitled = await requireEntitlement("bot");
-    if (!entitled.ok) {
-      requestUnlock(entitled);
-      return [];
-    }
-    // --- end paywall-gate ---
+    // --- free-watermark --- (was paywall-gate: the bot's record step is no longer refused – watermarked without Pro)
     const clips = plan.clips;
     const melodyBefore = l.currentMelody;
     setRender({ status: "running", total: clips.length, done: 0, zip: download === "zip" });

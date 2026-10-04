@@ -14,8 +14,7 @@ import { SITE_NAME } from "@/lib/site";
 import type { RenderQueueApi } from "./useRenderQueue";
 import type { DesktopPageHooks } from "./pageHooks";
 import { Bar, Card, Chip, dangerBtn, errorText, formatBytes, formatSeconds, ghostBtn, inputClass, primaryBtn } from "./ui";
-import { gate } from "@/lib/billing/unlock"; // --- paywall-gate ---
-import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
+import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-watermark --- (was the paywall's lock: the queue renders for everyone, watermarked without Pro)
 
 /*
  * --- desktop-exe --- The Render queue panel: build a batch – the page's setup with a list of seeds (or share links, or N
@@ -49,7 +48,6 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
   const toggle = <T,>(values: T[], value: T, set: (v: T[]) => void) => set(values.includes(value) ? (values.length > 1 ? values.filter((v) => v !== value) : values) : [...values, value]);
 
   const add = async () => {
-    if (!gate("renderQueue")) return; // --- paywall-gate --- before the batch is built (a free visitor gets the Unlock dialog)
     setAdding(true);
     setMessage(null);
     try {
@@ -148,7 +146,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
           </div>
           <button type="button" className={`${primaryBtn} w-full`} disabled={adding} onClick={() => void add()} data-testid="queue-add">
             {adding ? "…" : t("queueAdd")}
-            <LockBadge tone="inherit" /* --- paywall-gate --- */ />
+            <WatermarkBadge tone="inherit" /* --- free-watermark --- */ />
           </button>
           {message && <p className="text-xs text-ink-2" data-testid="queue-message">{message}</p>}
         </Card>
@@ -185,7 +183,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
               ) : (
                 <button type="button" className={primaryBtn} disabled={summary.queued === 0} onClick={queue.start} data-testid="queue-start">
                   {t("queueStart")}
-                  <LockBadge tone="inherit" className="ml-1.5" /* --- paywall-gate --- */ />
+                  <WatermarkBadge tone="inherit" className="ml-1.5" /* --- free-watermark --- */ />
                 </button>
               )}
               <button type="button" className={ghostBtn} disabled={summary.failed === 0} onClick={queue.retryAllFailed}>

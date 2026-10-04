@@ -37,7 +37,7 @@ import {
 } from "./fastRenderPlan";
 import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVideoConfig } from "@/lib/desktop/gpuEncode"; // --- desktop-exe ---
-import { EntitlementRequiredError, requireEntitlement } from "@/lib/billing/guard"; // --- paywall-gate ---
+import { prepareStamp, sealVerdict, sealWatermark } from "@/lib/watermark/seal"; // --- free-watermark ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -57,6 +57,10 @@ import { EntitlementRequiredError, requireEntitlement } from "@/lib/billing/guar
  * seeded generator – replay identically: the same seed and settings give the same frames (`digest`) every time.
  * The run's end follows the page's recorder exactly (`ExportEndTracker`). The page falls back to the real-time recorder
  * where WebCodecs is missing (`fastRenderSupported()`).
+ *
+ * --- free-watermark --- Everyone may export; an export without a verified Pro licence carries the watermark, drawn by the
+ * shared compositor into every frame (`drawRecordingFrame()` with the seal `renderFast()` takes when it starts – see
+ * lib/watermark/seal.ts). The batch render, the viral bot and the desktop app's render queue all export through here.
  */
 
 /** What the offline canvas hands the export once it is mounted (Canvas.tsx, `offline` prop). */
@@ -182,6 +186,8 @@ export interface FastRenderResult {
   wallMs: number;
   /** Hash of sampled, downscaled frames: equal for two exports of the same seed and settings. */
   digest: string;
+  /** --- free-watermark --- True when the frames carry the watermark (no verified Pro licence when the export started). */
+  watermarked: boolean;
 }
 
 /** Thrown when the browser has WebCodecs but no codec pair the export can write. */
@@ -382,15 +388,12 @@ export function downloadExport(blob: Blob, extension: string, baseName = EXPORT_
 
 /**
  * Renders and encodes the clip. Resolves with the file, or null when `signal` aborted it; throws
- * `FastRenderUnsupportedError` when the browser cannot encode any supported format, and --- paywall-gate ---
- * `EntitlementRequiredError` without a Pro licence (the guard, lib/billing/guard.ts: the page asks it first and opens the
- * Unlock dialog; a call around the page meets it here).
+ * `FastRenderUnsupportedError` when the browser cannot encode any supported format. --- free-watermark --- Without a verified
+ * Pro licence the frames carry the watermark (`WatermarkUnavailableError` when it cannot be drawn: no clean export instead).
  */
 export async function renderFast(options: FastRenderOptions): Promise<FastRenderResult | null> {
-  // --- paywall-gate --- the fast export is a Pro feature
-  const entitled = await requireEntitlement("fastExport");
-  if (!entitled.ok) throw new EntitlementRequiredError(entitled);
-  // --- end paywall-gate ---
+  // --- free-watermark --- the stored licence, verified again now, decides whether this export's frames get the mark
+  const seal = await sealWatermark();
   const { host, resolution, fps, signal } = options;
   const width = resolution.width;
   const height = resolution.height;
@@ -489,6 +492,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     if (!frameCtx || !thumbCtx) throw new Error("Canvas 2D is not available");
     const textLayout = recordingTextLayout(width, height, options.textOverlay.textSize ?? 1);
     const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop) };
+    prepareStamp(seal, { width, height }); // --- free-watermark --- (a mark that cannot be drawn stops the export before its first frame)
     let digest = 0x811c9dc5;
 
     const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-gerald-odd) --- (the slow motion's lag)
@@ -521,7 +525,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       const [firstIndex, endIndex] = exportFrameRange(simFrame, fps);
       if (endIndex <= firstIndex) continue;
       if (firstIndex >= EXPORT_FRAME_CEILING) break;
-      drawRecordingFrame(frameCtx, frameRenderer.canvas, width, height, options.backgroundColor, composeOptions, textLayout);
+      drawRecordingFrame(frameCtx, frameRenderer.canvas, width, height, options.backgroundColor, composeOptions, textLayout, { seal, clipMs: t }); // --- free-watermark --- (the seal of this export, the clip's time)
       for (let index = firstIndex; index < endIndex && index < EXPORT_FRAME_CEILING; index++) {
         const frame = new VideoFrame(frameCanvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
         videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
@@ -579,7 +583,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     report("finish", 0, exported, durationSec);
     const blob = new Blob([muxer.finalize()], { type: format.mimeType });
     report("finish", 1, exported, durationSec);
-    return { blob, format, durationSec, frames: exported, wallMs: performance.now() - startedAt, digest: digest.toString(16).padStart(8, "0") };
+    return { blob, format, durationSec, frames: exported, wallMs: performance.now() - startedAt, digest: digest.toString(16).padStart(8, "0"), watermarked: sealVerdict(seal) === "marked" /* --- free-watermark --- */ };
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return null;
     throw err;

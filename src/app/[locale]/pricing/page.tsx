@@ -13,16 +13,18 @@ import { PLANS, formatUsd, yearlySavingPercent } from "@/lib/billing/config";
 import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
 
 /*
- * --- paywall-gate --- The pricing page: what plays for free and what Pro adds (everything that creates a video file), the
- * two plans with their pay buttons, the purchase a checkout returns with (?claim=…&ref=…), this browser's licence with
- * Manage subscription and its receipt reference, Restore purchase and Paste a licence key. The static parts render here;
- * the live ones are client components (components/billing/PricingClient.tsx) with the Billing namespace
- * (i18n/clientMessages.ts).
+ * --- paywall-gate --- The pricing page: what plays for free and what Pro adds (--- free-watermark --- everyone makes videos;
+ * Free's carry a watermark, Pro's do not, and Publish is Pro), the two plans with their pay buttons, the purchase a checkout
+ * returns with (?claim=…&ref=…), this browser's licence with Manage subscription and its receipt reference, Restore
+ * purchase and Paste a licence key. The static parts render here; the live ones are client components
+ * (components/billing/PricingClient.tsx) with the Billing namespace (i18n/clientMessages.ts).
  */
 
 const PLAY_ROWS = ["modes", "sound", "finder", "presets", "gallery", "editor"] as const;
 const CREATE_ROWS = ["record", "fastExport", "batch", "bot", "publish", "desktop"] as const;
-const NOTES = ["renew", "crypto", "licence", "devices"] as const;
+/** --- free-watermark --- the video-making rows Free has too – with the watermark (Publish stays Pro). */
+const WATERMARKED_ROWS: readonly string[] = ["record", "fastExport", "batch", "bot", "desktop"];
+const NOTES = ["renew", "crypto", "licence", "devices", "watermark" /* --- free-watermark --- */] as const;
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -35,6 +37,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     alternates: { canonical: pageUrl(locale, "/pricing"), languages: localeAlternates("/pricing") },
     openGraph: { title, description, url: pageUrl(locale, "/pricing"), siteName: SITE_NAME, type: "website", images: [absoluteUrl("/og.png")] },
   };
+}
+
+/** --- free-watermark --- Included, with a word under the tick ("With watermark" on Free, "No watermark" on Pro). */
+function MarkNote({ label, note, tone }: { label: string; note: string; tone: "free" | "pro" }) {
+  return (
+    <span className={`inline-flex flex-col items-center gap-0.5 ${tone === "pro" ? "text-accent" : "text-ink-2"}`}>
+      <IconCheck size={18} />
+      <span className="sr-only">{label}: </span>
+      <span className="text-xs leading-tight">{note}</span>
+    </span>
+  );
 }
 
 function Mark({ on, label }: { on: boolean; label: string }) {
@@ -144,19 +157,22 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                       {t("compare.createTitle")}
                     </th>
                   </tr>
-                  {CREATE_ROWS.map((k) => (
-                    <tr key={k} className={row} data-compare-row={k} data-compare-free="0">
-                      <th scope="row" className="py-3 pr-4 font-normal text-ink-2">
-                        {t(`compare.create.${k}`)}
-                      </th>
-                      <td className="py-3 text-center">
-                        <Mark on={false} label={t("compare.notIncluded")} />
-                      </td>
-                      <td className="py-3 text-center">
-                        <Mark on label={t("compare.included")} />
-                      </td>
-                    </tr>
-                  ))}
+                  {CREATE_ROWS.map((k) => {
+                    const watermarked = WATERMARKED_ROWS.includes(k); // --- free-watermark --- Free makes it too, watermarked
+                    return (
+                      <tr key={k} className={row} data-compare-row={k} data-compare-free={watermarked ? "watermark" : "0"}>
+                        <th scope="row" className="py-3 pr-4 font-normal text-ink-2">
+                          {t(`compare.create.${k}`)}
+                        </th>
+                        <td className="py-3 text-center">
+                          {watermarked ? <MarkNote label={t("compare.included")} note={t("compare.withWatermark")} tone="free" /> : <Mark on={false} label={t("compare.notIncluded")} />}
+                        </td>
+                        <td className="py-3 text-center">
+                          {watermarked ? <MarkNote label={t("compare.included")} note={t("compare.noWatermark")} tone="pro" /> : <Mark on label={t("compare.included")} />}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
