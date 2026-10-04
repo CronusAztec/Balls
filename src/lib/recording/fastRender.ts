@@ -270,6 +270,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playLandClaim(ev.lcSound, ev.frequency, ev.level, ev.accent);
     return;
   }
+  // --- string-circle --- the String Battle circle style's twang of the anchored strings, the snap of strings cut
+  if (ev.scSound) {
+    audio.playStringCircle(ev.scSound, ev.frequency, ev.chord, ev.level);
+    return;
+  }
   if (ev.type === "gap") onWallBreak();
   if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
   else if (ev.type === "gap") audio.playGapPass();

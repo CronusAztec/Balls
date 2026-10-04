@@ -4,6 +4,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { SB_PALETTE, SB_RULES, SB_STYLES, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
+import StringCircleSection, { STRING_CIRCLE_KEYS } from "./StringCircleSection"; // --- string-circle ---
 
 export interface StringBattleSectionProps {
   t: Translate;
@@ -14,7 +15,7 @@ export interface StringBattleSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const STRING_BATTLE_KEYS = ["sbRule", "sbStyle", "sbBalls", "sbLives", "sbMaxStrings", "sbDuration", "sbFinaleSpeed", "sbWobble", "sbBadge", "sbHud"];
+export const STRING_BATTLE_KEYS = ["sbRule", "sbStyle", "sbBalls", "sbLives", "sbMaxStrings", "sbDuration", "sbFinaleSpeed", "sbWobble", "sbBadge", "sbHud", ...STRING_CIRCLE_KEYS /* --- string-circle --- */];
 
 const RULE_OPTIONS: Record<SbRule, { labelKey: string; hintKey: string }> = {
   cut: { labelKey: "sbRuleCut", hintKey: "sbHintCut" },
@@ -25,6 +26,7 @@ const RULE_OPTIONS: Record<SbRule, { labelKey: string; hintKey: string }> = {
 const STYLE_OPTIONS: Record<SbStyle, { labelKey: string; hintKey: string }> = {
   web: { labelKey: "sbStyleWeb", hintKey: "sbHintWeb" },
   neon: { labelKey: "sbStyleNeon", hintKey: "sbHintNeon" },
+  circle: { labelKey: "sbStyleCircle", hintKey: "sbHintCircle" }, // --- string-circle ---
 };
 
 const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
@@ -40,9 +42,12 @@ const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium tr
 export default function StringBattleSection({ t, search, matches, settings: s, update }: StringBattleSectionProps) {
   const all = !!search;
   const rosterBalls = Math.min(s.teams.length, s.sbBalls);
+  // --- string-circle --- the circle style always cuts, keeps its own fans and draws no warning badge: those controls are the other styles'
+  const circle = s.sbStyle === "circle";
   return (
     <div className="space-y-3 pt-2" data-testid="string-battle-section">
       {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("sbDesc")}</p>}
+      {(!circle || all) && (
       <Searchable search={search} matches={matches} labelKey="sbRule">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">
@@ -63,13 +68,14 @@ export default function StringBattleSection({ t, search, matches, settings: s, u
           )}
         </div>
       </Searchable>
+      )}
       <Searchable search={search} matches={matches} labelKey="sbStyle">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">
             {t("sbStyle")}
             <Tooltip text={t("sbStyleTip")} />
           </label>
-          <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("sbStyle")}>
+          <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("sbStyle")} /* --- string-circle --- (three styles) */>
             {SB_STYLES.map((id) => (
               <button type="button" key={id} onClick={() => update({ sbStyle: id })} aria-pressed={s.sbStyle === id} className={pick(s.sbStyle === id)}>
                 {t(STYLE_OPTIONS[id].labelKey)}
@@ -80,26 +86,29 @@ export default function StringBattleSection({ t, search, matches, settings: s, u
         </div>
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="sbBalls" tipKey="sbBallsTip" value={s.sbBalls} range={RANGES.sbBalls} onChange={(v) => update({ sbBalls: v })} display={String(s.sbBalls)} />
-      {!search && (
+      {!search && !circle && (
         <p className="text-xs text-ink-3 leading-relaxed" data-testid="string-battle-palette">
           {rosterBalls > 0 ? t("sbRosterNote", { count: rosterBalls, balls: s.sbBalls }) : t("sbPaletteNote", { names: SB_PALETTE.slice(0, s.sbBalls).map((p) => p.name).join(" · ") })}
         </p>
       )}
       <Slider t={t} search={search} matches={matches} labelKey="sbLives" tipKey="sbLivesTip" value={s.sbLives} range={RANGES.sbLives} onChange={(v) => update({ sbLives: v })} display={String(s.sbLives)} />
-      <Slider t={t} search={search} matches={matches} labelKey="sbMaxStrings" tipKey="sbMaxStringsTip" value={s.sbMaxStrings} range={RANGES.sbMaxStrings} onChange={(v) => update({ sbMaxStrings: v })} display={String(s.sbMaxStrings)} />
+      {(!circle || all) && <Slider t={t} search={search} matches={matches} labelKey="sbMaxStrings" tipKey="sbMaxStringsTip" value={s.sbMaxStrings} range={RANGES.sbMaxStrings} onChange={(v) => update({ sbMaxStrings: v })} display={String(s.sbMaxStrings)} />}
       <Slider t={t} search={search} matches={matches} labelKey="sbDuration" tipKey="sbDurationTip" value={s.sbDuration} range={RANGES.sbDuration} onChange={(v) => update({ sbDuration: v })} display={s.sbDuration === 0 ? t("sbDurationOff") : `${s.sbDuration}s`} />
       <Slider t={t} search={search} matches={matches} labelKey="sbFinaleSpeed" tipKey="sbFinaleSpeedTip" value={s.sbFinaleSpeed} range={RANGES.sbFinaleSpeed} onChange={(v) => update({ sbFinaleSpeed: v })} display={`${s.sbFinaleSpeed.toFixed(1)}×`} />
       {(s.sbStyle === "neon" || all) && (
         <Slider t={t} search={search} matches={matches} labelKey="sbWobble" tipKey="sbWobbleTip" value={s.sbWobble} range={RANGES.sbWobble} onChange={(v) => update({ sbWobble: v })} display={s.sbWobble === 0 ? t("sbWobbleOff") : `${Math.round(100 * s.sbWobble)}%`} />
       )}
-      <Searchable search={search} matches={matches} labelKey="sbBadge">
-        <Toggle t={t} labelKey="sbBadge" tipKey="sbBadgeTip" value={s.sbBadge} onChange={(v) => update({ sbBadge: v })} />
-      </Searchable>
+      {(!circle || all) && (
+        <Searchable search={search} matches={matches} labelKey="sbBadge">
+          <Toggle t={t} labelKey="sbBadge" tipKey="sbBadgeTip" value={s.sbBadge} onChange={(v) => update({ sbBadge: v })} />
+        </Searchable>
+      )}
       {(s.sbStyle === "web" || all) && (
         <Searchable search={search} matches={matches} labelKey="sbHud">
           <Toggle t={t} labelKey="sbHud" tipKey="sbHudTip" value={s.sbHud} onChange={(v) => update({ sbHud: v })} />
         </Searchable>
       )}
+      {(circle || all) && <StringCircleSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- string-circle --- */}
     </div>
   );
 }

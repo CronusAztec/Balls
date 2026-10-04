@@ -821,6 +821,8 @@ describe("uncap-all: the guard", () => {
     ogElevation: "degrees", // --- orb-grid --- (the camera)
     ogRotation: "degrees", // --- orb-grid --- (the camera)
     lcEvery: "a spawn period in blocks (the balls a run holds stop at LC_BALL_CEILING: ARENA FULL)", // --- land-claim ---
+    sbRate: "strings a ball anchors a second (its live strings stop at SC_STRING_CEILING, and a step anchors at most that many)", // --- string-circle ---
+    sbCut: "strings cut per life", // --- string-circle ---
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

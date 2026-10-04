@@ -10,6 +10,7 @@ import { TY_PALETTE } from "@/lib/physics/modes/territory"; // --- odd-territory
 import { mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { flSideNames } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { lcPaletteName } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { circleLineup } from "@/lib/physics/modes/stringCircle"; // --- string-circle ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
@@ -58,10 +59,13 @@ function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territ
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */; lcTeams?: number /* --- land-claim --- */ } & Partial<Pick<SimulatorSettings, "flMatch" | "flFighterA" | "flFighterB" | "flFighterC" | "flFighterD">> /* --- fight-league --- */, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */; lcTeams?: number /* --- land-claim --- */; sbStyle?: string /* --- string-circle --- */ } & Partial<Pick<SimulatorSettings, "flMatch" | "flFighterA" | "flFighterB" | "flFighterC" | "flFighterD">> /* --- fight-league --- */, name: (kind: "team" | "ball", n: number) => string): string[] {
   // --- fight-league --- Fight League's sides: "A · Thor", "B · Loki" (a random slot "A · ?"), in 2v2 "A+B · Naruto + Sasuke"
   if (settings.mode === "fightLeague") return flSideNames(settings.flMatch, [settings.flFighterA, settings.flFighterB, settings.flFighterC, settings.flFighterD]);
   const count = effectiveBallCount(settings);
+  // --- string-circle --- the circle style's balls past the roster play the line-up's countries, named by their codes (TR, IN…) as on the canvas
+  if (settings.mode === "stringBattle" && settings.sbStyle === "circle") return circleLineup(settings.teams.slice(0, count), count).map((l, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : l.name));
+  // --- end string-circle ---
   // --- odd-string-battle --- the String Battle's balls go by the roster's names, then by their palette names (HOTPINK, AQUA…)
   if (settings.mode === "stringBattle") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : stringBattleBallName(i)));
   // --- odd-territory --- Territory's teams go by the roster's names, then by their palette names (PINK, CYAN, LIME, GOLD)

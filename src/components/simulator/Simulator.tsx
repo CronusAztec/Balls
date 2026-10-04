@@ -769,6 +769,26 @@ export default function Simulator() {
     engineRef.current?.setStringBattleSettings({ style: s.sbStyle, wobble: s.sbWobble, badge: s.sbBadge, hud: s.sbHud });
   }, [s.sbStyle, s.sbWobble, s.sbBadge, s.sbHud]);
   const battleFinishAtRef = useRef<number | null>(null);
+  // --- string-circle --- the circle style plays a battle of its own: switching into or out of it, or a change of its arena, its
+  // strings a second or its strings per life, restarts the battle and drops a found seed; the title line follows live
+  const sbCircle = s.sbStyle === "circle";
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStringBattleSettings(stringBattleSettingsOf(s));
+    if (s.mode === "stringBattle" && engine.getCurrentModeName() === "stringBattle") {
+      engine.initStringBattle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sbCircle, s.sbArena, s.sbRate, s.sbCut]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [sbCircle, s.sbArena, s.sbRate, s.sbCut]);
+  useEffect(() => {
+    engineRef.current?.setStringBattleSettings({ title: s.sbTitle });
+  }, [s.sbTitle]);
+  // --- end string-circle ---
   // --- end odd-string-battle ---
   // --- odd-maze --- Maze: a new maze or race (columns, balls, brain, hand, clip limit) restarts the run and drops a found seed;
   // the pull and the speed follow live (and drop the seed: they change the run); the trail, fog, colours, badge and HUD follow live.
@@ -1651,6 +1671,11 @@ export default function Simulator() {
           // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
           if (ev.lcSound) {
             audio.playLandClaim(ev.lcSound, ev.frequency, ev.level, ev.accent);
+            continue;
+          }
+          // --- string-circle --- the String Battle circle style's twang of the anchored strings, the snap of strings cut
+          if (ev.scSound) {
+            audio.playStringCircle(ev.scSound, ev.frequency, ev.chord, ev.level);
             continue;
           }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
@@ -2963,6 +2988,15 @@ export default function Simulator() {
         steals: (count) => fill("LandClaim.canvasSteals", { count }),
         balls: (count) => fill("LandClaim.canvasBalls", { count }),
         more: (count) => fill("LandClaim.canvasMore", { count }),
+        team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+      },
+      // --- string-circle --- the String Battle's circle style
+      stringCircle: {
+        title: t("StringCircle.canvasTitle"),
+        wins: (name) => t("StringCircle.canvasWins").replace("[name]", () => name), // a name may hold "$&"
+        rim: (pct) => fill("StringCircle.canvasRim", { pct }),
+        draw: t("StringCircle.canvasDraw"),
+        more: (count) => fill("StringCircle.canvasMore", { count }),
         team: (n) => fill("Simulator.canvasTeamFallback", { n }),
       },
       // --- uncap-all ---

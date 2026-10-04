@@ -11301,6 +11301,261 @@ const orbBannerPixels = () =>
 }
 // --- end land-claim ---
 
+// --- string-circle ---
+// 36. String Circle: the String Battle's circle style. URL → the String Circle block of the String Battle (style, arena,
+// strings per second, strings per life, title line, standings strip; the rule, threads and badge controls hidden in this style),
+// controls → URL, the search box and the finder's winners named by the line-up's country codes; a four-flag battle at 1× then 4×
+// – the fans growing, the rim's coverage rising (data-sb-coverage), strings cut and lives lost, the twangs (triangle glides a
+// fifth above their C-major pentatonic notes) and snaps, the flag badges (or the two-letter codes where the fonts have no flag
+// glyphs), the title and the strip, every ball inside the circle, the winner banner held before the end screen; the hexagon
+// arena; the India vs USA preset's roster; Find Simulation's winner outcome, played back; and the frame rates – the mega preset
+// (12 flags) at 30+ fps and recorded at 1080×1920 at 20+ fps, and 5 and 12 balls with fans of about 400 strings each, on the page
+// and recorded.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&sba=hexagon&sbrt=45&sbc=150&sbti=${encodeURIComponent("WHO WINS?")}&sbn=5&sbh=0`, { waitUntil: "networkidle" });
+  const battle = page.getByTestId("string-battle-section");
+  const section = page.getByTestId("string-circle-section");
+  const styleButton = (name) => battle.getByRole("group", { name: "Style", exact: true }).getByRole("button", { name, exact: true });
+  const arena = (name) => section.getByRole("group", { name: "Arena Shape", exact: true }).getByRole("button", { name: new RegExp(name) });
+  const strip = section.getByRole("switch", { name: switchName("Standings Strip") });
+  {
+    const values = { sbn: await sliderValue("Fighters"), sbrt: await sliderValue("Strings per Second"), sbc: await sliderValue("Strings per Life") };
+    const circle = await styleButton("Circle").getAttribute("aria-pressed");
+    const hexagon = await arena("Hexagon").getAttribute("aria-pressed");
+    const title = await section.getByTestId("sc-title").inputValue();
+    const stripOn = await strip.getAttribute("aria-checked");
+    const hidden = {
+      rule: (await battle.getByRole("group", { name: "Combat Rule", exact: true }).count()) === 0,
+      threads: (await page.locator('input[aria-label="Threads per Ball"]').count()) === 0,
+      badge: (await battle.getByRole("switch", { name: switchName("Warning Badge") }).count()) === 0,
+      hud: (await battle.getByRole("switch", { name: switchName("WEB DOMINION HUD") }).count()) === 0,
+    };
+    const lineup = await section.getByTestId("sc-lineup-note").innerText().catch(() => "");
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    const winners = await page.locator("#find-outcome").selectOption("winner").then(() => page.locator("#find-winner option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+    await page.locator("#find-outcome").selectOption("duration").catch(() => {});
+    check(
+      "string circle loads from URL (the circle style's own controls, the web style's hidden, the finder's winners by country code)",
+      values.sbn === "5" && values.sbrt === "45" && values.sbc === "150" && circle === "true" && hexagon === "true" && title === "WHO WINS?" && stripOn === "false" && Object.values(hidden).every(Boolean) && /TR · IN · US · IR · DE/.test(lineup) && options.join(",") === "duration,winner" && winners.join(",") === "TR,IN,US,IR,DE",
+      `(${JSON.stringify(values)}, circle=${circle}, hexagon=${hexagon}, title="${title}", strip=${stripOn}, hidden=${JSON.stringify(hidden)}, line-up="${lineup}", finder outcomes=${options.join(",")}, winners=${winners.join(",")})`,
+    );
+  }
+  await arena("Circle").click();
+  await page.locator('input[aria-label="Strings per Second"]').evaluate(setRangeValue, "60");
+  await page.locator('input[aria-label="Strings per Life"]').evaluate(setRangeValue, "100");
+  await section.getByTestId("sc-title").fill("FLAG FIGHT");
+  await strip.click();
+  await section.getByTestId("sc-caption").click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const captionAdded = await section.getByTestId("sc-caption").isDisabled();
+    check(
+      "string circle mirrors into the URL (arena, rates, title, strip) and adds the “Which flag wins?” caption",
+      query.get("mode") === "stringBattle" && query.get("sbst") === "circle" && !query.has("sba") && query.get("sbrt") === "60" && query.get("sbc") === "100" && query.get("sbti") === "FLAG FIGHT" && !query.has("sbh") && query.get("sbn") === "5" && captionAdded,
+      `(${query.toString()}, caption added=${captionAdded})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("strings per second");
+  const found = await page.locator('input[aria-label="Strings per Second"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the string circle controls", found && hidden, `(strings per second=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // The default circle battle (four flags of the line-up: TR, IN, US, IR) at 1× – the fans and the rim – then at 4× to its end.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&seed=7`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    window.__scOsc = osc;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      osc.push([this.type, this.frequency.value]);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(700);
+  const first = await canvasData();
+  const fps = await pageFrameRates(3000);
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbAnchors) >= 400, null, { timeout: 20_000 }).catch(() => {});
+  const later = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-circle.png") });
+  const sum = (list) => (list || "").split(",").map(Number).reduce((a, b) => a + b, 0);
+  await timingCheck(
+    "a four-flag string circle battle grows its fans, claims the rim (data-sb-coverage rising) and runs at 30+ fps",
+    later.sbStyle === "circle" && later.sbArena === "circle" && later.sbBalls === "4" && later.sbNames === "TR|IN|US|IR" && /^[fc]{4}$/.test(later.sbBadges || "") && Number(later.sbAnchors) > Number(first.sbAnchors) && sum(later.sbFans) > sum(first.sbFans) && sum(later.sbCoverage) > sum(first.sbCoverage) && sum(later.sbCoverage) >= 30 && Number(later.sbRimArcs) > 0 && later.sbTitle === "STRING CIRCLE" && later.sbStripDrawn === "1" && later.sbHud === "1" && later.sbInArena === "1" && later.sbRule === "cut",
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ anchors: [first.sbAnchors, later.sbAnchors], fans: [first.sbFans, later.sbFans], coverage: [first.sbCoverage, later.sbCoverage], arcs: later.sbRimArcs, badges: later.sbBadges, glyphs: later.sbFlagGlyphs, names: later.sbNames, segments: later.sbSegments })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const cut = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.sbLivesLost) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  const mid = await canvasData();
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(600);
+  const end = await canvasData();
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible());
+  await page.screenshot({ path: path.join(outDir, "sim-string-circle-winner.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 15_000 }).then(() => true).catch(() => false);
+  const lives = (end.sbLives || "").split(",").map(Number);
+  const winner = Number(end.sbWinner);
+  check(
+    "the string circle battle cuts strings, takes a life per strings-per-life cut and ends with the last flag standing under its banner, held before the end screen",
+    cut && ended && Number(mid.sbCuts) >= 200 && Number(mid.sbCircleLives) >= 1 && end.sbAlive === "1" && winner >= 0 && lives[winner] > 0 && lives.filter((l) => l === 0).length === 3 && ["TR", "IN", "US", "IR"].includes(end.sbWinnerName) && end.sbBanner === "1" && held && endScreen,
+    `(${JSON.stringify({ cuts: [mid.sbCuts, end.sbCuts], lives: end.sbLives, circleLives: end.sbCircleLives, winner: end.sbWinner, name: end.sbWinnerName, banner: end.sbBanner, coverage: end.sbCoverage })}, held=${held}, end screen=${endScreen})`,
+  );
+  const tones = await page.evaluate(() => window.__scOsc);
+  const midi = (f) => 69 + 12 * Math.log2(f / 440);
+  const twangSet = [60, 62, 64, 67];
+  const twangs = tones.filter(([type, f]) => type === "triangle" && f > 0).map(([, f]) => midi(f / 1.5)).filter((m) => Math.abs(m - Math.round(m)) < 0.05 && twangSet.includes(Math.round(m)));
+  const pings = tones.filter(([type, f]) => type === "sine" && f > 0).map(([, f]) => midi(f)).filter((m) => Math.abs(m - Math.round(m)) < 0.05 && twangSet.includes(Math.round(m) - 12));
+  check(
+    "string circle anchors twang a fifth above each flag's pentatonic note and cuts snap an octave above it",
+    twangs.length >= 20 && new Set(twangs.map((m) => Math.round(m))).size >= 3 && pings.length >= 3 && Number(end.sbTwangs) >= 20 && Number(end.sbSnaps) >= 3,
+    `(${tones.length} oscillators, ${twangs.length} twang glides on MIDI ${[...new Set(twangs.map((m) => Math.round(m)))].sort((a, b) => a - b).join("/")}, ${pings.length} snap pings, events ${end.sbTwangs} twangs / ${end.sbSnaps} snaps)`,
+  );
+}
+{
+  // The hexagon: six flags whose fans reach the hexagon's sides.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&sba=hexagon&sbn=6&seed=7`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-circle-hexagon.png") });
+  const fans = (data.sbFans || "").split(",").map(Number);
+  check(
+    "the hexagon arena: six flags fanning strings to its sides, every ball inside it",
+    data.sbArena === "hexagon" && data.sbBalls === "6" && fans.length === 6 && fans.every((n) => n > 0) && Number(data.sbRimArcs) > 0 && data.sbInArena === "1" && data.sbNames === "TR|IN|US|IR|DE|CA",
+    `(${JSON.stringify({ arena: data.sbArena, fans: data.sbFans, coverage: data.sbCoverage, arcs: data.sbRimArcs, inArena: data.sbInArena, names: data.sbNames })})`,
+  );
+}
+{
+  // The India vs USA preset: a roster of two countries (names, flags, colours) and a clip long enough for its duel.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle`, { waitUntil: "networkidle" });
+  await page.getByTestId("sc-preset").selectOption("indiaUsa");
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1200);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-circle-india-usa.png") });
+  check(
+    "the India vs USA preset: two countries' flags (or their codes) on the balls, their names, a 55 s clip",
+    query.get("sbn") === "2" && query.get("sbl") === "5" && query.get("dur") === "55" && (query.get("teams") || "").startsWith("India*ff9933*🇮🇳,United States*3c5cd6*🇺🇸") && data.sbBalls === "2" && /^[fc]{2}$/.test(data.sbBadges || "") && data.sbNames === "India|United States",
+    `(${query.toString()}, badges=${data.sbBadges}, flag glyphs=${data.sbFlagGlyphs}, names=${data.sbNames})`,
+  );
+}
+{
+  // Find Simulation: a circle battle US (the third flag) wins – played back to its end.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("2");
+  const button = page.getByRole("button", { name: /Find a Run US Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  let data = {};
+  if (/Found! US wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    data = await canvasData();
+  }
+  check("Find Simulation finds a string circle battle the chosen flag wins, and it plays back", labelled && /Found! US wins/.test(text) && data.sbFinished === "1" && data.sbWinner === "2" && data.sbWinnerName === "US", `("${text}", played: ${JSON.stringify({ finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, lives: data.sbLives })})`);
+}
+{
+  // The mega preset: twelve flags (the roster's six, then the line-up's next six by their codes) – 30+ fps on the page, and a
+  // 1080×1920 recording at 20+ fps.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle`, { waitUntil: "networkidle" });
+  await page.getByTestId("sc-preset").selectOption("mega12");
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(3000);
+  const crowd = await canvasData();
+  const fps = await pageFrameRates(3000);
+  await page.screenshot({ path: path.join(outDir, "sim-string-circle-mega.png") });
+  const names = (crowd.sbNames || "").split("|");
+  await timingCheck(
+    "the mega country fight (12 flags) runs at 30+ fps",
+    query.get("sbn") === "12" && query.get("dur") === "35" && crowd.sbBalls === "12" && names.length === 12 && names.slice(6).join(",") === "JP,CN,VN,LK,PK,BD" && (crowd.sbFans || "").split(",").length === 12 && crowd.sbInArena === "1",
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ names: crowd.sbNames, fans: crowd.sbFans, segments: crowd.sbSegments, badges: crowd.sbBadges })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+  await page.goto(`${BASE}/en/simulator/?${query.toString()}`, { waitUntil: "networkidle" });
+  let rec = { windows: [], avg: 0, min: 0, low: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(2500);
+      rec = await pageFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `string-circle-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await timingCheck("a 1080×1920 recording of the mega country fight keeps 20+ fps and downloads", size > 10000, fpsOk(rec, 5, 20), `(${size} bytes, ${fpsNote(rec)}, floor 20${loadNote()})`, recordingRetry(5, 20));
+}
+// The frame rates of dense fans: 5 and 12 balls each keeping about 400 strings (a rate the cuts balance there; no life is
+// lost – a cut count no fan reaches) – 30+ fps on the page (12 × 400 strokes every other string: past 3,000 strings the
+// renderer thins the fans) – and measured while recording at 1080×1920. Those two recordings are stress measurements, not the
+// presets' floor (the mega preset's above): software video encoding at 1080×1920 shares the CPU with the page, so they are
+// held to a sanity floor (12+ fps on average) and their frame rates are reported.
+for (const [balls, rate] of [[5, 170], [12, 270]]) {
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&sbn=${balls}&sbrt=${rate}&sbc=1000000&sbl=3&seed=7`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const fanSum = () => page.evaluate(() => (document.querySelector("main canvas")?.dataset.sbFans || "").split(",").map(Number).reduce((a, b) => a + b, 0));
+  await page.waitForFunction((min) => (document.querySelector("main canvas")?.dataset.sbFans || "").split(",").map(Number).reduce((a, b) => a + b, 0) >= min, balls * 330, { timeout: 30_000 }).catch(() => {});
+  const before = await fanSum();
+  const fps = await pageFrameRates(3000);
+  const after = await fanSum();
+  const dense = await canvasData();
+  await page.screenshot({ path: path.join(outDir, `sim-string-circle-${balls}x400.png`) });
+  const mean = Math.round((before + after) / 2 / balls);
+  await timingCheck(
+    `${balls} balls with fans of about 400 strings each run at 30+ fps on the page`,
+    dense.sbBalls === String(balls) && mean >= 300 && Number(dense.sbSegments) * Number(dense.sbStride) >= balls * 250 && (balls === 12 ? Number(dense.sbStride) >= 2 : dense.sbStride === "1") && dense.sbFinished === "0",
+    fpsOk(fps, 4, 30),
+    `(mean fan ${mean} strings, fans ${dense.sbFans}, ${dense.sbSegments} strings stroked at stride ${dense.sbStride}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+  let rec = { windows: [], avg: 0, min: 0, low: 0 };
+  let recFans = 0;
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      rec = await pageFrameRates(3500);
+      recFans = await fanSum();
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `string-circle-${balls}x400-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await timingCheck(
+    `a 1080×1920 recording of ${balls} balls with fans of about 400 strings downloads (its frame rate measured)`,
+    size > 10000 && recFans >= balls * 250,
+    fpsOk(rec, 5, 12, 8),
+    `(${size} bytes, mean fan ${Math.round(recFans / balls)} strings, ${fpsNote(rec)}, sanity floor 12${loadNote()})`,
+    recordingRetry(5, 12),
+  );
+}
+// --- end string-circle ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

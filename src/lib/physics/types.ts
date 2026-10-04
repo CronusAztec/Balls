@@ -353,6 +353,15 @@ export interface SoundEvent {
    */
   lcSound?: "knock" | "spawn" | "ko";
   // --- end land-claim ---
+  // --- string-circle ---
+  /**
+   * A String Circle sound (the circle style of the String Battle; `ToneGenerator.playStringCircle()`, lib/audio/
+   * stringCircleTones.ts) instead of a bounce: "twang" – the strings the balls anchored, a plucked twang per team (`frequency`
+   * its lowest note, `chord` the teams' notes) – or "snap" – strings cut, a short bright snap at `frequency`, `level` loud. The
+   * KO is the battle's own shatter. Sent with `melody: false`, so a page that does not know it plays an accompaniment hit.
+   */
+  scSound?: "twang" | "snap";
+  // --- end string-circle ---
 }
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs

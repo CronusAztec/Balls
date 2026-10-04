@@ -80,7 +80,7 @@ export interface StringBattleRenderOptions {
  */
 const SB_FACE_LAYOUT = { shape: "circle", countdown: true } as const;
 export function sbFaceLayout(style: SbStyle): typeof SB_FACE_LAYOUT | null {
-  return style === "neon" ? null : SB_FACE_LAYOUT;
+  return style !== "web" ? null : SB_FACE_LAYOUT; // (--- string-circle --- the circle style's flag balls show no number either: the whole face)
 }
 
 const TWO_PI = Math.PI * 2;

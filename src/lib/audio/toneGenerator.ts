@@ -18,6 +18,7 @@ import { ORB_SAMPLE_GAIN, scheduleOrbClink, scheduleOrbSleep } from "./orbTones"
 import { fightDucks, scheduleFightSound } from "./fightTones"; // --- fight-league ---
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
 import { DEFAULT_KNOCK_FREQUENCY, DEFAULT_KO_FREQUENCY, lcFrequency, lcLevel, scheduleKnock, scheduleKo, scheduleSpawnChime } from "./landClaimTones"; // --- land-claim ---
+import { scLevel, scheduleSnap, scheduleTwang } from "./stringCircleTones"; // --- string-circle ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -1029,6 +1030,42 @@ export class ToneGenerator {
     }
   }
   // --- end land-claim ---
+
+  // --- string-circle ---
+  /**
+   * A sound of the String Battle's circle style (lib/audio/stringCircleTones.ts): "twang" – the strings the balls anchored, a
+   * plucked twang per team note (`chord`, else `frequency`), each snapped to the scale – or "snap" – strings cut, a bright
+   * crack over a ping at `frequency`, `level` loud, which ducks the music bed. On the beat grid like the bounce sounds; in the
+   * hit-sample mode the twang plays the sample at its lowest note.
+   */
+  playStringCircle(kind: "twang" | "snap", frequency?: number, chord?: readonly number[], level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleStringCircle(kind, frequency, chord, level));
+      return;
+    }
+    this.scheduleStringCircle(kind, frequency, chord, level);
+  }
+
+  private scheduleStringCircle(kind: "twang" | "snap", frequency: number | undefined, chord: readonly number[] | undefined, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const time = this.scheduleTime(ctx.currentTime);
+      if (kind === "twang") {
+        const pitches = hitPitches(0, frequency, chord, 3).map((f) => this.snap(f));
+        if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, pitches[0]), time, 0.6 * scLevel(level));
+        else scheduleTwang(ctx, this.masterGain, pitches, time, level, this.pluckCache);
+      } else {
+        scheduleSnap(ctx, this.masterGain, this.snap(frequency !== undefined && frequency > 0 ? frequency : 880), time, this.noiseCache.get(ctx), level);
+        this.musicBed.duck(time);
+      }
+    } catch (err) {
+      console.error(`Error playing the string circle ${kind}:`, err);
+    }
+  }
+  // --- end string-circle ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
