@@ -5,7 +5,9 @@
  * fills a roster entry with its name, its flag as the emoji and its primary colour.
  *
  * The shape `{ code, name, flag, colors }` is shared with the String Circle style of the String Battle (feature
- * string-circle), which ships the same module: the two lists merge into one.
+ * string-circle), which reads this same list: --- string-circle --- its default line-up and presets are the countries of
+ * the clips, so Afghanistan, Bangladesh, Iran, Pakistan and Sri Lanka joined the list (in its order), their colours lifted
+ * a little for a dark background like the others'.
  *
  * Pure data, no DOM. Where a font has no flag glyphs (some desktop systems draw a flag as its two letters), the canvas
  * shows the code in a badge instead (`flagCodeOf()`); see components/simulator/landClaimRenderer.ts.
@@ -44,11 +46,13 @@ export function flagCodeOf(text: string): string {
 
 const C = (code: string, name: string, primary: string, secondary: string): Country => ({ code, name, flag: flagOf(code), colors: [primary, secondary] });
 
-/** About forty countries, in the order the picker lists them (sorted by English name). */
+/** About forty countries (47), in the order the picker lists them (sorted by English name). */
 export const COUNTRIES: readonly Country[] = [
+  C("AF", "Afghanistan", "#d32011", "#007a36"), // --- string-circle ---
   C("AR", "Argentina", "#74acdf", "#f6b40e"),
   C("AU", "Australia", "#00843d", "#ffcd00"),
   C("AT", "Austria", "#ed2939", "#ffffff"),
+  C("BD", "Bangladesh", "#00936b", "#f42a41"), // --- string-circle ---
   C("BE", "Belgium", "#fdda24", "#ef3340"),
   C("BR", "Brazil", "#009c3b", "#ffdf00"),
   C("CA", "Canada", "#ff0000", "#ffffff"),
@@ -63,6 +67,7 @@ export const COUNTRIES: readonly Country[] = [
   C("GR", "Greece", "#0d5eaf", "#ffffff"),
   C("IN", "India", "#ff9933", "#138808"),
   C("ID", "Indonesia", "#ff0000", "#ffffff"),
+  C("IR", "Iran", "#239f40", "#da0000"), // --- string-circle ---
   C("IE", "Ireland", "#169b62", "#ff883e"),
   C("IT", "Italy", "#009246", "#ce2b37"),
   C("JP", "Japan", "#bc002d", "#ffffff"),
@@ -72,6 +77,7 @@ export const COUNTRIES: readonly Country[] = [
   C("NZ", "New Zealand", "#3a5fcd", "#cc142b"),
   C("NG", "Nigeria", "#008751", "#ffffff"),
   C("NO", "Norway", "#ba0c2f", "#3a5fcd"),
+  C("PK", "Pakistan", "#1f9d55", "#ffffff"), // --- string-circle ---
   C("PE", "Peru", "#d91023", "#ffffff"),
   C("PH", "Philippines", "#0038a8", "#ce1126"),
   C("PL", "Poland", "#dc143c", "#ffffff"),
@@ -80,6 +86,7 @@ export const COUNTRIES: readonly Country[] = [
   C("ZA", "South Africa", "#007749", "#ffb81c"),
   C("KR", "South Korea", "#cd2e3a", "#0047a0"),
   C("ES", "Spain", "#aa151b", "#f1bf00"),
+  C("LK", "Sri Lanka", "#c8284f", "#ffbe29"), // --- string-circle ---
   C("SE", "Sweden", "#006aa7", "#fecc00"),
   C("CH", "Switzerland", "#ff0000", "#ffffff"),
   C("TH", "Thailand", "#a51931", "#2d2a4a"),

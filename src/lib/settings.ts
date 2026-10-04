@@ -38,6 +38,7 @@ import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllu
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 // --- odd-string-battle --- the String Battle mode (oddplayground's WEB DOMINION)
 import { STRING_BATTLE_RANGES, defaultStringBattleFields, readStringBattleParams, resolveStringBattleFields, writeStringBattleParams, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
+import type { ScArena } from "@/lib/physics/modes/stringCircle"; // --- string-circle ---
 // --- odd-power-layers --- the Power Layers mode (oddplayground)
 import { POWER_LAYERS_RANGES, defaultPowerLayersFields, powerLayersModeDefaults, readPowerLayersParams, resolvePowerLayersFields, writePowerLayersParams, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
 // --- jdm-race ---
@@ -524,6 +525,16 @@ export interface SimulatorSettings {
   sbBadge: boolean;
   /** The WEB DOMINION HUD (URL `sbh`). */
   sbHud: boolean;
+  // --- string-circle --- the String Battle's circle style (lib/physics/modes/stringCircle.ts)
+  /** circle | hexagon: the circle style's arena (URL `sba`). */
+  sbArena: ScArena;
+  /** Strings every ball anchors a second in the circle style, 1–60 on the slider (any number from 1 typed) (URL `sbrt`). */
+  sbRate: number;
+  /** Strings of one owner cut that take a life from it in the circle style, 1–200 on the slider (any number from 1 typed) (URL `sbc`). */
+  sbCut: number;
+  /** The circle style's title line, "" = the translated STRING CIRCLE (URL `sbti`). */
+  sbTitle: string;
+  // --- end string-circle ---
   // --- end odd-string-battle ---
   // --- odd-power-layers --- Power Layers (lib/physics/modes/powerLayers.ts): a ball smashing a stack of rainbow layers
   /** Layers in the stack, 20–800 (URL `pll`). */

@@ -93,6 +93,7 @@ import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLay
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeagueRenderer";
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
 import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer";
+import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -212,6 +213,9 @@ export interface CanvasLabels {
   // --- land-claim ---
   /** Land Claim: the title line, the counters, DOMINATION / SUCH A CLOSE BATTLE / "[name] CLAIMS THE MOST" and the share of the land. */
   landClaim?: LandClaimLabels;
+  // --- string-circle ---
+  /** The String Battle's circle style: the title line, the winner banner and its share of the rim, the standings strip's "+N". */
+  stringCircle?: StringCircleLabels;
 }
 
 export interface CanvasHandle {
@@ -856,6 +860,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const sbRender: StringBattleRenderOptions = { dpr: scale, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: 0, simDtMs: 0, contacts: null, width: 0, height: 0 };
     let sbLastMs = 0;
     const sbBodyColor = (ball: Ball) => sbLayer.colorOf(ball.team ?? 0);
+    // --- string-circle --- the circle style's layer (fans, rim arcs, flag badges, title, standings strip) and its per-frame options
+    const scLayer = new StringCircleLayer();
+    const scRender: StringCircleRenderOptions = { dpr: scale, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_CIRCLE_LABELS, nowMs: 0, width: 0, height: 0 };
+    const scBodyColor = (ball: Ball) => scLayer.colorOf(ball.team ?? 0);
     // --- odd-power-layers --- the Power Layers layer (cached stack, halos, gradients) and its per-frame options
     const plLayer = new PowerLayersLayer();
     const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr: scale };
@@ -1092,6 +1100,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- world --- the renderers' raster scale follows the window (resize() above)
       illusionRender.dpr = scale;
       sbRender.dpr = scale;
+      scRender.dpr = scale; // --- string-circle --- (the fans' hairlines and the title's sprite)
       plRender.dpr = scale;
       tyRender.dpr = scale; // --- odd-territory --- (the board's and trails' layers)
       mazeRender.dpr = scale; // --- odd-maze --- (the walls' and the paint's layers)
@@ -1511,7 +1520,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         sbRender.contacts = engine.getWallContacts();
         sbRender.width = size.width;
         sbRender.height = size.height;
-        sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
+        // --- string-circle --- the circle style: the wall (circle or hexagon), the fans batched per team, the rim arcs
+        if (sbView.circle) {
+          scRender.roster = sbRender.roster;
+          scRender.showNames = sbRender.showNames;
+          scRender.wallThickness = p.wallThickness;
+          scRender.labels = (labelsRef.current ?? DEFAULT_LABELS).stringCircle ?? DEFAULT_STRING_CIRCLE_LABELS;
+          scRender.nowMs = simNow;
+          scRender.width = size.width;
+          scRender.height = size.height;
+          scLayer.drawStage(ctx, sbView, drawnBalls, scRender);
+        } else sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
       }
       // --- odd-territory --- Territory: the tile map, the pops of flipped tiles, the pegs, the frame, the blasts and the whirls.
       const tyView = engine.isTerritoryMode() ? engine.getTerritoryView() : null;
@@ -2079,6 +2098,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isMult) drawMultipliersBalls(ctx, balls, multRender, multTop, multBottom); // --- gerald-multipliers --- hundreds of balls, batched
       else if (isDp) drawDoublePendulumBodies(ctx, engine.getDoublePendulumView(), dpRender); // --- jdm-double-pendulum --- rods, bobs and hit flashes
       else if (illusionView) illusionLayer.drawBodies(ctx, balls, illusionView, illusionRender, wobble); // --- jdm-illusions --- balls, the innermost circle, painters
+      else if (sbView && sbView.circle) scLayer.drawBodies(ctx, sbView, scRender); // --- string-circle --- glows, flags in their rings of lives, names, bursts
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
       else if (tyView) tyLayer.drawBodies(ctx, tyView, balls, tyRender); // --- odd-territory --- trails, halos, bodies by power, charge rings, names
       else if (mazeView) mazeLayer.drawBodies(ctx, mazeView, mazeRender); // --- odd-maze --- halos, glossy bodies, names
@@ -2284,7 +2304,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- jdm-illusions --- faces on the Circle Illusion's balls (on the innermost of the nested circles)
       if (faces.isActive() && illusionView) faces.drawOverlays(ctx, illusionLayer.faceBalls(balls, illusionView), bobBodyColor, null);
       // --- odd-string-battle --- faces on the fighters (--- review fix (modes-gerald-odd) --- in the web style two eyes above the lives the body shows)
-      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
+      if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbView.circle ? scBodyColor : sbBodyColor, sbFaceLayout(sbView.settings.style)); // (--- string-circle --- the circle style's colours)
       if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
       if (faces.isActive() && mazeView) faces.drawOverlays(ctx, balls, mazeBodyColor, null); // --- odd-maze --- faces on the maze runners
       if (faces.isActive() && lcView) faces.drawOverlays(ctx, balls, lcBodyColor, null); // --- land-claim --- faces on the competitors' balls
@@ -2468,7 +2488,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- odd-string-battle --- the warning badge, the WEB DOMINION HUD and – without a roster (the teams banner takes over) – the winner banner
       // (--- review fix (modes-gerald-odd) --- the badge takes the top-right corner when the teams scoreboard sits in the top-left one;
       // the badge and the HUD are what the top captions start below)
-      if (sbView) {
+      // --- string-circle --- the circle style: the title line, the standings strip and – unless the teams banner crowns a roster's
+      // winner (a winner past the six teams has none: the style's own banner names it) – the winner banner
+      if (sbView && sbView.circle) {
+        const teamBanner = teamLayer.isActive() && sbView.winner >= 0 && sbView.winner < teamLayer.teamsInPlay();
+        modeTopHud = Math.max(modeTopHud, scLayer.drawOverlay(ctx, sbView, scRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner }));
+      } else if (sbView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
       }
@@ -2885,8 +2910,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
         edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-gerald-odd) --- (the mode's top HUD)
         if (flView && flLayer.boxesTop < Infinity) captionView.bottomMax = Math.min(captionView.bottomMax, flLayer.boxesTop); // --- fight-league --- (above the ability boxes)
+        if (sbView && sbView.circle && scLayer.stripTop < Infinity) captionView.bottomMax = Math.min(captionView.bottomMax, scLayer.stripTop); // --- string-circle --- (above the standings strip)
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
         captionView.winner = lcView && lcView.finished && lcView.verdict.winner >= 0 ? lcLayer.nameOf(lcView.verdict.winner) : ""; // --- land-claim --- a question's [winner]
+        if (sbView && sbView.finished && sbView.winner >= 0) captionView.winner = sbView.circle ? scLayer.nameOf(sbView.winner) : sbLayer.nameOf(sbView.winner); // --- string-circle --- (the String Battle's winner too)
         // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);
@@ -3103,7 +3130,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         setCanvasData("sbStalePx", stalePx.toFixed(1));
         setCanvasData("sbInRing", inRing ? "1" : "0");
+        // --- string-circle --- the circle style (data-sb-*): the arena, the rim's coverage and the fans per team, the strings
+        // anchored, the sounds, the title, the badges and names, what was drawn – and its overlay's own badge / HUD / banner
+        if (sbView.circle) {
+          writeStringCircleDataset(sbView, scLayer, engine.getBalls(), setCanvasData);
+          setCanvasData("sbWinnerName", sbView.finished && sbView.winner >= 0 ? scLayer.nameOf(sbView.winner) : "");
+          setCanvasData("sbBadge", "0");
+          setCanvasData("sbBadgeRight", "0");
+          setCanvasData("sbHud", scLayer.hudDrawn ? "1" : "0");
+          setCanvasData("sbBanner", scLayer.bannerDrawn ? "1" : "0");
+        } else if (canvas.dataset.sbArena !== undefined) for (const key of STRING_CIRCLE_DATA_KEYS) delete canvas.dataset[key];
       } else if (canvas.dataset.sbBalls !== undefined) {
+        for (const key of STRING_CIRCLE_DATA_KEYS) delete canvas.dataset[key]; // --- string-circle ---
         for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbBadgeRight", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
       // --- end odd-string-battle ---

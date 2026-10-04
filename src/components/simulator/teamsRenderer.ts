@@ -4,7 +4,8 @@ import type { Ball } from "@/lib/physics/types";
 import { rankTeams, teamDisplayName, teamResult, type TeamRenderOptions, type TeamResult } from "@/lib/teams";
 import { ACCENT } from "@/lib/site";
 import { nameLabelSize } from "./faceRenderer";
-import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
+import { SB_PALETTE, sbHudShown, stringBattleBallName, type StringBattleView } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
+import { circleLineup } from "@/lib/physics/modes/stringCircle"; // --- string-circle ---
 import { TY_PALETTE, type TerritoryView } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { MZ_PALETTE, mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import type { FightLeagueView } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
@@ -168,6 +169,8 @@ export class TeamLayer {
   private readonly territoryLive: BallStats[] = Array.from({ length: MAX_TEAMS }, emptyStats);
   /** --- review fix (modes-gerald-odd) --- the roster plays a String Battle: its kills and its win head the scoreboard and fill the banner. */
   private battle = false;
+  /** --- string-circle --- the battle this frame (null in any other mode): one of more balls than teams takes its own verdict. */
+  private battleView: StringBattleView | null = null;
   // --- odd-maze --- the roster as the Maze plays it (padded to its first six balls), rebuilt when an input changes
   private mazeSource: CanvasTeamOptions | null = null;
   private mazeKey = "";
@@ -214,7 +217,10 @@ export class TeamLayer {
     // --- odd-string-battle --- the String Battle plays the roster too: one team per ball – the palette's names and colours for
     // balls beyond the roster – and its WEB DOMINION HUD takes the scoreboard's place (its winner banner is this layer's)
     const battle = next && next.roster.length > 0 && engine.isStringBattleMode() ? engine.getStringBattleView() : null;
-    if (battle && next) next = this.battleTeams(next, battle.count, sbHudShown(battle.settings));
+    // (--- string-circle --- the first six balls are teams – a mega fight's others have no team stats –, and the circle style pads
+    // the roster with its line-up of countries)
+    if (battle && next) next = this.battleTeams(next, Math.min(battle.count, MAX_TEAMS), sbHudShown(battle.settings), !!battle.circle);
+    this.battleView = battle;
     // --- end odd-string-battle ---
     // --- odd-territory --- Territory plays the roster too: one team per region – the palette's names and colours beyond the
     // roster – and its HUD takes the scoreboard's place (its winner banner is this layer's)
@@ -270,10 +276,11 @@ export class TeamLayer {
 
   // --- odd-string-battle ---
   /** The roster padded to `count` teams with the String Battle's palette, the scoreboard off while its HUD shows (the same object while nothing changed). */
-  private battleTeams(options: CanvasTeamOptions, count: number, hud: boolean): CanvasTeamOptions {
-    const key = `${count}|${hud ? 1 : 0}`;
+  private battleTeams(options: CanvasTeamOptions, count: number, hud: boolean, circle = false): CanvasTeamOptions {
+    const key = `${count}|${hud ? 1 : 0}|${circle ? 1 : 0}`;
     if (this.battleOptions && this.battleSource === options && this.battleKey === key) return this.battleOptions;
     const roster = options.roster.slice(0, count).map((t) => ({ ...t }));
+    if (circle) for (const l of circleLineup(roster, count).slice(roster.length)) roster.push({ name: l.name, color: l.color, emoji: l.emoji }); // --- string-circle --- (the line-up's flags, by their codes)
     for (let i = roster.length; i < count; i++) roster.push({ name: stringBattleBallName(i), color: SB_PALETTE[i % SB_PALETTE.length].color, emoji: "" });
     this.battleSource = options;
     this.battleKey = key;
@@ -490,6 +497,12 @@ export class TeamLayer {
       // winner without land or past the six teams (Land Claim's own banner names it then)
       if (this.landClaim) {
         const w = this.landClaim.verdict.winner;
+        this.result = w >= 0 && w < this.count ? { winner: w, tie: false, leaders: [w] } : { winner: -1, tie: false, leaders: [] };
+      }
+      // --- string-circle --- a String Battle of more balls than teams (a mega country fight): the battle's own verdict – no team
+      // winner past the six teams (the battle's banner names it then)
+      if (this.battleView && this.battleView.count > MAX_TEAMS) {
+        const w = this.battleView.winner;
         this.result = w >= 0 && w < this.count ? { winner: w, tie: false, leaders: [w] } : { winner: -1, tie: false, leaders: [] };
       }
       this.bannerMs = 0;

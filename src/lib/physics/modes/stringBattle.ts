@@ -5,6 +5,45 @@ import { TWO_PI, arenaRadius } from "../types";
 import { wobbleStrength } from "../wobble";
 import { teamResult } from "@/lib/teams";
 import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
+// --- string-circle --- the circle style: its settings, arena, cadence, cut test, coverage and line-up (lib/physics/modes/stringCircle.ts)
+import {
+  DEFAULT_STRING_CIRCLE_SETTINGS,
+  SC_CURL,
+  SC_CURL_SPREAD,
+  SC_DISSOLVE_GHOSTS,
+  SC_SNAP_GHOSTS,
+  FAN_BUCKETS,
+  FanIndex,
+  SC_HEX_APOTHEM,
+  SC_SNAP_GAP_STEPS,
+  SC_STRING_CEILING,
+  SC_TWANG_GAP_STEPS,
+  SC_TWANG_LEVEL,
+  SC_TWANG_NOTES,
+  STRING_CIRCLE_RANGES,
+  anchorsDue,
+  bearingDelta,
+  circleLineup,
+  circleSettingsOf,
+  coverageLeaders,
+  createCircleState,
+  readStringCircleParams,
+  resolveStringCircleInto,
+  rimAt,
+  rimHit,
+  scCuts,
+  snapFrequency,
+  snapLevel,
+  twangFrequency,
+  updateCoverage,
+  wallOverlap,
+  writeStringCircleParams,
+  type ScArena,
+  type StringCircleSettingFields,
+  type StringCircleSettings,
+  type StringCircleState,
+} from "./stringCircle";
+// --- end string-circle ---
 
 /**
  * String Battle ("stringBattle" mode, battle family – feature odd-string-battle): the oddplayground "WEB DOMINION"
@@ -47,7 +86,7 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 export const SB_RULES = ["cut", "touch", "collide"] as const;
 export type SbRule = (typeof SB_RULES)[number];
-export const SB_STYLES = ["web", "neon"] as const;
+export const SB_STYLES = ["web", "neon", "circle"] as const; // --- string-circle --- ("circle": the String Circle style, lib/physics/modes/stringCircle.ts)
 export type SbStyle = (typeof SB_STYLES)[number];
 
 export function isSbRule(value: unknown): value is SbRule {
@@ -77,6 +116,12 @@ export interface StringBattleSettings {
   badge: boolean;
   /** The "WEB DOMINION" HUD (a row per ball, the live threads). */
   hud: boolean;
+  // --- string-circle --- the circle style (lib/physics/modes/stringCircle.ts): the arena, the strings a ball anchors a second,
+  // the strings cut per life and the title line – the defaults when left out (resolveStringBattleSettings() always fills them)
+  arena?: ScArena;
+  rate?: number;
+  cut?: number;
+  title?: string;
 }
 
 export const DEFAULT_STRING_BATTLE_SETTINGS: StringBattleSettings = {
@@ -90,6 +135,7 @@ export const DEFAULT_STRING_BATTLE_SETTINGS: StringBattleSettings = {
   wobble: 0.6,
   badge: true,
   hud: true,
+  ...DEFAULT_STRING_CIRCLE_SETTINGS, // --- string-circle ---
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -100,6 +146,7 @@ export const STRING_BATTLE_RANGES = {
   sbDuration: { min: 0, max: 180, step: 5 },
   sbFinaleSpeed: { min: 1, max: 3, step: 0.1 },
   sbWobble: { min: 0, max: 1, step: 0.05 },
+  ...STRING_CIRCLE_RANGES, // --- string-circle --- (sbRate, sbCut)
 } as const;
 
 /** The String Battle fields of the SimulatorSettings object (URL keys sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh). */
@@ -114,6 +161,11 @@ export interface StringBattleSettingFields {
   sbWobble: number;
   sbBadge: boolean;
   sbHud: boolean;
+  // --- string-circle --- (URL sba, sbrt, sbc, sbti)
+  sbArena: ScArena;
+  sbRate: number;
+  sbCut: number;
+  sbTitle: string;
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -136,6 +188,7 @@ export function resolveStringBattleSettings(config: Partial<StringBattleSettings
   if (config.wobble !== undefined) out.wobble = Math.round(100 * clampNumber(config.wobble, R.sbWobble, out.wobble)) / 100;
   if (typeof config.badge === "boolean") out.badge = config.badge;
   if (typeof config.hud === "boolean") out.hud = config.hud;
+  resolveStringCircleInto(out as StringBattleSettings & StringCircleSettings, config); // --- string-circle --- a known arena, whole rate and cut counts, a clean title
   return out;
 }
 
@@ -152,6 +205,11 @@ export function stringBattleSettingsOf(source: StringBattleSettingFields): Strin
     wobble: source.sbWobble,
     badge: source.sbBadge,
     hud: source.sbHud,
+    // --- string-circle ---
+    arena: source.sbArena,
+    rate: source.sbRate,
+    cut: source.sbCut,
+    title: source.sbTitle,
   };
 }
 
@@ -168,8 +226,16 @@ export function stringBattleSettingFields(settings: StringBattleSettings): Strin
     sbWobble: settings.wobble,
     sbBadge: settings.badge,
     sbHud: settings.hud,
+    ...circleSettingFields(circleSettingsOf(settings)), // --- string-circle ---
   };
 }
+
+// --- string-circle ---
+/** The circle style's settings under their SimulatorSettings field names. */
+function circleSettingFields(c: StringCircleSettings): StringCircleSettingFields {
+  return { sbArena: c.arena, sbRate: c.rate, sbCut: c.cut, sbTitle: c.title };
+}
+// --- end string-circle ---
 
 /* ------------------------------------------------------------------ settings, URL and presets (settings.ts calls these) */
 
@@ -192,6 +258,11 @@ export function resolveStringBattleFields(source: Partial<StringBattleSettingFie
       wobble: source.sbWobble,
       badge: source.sbBadge,
       hud: source.sbHud,
+      // --- string-circle ---
+      arena: source.sbArena,
+      rate: source.sbRate,
+      cut: source.sbCut,
+      title: source.sbTitle,
     }),
   );
 }
@@ -210,6 +281,7 @@ export function writeStringBattleParams(settings: StringBattleSettingFields, bas
   if (settings.sbRule !== base.sbRule) params.set("sbr", settings.sbRule);
   if (settings.sbStyle !== base.sbStyle) params.set("sbst", settings.sbStyle);
   for (const [key, field] of Object.entries(BOOLEAN_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
+  writeStringCircleParams(settings, base, params); // --- string-circle --- sba, sbrt, sbc, sbti
 }
 
 /** Reads the feature's URL parameters into `settings` and validates them; unknown or invalid values fall back to the defaults. */
@@ -230,6 +302,7 @@ export function readStringBattleParams(params: URLSearchParams, settings: String
     if (raw === "1") next[field] = true;
     else if (raw === "0") next[field] = false;
   }
+  readStringCircleParams(params, next); // --- string-circle ---
   Object.assign(settings, resolveStringBattleFields(next));
 }
 
@@ -301,9 +374,12 @@ export function stringBattleBallName(slot: number): string {
   return SB_PALETTE[((Math.round(slot) % n) + n) % n].name;
 }
 
-/** Whether the WEB DOMINION HUD is drawn: the web style with the HUD switched on (the neon style is the bare art). */
+/**
+ * Whether the battle's HUD is drawn: the web style's WEB DOMINION HUD – --- string-circle --- or the circle style's standings
+ * strip – with the HUD switched on (the neon style is the bare art). Either takes the teams scoreboard's place.
+ */
 export function sbHudShown(settings: Pick<StringBattleSettings, "hud" | "style">): boolean {
-  return settings.hud && settings.style === "web";
+  return settings.hud && settings.style !== "neon";
 }
 
 /** The bounce note of ball `slot` (Hz). */
@@ -484,6 +560,8 @@ export interface SbString {
   ay: number;
   angle: number;
   bornMs: number;
+  /** --- string-circle --- Its place in its ball's sequence of strings (the circle style: two in a row claim the rim between them). */
+  serial?: number;
 }
 
 /** A thread that left the battle, drawn for a moment: detached (fade), cut (snap: both halves recoil from the cut) or dissolving with its shattered ball. */
@@ -583,6 +661,8 @@ export interface StringBattleView {
   /** Slow-motion and shake requests made (the camera's near-miss and impact hooks). */
   slowMos: number;
   impacts: number;
+  /** --- string-circle --- The circle style's state (the arena's sides, the cadence, the cuts toward a life, the rim's coverage); null in the web and neon styles. */
+  circle: StringCircleState | null;
 }
 
 function createView(): StringBattleView {
@@ -615,6 +695,7 @@ function createView(): StringBattleView {
     tie: false,
     slowMos: 0,
     impacts: 0,
+    circle: null, // --- string-circle ---
   };
 }
 
@@ -640,6 +721,13 @@ export class StringBattleMode implements GameMode {
   private readonly spareGhosts: SbGhost[] = [];
   private readonly scratch = { x: 0, y: 0, angle: 0 };
   private plucksThisStep = 0;
+  // --- string-circle --- the circle style's scratch: a rim point, a wall's outward normal, a fan's angular index, the window of
+  // a move in it and the strings a sub-step cut (by index)
+  private readonly rimPoint = { x: 0, y: 0, angle: 0 };
+  private readonly wallNormal = { x: 0, y: 0 };
+  private readonly fanIndex = new FanIndex();
+  private readonly fanWindow = { first: 0, count: 0 };
+  private cutMarks = new Uint8Array(64);
 
   getSettings(): StringBattleSettings {
     return { ...this.settings };
@@ -649,7 +737,10 @@ export class StringBattleMode implements GameMode {
   setSettings(patch: Partial<StringBattleSettings>) {
     this.settings = resolveStringBattleSettings({ ...this.settings, ...patch });
     const live = this.view.settings;
-    live.style = this.settings.style;
+    // --- string-circle --- the circle style plays another battle (anchors on a cadence, its arena, cuts per life): a switch into or
+    // out of it waits for the next init (the page restarts the battle); the title line follows live
+    if ((live.style === "circle") === (this.settings.style === "circle")) live.style = this.settings.style;
+    live.title = this.settings.title;
     live.hud = this.settings.hud;
     live.badge = this.settings.badge;
     live.wobble = this.settings.wobble;
@@ -722,6 +813,7 @@ export class StringBattleMode implements GameMode {
       ctx.addBall({ x, y, vx: Math.cos(heading) * base * cruise, vy: Math.sin(heading) * base * cruise, radius, radiusScale: SB_BALL_SCALE, gravityScale: 0, color, team: i });
       v.fighters.push({ slot: i, id, color, lives: s.lives, kills: 0, alive: true, eliminatedMs: -1, hurtMs: -Infinity, cruise, preSpeed: base * cruise, x, y, px: x, py: y, radius, strings: [], stats: emptyStats() });
     }
+    v.circle = s.style === "circle" ? this.initCircle(ctx) : null; // --- string-circle ---
   }
 
   private fighterOf(ball: Ball): SbFighter | null {
@@ -742,6 +834,7 @@ export class StringBattleMode implements GameMode {
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     const f = this.fighterOf(ball);
     if (!f) return;
+    if (this.view.circle) return this.circleBallStep(ctx, ball, f, dtSec); // --- string-circle --- (the curl, the circle or hexagon wall)
     const v = this.view;
     // The cruising speed without the ball's own factor (the finale, a speed pickup), and with it.
     const scale = (ctx.config.ballSpeed || 400) * SB_SPEED_SCALE * v.finaleFactor * (ball.mult ? ball.mult.speed : 1);
@@ -778,16 +871,7 @@ export class StringBattleMode implements GameMode {
   private bounce(ctx: ModeContext, ball: Ball, f: SbFighter, nx: number, ny: number, vn: number, scale: number) {
     const v = this.view;
     const now = ctx.getElapsedMs();
-    const rvx = ball.vx - 2 * vn * nx;
-    const rvy = ball.vy - 2 * vn * ny;
-    let a = Math.atan2(rvy, rvx) + (2 * ctx.random() - 1) * SB_SCATTER;
-    const inward = Math.atan2(-ny, -nx);
-    let off = a - inward;
-    off -= TWO_PI * Math.round(off / TWO_PI);
-    const maxOff = Math.PI / 2 - SB_MIN_INCIDENCE;
-    if (off > maxOff) off = maxOff;
-    else if (off < -maxOff) off = -maxOff;
-    a = inward + off;
+    const a = this.reboundHeading(ctx, ball, nx, ny, vn); // --- string-circle --- (the heading's maths shared with the circle style)
     f.cruise = 1 - SB_SPEED_SPREAD + 2 * SB_SPEED_SPREAD * ctx.random();
     const out = scale * f.cruise * ctx.getPhysicsExtras().wallBounciness;
     ball.vx = Math.cos(a) * out;
@@ -813,6 +897,20 @@ export class StringBattleMode implements GameMode {
     f.stats.bounces++;
     v.bounces++;
     ctx.creditBounce?.(ball);
+  }
+
+  /** The heading off a wall of outward normal (nx, ny) hit at normal speed `vn`: the mirror image plus a seeded scatter, never flatter than `SB_MIN_INCIDENCE`. */
+  private reboundHeading(ctx: ModeContext, ball: Ball, nx: number, ny: number, vn: number): number {
+    const rvx = ball.vx - 2 * vn * nx;
+    const rvy = ball.vy - 2 * vn * ny;
+    const a = Math.atan2(rvy, rvx) + (2 * ctx.random() - 1) * SB_SCATTER;
+    const inward = Math.atan2(-ny, -nx);
+    let off = a - inward;
+    off -= TWO_PI * Math.round(off / TWO_PI);
+    const maxOff = Math.PI / 2 - SB_MIN_INCIDENCE;
+    if (off > maxOff) off = maxOff;
+    else if (off < -maxOff) off = -maxOff;
+    return inward + off;
   }
 
   private addGhost(kind: SbGhost["kind"], slot: number, ax: number, ay: number, bx: number, by: number, qx: number, qy: number, t0: number) {
@@ -867,7 +965,9 @@ export class StringBattleMode implements GameMode {
         this.pending.push(f.slot);
       }
     }
-    if (v.settings.rule !== "collide") this.crossings(ctx, now);
+    // --- string-circle --- the circle style cuts its own way (every rival string, a life per `cut` strings cut)
+    if (v.circle) this.circleCrossings(ctx, now);
+    else if (v.settings.rule !== "collide") this.crossings(ctx, now);
     for (const f of v.fighters) {
       const B = this.ballOf[f.slot];
       if (!B) continue;
@@ -964,8 +1064,11 @@ export class StringBattleMode implements GameMode {
         const K = this.ballOf[killer];
         if (K) ctx.creditWallBreak?.(K);
       }
-      for (const s of f.strings) {
-        this.addGhost("dissolve", slot, s.ax, s.ay, x, y, s.ax, s.ay, now);
+      // (--- string-circle --- a circle style's dense fan leaves at most SC_DISSOLVE_GHOSTS of its strings dissolving)
+      const every = v.circle ? Math.max(1, Math.ceil(f.strings.length / SC_DISSOLVE_GHOSTS)) : 1;
+      for (let k = 0; k < f.strings.length; k++) {
+        const s = f.strings[k];
+        if (k % every === 0) this.addGhost("dissolve", slot, s.ax, s.ay, x, y, s.ax, s.ay, now);
         this.spareStrings.push(s);
       }
       f.strings.length = 0;
@@ -1007,14 +1110,16 @@ export class StringBattleMode implements GameMode {
     v.winner = result.tie ? -1 : result.winner;
   }
 
-  onPostUpdate(ctx: ModeContext) {
+  onPostUpdate(ctx: ModeContext, stepMs = 1000 / 60) {
     const v = this.view;
     const now = ctx.getElapsedMs();
+    if (v.circle) this.circleStep(ctx, stepMs); // --- string-circle --- the step's anchors, the rim's coverage, the twangs and snaps
     if (!v.finished) {
       // The clip limit: the survivors with the most lives take the verdict.
       if (v.settings.duration > 0 && now >= 1000 * v.settings.duration) {
         for (const f of v.fighters) this.ballOf[f.slot] = f.alive ? (ctx.getBalls().find((b) => b.id === f.id) ?? null) : null;
-        this.finish(ctx, timeoutLeaders(v.fighters, v.forcedWinner), now);
+        const leaders = timeoutLeaders(v.fighters, v.forcedWinner);
+        this.finish(ctx, v.circle ? coverageLeaders(leaders, v.circle.coverage.bins) : leaders, now); // --- string-circle --- (level lives: the most rim)
       } else if (!v.finale) {
         let minLives = Infinity;
         for (const f of v.fighters) if (f.alive && f.lives < minLives) minLives = f.lives;
@@ -1135,8 +1240,338 @@ export class StringBattleMode implements GameMode {
       b.x = mx(b.x);
       b.y = my(b.y);
     }
+    // --- string-circle --- the hexagon's anchors back on its sides, every ball inside its wall, the anchors' interpolation points moved
+    const c = v.circle;
+    if (c) {
+      for (const f of v.fighters) {
+        if (c.sides === 6) {
+          for (const s of f.strings) {
+            rimAt(v.cx, v.cy, v.radius, 6, s.angle, this.rimPoint);
+            s.ax = this.rimPoint.x;
+            s.ay = this.rimPoint.y;
+          }
+        }
+        c.stepX[f.slot] = mx(c.stepX[f.slot]);
+        c.stepY[f.slot] = my(c.stepY[f.slot]);
+      }
+      for (const b of ctx.getBalls()) {
+        const f = this.fighterOf(b);
+        if (f && this.keepInsideCircleArena(b)) {
+          f.x = f.px = b.x;
+          f.y = f.py = b.y;
+        }
+      }
+    }
     return true;
   }
+
+  /* ------------------------------------------------------------------ --- string-circle --- the circle style */
+
+  /** The circle style's start: its state, the cut rule, the line-up's colours, every ball's curl and first anchor time. */
+  private initCircle(ctx: ModeContext): StringCircleState {
+    const v = this.view;
+    const s = this.settings;
+    const c = createCircleState(s.balls, circleSettingsOf(s));
+    v.settings.rule = "cut"; // always the cut rule: its shield, and no collision damage
+    const looks = circleLineup([], s.balls);
+    const balls = ctx.getBalls();
+    const interval = 1000 / c.rate;
+    for (const f of v.fighters) {
+      const ball = balls.find((b) => b.id === f.id) ?? null;
+      f.color = looks[f.slot].color;
+      if (ball) {
+        ball.color = f.color;
+        this.keepInsideCircleArena(ball);
+        f.x = f.px = ball.x;
+        f.y = f.py = ball.y;
+      }
+      c.curl[f.slot] = this.drawCurl(ctx);
+      // The first strings come at once, staggered by slot so the balls' twangs do not all land in one step.
+      c.nextAnchorMs[f.slot] = (interval * f.slot) / Math.max(1, s.balls);
+      c.stepX[f.slot] = f.x;
+      c.stepY[f.slot] = f.y;
+      c.stepHeading[f.slot] = ball ? Math.atan2(ball.vy, ball.vx) : 0;
+    }
+    return c;
+  }
+
+  /** A ball's curl (`SC_CURL` × a seeded strength, either way round). */
+  private drawCurl(ctx: ModeContext): number {
+    const sign = ctx.random() < 0.5 ? -1 : 1;
+    return sign * SC_CURL * (1 - SC_CURL_SPREAD + 2 * SC_CURL_SPREAD * ctx.random());
+  }
+
+  /** Puts a ball that is past the arena's wall back inside it (a hexagon's corner may take two sides); true when it moved. */
+  private keepInsideCircleArena(ball: Ball): boolean {
+    const v = this.view;
+    const c = v.circle;
+    const sides = c ? c.sides : this.settings.arena === "hexagon" ? 6 : 0;
+    const n = this.wallNormal;
+    const room = (sides === 6 ? v.radius * SC_HEX_APOTHEM : v.radius) - ball.radius;
+    if (!(room > 0)) {
+      const moved = ball.x !== v.cx || ball.y !== v.cy;
+      ball.x = v.cx;
+      ball.y = v.cy;
+      return moved;
+    }
+    let moved = false;
+    for (let pass = 0; pass < 3; pass++) {
+      const over = wallOverlap(v.cx, v.cy, v.radius, sides, ball.x, ball.y, ball.radius, n);
+      if (!(over > 0)) break;
+      ball.x -= n.x * over;
+      ball.y -= n.y * over;
+      moved = true;
+    }
+    return moved;
+  }
+
+  /**
+   * One sub-step of a ball in the circle style: back toward its cruising speed (as in the web style), its heading curled by
+   * `curl × speed / R × dt`, and a rebound off the circle – or off the hexagon's sides – with the battle's seeded scatter,
+   * a fresh cruising speed and a fresh curl (no string: the circle style anchors on a cadence, `circleStep()`).
+   */
+  private circleBallStep(ctx: ModeContext, ball: Ball, f: SbFighter, dtSec: number) {
+    const v = this.view;
+    const c = v.circle!;
+    const scale = (ctx.config.ballSpeed || 400) * SB_SPEED_SCALE * v.finaleFactor * (ball.mult ? ball.mult.speed : 1);
+    const cruise = scale * f.cruise;
+    let speed = Math.hypot(ball.vx, ball.vy);
+    if (speed > 0 && speed < cruise) {
+      const k = Math.min(cruise / speed, 1 + SB_RECOVER * dtSec);
+      ball.vx *= k;
+      ball.vy *= k;
+      speed *= k;
+    } else if (speed === 0) {
+      ball.vx = cruise;
+      speed = cruise;
+    }
+    if (v.radius > 0 && speed > 0) {
+      const turn = (c.curl[f.slot] * speed * dtSec) / v.radius;
+      const cs = Math.cos(turn);
+      const sn = Math.sin(turn);
+      const vx = ball.vx;
+      ball.vx = vx * cs - ball.vy * sn;
+      ball.vy = vx * sn + ball.vy * cs;
+    }
+    const n = this.wallNormal;
+    const room = (c.sides === 6 ? v.radius * SC_HEX_APOTHEM : v.radius) - ball.radius;
+    if (!(room > 0)) {
+      ball.x = v.cx;
+      ball.y = v.cy;
+    } else {
+      for (let pass = 0; pass < 2; pass++) {
+        const over = wallOverlap(v.cx, v.cy, v.radius, c.sides, ball.x, ball.y, ball.radius, n);
+        if (!(over > 0)) break;
+        ball.x -= n.x * over;
+        ball.y -= n.y * over;
+        const vn = ball.vx * n.x + ball.vy * n.y;
+        if (vn > 0) this.circleBounce(ctx, ball, f, n.x, n.y, vn, scale);
+      }
+    }
+    f.x = ball.x;
+    f.y = ball.y;
+    f.radius = ball.radius;
+    f.preSpeed = Math.hypot(ball.vx, ball.vy);
+  }
+
+  /** A rebound off the circle style's wall: the web style's heading and fresh cruising speed, a fresh curl, the bounce credited. */
+  private circleBounce(ctx: ModeContext, ball: Ball, f: SbFighter, nx: number, ny: number, vn: number, scale: number) {
+    const v = this.view;
+    const a = this.reboundHeading(ctx, ball, nx, ny, vn);
+    f.cruise = 1 - SB_SPEED_SPREAD + 2 * SB_SPEED_SPREAD * ctx.random();
+    v.circle!.curl[f.slot] = this.drawCurl(ctx);
+    const out = scale * f.cruise * ctx.getPhysicsExtras().wallBounciness;
+    ball.vx = Math.cos(a) * out;
+    ball.vy = Math.sin(a) * out;
+    f.stats.bounces++;
+    v.bounces++;
+    ctx.creditBounce?.(ball);
+  }
+
+  /**
+   * The circle style's cut rule, after every sub-step: every ball's own move against every rival string's cuttable part
+   * (`scCuts()`: the web style's cut on the anchor-side `SC_CUT_SPAN` of the string). A cut string snaps; every `cut`
+   * strings of one owner cut take a life from it (`damage()`: the rig) and its count starts again. After a lost life its fan
+   * is shielded like the web style's web (`SB_INVULN_MS.cut`): nothing of it can be cut, and it grows back.
+   *
+   * Fan by fan, its rivals in slot order: the fan's angular index (`FanIndex`, built once a sub-step when a rival moved) hands
+   * each rival only the strings its move may cross; the strings cut are marked and leave the fan, in its order, once every
+   * rival had its turn. A slice draws at most `SC_SNAP_GHOSTS` of its strings snapping.
+   */
+  private circleCrossings(ctx: ModeContext, now: number) {
+    const v = this.view;
+    const c = v.circle!;
+    const shield = SB_INVULN_MS.cut;
+    const index = this.fanIndex;
+    const win = this.fanWindow;
+    for (const o of v.fighters) {
+      if (!o.alive || o.strings.length === 0 || now - o.hurtMs < shield) continue; // a shielded fan cannot be cut (as the web style's web): it grows back
+      const B = this.ballOf[o.slot];
+      if (!B) continue;
+      const list = o.strings;
+      const n = list.length;
+      let built = false;
+      let removed = 0;
+      for (const a of v.fighters) {
+        if (a === o || !a.alive || now - o.hurtMs < shield) continue; // (shielded by an earlier rival's slice this sub-step)
+        const A = this.ballOf[a.slot];
+        if (!A || (a.px === A.x && a.py === A.y)) continue;
+        if (!built) {
+          index.build(list, B.x, B.y);
+          if (this.cutMarks.length < n) this.cutMarks = new Uint8Array(Math.max(n, 2 * this.cutMarks.length));
+          this.cutMarks.fill(0, 0, n);
+          built = true;
+        }
+        const marks = this.cutMarks;
+        const reach = B.radius + A.radius + SB_REACH_GAP;
+        index.window(a.px - B.x, a.py - B.y, A.x - B.x, A.y - B.y, win);
+        let cut = 0;
+        for (let w = 0; w < win.count; w++) {
+          const bucket = (win.first + w) % FAN_BUCKETS;
+          for (let j = index.start[bucket]; j < index.start[bucket + 1]; j++) {
+            const k = index.items[j];
+            if (marks[k]) continue;
+            const s = list[k];
+            const t = scCuts(s.ax, s.ay, B.x, B.y, reach, a.px, a.py, A.x, A.y);
+            if (t < 0) continue;
+            marks[k] = 1;
+            if (cut < SC_SNAP_GHOSTS) this.addGhost("snap", o.slot, s.ax, s.ay, B.x, B.y, s.ax + t * (B.x - s.ax), s.ay + t * (B.y - s.ay), now);
+            cut++;
+          }
+        }
+        if (cut === 0) continue;
+        removed += cut;
+        v.cuts += cut;
+        c.cuts += cut;
+        c.lost[o.slot] += cut;
+        c.cutBy[a.slot] += cut;
+        c.stepCuts[o.slot] += cut;
+        c.toward[o.slot] += cut;
+        if (c.toward[o.slot] < c.cut) continue;
+        c.toward[o.slot] = 0;
+        if (this.damage(o, a, now)) c.lives++;
+      }
+      if (removed === 0) continue;
+      // The cut strings leave the fan (the others keep their order); their objects are kept for the next anchors.
+      const marks = this.cutMarks;
+      let keep = 0;
+      for (let k = 0; k < n; k++) {
+        if (marks[k]) this.spareStrings.push(list[k]);
+        else list[keep++] = list[k];
+      }
+      list.length = keep;
+    }
+  }
+
+  /**
+   * Once a step in the circle style: every ball still in the battle (the winner too, once it is over: its victory lap paints
+   * the rim) anchors the strings its cadence owes – each from where it was at its due time (between the last step's end and
+   * now) to the rim point straight ahead of it –, then the rim's coverage and the step's sounds.
+   */
+  private circleStep(ctx: ModeContext, stepMs: number) {
+    const v = this.view;
+    const c = v.circle!;
+    const now = ctx.getElapsedMs();
+    const interval = 1000 / c.rate;
+    const t0 = now - stepMs;
+    const hit = this.rimPoint;
+    for (const f of v.fighters) {
+      if (!f.alive) continue;
+      const B = this.ballOf[f.slot];
+      if (!B) continue;
+      const slot = f.slot;
+      const h1 = Math.atan2(B.vy, B.vx);
+      const due = anchorsDue(c.nextAnchorMs[slot], now, c.rate);
+      if (due > 0) {
+        // More than the ceiling at once (a huge rate): the ones that would fade at once are skipped.
+        const skip = due > SC_STRING_CEILING ? due - SC_STRING_CEILING : 0;
+        const h0 = c.stepHeading[slot];
+        const dh = bearingDelta(h0, h1);
+        const bounced = Math.abs(dh) > Math.PI / 2; // a wall in between: the new heading throughout
+        for (let k = skip; k < due; k++) {
+          const tk = c.nextAnchorMs[slot] + k * interval;
+          const u = stepMs > 0 ? Math.min(1, Math.max(0, (tk - t0) / stepMs)) : 1;
+          const px = c.stepX[slot] + (B.x - c.stepX[slot]) * u;
+          const py = c.stepY[slot] + (B.y - c.stepY[slot]) * u;
+          const h = bounced ? h1 : h0 + dh * u;
+          rimHit(v.cx, v.cy, v.radius, c.sides, px, py, Math.cos(h), Math.sin(h), hit);
+          this.anchorString(f, B, hit.x, hit.y, hit.angle, tk);
+        }
+        c.nextAnchorMs[slot] += due * interval;
+        c.anchors += due - skip;
+        c.anchored[slot] = 1;
+      }
+      c.stepX[slot] = B.x;
+      c.stepY[slot] = B.y;
+      c.stepHeading[slot] = h1;
+    }
+    updateCoverage(c.coverage, v.fighters);
+    this.circleSounds(ctx);
+  }
+
+  /** A new string of `f` anchored at (ax, ay) – bearing `angle` – at `bornMs`; past the ceiling its oldest fades out. */
+  private anchorString(f: SbFighter, B: Ball, ax: number, ay: number, angle: number, bornMs: number) {
+    const c = this.view.circle!;
+    let str: SbString | undefined;
+    if (f.strings.length >= SC_STRING_CEILING) {
+      str = f.strings.shift()!;
+      this.addGhost("fade", f.slot, str.ax, str.ay, B.x, B.y, str.ax, str.ay, bornMs);
+    } else str = this.spareStrings.pop();
+    if (!str) str = { ax, ay, angle, bornMs };
+    str.ax = ax;
+    str.ay = ay;
+    str.angle = angle;
+    str.bornMs = bornMs;
+    str.serial = c.serial[f.slot]++;
+    f.strings.push(str);
+  }
+
+  /**
+   * The circle style's sounds of a step: a twang for the teams that anchored since the last one – grouped into one event of
+   * at most `SC_TWANG_NOTES` team notes, at most every `SC_TWANG_GAP_STEPS` steps, the teams taking turns – and a snap for
+   * the strings cut (pitched by the fan that lost the most, louder with more strings), at most every `SC_SNAP_GAP_STEPS`.
+   * The KO is the battle's shatter. All are accompaniment (`melody: false`).
+   */
+  private circleSounds(ctx: ModeContext) {
+    const c = this.view.circle!;
+    const n = this.view.fighters.length;
+    if (c.stepsSinceTwang < SC_TWANG_GAP_STEPS) c.stepsSinceTwang++;
+    if (c.stepsSinceTwang >= SC_TWANG_GAP_STEPS) {
+      let chord: number[] | null = null;
+      let last = -1;
+      for (let k = 0; k < n; k++) {
+        const slot = (c.twangCursor + k) % n;
+        if (!c.anchored[slot]) continue;
+        c.anchored[slot] = 0;
+        (chord ??= []).push(twangFrequency(slot));
+        last = slot;
+        if (chord.length >= SC_TWANG_NOTES) break;
+      }
+      if (chord) {
+        chord.sort((x, y) => x - y);
+        c.twangCursor = (last + 1) % n;
+        c.stepsSinceTwang = 0;
+        c.twangs++;
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: chord[0], chord: chord.length > 1 ? chord : undefined, level: SC_TWANG_LEVEL, melody: false, scSound: "twang" });
+      }
+    }
+    if (c.stepsSinceSnap < SC_SNAP_GAP_STEPS) c.stepsSinceSnap++;
+    if (c.stepsSinceSnap >= SC_SNAP_GAP_STEPS) {
+      let total = 0;
+      let most = -1;
+      for (let i = 0; i < n; i++) {
+        total += c.stepCuts[i];
+        if (c.stepCuts[i] > 0 && (most < 0 || c.stepCuts[i] > c.stepCuts[most])) most = i;
+      }
+      if (total > 0) {
+        c.stepCuts.fill(0);
+        c.stepsSinceSnap = 0;
+        c.snaps++;
+        ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: snapFrequency(most), level: snapLevel(total), melody: false, scSound: "snap" });
+      }
+    }
+  }
+  // --- end string-circle ---
 
   shouldSkipWallCollision() {
     return true;
