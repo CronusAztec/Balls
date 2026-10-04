@@ -109,6 +109,17 @@ import { MAX_BEAT_CELLS, ORB_HI_FPS_MAX_MS, OrbFrameCost, SWING_MAX, beatState, 
 import { CaptionTracker } from "@/lib/captions";
 import { findSimulation } from "@/lib/simulation/finder";
 import type { SoundEvent } from "@/lib/physics/types";
+// (the panel's run line: its memo keys, its text and the block that shows it)
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
+import { IntlMessageFormat } from "intl-messageformat";
+import OrbGridSection, { orbGridRunLine, orbGridSummaryKey, orbRhythmSummaryKey } from "@/components/simulator/sections/OrbGridSection";
+import type { Translate } from "@/components/simulator/ControlPrimitives";
+import { OG_ARRANGEMENTS, OG_DISTRIBUTIONS, OG_FLOORS, OG_MATERIALS, OG_PALETTES, OG_PROPERTIES, OG_RELEASES, OG_SOUNDS } from "@/lib/physics/modes/orbGrid";
+import { OG_GROUPS, OG_METROS, OG_MODELS } from "@/lib/physics/modes/orbRhythm";
+import { SCALE_IDS } from "@/lib/audio/scales";
+import type { SimulatorSettings } from "@/lib/settings";
 // --- end orb-rhythm ---
 
 const config: PhysicsConfig = { width: 800, height: 450, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#ffffff", ballRadius: 8, audioIntensity: 0 };
@@ -1619,6 +1630,108 @@ describe("Bouncing Orbs rhythm: the visual metronome", () => {
     for (let i = 0; i < 60; i++) cost.note(12);
     expect(cost.fast).toBe(false);
     expect(ORB_HI_FPS_MAX_MS).toBe(5);
+  });
+});
+
+describe("Bouncing Orbs: the panel's run line follows the model and every setting it reads", () => {
+  /** A translator over the Controls namespace with next-intl's ICU formatting (a missing key throws). */
+  const translator = (messages: Record<string, unknown>, locale: string): Translate => {
+    const controls = messages.Controls as Record<string, string>;
+    const tr = ((key: string, values?: Record<string, unknown>) => {
+      const text = controls[key];
+      if (text === undefined) throw new Error(`missing ${locale} Controls.${key}`);
+      return String(new IntlMessageFormat(text, locale).format(values as Record<string, string>));
+    }) as unknown as Translate;
+    (tr as unknown as { has: (k: string) => boolean }).has = (k: string) => k in controls;
+    return tr;
+  };
+  const t = translator(en, "en");
+  /** The page's settings in Bouncing Orbs (a 12 × 12 field, the reviewed case). */
+  const panelOf = (patch: Partial<SimulatorSettings> = {}): SimulatorSettings => ({ ...defaultSettings("orbGrid"), ogColumns: 12, ogRows: 12, ...patch });
+  // What OrbGridSection plans for a load of these settings: the summary, and a rhythm field's own summary…
+  const summaryOf = (s: SimulatorSettings) => orbGridSummary(orbGridSettingsOf(s), s.gravity);
+  const rhythmSummaryOf = (s: SimulatorSettings) => (s.ogModel === "rhythm" ? orbRhythmSummary(orbGridSettingsOf(s), s.gravity) : null);
+  const freshLine = (s: SimulatorSettings) => orbGridRunLine(t, summaryOf(s), rhythmSummaryOf(s));
+  // …and after a change from `before` to `after`: each useMemo keeps its plan while its key stands (React's own rule).
+  const keptPlans = (before: SimulatorSettings, after: SimulatorSettings) => {
+    const summary = orbGridSummaryKey(after) === orbGridSummaryKey(before) ? summaryOf(before) : summaryOf(after);
+    const rs = orbRhythmSummaryKey(after) === orbRhythmSummaryKey(before) ? rhythmSummaryOf(before) : rhythmSummaryOf(after);
+    return { line: orbGridRunLine(t, summary, rs), full: [summary.full, summary.count, summary.requested] };
+  };
+
+  it("re-plans on a switch from Rhythm to Decay: the line reads what a fresh decay load reads, and back", () => {
+    const rhythm = panelOf();
+    const decay = panelOf({ ogModel: "decay" });
+    expect(freshLine(rhythm)).toBe("144 orbs · 23 groups · 51–73 bounces a cycle · in phase every 30.0s");
+    expect(freshLine(decay)).toBe("144 orbs · every orb at rest after about 26.9s · in phase at about 5.0s");
+    expect(orbGridSummaryKey(decay)).not.toBe(orbGridSummaryKey(rhythm));
+    expect(keptPlans(rhythm, decay).line).toBe(freshLine(decay));
+    expect(keptPlans(decay, rhythm).line).toBe(freshLine(rhythm));
+    // (the line a kept rhythm plan gave the decay model: a field that does settle, resolving at 5 s – not at the cycle's 30 s)
+    expect(orbGridRunLine(t, summaryOf(rhythm), null)).toBe("144 orbs · never settles – the clip ends the run · in phase at about 30.0s");
+  });
+
+  it("keeps no stale plan: a change of any setting the summaries read reads like a fresh load of the new settings", () => {
+    const options: Partial<Record<keyof SimulatorSettings, readonly unknown[]>> = {
+      ogModel: OG_MODELS,
+      ogArrangement: OG_ARRANGEMENTS,
+      ogVaried: OG_PROPERTIES,
+      ogDistribution: OG_DISTRIBUTIONS,
+      ogRelease: OG_RELEASES,
+      ogFloor: OG_FLOORS,
+      ogMaterial: OG_MATERIALS,
+      ogPalette: OG_PALETTES,
+      ogSound: OG_SOUNDS,
+      ogGroup: OG_GROUPS,
+      ogRhythm: OG_RHYTHMS,
+      ogMetro: OG_METROS,
+      scale: SCALE_IDS,
+      ballColor: ["#ff0000"],
+    };
+    // Every input of the summaries: the mode's fields, the gravity and what orbGridSettingsOf() takes from the rest of the page.
+    const inputs = [...Object.keys(defaultOrbGridFields()), "gravity", "quantizeToBeat", "bpm", "scale", "rootNote", "ballColor", "recordingDuration"] as (keyof SimulatorSettings)[];
+    const changesOf = (key: keyof SimulatorSettings, value: unknown): unknown[] =>
+      (typeof value === "boolean" ? [!value] : typeof value === "number" ? [value / 2, value * 2 + 1] : (options[key] ?? [])).filter((v) => !Object.is(v, value));
+    const bases = [
+      panelOf(),
+      panelOf({ ogModel: "decay" }),
+      panelOf({ ogModel: "decay", ogVaried: "period" }),
+      panelOf({ ogRhythm: "3-2", ogGroup: "checker", ogMetro: "bar", quantizeToBeat: true, bpm: 100 }),
+      panelOf({ ogPoly: false, ogRhythm: "varied", ogClick: 0.5 }),
+    ];
+    let checked = 0;
+    let moved = 0;
+    for (const base of bases) {
+      const baseLine = freshLine(base);
+      for (const key of inputs) {
+        const changes = changesOf(key, base[key]);
+        expect(changes.length, `${String(key)}: no change to try`).toBeGreaterThan(0);
+        for (const value of changes) {
+          const after = { ...base, [key]: value } as SimulatorSettings;
+          const fresh = freshLine(after);
+          const kept = keptPlans(base, after);
+          const s = summaryOf(after);
+          expect(kept.line, `${base.ogModel} ${base.ogRhythm}: ${String(key)} ${String(base[key])} → ${String(value)}`).toBe(fresh);
+          expect(kept.full, `${String(key)} → ${String(value)} (the ceiling note)`).toEqual([s.full, s.count, s.requested]);
+          checked++;
+          if (fresh !== baseLine) moved++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(300);
+    expect(moved).toBeGreaterThan(100);
+  });
+
+  it("shows that line in the block on a load of either model", () => {
+    // (the components are compiled with the classic JSX transform here – tsconfig keeps JSX for Next –: React must be global)
+    (globalThis as { React?: unknown }).React = React;
+    const rendered = (s: SimulatorSettings) => {
+      const block = React.createElement(OrbGridSection, { t, search: "", matches: () => true, settings: s, update: () => {} });
+      const html = renderToStaticMarkup(React.createElement(NextIntlClientProvider, { locale: "en", messages: en, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>, block));
+      return /data-testid="orb-grid-run"[^>]*>([^<]*)</.exec(html)?.[1] ?? "";
+    };
+    for (const s of [panelOf(), panelOf({ ogModel: "decay" }), panelOf({ ogMetro: "dot", ogRhythm: "4-3" })]) expect(rendered(s), s.ogModel).toBe(freshLine(s));
+    expect(rendered(panelOf({ ogModel: "decay" }))).toContain("every orb at rest after about 26.9s");
   });
 });
 // --- end orb-rhythm ---

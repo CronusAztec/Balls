@@ -12192,6 +12192,29 @@ const orbBoxPixels = (box) =>
     `(${data.ogModel}: ${data.ogFinish} at ${data.ogFinishedMs} ms, ${data.ogSettled} of ${data.ogOrbs} at rest, banner ${banner ? banner.box : "none"})`,
   );
 }
+{
+  // The run line follows the Model switch: after Rhythm → Decay it reads what a fresh decay load reads (it once kept the rhythm
+  // field's plan – "never settles – the clip ends the run · in phase at about 30.0s" for a field at rest by ~27 s, in phase at
+  // 5 s), and back on Rhythm the rhythm line again.
+  const runLine = () => page.getByTestId("orb-grid-run").innerText({ timeout: 15000 }).then((text) => text.trim()).catch(() => "");
+  const pressed = (model) => page.getByTestId(`orb-model-${model}`).getAttribute("aria-pressed", { timeout: 5000 }).catch(() => "");
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  const rhythmLine = await runLine();
+  await page.getByTestId("orb-model-decay").click({ timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelector('[data-testid="orb-model-decay"]')?.getAttribute("aria-pressed") === "true", null, { timeout: 5000 }).catch(() => {});
+  const switched = await runLine();
+  const decayPressed = await pressed("decay");
+  await page.getByTestId("orb-model-rhythm").click({ timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelector('[data-testid="orb-model-rhythm"]')?.getAttribute("aria-pressed") === "true", null, { timeout: 5000 }).catch(() => {});
+  const back = await runLine();
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12&ogModel=decay`, { waitUntil: "networkidle" });
+  const fresh = await runLine();
+  check(
+    "orbGrid: the run line follows the Model switch – after Rhythm → Decay it reads what a fresh decay load reads, and back on Rhythm the rhythm line",
+    /^144 orbs · 23 groups · .* · in phase every 30\.0s$/.test(rhythmLine) && /^144 orbs · every orb at rest after about \d+\.\ds · in phase at about 5\.0s$/.test(fresh) && decayPressed === "true" && switched === fresh && back === rhythmLine,
+    `(rhythm "${rhythmLine}"; after Decay "${switched}" (pressed=${decayPressed}); a fresh decay load "${fresh}"; back on Rhythm "${back}")`,
+  );
+}
 // --- end orb-rhythm ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
