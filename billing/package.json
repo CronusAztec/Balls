@@ -2,6 +2,7 @@
   "name": "jumpingballslive-billing",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Billing backend for JumpingBallsLive: a Cloudflare Worker that issues signed ES256 licences for Stripe, PayPal and NOWPayments (crypto) subscriptions.",
   "type": "module",
   "engines": { "node": ">=20" },

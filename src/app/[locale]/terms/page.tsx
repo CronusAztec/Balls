@@ -71,6 +71,8 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
         <section key={k} id={k}>
           <h2>{t(`${k}.title`)}</h2>
           <p>{t(`${k}.content`, v)}</p>
+          {/* --- code-obfuscation --- the software (its obfuscated code and the Gerald artwork) is proprietary */}
+          {k === "intellectual" && <p>{t("proprietaryNotice", v)}</p>}
         </section>
       ))}
       <section id="contact">

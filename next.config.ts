@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
   basePath: basePath || undefined,
   reactStrictMode: true,
   poweredByHeader: false,
+  // --- code-obfuscation --- never ship browser source maps (they would undo the obfuscation of the export); off by
+  // default, set explicitly so a change is deliberate. scripts/obfuscate.mjs also deletes any stray .map from out/.
+  productionBrowserSourceMaps: false,
   images: {
     // Static export has no image optimiser; the mode previews are plain WebP files anyway.
     unoptimized: true,
