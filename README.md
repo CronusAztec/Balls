@@ -285,7 +285,7 @@ public/
   wallBreak/*.wav       built-in wall-break sounds (generated)
   hitSounds/*.wav       built-in hit samples: click, pluck, kick (generated)
   og.png                social preview image – Open Graph / Twitter card of every page (generated: scripts/generate-og.mjs)
-scripts/                asset generators, postexport.mjs (404.html/.nojekyll), serve-static.mjs (GitHub-Pages-like server), smoke test
+scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test
 .github/workflows/      deploy.yml (lint · test · build · publish to GitHub Pages) · smoke.yml (browser test)
 src/
   app/[locale]/         pages (landing, simulator, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
@@ -789,6 +789,9 @@ These stay fixed on purpose, so a rebrand neither loses visitors' data nor break
 The Windows app (`desktop/`) carries the name on its own: `productName` / `appId` in `desktop/electron-builder.config.cjs`, the
 window, tray and menu titles (`desktop/src/main.ts`, `desktop/src/menu.ts`), the default output folder `Videos\<name>` (`main.ts`;
 the Render queue names it through `{siteName}`) and the portable data folder (`desktop/src/paths.ts`).
+--- code-obfuscation --- The licence names the product in plain text too: the banner the build prepends to every obfuscated chunk
+(`BANNER` in `scripts/obfuscate.mjs` – `tests/obfuscate.test.ts` repeats it and the smoke test's code-obfuscation check its start, so
+change all three together), `LICENSE` and the README's [Licence](#licence) section (the terms page reads `{siteName}`).
 `SITE_DOMAIN` – the address the legal pages name the site by – is not hard-coded: it is `NEXT_PUBLIC_SITE_URL` without the scheme
 (`cronusaztec.github.io/Balls` on GitHub Pages), so a custom domain set in the Pages settings (which `deploy.yml` turns into
 `NEXT_PUBLIC_SITE_URL`) shows up there on the next deploy; `NEXT_PUBLIC_SITE_DOMAIN` overrides it. The footer shows the site name
