@@ -77,3 +77,6 @@ export type { MazeSettings, MazeView, MazeRunner, MazeHit, MazeBrain, MazeHand }
 // --- gerald-conveyor ---
 export { ConveyorMode } from "./conveyor";
 export type { ConveyorSettings, ConveyorView, ConveyorLayout, ConveyorArena, ConveyorBowl } from "./conveyor";
+// --- orb-grid ---
+export { OrbGridMode } from "./orbGrid";
+export type { OrbGridSettings, OrbGridView, OrbLayout, OgProperty, OgDistribution, OgRelease, OgArrangement, OgFloor, OgMaterial, OgPalette, OgSound } from "./orbGrid";

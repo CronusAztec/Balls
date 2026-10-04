@@ -14,6 +14,7 @@ import { SPLAT_SAMPLE_GAIN, SPLAT_SAMPLE_RATE, scheduleSplatTone, splatLevel } f
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { DEFAULT_HUM_FREQUENCY, scheduleConveyorClick, scheduleConveyorHum } from "./conveyorTones"; // --- gerald-conveyor ---
+import { ORB_SAMPLE_GAIN, scheduleOrbClink, scheduleOrbSleep } from "./orbTones"; // --- orb-grid ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -915,6 +916,43 @@ export class ToneGenerator {
     }
   }
   // --- end gerald-exit-splat ---
+
+  // --- orb-grid ---
+  /**
+   * A Bouncing Orbs voice in one of its own sounds (orbTones.ts): "sleep" – a soft, low-passed pillow of a tone with a long
+   * release – or "metal" – a bright inharmonic clink; `frequency` (or the `chord`, one row's landing) already a degree of the
+   * scale, snapped once more to the Sound section's scale. An accompaniment, not a note of the tune: never a melody note or a
+   * song slice and never a bounce's beat-lock slot; on the beat grid when the beat lock is on; in sample mode the hit sample
+   * plays at the voice's pitch instead (softer for sleep); the clink ducks the music bed (the sleep tone sits under it).
+   */
+  playOrb(kind: "sleep" | "metal", frequency?: number, chord?: readonly number[], level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleOrb(kind, frequency, chord, level));
+      return;
+    }
+    this.scheduleOrb(kind, frequency, chord, level);
+  }
+
+  private scheduleOrb(kind: "sleep" | "metal", frequency: number | undefined, chord: readonly number[] | undefined, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const time = this.scheduleTime(ctx.currentTime);
+      const pitches = (chord && chord.length > 0 ? chord : frequency !== undefined && frequency > 0 ? [frequency] : [wallHitFrequency(0)]).map((f) => this.snap(f));
+      const l = hitLevel(level);
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") {
+        // One copy of the clip at the voice's lowest pitch (copies of one clip only add up √n louder).
+        this.sampler!.play(hitSamplePlaybackRate(0, this.hitSamplePitchByWall, pitches[0]), time, ORB_SAMPLE_GAIN[kind] * l);
+      } else if (kind === "sleep") scheduleOrbSleep(ctx, this.masterGain, pitches, time, l);
+      else scheduleOrbClink(ctx, this.masterGain, pitches, time, l);
+      if (kind === "metal") this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the orbs:", err);
+    }
+  }
+  // --- end orb-grid ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

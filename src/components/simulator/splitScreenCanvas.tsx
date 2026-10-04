@@ -512,6 +512,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
             onObstaclesChange={undefined}
             onCharacterChirp={i === 0 || split.soundAll ? props.onCharacterChirp : undefined}
             race={i === 0 ? race : raceWithoutCup}
+            orbArenas={split.engines.length} // --- orb-grid --- (the arenas' orbs share the frame: one quality level for all of them)
           />
         );
       })}

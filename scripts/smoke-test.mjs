@@ -10424,6 +10424,259 @@ const bdInstrument = () =>
   }
 }
 // --- end code-obfuscation ---
+// --- orb-grid ---
+// Bouncing Orbs: the preview image and the card under the rhythm heading; URL → the Bouncing Orbs
+// block of the Mode row (columns, rows, arrangement, distribution, sound, material, auto-orbit, the run line), controls → URL
+// and the search box; a 1089-orb run whose data-og-* counters advance, with the "1089 bouncing orbs" line drawn at the top of
+// the square; the corner-to-corner preset (the Presets group) falling into phase on its pattern clock; the octagons released
+// outside in, ring by ring (data-og-released rising in whole rings); the sleep sound (few voices) and the music variant (the
+// scale's notes) with OscillatorNode.start instrumented; the finder landing a 30 s run that settles when it promised; and the
+// frame rates: a 1089-orb run (30+ fps), a 1080×1920 recording of it (20+ fps) and a 4900-orb run (30+ fps).
+{
+  const res = await page.request.get(`${BASE}/modes/orbGrid.webp`);
+  check("asset /modes/orbGrid.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/orbGrid.webp"]') && !!group.querySelector('img[src$="/modes/pendulum.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/orbGrid.webp"]').count();
+  check("the Bouncing Orbs card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+}
+{
+  const block = page.getByTestId("orb-grid");
+  const ogSlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=44&ogR=43&ogA=hex&ogD=corner&ogSnd=sleep&ogM=metallic&ogO=1&ogE=40`, { waitUntil: "networkidle" });
+  {
+    const values = { ogC: await ogSlider("Columns").inputValue(), ogR: await ogSlider("Rows").inputValue(), ogE: await ogSlider("Camera Elevation").inputValue() };
+    const hex = await block.getByTestId("orb-grid-arrangement-hex").getAttribute("aria-pressed");
+    const distribution = await block.getByTestId("orb-grid-distribution").inputValue();
+    const sleep = await block.getByTestId("orb-grid-sound-sleep").getAttribute("aria-pressed");
+    const metallic = await block.getByTestId("orb-grid-material-metallic").getAttribute("aria-pressed");
+    const orbit = await block.getByRole("switch", { name: switchName("Auto-orbit") }).getAttribute("aria-checked");
+    const runText = await page.getByTestId("orb-grid-run").innerText().catch(() => "");
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    check(
+      "orbGrid loads from the URL",
+      values.ogC === "44" && values.ogR === "43" && values.ogE === "40" && hex === "true" && distribution === "corner" && sleep === "true" && metallic === "true" && orbit === "true" && /\b1,?892 orbs\b/.test(runText) && finderShown,
+      `(${JSON.stringify(values)}, hex=${hex}, distribution=${distribution}, sleep=${sleep}, metallic=${metallic}, orbit=${orbit}, "${runText}", finder shown=${finderShown})`,
+    );
+  }
+  await block.getByTestId("orb-grid-arrangement-grid").click();
+  await ogSlider("Columns").evaluate(setRangeValue, "30");
+  await block.getByRole("switch", { name: switchName("Auto-orbit") }).click();
+  await block.getByTestId("orb-grid-release").selectOption("outside-in");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "orbGrid mirrors into the URL",
+      query.get("mode") === "orbGrid" && query.get("ogC") === "30" && query.get("ogR") === "43" && !query.has("ogA") && query.get("ogD") === "corner" && query.get("ogL") === "outside-in" && query.get("ogSnd") === "sleep" && !query.has("ogO"),
+      `(${query.toString()})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("drop height");
+  const found = await page.locator('input[aria-label="Drop Height"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the orbGrid controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+/** Near-white pixels in the band at the top of the square the recorder crops (where the "1089 bouncing orbs" line goes). */
+const orbHudPixels = () =>
+  page.evaluate(() => {
+    const canvas = document.querySelector("main canvas");
+    const side = Math.min(canvas.width, canvas.height);
+    const left = Math.round((canvas.width - side) / 2);
+    const y0 = Math.round(0.02 * side);
+    const h = Math.round(0.08 * side);
+    const w = Math.round(0.45 * side);
+    const data = canvas.getContext("2d").getImageData(left + Math.round(0.03 * side), y0, w, h).data;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 190 && data[i + 1] > 190 && data[i + 2] > 190) n++;
+    return n;
+  });
+{
+  // A 1089-orb run (the defaults): the counters advance and the orb count is drawn at the top of the square.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const a = await canvasData();
+  const hud = await orbHudPixels();
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid.png") });
+  await page.waitForTimeout(3500);
+  const b = await canvasData();
+  // (the first orbs come to rest 5–7 s in, by the seed's tempo: the least bouncy settle first)
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogSettled) > 0, null, { timeout: 15000 }).catch(() => {});
+  const c = await canvasData();
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogHud=0`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const noHud = await orbHudPixels();
+  check(
+    "orbGrid: a 1089-orb run – orbs released, bouncing and settling, the resolve detector reading, the orb count drawn",
+    a.ogOrbs === "1089" && a.ogReleased === "1089" && a.ogArrangement === "grid" && Number(a.ogBounces) > 500 && Number(b.ogBounces) > Number(a.ogBounces) && Number(b.ogTime) > Number(a.ogTime) && Number(b.ogSettled) >= Number(a.ogSettled) && Number(c.ogSettled) > 0 && Number(c.ogSettled) >= Number(b.ogSettled) && Number(c.ogBounces) >= Number(b.ogBounces) && Number(a.ogMoving) > 0 && /^\d\.\d\d$/.test(b.ogResolve ?? "") && a.ogHud === "1" && hud > 40 && noHud < hud / 4 && Number(a.ogVoices) > 0 && a.ogFinished === "0",
+    `(at 1.5 s: ${JSON.stringify({ orbs: a.ogOrbs, released: a.ogReleased, bounces: a.ogBounces, settled: a.ogSettled, moving: a.ogMoving, resolve: a.ogResolve, voices: a.ogVoices })}; at 5 s: bounces ${b.ogBounces}, settled ${b.ogSettled}, resolve ${b.ogResolve}, resolves ${b.ogResolves}; the first at rest by ${(Number(c.ogTime) / 1000).toFixed(1)} s: ${c.ogSettled} settled; HUD pixels ${hud}, without the HUD ${noHud})`,
+  );
+}
+{
+  // The corner-to-corner preset from the Presets group: 44 × 43 orbs fall into phase on the pattern clock.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Saved Presets/ }).first().click();
+  await page.getByTestId("og-preset-corner").click();
+  await page.waitForTimeout(500);
+  const pressed = await page.getByTestId("og-preset-corner").getAttribute("aria-pressed");
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const resolved = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogResolveAt) >= 0, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid-corner.png") });
+  check(
+    "orbGrid: the corner-to-corner preset loads (44 × 43) and its field falls into phase on its pattern clock",
+    query.get("mode") === "orbGrid" && query.get("ogC") === "44" && query.get("ogR") === "43" && query.get("ogD") === "corner" && pressed === "true" && resolved && data.ogOrbs === "1892" && Number(data.ogResolves) >= 1 && Math.abs(Number(data.ogResolveAt) - Number(data.ogResolvePlan)) <= 300,
+    `(${query.toString()}, pressed=${pressed}, orbs ${data.ogOrbs}, resolve at ${data.ogResolveAt} ms, planned ${data.ogResolvePlan} ms, resolves ${data.ogResolves})`,
+  );
+}
+{
+  // The octagons preset: released outside in – the released orbs always fill whole rings from the outermost one inwards.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=52&ogR=26&ogA=octagons&ogL=outside-in&ogT=0.12&ogD=centre&ogB=0.9&ogP=rings&ogF=plate&ogE=38`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const samples = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const out = [];
+        const start = performance.now();
+        const tick = () => {
+          const d = document.querySelector("main canvas")?.dataset ?? {};
+          out.push([Number(d.ogReleased), Number(d.ogReleasedRings), Number(d.ogTime)]);
+          if (performance.now() - start < 3200) setTimeout(tick, 40);
+          else resolve(out);
+        };
+        tick();
+      }),
+  );
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid-octagons.png") });
+  // 1352 orbs on octagon rings: the centre orb, 8k orbs on ring k, the last ring partly filled – released from the outside.
+  const sizes = [1];
+  let total = 1;
+  for (let k = 1; total < 1352; k++) {
+    const m = Math.min(8 * k, 1352 - total);
+    sizes.push(m);
+    total += m;
+  }
+  const cumulative = [0];
+  for (let r = sizes.length - 1; r >= 0; r--) cumulative.push(cumulative[cumulative.length - 1] + sizes[r]);
+  const valid = samples.filter(([released]) => Number.isFinite(released));
+  const whole = valid.every(([released, rings]) => cumulative[rings] === released);
+  const rising = valid.every(([released], i) => i === 0 || released >= valid[i - 1][0]);
+  const distinct = new Set(valid.map(([, rings]) => rings)).size;
+  const last = valid[valid.length - 1] ?? [0, 0, 0];
+  check(
+    "orbGrid: the octagons are released outside in, ring by ring (data-og-released rising in whole rings)",
+    whole && rising && distinct >= 8 && last[0] === 1352 && last[1] === sizes.length,
+    `(${valid.length} samples, ${distinct} ring counts seen, last ${last[0]} orbs / ${last[1]} rings of ${sizes.length}; rings → orbs: ${[...new Map(valid.map(([r, k]) => [k, r])).entries()].map(([k, r]) => `${k}:${r}`).join(" ")})`,
+  );
+}
+/** Runs `query` for `ms` at 1× with OscillatorNode.start instrumented; returns the canvas data and the started oscillators. */
+const orbSoundRun = async (query, ms) => {
+  await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = [];
+    window.__ogOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 1) log.push({ f: this.frequency.value, type: this.type });
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(ms);
+  return { data: await canvasData(), osc: await page.evaluate(() => window.__ogOsc) };
+};
+{
+  // The sleep sound: very soft and slow – at most one voice every 0.32 s, low-passed sine pairs.
+  const { data, osc } = await orbSoundRun("mode=orbGrid&ogC=22&ogR=22&ogSnd=sleep&ogM=matte&ogD=spiral&ogH=0.36&ogB=0.91&ogS=0.5", 5000);
+  const voices = Number(data.ogVoices);
+  check(
+    "orbGrid: the sleep sound plays a few soft voices a second (sine pairs)",
+    data.ogSound === "sleep" && voices >= 3 && voices <= 17 && osc.length >= 2 * voices && osc.every((o) => o.type === "sine") && Number(data.ogBounces) > 500,
+    `(${voices} voices, ${data.ogNotes} notes in 5 s, ${osc.length} oscillators (${[...new Set(osc.map((o) => o.type))].join(",")}), ${data.ogBounces} landings)`,
+  );
+}
+{
+  // The music variant: the landings compose a melody on the scale – with the chromatic default, a C major pentatonic.
+  const { data, osc } = await orbSoundRun("mode=orbGrid&ogC=22&ogR=22&ogSnd=music&ogD=rows&ogP=rainbow-field", 5000);
+  const notes = osc.map((o) => Math.round(12 * Math.log2(o.f / 440) + 69));
+  const inScale = notes.every((n) => [0, 2, 4, 7, 9].includes(((n % 12) + 12) % 12));
+  check(
+    "orbGrid: the music variant plays a melody of the scale's notes (C major pentatonic by default)",
+    data.ogSound === "music" && Number(data.ogVoices) >= 10 && osc.length >= 10 && inScale && new Set(notes).size >= 4,
+    `(${data.ogVoices} notes queued, ${osc.length} oscillators, notes ${[...new Set(notes)].sort((x, y) => x - y).join(",")}, in scale=${inScale})`,
+  );
+}
+{
+  // The finder: the seed moves the run length (its tempo) – a found 30 s seed settles when it promised.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
+  const promised = Number(/for ([\d.]+)s/.exec(readyText)?.[1] ?? NaN);
+  let data = {};
+  if (ready) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogFinished === "1", null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "the finder finds a Bouncing Orbs seed that settles at 30s and the run keeps the promise",
+    ready && Math.abs(promised - 30) <= 0.5 && data.ogFinished === "1" && data.ogFinish === "settled" && Math.abs(Number(data.ogFinishedMs) / 1000 - promised) < 0.1 && data.ogSettled === data.ogOrbs,
+    `(ready=${ready}, "${readyText}", finished at ${data.ogFinishedMs} ms (${data.ogFinish}), settled ${data.ogSettled} of ${data.ogOrbs})`,
+  );
+}
+{
+  // The frame rate of a 1089-orb run (full quality: shadows, sprites and the gloss glint).
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2000);
+  const fps = await pageFrameRates(4000);
+  const data = await canvasData();
+  await timingCheck("a 1089-orb Bouncing Orbs run keeps 30+ fps", data.ogOrbs === "1089" && data.ogQuality === "0", fpsOk(fps, 6, 30), `(quality ${data.ogQuality}, ${fpsNote(fps)}, floor 30${loadNote()})`, fpsRetry(3000, 5, 30));
+}
+{
+  // A 1080×1920 recording (the default resolution) of the 1089-orb run.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await pageFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `orbgrid-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await timingCheck("a 1080×1920 recording of 1089 orbs keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
+}
+{
+  // The frame rate of the 70 × 70 preset's 4900 orbs (sprites only).
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=70&ogR=70&ogD=corner`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2000);
+  const fps = await pageFrameRates(4000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid-4900.png") });
+  await timingCheck("a 4900-orb Bouncing Orbs run keeps 30+ fps", data.ogOrbs === "4900" && data.ogQuality === "2", fpsOk(fps, 6, 30), `(quality ${data.ogQuality}, ${fpsNote(fps)}, floor 30${loadNote()})`, fpsRetry(3000, 5, 30));
+}
+// --- end orb-grid ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
