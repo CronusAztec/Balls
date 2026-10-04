@@ -1456,9 +1456,10 @@ still refuses) and nothing else about billing changed.
 - **The viral bot** – without `BOT_LICENSE` (on a production build, which refuses the CLI's own test licence) it renders and
   says the clips carry the watermark; a `BOT_LICENSE` the site refuses still stops it.
 - **Honest limits** – the page's code runs on the visitor's machine. What DevTools' Elements and Application panels reach –
-  the DOM, classes, attributes, storage – changes nothing, and the obvious console one-liners are captured or caught. But
-  JavaScript changed before it runs (the Sources panel's local overrides, an extension or a userscript at document_start, a
-  rewriting proxy) can still remove the stamp, and anyone can capture the live canvas or the screen themselves. The
+  the DOM, classes, attributes, storage – changes nothing, and neither do the console patches the tests cover (WebCrypto's
+  `verify`, the clock). But code that changes the page's JavaScript or the browser functions it calls (the Sources panel's
+  local overrides or breakpoints, an extension or a userscript, a rewriting proxy, functions redefined from the console) can
+  still remove the stamp, and anyone can capture the live canvas or the screen themselves. The
   obfuscation of the shipped JavaScript ([Obfuscation and the licence](#obfuscation-and-the-licence)) raises the bar; only
   rendering the videos on a server would be a guarantee.
 - **Tests** – `tests/freeWatermark.test.ts`: the decision (no licence, Pro, monthly, expired, another key, an edited exp or

@@ -23,9 +23,10 @@ import { paintWatermark, prepareWatermark, type WatermarkFrame } from "./paint";
  * Hardening against the console: WebCrypto's `importKey` / `verify` and the clock are captured when the bundle loads, so
  * `crypto.subtle.verify = async () => true` or `Date.now = () => 0` typed into DevTools afterwards reaches nothing; and a
  * verification patched before that is caught by a canary – the same signed bytes with one bit of the signature flipped must
- * NOT verify. What this cannot stop is JavaScript that is changed before it runs (a DevTools local override, an extension, a
- * userscript), or a visitor capturing the live canvas or the screen themselves: README "Free-video watermark" says so – only
- * rendering on a server would be a guarantee.
+ * NOT verify. What this cannot stop is code that changes the page's JavaScript or the browser functions it calls (a DevTools
+ * local override or breakpoint, an extension, a userscript, functions redefined from the console), or a visitor capturing the
+ * live canvas or the screen themselves: README "Free-video watermark" says so – only rendering on a server would be a
+ * guarantee.
  */
 
 type Subtle = Pick<SubtleCrypto, "importKey" | "verify">;
