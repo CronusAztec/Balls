@@ -287,6 +287,17 @@ export function isOpenEnded(caption: Pick<Caption, "start" | "end">): boolean {
   return !(caption.end > caption.start);
 }
 
+// --- land-claim ---
+/** The answer placeholder a question's answer may hold for the run's winner ("Who claims the most?" → "[winner]"). */
+export const CAPTION_WINNER_TOKEN = "[winner]";
+
+/** A question's answer as shown: "[winner]" (any case) replaced by the run's winner – "?" while it is not known. */
+export function captionAnswerText(answer: string, winner: string | undefined): string {
+  if (!answer || answer.indexOf("[") < 0) return answer;
+  return answer.replace(/\[winner\]/gi, () => (winner ? winner : "?"));
+}
+// --- end land-claim ---
+
 /**
  * How far the answer of a question caption has popped in at simulation second `t` (0–1): 0 without an answer or
  * before the reveal (`revealAtSec` < 0 = not yet), counted from the reveal – or from the caption's start, when the

@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ORB_GRID_SETTINGS,
@@ -7,6 +9,8 @@ import {
   ORB_CEILING,
   ORB_GRID_PRESETS,
   ORB_GRID_RANGES,
+  RESOLVE_FIELD_SHARE,
+  RESOLVE_MIN_MOVING,
   REST_FRACTION,
   SETTLE_HOLD_MS,
   TEMPO_JITTER,
@@ -24,6 +28,7 @@ import {
   planOrbGrid,
   releaseStep,
   resolveCoverage,
+  resolveQuorum,
   resolveOrbGridFields,
   resolveOrbGridSettings,
   tuneTimeScale,
@@ -31,13 +36,42 @@ import {
   type OrbGridSettings,
 } from "@/lib/physics/modes/orbGrid";
 import { MAX_CHORD_NOTES, MAX_NOTES_PER_STEP, MAX_ORB_EVENTS_PER_FRAME, createOrbGroupScratch, groupOrbLandings, orbMusicNext, orbPitchHz, orbScaleIntervals, type OrbLandings, type OrbVoice } from "@/lib/audio/orbTones";
-import { CAMERA_DISTANCE, QUALITY_DISC_MAX, QUALITY_GLOSS_MAX, QUALITY_SHADOW_MAX, QUALITY_SPRITE_MAX, cameraAngleDeg, depthOrder, heightColor, orbCamera, orbQuality, projectPoint, type OrbCamera, type ProjectedPoint } from "@/components/simulator/orbGridRenderer";
+import {
+  CAMERA_DISTANCE,
+  DEFAULT_ORB_GRID_LABELS,
+  ORB_BANNER_BACKDROP_ALPHA,
+  ORB_BANNER_PAD_X,
+  ORB_BANNER_PAD_Y,
+  ORB_BANNER_SUB,
+  ORB_BANNER_TITLE,
+  OrbGridLayer,
+  QUALITY_DISC_MAX,
+  QUALITY_GLOSS_MAX,
+  QUALITY_SHADOW_MAX,
+  QUALITY_SPRITE_MAX,
+  cameraAngleDeg,
+  depthOrder,
+  heightColor,
+  orbBannerBox,
+  orbBannerHeight,
+  orbCamera,
+  orbGridBanner,
+  orbQuality,
+  paletteColors,
+  projectPoint,
+  type OrbBannerBox,
+  type OrbCamera,
+  type ProjectedPoint,
+} from "@/components/simulator/orbGridRenderer";
+import { rulesForRange } from "@/components/simulator/unlimitedSlider";
 import { createEngineForSettings, runNeverFinishes, simulateOutcomeRun, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
-import { availableOutcomes, outcomeMatches, outcomeMiss, outcomeSettled } from "@/lib/simulation/outcomes";
+import { availableOutcomes, outcomeFigure, outcomeMatches, outcomeMiss, outcomeSettled } from "@/lib/simulation/outcomes";
 import { MODE_IDS, type PhysicsConfig } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { modeSettingsOfSettings } from "@/lib/bot/finderRequest";
+import { SIGNED_KEYS, checkTypedNumber } from "@/lib/uncap";
+import { resolveProjectSettings } from "@/lib/project";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -279,6 +313,23 @@ describe("Bouncing Orbs: the physics", () => {
     expect(clipped.getOrbGridView().settled).toBeLessThan(clipped.getOrbGridView().count);
   });
 
+  it("ends a field that came to rest in the clip's last SETTLE_HOLD_MS as settled: ALL SETTLED until the clip ends, never TIME!", () => {
+    // Seed 8 of a 12 × 12 field: every orb at rest 23.55 s in; a 25 s clip ends 1.45 s later, inside the hold.
+    const engine = engineOf({ columns: 12, rows: 12, maxSec: 25 }, 8);
+    const v = engine.getOrbGridView();
+    runTo(engine, 30);
+    expect(v.allSettled).toBe(true);
+    expect(v.settledAtMs).toBeGreaterThan(25000 - SETTLE_HOLD_MS);
+    expect([v.finished, v.finishReason, Math.round(v.finishedMs), v.settled]).toEqual([true, "settled", 25000, 144]);
+    expect(orbGridBanner(v, DEFAULT_ORB_GRID_LABELS)).toEqual({ title: "ALL SETTLED", sub: `144 orbs at rest after ${(v.settledAtMs / 1000).toFixed(1)}s` });
+    // The same field clipped before its last orb settles: TIME!, the orbs at rest counted.
+    const cut = engineOf({ columns: 12, rows: 12, maxSec: 23 }, 8);
+    runTo(cut, 30);
+    const c = cut.getOrbGridView();
+    expect([c.finished, c.finishReason, Math.round(c.finishedMs), c.allSettled]).toEqual([true, "time", 23000, false]);
+    expect(orbGridBanner(c, DEFAULT_ORB_GRID_LABELS)).toEqual({ title: "TIME!", sub: `${c.settled} of 144 orbs at rest` });
+  });
+
   it("settles an orb when its next apex would be under REST_FRACTION of its drop (a Zeno run within a step settles too)", () => {
     const e = 0.5;
     const k = Math.ceil(Math.log(REST_FRACTION) / (2 * Math.log(e)));
@@ -370,6 +421,41 @@ describe("Bouncing Orbs: the resolve moment", () => {
     runTo(off, 12);
     expect(off.getOrbGridView().resolves).toBe(0);
   });
+
+  it("reads a step only while half the field is in flight (resolveQuorum)", () => {
+    expect(RESOLVE_FIELD_SHARE).toBe(0.5);
+    expect([resolveQuorum(1), resolveQuorum(6), resolveQuorum(9), resolveQuorum(1089), resolveQuorum(4900)]).toEqual([RESOLVE_MIN_MOVING, 4, 5, 545, 2450]);
+  });
+
+  it("keeps every preset's planned resolve and reports no in-phase moment once most of the field has come to rest", () => {
+    /** Plays a run to its end, noting every "in phase" moment and the share of the field moving then. */
+    const moments = (s: OrbGridSettings, seed: number) => {
+      const engine = engineOf(s, seed);
+      const v = engine.getOrbGridView();
+      const out: { ms: number; moving: number }[] = [];
+      while (!engine.isSimulationFinished() && v.timeMs < 60000) {
+        engine.update(step, 0);
+        engine.consumeSoundEvents();
+        if (v.resolves > out.length) out.push({ ms: v.lastResolveMs, moving: v.moving / v.count });
+      }
+      return { plan: v.resolvePlanMs, out };
+    };
+    const presetSettings = (id: string) => orbGridSettingsOf(orbGridPresetFields(ORB_GRID_PRESETS.find((p) => p.id === id)!));
+    for (const preset of ORB_GRID_PRESETS) {
+      for (const seed of [5, 11]) {
+        const { plan, out } = moments(presetSettings(preset.id), seed);
+        expect(out.length, `${preset.id} seed ${seed}`).toBeGreaterThanOrEqual(1);
+        expect(Math.abs(out[0].ms - plan), `${preset.id} seed ${seed}`).toBeLessThan(200);
+        for (const m of out) expect(m.moving, `${preset.id} seed ${seed} at ${m.ms} ms`).toBeGreaterThanOrEqual(RESOLVE_FIELD_SHARE);
+      }
+    }
+    // Metallic 525 and Music 484 (seed 5) used to add moments with 4–27 % of their orbs in flight (24.3 s and 26.7 s; seven
+    // between 13.8 s and 20.8 s): now the planned one only.
+    for (const id of ["metallic", "music"]) expect(moments(presetSettings(id), 5).out.length, id).toBe(1);
+    // An untuned rows field never lines up while most of it bounces: its last rows in step (14.2 s in, 198 of 1089 orbs
+    // moving) are no resolve.
+    for (const seed of [3, 7]) expect(moments(settingsOf({ distribution: "rows", resolve: false }), seed).out, `rows seed ${seed}`).toEqual([]);
+  });
 });
 
 describe("Bouncing Orbs: the projection", () => {
@@ -428,6 +514,83 @@ describe("Bouncing Orbs: the projection", () => {
     const highColour = heightColor(1);
     expect(lowColour[1]).toBeGreaterThan(lowColour[0]); // green low
     expect(highColour[2]).toBeGreaterThan(highColour[1]); // purple high
+  });
+});
+
+describe("Bouncing Orbs: the end banner", () => {
+  /** WCAG 2 relative luminance and contrast of sRGB colours (0–255 a channel). */
+  const luminance = (c: readonly number[]) => {
+    const lin = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  };
+  const contrast = (a: readonly number[], b: readonly number[]) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const over = (top: readonly number[], alpha: number, under: readonly number[]) => under.map((c, i) => alpha * top[i] + (1 - alpha) * c);
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+  it("stays legible over any field: the lime title and the white subline on the dark backdrop, over every palette colour", () => {
+    const fields = [...paletteColors("height", "#ffffff"), ...paletteColors("rainbow-field", "#ffffff"), ...paletteColors("rings", "#ffffff"), [255, 255, 255]];
+    for (const field of fields) {
+      const behind = over([0, 0, 0], ORB_BANNER_BACKDROP_ALPHA, field);
+      expect(contrast(rgb(ORB_BANNER_TITLE), behind), `title over ${field}`).toBeGreaterThanOrEqual(3); // (WCAG AA, large text)
+      expect(contrast(rgb(ORB_BANNER_SUB), behind), `subline over ${field}`).toBeGreaterThanOrEqual(4.5); // (WCAG AA, any text)
+    }
+    // The old banner – the lime title and a #aaa subline at the frame's 0.6, no backdrop – over the resting orbs' green: ~1.2:1.
+    const resting = heightColor(0);
+    expect(contrast(over(rgb("#a3e635"), 0.6, resting), resting)).toBeLessThan(1.5);
+    expect(contrast(over(rgb("#aaaaaa"), 0.6, resting), resting)).toBeLessThan(1.5);
+  });
+
+  it("sizes the backdrop around both lines: the wider line plus the padding, the block's height", () => {
+    const box = orbBannerBox(450, 100, 400, 300, 72, 28.8);
+    expect(box.w).toBeCloseTo(400 + 2 * ORB_BANNER_PAD_X * 72, 9);
+    expect(box.x).toBeCloseTo(450 - box.w / 2, 9);
+    expect([box.y, box.h]).toEqual([100, orbBannerHeight(72, 28.8)]);
+    expect(orbBannerHeight(72, 28.8)).toBeCloseTo(72 + 1.2 * 28.8 + 2 * ORB_BANNER_PAD_Y * 72, 9);
+    expect(orbBannerBox(450, 100, 200, 500, 72, 28.8).w).toBeCloseTo(500 + 2 * ORB_BANNER_PAD_X * 72, 9); // (a wider subline)
+    expect(box.r).toBeLessThanOrEqual(box.h / 2);
+  });
+
+  it("draws the backdrop first, then the title and the subline – opaque whatever alpha the frame is at – and reports the box once", () => {
+    const calls: { op: string; args: unknown[]; fillStyle: unknown; globalAlpha: unknown }[] = [];
+    const keys = ["fillStyle", "globalAlpha", "font", "shadowBlur", "shadowColor", "textAlign", "textBaseline"];
+    const stack: Record<string, unknown>[] = [];
+    const ctx: Record<string, unknown> = { fillStyle: "#000000", globalAlpha: 0.6, font: "10px sans-serif", shadowBlur: 0, shadowColor: "", textAlign: "start", textBaseline: "alphabetic" };
+    const record = (op: string) => (...args: unknown[]) => void calls.push({ op, args, fillStyle: ctx.fillStyle, globalAlpha: ctx.globalAlpha });
+    const fontPx = () => Number(/([\d.]+)px/.exec(String(ctx.font))?.[1]);
+    Object.assign(ctx, {
+      save: () => void stack.push(Object.fromEntries(keys.map((k) => [k, ctx[k]]))),
+      restore: () => void Object.assign(ctx, stack.pop()),
+      measureText: (text: string) => ({ width: 0.55 * fontPx() * text.length }),
+      beginPath: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      arcTo: () => {},
+      closePath: () => {},
+      fill: record("fill"),
+      fillText: record("fillText"),
+    });
+    const layer = new OrbGridLayer();
+    const title = "ALL SETTLED";
+    const sub = "144 orbs at rest after 23.6s";
+    layer.drawBanner(ctx as unknown as CanvasRenderingContext2D, title, sub, 450, 200, 72, 28.8);
+    expect(calls.map((c) => [c.op, c.fillStyle, c.globalAlpha])).toEqual([
+      ["fill", `rgba(0, 0, 0, ${ORB_BANNER_BACKDROP_ALPHA})`, 1],
+      ["fillText", ORB_BANNER_TITLE, 1],
+      ["fillText", ORB_BANNER_SUB, 1],
+    ]);
+    expect([calls[1].args[0], calls[2].args[0]]).toEqual([title, sub]);
+    expect(ctx.globalAlpha).toBe(0.6); // (the frame's alpha restored)
+    const box: OrbBannerBox = layer.takeBanner({ x: 0, y: 0, w: 0, h: 0, r: 0 });
+    expect(box).toEqual(orbBannerBox(450, 200, 0.55 * 72 * title.length, 0.55 * 28.8 * sub.length, 72, 28.8));
+    for (const c of calls.slice(1)) {
+      const y = Number(c.args[2]);
+      expect(y).toBeGreaterThan(box.y);
+      expect(y).toBeLessThan(box.y + box.h);
+    }
+    expect(layer.takeBanner({ x: 0, y: 0, w: 0, h: 0, r: 0 }).w).toBe(0); // (not drawn again: no banner)
   });
 });
 
@@ -533,6 +696,26 @@ describe("Bouncing Orbs: settings, links and presets", () => {
     expect(modeSettingsOfSettings(s).orbGrid?.columns).toBe(44);
   });
 
+  it("keeps a negative camera rotation – the resolver, a link, a preset, a project file and the number field (a signed setting)", () => {
+    expect(resolveOrbGridSettings({ rotation: -45 }).rotation).toBe(-45);
+    expect(resolveOrbGridSettings({ rotation: "-45" as unknown as number }).rotation).toBe(-45);
+    expect(resolveOrbGridSettings({ rotation: -1e6 }).rotation).toBe(-1e6);
+    for (const bad of [Number.NaN, Number.NEGATIVE_INFINITY, "", "left", true]) expect(resolveOrbGridSettings({ rotation: bad as unknown as number }).rotation, String(bad)).toBe(DEFAULT_ORB_GRID_SETTINGS.rotation);
+    expect(SIGNED_KEYS.has("ogRotation")).toBe(true);
+    const fromLink = settingsFromSearchParams(new URLSearchParams("mode=orbGrid&ogRot=-45"));
+    expect(fromLink.ogRotation).toBe(-45);
+    expect(settingsToSearchParams(fromLink).get("ogRot")).toBe("-45");
+    expect(settingsFromSearchParams(settingsToSearchParams({ ...fromLink, ogRotation: -720 })).ogRotation).toBe(-720); // (whole degrees, as the slider steps)
+    expect(presetToSettings(JSON.parse(JSON.stringify({ ...defaultSettings("orbGrid"), ogRotation: -45 }))).ogRotation).toBe(-45);
+    expect(resolveProjectSettings({ ...defaultSettings("orbGrid"), ogRotation: -45 }).ogRotation).toBe(-45);
+    const rules = rulesForRange(RANGES.ogRotation);
+    expect(rules.min).toBeUndefined();
+    expect(checkTypedNumber("-45", rules)).toEqual({ ok: true, value: -45 });
+    // The engine's field turns the other way: the view carries the angle as given.
+    expect(engineOf({ rotation: -45 }, 1).getOrbGridView().settings.rotation).toBe(-45);
+    expect(cameraAngleDeg(-45, false, 3)).toBe(-45);
+  });
+
   it("loads every preset as the mode's defaults plus its fields – the account's counts", () => {
     const counts: Record<string, number> = {};
     for (const preset of ORB_GRID_PRESETS) {
@@ -586,8 +769,17 @@ describe("Bouncing Orbs: Find Simulation", () => {
   it("judges never-settles by the clip and resolves-at by the first resolve (±0.5 s)", () => {
     const base = { durationMs: 20000, finished: false, firstEscapeMs: -1, teams: [] };
     expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, base)).toBe(true);
+    expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, { ...base, settledMs: -1 })).toBe(true);
     expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, { ...base, durationMs: 15000, finished: true })).toBe(false);
     expect(outcomeMiss({ kind: "never-settles", clipSec: 20 }, { ...base, durationMs: 15000, finished: true })).toBe(5);
+    // At rest before the clip is over, its end (a hold later) still to come: no match – it bounced 19.2 s of the 20.
+    const atRest = { ...base, durationMs: 19200, settledMs: 19200 };
+    expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, atRest)).toBe(false);
+    expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, { ...base, settledMs: 19200 })).toBe(false);
+    expect(outcomeMiss({ kind: "never-settles", clipSec: 20 }, atRest)).toBeCloseTo(0.8, 9);
+    expect(outcomeMiss({ kind: "never-settles", clipSec: 20 }, { ...base, settledMs: 19200 })).toBeCloseTo(0.8, 9);
+    expect(outcomeFigure({ kind: "never-settles", clipSec: 20 }, atRest)).toBeCloseTo(19.2, 9);
+    expect(outcomeFigure({ kind: "never-settles", clipSec: 20 }, base)).toBe(20);
     expect(outcomeMatches({ kind: "resolves-at", clipSec: 30, atSec: 5 }, { ...base, firstResolveMs: 5400 })).toBe(true);
     expect(outcomeMatches({ kind: "resolves-at", clipSec: 30, atSec: 5 }, { ...base, firstResolveMs: 5600 })).toBe(false);
     expect(outcomeMatches({ kind: "resolves-at", clipSec: 30, atSec: 5 }, base)).toBe(false);
@@ -595,7 +787,60 @@ describe("Bouncing Orbs: Find Simulation", () => {
     expect(outcomeSettled({ kind: "resolves-at", clipSec: 30, atSec: 5 }, 3000, -1, false, "orbGrid", -1)).toBe(false);
     expect(outcomeSettled({ kind: "resolves-at", clipSec: 30, atSec: 5 }, 3000, -1, false, "orbGrid", 2900)).toBe(true);
     expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 9000, -1, false, "orbGrid")).toBe(false);
+    expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 9000, -1, false, "orbGrid", -1, -1)).toBe(false);
+    expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 9000, -1, false, "orbGrid", -1, 9000)).toBe(true); // at rest: decided
     expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 10000, -1, false, "orbGrid")).toBe(true);
+  });
+
+  it("does not call a field still bouncing that came to rest in the clip's last SETTLE_HOLD_MS (its end falls past the clip)", () => {
+    // Seed 8 of a 12 × 12 field: every orb at rest 23.55 s in – within the 25 s clip – but the run's own end comes a hold
+    // later, past the clip: the page shows ALL SETTLED from 23.55 s until the clip ends it (as settled).
+    const s = settingsOf({ columns: 12, rows: 12 });
+    const outcome = { kind: "never-settles", clipSec: 25 } as const;
+    const page = engineOf({ ...s, maxSec: outcome.clipSec }, 8);
+    runTo(page, outcome.clipSec + 5);
+    const v = page.getOrbGridView();
+    expect(v.allSettled).toBe(true);
+    expect(v.settledAtMs).toBeGreaterThan(1000 * outcome.clipSec - SETTLE_HOLD_MS);
+    expect(v.settledAtMs).toBeLessThan(1000 * outcome.clipSec);
+    expect([v.finished, v.finishReason, Math.round(v.finishedMs), v.settled]).toEqual([true, "settled", 25000, v.count]);
+    const run = simulateOutcomeRun(8, request(s), outcome);
+    expect(run.settledMs).toBeCloseTo(v.settledAtMs, 6);
+    expect([run.finished, run.durationMs]).toEqual([false, run.settledMs]); // followed to the moment it came to rest
+    expect(outcomeMatches(outcome, run)).toBe(false);
+    expect(outcomeMiss(outcome, run)).toBeCloseTo(outcome.clipSec - v.settledAtMs / 1000, 6);
+    expect(outcomeFigure(outcome, run)).toBeCloseTo(v.settledAtMs / 1000, 6);
+  });
+
+  it("finds never-settles exactly where the page's clip ends on a field still bouncing (seeds 1–60, a 25 s clip)", () => {
+    const s = settingsOf({ columns: 12, rows: 12 });
+    const outcome = { kind: "never-settles", clipSec: 25 } as const;
+    let matched = 0;
+    let restInHold = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const run = simulateOutcomeRun(seed, request(s), outcome);
+      // The page plays a found run for the clip (its maxSec): still bouncing when it ends, or every orb at rest?
+      const page = engineOf({ ...s, maxSec: outcome.clipSec }, seed);
+      runTo(page, outcome.clipSec + 5);
+      const v = page.getOrbGridView();
+      const stillBouncing = !v.allSettled;
+      expect(v.finishReason, `seed ${seed}`).toBe(stillBouncing ? "time" : "settled"); // (TIME! only over orbs still bouncing)
+      expect(outcomeMatches(outcome, run), `seed ${seed}`).toBe(stillBouncing);
+      expect((run.settledMs ?? -1) >= 0, `seed ${seed}`).toBe(v.allSettled);
+      if (stillBouncing) matched++;
+      // at rest within the clip's last 1.5 s: the clip cut its hold short
+      if (v.allSettled && Math.abs(v.finishedMs - 1000 * outcome.clipSec) < 1 && v.finishedMs - v.settledAtMs < SETTLE_HOLD_MS - 1) restInHold++;
+    }
+    expect(matched).toBeGreaterThan(10);
+    expect(restInHold).toBeGreaterThan(5);
+  });
+
+  it("finds no 'In phase at' moment where most of the field is at rest (the untuned rows field's last rows in step, 14.2 s in)", () => {
+    const s = settingsOf({ distribution: "rows", resolve: false });
+    const outcome = { kind: "resolves-at", clipSec: 30, atSec: 14.2 } as const;
+    const run = simulateOutcomeRun(7, request(s), outcome);
+    expect(run.firstResolveMs).toBe(-1);
+    expect(outcomeMatches(outcome, run)).toBe(false);
   });
 
   it("simulates a seed's first resolve and its end like the page plays it", () => {
@@ -624,5 +869,16 @@ describe("Bouncing Orbs: the orb states", () => {
     runTo(engine, 20);
     expect(Array.from(v.state).every((st) => st === OG_SETTLED)).toBe(true);
     expect(Array.from(v.height).every((h) => h === 0)).toBe(true);
+  });
+});
+
+describe("Bouncing Orbs: the page", () => {
+  it("drops a found seed's promise with the seed when the field or the variation changes (Simulator.tsx)", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "../src/components/simulator/Simulator.tsx"), "utf8");
+    const effects = [...src.matchAll(/useEffect\(\(\) => \{([\s\S]*?)\n {2}\}, \[([^\]]*)\]\);/g)].filter((m) => m[2].includes("s.ogColumns"));
+    const unpinning = effects.filter((m) => m[1].includes("setSeed(null)"));
+    expect(unpinning.length).toBeGreaterThanOrEqual(1);
+    // (the found result's "Found! … / Ready to start simulation for …" and the do-not-change warning go with the seed)
+    for (const m of unpinning) expect(m[1]).toContain("setSearchResult((r) => (r?.found ? null : r))");
   });
 });

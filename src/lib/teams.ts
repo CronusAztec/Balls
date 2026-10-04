@@ -1,6 +1,7 @@
 import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap, type BallStats } from "@/lib/physics/ballStats";
 import type { ModeId } from "@/lib/physics/types";
 import { normalizeHexColor } from "@/lib/themes";
+import { isFlMatch, matchTeams } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 
 /**
  * Team balls with a scoreboard – the "which one wins" format. Pure data and maths, no DOM:
@@ -200,6 +201,10 @@ interface BallCountFields {
   tyTeams?: number;
   /** --- odd-maze --- The Maze's own ball count (1–8): its first six balls are teams, whatever the roster's size. */
   mzBalls?: number;
+  /** --- fight-league --- Fight League's match type: its sides (a fighter each, two teams in 2v2), whatever the roster's size. */
+  flMatch?: string;
+  /** --- land-claim --- Land Claim's own competitor count (2 and up): its first six competitors are teams, whatever the roster's size. */
+  lcTeams?: number;
 }
 
 /**
@@ -213,6 +218,10 @@ export function effectiveBallCount(settings: BallCountFields): number {
   if (settings.mode === "territory" && settings.tyTeams !== undefined && Number.isFinite(settings.tyTeams)) return settings.tyTeams >= 3 ? 4 : 2;
   // --- odd-maze --- the Maze plays its own number of balls too (the roster colours and names the first ones; six at most are teams)
   if (settings.mode === "maze" && settings.mzBalls !== undefined && Number.isFinite(settings.mzBalls)) return Math.max(1, Math.min(MAX_TEAMS, Math.round(settings.mzBalls)));
+  // --- fight-league --- Fight League plays its sides: a fighter each in 1v1 and the free-for-alls, two teams in 2v2
+  if (settings.mode === "fightLeague") return matchTeams(isFlMatch(settings.flMatch) ? settings.flMatch : "1v1");
+  // --- land-claim --- Land Claim plays its own number of competitors too (the roster colours, names and flags the first ones; six at most are teams)
+  if (settings.mode === "landClaim" && settings.lcTeams !== undefined && Number.isFinite(settings.lcTeams)) return Math.max(2, Math.min(MAX_TEAMS, Math.round(settings.lcTeams)));
   const n = settings.teams.length > 0 ? settings.teams.length : Math.max(settings.ballCount, settings.twoBalls ? 2 : 1);
   return Math.min(modeBallCap(settings.mode), clampBallCount(n));
 }

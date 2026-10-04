@@ -360,6 +360,64 @@ export function orbGridBanner(view: OrbGridView, labels: OrbGridLabels): { title
   return { title: labels.settledTitle, sub: labels.settledSub(String(view.count), (Math.max(0, view.settledAtMs) / 1000).toFixed(1)) };
 }
 
+/* ------------------------------------------------------------------ the end banner's look */
+
+/**
+ * The end banner (ALL SETTLED / TIME!) sits in the middle of the frame – right over the field, whose resting orbs the height
+ * palette paints bright green – and it is the clip's end frame. So it gets a dark rounded backdrop behind both lines, the
+ * title in the mode's lime and the subline in white, all drawn opaque (the canvas' screen-space overlays otherwise inherit the
+ * world pass's 0.6): legible over any palette (tests/orbGrid.test.ts checks the contrast).
+ */
+export const ORB_BANNER_TITLE = "#a3e635";
+export const ORB_BANNER_SUB = "#ffffff";
+/** The backdrop's opacity (black). */
+export const ORB_BANNER_BACKDROP_ALPHA = 0.6;
+const ORB_BANNER_BACKDROP = `rgba(0, 0, 0, ${ORB_BANNER_BACKDROP_ALPHA})`;
+/** The backdrop's padding around the two lines (sideways, above and below) and its corner radius, in title font sizes. */
+export const ORB_BANNER_PAD_X = 0.45;
+export const ORB_BANNER_PAD_Y = 0.22;
+export const ORB_BANNER_RADIUS = 0.3;
+
+/** A rectangle with round corners (world px). */
+export interface OrbBannerBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r: number;
+}
+
+/** The banner block's height: the title (`fs`) and the subline (`sfs`) as every banner stacks them, plus the backdrop's padding. */
+export function orbBannerHeight(fs: number, sfs: number): number {
+  return fs + 1.2 * sfs + 2 * ORB_BANNER_PAD_Y * fs;
+}
+
+/** The backdrop of a banner block starting at `top`, centred on `cx`: as wide as its wider line plus the padding either side. */
+export function orbBannerBox(cx: number, top: number, titleWidth: number, subWidth: number, fs: number, sfs: number, out: OrbBannerBox = { x: 0, y: 0, w: 0, h: 0, r: 0 }): OrbBannerBox {
+  const w = Math.max(titleWidth, subWidth, 0) + 2 * ORB_BANNER_PAD_X * fs;
+  out.x = cx - w / 2;
+  out.y = top;
+  out.w = w;
+  out.h = orbBannerHeight(fs, sfs);
+  out.r = Math.min(ORB_BANNER_RADIUS * fs, w / 2, out.h / 2);
+  return out;
+}
+
+function roundedRectPath(ctx: CanvasRenderingContext2D, b: OrbBannerBox) {
+  const { x, y, w, h, r } = b;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
 /* ------------------------------------------------------------------ the layer */
 
 const TWO_PI = Math.PI * 2;
@@ -413,6 +471,52 @@ export class OrbGridLayer {
   private seenColors = new Uint8Array(HEIGHT_BUCKETS);
   /** The quality level of the last frame (data-og-quality). */
   quality: OrbQuality = 0;
+  /** The end banner's backdrop as drawn since the last `takeBanner()` (world px; w = 0: none) – the data-og-banner attribute. */
+  private readonly banner: OrbBannerBox = { x: 0, y: 0, w: 0, h: 0, r: 0 };
+
+  /**
+   * The end banner of a block starting at `top` (Canvas.tsx stacks it with the other HUD blocks; `orbBannerHeight()` tall):
+   * the dark rounded backdrop, the lime title with its glow and the white subline, opaque whatever alpha the frame is at.
+   */
+  drawBanner(ctx: CanvasRenderingContext2D, title: string, sub: string, cx: number, top: number, fs: number, sfs: number) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    const titleFont = `bold ${fs}px sans-serif`;
+    const subFont = `${sfs}px sans-serif`;
+    ctx.font = titleFont;
+    const titleWidth = ctx.measureText(title).width;
+    ctx.font = subFont;
+    const subWidth = ctx.measureText(sub).width;
+    const box = orbBannerBox(cx, top, titleWidth, subWidth, fs, sfs, this.banner);
+    ctx.fillStyle = ORB_BANNER_BACKDROP;
+    roundedRectPath(ctx, box);
+    ctx.fill();
+    const y = top + ORB_BANNER_PAD_Y * fs;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = titleFont;
+    ctx.fillStyle = ORB_BANNER_TITLE;
+    ctx.shadowColor = ORB_BANNER_TITLE;
+    ctx.shadowBlur = 20;
+    ctx.fillText(title, cx, y + 0.5 * fs);
+    ctx.shadowBlur = 0;
+    ctx.font = subFont;
+    ctx.fillStyle = ORB_BANNER_SUB;
+    ctx.fillText(sub, cx, y + fs + 0.6 * sfs);
+    ctx.restore();
+  }
+
+  /** The banner's backdrop drawn since the last call (world px, w = 0 when none), cleared for the next frame. */
+  takeBanner(out: OrbBannerBox): OrbBannerBox {
+    out.x = this.banner.x;
+    out.y = this.banner.y;
+    out.w = this.banner.w;
+    out.h = this.banner.h;
+    out.r = this.banner.r;
+    this.banner.w = 0;
+    return out;
+  }
 
   private ensure(n: number) {
     if (this.sx.length >= n) return;
@@ -870,12 +974,13 @@ export class OrbGridLayer {
 /* ------------------------------------------------------------------ data attributes */
 
 /** The data-og-* attributes the canvas mirrors for tools and the smoke test. */
-export const ORB_GRID_DATA_KEYS = ["ogOrbs", "ogRequested", "ogFull", "ogArrangement", "ogReleased", "ogReleasedRings", "ogBounces", "ogLanded", "ogSettled", "ogMoving", "ogResolve", "ogResolveAt", "ogResolves", "ogResolvePlan", "ogTuned", "ogQuality", "ogSound", "ogVoices", "ogNotes", "ogPitches", "ogFinished", "ogFinishedMs", "ogFinish", "ogTime", "ogHud", "ogTempo"];
+export const ORB_GRID_DATA_KEYS = ["ogOrbs", "ogRequested", "ogFull", "ogArrangement", "ogReleased", "ogReleasedRings", "ogBounces", "ogLanded", "ogSettled", "ogMoving", "ogResolve", "ogResolveAt", "ogResolves", "ogResolvePlan", "ogTuned", "ogQuality", "ogSound", "ogVoices", "ogNotes", "ogPitches", "ogFinished", "ogFinishedMs", "ogFinish", "ogTime", "ogHud", "ogTempo", "ogBanner"];
 
-/** Writes the data-og-* attributes (the pitch list only when it changed). */
+/** Writes the data-og-* attributes (the pitch list only when it changed; the end banner's backdrop – "x,y,w,h" in world px – while it is drawn). */
 export class OrbGridDataset {
   private pitches: number[] | null = null;
   private pitchText = "";
+  private readonly banner: OrbBannerBox = { x: 0, y: 0, w: 0, h: 0, r: 0 };
 
   write(view: OrbGridView, layer: OrbGridLayer, set: (key: string, value: string) => void) {
     if (view.lastPitches !== this.pitches) {
@@ -908,5 +1013,7 @@ export class OrbGridDataset {
     set("ogTime", String(Math.round(view.timeMs)));
     set("ogHud", view.settings.hud ? "1" : "0");
     set("ogTempo", view.tempo.toFixed(4));
+    const b = layer.takeBanner(this.banner);
+    set("ogBanner", b.w > 0 ? `${b.x.toFixed(1)},${b.y.toFixed(1)},${b.w.toFixed(1)},${b.h.toFixed(1)}` : "");
   }
 }

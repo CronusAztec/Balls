@@ -77,6 +77,10 @@ import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConv
 import { RESPAWN_RANGES } from "@/lib/physics/respawn";
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
 import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGridPastCeiling, readOrbGridParams, resolveOrbGridFields, writeOrbGridParams, type OgArrangement, type OgDistribution, type OgFloor, type OgMaterial, type OgPalette, type OgProperty, type OgRelease, type OgSound } from "@/lib/physics/modes/orbGrid";
+// --- fight-league --- Fight League (weapon-wielding fighter balls; the arena games' family)
+import { FIGHT_LEAGUE_RANGES, defaultFightLeagueFields, fightLeagueModeDefaults, readFightLeagueParams, resolveFightLeagueFields, writeFightLeagueParams, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
+// --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
+import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -803,6 +807,64 @@ export interface SimulatorSettings {
   /** notes | sleep | music | metal | silent (URL `ogSnd`). */
   ogSound: OgSound;
   // --- end orb-grid ---
+  // --- fight-league --- Fight League (lib/physics/modes/fightLeague.ts, the roster in fightLeagueRoster.ts)
+  /** Fighter slots A–D: a roster id or "random" (picked by the seed) (URL `fl1`–`fl4`). */
+  flFighterA: string;
+  flFighterB: string;
+  flFighterC: string;
+  flFighterD: string;
+  /** 1v1 | 2v2 | ffa3 | ffa4 (URL `flM`). */
+  flMatch: FlMatch;
+  /** A "random" slot picks from the first chosen fighter's division (an in-genre matchup) (URL `flDiv`). */
+  flSameDivision: boolean;
+  /** Every fighter's HP, 1–300 on the slider, any number from 1 typed (URL `flHp`). */
+  flHp: number;
+  /** Seconds after which the side with more HP wins, 0 = no cap (URL `flT`). */
+  flTimeCap: number;
+  /** square | circle (URL `flA`). */
+  flArena: FlArena;
+  /** The names, the VS card, the ability boxes and the stat lines (URL `flH`). */
+  flHud: boolean;
+  /** Per-slot multipliers of speed, damage, attack speed and cast speed (URL `flS1`–4, `flD1`–4, `flX1`–4, `flC1`–4). */
+  flSpeedA: number;
+  flSpeedB: number;
+  flSpeedC: number;
+  flSpeedD: number;
+  flDamageA: number;
+  flDamageB: number;
+  flDamageC: number;
+  flDamageD: number;
+  flAttackA: number;
+  flAttackB: number;
+  flAttackC: number;
+  flAttackD: number;
+  flCastA: number;
+  flCastB: number;
+  flCastC: number;
+  flCastD: number;
+  // --- end fight-league ---
+  // --- land-claim --- Land Claim (lib/physics/modes/landClaim.ts): competitors' balls knock the top blocks off the columns lining the arena
+  /** Columns round the wall, 4–96 on the slider (any number from 4 typed; a run builds at most 5,000) (URL `lcc`). */
+  lcCols: number;
+  /** Blocks a column holds, 1–40 on the slider (any number from 1 typed; at most 2,000, a million blocks in all) (URL `lcr`). */
+  lcRows: number;
+  /** square | hexagon | circle (URL `lca`). */
+  lcArena: LcArena;
+  /** Competitors, 2–12 on the slider (any number from 2 typed; at most 1,000) (URL `lct`). */
+  lcTeams: number;
+  /** Balls every competitor starts with, 1–10 on the slider (any number from 1 typed; 2,000 balls in all) (URL `lcb`). */
+  lcBalls: number;
+  /** knock (the block flies off) | claim (it stays, recoloured) | steal (claimed blocks flip to the hitter) (URL `lcm`). */
+  lcRule: LcRule;
+  /** Every this many blocks a competitor knocks / claims add one more ball of its colour, 0 = never (URL `lce`). */
+  lcEvery: number;
+  /** Seconds the run lasts at most (a steal battle always), 10–180 on the slider, any number from 10 typed (URL `lcd`). */
+  lcDuration: number;
+  /** The HUD's title line, "" = the translated LAND CLAIM (URL `lcti`). */
+  lcTitle: string;
+  /** The HUD: the title, a bar per competitor and the counters (URL `lch`). */
+  lcHud: boolean;
+  // --- end land-claim ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -930,6 +992,12 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultMazeFields(), // --- odd-maze ---
     ...defaultConveyorFields(), // --- gerald-conveyor --- (and the respawn timer, off)
     ...defaultOrbGridFields(), // --- orb-grid ---
+    // --- fight-league --- the feature's fields, and the mode's own gravity (0: the fighters drift) and clip (a minute) in Fight League only
+    ...defaultFightLeagueFields(),
+    ...fightLeagueModeDefaults(mode),
+    // --- land-claim --- the feature's fields, and in Land Claim only no gravity and a clip that covers the longest run and its verdict
+    ...defaultLandClaimFields(),
+    ...landClaimModeDefaults(mode),
   };
 }
 
@@ -1007,6 +1075,8 @@ export const RANGES = {
   ...CONVEYOR_RANGES, // --- gerald-conveyor ---
   ...RESPAWN_RANGES, // --- gerald-conveyor --- (the respawn timer of Classic and Multiply)
   ...ORB_GRID_RANGES, // --- orb-grid ---
+  ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
+  ...LAND_CLAIM_RANGES, // --- land-claim ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1254,6 +1324,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeMazeParams(settings, base, params); // --- odd-maze ---: mzc, mzn, mzb, mzh, mzg, mzs, mzt, mztc, mzto, mzf, mzwc, mzd, mzbg, mzhud
   writeConveyorParams(settings, base, params); // --- gerald-conveyor ---: cvi, cvn, cva, cvf, cvv, rse
   writeOrbGridParams(settings, base, params); // --- orb-grid ---: ogC, ogR, ogA, ogV, ogD, ogS, ogL, ogT, ogH, ogZ, ogB, ogRes, ogE, ogRot, ogO, ogF, ogM, ogP, ogHud, ogSnd
+  writeFightLeagueParams(settings, base, params); // --- fight-league ---: fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4
+  writeLandClaimParams(settings, base, params); // --- land-claim ---: lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1414,6 +1486,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readMazeParams(params, settings); // --- odd-maze --- (valid numbers kept, no maximum; unknown options and bad colours fall back)
   readConveyorParams(params, settings); // --- gerald-conveyor --- (valid numbers kept, no maximum; an unknown arena falls back)
   readOrbGridParams(params, settings); // --- orb-grid --- (valid numbers kept, no maximum; unknown options fall back)
+  readFightLeagueParams(params, settings); // --- fight-league --- (known fighters and options, valid numbers from their minimum up)
+  readLandClaimParams(params, settings); // --- land-claim --- (valid numbers kept, no maximum; unknown arenas and rules fall back)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1629,6 +1703,8 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
   conveyor: rangeKeys(CONVEYOR_RANGES), // --- gerald-conveyor ---
   orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
+  fightLeague: rangeKeys(FIGHT_LEAGUE_RANGES), // --- fight-league ---
+  landClaim: rangeKeys(LAND_CLAIM_RANGES), // --- land-claim ---
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -1834,6 +1910,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveMazeFields(merged)); // --- odd-maze --- valid numbers on their steps (no maximum), known options, real colours and booleans
   Object.assign(merged, resolveConveyorFields(merged)); // --- gerald-conveyor --- valid numbers on their steps (no maximum), a known arena, a real boolean, the respawn period
   Object.assign(merged, resolveOrbGridFields(merged)); // --- orb-grid --- valid numbers (no maximum), known options, real booleans
+  Object.assign(merged, resolveFightLeagueFields(merged)); // --- fight-league --- known fighters and options, valid numbers from their minimum up, real booleans
+  Object.assign(merged, resolveLandClaimFields(merged)); // --- land-claim --- valid numbers (no maximum), a known arena and rule, a clean title, a real boolean
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

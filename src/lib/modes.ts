@@ -71,6 +71,18 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("polyrhythm");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "orbGrid");
 }
+// --- fight-league --- Fight League joins the arena games (Battle Royale, Capture the Flag) of the rhythm family, right after them
+{
+  const at = MODE_CARD_ORDER.indexOf("ctf");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "fightLeague");
+}
+
+// --- land-claim --- Land Claim joins the battle family next to Territory and the Maze (the land-claim battles: the most land wins)
+{
+  const after = MODE_CARD_ORDER.indexOf("maze");
+  const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -139,6 +151,10 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   // --- orb-grid --- every landing of thousands of orbs is a soft note, their periods drifting in and out of phase like the
   // Pendulum Wave's: the sound-first family
   orbGrid: "rhythm",
+  // --- fight-league --- weapon-wielding fighter balls duel in a square arena: with the arena games (every hit a sound, every bounce a note)
+  fightLeague: "rhythm",
+  // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
+  landClaim: "battle",
 };
 
 /** The modes of a category in card order. */

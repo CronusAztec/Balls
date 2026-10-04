@@ -1,6 +1,6 @@
 import { isScaleId, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import { MAX_CHORD_NOTES, MAX_NOTES_PER_STEP, MAX_ORB_EVENTS_PER_FRAME, METAL_MIN_GAP_SEC, MUSIC_MIN_GAP_SEC, SLEEP_MIN_GAP_SEC, createOrbGroupScratch, groupOrbLandings, orbLevel, orbMusicNext, orbPitchHz, type OrbLandings, type OrbVoice } from "@/lib/audio/orbTones";
-import { ORB_CEILING, atLeastMin } from "@/lib/uncap";
+import { ORB_CEILING, atLeastMin, signedUncapped } from "@/lib/uncap";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 
 /**
@@ -21,7 +21,8 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
  * the field dissolves again as their different restitutions drift apart. The "period" property bounces perfectly elastic
  * orbs whose periods are tuned to the clock, so the field resolves every cycle (landing, apex, landing…) – the pendulum-wave
  * trick. The resolve detector measures it whatever the tuning: the share of moving orbs whose phase passed through one small
- * phase window this step (`resolveCoverage()`), with hysteresis for the "in phase" moments.
+ * phase window this step (`resolveCoverage()`), with hysteresis for the "in phase" moments – read only while at least half
+ * the field is in flight (`resolveQuorum()`), so the last rows of a decaying field bouncing in step are no resolve.
  *
  * Sound: the landings of a step are grouped per row / ring (`groupOrbLandings()` in lib/audio/orbTones.ts) into at most
  * `MAX_NOTES_PER_STEP` voices, the loudest and nearest first, each a chord of the row's columns (or the ring's note) on the
@@ -111,6 +112,16 @@ export const RESOLVE_WINDOW_BINS = 2;
 export const RESOLVE_LOW = 0.45;
 export const RESOLVE_HIGH = 0.8;
 export const RESOLVE_MIN_MOVING = 4;
+/**
+ * The share of the whole field that must be in flight (bouncing long enough to be measured) for a step to count: a moment
+ * "in phase" is the field resolving, not a few rows or rings still bouncing in step after most of the field has come to rest.
+ */
+export const RESOLVE_FIELD_SHARE = 0.5;
+
+/** The orbs in flight a field of `n` needs for the resolve detector to read a step (`RESOLVE_FIELD_SHARE` of it, at least `RESOLVE_MIN_MOVING`). */
+export function resolveQuorum(n: number): number {
+  return Math.max(RESOLVE_MIN_MOVING, Math.ceil(RESOLVE_FIELD_SHARE * n));
+}
 /** An orb's launch speed never grows past this (a bounciness above 1 for a very long run stays a finite number). */
 export const V_SAFE = 1e150;
 /** Landings one orb may make within one step before the rest of its bounces are summed up (Zeno: it settles). */
@@ -232,12 +243,17 @@ function num(value: unknown, range: { min: number }, fallback: number): number {
   return Number.isFinite(n) && (typeof value !== "string" || value.trim() !== "") ? atLeastMin(n, range) /* never a maximum */ : fallback;
 }
 
+/** A signed number (the camera's rotation: −45° turns the other way): any finite number as given, the fallback for anything invalid. */
+function signedNum(value: unknown, fallback: number): number {
+  return typeof value === "number" || (typeof value === "string" && value.trim() !== "") ? signedUncapped(value, fallback) : fallback;
+}
+
 /** A whole number from its minimum up (the counts), the fallback for anything invalid. */
 function count(value: unknown, range: { min: number }, fallback: number): number {
   return Math.round(num(value, range, fallback));
 }
 
-/** Fills in the defaults and validates every value (counts whole, numbers from their minimum up and never capped, known options). */
+/** Fills in the defaults and validates every value (counts whole, numbers from their minimum up – the signed rotation any finite value – and never capped, known options). */
 export function resolveOrbGridSettings(config: Partial<OrbGridSettings> | null | undefined): OrbGridSettings {
   const out = { ...DEFAULT_ORB_GRID_SETTINGS };
   if (!config) return out;
@@ -255,7 +271,7 @@ export function resolveOrbGridSettings(config: Partial<OrbGridSettings> | null |
   if (config.bounciness !== undefined) out.bounciness = num(config.bounciness, R.ogBounciness, out.bounciness);
   if (typeof config.resolve === "boolean") out.resolve = config.resolve;
   if (config.elevation !== undefined) out.elevation = num(config.elevation, R.ogElevation, out.elevation);
-  if (config.rotation !== undefined) out.rotation = num(config.rotation, R.ogRotation, out.rotation);
+  if (config.rotation !== undefined) out.rotation = signedNum(config.rotation, out.rotation); // (signed: −45° turns the other way – lib/uncap.ts SIGNED_KEYS)
   if (typeof config.orbit === "boolean") out.orbit = config.orbit;
   if (isOgFloor(config.floor)) out.floor = config.floor;
   if (isOgMaterial(config.material)) out.material = config.material;
@@ -794,7 +810,7 @@ export interface OrbGridView {
   landedStep: number;
   settled: number;
   moving: number;
-  /** The resolve detector: this step's in-phase share of the moving orbs, the first "in phase" moment (ms, −1 = none yet), how many so far, the last one. */
+  /** The resolve detector: this step's in-phase share of the moving orbs (0 while fewer than `resolveQuorum()` are in flight), the first "in phase" moment (ms, −1 = none yet), how many so far, the last one. */
   resolve: number;
   resolveAtMs: number;
   resolves: number;
@@ -806,7 +822,7 @@ export interface OrbGridView {
   settledAtMs: number;
   finished: boolean;
   finishedMs: number;
-  /** "settled" (every orb at rest) or "time" (the clip ended first). */
+  /** "settled" (every orb at rest – the hold over, or the clip ended during it) or "time" (the clip ended while an orb still bounced). */
   finishReason: "" | "settled" | "time";
   /** Sound: voices queued so far, notes (pitches) in them, the last frequencies queued. */
   voices: number;
@@ -1326,8 +1342,9 @@ export class OrbGridMode implements GameMode {
       v.allSettled = true;
       v.settledAtMs = t * 1000;
     }
-    // The resolve detector with its hysteresis: armed once the field has dissolved, an "in phase" moment when it resolves.
-    const enough = counted >= Math.max(RESOLVE_MIN_MOVING, Math.ceil(0.02 * n));
+    // The resolve detector with its hysteresis: armed once the field has dissolved, an "in phase" moment when it resolves –
+    // read only while most of the field is in flight (`resolveQuorum()`): a remainder bouncing in step is not the field
+    const enough = counted >= resolveQuorum(n);
     const share = coverageShare(diff, enough ? counted : 0);
     v.resolve = share;
     if (enough) {
@@ -1340,10 +1357,11 @@ export class OrbGridMode implements GameMode {
       }
     }
     if (landed > 0) this.queueSound(t);
-    // The end: every orb at rest (after the hold), or the clip.
+    // The end: every orb at rest (after the hold), or the clip – which, ending during the hold, ends a field already at rest
+    // (ALL SETTLED stays: TIME! only when an orb still bounces)
     const maxSec = v.settings.maxSec;
     if (v.allSettled && t * 1000 - v.settledAtMs >= SETTLE_HOLD_MS) this.finish(t, "settled");
-    else if (maxSec > 0 && t >= maxSec - 1e-9) this.finish(t, "time");
+    else if (maxSec > 0 && t >= maxSec - 1e-9) this.finish(t, v.allSettled ? "settled" : "time");
   }
 
   private finish(t: number, reason: "settled" | "time") {

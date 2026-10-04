@@ -64,6 +64,8 @@ import { MazeMode, type MazeSettings, type MazeView } from "./modes/maze"; // --
 import { ConveyorMode, type ConveyorSettings, type ConveyorView } from "./modes/conveyor";
 import { RespawnTimer } from "./respawn";
 import { OrbGridMode, type OrbGridSettings, type OrbGridView } from "./modes/orbGrid"; // --- orb-grid --- Bouncing Orbs
+import { FightLeagueMode, type FightLeagueSettings, type FightLeagueView } from "./modes/fightLeague"; // --- fight-league ---
+import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./modes/landClaim"; // --- land-claim ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -302,6 +304,10 @@ export class PhysicsEngine {
   private readonly respawn = new RespawnTimer();
   // --- orb-grid --- Bouncing Orbs (thousands of orbs, each bouncing on its own spot, in the mode's typed arrays)
   readonly orbGridMode = new OrbGridMode();
+  // --- fight-league --- Fight League (weapon-wielding fighter balls duel in a square arena with HP, abilities and stats)
+  readonly fightLeagueMode = new FightLeagueMode();
+  // --- land-claim --- Land Claim: balls knock the top blocks off the columns lining the arena
+  readonly landClaimMode = new LandClaimMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -687,6 +693,14 @@ export class PhysicsEngine {
   initOrbGrid() {
     this.activateMode(this.orbGridMode, "none");
   }
+  // --- fight-league --- the mode owns its arena (no rings)
+  initFightLeague() {
+    this.activateMode(this.fightLeagueMode, "none");
+  }
+  // --- land-claim --- the mode owns its arena (no rings)
+  initLandClaim() {
+    this.activateMode(this.landClaimMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -778,6 +792,12 @@ export class PhysicsEngine {
       // --- orb-grid ---
       case "orbGrid":
         return this.initOrbGrid();
+      // --- fight-league ---
+      case "fightLeague":
+        return this.initFightLeague();
+      // --- land-claim ---
+      case "landClaim":
+        return this.initLandClaim();
     }
   }
 
@@ -1736,6 +1756,44 @@ export class PhysicsEngine {
     return this.orbGridMode.getProgress();
   }
   // --- end orb-grid ---
+  // --- fight-league ---
+  isFightLeagueMode() {
+    return this.currentMode === this.fightLeagueMode;
+  }
+  getFightLeagueSettings(): FightLeagueSettings {
+    return this.fightLeagueMode.getSettings();
+  }
+  /** Fighters, match type, HP, multipliers, time cap and arena apply on the next `initFightLeague()`; the HUD at once. */
+  setFightLeagueSettings(settings: Partial<FightLeagueSettings>) {
+    this.fightLeagueMode.setSettings(settings);
+  }
+  /** Live Fight League state (field, fighters, weapons, projectiles, minions, beams, events, the verdict) for the canvas and the HUD; the same object every call. */
+  getFightLeagueView(): FightLeagueView {
+    return this.fightLeagueMode.getView();
+  }
+  getFightLeagueProgress() {
+    return this.fightLeagueMode.getProgress();
+  }
+  // --- end fight-league ---
+  // --- land-claim ---
+  isLandClaimMode() {
+    return this.currentMode === this.landClaimMode;
+  }
+  getLandClaimSettings(): LandClaimSettings {
+    return this.landClaimMode.getSettings();
+  }
+  /** The wall, the competitors, the balls, the rule, the spawn period and the duration of Land Claim apply on the next `initLandClaim()`; the title and the HUD at once. */
+  setLandClaimSettings(settings: Partial<LandClaimSettings>) {
+    this.landClaimMode.setSettings(settings);
+  }
+  /** Live Land Claim state (the arena, the columns and their blocks, the land, the balls, the verdict) for the canvas and the HUD; the same object every call. */
+  getLandClaimView(): LandClaimView {
+    return this.landClaimMode.getView();
+  }
+  getLandClaimProgress() {
+    return this.landClaimMode.getProgress();
+  }
+  // --- end land-claim ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
