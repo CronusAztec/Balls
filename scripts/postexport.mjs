@@ -10,6 +10,7 @@
 import fs from "fs";
 import path from "path";
 import { buildPwa } from "./pwa/build.mjs";
+import { obfuscateExport } from "./obfuscate.mjs"; // --- code-obfuscation ---
 
 const out = path.resolve(process.cwd(), "out");
 if (!fs.existsSync(out)) {
@@ -26,6 +27,20 @@ if (fs.existsSync(localised404)) {
 }
 
 fs.writeFileSync(path.join(out, ".nojekyll"), "");
+
+// --- code-obfuscation --- obfuscate the shipped JS and drop stray source maps BEFORE the service worker is built, so
+// its version hash and precache (scripts/pwa/build.mjs) see the final, obfuscated files. OBFUSCATE=0 skips it (debug).
+if (process.env.OBFUSCATE === "0") {
+  console.log("postexport: OBFUSCATE=0 – skipping JavaScript obfuscation (debug build)");
+} else {
+  const o = obfuscateExport(out);
+  console.log(
+    `postexport: obfuscated ${o.count} chunk(s) in ${(o.ms / 1000).toFixed(1)}s ` +
+      `(skipped ${o.skipped.length} loader chunk(s), removed ${o.mapsDeleted.length} .map file(s), ` +
+      `${(o.bytesBefore / 1048576).toFixed(2)} → ${(o.bytesAfter / 1048576).toFixed(2)} MB of chunk JS)`,
+  );
+}
+// --- end code-obfuscation ---
 
 // --- pwa --- offline page + service worker (last: its version hashes every other exported file)
 {
