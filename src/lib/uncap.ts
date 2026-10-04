@@ -213,9 +213,9 @@ export const INDEX_KEYS: ReadonlySet<string> = new Set(["forcedWinner"]);
 
 /**
  * Settings that are signed: a value past either end of the slider is meaningful (wind blowing the other way, a
- * pendulum started more than half a turn round, any 32-bit seed).
+ * pendulum started more than half a turn round, any 32-bit seed, --- orb-grid --- the orb field's camera turned −45°).
  */
-export const SIGNED_KEYS: ReadonlySet<string> = new Set(["windX", "windY", "dpAngle1", "dpAngle2", "dpAngle3", "arenaSeed"]);
+export const SIGNED_KEYS: ReadonlySet<string> = new Set(["windX", "windY", "dpAngle1", "dpAngle2", "dpAngle3", "arenaSeed", "ogRotation"]);
 
 /**
  * A number from a resolver's input, kept as it is: a finite number at or above the range's minimum (lifted onto it

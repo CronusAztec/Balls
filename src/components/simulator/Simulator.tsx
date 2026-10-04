@@ -977,6 +977,7 @@ export default function Simulator() {
   }, [s.ogColumns, s.ogRows, s.ogArrangement, s.ogVaried, s.ogDistribution, s.ogSpread, s.ogRelease, s.ogStagger, s.ogDropHeight, s.ogOrbSize, s.ogBounciness, s.ogResolve, s.gravity]);
   useEffect(() => {
     engineRef.current?.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r)); // (and its promise: the panel stops quoting a run the new field no longer plays)
   }, [s.ogColumns, s.ogRows, s.ogArrangement, s.ogVaried, s.ogDistribution, s.ogSpread, s.ogRelease, s.ogStagger, s.ogDropHeight, s.ogOrbSize, s.ogBounciness, s.ogResolve]);
   useEffect(() => {
     engineRef.current?.setOrbGridSettings(orbGridSettingsOf(s));

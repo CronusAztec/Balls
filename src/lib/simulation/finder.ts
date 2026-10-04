@@ -771,7 +771,8 @@ export const FIXED_RUN_SLACK_MS = 1000;
  * Simulates one seed headlessly for an outcome search and sums the run up (outcomes.ts): how long it was followed,
  * whether it finished, its first escape (real time, like the recording) and the team totals at the end. It stops as
  * soon as the outcome is settled (`outcomeSettled()`), so a failing seed costs little. A battle's winner search follows
- * the battle to its end (`winnerNeedsEnd()`) – and gives up on it as soon as the chosen ball is out.
+ * the battle to its end (`winnerNeedsEnd()`) – and gives up on it as soon as the chosen ball is out. --- orb-grid --- A
+ * Bouncing Orbs run also notes the field's first "in phase" moment and the moment it came to rest (`settledMs`).
  */
 export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome: FinderOutcome): RunSummary {
   const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
@@ -788,6 +789,9 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   let firstEscape = -1;
   let finished = false;
   let firstResolve = -1; // --- orb-grid --- (the field's first "in phase" moment, real time)
+  // --- orb-grid --- the moment the field came to rest (its last orb settled – the ALL SETTLED banner), real time: the mode
+  // itself ends a hold (SETTLE_HOLD_MS) later, so a field at rest within the clip's last 1.5 s is not over before the clip is
+  let settledAt = -1;
   const orbs = request.mode === "orbGrid"; // --- orb-grid ---
   while (elapsed < horizonMs - 1e-6) {
     engine.update(step, 0);
@@ -795,15 +799,16 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     engine.consumeSoundEvents();
     if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
     if (orbs && firstResolve < 0 && engine.getOrbGridView().resolveAtMs >= 0) firstResolve = elapsed; // --- orb-grid ---
+    if (orbs && settledAt < 0 && engine.getOrbGridView().allSettled) settledAt = elapsed; // --- orb-grid ---
     finished = engine.isSimulationFinished();
-    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve)) break;
+    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt)) break;
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(orbs ? { firstResolveMs: firstResolve } : {}) /* --- orb-grid --- */ };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */ };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */

@@ -88,7 +88,7 @@ import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type 
 // --- gerald-conveyor --- the Conveyor Belt: the belts, the hatch, the loading tube, the bowl, the bins, the frost and the counter
 import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
 // --- orb-grid --- Bouncing Orbs: the perspective field (floor, shadows, sprites back to front), the HUD line and the data-og-* writer
-import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
+import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbBannerHeight, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -2448,8 +2448,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const L = labelsRef.current ?? DEFAULT_LABELS;
         const minDim = Math.min(size.width, size.height);
         const blocks: { height: number; draw: (y: number) => void }[] = [];
+        const bannerFs = Math.max(24, 0.08 * minDim); // (the banners' title font size; the subline is 0.4 of it)
         const bigBanner = (text: string, sub: string, color: string) => {
-          const fs = Math.max(24, 0.08 * minDim);
+          const fs = bannerFs;
           const sfs = 0.4 * fs;
           blocks.push({
             height: fs + 1.2 * sfs,
@@ -2673,10 +2674,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
           bigBanner(CV.title, CV.sub, "#a3e635");
         }
-        // --- orb-grid --- Bouncing Orbs: every orb at rest (from the last landing, through the hold before the end) / the clip over first
+        // --- orb-grid --- Bouncing Orbs: every orb at rest (from the last landing, through the hold before the end) / the clip over
+        // while an orb still bounces – on a dark backdrop, the subline white (the field under it rests bright green; the end frame)
         if (orbView && (orbView.allSettled || orbView.finished)) {
           const OG = orbGridBanner(orbView, L.orbGrid ?? DEFAULT_ORB_GRID_LABELS);
-          bigBanner(OG.title, OG.sub, "#a3e635");
+          const sfs = 0.4 * bannerFs;
+          blocks.push({ height: orbBannerHeight(bannerFs, sfs), draw: (y) => orbLayer.drawBanner(ctx, OG.title, OG.sub, cx, y, bannerFs, sfs) });
         }
         // --- beat-drop --- Beat Drop: the clip's last landing – every one on the beat (from it, through the hold before the end)
         if (bdView && bdLayer.finale(bdView)) {

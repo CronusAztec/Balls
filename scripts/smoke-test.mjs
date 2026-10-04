@@ -10388,8 +10388,12 @@ const bdInstrument = () =>
 // and the search box; a 1089-orb run whose data-og-* counters advance, with the "1089 bouncing orbs" line drawn at the top of
 // the square; the corner-to-corner preset (the Presets group) falling into phase on its pattern clock; the octagons released
 // outside in, ring by ring (data-og-released rising in whole rings); the sleep sound (few voices) and the music variant (the
-// scale's notes) with OscillatorNode.start instrumented; the finder landing a 30 s run that settles when it promised; and the
-// frame rates: a 1089-orb run (30+ fps), a 1080×1920 recording of it (20+ fps) and a 4900-orb run (30+ fps).
+// scale's notes) with OscillatorNode.start instrumented; the finder landing a 30 s run that settles when it promised; a field
+// at rest in the clip's last 1.5 s ending with the clip as settled, under an end banner on a dark backdrop with a white
+// subline; the Never Settles search passing over that field for one still bouncing when the clip ends; a change of the field
+// dropping a found seed's promise; the resolve detector counting in-phase moments only while most of the field bounces; a
+// negative camera rotation from a link and the number field; and the frame rates: a 1089-orb run (30+ fps), a 1080×1920
+// recording of it (20+ fps) and a 4900-orb run (30+ fps).
 {
   const res = await page.request.get(`${BASE}/modes/orbGrid.webp`);
   check("asset /modes/orbGrid.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -10592,6 +10596,164 @@ const orbSoundRun = async (query, ms) => {
     "the finder finds a Bouncing Orbs seed that settles at 30s and the run keeps the promise",
     ready && Math.abs(promised - 30) <= 0.5 && data.ogFinished === "1" && data.ogFinish === "settled" && Math.abs(Number(data.ogFinishedMs) / 1000 - promised) < 0.1 && data.ogSettled === data.ogOrbs,
     `(ready=${ready}, "${readyText}", finished at ${data.ogFinishedMs} ms (${data.ogFinish}), settled ${data.ogSettled} of ${data.ogOrbs})`,
+  );
+}
+/**
+ * --- review fix (orb-grid) --- The end banner on the canvas: its backdrop (data-og-banner – x,y,w,h in world px; the block is
+ * 1.92 title font sizes tall: the title, the subline at 0.4 of it and 0.22 of padding above and below) – the brightest channel
+ * in its side padding at the subline's height, where only the backdrop lies over the field (60 % black: 102 at most), the
+ * near-white pixels of the subline, and (for the log) the brightest channel just outside the backdrop at that height.
+ */
+const orbBannerPixels = () =>
+  page.evaluate(() => {
+    const canvas = document.querySelector("main canvas");
+    const box = (canvas?.dataset.ogBanner ?? "").split(",").map(Number);
+    const world = (canvas?.dataset.world ?? "").split("x").map(Number);
+    if (!canvas || box.length !== 4 || !(box[2] > 0) || !(world[0] > 0)) return null;
+    const k = canvas.width / world[0];
+    const [x, y, w, h] = box.map((v) => v * k);
+    const fs = h / 1.92;
+    const subY = y + 0.22 * fs + fs + 0.24 * fs;
+    const ctx = canvas.getContext("2d");
+    const read = (x0, y0, x1, y1) => ctx.getImageData(Math.round(x0), Math.round(y0), Math.max(1, Math.round(x1 - x0)), Math.max(1, Math.round(y1 - y0))).data;
+    const brightest = (d) => {
+      let m = 0;
+      for (let i = 0; i < d.length; i += 4) m = Math.max(m, d[i], d[i + 1], d[i + 2]);
+      return m;
+    };
+    const backdropMax = Math.max(brightest(read(x + 0.06 * fs, subY - 0.12 * fs, x + 0.22 * fs, subY + 0.12 * fs)), brightest(read(x + w - 0.22 * fs, subY - 0.12 * fs, x + w - 0.06 * fs, subY + 0.12 * fs)));
+    const sub = read(x + 0.45 * fs, subY - 0.2 * fs, x + w - 0.45 * fs, subY + 0.2 * fs);
+    let white = 0;
+    for (let i = 0; i < sub.length; i += 4) if (sub[i] >= 230 && sub[i + 1] >= 230 && sub[i + 2] >= 230) white++;
+    const outsideMax = x > 0.25 * fs ? brightest(read(x - 0.22 * fs, subY - 0.12 * fs, x - 0.06 * fs, subY + 0.12 * fs)) : -1;
+    return { box: box.map((v) => Math.round(v)).join(","), backdropMax, white, outsideMax };
+  });
+{
+  // --- review fix (orb-grid) --- Seed 28 of a 12 × 12 field dropped from 0.44 comes to rest 29.1 s into the default 30 s clip:
+  // inside the 1.5 s hold, so the clip ends the run – as settled (the banner stays ALL SETTLED; TIME! only while an orb still
+  // bounces). The banner is the clip's end frame, right over the resting orbs the height palette paints bright green: it sits
+  // on a dark backdrop (the field under it at most 40 % bright) and its subline is white.
+  //
+  // Never settles: still bouncing when the clip ends. A field that comes to rest in the clip's last 1.5 s – the hold before
+  // the run's own end, which then falls past the clip – is no match. The search's seed base is pinned (Date.now() while the
+  // click is dispatched: the seeds are base + 0x9e3779b1 · i) so that it starts with seed 28 (at rest 29.1 s in, its own end
+  // at 30.6 s): the search passes it over and finds the next seed (2 tested), still bouncing at 30 s. A change that moves
+  // these runs needs a new base: a seed at rest 28.5–30 s in, followed by one still bouncing at 30 s (tests/orbGrid.test.ts
+  // runs such fields headless).
+  const query = "mode=orbGrid&ogC=12&ogR=12&ogH=0.44";
+  const NS_BASE = 28;
+  const playToEnd = async () => {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    return canvasData();
+  };
+  await page.goto(`${BASE}/en/simulator/?${query}&seed=${NS_BASE}`, { waitUntil: "networkidle" });
+  const rested = await playToEnd();
+  const banner = await orbBannerPixels();
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid-banner.png") });
+  check(
+    "orbGrid: a field at rest in the clip's last 1.5 s ends with the clip as settled – ALL SETTLED, not TIME!",
+    rested.ogOrbs === "144" && rested.ogFinished === "1" && rested.ogFinish === "settled" && rested.ogFinishedMs === "30000" && rested.ogSettled === "144",
+    `(seed ${NS_BASE}: ${rested.ogFinish} at ${rested.ogFinishedMs} ms, ${rested.ogSettled} of ${rested.ogOrbs} at rest)`,
+  );
+  check(
+    "orbGrid: the end banner sits on a dark backdrop with a white subline, legible over the resting field",
+    !!banner && banner.backdropMax <= 110 && banner.white >= 20,
+    `(${banner ? `backdrop ${banner.box} (world px), brightest channel under it ${banner.backdropMax}, just outside ${banner.outsideMax}, white subline pixels ${banner.white}` : `no data-og-banner ("${rested.ogBanner ?? ""}")`})`,
+  );
+  await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("never-settles", { timeout: 15000 }).catch(() => {});
+  await page
+    .getByRole("button", { name: /Find a 30s Run That Never Settles/ })
+    .evaluate(
+      (button, base) => {
+        const real = Date.now;
+        const pinned = base + 2 ** 32 * Math.round((real.call(Date) - base) / 2 ** 32);
+        Date.now = () => pinned;
+        try {
+          button.click();
+        } finally {
+          Date.now = real;
+        }
+      },
+      NS_BASE,
+      { timeout: 15000 },
+    )
+    .catch(() => {});
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const text = done ? await page.locator("body").innerText() : "";
+  const found = /Found! Still bouncing after 30\.0s/.test(text);
+  const hit = /Seed: (-?\d+) \((\d+) tested\)/.exec(text);
+  const still = found ? await playToEnd() : {};
+  check(
+    "Find Simulation's Never Settles passes over a field at rest in the clip's last 1.5 s (seed 28) and finds one still bouncing when the clip ends",
+    rested.ogSettled === rested.ogOrbs && found && !!hit && Number(hit[1]) !== NS_BASE && Number(hit[2]) >= 2 && still.ogFinish === "time" && Math.abs(Number(still.ogFinishedMs) - 30000) < 100 && Number(still.ogSettled) < Number(still.ogOrbs),
+    `(seed ${NS_BASE}: ${rested.ogSettled} of ${rested.ogOrbs} at rest by the clip's end; search: ${done ? (found ? "found" : "not found") : "timeout"}, "${hit?.[0] ?? "no seed line"}"; the found run: ${still.ogFinish} at ${still.ogFinishedMs} ms, ${still.ogSettled} of ${still.ogOrbs} at rest)`,
+  );
+}
+{
+  // --- review fix (orb-grid) --- A change of the field drops a found seed and its promise: after Find 30s Simulation on a
+  // 12 × 12 field, 14 columns (typed into the number field) restart the run unpinned, and "Found! …", "Ready to start
+  // simulation for …" and the do-not-change-settings warning go with the seed.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+  const promise = async () => ({
+    found: await page.getByText(/Found! [\d.]+s/).count(),
+    ready: await page.getByText(/Ready to start simulation for/).count(),
+    warning: await page.getByText(/Please do not change settings during playback/).count(),
+  });
+  const before = await promise();
+  const columns = page.locator('input[data-number-field="ogColumns"]').first();
+  await columns.fill("14", { timeout: 15000 }).catch(() => {});
+  await columns.press("Enter", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const after = await promise();
+  const ogC = new URLSearchParams(page.url().split("?")[1] || "").get("ogC");
+  check(
+    "orbGrid: a change of the field drops a found seed's promise – Found!, Ready to start simulation for … and the warning",
+    ready && before.found >= 1 && before.ready >= 1 && before.warning >= 1 && ogC === "14" && after.found === 0 && after.ready === 0 && after.warning === 0,
+    `(found: ${JSON.stringify(before)} → 14 columns (ogC=${ogC}): ${JSON.stringify(after)})`,
+  );
+}
+{
+  // --- review fix (orb-grid) --- The resolve detector reads the field only while half of it is in flight: Metallic 525 (seed 5)
+  // falls into phase once – on its plan, ~5.2 s in – and no longer "resolves" again at 24.3 s and 26.7 s with 11 % and 4 % of its
+  // orbs still bouncing; an untuned rows field (seed 7) never resolves (its last rows in step, 14.2 s in, are no resolve).
+  const runOut = async (q) => {
+    await page.goto(`${BASE}/en/simulator/?${q}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    return canvasData();
+  };
+  const metal = await runOut("mode=orbGrid&ogC=25&ogR=21&ogM=metallic&ogSnd=metal&ogF=plate&ogP=ball&ogD=ripple&seed=5");
+  const rows = await runOut("mode=orbGrid&ogD=rows&ogRes=0&seed=7");
+  check(
+    "orbGrid: in-phase moments count only while most of the field bounces (Metallic 525: once, on its plan; an untuned rows field: never)",
+    metal.ogFinished === "1" && metal.ogOrbs === "525" && metal.ogResolves === "1" && Math.abs(Number(metal.ogResolveAt) - Number(metal.ogResolvePlan)) <= 300 && rows.ogFinished === "1" && rows.ogOrbs === "1089" && rows.ogResolves === "0" && rows.ogResolveAt === "-1",
+    `(Metallic: ${metal.ogResolves} resolves, the first at ${metal.ogResolveAt} ms (plan ${metal.ogResolvePlan} ms), ended ${metal.ogFinish} at ${metal.ogFinishedMs} ms; untuned rows: ${rows.ogResolves} resolves (first ${rows.ogResolveAt}), ended ${rows.ogFinish} at ${rows.ogFinishedMs} ms)`,
+  );
+}
+{
+  // --- review fix (orb-grid) --- A negative camera rotation is an angle like any other (a signed setting): −45 from a link stays
+  // in the number field and the link, and −90 typed into the field goes into the link as typed (no "below the minimum").
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogRot=-45`, { waitUntil: "networkidle" });
+  const field = page.locator('input[data-number-field="ogRotation"]').first();
+  const loaded = await field.inputValue({ timeout: 15000 }).catch(() => "");
+  const kept = new URLSearchParams(page.url().split("?")[1] || "").get("ogRot");
+  await field.fill("-90", { timeout: 15000 }).catch(() => {});
+  await field.press("Enter", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const typed = new URLSearchParams(page.url().split("?")[1] || "").get("ogRot");
+  const invalid = await field.getAttribute("aria-invalid", { timeout: 5000 }).catch(() => null);
+  const shown = await field.inputValue({ timeout: 5000 }).catch(() => "");
+  check(
+    "orbGrid: a negative camera rotation loads from a link and its number field takes one (−45 → −90)",
+    loaded === "-45" && kept === "-45" && typed === "-90" && invalid !== "true" && shown === "-90",
+    `(loaded "${loaded}", ogRot=${kept}; typed −90: ogRot=${typed}, field "${shown}", invalid=${invalid})`,
   );
 }
 {
