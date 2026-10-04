@@ -15,6 +15,7 @@ import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, sc
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { DEFAULT_HUM_FREQUENCY, scheduleConveyorClick, scheduleConveyorHum } from "./conveyorTones"; // --- gerald-conveyor ---
 import { ORB_SAMPLE_GAIN, scheduleOrbClink, scheduleOrbSleep } from "./orbTones"; // --- orb-grid ---
+import { CLICK_HZ, scheduleOrbClick } from "./orbRhythmTones"; // --- orb-rhythm --- the metronome's woodblock click
 import { fightDucks, scheduleFightSound } from "./fightTones"; // --- fight-league ---
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
 import { DEFAULT_KNOCK_FREQUENCY, DEFAULT_KO_FREQUENCY, lcFrequency, lcLevel, scheduleKnock, scheduleKo, scheduleSpawnChime } from "./landClaimTones"; // --- land-claim ---
@@ -929,7 +930,7 @@ export class ToneGenerator {
    * song slice and never a bounce's beat-lock slot; on the beat grid when the beat lock is on; in sample mode the hit sample
    * plays at the voice's pitch instead (softer for sleep); the clink ducks the music bed (the sleep tone sits under it).
    */
-  playOrb(kind: "sleep" | "metal", frequency?: number, chord?: readonly number[], level = 1) {
+  playOrb(kind: "sleep" | "metal" | "click" /* --- orb-rhythm --- */, frequency?: number, chord?: readonly number[], level = 1) {
     this.initAudioGraph();
     if (!this.audioContext || !this.masterGain) return;
     if (this.audioContext.state === "suspended") {
@@ -939,10 +940,17 @@ export class ToneGenerator {
     this.scheduleOrb(kind, frequency, chord, level);
   }
 
-  private scheduleOrb(kind: "sleep" | "metal", frequency: number | undefined, chord: readonly number[] | undefined, level: number) {
+  private scheduleOrb(kind: "sleep" | "metal" | "click", frequency: number | undefined, chord: readonly number[] | undefined, level: number) {
     if (!this.audioContext || !this.masterGain) return;
     try {
       const ctx = this.audioContext;
+      // --- orb-rhythm --- the metronome's click is the beat itself: now (never moved onto the beat lock's grid), never a sample,
+      // never snapped, no ducking
+      if (kind === "click") {
+        scheduleOrbClick(ctx, this.masterGain, ctx.currentTime, frequency !== undefined && frequency > 0 ? frequency : CLICK_HZ, hitLevel(level));
+        return;
+      }
+      // --- end orb-rhythm ---
       const time = this.scheduleTime(ctx.currentTime);
       const pitches = (chord && chord.length > 0 ? chord : frequency !== undefined && frequency > 0 ? [frequency] : [wallHitFrequency(0)]).map((f) => this.snap(f));
       const l = hitLevel(level);

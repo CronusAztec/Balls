@@ -115,6 +115,7 @@ import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
 import { orbGridNeverSettles, orbGridSettingsOf, type OrbGridFields } from "@/lib/physics/modes/orbGrid";
+import { RHYTHM_RATIOS, beatClock } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- (the metronome's clock moves the cycle)
 import { respawnConfigOf } from "@/lib/physics/respawn";
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
@@ -1037,6 +1038,30 @@ export default function Simulator() {
     engineRef.current?.setOrbGridSettings(orbGridSettingsOf(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.ogElevation, s.ogRotation, s.ogOrbit, s.ogFloor, s.ogMaterial, s.ogPalette, s.ogHud, s.ogSound, s.scale, s.rootNote, s.ballColor, s.recordingDuration]);
+  // --- orb-rhythm --- the rhythm model, the polyrhythm and the field's clock – the cycle, and while the metronome is on (a look
+  // or a click) its beat and bars, the tempo being the beat lock's while that is on; the ratio voices' bars – restart a Bouncing
+  // Orbs run and drop a found seed with its promise (only there: a tempo change in another mode keeps its found seed); the
+  // squash, the metronome's look, the click volume and the melody follow live
+  const ogClock = beatClock({ bpm: s.ogBpm, syncBpm: s.quantizeToBeat ? s.bpm : 0, beats: s.ogBeats, bars: s.ogBars, metro: s.ogMetro, click: s.ogClick, cycle: s.ogCycle });
+  const ogClockKey = s.mode === "orbGrid" ? [ogClock.on ? 1 : 0, ogClock.cycleSec, ogClock.on ? ogClock.beatSec : 0, ogClock.on || s.ogRhythm in RHYTHM_RATIOS ? ogClock.bars : 0].join("|") : "";
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setOrbGridSettings(orbGridSettingsOf(s));
+    if (s.mode !== "orbGrid") return;
+    if (engine.getCurrentModeName() === "orbGrid") {
+      engine.initOrbGrid();
+      setFinished(false);
+    }
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ogModel, s.ogEq, s.ogPoly, s.ogGroup, s.ogRhythm, s.ogSteps, ogClockKey]);
+  useEffect(() => {
+    engineRef.current?.setOrbGridSettings(orbGridSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.ogSquash, s.ogMetro, s.ogClick, s.ogMelody]);
+  // --- end orb-rhythm ---
   // --- end orb-grid ---
   // --- fight-league --- Fight League: a change of the fighters, the match, the division rule, the HP, a multiplier, the time
   // cap or the arena restarts the fight and drops a found seed; the HUD only changes the drawing and follows live.
@@ -1359,10 +1384,10 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount });
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
@@ -2905,6 +2930,10 @@ export default function Simulator() {
         settledSub: (count, seconds) => t("OrbGrid.canvasSettledSub", { n: Number(count), count, seconds }),
         timeTitle: t("OrbGrid.canvasTime"),
         timeSub: (settled, count) => t("OrbGrid.canvasTimeSub", { settled, count }),
+        // --- orb-rhythm --- the IN PHASE banner and a rhythm clip that ends between two of them
+        phaseTitle: t("OrbGrid.canvasPhase"),
+        phaseSub: (count, seconds) => t("OrbGrid.canvasPhaseSub", { n: Number(count), count, seconds }),
+        rhythmTimeSub: (cycle) => t("OrbGrid.canvasRhythmTimeSub", { cycle }),
       },
       // --- odd-maze ---
       maze: {
@@ -3089,7 +3118,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

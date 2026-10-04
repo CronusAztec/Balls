@@ -2,6 +2,35 @@ import { isScaleId, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import { MAX_CHORD_NOTES, MAX_NOTES_PER_STEP, MAX_ORB_EVENTS_PER_FRAME, METAL_MIN_GAP_SEC, MUSIC_MIN_GAP_SEC, SLEEP_MIN_GAP_SEC, createOrbGroupScratch, groupOrbLandings, orbLevel, orbMusicNext, orbPitchHz, type OrbLandings, type OrbVoice } from "@/lib/audio/orbTones";
 import { ORB_CEILING, atLeastMin, signedUncapped } from "@/lib/uncap";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
+// --- orb-rhythm --- the rhythm model (ideal bouncers forever, polyrhythms, the metronome): the new default; the decay below stays
+import {
+  DEFAULT_ORB_RHYTHM_SETTINGS,
+  IN_PHASE_HOLD_MS,
+  MAX_CLICKS_PER_STEP,
+  ORB_RHYTHM_PHYSICS_FIELDS,
+  PHASE_EPS,
+  ORB_RHYTHM_RANGES,
+  RHYTHM_NUMERIC_KEYS,
+  RHYTHM_OPTION_KEYS,
+  RHYTHM_SWITCH_KEYS,
+  beatsUpTo,
+  cycleEndsUpTo,
+  cycleSeconds,
+  rhythmResolveAnswer,
+  landingsUpTo,
+  orbRhythmFieldsOf,
+  orbRhythmSettingsOf,
+  planOrbRhythm,
+  resolveOrbRhythmSettings,
+  type OgModel,
+  type OrbRhythmFields,
+  type OrbRhythmSettings,
+} from "./orbRhythm";
+import { clickFrequency, clickLevel, inPhaseDegrees } from "@/lib/audio/orbRhythmTones";
+import type { FinderResult } from "@/lib/simulation/finder";
+import type { FinderOutcome } from "@/lib/simulation/outcomes";
+import { PITCH_DEGREES, orbScaleIntervals } from "@/lib/audio/orbTones";
+// --- end orb-rhythm ---
 
 /**
  * Bouncing Orbs ("orbGrid" mode, feature orb-grid – after the Instagram clips "Satisfying physics simulation – N varied
@@ -135,7 +164,8 @@ export const OG_SETTLED = 2;
 
 /* ------------------------------------------------------------------ settings */
 
-export interface OrbGridSettings {
+/** (--- orb-rhythm --- the rhythm model's settings – `model` "rhythm" (the default) or "decay" – come with lib/physics/modes/orbRhythm.ts.) */
+export interface OrbGridSettings extends OrbRhythmSettings {
   /** Orbs across and along the field (the grid; the ring arrangements place columns × rows orbs), 1–80 on the sliders, any whole number typed. */
   columns: number;
   rows: number;
@@ -196,6 +226,7 @@ export const DEFAULT_ORB_GRID_SETTINGS: OrbGridSettings = {
   rootNote: 0,
   ballColor: "#FFFFFF",
   maxSec: 0,
+  ...DEFAULT_ORB_RHYTHM_SETTINGS, // --- orb-rhythm ---
 };
 
 /** Slider comfort ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -209,10 +240,11 @@ export const ORB_GRID_RANGES = {
   ogBounciness: { min: 0, max: 1, step: 0.001 },
   ogElevation: { min: 5, max: 90, step: 1 },
   ogRotation: { min: 0, max: 360, step: 1 },
+  ...ORB_RHYTHM_RANGES, // --- orb-rhythm --- (the cycle, the Euclidean steps, the metronome's tempo, beats, bars and click)
 } as const;
 
-/** The Bouncing Orbs fields of the SimulatorSettings object. */
-export interface OrbGridFields {
+/** The Bouncing Orbs fields of the SimulatorSettings object (--- orb-rhythm --- with the rhythm model's: ogModel, ogEq, …). */
+export interface OrbGridFields extends OrbRhythmFields {
   ogColumns: number;
   ogRows: number;
   ogArrangement: OgArrangement;
@@ -236,7 +268,7 @@ export interface OrbGridFields {
 }
 
 /** The fields that change the physics: a change restarts the run and drops a found seed (the rest follows live). */
-export const ORB_GRID_PHYSICS_FIELDS = ["ogColumns", "ogRows", "ogArrangement", "ogVaried", "ogDistribution", "ogSpread", "ogRelease", "ogStagger", "ogDropHeight", "ogOrbSize", "ogBounciness", "ogResolve"] as const satisfies readonly (keyof OrbGridFields)[];
+export const ORB_GRID_PHYSICS_FIELDS = ["ogColumns", "ogRows", "ogArrangement", "ogVaried", "ogDistribution", "ogSpread", "ogRelease", "ogStagger", "ogDropHeight", "ogOrbSize", "ogBounciness", "ogResolve", ...ORB_RHYTHM_PHYSICS_FIELDS /* --- orb-rhythm --- */] as const satisfies readonly (keyof OrbGridFields)[];
 
 function num(value: unknown, range: { min: number }, fallback: number): number {
   const n = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
@@ -285,12 +317,18 @@ export function resolveOrbGridSettings(config: Partial<OrbGridSettings> | null |
     const m = Number(config.maxSec);
     out.maxSec = Number.isFinite(m) && m > 0 ? m : 0;
   }
+  Object.assign(out, resolveOrbRhythmSettings(config, out)); // --- orb-rhythm --- (known options, real booleans, numbers from their minimum up)
   return out;
 }
 
-/** The fields → the mode's settings (with the Sound section's scale and root, the Ball Colour and the clip length when given). */
-export function orbGridSettingsOf(source: Pick<OrbGridFields, keyof OrbGridFields> & { scale?: ScaleId; rootNote?: number; ballColor?: string; recordingDuration?: number }): OrbGridSettings {
+/**
+ * The fields → the mode's settings (with the Sound section's scale and root, the Ball Colour and the clip length when given;
+ * --- orb-rhythm --- and the beat lock's tempo while it is on, which the metronome follows).
+ */
+export function orbGridSettingsOf(source: Pick<OrbGridFields, keyof OrbGridFields> & { scale?: ScaleId; rootNote?: number; ballColor?: string; recordingDuration?: number; quantizeToBeat?: boolean; bpm?: number }): OrbGridSettings {
   return {
+    ...orbRhythmSettingsOf(source), // --- orb-rhythm ---
+    syncBpm: source.quantizeToBeat && typeof source.bpm === "number" && source.bpm > 0 ? source.bpm : 0, // --- orb-rhythm ---
     columns: source.ogColumns,
     rows: source.ogRows,
     arrangement: source.ogArrangement,
@@ -341,6 +379,7 @@ export function orbGridSettingFields(s: OrbGridSettings): OrbGridFields {
     ogPalette: s.palette,
     ogHud: s.hud,
     ogSound: s.sound,
+    ...orbRhythmFieldsOf(s), // --- orb-rhythm ---
   };
 }
 
@@ -372,6 +411,21 @@ export function resolveOrbGridFields(source: Partial<OrbGridFields>): OrbGridFie
       palette: source.ogPalette,
       hud: source.ogHud,
       sound: source.ogSound,
+      // --- orb-rhythm ---
+      model: source.ogModel,
+      equalHeights: source.ogEq,
+      squash: source.ogSquash,
+      poly: source.ogPoly,
+      group: source.ogGroup,
+      cycle: source.ogCycle,
+      rhythm: source.ogRhythm,
+      steps: source.ogSteps,
+      bpm: source.ogBpm,
+      beats: source.ogBeats,
+      metro: source.ogMetro,
+      click: source.ogClick,
+      bars: source.ogBars,
+      melody: source.ogMelody,
     }),
   );
 }
@@ -381,10 +435,10 @@ function formatNumber(n: number) {
   return Number.isInteger(n) ? String(n) : n.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
-/** The URL keys (as the feature's brief names them): numbers, options and switches. */
-const NUMERIC_KEYS = { ogC: "ogColumns", ogR: "ogRows", ogS: "ogSpread", ogT: "ogStagger", ogH: "ogDropHeight", ogZ: "ogOrbSize", ogB: "ogBounciness", ogE: "ogElevation", ogRot: "ogRotation" } as const;
-const OPTION_KEYS = { ogA: "ogArrangement", ogV: "ogVaried", ogD: "ogDistribution", ogL: "ogRelease", ogF: "ogFloor", ogM: "ogMaterial", ogP: "ogPalette", ogSnd: "ogSound" } as const;
-const SWITCH_KEYS = { ogRes: "ogResolve", ogO: "ogOrbit", ogHud: "ogHud" } as const;
+/** The URL keys (as the feature's brief names them): numbers, options and switches (--- orb-rhythm --- the rhythm model's keys are its field names). */
+const NUMERIC_KEYS = { ogC: "ogColumns", ogR: "ogRows", ogS: "ogSpread", ogT: "ogStagger", ogH: "ogDropHeight", ogZ: "ogOrbSize", ogB: "ogBounciness", ogE: "ogElevation", ogRot: "ogRotation", ...RHYTHM_NUMERIC_KEYS } as const;
+const OPTION_KEYS = { ogA: "ogArrangement", ogV: "ogVaried", ogD: "ogDistribution", ogL: "ogRelease", ogF: "ogFloor", ogM: "ogMaterial", ogP: "ogPalette", ogSnd: "ogSound", ...RHYTHM_OPTION_KEYS } as const;
+const SWITCH_KEYS = { ogRes: "ogResolve", ogO: "ogOrbit", ogHud: "ogHud", ...RHYTHM_SWITCH_KEYS } as const;
 
 /** Writes the fields that differ from `base` into the URL: ogC, ogR, ogA, ogV, ogD, ogS, ogL, ogT, ogH, ogZ, ogB, ogRes, ogE, ogRot, ogO, ogF, ogM, ogP, ogHud, ogSnd. */
 export function writeOrbGridParams(settings: OrbGridFields, base: OrbGridFields, params: URLSearchParams) {
@@ -446,7 +500,7 @@ export function orbGridPastCeiling(source: Pick<OrbGridFields, "ogColumns" | "og
 /* ------------------------------------------------------------------ presets (the account's clips) */
 
 export interface OrbGridPreset {
-  id: "varied" | "corner" | "centre" | "octagons" | "metallic" | "sleep" | "music" | "grid70";
+  id: "varied" | "corner" | "centre" | "octagons" | "metallic" | "sleep" | "music" | "grid70" | "metronome" /* --- orb-rhythm --- */;
   /** Translation key of its name (Controls namespace). */
   labelKey: string;
   fields: Partial<OrbGridFields>;
@@ -454,17 +508,22 @@ export interface OrbGridPreset {
 
 /**
  * The Presets section's Bouncing Orbs presets, after the account's most-liked clips: each is the mode's defaults plus these
- * fields (`orbGridPresetFields()`), so a preset always gives the same field.
+ * fields (`orbGridPresetFields()`), so a preset always gives the same field. (--- orb-rhythm --- They play the rhythm model –
+ * the default – with the rhythm of their clip: varied periods, corner to corner, centre outwards, a pendulum wave in rings, a
+ * 3:4:5 polyrhythm, a slow centre-outwards sleep wave, a pendulum wave that plays a tune; their decay fields stay, so the
+ * Decay model plays them as before. The metronome preset is a 3:2 polyrhythm with the swinging bar and the click.)
  */
 export const ORB_GRID_PRESETS: readonly OrbGridPreset[] = [
-  { id: "varied", labelKey: "ogPresetVaried", fields: { ogColumns: 33, ogRows: 33, ogVaried: "bounciness", ogDistribution: "varied", ogMaterial: "glossy", ogPalette: "height", ogSound: "notes" } },
-  { id: "corner", labelKey: "ogPresetCorner", fields: { ogColumns: 44, ogRows: 43, ogVaried: "bounciness", ogDistribution: "corner", ogRelease: "together", ogSpread: 0.8, ogBounciness: 0.882, ogPalette: "height" } },
-  { id: "centre", labelKey: "ogPresetCentre", fields: { ogColumns: 22, ogRows: 20, ogVaried: "height", ogDistribution: "centre", ogSpread: 0.7, ogBounciness: 0.94, ogPalette: "height" } },
-  { id: "octagons", labelKey: "ogPresetOctagons", fields: { ogColumns: 52, ogRows: 26, ogArrangement: "octagons", ogRelease: "outside-in", ogStagger: 0.12, ogDistribution: "centre", ogBounciness: 0.9, ogPalette: "rings", ogFloor: "plate", ogElevation: 38 } },
-  { id: "metallic", labelKey: "ogPresetMetallic", fields: { ogColumns: 25, ogRows: 21, ogMaterial: "metallic", ogSound: "metal", ogFloor: "plate", ogPalette: "ball", ogDistribution: "ripple" } },
-  { id: "sleep", labelKey: "ogPresetSleep", fields: { ogColumns: 22, ogRows: 22, ogSound: "sleep", ogMaterial: "matte", ogDistribution: "spiral", ogDropHeight: 0.36, ogBounciness: 0.91, ogSpread: 0.5 } },
-  { id: "music", labelKey: "ogPresetMusic", fields: { ogColumns: 22, ogRows: 22, ogSound: "music", ogDistribution: "rows", ogPalette: "rainbow-field" } },
-  { id: "grid70", labelKey: "ogPresetGrid70", fields: { ogColumns: 70, ogRows: 70, ogDistribution: "corner" } },
+  { id: "varied", labelKey: "ogPresetVaried", fields: { ogColumns: 33, ogRows: 33, ogVaried: "bounciness", ogDistribution: "varied", ogMaterial: "glossy", ogPalette: "height", ogSound: "notes", ogRhythm: "varied" } },
+  { id: "corner", labelKey: "ogPresetCorner", fields: { ogColumns: 44, ogRows: 43, ogVaried: "bounciness", ogDistribution: "corner", ogRelease: "together", ogSpread: 0.8, ogBounciness: 0.882, ogPalette: "height", ogRhythm: "corner" } },
+  { id: "centre", labelKey: "ogPresetCentre", fields: { ogColumns: 22, ogRows: 20, ogVaried: "height", ogDistribution: "centre", ogSpread: 0.7, ogBounciness: 0.94, ogPalette: "height", ogRhythm: "centre" } },
+  { id: "octagons", labelKey: "ogPresetOctagons", fields: { ogColumns: 52, ogRows: 26, ogArrangement: "octagons", ogRelease: "outside-in", ogStagger: 0.12, ogDistribution: "centre", ogBounciness: 0.9, ogPalette: "rings", ogFloor: "plate", ogElevation: 38, ogRhythm: "pendulum", ogGroup: "rings" } },
+  { id: "metallic", labelKey: "ogPresetMetallic", fields: { ogColumns: 25, ogRows: 21, ogMaterial: "metallic", ogSound: "metal", ogFloor: "plate", ogPalette: "ball", ogDistribution: "ripple", ogRhythm: "3-4-5", ogGroup: "rings" } },
+  { id: "sleep", labelKey: "ogPresetSleep", fields: { ogColumns: 22, ogRows: 22, ogSound: "sleep", ogMaterial: "matte", ogDistribution: "spiral", ogDropHeight: 0.36, ogBounciness: 0.91, ogSpread: 0.5, ogRhythm: "centre", ogCycle: 60 } },
+  { id: "music", labelKey: "ogPresetMusic", fields: { ogColumns: 22, ogRows: 22, ogSound: "music", ogDistribution: "rows", ogPalette: "rainbow-field", ogRhythm: "pendulum", ogGroup: "rows", ogMelody: true } },
+  { id: "grid70", labelKey: "ogPresetGrid70", fields: { ogColumns: 70, ogRows: 70, ogDistribution: "corner", ogRhythm: "corner" } },
+  // --- orb-rhythm --- the metronome and a polyrhythm: two checkerboard voices, 3 against 2 a bar, the bar swinging, the click on
+  { id: "metronome", labelKey: "ogPresetMetronome", fields: { ogColumns: 24, ogRows: 24, ogRhythm: "3-2", ogGroup: "checker", ogMetro: "bar", ogClick: 0.6, ogMelody: true, ogPalette: "height" } },
 ];
 
 /** A preset's whole field: the mode's defaults with its overrides. */
@@ -823,17 +882,128 @@ export interface OrbGridView {
   finished: boolean;
   finishedMs: number;
   /** "settled" (every orb at rest – the hold over, or the clip ended during it) or "time" (the clip ended while an orb still bounced). */
-  finishReason: "" | "settled" | "time";
+  finishReason: "" | "settled" | "time" | "phase" /* --- orb-rhythm --- (a rhythm clip ending on an IN PHASE moment) */;
   /** Sound: voices queued so far, notes (pitches) in them, the last frequencies queued. */
   voices: number;
   notes: number;
   lastPitches: number[];
   /** Bumped by every init: the renderer drops its caches of the old field. */
   generation: number;
+  // --- orb-rhythm ---
+  /** The model of the last init: "rhythm" (ideal bouncers, analytic in time) or "decay". */
+  model: OgModel;
+  /** Rhythm: per orb the bounce frequency (bounces a second), the phase (bounces) and the apex (field widths); the group. */
+  freq: Float64Array;
+  phase: Float64Array;
+  apex: Float32Array;
+  group: Int32Array;
+  /** Rhythm: the groups, each one's bounces a cycle and melody degree, the distinct tempos. */
+  groups: number;
+  groupCount: Float64Array;
+  groupDegree: Int32Array;
+  tempos: number;
+  /** Rhythm: the cycle L, how often the field is in phase (Infinity: never), the metronome's beat (ms), beats a bar, bars a cycle, tempo, on. */
+  cycleMs: number;
+  periodMs: number;
+  beatMs: number;
+  beats: number;
+  bars: number;
+  bpm: number;
+  metroOn: boolean;
+  /** Rhythm: beats so far (the downbeat at 0 is the first), clicks played, notes the melody played. */
+  beatsSoFar: number;
+  clicks: number;
+  melodyNotes: number;
+  /** The run's last step (ms; a bounce-math "timeScale" rule stretches it): the canvas draws between the steps by it. */
+  stepMs: number;
+  /** Decay: the flight state of every orb (the mode's own arrays), so the canvas can draw the field between two steps. */
+  decay: OrbDecayState;
+  // --- end orb-rhythm ---
 }
+
+// --- orb-rhythm ---
+/** The decay model's per-orb flight state (references to the mode's typed arrays; see `sampleOrbHeights()`). */
+export interface OrbDecayState {
+  delay: Float32Array;
+  grav: Float32Array;
+  rest: Float32Array;
+  launchT: Float64Array;
+  launchV: Float64Array;
+  nextT: Float64Array;
+}
+
+/**
+ * The field's heights (field widths, the orbs' bottoms above the slab) at `timeSec` – between two steps of the engine, where
+ * the canvas draws a frame (`orbRenderTimeMs()`) – into `out`. Rhythm: the analytic bounce at any time. Decay: each orb's
+ * closed-form flight from its state at the last step, one landing ahead at most (an orb that would settle there rests on the
+ * slab). Nothing of the run changes: the physics, the counters and the sound stay the engine's.
+ */
+export function sampleOrbHeights(view: OrbGridView, timeSec: number, out: Float32Array): Float32Array {
+  const n = Math.min(view.count, out.length);
+  if (view.model === "rhythm") {
+    const f = view.freq;
+    const p = view.phase;
+    const a = view.apex;
+    const lim = Math.min(n, f.length, a.length);
+    for (let i = 0; i < lim; i++) {
+      const x = timeSec * f[i] - p[i];
+      const u = x - Math.floor(x);
+      out[i] = a[i] * 4 * u * (1 - u);
+    }
+    for (let i = lim; i < n; i++) out[i] = 0;
+    return out;
+  }
+  const d = view.decay;
+  const state = view.state;
+  const drop = view.drop;
+  if (d.launchT.length < n || state.length < n || drop.length < n) {
+    for (let i = 0; i < n; i++) out[i] = view.height[i] ?? 0;
+    return out;
+  }
+  for (let i = 0; i < n; i++) {
+    const st = state[i];
+    if (st === OG_SETTLED) {
+      out[i] = 0;
+      continue;
+    }
+    const g = d.grav[i];
+    if (st === OG_WAITING) {
+      // Let go between the steps: falling from its drop height.
+      const fall = timeSec - d.delay[i];
+      const h = fall > 0 && g > 0 ? drop[i] - 0.5 * g * fall * fall : drop[i];
+      out[i] = h > 0 ? h : 0;
+      continue;
+    }
+    if (!(g > 0)) {
+      out[i] = view.height[i];
+      continue;
+    }
+    let tau = timeSec - d.launchT[i];
+    let v = d.launchV[i];
+    if (timeSec > d.nextT[i]) {
+      // Landed after the last step: the next flight (or at rest, if it would settle there).
+      v = v * d.rest[i];
+      if (d.rest[i] < 1 && v * v < 2 * g * drop[i] * REST_FRACTION) {
+        out[i] = 0;
+        continue;
+      }
+      tau = timeSec - d.nextT[i];
+    }
+    const h = tau > 0 ? v * tau - 0.5 * g * tau * tau : 0;
+    out[i] = h > 0 ? h : 0;
+  }
+  return out;
+}
+
+/** Whether the IN PHASE banner shows at `timeMs` (a rhythm field's cycle end, for `IN_PHASE_HOLD_MS` after it). */
+export function inPhaseBannerOn(view: Pick<OrbGridView, "model" | "lastResolveMs">, timeMs: number): boolean {
+  return view.model === "rhythm" && view.lastResolveMs > 0 && timeMs >= view.lastResolveMs - 1e-6 && timeMs - view.lastResolveMs < IN_PHASE_HOLD_MS;
+}
+// --- end orb-rhythm ---
 
 /** The nominal length of a run of these settings (s, the seed's tempo aside): the last orb settled plus the hold; Infinity when it never settles. */
 export function orbGridNominalRunSec(settings: OrbGridSettings, gravity = GRAVITY_REFERENCE): number {
+  if (settings.model === "rhythm") return Infinity; // --- orb-rhythm --- (ideal bouncers never come to rest: the clip ends the run)
   const plan = planOrbGrid(settings, gravity, 1, null);
   return plan.neverSettles ? Infinity : plan.settleSec + SETTLE_HOLD_MS / 1000;
 }
@@ -843,6 +1013,11 @@ export function orbGridNominalRunSec(settings: OrbGridSettings, gravity = GRAVIT
  * the last orb at rest plus the hold (s; Infinity: never) – and the planned resolve moment (s; 0: none).
  */
 export function orbGridSummary(settings: OrbGridSettings, gravity = GRAVITY_REFERENCE): { count: number; requested: number; full: boolean; settleSec: number; resolveSec: number } {
+  // --- orb-rhythm --- a rhythm field never settles; it is in phase at the end of every cycle (with the polyrhythm on)
+  if (settings.model === "rhythm") {
+    const r = orbRhythmSummary(settings, gravity);
+    return { count: r.count, requested: r.requested, full: r.full, settleSec: Infinity, resolveSec: settings.poly ? r.cycleSec : 0 };
+  }
   const plan = planOrbGrid(settings, gravity, 1, null);
   return { count: plan.count, requested: plan.requested, full: plan.full, settleSec: plan.neverSettles ? Infinity : plan.settleSec + SETTLE_HOLD_MS / 1000, resolveSec: plan.resolveSec };
 }
@@ -850,11 +1025,61 @@ export function orbGridSummary(settings: OrbGridSettings, gravity = GRAVITY_REFE
 /** Whether a field of these settings never settles (the period property, an orb bouncing elastically or harder, no gravity, no drop): the run ends with the clip. */
 export function orbGridNeverSettles(settings: Partial<OrbGridSettings> | null | undefined, gravity = GRAVITY_REFERENCE): boolean {
   const s = resolveOrbGridSettings(settings);
+  if (s.model === "rhythm") return true; // --- orb-rhythm --- (ideal bouncers bounce forever: only the clip ends the run)
   if (s.property === "period") return true;
   if (!(gravity > 0)) return true;
   // The bounciest orb (the resolve tuning keeps every orb's restitution: `tuneTimeScale()`).
   return topRestitution(s) >= 1;
 }
+
+// --- orb-rhythm ---
+/** The panel's summary of a rhythm field: the orbs, the groups and tempos, the counts a cycle, the cycle, how often it is in phase, the metronome. */
+export interface OrbRhythmSummary {
+  count: number;
+  requested: number;
+  full: boolean;
+  groups: number;
+  tempos: number;
+  minCount: number;
+  maxCount: number;
+  cycleSec: number;
+  /** In phase every this many seconds (Infinity: never – the polyrhythm off). */
+  periodSec: number;
+  bpm: number;
+  bars: number;
+  metroOn: boolean;
+}
+
+/** Plans a rhythm field of these settings (the varied preset from a fixed sequence) and sums it up for the panel. */
+export function orbRhythmSummary(settings: OrbGridSettings, gravity = GRAVITY_REFERENCE): OrbRhythmSummary {
+  const s = resolveOrbGridSettings(settings);
+  const size = orbFieldSize(s.columns, s.rows);
+  const layout = buildOrbLayout(s.arrangement, s.columns, s.rows);
+  const plan = planOrbRhythm({ ...s, dropHeight: s.dropHeight, spread: s.spread }, layout, Math.max(0, gravity) / GRAVITY_REFERENCE, null, PITCH_DEGREES);
+  return { count: plan.count, requested: size.full ? Math.round(s.columns) * Math.round(s.rows) : plan.count, full: size.full, groups: plan.groups, tempos: plan.tempos, minCount: plan.minCount, maxCount: plan.maxCount, cycleSec: plan.clock.cycleSec, periodSec: plan.periodSec, bpm: plan.clock.bpm, bars: plan.clock.bars, metroOn: plan.clock.on };
+}
+// --- end orb-rhythm ---
+
+// --- orb-rhythm ---
+/** How close (s) an IN PHASE moment has to come to the "In phase at" target (outcomes.ts' `ESCAPE_AT_TOLERANCE_SEC`). */
+export const RHYTHM_RESOLVE_TOLERANCE_SEC = 0.5;
+
+/**
+ * Find Simulation's "In phase at" for a rhythm field, at once: every seed falls into phase on the same clock – the cycle's
+ * multiples – so the answer is the cycle maths alone (`rhythmResolveAnswer()`): found when an IN PHASE moment k · L lies
+ * within the tolerance of the target (any seed keeps the promise; the clip covers the moment and the field dissolving
+ * again), else the nearest moment and the cycle (the panel says which cycle to set). Null for the decay model: it searches.
+ */
+export function orbRhythmFinderAnswer(settings: Partial<OrbGridSettings> | null | undefined, outcome: FinderOutcome): FinderResult | null {
+  const s = resolveOrbGridSettings(settings);
+  if (s.model !== "rhythm") return null;
+  const cycle = cycleSeconds(s);
+  const answer = rhythmResolveAnswer(cycle, s.poly, outcome.atSec ?? 0, outcome.toleranceSec ?? RHYTHM_RESOLVE_TOLERANCE_SEC);
+  const base = { seedsTested: 0, outcome: "resolves-at" as const, finished: false, orbCycle: s.poly ? cycle : NaN };
+  if (answer.found) return { found: true, seed: Date.now() | 0, duration: outcome.clipSec, resolveAt: answer.atSec, ...base };
+  return { found: false, seed: 0, duration: Number.isFinite(answer.atSec) ? answer.atSec : 0, ...(Number.isFinite(answer.atSec) ? { resolveAt: answer.atSec } : {}), ...base };
+}
+// --- end orb-rhythm ---
 
 /** The largest untuned restitution of a field: the base, plus half the spread's range when the bounciness is what varies. */
 export function topRestitution(s: Pick<OrbGridSettings, "property" | "bounciness" | "spread">): number {
@@ -1050,6 +1275,29 @@ export class OrbGridMode implements GameMode {
     notes: 0,
     lastPitches: [],
     generation: 0,
+    // --- orb-rhythm ---
+    model: "decay",
+    freq: new Float64Array(0),
+    phase: new Float64Array(0),
+    apex: new Float32Array(0),
+    group: new Int32Array(0),
+    groups: 0,
+    groupCount: new Float64Array(0),
+    groupDegree: new Int32Array(0),
+    tempos: 0,
+    cycleMs: 0,
+    periodMs: Infinity,
+    beatMs: 500,
+    beats: 4,
+    bars: 16,
+    bpm: 120,
+    metroOn: false,
+    beatsSoFar: 0,
+    clicks: 0,
+    melodyNotes: 0,
+    stepMs: 1000 / 60,
+    decay: { delay: new Float32Array(0), grav: new Float32Array(0), rest: new Float32Array(0), launchT: new Float64Array(0), launchV: new Float64Array(0), nextT: new Float64Array(0) },
+    // --- end orb-rhythm ---
   };
   // Per-orb state (the plan's constants and the bounce in flight).
   private delay: Float32Array = new Float32Array(0);
@@ -1082,6 +1330,14 @@ export class OrbGridMode implements GameMode {
   private cx = 400;
   private cy = 300;
   private initialized = false;
+  // --- orb-rhythm --- the rhythm model's landings so far (per orb), cycle ends and beats so far, the impact loudness of every
+  // orb (its landing speed over the field's hardest), and the sounds no frame cap drops: the clicks and the IN PHASE chord
+  private landCount = new Float64Array(0);
+  private impact = new Float32Array(0);
+  private cycleEnds = 0;
+  private beatCount = 0;
+  private readonly priority: SoundEvent[] = [];
+  // --- end orb-rhythm ---
 
   getSettings(): OrbGridSettings {
     return this.settings;
@@ -1094,6 +1350,13 @@ export class OrbGridMode implements GameMode {
     const v = this.view;
     v.settings = { ...v.settings, elevation: s.elevation, rotation: s.rotation, orbit: s.orbit, floor: s.floor, material: s.material, palette: s.palette, hud: s.hud, sound: s.sound, scale: s.scale, rootNote: s.rootNote, ballColor: s.ballColor, maxSec: s.maxSec };
     if (this.initialized) this.updateNearness();
+    // --- orb-rhythm --- the squash, the metronome's look and click volume and the melody follow live (the cycle waits for the next init)
+    const melodyChanged = v.settings.melody !== s.melody;
+    v.settings.squash = s.squash;
+    v.settings.metro = s.metro;
+    v.settings.click = s.click;
+    v.settings.melody = s.melody;
+    if (melodyChanged && this.initialized) this.updateSoundKeys();
   }
 
   /** Live state for the canvas, the HUD and the data attributes; the same object every call. */
@@ -1110,6 +1373,12 @@ export class OrbGridMode implements GameMode {
     ctx.setDestructionMode(false);
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
+    // --- orb-rhythm --- the rhythm model (the default): ideal bouncers, analytic in time
+    if (this.settings.model === "rhythm") {
+      this.initRhythm(ctx);
+      return;
+    }
+    // --- end orb-rhythm ---
     const s = this.settings;
     const v = this.view;
     const plan = planOrbGrid(s, ctx.config.gravity, null, () => ctx.random());
@@ -1153,6 +1422,7 @@ export class OrbGridMode implements GameMode {
     v.notes = 0;
     v.lastPitches = [];
     v.generation++;
+    v.model = "decay"; // --- orb-rhythm ---
     this.delay = plan.delay;
     this.grav = plan.gravity;
     this.rest = plan.restitution;
@@ -1169,6 +1439,7 @@ export class OrbGridMode implements GameMode {
     this.launchT.fill(0);
     this.launchV.fill(0);
     this.nextT.fill(Infinity);
+    v.decay = { delay: this.delay, grav: this.grav, rest: this.rest, launchT: this.launchT, launchV: this.launchV, nextT: this.nextT }; // --- orb-rhythm --- (the canvas draws between the steps)
     // Sound keys: a grid's rows are its chords (pitch by column); a ring arrangement's rings are its notes.
     const rings = L.arrangement === "disc" || L.arrangement === "octagons";
     this.maxPitchKey = Math.max(1, rings ? L.ringCount - 1 : L.columns - 1);
@@ -1228,6 +1499,13 @@ export class OrbGridMode implements GameMode {
   onPostUpdate(ctx: ModeContext, dtMs: number) {
     const v = this.view;
     if (!v.layout || v.finished) return;
+    v.stepMs = dtMs; // --- orb-rhythm ---
+    // --- orb-rhythm --- the rhythm model: landings, cycle ends and beats counted on the analytic clock
+    if (v.model === "rhythm") {
+      this.stepRhythm(ctx);
+      return;
+    }
+    // --- end orb-rhythm ---
     const n = v.count;
     const t = ctx.getElapsedMs() / 1000;
     const dt = dtMs / 1000;
@@ -1364,7 +1642,7 @@ export class OrbGridMode implements GameMode {
     else if (maxSec > 0 && t >= maxSec - 1e-9) this.finish(t, v.allSettled ? "settled" : "time");
   }
 
-  private finish(t: number, reason: "settled" | "time") {
+  private finish(t: number, reason: "settled" | "time" | "phase") {
     const v = this.view;
     v.finished = true;
     v.finishedMs = t * 1000;
@@ -1393,8 +1671,9 @@ export class OrbGridMode implements GameMode {
       const level = orbLevel(voice.loud, s.sound);
       let event: SoundEvent;
       if (s.sound === "music") {
-        // The earliest landing of the step picks the melody's next step through the scale.
-        this.musicDegree = orbMusicNext(this.musicDegree, voice.firstKey);
+        // The earliest landing of the step picks the melody's next step through the scale (--- orb-rhythm --- with the
+        // Melody on, the earliest landing's group plays its own pitch: the polyrhythm is the tune).
+        this.musicDegree = this.melodyKeys() ? voice.firstKey : orbMusicNext(this.musicDegree, voice.firstKey);
         this.musicCount++;
         const f = orbPitchHz(this.musicDegree, -1, s.scale, s.rootNote, 0);
         event = { type: "hit", wallIndex: 0, frequency: f, level: Math.min(1, level * (this.musicCount % 8 === 1 ? 1.25 : 1)) };
@@ -1419,6 +1698,18 @@ export class OrbGridMode implements GameMode {
 
   /** Once per rendered frame: the frame's loudest voices (at most MAX_ORB_EVENTS_PER_FRAME) go to the page. */
   flushPendingSounds(ctx: ModeContext) {
+    // --- orb-rhythm --- the metronome's clicks and the IN PHASE chord first, every one of them (no frame cap drops the beat)
+    const priority = this.priority;
+    if (priority.length > 0) {
+      for (const ev of priority) {
+        ctx.addPendingSoundEvent(ev);
+        if (ev.orb === "click") continue;
+        this.view.voices++;
+        this.view.notes += ev.chord ? ev.chord.length : 1;
+      }
+      priority.length = 0;
+    }
+    // --- end orb-rhythm ---
     const pending = this.pending;
     if (pending.length === 0) return;
     if (pending.length > MAX_ORB_EVENTS_PER_FRAME) {
@@ -1427,15 +1718,254 @@ export class OrbGridMode implements GameMode {
     }
     const v = this.view;
     v.lastPitches = [];
+    const melody = this.melodyKeys(); // --- orb-rhythm --- (the landings' tones are the polyrhythm's tune)
     for (const ev of pending) {
       ctx.addPendingSoundEvent(ev);
       v.voices++;
       const pitches = ev.chord ?? (ev.frequency !== undefined ? [ev.frequency] : []);
       v.notes += pitches.length;
+      if (melody) v.melodyNotes += pitches.length; // --- orb-rhythm ---
       for (const f of pitches) v.lastPitches.push(f);
     }
     pending.length = 0;
   }
+
+  // --- orb-rhythm ---
+  /** Whether the landings play the groups' melody pitches (a rhythm field with the Melody on). */
+  private melodyKeys(): boolean {
+    return this.view.model === "rhythm" && this.view.settings.melody;
+  }
+
+  /**
+   * The landings' sound keys: a grid's rows are its chords (pitch by column), a ring arrangement's rings its notes – or, with a
+   * rhythm field's Melody on, every polyrhythm group plays its own pitch (its degree of the scale: the slowest tempo lowest).
+   */
+  private updateSoundKeys() {
+    const v = this.view;
+    const L = v.layout;
+    if (!L) return;
+    const n = v.count;
+    if (this.melodyKeys() && v.group.length >= n) {
+      this.maxPitchKey = PITCH_DEGREES;
+      for (let i = 0; i < n; i++) {
+        const k = v.group[i];
+        this.groupKey[i] = k;
+        this.pitchKey[i] = v.groupDegree[k] ?? 0;
+      }
+      return;
+    }
+    const rings = L.arrangement === "disc" || L.arrangement === "octagons";
+    this.maxPitchKey = Math.max(1, rings ? L.ringCount - 1 : L.columns - 1);
+    for (let i = 0; i < n; i++) {
+      this.groupKey[i] = rings ? L.ring[i] : L.row[i];
+      this.pitchKey[i] = rings ? L.ringCount - 1 - L.ring[i] : L.col[i];
+    }
+  }
+
+  /** The rhythm model's init: the layout, the plan (groups, counts, frequencies, phases, apexes), the clock, the counters. */
+  private initRhythm(ctx: ModeContext) {
+    const s = this.settings;
+    const v = this.view;
+    const size = orbFieldSize(s.columns, s.rows);
+    const L = buildOrbLayout(s.arrangement, s.columns, s.rows);
+    const n = L.count;
+    const plan = planOrbRhythm({ ...s, dropHeight: s.dropHeight, spread: s.spread }, L, Math.max(0, ctx.config.gravity) / GRAVITY_REFERENCE, () => ctx.random(), PITCH_DEGREES);
+    const r0 = (s.orbSize * L.spacing) / 2;
+    v.settings = { ...s };
+    v.model = "rhythm";
+    v.layout = L;
+    v.count = n;
+    v.requested = size.full ? Math.round(s.columns) * Math.round(s.rows) : n;
+    v.full = size.full;
+    if (size.full) ctx.noteArenaFull?.();
+    v.radius = new Float32Array(n).fill(r0);
+    v.dval = new Float32Array(n);
+    v.drop = plan.apex;
+    if (v.height.length !== n) v.height = new Float32Array(n);
+    if (v.state.length !== n) v.state = new Uint8Array(n);
+    v.state.fill(OG_FLYING);
+    // (t = 0: every orb on the slab – or, with the polyrhythm off, already on its way: the travelling wave from the start)
+    for (let i = 0; i < n; i++) {
+      const x = -plan.phase[i];
+      const u = x - Math.floor(x);
+      v.height[i] = plan.apex[i] * 4 * u * (1 - u);
+    }
+    v.maxDrop = plan.maxApex > 0 ? plan.maxApex : Math.max(0, s.dropHeight);
+    v.baseRadius = r0;
+    v.tempo = 1;
+    v.resolvePlanMs = s.poly ? plan.clock.cycleSec * 1000 : 0;
+    v.timeMs = 0;
+    v.released = n;
+    v.releasedRings = L.ringCount;
+    v.bounces = 0;
+    v.landedStep = 0;
+    v.settled = 0;
+    v.moving = n;
+    v.resolve = 0;
+    v.resolveAtMs = -1;
+    v.resolves = 0;
+    v.lastResolveMs = -1;
+    v.tuned = 0;
+    v.allSettled = false;
+    v.settledAtMs = -1;
+    v.finished = false;
+    v.finishedMs = -1;
+    v.finishReason = "";
+    v.voices = 0;
+    v.notes = 0;
+    v.lastPitches = [];
+    v.generation++;
+    v.freq = plan.freq;
+    v.phase = plan.phase;
+    v.apex = plan.apex;
+    v.group = plan.group;
+    v.groups = plan.groups;
+    v.groupCount = plan.groupCount;
+    v.groupDegree = plan.groupDegree;
+    v.tempos = plan.tempos;
+    v.cycleMs = plan.clock.cycleSec * 1000;
+    v.periodMs = plan.periodSec * 1000;
+    v.beatMs = plan.clock.beatSec * 1000;
+    v.beats = plan.clock.beats;
+    v.bars = plan.clock.bars;
+    v.bpm = plan.clock.bpm;
+    v.metroOn = plan.clock.on;
+    v.beatsSoFar = 0;
+    v.clicks = 0;
+    v.melodyNotes = 0;
+    v.stepMs = 1000 / 60;
+    if (this.landCount.length !== n) {
+      this.landCount = new Float64Array(n);
+      this.impact = new Float32Array(n);
+    }
+    if (this.groupKey.length !== n) {
+      this.groupKey = new Int32Array(n);
+      this.pitchKey = new Int32Array(n);
+      this.nearness = new Float32Array(n);
+      this.landings = { count: 0, group: new Int32Array(n), pitchKey: new Int32Array(n), loud: new Float32Array(n), time: new Float64Array(n) };
+      this.groupScratch = createOrbGroupScratch(n);
+    }
+    // Landings so far (none at the start: t = 0 is the start, not a landing) and every orb's impact: the landing speed 4A / T
+    // over the field's hardest, so the loudest landings lead the step's voices.
+    let hardest = 0;
+    for (let i = 0; i < n; i++) {
+      this.landCount[i] = landingsUpTo(0, plan.freq[i], plan.phase[i]);
+      const speed = 4 * plan.apex[i] * plan.freq[i];
+      this.impact[i] = speed;
+      if (speed > hardest) hardest = speed;
+    }
+    for (let i = 0; i < n; i++) this.impact[i] = hardest > 0 ? this.impact[i] / hardest : 0;
+    this.cycleEnds = 0;
+    this.beatCount = 0;
+    this.priority.length = 0;
+    this.pending.length = 0;
+    this.lastSleepSec = -Infinity;
+    this.lastMusicSec = -Infinity;
+    this.lastMetalSec = -Infinity;
+    this.musicDegree = 7;
+    this.musicCount = 0;
+    this.initialized = true;
+    this.updateSoundKeys();
+    this.updateNearness();
+    this.cx = ctx.config.width / 2;
+    this.cy = ctx.config.height / 2;
+    this.anchorId = ctx.getNextId();
+    ctx.addBall({ x: this.cx, y: this.cy, vx: 0, vy: 0, radius: ctx.config.ballRadius || 8, color: ctx.config.ballColor || "#FFFFFF", gravityScale: 0 });
+  }
+
+  /**
+   * One 60 Hz step of a rhythm field: every orb's landings since the last step (⌊t · f − φ⌋, exact on the simulation clock –
+   * the same at any frame rate), its height at the step, the IN PHASE moments (the cycle's multiples), the metronome's beats
+   * and clicks, the sound, and the end at the clip.
+   */
+  private stepRhythm(ctx: ModeContext) {
+    const v = this.view;
+    const n = v.count;
+    const t = ctx.getElapsedMs() / 1000;
+    const f = v.freq;
+    const p = v.phase;
+    const a = v.apex;
+    const height = v.height;
+    const counts = this.landCount;
+    const landings = this.landings;
+    landings.count = 0;
+    let landed = 0;
+    let bounceNotes = 0;
+    const anchor = this.anchorBall(ctx);
+    for (let i = 0; i < n; i++) {
+      const fi = f[i];
+      const x = t * fi - p[i];
+      const done = Math.floor(x + PHASE_EPS);
+      if (done > counts[i]) {
+        v.bounces += done - counts[i];
+        counts[i] = done;
+        landed++;
+        const k = landings.count++;
+        landings.group[k] = this.groupKey[i];
+        landings.pitchKey[k] = this.pitchKey[i];
+        landings.loud[k] = this.impact[i] * this.nearness[i];
+        landings.time[k] = fi > 0 ? (done + p[i]) / fi : t;
+        if (bounceNotes < BOUNCE_NOTES_PER_STEP && anchor) {
+          bounceNotes++;
+          ctx.noteBounce?.(anchor); // --- bounce-math --- a landing is the orb's bounce
+        }
+      }
+      const u = x - Math.floor(x);
+      height[i] = a[i] * 4 * u * (1 - u);
+    }
+    v.timeMs = t * 1000;
+    v.landedStep = landed;
+    v.moving = n;
+    v.resolve = n > 0 ? landed / n : 0;
+    if (landed > 0) this.queueSound(t);
+    // The IN PHASE moments: every orb on the slab at once at the cycle's multiples (the polyrhythm on).
+    const cycleSec = v.cycleMs / 1000;
+    if (v.settings.poly && cycleSec > 0) {
+      const ends = cycleEndsUpTo(t, cycleSec);
+      if (ends > this.cycleEnds) {
+        this.cycleEnds = ends;
+        v.resolves = ends;
+        v.lastResolveMs = ends * v.cycleMs;
+        if (v.resolveAtMs < 0) v.resolveAtMs = v.cycleMs;
+        this.queueInPhase();
+      }
+    }
+    // The metronome: a beat every 60 / BPM s from the downbeat at 0 – and a click while its volume is up.
+    if (v.metroOn && v.beatMs > 0) {
+      const beats = beatsUpTo(t, v.beatMs / 1000);
+      if (beats > this.beatCount) {
+        const from = this.beatCount;
+        this.beatCount = beats;
+        v.beatsSoFar = beats;
+        const volume = v.settings.click;
+        if (volume > 0) {
+          for (let b = Math.max(from, beats - MAX_CLICKS_PER_STEP); b < beats; b++) {
+            const inBar = b % Math.max(1, v.beats);
+            this.priority.push({ type: "hit", wallIndex: 0, frequency: clickFrequency(inBar), level: clickLevel(inBar, volume), accent: inBar === 0, orb: "click", melody: false });
+            v.clicks++;
+          }
+        }
+      }
+    }
+    // The end: only the clip ends a rhythm field – on an IN PHASE moment ("phase") or between two ("time").
+    const maxSec = v.settings.maxSec;
+    if (maxSec > 0 && t >= maxSec - 1e-9) this.finish(t, inPhaseBannerOn(v, t * 1000) ? "phase" : "time");
+  }
+
+  /** The IN PHASE chord – every orb landing at once – in the field's sound (accented; never dropped by the frame cap). */
+  private queueInPhase() {
+    const s = this.view.settings;
+    if (s.sound === "silent") return;
+    const octave = s.sound === "metal" ? 2 : s.sound === "sleep" ? 0 : 1;
+    const chord = inPhaseDegrees(orbScaleIntervals(s.scale).length).map((d) => orbPitchHz(d, -1, s.scale, s.rootNote, octave));
+    const event: SoundEvent = { type: "hit", wallIndex: 0, frequency: chord[0], chord, level: 0.9, accent: true };
+    if (s.sound === "metal" || s.sound === "sleep") {
+      event.orb = s.sound;
+      event.melody = false;
+    }
+    this.priority.push(event);
+  }
+  // --- end orb-rhythm ---
 
   onWallHit() {}
   onGapPass() {

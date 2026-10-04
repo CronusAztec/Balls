@@ -1756,6 +1756,21 @@ export class PhysicsEngine {
     return this.orbGridMode.getProgress();
   }
   // --- end orb-grid ---
+  // --- orb-rhythm ---
+  /**
+   * Time fed to `update()` that no fixed step has used yet (ms): with the page's leftover it places a frame between two steps
+   * (`orbRenderTimeMs()` – Bouncing Orbs draws its analytic heights there, so the motion is smooth at any frame rate).
+   */
+  getStepRemainderMs() {
+    return this.timeAccumulator;
+  }
+  /** A Bouncing Orbs rhythm field has been in phase this run (every orb on the slab at once, a cycle's end): the captions' answer. */
+  isOrbInPhase() {
+    if (this.currentMode !== this.orbGridMode) return false;
+    const v = this.orbGridMode.getView();
+    return v.model === "rhythm" && v.resolves > 0;
+  }
+  // --- end orb-rhythm ---
   // --- fight-league ---
   isFightLeagueMode() {
     return this.currentMode === this.fightLeagueMode;

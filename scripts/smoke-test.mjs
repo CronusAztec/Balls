@@ -10478,7 +10478,8 @@ const bdInstrument = () =>
 {
   const block = page.getByTestId("orb-grid");
   const ogSlider = (label) => block.locator(`input[aria-label="${label}"]`);
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=44&ogR=43&ogA=hex&ogD=corner&ogSnd=sleep&ogM=metallic&ogO=1&ogE=40`, { waitUntil: "networkidle" });
+  // (--- orb-rhythm --- the decay model: its Variation block holds the distribution and the release)
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay&ogC=44&ogR=43&ogA=hex&ogD=corner&ogSnd=sleep&ogM=metallic&ogO=1&ogE=40`, { waitUntil: "networkidle" });
   {
     const values = { ogC: await ogSlider("Columns").inputValue(), ogR: await ogSlider("Rows").inputValue(), ogE: await ogSlider("Camera Elevation").inputValue() };
     const hex = await block.getByTestId("orb-grid-arrangement-hex").getAttribute("aria-pressed");
@@ -10528,8 +10529,9 @@ const orbHudPixels = () =>
     return n;
   });
 {
-  // A 1089-orb run (the defaults): the counters advance and the orb count is drawn at the top of the square.
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid`, { waitUntil: "networkidle" });
+  // A 1089-orb run (the defaults): the counters advance and the orb count is drawn at the top of the square. (--- orb-rhythm ---
+  // the decay model, whose orbs come to rest; the rhythm model – the default – has its own checks at the end)
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(1500);
   const a = await canvasData();
@@ -10540,7 +10542,7 @@ const orbHudPixels = () =>
   // (the first orbs come to rest 5–7 s in, by the seed's tempo: the least bouncy settle first)
   await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogSettled) > 0, null, { timeout: 15000 }).catch(() => {});
   const c = await canvasData();
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogHud=0`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay&ogHud=0`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(1500);
   const noHud = await orbHudPixels();
@@ -10559,18 +10561,21 @@ const orbHudPixels = () =>
   const pressed = await page.getByTestId("og-preset-corner").getAttribute("aria-pressed");
   const query = new URLSearchParams(page.url().split("?")[1] || "");
   await page.getByRole("button", { name: /Start Simulator/ }).click();
-  const resolved = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogResolveAt) >= 0, null, { timeout: 20000 }).then(() => true).catch(() => false);
+  // (--- orb-rhythm --- the preset plays the rhythm model – corner to corner: in phase at the end of its 30 s cycle – so at 8x)
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const resolved = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogResolveAt) >= 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
   const data = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-orbgrid-corner.png") });
   check(
     "orbGrid: the corner-to-corner preset loads (44 × 43) and its field falls into phase on its pattern clock",
-    query.get("mode") === "orbGrid" && query.get("ogC") === "44" && query.get("ogR") === "43" && query.get("ogD") === "corner" && pressed === "true" && resolved && data.ogOrbs === "1892" && Number(data.ogResolves) >= 1 && Math.abs(Number(data.ogResolveAt) - Number(data.ogResolvePlan)) <= 300,
+    query.get("mode") === "orbGrid" && query.get("ogC") === "44" && query.get("ogR") === "43" && query.get("ogD") === "corner" && query.get("ogRhythm") === "corner" /* --- orb-rhythm --- */ && pressed === "true" && resolved && data.ogOrbs === "1892" && Number(data.ogResolves) >= 1 && Math.abs(Number(data.ogResolveAt) - Number(data.ogResolvePlan)) <= 300,
     `(${query.toString()}, pressed=${pressed}, orbs ${data.ogOrbs}, resolve at ${data.ogResolveAt} ms, planned ${data.ogResolvePlan} ms, resolves ${data.ogResolves})`,
   );
 }
 {
   // The octagons preset: released outside in – the released orbs always fill whole rings from the outermost one inwards.
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=52&ogR=26&ogA=octagons&ogL=outside-in&ogT=0.12&ogD=centre&ogB=0.9&ogP=rings&ogF=plate&ogE=38`, { waitUntil: "networkidle" });
+  // (--- orb-rhythm --- the decay model: the rhythm model's orbs all bounce from the start)
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay&ogC=52&ogR=26&ogA=octagons&ogL=outside-in&ogT=0.12&ogD=centre&ogB=0.9&ogP=rings&ogF=plate&ogE=38`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   const samples = await page.evaluate(
     () =>
@@ -10646,8 +10651,9 @@ const orbSoundRun = async (query, ms) => {
   );
 }
 {
-  // The finder: the seed moves the run length (its tempo) – a found 30 s seed settles when it promised.
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid`, { waitUntil: "networkidle" });
+  // The finder: the seed moves the run length (its tempo) – a found 30 s seed settles when it promised. (--- orb-rhythm --- the
+  // decay model: a rhythm field bounces forever)
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
   const readyText = ready ? await page.getByText(/Ready to start simulation for/).first().innerText() : "";
@@ -10707,7 +10713,7 @@ const orbBannerPixels = () =>
   // at 30.6 s): the search passes it over and finds the next seed (2 tested), still bouncing at 30 s. A change that moves
   // these runs needs a new base: a seed at rest 28.5–30 s in, followed by one still bouncing at 30 s (tests/orbGrid.test.ts
   // runs such fields headless).
-  const query = "mode=orbGrid&ogC=12&ogR=12&ogH=0.44";
+  const query = "mode=orbGrid&ogModel=decay&ogC=12&ogR=12&ogH=0.44"; // (--- orb-rhythm --- the decay model: Never settles is its own)
   const NS_BASE = 28;
   const playToEnd = async () => {
     await page.getByRole("button", { name: /Start Simulator/ }).click();
@@ -10764,7 +10770,7 @@ const orbBannerPixels = () =>
   // --- review fix (orb-grid) --- A change of the field drops a found seed and its promise: after Find 30s Simulation on a
   // 12 × 12 field, 14 columns (typed into the number field) restart the run unpinned, and "Found! …", "Ready to start
   // simulation for …" and the do-not-change-settings warning go with the seed.
-  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay&ogC=12&ogR=12`, { waitUntil: "networkidle" }); // (--- orb-rhythm --- the decay model's run-length search)
   await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   const ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
   const promise = async () => ({
@@ -10796,8 +10802,9 @@ const orbBannerPixels = () =>
     await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogFinished === "1", null, { timeout: 60000 }).catch(() => {});
     return canvasData();
   };
-  const metal = await runOut("mode=orbGrid&ogC=25&ogR=21&ogM=metallic&ogSnd=metal&ogF=plate&ogP=ball&ogD=ripple&seed=5");
-  const rows = await runOut("mode=orbGrid&ogD=rows&ogRes=0&seed=7");
+  // (--- orb-rhythm --- the decay model's detector: a rhythm field is in phase exactly at its cycle's ends)
+  const metal = await runOut("mode=orbGrid&ogModel=decay&ogC=25&ogR=21&ogM=metallic&ogSnd=metal&ogF=plate&ogP=ball&ogD=ripple&seed=5");
+  const rows = await runOut("mode=orbGrid&ogModel=decay&ogD=rows&ogRes=0&seed=7");
   check(
     "orbGrid: in-phase moments count only while most of the field bounces (Metallic 525: once, on its plan; an untuned rows field: never)",
     metal.ogFinished === "1" && metal.ogOrbs === "525" && metal.ogResolves === "1" && Math.abs(Number(metal.ogResolveAt) - Number(metal.ogResolvePlan)) <= 300 && rows.ogFinished === "1" && rows.ogOrbs === "1089" && rows.ogResolves === "0" && rows.ogResolveAt === "-1",
@@ -11947,6 +11954,245 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
   check("free watermark: no page errors in the watermark checks", wmHard.length === 0, wmHard.length ? `\n   ${wmHard.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end free-watermark ---
+
+// --- orb-rhythm ---
+// Bouncing Orbs' rhythm model (the default since the orb-rhythm rework): a 12 × 12 field is the rhythm model and moves fluidly
+// – every frame drawn at its own simulation time (data-og-frame-t advancing exactly with the frame's rAF time, data-og-frame-ts),
+// the drawn heights of four orbs (data-og-sample, read frame by frame) off the straight line through their neighbours by under
+// 2 % of their apex (no steps; the landings aside) –; the IN PHASE banner at the end of a 3 s cycle on its dark backdrop; the
+// metronome bar drawn at the top of the square and a click on every beat (data-og-clicks = the beats so far, a woodblock tick
+// started for each, the downbeats accented); the melody's tones (data-og-melody-notes, every pitch a note of the scale);
+// the new keys' URL round trip through the panel and into the run; Find Simulation's In phase at answered at once by the
+// cycle maths and kept by the run; and the decay model still ending ALL SETTLED. (The frame rates of 1089 orbs – the page and
+// a 1080×1920 recording – and of 4900 orbs are the Bouncing Orbs checks above, which play the rhythm model now.)
+/** Started oscillators (frequency, type) since the call, logged in the page as window.__orOsc. */
+const orbOscillators = () =>
+  page.evaluate(() => {
+    const log = [];
+    window.__orOsc = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 1) log.push({ f: this.frequency.value, type: this.type });
+      return start.apply(this, arguments);
+    };
+  });
+/** Bright pixels (any channel ≥ 200) of the canvas inside a world-px box "x,y,w,h" (the data-og-metro-box). */
+const orbBoxPixels = (box) =>
+  page.evaluate((b) => {
+    const canvas = document.querySelector("main canvas");
+    const world = (canvas?.dataset.world ?? "").split("x").map(Number);
+    const r = (b ?? "").split(",").map(Number);
+    if (!canvas || r.length !== 4 || !(r[2] > 0) || !(world[0] > 0)) return -1;
+    const k = canvas.width / world[0];
+    const data = canvas.getContext("2d").getImageData(Math.round(r[0] * k), Math.round(r[1] * k), Math.max(1, Math.round(r[2] * k)), Math.max(1, Math.round(r[3] * k))).data;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) if (Math.max(data[i], data[i + 1], data[i + 2]) >= 200) n++;
+    return n;
+  }, box);
+{
+  // Fluid: a 12 × 12 field, every drawn frame for 3 s (a MutationObserver on data-og-frame). The verdict is the frames' own (the
+  // simulation time moved on exactly by the frame's time, never stood still, the heights on a smooth arc); how many frames the
+  // machine gives the check to measure is its timing part (a busy machine is measured again, or left inconclusive).
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(400);
+  const fluidity = async () => {
+    const frames = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const canvas = document.querySelector("main canvas");
+          const out = [];
+          const read = () => {
+            const d = canvas.dataset;
+            const f = Number(d.ogFrame);
+            if (out.length && out[out.length - 1][0] === f) return;
+            out.push([f, Number(d.ogFrameTs), Number(d.ogFrameT), (d.ogSample || "").split(",").map(Number)]);
+          };
+          const observer = new MutationObserver(read);
+          observer.observe(canvas, { attributes: true, attributeFilter: ["data-og-frame"] });
+          setTimeout(() => {
+            observer.disconnect();
+            resolve(out);
+          }, 3000);
+        }),
+    );
+    const valid = frames.filter(([f, ts, t, h]) => Number.isFinite(f) && Number.isFinite(ts) && Number.isFinite(t) && h.length === 4 && h.every(Number.isFinite));
+    const apex = [0, 1, 2, 3].map((j) => Math.max(0, ...valid.map((v) => v[3][j])));
+    const r = { valid: valid.length, worst: 0, triples: 0, clockOff: 0, pairs: 0, stalls: 0 };
+    for (let k = 1; k < valid.length; k++) {
+      const [f0, ts0, t0] = valid[k - 1];
+      const [f1, ts1, t1] = valid[k];
+      if (f1 !== f0 + 1 || t0 <= 50) continue;
+      // a frame is drawn at its own time: the simulation time moved on exactly by the frame's own time (1×; under 100 ms)
+      if (ts1 - ts0 < 100) {
+        r.clockOff = Math.max(r.clockOff, Math.abs(t1 - t0 - (ts1 - ts0)));
+        r.pairs++;
+        if (!(t1 > t0)) r.stalls++;
+      }
+    }
+    for (let k = 1; k + 1 < valid.length; k++) {
+      const [f0, , t0, h0] = valid[k - 1];
+      const [f1, , t1, h1] = valid[k];
+      const [f2, , t2, h2] = valid[k + 1];
+      if (f1 !== f0 + 1 || f2 !== f1 + 1 || t0 <= 50) continue;
+      const d1 = t1 - t0;
+      const d2 = t2 - t1;
+      // (two frames of at most 25 ms: a smooth arc's own curvature over longer gaps alone could reach 2 %)
+      if (!(d1 > 0 && d2 > 0) || d1 > 25 || d2 > 25) continue;
+      for (let j = 0; j < 4; j++) {
+        // (all three above a fifth of the apex: no landing between them – a landing turns the orb round, that is no step)
+        if (!(apex[j] > 0) || Math.min(h0[j], h1[j], h2[j]) < 0.2 * apex[j]) continue;
+        const line = h0[j] + ((h2[j] - h0[j]) * d1) / (d1 + d2);
+        r.worst = Math.max(r.worst, Math.abs(h1[j] - line) / apex[j]);
+        r.triples++;
+      }
+    }
+    return r;
+  };
+  const smooth = (r) => r.clockOff < 0.05 && r.stalls === 0 && r.worst < 0.02;
+  const measured = (r) => r.valid >= 60 && r.pairs >= 40 && r.triples >= 100;
+  const note = (r) => `${r.valid} frames in 3 s, ${r.pairs} frame pairs: the simulation clock off the frames' own by at most ${r.clockOff.toFixed(3)} ms, ${r.stalls} stalls; ${r.triples} triples, the worst ${(100 * r.worst).toFixed(2)} % of the apex`;
+  const first = await fluidity();
+  const data = await canvasData();
+  await timingCheck(
+    "orbGrid rhythm (the default): a 12 × 12 field moves fluidly – every frame at its own time, the drawn heights off a smooth arc by under 2 % of the apex",
+    data.ogModel === "rhythm" && data.ogSettled === "0" && data.ogCycle === "30000" && data.ogPeriod === "30000" && data.ogGroups === "23" && smooth(first),
+    measured(first),
+    `(${data.ogModel}, ${note(first)}; cycle ${data.ogCycle} ms, in phase every ${data.ogPeriod} ms, ${data.ogGroups} groups, ${data.ogSettled} settled${loadNote()})`,
+    async () => {
+      const again = await fluidity();
+      return { timingOk: measured(again) && smooth(again), extra: `(${note(again)})` };
+    },
+  );
+}
+{
+  // The IN PHASE banner at the end of a 3 s cycle: every orb on the slab at once, the lime title and white subline on a dark backdrop.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12&ogCycle=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const shown = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogInPhase === "1", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const banner = await orbBannerPixels();
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid-in-phase.png") });
+  check(
+    "orbGrid rhythm: the IN PHASE banner shows at the end of the first cycle (3 s) on a dark backdrop",
+    shown && data.ogResolves === "1" && data.ogResolveAt === "3000" && data.ogCycle === "3000" && data.ogPeriod === "3000" && data.ogFinished === "0" && !!banner && banner.backdropMax <= 110 && banner.white >= 20,
+    `(shown=${shown}, resolves ${data.ogResolves} at ${data.ogResolveAt} ms, cycle ${data.ogCycle} ms; ${banner ? `backdrop ${banner.box} (world px), brightest under it ${banner.backdropMax}, white subline pixels ${banner.white}` : `no banner ("${data.ogBanner ?? ""}")`})`,
+  );
+}
+{
+  // The metronome: the bar swinging at the top of the square, a click on every beat (the downbeat accented, a higher tick).
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12&ogMetro=bar&ogClick=0.6`, { waitUntil: "networkidle" });
+  await orbOscillators();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogBeat) >= 8, null, { timeout: 15000 }).catch(() => {});
+  const data = await canvasData();
+  const osc = await page.evaluate(() => window.__orOsc ?? []);
+  const withBar = await orbBoxPixels(data.ogMetroBox);
+  await page.screenshot({ path: path.join(outDir, "sim-orbgrid-metronome.png") });
+  // the same box over the same field without a metronome
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const plain = await canvasData();
+  const withoutBar = await orbBoxPixels(data.ogMetroBox);
+  const ticks = osc.filter((o) => o.type === "sine" && (Math.abs(o.f - 1250) < 1 || Math.abs(o.f - 1900) < 1));
+  const accents = ticks.filter((o) => Math.abs(o.f - 1900) < 1).length;
+  const beats = Number(data.ogBeat);
+  const box = (data.ogMetroBox ?? "").split(",").map(Number);
+  const world = (data.world ?? "").split("x").map(Number);
+  const side = Math.min(world[0], world[1]);
+  const top = world[1] / 2 - side / 2;
+  check(
+    "orbGrid rhythm: the metronome bar swings at the top of the square and a click sounds on every beat, the downbeat accented",
+    plain.ogMetro === "off" && !plain.ogMetroBox && data.ogMetro === "bar" && data.ogBpm === "120" && data.ogCycle === "32000" && box.length === 4 && box[3] > 0 && box[1] <= top + 0.05 * side && box[1] + box[3] <= top + 0.35 * side && withBar > withoutBar + 30 && beats >= 8 && beats === Math.floor(Number(data.ogTime) / 500 + 1e-6) + 1 && Number(data.ogClicks) === beats && Math.abs(ticks.length - beats) <= 1 && Math.abs(accents - Math.ceil(beats / 4)) <= 1,
+    `(metro ${data.ogMetro} at ${data.ogBpm} BPM, cycle ${data.ogCycle} ms, box ${data.ogMetroBox} (world ${data.world}): ${withBar} bright pixels with the bar, ${withoutBar} without; ${beats} beats by ${data.ogTime} ms, ${data.ogClicks} clicks counted, ${ticks.length} ticks started (${accents} accented))`,
+  );
+}
+{
+  // The melody: every group sings its own pitch of the scale (a 12 × 12 pendulum wave in rows: 12 groups).
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12&ogGroup=rows&ogMelody=1`, { waitUntil: "networkidle" });
+  await orbOscillators();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(4000);
+  const data = await canvasData();
+  const osc = await page.evaluate(() => window.__orOsc ?? []);
+  const notes = osc.map((o) => Math.round(12 * Math.log2(o.f / 440) + 69));
+  const inScale = notes.every((n) => [0, 2, 4, 7, 9].includes(((n % 12) + 12) % 12));
+  const melody = Number(data.ogMelodyNotes);
+  check(
+    "orbGrid rhythm: with Melody on every group sings its own pitch of the scale and data-og-melody-notes counts the tones",
+    data.ogGroups === "12" && melody >= 20 && melody === Number(data.ogNotes) && osc.length >= Math.min(melody, 20) && inScale && new Set(notes).size >= 6,
+    `(${data.ogGroups} groups, ${melody} melody notes of ${data.ogNotes}, ${osc.length} oscillators, notes ${[...new Set(notes)].sort((x, y) => x - y).join(",")}, in scale=${inScale})`,
+  );
+}
+{
+  // The new keys: a link → the panel and the run; the panel → the link.
+  const link = "mode=orbGrid&ogC=10&ogR=10&ogRhythm=3-4-5&ogGroup=rings&ogMetro=dot&ogBpm=90&ogBeats=3&ogBars=4&ogClick=0.4&ogMelody=1&ogEq=1&ogSquash=0";
+  await page.goto(`${BASE}/en/simulator/?${link}`, { waitUntil: "networkidle" });
+  const block = page.getByTestId("orb-rhythm");
+  const panel = {
+    rhythm: await page.getByTestId("orb-rhythm-preset").inputValue({ timeout: 15000 }).catch(() => ""),
+    group: await page.getByTestId("orb-rhythm-group").inputValue({ timeout: 5000 }).catch(() => ""),
+    dot: await page.getByTestId("orb-rhythm-metro-dot").getAttribute("aria-pressed", { timeout: 5000 }).catch(() => ""),
+    bpm: await block.locator('input[aria-label="Tempo"]').first().inputValue({ timeout: 5000 }).catch(() => ""),
+    beats: await block.locator('input[aria-label="Beats per Bar"]').first().inputValue({ timeout: 5000 }).catch(() => ""),
+    bars: await block.locator('input[aria-label="Bars per Cycle"]').first().inputValue({ timeout: 5000 }).catch(() => ""),
+    melody: await block.getByRole("switch", { name: switchName("Melody") }).getAttribute("aria-checked", { timeout: 5000 }).catch(() => ""),
+    equal: await block.getByRole("switch", { name: switchName("Equal Heights") }).getAttribute("aria-checked", { timeout: 5000 }).catch(() => ""),
+    squash: await block.getByRole("switch", { name: switchName("Landing Squash") }).getAttribute("aria-checked", { timeout: 5000 }).catch(() => ""),
+  };
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(800);
+  const run = await canvasData();
+  await page.getByTestId("orb-rhythm-preset").selectOption("euclid").catch(() => {});
+  await page.getByTestId("orb-rhythm-metro-bar").click({ timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "orbGrid rhythm: the rhythm and metronome keys travel through a link into the panel and the run, and back into the link",
+    panel.rhythm === "3-4-5" && panel.group === "rings" && panel.dot === "true" && panel.bpm === "90" && panel.beats === "3" && panel.bars === "4" && panel.melody === "true" && panel.equal === "true" && panel.squash === "false" && run.ogMetro === "dot" && run.ogBpm === "90" && run.ogBeats === "3" && run.ogCycle === "8000" && run.ogPeriod === "2000" && query.get("ogRhythm") === "euclid" && query.get("ogMetro") === "bar" && query.get("ogBpm") === "90" && query.get("ogBars") === "4" && query.get("ogClick") === "0.4" && query.get("ogMelody") === "1" && query.get("ogEq") === "1" && query.get("ogSquash") === "0" && query.get("ogGroup") === "rings",
+    `(panel ${JSON.stringify(panel)}; run: metro ${run.ogMetro} at ${run.ogBpm} BPM, ${run.ogBeats} beats, cycle ${run.ogCycle} ms, in phase every ${run.ogPeriod} ms; link after Euclidean + bar: ${query.toString()})`,
+  );
+}
+{
+  // Find Simulation: In phase at 30 s, answered at once by the cycle maths (any seed is in phase at every cycle's end), kept by the run.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogC=12&ogR=12`, { waitUntil: "networkidle" });
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("resolves-at", { timeout: 5000 }).catch(() => {});
+  await page.locator("#find-escape-at").evaluate(setRangeValue, "30").catch(() => {});
+  const started = Date.now();
+  await page.getByRole("button", { name: /Find a Run in Phase at 30\.0s/ }).click({ timeout: 10000 }).catch(() => {});
+  const found = await page.getByText(/Found! In phase at 30\.0s/).first().waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  const took = Date.now() - started;
+  let data = {};
+  if (found) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ogResolves) >= 1, null, { timeout: 30000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "orbGrid rhythm: Find Simulation answers In phase at 30 s at once by the cycle maths, and the run is in phase then",
+    options.join(",") === "resolves-at" && found && took < 5000 && data.ogResolveAt === "30000" && data.ogModel === "rhythm",
+    `(outcomes ${options.join(",")}, found=${found} in ${took} ms, the run in phase at ${data.ogResolveAt} ms)`,
+  );
+}
+{
+  // The decay model is still there: its orbs lose energy and the run ends ALL SETTLED.
+  await page.goto(`${BASE}/en/simulator/?mode=orbGrid&ogModel=decay&ogC=8&ogR=8&ogB=0.6`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogFinished === "1", null, { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const data = await canvasData();
+  const banner = await orbBannerPixels();
+  check(
+    "orbGrid: the decay model still settles every orb and ends with ALL SETTLED",
+    data.ogModel === "decay" && data.ogFinished === "1" && data.ogFinish === "settled" && data.ogSettled === data.ogOrbs && data.ogOrbs === "64" && data.ogInPhase === "0" && !!banner && banner.white >= 20,
+    `(${data.ogModel}: ${data.ogFinish} at ${data.ogFinishedMs} ms, ${data.ogSettled} of ${data.ogOrbs} at rest, banner ${banner ? banner.box : "none"})`,
+  );
+}
+// --- end orb-rhythm ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");

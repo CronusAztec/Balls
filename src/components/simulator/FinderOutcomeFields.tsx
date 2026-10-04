@@ -268,6 +268,7 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
     case "never-settles":
       return t("Rigged.missNeverSettles", { duration: result.duration.toFixed(1), seeds: result.seedsTested });
     case "resolves-at":
+      if (result.orbCycle !== undefined) return orbCycleText(t, result, c); // --- orb-rhythm --- (the cycle maths' answer: no seeds searched)
       return result.resolveAt === undefined ? t("Rigged.missNoResolve", { seeds: result.seedsTested }) : t("Rigged.missResolvesAt", { time: result.resolveAt.toFixed(1), seeds: result.seedsTested });
     case "double-ko": // --- fight-league ---
       return t("Rigged.missDoubleKo", { seeds: result.seedsTested });
@@ -293,6 +294,7 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
     case "never-settles":
       return t("Rigged.overlayNeverSettles", { tested: result.seedsTested, closest: result.duration.toFixed(1), target: c.duration });
     case "resolves-at":
+      if (result.orbCycle !== undefined) return orbCycleText(t, result, c); // --- orb-rhythm ---
       return result.resolveAt === undefined
         ? t("Rigged.overlayNoResolve", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
         : t("Rigged.overlayResolvesAt", { tested: result.seedsTested, closest: result.resolveAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
@@ -304,6 +306,19 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return null;
   }
 }
+
+// --- orb-rhythm ---
+/**
+ * A rhythm field's "In phase at" that missed – answered by the cycle maths, not by seeds: the field is in phase at every
+ * multiple of its cycle (the nearest one named, and the cycle that would put one on the target), or never with the
+ * polyrhythm off.
+ */
+export function orbCycleText(t: Translate, result: FinderResult, c: OutcomeTextContext): string {
+  const cycle = result.orbCycle ?? NaN;
+  if (!Number.isFinite(cycle) || result.resolveAt === undefined) return t("Rigged.missResolvesNever");
+  return t("Rigged.missResolvesCycle", { cycle: cycle.toFixed(1), time: result.resolveAt.toFixed(1), target: c.escapeAt.toFixed(1) });
+}
+// --- end orb-rhythm ---
 
 /** The progress line of an outcome search (the closest run so far); null for a duration search or when there is nothing to say yet. */
 export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | null, progress: FinderProgress): string | null {

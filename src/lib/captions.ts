@@ -638,6 +638,8 @@ export interface CaptionEngineView {
   /** Shatter builds its walls out of segments with hit points (see `CaptionTracker.update()`). */
   isShatterMode(): boolean;
   getShatterSegments(): readonly (readonly { hp: number }[])[];
+  /** --- orb-rhythm --- A Bouncing Orbs rhythm field has been in phase this run (the question's answer pops at its IN PHASE moment). */
+  isOrbInPhase?(): boolean;
 }
 
 export interface CaptionRunState {
@@ -714,6 +716,8 @@ export class CaptionTracker {
         }
       }
     }
+    // --- orb-rhythm --- a Bouncing Orbs rhythm field never ends by itself: its answer comes with the first IN PHASE moment
+    if (s.revealAtSec < 0 && engine.isOrbInPhase?.() === true) s.revealAtSec = s.timeSec;
     if (s.revealAtSec < 0 && (s.finished || s.escaped)) s.revealAtSec = s.timeSec;
     return s;
   }
